@@ -51,6 +51,8 @@ class Cosmos3Model(WorldModel):
         self._socket: socket.socket | None = None
         self._output = None
         self._output_ready = None
+        # Recorded after each copy out of the service's buffer, which the next request may overwrite.
+        self._output_copied: torch.cuda.Event | None = None
 
     def spec(self) -> WorldModelSpec:
         """Read the chunk length, frame rate and image size from the service."""
@@ -172,6 +174,8 @@ class Cosmos3Model(WorldModel):
         if self._socket is None:
             raise RuntimeError("The Cosmos world-model session is closed or failed; reset the environments again.")
         try:
+            if self._output_copied is not None:
+                self._output_copied.synchronize()
             send_message(self._socket, message, [array])
             reply, arrays = receive_message(self._socket)
             check_reply(reply)
@@ -182,7 +186,11 @@ class Cosmos3Model(WorldModel):
                     raise RuntimeError("The Cosmos world model sent frames through the socket in a CUDA IPC session.")
                 self._output_ready.wait()
                 # From the service's GPU the frames copy directly to this one; the buffer is reused for the next chunk.
-                return self._output.tensor.to(self.device, copy=True)
+                frames = self._output.tensor.to(self.device, copy=True)
+                if self._output_copied is None:
+                    self._output_copied = torch.cuda.Event()
+                self._output_copied.record(torch.cuda.current_stream(self.device))
+                return frames
             if len(arrays) != 1 or arrays[0].dtype != np.uint8:
                 raise RuntimeError("The Cosmos world model must reply with one uint8 frame array.")
             return torch.from_numpy(arrays[0]).to(self.device)
@@ -195,6 +203,9 @@ class Cosmos3Model(WorldModel):
 
         The mapping goes first, so the service can free the buffer once the session closes or the connection ends.
         """
+        if self._output_copied is not None:
+            self._output_copied.synchronize()
+            self._output_copied = None
         for shared in (self._output, self._output_ready):
             if shared is not None:
                 shared.close()

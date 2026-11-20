@@ -148,6 +148,8 @@ class Cosmos3Session:
         self.seeds = [0] * num_envs
         self.elapsed = [0] * num_envs
         self.native = None
+        # The native session's start image; the Framework opens it from a file.
+        self._native_resources = ExitStack()
 
     def reset(self, env_ids: list[int], images: np.ndarray, prompts: list[str], seeds: list[int]) -> None:
         """Start the selected environments from their start images ``(K, H, W, 3)``."""
@@ -156,17 +158,23 @@ class Cosmos3Session:
         settings = self.model.settings
         with torch.inference_mode():
             if settings.mode == "session":
-                if self.native is not None:
-                    self.native.close()
-                self.native = self.model.pipe.open_bimanual_session(
-                    vision_path=_write_png(images[0]),
-                    prompt=prompts[0],
-                    domain_name=settings.domain_name,
-                    fps=settings.fps,
-                    seed=seeds[0],
-                    resolution=settings.resolution,
-                )
-                frames = _pixels(self.native.observation)[:, -1]
+                self.close()
+                try:
+                    directory = self._native_resources.enter_context(
+                        tempfile.TemporaryDirectory(prefix="cosmos3-start-")
+                    )
+                    self.native = self.model.pipe.open_bimanual_session(
+                        vision_path=_write_png(images[0], Path(directory) / "start.png"),
+                        prompt=prompts[0],
+                        domain_name=settings.domain_name,
+                        fps=settings.fps,
+                        seed=seeds[0],
+                        resolution=settings.resolution,
+                    )
+                    frames = _pixels(self.native.observation)[:, -1]
+                except Exception:
+                    self.close()
+                    raise
             else:
                 frames = torch.from_numpy(np.ascontiguousarray(images))
         for env, frame, prompt, seed in zip(env_ids, frames, prompts, seeds, strict=True):
@@ -205,9 +213,12 @@ class Cosmos3Session:
         return frames
 
     def close(self) -> None:
-        if self.native is not None:
-            self.native.close()
+        try:
+            if self.native is not None:
+                self.native.close()
+        finally:
             self.native = None
+            self._native_resources.close()
 
     def _batch(self, condition: torch.Tensor, controls: np.ndarray, prompt: str) -> dict:
         import torch
@@ -256,12 +267,11 @@ def _condition(frame: torch.Tensor) -> torch.Tensor:
     return frame.permute(2, 0, 1)[:, None].cpu()
 
 
-def _write_png(image: np.ndarray) -> Path:
+def _write_png(image: np.ndarray, path: Path) -> Path:
     """Write a start image for the Framework's native session, which opens it from a file."""
     import torch
     from torchvision.io import write_png
 
-    path = Path(tempfile.mkdtemp(prefix="cosmos3-start-")) / "start.png"
     write_png(torch.from_numpy(np.ascontiguousarray(image)).permute(2, 0, 1), str(path))
     return path
 
