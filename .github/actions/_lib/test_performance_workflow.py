@@ -17,6 +17,8 @@ from pathlib import Path
 import yaml
 
 _WORKFLOW = Path(__file__).resolve().parents[2] / "workflows/build.yaml"
+_NIGHTLY_IMAGE_WORKFLOW = Path(__file__).resolve().parents[2] / "workflows/nightly-isaacsim-image.yml"
+_NIGHTLY_OVSTAGE_WORKFLOW = Path(__file__).resolve().parents[2] / "workflows/nightly-ovstage.yml"
 _RUN_CI_WORKFLOW = Path(__file__).resolve().parents[2] / "workflows/run-docker-ci.yml"
 
 
@@ -94,6 +96,22 @@ const AsyncFunction = Object.getPrototypeOf(async function() {}).constructor;
     stopped = subprocess.run(["bash", "-e", "-c", data["stop"]["run"]], capture_output=True, text=True)
     assert stopped.returncode != 0, "Unactivated PR explanation step exited successfully"
 
+    nightly_ovstage = yaml.safe_load(_NIGHTLY_OVSTAGE_WORKFLOW.read_text(encoding="utf-8"))
+    assert "schedule" in nightly_ovstage.get("on", nightly_ovstage.get(True, {}))
+    build_ovstage_with = next(
+        step["with"]
+        for step in jobs["test-rendering-correctness-kitless-ovstage"]["steps"]
+        if step.get("uses") == "./.github/actions/run-package-tests"
+    )
+    nightly_ovstage_with = next(
+        step["with"]
+        for step in nightly_ovstage["jobs"]["test-rendering-correctness-kitless-ovstage"]["steps"]
+        if step.get("uses") == "./.github/actions/run-package-tests"
+    )
+    shared_keys = build_ovstage_with.keys() - {"container-name", "test-node-ids-file", "test-node-ids-key"}
+    assert nightly_ovstage_with.keys() - {"container-name"} == shared_keys
+    assert {k: nightly_ovstage_with[k] for k in shared_keys} == {k: build_ovstage_with[k] for k in shared_keys}
+
 
 def test_run_docker_ci_command_options(tmp_path: Path) -> None:
     workflow = yaml.safe_load(_RUN_CI_WORKFLOW.read_text(encoding="utf-8"))
@@ -144,7 +162,11 @@ process.stdout.write(ok ? '1' : '0');
             args = sys.argv[1:]
             with log_path.open("a", encoding="utf-8") as fh:
                 fh.write(json.dumps(args) + "\\n")
-            if "repos/owner/lab/pulls/42" in args:
+            if "repos/owner/lab/pulls" in args and "GET" in args:
+                print("42")
+            elif "repos/owner/lab/pulls/42" in args and "PATCH" in args:
+                print("https://github.com/owner/lab/pull/42")
+            elif "repos/owner/lab/pulls/42" in args:
                 jq_expr = args[args.index("--jq") + 1]
                 if "@tsv" in jq_expr:
                     print("author\\topen\\tabcdef1234567890")
@@ -220,6 +242,44 @@ process.stdout.write(ok ? '1' : '0');
             assert f"repos/owner/lab/issues/42/labels/{expected_label}" in label_calls[0]
             assert f"labels[]={expected_label}" in label_calls[1]
             assert f"repos/owner/lab/issues/42/labels/{expected_label}" in label_calls[2]
+
+    nightly_image = yaml.safe_load(_NIGHTLY_IMAGE_WORKFLOW.read_text(encoding="utf-8"))
+    open_pr_script = next(
+        step["run"]
+        for step in nightly_image["jobs"]["update-image-pin"]["steps"]
+        if step.get("name") == "Open or refresh the draft PR"
+    )
+    api_log.unlink(missing_ok=True)
+    nightly_run = subprocess.run(
+        ["bash", "-c", open_pr_script],
+        env={
+            **os.environ,
+            "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+            "GH_TOKEN": "token",
+            "REPOSITORY": "owner/lab",
+            "TARGET_BRANCH": "main",
+            "UPDATE_BRANCH": "ci/nightly-isaacsim-image-update",
+            "IMAGE": "nvcr.io/org/isaac-sim",
+            "SOURCE_TAG": "latest-release-6-3",
+            "CURRENT_PIN": "latest-release-6-3@sha256:0",
+            "CANDIDATE_PIN": "latest-release-6-3@sha256:1",
+            "DIGEST": "sha256:111111111111",
+            "BRANCH_CHANGED": "true",
+            "RUNNER_TEMP": str(tmp_path),
+            "GITHUB_STEP_SUMMARY": str(tmp_path / "github_summary"),
+        },
+        capture_output=True,
+        text=True,
+    )
+    assert nightly_run.returncode == 0, nightly_run.stdout + nightly_run.stderr
+    comment_call = next(
+        c for c in (json.loads(line) for line in api_log.read_text(encoding="utf-8").splitlines())
+        if "repos/owner/lab/issues/42/comments" in c
+    )
+    nightly_comment = next(arg.removeprefix("body=") for arg in comment_call if arg.startswith("body="))
+    assert gate_allows(True, nightly_comment), nightly_comment
+    code, output, outputs, _ = run_authorize(nightly_comment)
+    assert code == 0 and outputs["label"] == "ci:run-ovstage", (nightly_comment, output, outputs)
 
 
 def test_benchmark_cancellation(tmp_path: Path) -> None:
