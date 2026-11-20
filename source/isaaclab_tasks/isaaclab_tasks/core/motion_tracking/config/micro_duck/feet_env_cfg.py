@@ -10,9 +10,9 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.utils import configclass
 
 from ... import mdp
-from ...motion_tracking_env_cfg import RewardsCfg
+from ...motion_tracking_env_cfg import RewardsCfg, TerminationsCfg
 from .rewards import motion_feet_position_error_exp
-from .tracking_env_cfg import MicroDuckMotionTrackingEnvCfg, MicroDuckTrackingTerminationsCfg
+from .tracking_env_cfg import MicroDuckMotionTrackingEnvCfg
 
 
 @configclass
@@ -27,7 +27,7 @@ class MicroDuckFeetRewardsCfg(RewardsCfg):
 
 
 @configclass
-class MicroDuckFeetTerminationsCfg(MicroDuckTrackingTerminationsCfg):
+class MicroDuckFeetTerminationsCfg(TerminationsCfg):
     """Control foot tracking tolerance separately from head tracking tolerance."""
 
     feet_pos = DoneTerm(

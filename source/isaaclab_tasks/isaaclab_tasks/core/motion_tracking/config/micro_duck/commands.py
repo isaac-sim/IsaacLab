@@ -10,13 +10,11 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Literal
 
-import torch
-
-from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.utils import configclass
+from isaaclab.utils.datasets import MotionLoader
 
-from ...data.motion_loader import MotionLoader
-from ...mdp.commands import MotionCommand, MotionCommandCfg
+from ...mdp.commands import MotionCommand
+from ...mdp.commands_cfg import MotionCommandCfg
 from .motion_adapter import load_microduck_motion
 
 
@@ -51,9 +49,3 @@ class MicroDuckMotionCommandCfg(MotionCommandCfg):
     """Original normalized MicroDuck NPZs store link-origin world velocities."""
     start_at_first_frame: bool = False
     """Disable adaptive start-frame sampling for complete-clip evaluation."""
-
-
-def motion_complete(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:
-    """End a finite reference clip; configure this term as a timeout."""
-    command: MicroDuckMotionCommand = env.command_manager.get_term(command_name)
-    return command.time_steps >= command.motion.time_step_total - 1

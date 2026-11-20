@@ -8,7 +8,6 @@
 from dataclasses import MISSING
 
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.utils import configclass, replace
 from isaaclab.visualizers import VisualizerCfg
 
@@ -21,9 +20,8 @@ from ...motion_tracking_env_cfg import (
     CommandsCfg,
     MotionTrackingEnvCfg,
     MotionTrackingSceneCfg,
-    TerminationsCfg,
 )
-from .commands import MicroDuckMotionCommandCfg, motion_complete
+from .commands import MicroDuckMotionCommandCfg
 
 
 @configclass
@@ -89,20 +87,12 @@ class MicroDuckTrackingCommandsCfg(CommandsCfg):
 
 
 @configclass
-class MicroDuckTrackingTerminationsCfg(TerminationsCfg):
-    """Reset completed clips without counting them as tracking failures."""
-
-    motion_complete = DoneTerm(func=motion_complete, time_out=True, params={"command_name": "motion"})
-
-
-@configclass
 class MicroDuckMotionTrackingEnvCfg(MotionTrackingEnvCfg):
     """Whole-body tracking at 50 Hz using MicroDuck's 200 Hz BAM dynamics."""
 
     scene: MicroDuckTrackingSceneCfg = MicroDuckTrackingSceneCfg(num_envs=4096, env_spacing=1.0)
     actions: MicroDuckTrackingActionsCfg = MicroDuckTrackingActionsCfg()
     commands: MicroDuckTrackingCommandsCfg = MicroDuckTrackingCommandsCfg()
-    terminations: MicroDuckTrackingTerminationsCfg = MicroDuckTrackingTerminationsCfg()
     sim = MicroDuckVelocityFlatEnvCfg().sim
 
     def __post_init__(self):
@@ -116,7 +106,7 @@ class MicroDuckMotionTrackingEnvCfg(MotionTrackingEnvCfg):
         self.rewards.motion_body_pos.params["std"] = 0.05
         self.rewards.motion_body_lin_vel.params["std"] = 0.25
         self.rewards.self_collisions.weight = -1.0
-        self.rewards.self_collisions.params["force_threshold"] = 0.1
+        self.rewards.self_collisions.params["threshold"] = 0.1
         self.terminations.anchor_pos.params["threshold"] = 0.05
         self.terminations.ee_body_pos.params.update(
             threshold=0.06, body_names=["ankle_left", "ankle_right", "jaw_soft"]

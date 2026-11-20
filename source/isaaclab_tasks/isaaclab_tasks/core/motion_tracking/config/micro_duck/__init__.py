@@ -11,7 +11,7 @@ from . import agents
 
 gym.register(
     id="Isaac-Motion-Tracking-MicroDuck-Feet",
-    entry_point="isaaclab_tasks.core.motion_tracking.motion_tracking_env:MotionTrackingEnv",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.feet_env_cfg:MicroDuckFeetTrackingEnvCfg",
@@ -22,7 +22,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Motion-Tracking-MicroDuck-Feet-Head",
-    entry_point="isaaclab_tasks.core.motion_tracking.motion_tracking_env:MotionTrackingEnv",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.feet_head_env_cfg:MicroDuckFeetHeadTrackingEnvCfg",

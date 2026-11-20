@@ -10,9 +10,8 @@ from typing import Literal
 
 import torch
 
+from isaaclab.utils.datasets import MotionLoader
 from isaaclab.utils.math import quat_apply
-
-from ...data.motion_loader import MotionLoader
 
 
 def load_microduck_motion(
