@@ -10,12 +10,9 @@ import sys
 import types
 
 import pytest
-from isaaclab_isaacsim.physics import PhysxCfg
-from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
 import isaaclab.app.sim_launcher as sim_launcher
-from isaaclab.physics.physics_manager_cfg import PhysxAutoCfg
 from isaaclab.visualizers import ImageViewCfg, VisualizerCfg, WindowCfg
 
 
@@ -53,38 +50,19 @@ def test_window_size_is_unchanged_without_a_display_to_query(monkeypatch: pytest
 
 
 @pytest.mark.parametrize(
-    ("rtx_camera", "headless", "physics", "ovrtx_installed", "expected"),
+    ("backend_kwargs", "headless", "expected"),
     [
-        (True, False, PhysxCfg(), False, True),
-        (False, False, None, True, False),
-        (None, True, None, True, False),
-        (None, False, PhysxCfg(), True, False),
-        (None, False, OvPhysxCfg(), True, True),
-        (None, False, PhysxAutoCfg(isaacsim_physx=PhysxCfg(), ovphysx=OvPhysxCfg()), True, True),
-        (None, False, PhysxAutoCfg(isaacsim_physx=PhysxCfg()), True, False),
-        (None, False, None, False, False),
-        (None, False, None, True, True),
+        ({}, False, False),
+        ({"rtx_camera": False}, False, False),
+        ({"rtx_camera": True}, False, True),
+        ({"rtx_camera": True}, True, False),
     ],
-    ids=[
-        "explicit-on",
-        "explicit-off",
-        "recording-only-window",
-        "physx",
-        "ovphysx",
-        "physx-auto-with-ovphysx",
-        "physx-auto-kit-only",
-        "no-ovrtx-package",
-        "auto",
-    ],
+    ids=["default-off", "explicit-off", "explicit-on", "explicit-on-recording-only"],
 )
-def test_viewer_camera_is_declared_only_where_it_can_be_used(
-    monkeypatch: pytest.MonkeyPatch, rtx_camera, headless, physics, ovrtx_installed, expected
-) -> None:
-    monkeypatch.setattr(importlib.util, "find_spec", lambda name: object() if ovrtx_installed else None)
-    visualizer = VisualizerCfg(backend=NewtonGLBackendCfg(rtx_camera=rtx_camera), headless=headless)
-    simulations = [types.SimpleNamespace(physics=physics)]
+def test_viewer_camera_is_declared_only_when_requested(backend_kwargs, headless, expected) -> None:
+    visualizer = VisualizerCfg(backend=NewtonGLBackendCfg(**backend_kwargs), headless=headless)
 
-    assert sim_launcher._wants_rtx_viewer_camera(visualizer, simulations) is expected
+    assert sim_launcher._wants_rtx_viewer_camera(visualizer) is expected
 
 
 @pytest.mark.parametrize(
@@ -98,14 +76,14 @@ def test_starting_in_rtx_declares_the_viewer_camera_even_without_a_window_or_wit
     monkeypatch.setattr(importlib.util, "find_spec", lambda name: None)
     visualizer = VisualizerCfg(backend=NewtonGLBackendCfg(initial_renderer="rtx"), headless=headless, view=view)
 
-    assert sim_launcher._wants_rtx_viewer_camera(visualizer, [types.SimpleNamespace(physics=None)]) is True
+    assert sim_launcher._wants_rtx_viewer_camera(visualizer) is True
 
 
 def test_starting_in_rtx_without_the_viewer_camera_is_rejected() -> None:
     visualizer = VisualizerCfg(backend=NewtonGLBackendCfg(initial_renderer="rtx", rtx_camera=False))
 
     with pytest.raises(ValueError, match="requires rtx_camera"):
-        sim_launcher._wants_rtx_viewer_camera(visualizer, [types.SimpleNamespace(physics=None)])
+        sim_launcher._wants_rtx_viewer_camera(visualizer)
 
 
 def test_the_declared_viewer_camera_renders_only_when_its_view_is_shown() -> None:
@@ -118,3 +96,23 @@ def test_the_declared_viewer_camera_renders_only_when_its_view_is_shown() -> Non
 
     assert vars(scene_cfg)[name].render_on_demand
     assert visualizer.backend.rtx_camera_path == f"/World/{name}"
+
+
+@pytest.mark.parametrize(
+    ("rtx_camera", "launcher_args", "declared"),
+    [(None, {}, False), (None, {"rtx_viewer": True}, True), (False, {"rtx_viewer": True}, False)],
+    ids=["default-off", "cli-flag-opts-in", "cfg-false-wins"],
+)
+def test_rtx_viewer_flag_opts_a_newton_window_in(rtx_camera, launcher_args, declared) -> None:
+    from isaaclab.scene import InteractiveSceneCfg
+    from isaaclab.sim import SimulationCfg
+
+    visualizer = VisualizerCfg(backend=NewtonGLBackendCfg(rtx_camera=rtx_camera))
+    cfg = types.SimpleNamespace(
+        sim=SimulationCfg(physics=sim_launcher.NewtonCfg(), visualizer_cfgs=visualizer),
+        scene=InteractiveSceneCfg(num_envs=2, env_spacing=4.0),
+    )
+
+    sim_launcher.validate_launch(cfg, launcher_args)
+
+    assert bool([name for name in vars(cfg.scene) if name.startswith("viewer_camera_")]) is declared

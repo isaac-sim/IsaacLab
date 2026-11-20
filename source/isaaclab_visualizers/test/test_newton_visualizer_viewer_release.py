@@ -59,3 +59,41 @@ def test_close_lifts_the_visible_environment_limit_of_the_shared_renderer():
     visualizer.close()
 
     assert seen == [None] and visualizer._is_closed
+
+
+def test_close_unbinds_the_perspective_views_it_rendered():
+    """Perspective views bound as per-view captures are released on close, and sensor views are left alone."""
+    from functools import partial
+
+    visualizer = NewtonGLVisualizer(VisualizerCfg(backend=NewtonGLBackendCfg()))
+    visualizer._viewer = Mock()
+    perspective = Mock(camera=None)
+    perspective.render = partial(visualizer._capture_view, perspective)
+    sensor = Mock(render=None)
+    visualizer._image_views = [perspective, sensor]
+
+    visualizer.close()
+
+    assert perspective.render is None
+    perspective.invalidate.assert_called_once()
+    sensor.invalidate.assert_not_called()
+
+
+def test_window_controls_do_not_need_a_capture_to_have_run():
+    """A fresh visualizer is not borrowing a view, so its window controls draw before the first capture."""
+    assert NewtonGLVisualizer(VisualizerCfg(backend=NewtonGLBackendCfg()))._capturing_another_view is False
+
+
+def test_window_without_the_rtx_camera_shows_a_disabled_renderer_toggle():
+    """Without the OVRTX viewer camera the RTX choice is shown greyed out, with the way to enable it."""
+    visualizer = NewtonGLVisualizer(VisualizerCfg(backend=NewtonGLBackendCfg()))
+    imgui = Mock()
+    imgui.is_item_hovered.return_value = True
+
+    visualizer._draw_rtx_unavailable(imgui)
+
+    imgui.begin_disabled.assert_called_once()
+    imgui.end_disabled.assert_called_once()
+    assert [call.args[0] for call in imgui.radio_button.call_args_list] == ["OpenGL", "RTX"]
+    assert "--rtx_viewer" in imgui.set_tooltip.call_args.args[0]
+    assert any("--rtx_viewer" in str(call.args) for call in imgui.text_wrapped.call_args_list)
