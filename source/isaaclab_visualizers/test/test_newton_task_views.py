@@ -156,7 +156,9 @@ def test_resetting_the_tracking_camera_works_while_the_rtx_view_is_current():
 
 def _rtx_view():
     camera = SimpleNamespace(cfg=SimpleNamespace(prim_path="/World/viewer_camera_0", renderer_cfg="ovrtx"))
-    return _View("/World/viewer_camera_0", camera=camera)
+    view = _View("/World/viewer_camera_0", camera=camera)
+    view.invalidate = lambda: None
+    return view
 
 
 def _switchable(views):
@@ -287,3 +289,58 @@ def test_the_camera_speed_slider_sets_the_free_cameras_keyboard_speed():
     viz.current_image_view = free
     viz._draw_camera_speed(imgui)
     assert viz._viewer.camera_speed == 12.0 and viz._viewer.camera_speed_boost == 12.0
+
+
+def test_leaving_rtx_for_a_perspective_view_returns_to_the_one_rtx_followed():
+    first, second, rtx = _view(PerspectiveCameraCfg()), _view(PerspectiveCameraCfg()), _rtx_view()
+    viz = _switchable([first, second, rtx])
+    viz.set_camera_view = lambda eye, lookat: None
+    viz._focal_length_to_vertical_fov_degrees = lambda focal=None: 40.0
+    viz._remember_perspective_pose = lambda: None
+    viz._viewer.camera.fov = 0.0
+    for view in (first, second):
+        view.invalidate = lambda: None
+    viz.set_rtx_rendering(True)
+    assert viz._rtx_free_view is first
+
+    viz._choose_camera_source(1)  # while RTX is shown
+    viz.set_rtx_rendering(False)
+
+    assert viz._rtx_free_view is second and viz.current_image_view is second
+
+
+def test_choosing_an_unvisited_perspective_source_in_rtx_applies_its_declared_pose():
+    first = _view(PerspectiveCameraCfg())
+    second = _view(PerspectiveCameraCfg(eye=(4.0, 5.0, 6.0), lookat=(0.0, 0.0, 1.0), focal_length=30.0))
+    viz = _switchable([first, second, _rtx_view()])
+    viz.set_rtx_rendering(True)
+    placed = []
+    for view in (first, second):
+        view.invalidate = lambda: None
+    viz.set_camera_view = lambda eye, lookat: placed.append((eye, lookat))
+    viz._focal_length_to_vertical_fov_degrees = lambda focal=None: 40.0
+    viz._remember_perspective_pose = lambda: None
+    viz._viewer.camera.fov = 0.0
+
+    viz._choose_camera_source(1)
+
+    assert placed == [((4.0, 5.0, 6.0), (0.0, 0.0, 1.0))] and viz.cfg.focal_length == 30.0
+    assert viz._rtx_free_view is second
+
+
+def test_a_window_with_only_the_rtx_camera_draws_its_camera_controls():
+    from unittest.mock import Mock
+
+    viz = _switchable([_rtx_view()])
+    viz.current_image_view = viz._image_views[0]
+    viz._borrowing_view = False
+    viz._draw_appearance = viz._draw_focal_length = lambda imgui: None
+    viz._draw_camera_info = lambda imgui: None
+    imgui = Mock()
+    imgui.is_item_hovered.return_value = False
+    imgui.radio_button.return_value = False  # disabled radio buttons are never clicked
+
+    viz._draw_streaming_view_controls(imgui)  # no other source to list: must not raise
+
+    imgui.combo.assert_not_called()
+    imgui.begin_disabled.assert_called_once()

@@ -35,9 +35,13 @@ class _Attr:
 
 
 class _Prim:
-    def __init__(self, path, kind, intensity=None, color=None):
+    def __init__(self, path, kind, intensity=None, color=None, visibility=None):
         self._path, self._kind = path, kind
-        self._attrs = {"inputs:intensity": _Attr(intensity), "inputs:color": _Attr(color)}
+        self._attrs = {
+            "inputs:intensity": _Attr(intensity),
+            "inputs:color": _Attr(color),
+            "visibility": _Attr(visibility),
+        }
 
     def GetPath(self):
         return self._path
@@ -117,6 +121,23 @@ def test_scene_lights_are_on_and_the_dome_and_distant_lights_are_off_by_default(
 
     assert native.added == []  # The viewer's own lights are only added once enabled.
     assert _states(native) == {"/World/sun": "inherited"}
+
+
+def test_a_light_the_scene_authored_invisible_stays_hidden():
+    stage = _Stage(
+        [
+            _Prim("/World/on", "DistantLight", 1.0, (1.0, 1.0, 1.0)),
+            _Prim("/World/off", "DomeLight", 1.0, (1.0, 1.0, 1.0), visibility="invisible"),
+        ]
+    )
+    native = _Native()
+    renderer = SimpleNamespace(_use_ovstage=False, backend=SimpleNamespace(renderer=native))
+    appearance = RtxAppearance(stage, renderer, "/Render/product")
+
+    assert appearance.apply_lights()
+    assert _states(native) == {"/World/on": "inherited", "/World/off": "invisible"}
+    assert appearance.suspend()
+    assert _states(native) == {"/World/on": "inherited", "/World/off": "invisible"}
 
 
 def test_scene_lights_take_an_intensity_scale_and_a_color_tint():

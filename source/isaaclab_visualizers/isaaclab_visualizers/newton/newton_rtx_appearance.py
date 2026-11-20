@@ -94,6 +94,8 @@ class SceneLight:
     path: str
     intensity: float
     color: tuple[float, float, float]
+    visible: bool = True
+    """Whether the scene authored the light visible; a light it hides stays hidden when the viewer shows lights."""
 
 
 def find_scene_lights(stage: Any) -> list[SceneLight]:
@@ -104,7 +106,16 @@ def find_scene_lights(stage: Any) -> list[SceneLight]:
             continue
         intensity, color = prim.GetAttribute("inputs:intensity"), prim.GetAttribute("inputs:color")
         if intensity and color and intensity.HasValue() and color.HasValue():
-            lights.append(SceneLight(str(prim.GetPath()), float(intensity.Get()), tuple(float(c) for c in color.Get())))
+            visibility = prim.GetAttribute("visibility")
+            authored_hidden = bool(visibility) and visibility.HasValue() and visibility.Get() == "invisible"
+            lights.append(
+                SceneLight(
+                    str(prim.GetPath()),
+                    float(intensity.Get()),
+                    tuple(float(c) for c in color.Get()),
+                    visible=not authored_hidden,
+                )
+            )
     return lights
 
 
@@ -210,7 +221,7 @@ class RtxAppearance:
         paths = [light.path for light in self.lights]
         intensities = [light.intensity * scale for light in self.lights]
         colors = [np.multiply(light.color, tint) for light in self.lights]
-        visible = [scene_enabled] * len(paths)
+        visible = [scene_enabled and light.visible for light in self.lights]
         for reference, path, enabled, intensity, color in (
             (self._dome_reference, _DOME_PATH, self.dome_enabled and active, self.dome_intensity, self.dome_color),
             (self._sun_reference, _SUN_PATH, self.sun_enabled and active, self.sun_intensity, self.sun_color),
