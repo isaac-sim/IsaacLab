@@ -44,5 +44,5 @@
   name share their columns of the action, so that one policy drives every task.
 * Added :class:`~isaaclab_experimental.mdp2.ActionRate` to MDP2 actions: an action at ``ActionRate.CONTROL`` applies
   once per control step, before the physics steps, such as an embedded whole-body controller or inverse kinematics,
-  and one at ``ActionRate.PHYSICS``, the default, before every physics step. :func:`~isaaclab_experimental.mdp2.
-  process_actions` runs the former.
+  and one at ``ActionRate.PHYSICS``, the default, before every physics step.
+  :func:`~isaaclab_experimental.mdp2.process_actions` runs the former.
