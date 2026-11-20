@@ -259,6 +259,7 @@ def _configure_sdf_all_shapes(builder: ModelBuilder, cfg: NewtonCollisionPipelin
                     mesh = Mesh.create_cylinder(
                         shape_scale[0],
                         shape_scale[1],
+                        barrel_radius=shape_scale[2],
                         up_axis=Axis.Z,
                         segments=cfg.primitive_mesh_segments,
                         compute_uvs=False,

@@ -165,6 +165,7 @@ def test_all_shapes_sdf_provisions_analytic_colliders(device):
     builder.add_shape_sphere(body=body, radius=0.05)
     cable = builder.add_shape_capsule(body=body, radius=0.02, half_height=0.13)
     cable_scale = builder.shape_scale[cable]
+    barrel = builder.add_shape_cylinder(body=body, radius=0.05, half_height=0.04, barrel_radius=0.08)
     mesh = newton.Mesh.create_box(0.05, 0.05, 0.05, compute_inertia=False)
     authored_sdf = builder.add_shape_mesh(body=body, mesh=mesh)
     builder.shape_sdf_max_resolution[authored_sdf] = 16
@@ -199,7 +200,9 @@ def test_all_shapes_sdf_provisions_analytic_colliders(device):
     assert builder.shape_sdf_max_resolution[force_only] == 32
     assert builder.shape_sdf_narrow_band_range[force_only] == (-0.03, 0.04)
     assert collision.to_pipeline_args()["speculative_contact_gap_max"] == 0.01
-    assert backend.model.shape_count == 6
+    assert backend.model.shape_count == 7
+    barrel_vertices = builder.shape_source[barrel].vertices
+    assert np.hypot(barrel_vertices[:, 0], barrel_vertices[:, 1]).max() > 0.055
     assert (backend.model._shape_sdf_index.numpy() >= 0).all()
     assert (backend.model._shape_edge_range.numpy()[:, 1] > 0).all()
     assert (backend.model._variant_shape_geometry["_shape_sdf_index"].numpy() >= 0).all()
