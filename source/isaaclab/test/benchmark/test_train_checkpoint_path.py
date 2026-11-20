@@ -72,8 +72,21 @@ def test_rsl_rl_distillation_benchmark_loads_explicit_teacher_checkpoint(tmp_pat
         _rsl_rl_resume_path(tmp_path, distillation=True, checkpoint=str(teacher.with_name("x.pt")))
 
 
+def test_rsl_rl_distillation_benchmark_loads_latest_checkpoint_of_teacher_run_directory(tmp_path: Path) -> None:
+    """A teacher run directory resolves to its newest ``model_*.pt``, not to a pattern built from the directory path."""
+    run = tmp_path / "teacher" / "2026-11-17_10-00-00"
+    run.mkdir(parents=True)
+    for name in ("model_5.pt", "model_10.pt", "events.out.tfevents"):
+        (run / name).touch()
+
+    assert _rsl_rl_resume_path(tmp_path, distillation=True, checkpoint=str(run)) == str(run / "model_10.pt")
+
+
 def test_rsl_rl_benchmark_resume_searches_experiment_runs(tmp_path: Path) -> None:
-    """A configured resume without ``--checkpoint`` continues this experiment's latest run."""
+    """A configured resume without ``--checkpoint`` continues the newest run, not an older run with later iterations."""
+    older = tmp_path / "logs" / "student" / "2026-11-16_10-00-00" / "model_99.pt"
+    older.parent.mkdir(parents=True)
+    older.touch()
     checkpoint = tmp_path / "logs" / "student" / "2026-11-17_10-00-00" / "model_10.pt"
     checkpoint.parent.mkdir(parents=True)
     checkpoint.touch()

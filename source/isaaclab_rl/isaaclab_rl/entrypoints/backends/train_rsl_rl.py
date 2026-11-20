@@ -97,8 +97,9 @@ def _resolve_checkpoint(args_cli: argparse.Namespace, agent_cfg: RslRlBaseRunner
             metadata={"agent": args_cli.agent},
         )
     if args_cli.checkpoint and os.path.isdir(args_cli.checkpoint):
+        # ``--checkpoint`` overwrites ``agent_cfg.load_checkpoint`` with this directory, so it is not a file pattern.
         return get_checkpoint_path(
-            os.path.dirname(args_cli.checkpoint), os.path.basename(args_cli.checkpoint), agent_cfg.load_checkpoint
+            os.path.dirname(args_cli.checkpoint), os.path.basename(args_cli.checkpoint), r"model_.*\.pt"
         )
     if args_cli.checkpoint:
         return retrieve_file_path(args_cli.checkpoint)
