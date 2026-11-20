@@ -3,6 +3,12 @@
 Examples: Data Generation and Imitation Learning for Humanoids
 ==============================================================
 
+.. warning::
+
+   Isaac Lab Mimic is deprecated. Use `AutoData <https://isaac-sim.github.io/AutoData/main/>`__
+   for new data generation workflows. To migrate an existing workflow, see the
+   `Isaac Lab Mimic migration guide <https://isaac-sim.github.io/AutoData/main/pages/workflows/migrate_isaac_lab_mimic.html>`__.
+
 These Isaac Lab Mimic examples cover three humanoid tasks:
 
 * **Demo 1:** Data generation and policy training for a humanoid robot (GR-1 pick and place)
