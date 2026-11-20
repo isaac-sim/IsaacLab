@@ -10,13 +10,17 @@ isaaclab_fovi.mdp
     GazeAction
     GazeActionCfg
     GazeRigCfg
+    BinocularGazeAction
+    BinocularGazeActionCfg
     gaze_teacher_labels
+    binocular_gaze_teacher_labels
 
   .. rubric:: Functions
 
   .. autosummary::
 
     gaze_state
+    binocular_gaze_state
 
 Actions
 -------
@@ -36,10 +40,25 @@ Actions
     :show-inheritance:
     :exclude-members: __init__
 
+.. autoclass:: BinocularGazeAction
+    :members:
+    :show-inheritance:
+
+.. autoclass:: BinocularGazeActionCfg
+    :members:
+    :inherited-members:
+    :show-inheritance:
+    :exclude-members: __init__, class_type
+
 Observations
 ------------
 
 .. autofunction:: gaze_state
 
 .. autoclass:: gaze_teacher_labels
+    :show-inheritance:
+
+.. autofunction:: binocular_gaze_state
+
+.. autoclass:: binocular_gaze_teacher_labels
     :show-inheritance:

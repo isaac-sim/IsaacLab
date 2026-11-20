@@ -54,6 +54,10 @@ def test_hybrid_gaze_turns_the_head_onto_the_fixation(backend):
     cases.hybrid_gaze_turns_the_head_onto_the_fixation(backend_cfg(backend))
 
 
+def test_binocular_gaze_fixates_a_near_point_with_both_eyes():
+    cases.binocular_gaze_fixates_a_near_point_with_both_eyes(backend_cfg("newton_warp"))
+
+
 @pytest.fixture(scope="module", params=list(BACKENDS))
 def ground(request):
     """One ground scene per backend, which every case below renders in turn."""

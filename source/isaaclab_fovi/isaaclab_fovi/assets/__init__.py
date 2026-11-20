@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Assets for physical gaze: a pan-tilt camera mount."""
+"""Assets for physical gaze: a pan-tilt camera mount, with one or two cameras."""
 
 from isaaclab.utils.module import lazy_export
 

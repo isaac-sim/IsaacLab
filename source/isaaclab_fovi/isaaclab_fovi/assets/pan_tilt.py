@@ -27,6 +27,15 @@ PAN_TILT_CAMERA_OFFSET = CameraCfg.OffsetCfg(
 )
 """Pose of a camera under ``tilt_link`` that looks along the mount's forward axis (world convention)."""
 
+PAN_TILT_STEREO_BASELINE = 0.065
+"""Distance between the stereo eyes [m], about a human's."""
+
+PAN_TILT_STEREO_OFFSETS = tuple(
+    PAN_TILT_CAMERA_OFFSET.replace(pos=(side * PAN_TILT_STEREO_BASELINE / 2, 0.0, 0.0)) for side in (-1.0, 1.0)
+)
+"""Poses (left, right) of two cameras under ``tilt_link`` that look along the mount's forward axis, for binocular
+gaze."""
+
 PAN_TILT_CFG = ArticulationCfg(
     prim_path="{ENV_REGEX_NS}/PanTilt",
     # Gravity stays on: Newton reads a body's disable-gravity flag as the whole scene's.

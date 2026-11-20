@@ -12,6 +12,7 @@ import pytest
 import torch
 import warp as wp
 from fovi.sensing.projection import CameraModel
+from isaaclab_fovi.mdp.binocular_gaze import SOFTWARE, binocular_teacher_kernel, make_binocular_gaze_step
 from isaaclab_fovi.mdp.gaze import (
     DUAL,
     HYBRID,
@@ -24,7 +25,7 @@ from isaaclab_fovi.mdp.gaze import (
     make_rig_gaze_step,
     target_body_index,
 )
-from isaaclab_fovi.mdp.gaze_cfg import GazeActionCfg, GazeRigCfg
+from isaaclab_fovi.mdp.gaze_cfg import BinocularGazeActionCfg, GazeActionCfg, GazeRigCfg
 from isaaclab_fovi.sensors.gaze_kernels import camera_params, torch_stream
 
 from isaaclab.managers import ObservationTermCfg, SceneEntityCfg
@@ -173,6 +174,96 @@ def rig_term(mode: str, joint_pos=(0.0, 0.0, 0.0), mount: torch.Tensor | None = 
     term._own_gaze_writes = 0
     term._init_rig(term._env)
     return term
+
+
+HALF_BASELINE = 0.0325
+IDENTITY = wp.mat33f(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
+VERGENCE_LIMIT = 0.5
+
+
+class BinocularStep:
+    """One pair of eyes, the left at -x and the right at +x of an unturned ROS mount, on the rig of the single-camera
+    cases, stepped by :func:`make_binocular_gaze_step`'s kernel."""
+
+    def __init__(self, mode: int):
+        self.mode = mode
+        # Software gaze reads no joints, and only hybrid gaze holds a fixation: the term gives them empty arrays.
+        rig = 0 if mode == SOFTWARE else 1
+        held = 1 if mode == HYBRID else 0
+        self.joint_pos = torch.zeros(rig, 3)
+        self.limits = torch.tensor([[[-0.5, 0.5], [-0.2, 0.2], [-1.0, 1.0]]] * rig).reshape(rig, 3, 2)
+        self.mount = yaw_left(0.0)
+        self.held = torch.zeros(held, 3)
+        self.held_valid = torch.zeros(held, dtype=torch.int32)
+        self.version = torch.zeros(1, 2)
+        self.vergence = torch.zeros(1)
+        self.left = torch.zeros(1, 2)
+        self.right = torch.zeros(1, 2)
+        self.state = torch.zeros(1, 6)
+        self.targets = torch.zeros(rig, 2)
+
+    def __call__(self, actions) -> None:
+        with torch_stream("cpu"):
+            wp.launch(
+                make_binocular_gaze_step(self.mode),
+                dim=1,
+                inputs=[
+                    wp.from_torch(torch.tensor([actions], dtype=torch.float32)),
+                    wp.from_torch(self.joint_pos),
+                    wp.from_torch(self.limits, dtype=wp.vec2f),
+                    wp.vec2i(*JOINTS),
+                    wp.vec2f(*SIGNS),
+                    wp.from_torch(self.mount, dtype=wp.quatf),
+                    wp.vec3f(1.0, 0.0, 0.0),
+                    STEP,
+                    LIMIT,
+                    VERGENCE_LIMIT,
+                    HEAD_STEP,
+                    0.5,
+                    FIELD_RADIUS,
+                ],
+                outputs=[
+                    wp.from_torch(self.held, dtype=wp.vec3f),
+                    wp.from_torch(self.held_valid),
+                    wp.from_torch(self.version, dtype=wp.vec2f),
+                    wp.from_torch(self.vergence),
+                    wp.from_torch(self.left, dtype=wp.vec2f),
+                    wp.from_torch(self.right, dtype=wp.vec2f),
+                    wp.from_torch(self.state),
+                    wp.from_torch(self.targets),
+                ],
+            )
+
+
+def binocular_labels(points: torch.Tensor, mount: torch.Tensor, heads: torch.Tensor, physical: bool) -> torch.Tensor:
+    """The binocular teacher's labels at a step of one field radius, for eyes at -x and +x of ``mount``, ``points``
+    shape (N, 3)."""
+    count = len(points)
+    eyes = quat_apply(mount.repeat(count, 1), torch.tensor([[HALF_BASELINE, 0.0, 0.0]]).repeat(count, 1))
+    labels = torch.zeros(count, 4)
+    with torch_stream("cpu"):
+        wp.launch(
+            binocular_teacher_kernel,
+            dim=count,
+            inputs=[
+                wp.from_torch(points, dtype=wp.vec3f),
+                wp.from_torch(-eyes, dtype=wp.vec3f),
+                wp.from_torch(eyes.contiguous(), dtype=wp.vec3f),
+                wp.from_torch(mount.repeat(count, 1).contiguous(), dtype=wp.quatf),
+                wp.from_torch(torch.zeros(count, 2), dtype=wp.vec2f),
+                wp.from_torch(torch.zeros(count)),
+                wp.from_torch(heads.repeat(count, 1).contiguous(), dtype=wp.vec4f),
+                int(physical),
+                IDENTITY,
+                FIELD_RADIUS,
+                1.0,
+                LIMIT,
+                VERGENCE_LIMIT,
+                camera_params(CameraModel("pinhole", (480, 640), (300.0, 300.0, 319.5, 239.5))),
+            ],
+            outputs=[wp.from_torch(labels)],
+        )
+    return labels
 
 
 @pytest.mark.parametrize(("device", "body_id"), [("cpu", None), (DEVICES[-1] if DEVICES else "cpu", 1)])
@@ -582,3 +673,91 @@ def test_teacher_labels_world_points_as_it_labels_an_asset_there():
         teacher(env, SceneEntityCfg("target"), target_w=lambda env: points)
     with pytest.raises(ValueError, match=r"shape \(1, 3\)"):
         teacher(env, target_w=lambda env: points[0])
+
+
+# -- Binocular gaze ----------------------------------------------------------------------------------------------------
+
+
+def test_vergence_turns_the_eyes_toward_each_other_so_their_lines_of_sight_meet():
+    eyes = BinocularStep(SOFTWARE)
+    eyes([0.0, 0.0, 1.0])  # converge a full step
+    half = STEP * FIELD_RADIUS / 2
+    # Each eye turns half the vergence toward the other: the left eye right (negative pan), the right eye left.
+    torch.testing.assert_close(eyes.left[0], torch.tensor([0.0, -half]))
+    torch.testing.assert_close(eyes.right[0], torch.tensor([0.0, half]))
+    torch.testing.assert_close(eyes.state[0], torch.tensor([0.0, 0.0, STEP, 0.0, 0.0, STEP / 0.5]))
+    # Off the optical axis the lines of sight still meet: they and the baseline lie in one plane.
+    eyes([1.0, 1.0, 1.0])
+    left, right = angles_to_direction(eyes.left), angles_to_direction(eyes.right)
+    assert abs(float(torch.linalg.cross(left, right)[0] @ torch.tensor([1.0, 0.0, 0.0]))) < 1e-6
+    angle = math.degrees(math.acos(float((left * right).sum())))
+    assert angle == pytest.approx(2 * STEP * FIELD_RADIUS, abs=1e-3)
+    torch.testing.assert_close(eyes.version[0], torch.tensor([STEP, STEP]))
+    # Vergence stops at parallel lines of sight and at the limit.
+    eyes([0.0, 0.0, -5.0])
+    eyes([0.0, 0.0, -5.0])
+    assert float(eyes.vergence[0]) == 0.0
+    for _ in range(int(VERGENCE_LIMIT / STEP) + 2):
+        eyes([0.0, 0.0, 1.0])
+    assert float(eyes.vergence[0]) == pytest.approx(VERGENCE_LIMIT)
+
+
+def test_hybrid_binocular_gaze_turns_the_version_at_once_while_the_head_follows():
+    eyes = BinocularStep(HYBRID)
+    eyes([0.0, 1.0, 1.0])  # pan left a full step and converge
+    torch.testing.assert_close(eyes.version[0], torch.tensor([0.0, STEP]))
+    torch.testing.assert_close(eyes.targets[0], torch.tensor([HEAD_STEP * RADIUS_RAD, 0.0]))
+    # The head turns left by 3 degrees: the version comes back by as much and the vergence stays.
+    eyes.mount = yaw_left(3.0)
+    eyes.joint_pos[0, 1] = math.radians(3.0)
+    eyes([0.0, 0.0, 0.0])
+    torch.testing.assert_close(eyes.version[0, 1], torch.tensor(STEP - 3.0 / FIELD_RADIUS), atol=1e-5, rtol=0)
+    torch.testing.assert_close(eyes.state[0, :3], torch.tensor([0.0, STEP, STEP]), atol=1e-5, rtol=0)
+
+
+def test_binocular_teacher_fixates_a_point_with_both_eyes():
+    distance = 1.0
+    # Ahead and up, and then behind the eyes; the ROS mount is unturned, so world and camera frames agree.
+    points = torch.tensor([[0.0, -0.2, distance], [0.0, 0.0, -1.0]])
+    labels = binocular_labels(points, yaw_left(0.0), torch.zeros(1, 4), physical=False)
+    # With a step of one field radius the labels are the fixation itself: up, straight ahead, and converged.
+    tilt = math.degrees(math.atan2(0.2, distance))
+    vergence = 2 * math.degrees(math.atan2(HALF_BASELINE, math.hypot(distance, 0.2)))
+    torch.testing.assert_close(labels[0], torch.tensor([tilt, 0.0, vergence, FIELD_RADIUS]) / FIELD_RADIUS)
+    torch.testing.assert_close(labels[1], torch.zeros(4))
+
+
+def test_physical_binocular_teacher_labels_only_the_head_turn_not_yet_commanded():
+    # The head stands tilted up 20 degrees, and its joint targets already command a 5-degree pan left.
+    mount = turn(20.0, 0.0)
+    heads = torch.tensor([[20.0, 0.0, 20.0, 5.0]]) / FIELD_RADIUS
+    # A point 2 m away, 22 degrees up and 7 left of the rig's zero pose.
+    point = 2.0 * quat_apply(turn(22.0, 7.0), torch.tensor([[0.0, 0.0, 1.0]]))
+    labels = binocular_labels(point, mount, heads, physical=True)
+    assert labels[0, 3] == 1.0
+    # The commanded head plus the version label faces the bisector of the two eyes' lines of sight to the point.
+    eyes = quat_apply(mount, torch.tensor([[HALF_BASELINE, 0.0, 0.0]]))
+    bisector = torch.nn.functional.normalize(
+        torch.nn.functional.normalize(point + eyes, dim=-1) + torch.nn.functional.normalize(point - eyes, dim=-1),
+        dim=-1,
+    )
+    tilt, pan = (torch.tensor([20.0, 5.0]) + labels[0, :2] * FIELD_RADIUS).tolist()
+    facing = quat_apply(turn(tilt, pan), torch.tensor([[0.0, 0.0, 1.0]]))
+    torch.testing.assert_close(facing, bisector, atol=1e-5, rtol=0)
+
+
+def test_binocular_gaze_config_rejects_one_eye_and_a_rigless_rig_mode():
+    BinocularGazeActionCfg(asset_name="left", right_asset_name="right").validate_config()
+    rig = GazeRigCfg(asset_name="rig")
+    BinocularGazeActionCfg(asset_name="left", right_asset_name="right", mode="hybrid", rig=rig).validate_config()
+    for changes, message in (
+        (dict(right_asset_name="left"), "two different eyes"),
+        (dict(mode="dual", rig=rig), "mode"),
+        (dict(mode="physical"), "rig"),
+        (dict(vergence_limit=0.0), "vergence_limit"),
+    ):
+        cfg = BinocularGazeActionCfg(asset_name="left", right_asset_name="right")
+        for name, value in changes.items():
+            setattr(cfg, name, value)
+        with pytest.raises(ValueError, match=message):
+            cfg.validate_config()

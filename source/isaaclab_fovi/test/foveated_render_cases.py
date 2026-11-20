@@ -373,3 +373,97 @@ def hybrid_gaze_turns_the_head_onto_the_fixation(backend: tuple):
         torch.testing.assert_close(targets, torch.zeros_like(targets), atol=1e-3, rtol=0)
     finally:
         env.close()
+
+
+def binocular_gaze_fixates_a_near_point_with_both_eyes(backend: tuple):
+    """Binocular hybrid gaze on the pan-tilt mount: the teacher's labels bring both lines of sight onto a near point.
+
+    The point is 0.4 m away and 15 degrees to the left, where the vergence matters. After the head settles, the two
+    eyes' optical axes, gaze included, pass within a millimetre of the point and of each other, and the head carries
+    the version. A reset brings both eyes back to parallel lines of sight on the optical axes.
+    """
+    import warp as wp
+    from isaaclab_fovi.assets import PAN_TILT_CFG, PAN_TILT_STEREO_BASELINE, PAN_TILT_STEREO_OFFSETS
+    from isaaclab_fovi.mdp import BinocularGazeActionCfg, GazeRigCfg, binocular_gaze_state
+
+    from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
+    from isaaclab.managers import ObservationGroupCfg, ObservationTermCfg
+    from isaaclab.utils.math import quat_apply
+
+    physics_cfg, renderer_cfg, _ = backend
+    link = "{ENV_REGEX_NS}/PanTilt/Geometry/world/pan_link/tilt_link"
+
+    def eye(name, offset):
+        return FoveatedCameraCfg(
+            prim_path=f"{link}/{name}",
+            data_types=["distance_to_camera"],
+            renderer_cfg=renderer_cfg(),
+            spawn=sim_utils.PinholeCameraCfg(clipping_range=CLIPPING_RANGE),
+            foveated_res=16,
+            offset=offset,
+        )
+
+    @configclass
+    class SceneCfg(InteractiveSceneCfg):
+        head = PAN_TILT_CFG.replace(init_state=PAN_TILT_CFG.init_state.replace(pos=(0.0, 0.0, 0.5)))
+        left_eye = eye("LeftEye", PAN_TILT_STEREO_OFFSETS[0])
+        right_eye = eye("RightEye", PAN_TILT_STEREO_OFFSETS[1])
+
+    @configclass
+    class ActionsCfg:
+        gaze = BinocularGazeActionCfg(
+            asset_name="left_eye", right_asset_name="right_eye", mode="hybrid", rig=GazeRigCfg(asset_name="head")
+        )
+
+    @configclass
+    class ObservationsCfg:
+        @configclass
+        class PolicyCfg(ObservationGroupCfg):
+            gaze = ObservationTermCfg(func=binocular_gaze_state)
+
+        policy = PolicyCfg()
+
+    @configclass
+    class EnvCfg(ManagerBasedEnvCfg):
+        decimation = 4
+        scene = SceneCfg(num_envs=1, env_spacing=5.0)
+        actions = ActionsCfg()
+        observations = ObservationsCfg()
+        ui_window_class_type = None
+        sim = SimulationCfg(dt=1 / 120, render_interval=4, physics=physics_cfg, device=DEVICE)
+
+    sim_utils.create_new_stage()
+    env = ManagerBasedEnv(EnvCfg())
+    try:
+        env.reset()
+        gaze = env.action_manager.get_term("gaze")
+        left, right, head = env.scene["left_eye"], env.scene["right_eye"], env.scene["head"]
+        pan_joint = head.find_joints(["pan_joint"])[0][0]
+        pan = math.radians(15.0)
+        point = env.scene.env_origins[:1] + torch.tensor(
+            [[-0.4 * math.sin(pan), 0.4 * math.cos(pan), 0.5]], device=env.device
+        )
+        labels = torch.zeros(1, 4, device=env.device)
+        point_wp, labels_wp = wp.from_torch(point, dtype=wp.vec3f), wp.from_torch(labels)
+        for _ in range(45):
+            gaze.teacher_labels(point_wp, labels_wp)
+            assert labels[0, 3] == 1.0
+            env.step(labels[:, :3])
+
+        axis = torch.tensor([[0.0, 0.0, 1.0]], device=env.device)
+        lines = [(eye.data.pos_w.torch[:1], quat_apply(eye.data.quat_w_ros.torch[:1], axis)) for eye in (left, right)]
+        for origin, direction in lines:
+            # The point's distance from each eye's line of sight.
+            offset = point - origin
+            assert float(torch.linalg.cross(offset, direction).norm()) < 1e-3
+        # The head carries the version, and the retinas only the vergence.
+        assert math.degrees(float(head.data.joint_pos.torch[0, pan_joint])) == pytest.approx(15.0, abs=1.0)
+        assert float(gaze.version.abs().max()) < 0.01
+        expected = 2 * math.degrees(math.atan2(PAN_TILT_STEREO_BASELINE / 2, 0.4)) / gaze.field_radius_deg
+        assert float(gaze.vergence[0]) == pytest.approx(expected, rel=0.05)
+
+        env.reset()
+        assert not gaze.vergence.any() and not gaze.version.any()
+        assert not left.gaze_angles.torch.any() and not right.gaze_angles.torch.any()
+    finally:
+        env.close()

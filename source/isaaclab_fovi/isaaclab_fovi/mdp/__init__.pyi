@@ -4,16 +4,25 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "BinocularGazeAction",
+    "BinocularGazeActionCfg",
     "GazeAction",
     "GazeActionCfg",
     "GazeRigCfg",
+    "binocular_gaze_state",
+    "binocular_gaze_teacher_labels",
     "gaze_state",
     "gaze_teacher_labels",
 ]
 
+from .binocular_gaze import (
+    BinocularGazeAction,
+    binocular_gaze_state,
+    binocular_gaze_teacher_labels,
+)
 from .gaze import (
     GazeAction,
     gaze_state,
     gaze_teacher_labels,
 )
-from .gaze_cfg import GazeActionCfg, GazeRigCfg
+from .gaze_cfg import BinocularGazeActionCfg, GazeActionCfg, GazeRigCfg
