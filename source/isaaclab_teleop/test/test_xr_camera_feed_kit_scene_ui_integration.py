@@ -22,7 +22,7 @@ import omni.kit.app
 simulation_app = omni.kit.app.get_app()
 
 import pytest
-from isaaclab_physx.renderers import IsaacRtxRendererCfg
+from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
 from isaaclab_teleop import XrCameraFeedCfg
 from isaaclab_teleop.camera_feed import _PanelDescriptor
 from isaaclab_teleop.camera_feed_kit_scene_ui import _KitSceneUiCameraFeedPresenter

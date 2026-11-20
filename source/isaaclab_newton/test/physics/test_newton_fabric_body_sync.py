@@ -26,11 +26,11 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
+from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
+from isaaclab_isaacsim.renderers.fabric import FabricBackend, FabricBackendCfg
+from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, VBDSolverCfg, XPBDSolverCfg
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
-from isaaclab_physx.renderers import IsaacRtxRendererCfg
-from isaaclab_physx.renderers.fabric import FabricBackend, FabricBackendCfg
-from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 from isaaclab_visualizers.kit import KitBackendCfg
 
 from pxr import Gf as UsdGf
