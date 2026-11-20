@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 from ...utils import configclass
-from ...visualizers.visualizer_cfg import VISUALIZER_ALIASES, VISUALIZER_TYPES, ImageViewCfg, warn_deprecated_visualizer
+from ...visualizers.visualizer_cfg import VISUALIZER_ALIASES, VISUALIZER_TYPES, ImageViewCfg
 
 CAPTURE_VISUALIZER_TYPES = ("kit", "newton")
 """Visualizer types a video can be recorded from; the streaming ``rerun`` and ``viser`` cannot."""
@@ -22,8 +22,8 @@ def parse_video_source(source: str) -> tuple[str, str, str]:
 
     ``kind`` is ``"viz"`` or ``"sensor"``; ``name`` is the canonical visualizer type (``""`` for a bare
     ``"viz"``) or the sensor name; ``sub`` is ``"streaming_view"``, ``"tracking"``, a sensor channel, or ``""``.
-    The prefix ``visualizer`` is the long form of ``viz``, as ``--visualizer`` is of ``--viz``; the ``newton_gl``
-    alias is mapped to ``newton``.
+    The prefix ``visualizer`` is the long form of ``viz``, as ``--visualizer`` is of ``--viz``;
+    the ``newton_gl`` and ``newton_rtx`` aliases are mapped to ``newton``.
     A bare visualizer type is shorthand for ``viz:<type>``.
 
     Raises:
@@ -36,8 +36,6 @@ def parse_video_source(source: str) -> tuple[str, str, str]:
     name, sub = (*parts, "", "")[:2]
     if kind == "viz" and not parts:
         return kind, "", ""
-    if kind == "viz":
-        warn_deprecated_visualizer(name, stacklevel=3)
     if (
         kind == "viz"
         and parts[1:] in ([], ["streaming_view"], ["tracking"])
@@ -84,9 +82,8 @@ class VideoRecorderCfg:
     :func:`~isaaclab.app.launch_simulation` resolves ``"viz"`` and ``"viz:<type>"`` to the visualizer the
     recording uses. The camera position and resolution are configured on the visualizer cfg, not here.
 
-    ``visualizer`` is the long form of the ``viz`` prefix (``"visualizer:kit"`` is ``"viz:kit"``). ``newton_gl`` is an
-    alias of ``newton``, and ``newton_rtx`` is a deprecated alias of it that warns (the ``newton`` visualizer
-    supports RTX rendering). A bare visualizer type
+    ``visualizer`` is the long form of the ``viz`` prefix (``"visualizer:kit"`` is ``"viz:kit"``). ``newton_gl`` and
+    ``newton_rtx`` are aliases of ``newton``. A bare visualizer type
     is shorthand for ``viz:<type>`` (e.g. ``"newton"`` is ``"viz:newton"``).
     """
 

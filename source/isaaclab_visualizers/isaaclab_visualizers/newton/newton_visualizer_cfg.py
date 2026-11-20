@@ -119,7 +119,8 @@ class NewtonGLBackendCfg(VisualizerBackendCfg):
     The camera is added to the scene at launch because scene sensors cannot be added later, and it adds startup
     time and some frame time even while OpenGL is shown, so it is off by default. It renders only while the OVRTX
     view is selected. Enabling it needs the ``ovrtx`` package and a physics backend other than Kit-based PhysX.
-    ``None`` leaves it off unless ``initial_renderer="rtx"`` asks for it; ``True`` adds it; ``False`` forbids it.
+    ``None`` leaves it off unless ``initial_renderer="rtx"`` asks for it (``--viz newton_rtx`` does); ``True`` adds it;
+    ``False`` forbids it.
     """
 
     rtx_camera_path: str | None = None

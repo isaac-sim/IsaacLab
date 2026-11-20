@@ -98,21 +98,16 @@ def test_the_declared_viewer_camera_renders_only_when_its_view_is_shown() -> Non
     assert visualizer.backend.rtx_camera_path == f"/World/{name}"
 
 
-@pytest.mark.parametrize(
-    ("rtx_camera", "launcher_args", "declared"),
-    [(None, {}, False), (None, {"rtx_viewer": True}, True), (False, {"rtx_viewer": True}, False)],
-    ids=["default-off", "cli-flag-opts-in", "cfg-false-wins"],
-)
-def test_rtx_viewer_flag_opts_a_newton_window_in(rtx_camera, launcher_args, declared) -> None:
+@pytest.mark.parametrize(("selection", "declared"), [("newton", False), ("newton_gl", False), ("newton_rtx", True)])
+def test_only_the_newton_rtx_selection_adds_the_viewer_camera(selection, declared) -> None:
     from isaaclab.scene import InteractiveSceneCfg
     from isaaclab.sim import SimulationCfg
 
-    visualizer = VisualizerCfg(backend=NewtonGLBackendCfg(rtx_camera=rtx_camera))
     cfg = types.SimpleNamespace(
-        sim=SimulationCfg(physics=sim_launcher.NewtonCfg(), visualizer_cfgs=visualizer),
+        sim=SimulationCfg(physics=sim_launcher.NewtonCfg()),
         scene=InteractiveSceneCfg(num_envs=2, env_spacing=4.0),
     )
 
-    sim_launcher.validate_launch(cfg, launcher_args)
+    sim_launcher.validate_launch(cfg, {"visualizer": [selection]})
 
     assert bool([name for name in vars(cfg.scene) if name.startswith("viewer_camera_")]) is declared

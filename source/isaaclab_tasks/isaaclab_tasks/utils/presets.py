@@ -16,8 +16,6 @@ from isaaclab_visualizers.viser import ViserBackendCfg
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.utils import configclass
 from isaaclab.visualizers.visualizer_cfg import (
-    DEPRECATED_VISUALIZER_ALIASES,
-    VISUALIZER_ALIASES,
     VisualizerBackendCfg,
 )
 
@@ -62,11 +60,11 @@ class MultiBackendVisualizerCfg(PresetCfg):
 
     kit: KitBackendCfg = KitBackendCfg()
     newton: NewtonGLBackendCfg = NewtonGLBackendCfg()
+    newton_rtx: NewtonGLBackendCfg = NewtonGLBackendCfg(initial_renderer="rtx")
     rerun: RerunBackendCfg = RerunBackendCfg()
     viser: ViserBackendCfg = ViserBackendCfg()
     none: list[VisualizerBackendCfg] = []
     default: list[VisualizerBackendCfg] = []
 
-    _aliases: ClassVar[dict[str, str]] = VISUALIZER_ALIASES
-    _quiet_aliases: ClassVar[frozenset[str]] = frozenset(VISUALIZER_ALIASES) - frozenset(DEPRECATED_VISUALIZER_ALIASES)
-    _alias_messages: ClassVar[dict[str, str]] = DEPRECATED_VISUALIZER_ALIASES
+    _aliases: ClassVar[dict[str, str]] = {"newton_gl": "newton"}
+    _quiet_aliases: ClassVar[frozenset[str]] = frozenset(_aliases)
