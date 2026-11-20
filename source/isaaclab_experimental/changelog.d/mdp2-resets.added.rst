@@ -3,3 +3,8 @@
   ``FillFromCandidates`` and ``FillFromStates`` to fill the bank per world or shared across worlds.
 * Added ``cache`` to :class:`~isaaclab_experimental.mdp2.TermContext`, so init hooks can build host objects that the
   use's Python hooks reuse.
+* Added recording, replay, and saving to ``reset_from_bank``: ``RecordStates`` banks states that the worlds visit during
+  training, ``nominal_probability`` keeps a fraction of nominal resets, and ``reset_bank`` returns a ``ResetBank`` to
+  inspect, replay, and save, which ``FillFromFile`` loads.
+* Added scheduling of reset events' ``update`` hooks once per step after the rewards, and ordering of reset events
+  that write commands after the commands resample, so that a restored command stands.

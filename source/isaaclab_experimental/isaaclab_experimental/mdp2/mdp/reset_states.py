@@ -3,18 +3,20 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Reset from a bank of start states: the MDP2 term over :mod:`isaaclab.envs.reset`.
+"""Reset from a bank of start states: the MDP2 event over :mod:`isaaclab.envs.reset`.
 
-The term composes three parts that are chosen independently:
+A :class:`ResetBank` composes three parts that are chosen independently:
 
-- the states, a :class:`~isaaclab.envs.reset.ResetStateBuffer` that a fill builds once at startup;
+- the states, a :class:`~isaaclab.envs.reset.ResetStateBuffer` that a fill builds once at startup, and that recording
+  extends with states visited during training;
 - the choice, a :class:`~isaaclab.envs.reset.ResetStateSampler` that credits each ended episode to the state it
-  started from and draws the next one, from the use's random stream;
+  started from and draws the next one from the use's random stream, unless a slot is requested for replay;
 - the restore, which gathers the drawn states into the event's ``outputs``.
 
-The outputs are the state: any writable fields, such as ``robot.joint_pos`` and ``object.root_link_pose_w``. A fill is
-a callable ``fill(ctx, shared) -> {output: tensor}`` that returns, per output, ``(num_worlds, bank_size, ...)`` states
-for a bank per world, or ``(bank_size, ...)`` for one bank that every world shares.
+The outputs are the state: any writable fields, such as ``robot.joint_pos`` and ``object.root_link_pose_w``, and
+commands, whose restored value then stands over the resample. A fill is a callable ``fill(ctx, shared) -> {output:
+tensor}`` that returns, per output, ``(num_worlds, size, ...)`` states for a bank per world, or ``(size, ...)`` for one
+bank that every world shares. :func:`reset_bank` returns the bank of a use, to inspect, replay, or save it.
 """
 
 from __future__ import annotations
@@ -22,33 +24,64 @@ from __future__ import annotations
 import functools
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import torch
 import warp as wp
 
-from isaaclab.envs.reset import ResetStateBuffer, ResetStateSampler, ResetStateSamplerCfg
+from isaaclab.envs.reset import BetaSamplingScoreCfg, ResetStateBuffer, ResetStateSampler, ResetStateSamplerCfg
 from isaaclab.utils.warp import ProxyArray
 
 from ..builder import MDPBuilder
+from ..compiled import MDPState
 from ..config import TaskCfg
 from ..eager import TermContext
 from ..runtime import evaluate, reset, startup
-from ..terms import Term
+from ..terms import Implementation, Term
+
+
+@dataclass(frozen=True)
+class RecordStates:
+    """Record states that the worlds visit during training into slots of their own bank.
+
+    Each step, a world that did not terminate records its outputs with ``probability``, and only where the
+    ``record_when`` input, if bound, is above 0.5. Records go to ``slots`` extra slots per world, the oldest replaced
+    first; they start as copies of the filled states. A replaced slot forgets its outcomes and starts at the success
+    rate that the sampler's first score targets, so that new states are tried.
+    """
+
+    slots: int
+    probability: float
 
 
 @dataclass(frozen=True)
 class FillFromStates:
-    """Fill the bank with given states, such as states saved from an earlier fill or demonstrations.
+    """Fill the bank with given states, such as demonstrations.
 
-    ``states`` maps each output to ``(num_worlds, bank_size, ...)`` states, or ``(bank_size, ...)`` for a shared bank,
-    in the frame the event restores: poses relative to the environment origins when the use binds ``env_origins``.
+    ``states`` maps each output to ``(num_worlds, size, ...)`` states, or ``(size, ...)`` for a shared bank, in the
+    frame the event restores: poses relative to the environment origins when the use binds ``env_origins``.
     """
 
     states: Mapping[str, torch.Tensor]
 
     def __call__(self, ctx: TermContext, shared: bool) -> dict[str, torch.Tensor]:
         return {name: value.to(ctx.rng.device) for name, value in self.states.items()}
+
+
+@dataclass(frozen=True)
+class FillFromFile:
+    """Fill the bank with states that :meth:`ResetBank.save` wrote, such as a separate collection run."""
+
+    path: str | Path
+
+    def __call__(self, ctx: TermContext, shared: bool) -> dict[str, torch.Tensor]:
+        saved = torch.load(self.path, map_location=ctx.rng.device)
+        if saved["shared"] != shared or not shared and saved["num_worlds"] != ctx.num_worlds:
+            kind = "a shared bank" if saved["shared"] else f"banks of {saved['num_worlds']} worlds"
+            wanted = "a shared bank" if shared else f"banks of {ctx.num_worlds} worlds"
+            raise ValueError(f"{self.path} holds {kind}, but the event needs {wanted}.")
+        return saved["states"]
 
 
 @dataclass(frozen=True)
@@ -142,87 +175,324 @@ def farthest_points(points: torch.Tensor, count: int) -> torch.Tensor:
     return chosen
 
 
+class ResetBank:
+    """The start states of a reset event, the sampler that chooses among them, and the worlds' current choices.
+
+    Slots are numbered within a world's bank, or within the shared bank. Get it with :func:`reset_bank`. Reading
+    allocates and synchronizes; :meth:`replay` and the event's hooks do not, and replay inside the step's CUDA graph.
+    """
+
+    def __init__(
+        self,
+        states: Mapping[str, torch.Tensor],
+        outputs: Mapping[str, wp.array],
+        sampler: ResetStateSamplerCfg,
+        *,
+        shared: bool,
+        origins: wp.array | None,
+        nominal_probability: float,
+        record: RecordStates | None,
+    ) -> None:
+        first = next(iter(outputs.values()))
+        num_worlds, device = first.shape[0], first.device
+        filled = next(iter(states.values())).shape[0 if shared else 1]
+        recorded = 0 if record is None else record.slots
+        self.num_worlds, self.shared, self.size = num_worlds, shared, filled + recorded
+        self._filled, self._record, self._nominal = filled, record, float(nominal_probability)
+
+        # Recorded slots start as copies of the filled ones, so every slot can be drawn from the start.
+        cycle = torch.arange(self.size, device=states[next(iter(states))].device) % filled
+        rows = {}
+        for name, value in states.items():
+            value = value[cycle] if shared else value[:, cycle]
+            rows[name] = wp.from_torch(
+                value.reshape(-1, *value.shape[1 if shared else 2 :]).contiguous(), dtype=outputs[name].dtype
+            )
+        self.buffer = ResetStateBuffer(rows)
+        num_groups = 1 if shared else num_worlds
+        groups = None if shared else wp.array(range(num_worlds), dtype=wp.int32, device=device)
+        self.sampler = ResetStateSampler(
+            sampler, num_worlds, self.size * num_groups, device, group_ids=groups, num_groups=num_groups
+        )
+        scores = [score for score in sampler.scores if isinstance(score, BetaSamplingScoreCfg)]
+        self._prior = scores[0].target if scores else 0.0
+
+        self._outputs, self._origins = dict(outputs), origins
+        self._poses = (
+            [value for value in outputs.values() if value.dtype == wp.transformf] if origins is not None else []
+        )
+        zeros = functools.partial(wp.zeros, num_worlds, device=device)
+        self._requests = wp.full(num_worlds, -1, dtype=wp.int32, device=device)
+        self._restored, self._credit, self._valid = zeros(dtype=wp.bool), zeros(dtype=wp.bool), zeros(dtype=wp.bool)
+        self._recording, self._record_rows = zeros(dtype=wp.bool), zeros(dtype=wp.int32)
+        self._cursor = zeros(dtype=wp.int32)
+        # Recording stores poses relative to the origins, from copies of the outputs.
+        self._record_values = {
+            name: wp.empty_like(value) if any(value is pose for pose in self._poses) else value
+            for name, value in self._outputs.items()
+        }
+
+    @property
+    def states(self) -> dict[str, torch.Tensor]:
+        """Copies of the stored states, ``(num_worlds, size, ...)`` per output, or ``(size, ...)`` if shared. Poses
+        are relative to the environment origins when the use binds them."""
+        rows = {name: value.torch for name, value in self.buffer.states.items()}
+        return (
+            rows
+            if self.shared
+            else {name: value.view(self.num_worlds, self.size, *value.shape[1:]) for name, value in rows.items()}
+        )
+
+    @property
+    def success_rate(self) -> torch.Tensor:
+        """Recent success rate of each slot, ``(num_worlds, size)``, or ``(size,)`` if shared."""
+        return self._per_slot(self.sampler.success_rate.torch)
+
+    @property
+    def episode_counts(self) -> torch.Tensor:
+        """Episodes that started from each slot since it was filled, ``(num_worlds, size)`` or ``(size,)``."""
+        return self._per_slot(self.sampler.episode_counts.torch)
+
+    @property
+    def probabilities(self) -> torch.Tensor:
+        """Probability that the next draw picks each slot, ``(num_worlds, size)`` or ``(size,)``."""
+        return self._per_slot(self.sampler.probabilities.torch)
+
+    @property
+    def slots(self) -> torch.Tensor:
+        """The slot each world's episode started from, ``(num_worlds,)``; -1 for a nominal start or before the first
+        reset."""
+        indices = self.sampler.indices.torch.long()
+        slots = indices if self.shared else indices - torch.arange(self.num_worlds, device=indices.device) * self.size
+        return torch.where(wp.to_torch(self._restored) & (indices >= 0), slots, -1)
+
+    def replay(self, slots: torch.Tensor | None) -> None:
+        """Restart the worlds from the given slots at their next resets, ``(num_worlds,)``, -1 to draw as usual.
+
+        The requests hold until replaced; None clears them. A slot outside the bank leaves the world's start unchanged
+        and sets the sampler's ``invalid_requests``. Replayed episodes are credited like drawn ones.
+        """
+        requests = wp.to_torch(self._requests)
+        if slots is None:
+            requests.fill_(-1)
+            return
+        slots = slots.to(requests.device, torch.int32)
+        if not self.shared:
+            in_bank = (slots >= 0) & (slots < self.size)
+            rows = torch.arange(self.num_worlds, device=slots.device, dtype=torch.int32) * self.size + slots
+            slots = torch.where(in_bank, rows, torch.where(slots < 0, -1, self.size * self.num_worlds))
+        requests.copy_(slots)
+
+    def save(self, path: str | Path) -> None:
+        """Save the states, to fill a later run's bank with :class:`FillFromFile`."""
+        torch.save({"states": self.states, "shared": self.shared, "num_worlds": self.num_worlds}, path)
+
+    def restore(self, mask: wp.array, rng: wp.array, succeeded: wp.array | None) -> None:
+        """Credit the ended episodes, choose the next starts, and write the restored ones to the outputs."""
+        wp.launch(
+            _choose_starts,
+            mask.shape,
+            [mask, rng, self._requests, self._nominal, self._credit, self._valid, self._restored],
+            device=mask.device,
+        )
+        self.sampler.reset(mask, success=succeeded, valid=self._valid, state_ids=self._requests, rng=rng)
+        self.buffer.get_state(self.sampler.indices, out=self._outputs, mask=self._restored)
+        for pose in self._poses:
+            wp.launch(_shift_poses, mask.shape, [self._restored, self._origins, pose, pose, 1.0], device=mask.device)
+
+    def record(self, rng: wp.array, terminated: wp.array, record_when: wp.array | None) -> None:
+        """Record the states of the worlds selected this step into their oldest recorded slots."""
+        wp.launch(
+            _choose_records,
+            self.num_worlds,
+            [
+                rng,
+                terminated,
+                record_when,
+                self._record.probability,
+                self._filled,
+                self._record.slots,
+                self.size,
+                self.sampler.indices.warp,
+                self._cursor,
+                self._credit,
+                self._recording,
+                self._record_rows,
+            ],
+            device=rng.device,
+        )
+        for name, pose in self._outputs.items():
+            if self._record_values[name] is not pose:
+                wp.launch(
+                    _shift_poses,
+                    self.num_worlds,
+                    [self._recording, self._origins, pose, self._record_values[name], -1.0],
+                    device=rng.device,
+                )
+        self.sampler.forget(self._record_rows, self._recording, success_rate=self._prior)
+        self.buffer.set_state(self._record_rows, self._record_values, mask=self._recording)
+
+    def _per_slot(self, values: torch.Tensor) -> torch.Tensor:
+        return values.clone() if self.shared else values.view(self.num_worlds, self.size).clone()
+
+
+def reset_bank(state: MDPState, use: str = "events.reset") -> ResetBank:
+    """Return the bank of a :data:`reset_from_bank` use, by its name in the schedule."""
+    cache = state.caches.get(use, {})
+    if "bank" not in cache:
+        raise KeyError(f"'{use}' is not a reset_from_bank use. Uses with a cache: {sorted(state.caches)}.")
+    return cache["bank"]
+
+
 def _init(
     ctx: TermContext,
     *,
     fill: Callable[[TermContext, bool], dict[str, torch.Tensor]],
     sampler: ResetStateSamplerCfg | None = None,
     shared: bool = False,
+    nominal_probability: float = 0.0,
+    record: RecordStates | None = None,
 ) -> None:
-    """Fill the bank once, then build the sampler over it and bind the outputs it restores."""
+    """Fill the bank once, then build its sampler and bind the outputs it restores."""
     outputs = {name: _warp_view(ctx, name) for name in ctx.outputs}
-    if shared and "env_origins" not in ctx.inputs and any(value.dtype == wp.transformf for value in outputs.values()):
+    has_poses = any(value.dtype == wp.transformf for value in outputs.values())
+    if shared and "env_origins" not in ctx.inputs and has_poses:
         raise ValueError("A shared bank of poses needs the env_origins input, so that poses transfer across worlds.")
+    if record is not None and (shared or "terminated" not in ctx.inputs or record.slots < 1):
+        raise ValueError(
+            "Recording needs a bank per world, at least one slot, and the terminated input (mdp2.terminated), so"
+            " that states which end the episode are not recorded."
+        )
+    if not 0.0 <= nominal_probability <= 1.0:
+        raise ValueError(f"nominal_probability must be in [0, 1], got {nominal_probability}.")
     states = fill(ctx, shared)
     if states.keys() != outputs.keys():
         raise ValueError(f"The fill returned states for {sorted(states)}, but the event writes {sorted(outputs)}.")
-
-    num_worlds = ctx.num_worlds
     leading = 1 if shared else 2
-    bank_sizes = {value.shape[leading - 1] for value in states.values()}
-    if len(bank_sizes) != 1 or (not shared and any(value.shape[0] != num_worlds for value in states.values())):
+    if (
+        len({value.shape[leading - 1] for value in states.values()}) != 1
+        or not shared
+        and any(value.shape[0] != ctx.num_worlds for value in states.values())
+    ):
         raise ValueError("Every output needs the same number of states, per world unless the bank is shared.")
-    bank_size = bank_sizes.pop()
-    rows = {
-        name: wp.from_torch(value.reshape(-1, *value.shape[leading:]).contiguous(), dtype=outputs[name].dtype)
-        for name, value in states.items()
-    }
-    num_groups = 1 if shared else num_worlds
-    sampler_cfg = sampler if sampler is not None else ResetStateSamplerCfg(history_length=1, scores=[])
-    device = outputs[next(iter(outputs))].device
-    groups = None if shared else wp.array(range(num_worlds), dtype=wp.int32, device=device)
+
     origins = ctx.inputs.get("env_origins")
-
-    ctx.cache.update(
-        bank=ResetStateBuffer(rows),
-        sampler=ResetStateSampler(
-            sampler_cfg, num_worlds, bank_size * num_groups, device, group_ids=groups, num_groups=num_groups
-        ),
-        outputs=outputs,
-        poses=[value for value in outputs.values() if value.dtype == wp.transformf] if origins is not None else [],
+    bank = ResetBank(
+        states,
+        outputs,
+        sampler if sampler is not None else ResetStateSamplerCfg(history_length=1, scores=[]),
+        shared=shared,
         origins=None if origins is None else wp.from_torch(origins.contiguous(), dtype=wp.vec3f),
+        nominal_probability=nominal_probability,
+        record=record,
     )
-    # Load every kernel and the sampler's sort and scan scratch before a graph captures the hook: a reset of no worlds.
-    _reset_from_bank(
-        wp.zeros(num_worlds, dtype=wp.bool, device=device), ctx.cache, ctx.rng, ctx.inputs.get("succeeded")
-    )
+    ctx.cache["bank"] = bank
+    # Load every kernel and the sampler's sort and scan scratch before a graph captures the hooks: a step and a reset
+    # of no worlds.
+    nothing = wp.zeros(ctx.num_worlds, dtype=wp.bool, device=bank.sampler.device)
+    rng, succeeded = _as_warp(ctx.rng), ctx.inputs.get("succeeded")
+    bank.restore(nothing, rng, None if succeeded is None else _as_warp(succeeded))
+    if record is not None:
+        when = ctx.inputs.get("record_when")
+        bank.record(rng, wp.ones_like(nothing), None if when is None else _as_warp(when))
 
 
-def _reset_from_bank(mask: Any, cache: dict, rng: Any, succeeded: Any = None, **_: Any) -> None:
-    """Credit the ended episodes, draw the next states, and write them to the masked worlds' outputs."""
-    mask, rng = _as_warp(mask), _as_warp(rng)
-    sampler: ResetStateSampler = cache["sampler"]
-    success = None if succeeded is None else _as_warp(succeeded)
-    sampler.reset(mask, success=success, rng=rng)
-    cache["bank"].get_state(sampler.indices, out=cache["outputs"], mask=mask)
-    for pose in cache["poses"]:
-        wp.launch(_add_origin, mask.shape, [mask, cache["origins"], pose], device=pose.device)
+def _restore(mask: Any, cache: dict, rng: Any, succeeded: Any = None, **_: Any) -> None:
+    cache["bank"].restore(_as_warp(mask), _as_warp(rng), None if succeeded is None else _as_warp(succeeded))
 
 
-reset_from_bank = Term(torch=_reset_from_bank, warp=_reset_from_bank, random=True, init=_init)
+def _record(cache: dict, rng: Any, terminated: Any = None, record_when: Any = None, **_: Any) -> None:
+    bank: ResetBank = cache["bank"]
+    if bank._record is not None:
+        bank.record(_as_warp(rng), _as_warp(terminated), None if record_when is None else _as_warp(record_when))
+
+
+_hooks = Implementation(compute=_restore, update=_record)
+reset_from_bank = Term(torch=_hooks, warp=_hooks, random=True, init=_init)
 """Restart the reset worlds from start states drawn from a bank, the MDP2 counterpart of MDP1's lift
 ``conditional_reset``.
 
-Params: ``fill``, a callable that returns the states, such as :class:`FillFromCandidates`; ``sampler``, a
-:class:`~isaaclab.envs.reset.ResetStateSamplerCfg` that weighs the states by their recent success, or None to draw
-uniformly; and ``shared``, whether every world draws from one bank rather than its own. Share a bank only between
-worlds whose states fit each other: a state banked with one object spawned does not fit a world with another.
+Params:
 
-Inputs: ``succeeded``, the ended episode's success, credited to the state it started from when bound; and
-``env_origins``, which stores the poses relative to the environment origins so that a shared bank transfers across
-worlds.
+- ``fill``: a callable that returns the states, such as :class:`FillFromCandidates` or :class:`FillFromFile`;
+- ``sampler``: a :class:`~isaaclab.envs.reset.ResetStateSamplerCfg` that weighs the states by their recent success,
+  or None to draw uniformly;
+- ``shared``: whether every world draws from one bank rather than its own. Share a bank only between worlds whose
+  states fit each other: a state banked with one object spawned does not fit a world with another;
+- ``nominal_probability``: the fraction of resets that keep what the earlier reset events wrote. Those episodes are
+  not credited to any slot;
+- ``record``: :class:`RecordStates`, to bank states visited during training.
+
+Inputs: ``succeeded``, the ended episode's success, credited to the slot it started from when bound;
+``env_origins``, which stores the poses relative to the environment origins; ``terminated`` (``mdp2.terminated``),
+required to record; and ``record_when``, a quantity above 0.5 where a state may be recorded.
 
 Place it after the other reset events: it overwrites the outputs they wrote. The bank and the sampler's history persist
-across episodes.
+across episodes; :func:`reset_bank` returns them.
 """
 
 
 @wp.kernel
-def _add_origin(mask: wp.array(dtype=wp.bool), origins: wp.array(dtype=wp.vec3f), pose: wp.array(dtype=wp.transformf)):
+def _choose_starts(
+    mask: wp.array(dtype=wp.bool),
+    rng: wp.array(dtype=wp.int32),
+    requests: wp.array(dtype=wp.int32),
+    nominal_probability: float,
+    credit: wp.array(dtype=wp.bool),
+    valid: wp.array(dtype=wp.bool),
+    restored: wp.array(dtype=wp.bool),
+):
+    world = wp.tid()
+    if not mask[world]:
+        return
+    # The ended episode counts if it started from a slot that was not recorded over since.
+    valid[world] = credit[world]
+    restore = requests[world] >= 0 or wp.randf(wp.rand_init(rng[world], 1)) >= nominal_probability
+    restored[world] = restore
+    credit[world] = restore
+
+
+@wp.kernel
+def _choose_records(
+    rng: wp.array(dtype=wp.int32),
+    terminated: wp.array(dtype=wp.bool),
+    record_when: wp.array(dtype=wp.float32),
+    probability: float,
+    first: int,
+    slots: int,
+    size: int,
+    indices: wp.array(dtype=wp.int32),
+    cursor: wp.array(dtype=wp.int32),
+    credit: wp.array(dtype=wp.bool),
+    recording: wp.array(dtype=wp.bool),
+    rows: wp.array(dtype=wp.int32),
+):
+    world = wp.tid()
+    record = not terminated[world] and wp.randf(wp.rand_init(rng[world], 2)) < probability
+    if record_when:
+        record = record and record_when[world] > 0.5
+    recording[world] = record
+    if not record:
+        return
+    row = world * size + first + cursor[world]
+    cursor[world] = (cursor[world] + 1) % slots
+    rows[world] = row
+    if indices[world] == row:
+        credit[world] = False
+
+
+@wp.kernel
+def _shift_poses(
+    mask: wp.array(dtype=wp.bool),
+    origins: wp.array(dtype=wp.vec3f),
+    pose: wp.array(dtype=wp.transformf),
+    out: wp.array(dtype=wp.transformf),
+    sign: float,
+):
     world = wp.tid()
     if mask[world]:
-        pose[world] = wp.transformf(
-            wp.transform_get_translation(pose[world]) + origins[world], wp.transform_get_rotation(pose[world])
+        out[world] = wp.transformf(
+            wp.transform_get_translation(pose[world]) + sign * origins[world], wp.transform_get_rotation(pose[world])
         )
 
 
