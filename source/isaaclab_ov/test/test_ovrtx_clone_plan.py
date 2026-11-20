@@ -148,25 +148,21 @@ def _prepare_clones(renderer, plan, routed=None):
 
 
 @pytest.mark.parametrize(
-    "use_ovstage, prepare_hierarchy, names, worlds, weights, copies",
+    "use_ovstage, names, worlds, weights, copies",
     [
-        pytest.param(False, False, ("",), ((0,),), (1,), [(0, "", [1, 2, 3])], id="environment-roots"),
-        *(
-            pytest.param(
-                True,
-                prepare_hierarchy,
-                ("/Robot", "/Object", "/Light", "/Robot/Camera"),
-                ((3, 0, 2), (3, 0, 1)),
-                (1, 3),
-                [(0, "/Robot", [1, 2, 3]), (1, "/Object", [2, 3])],
-                id=f"nested-assets-prepare-{prepare_hierarchy}",
-            )
-            for prepare_hierarchy in (False, True)
+        pytest.param(False, ("",), ((0,),), (1,), [(0, "", [1, 2, 3])], id="environment-roots"),
+        pytest.param(
+            True,
+            ("/Robot", "/Object", "/Light", "/Robot/Camera"),
+            ((3, 0, 2), (3, 0, 1)),
+            (1, 3),
+            [(0, "/Robot", [1, 2, 3]), (1, "/Object", [2, 3])],
+            id="nested-assets",
         ),
     ],
 )
 def test_native_replication_applies_compositions_then_positions(
-    monkeypatch, use_ovstage, prepare_hierarchy, names, worlds, weights, copies
+    monkeypatch, use_ovstage, names, worlds, weights, copies
 ):
     """Native replication gates hierarchy preparation before copies and placement."""
     renderer = _make_ovrtx_renderer_without_backend()
@@ -180,10 +176,6 @@ def test_native_replication_applies_compositions_then_positions(
     if use_ovstage:
         import ovstage
 
-        monkeypatch.setattr(
-            "isaaclab_ov.stage.OVSTAGE_REQUIRES_CPU_HIERARCHY_BEFORE_CLONE",
-            prepare_hierarchy,
-        )
         paths = Mock()
         paths.create_path_list_from_strings.return_value = "env_paths"
         native.query_from_path_list.return_value = contextlib.nullcontext("env_query")
@@ -191,12 +183,9 @@ def test_native_replication_applies_compositions_then_positions(
         ovstage_replicate(
             native, paths, backend.clone_copies, backend.clone_env_paths, backend.clone_positions, ordinal=3
         )
-        if prepare_hierarchy:
-            native.compute_hierarchy.assert_called_once_with(
-                input_ordinal=3, output_ordinal=3, model=ovstage.HierarchyComputationModel.CPU_INCREMENTAL
-            )
-        else:
-            native.compute_hierarchy.assert_not_called()
+        native.compute_hierarchy.assert_called_once_with(
+            input_ordinal=3, output_ordinal=3, model=ovstage.HierarchyComputationModel.CPU_INCREMENTAL
+        )
         paths.create_path_list_from_strings.assert_called_once_with(backend.clone_env_paths)
         paths.destroy_path_list.assert_called_once_with("env_paths")
         actual = native.write_attribute.call_args.kwargs["tensors"]
@@ -222,7 +211,7 @@ def test_native_replication_applies_compositions_then_positions(
         for method in native.method_calls
         if method[0] in {"compute_hierarchy", "clone", "clone_usd", "write_attribute"}
     ]
-    preparation = ["compute_hierarchy"] if prepare_hierarchy else []
+    preparation = ["compute_hierarchy"] if use_ovstage else []
     assert calls == preparation + ["clone" if use_ovstage else "clone_usd"] * len(copies) + ["write_attribute"]
     assert backend.clone_env_paths == [f"/World/envs/env_{world}" for world in range(4)]
     expected = np.tile(np.eye(4, dtype=np.float64), (4, 1, 1))
@@ -231,9 +220,8 @@ def test_native_replication_applies_compositions_then_positions(
 
 
 @pytest.mark.parametrize("copies", [[], [("/World/Source", [])]], ids=["no-copies", "no-targets"])
-def test_ovstage_replication_skips_hierarchy_without_clones(monkeypatch, copies):
+def test_ovstage_replication_skips_hierarchy_without_clones(copies):
     """OVStage 0.4 does no hierarchy work when there are no clone destinations."""
-    monkeypatch.setattr("isaaclab_ov.stage.OVSTAGE_REQUIRES_CPU_HIERARCHY_BEFORE_CLONE", True)
     native, paths = Mock(), Mock()
     ovstage_replicate(native, paths, copies, [], ordinal=3)
     native.compute_hierarchy.assert_not_called()
@@ -515,6 +503,51 @@ def test_prepare_stage_exports_only_clone_sources_and_their_materials(monkeypatc
                 assert UsdGeom.Xformable(root_prim).GetLocalTransformation().ExtractTranslation() == Gf.Vec3d(3, 0, 0)
         assert not exported.GetPrimAtPath(f"{root}/Robot")
         assert not exported.GetPrimAtPath(f"{root}/Object_env{env_id}_only")
+
+
+def test_deferred_render_copy_failure_requires_stage_reset(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Reject a wrong ordinal before copying; a failed commit requires reset before replay."""
+    import ovstage
+    from isaaclab_ov import stage as stage_module
+
+    native, paths = Mock(), Mock()
+    monkeypatch.setattr(stage_module, "create_ovstage", lambda _: contextlib.nullcontext(native))
+    monkeypatch.setattr(ovstage, "PathDictionary", lambda _: contextlib.nullcontext(paths))
+    monkeypatch.setattr(stage_module, "populate_stage", lambda *args, **kwargs: None)
+    source = Usd.Stage.CreateInMemory()
+    UsdGeom.Cube.Define(source, "/World/env_0/Body")
+    backend = stage_module.OvstageBackend(stage_module.OvstageBackendCfg(defer_render_copies=True))
+    backend.clone_copies = [("/World/env_0", ["/World/env_1"])]
+    try:
+        backend.populate(source.ExportToString())
+        backend.commit()
+        with pytest.raises(RuntimeError, match="reserved render-copy ordinal"):
+            backend.complete_render_copies()
+        native.clone.assert_not_called()
+
+        backend.reset()
+        backend.populate(source.ExportToString())
+        native.advance_write_floor.return_value.wait.side_effect = RuntimeError("injected commit failure")
+        with pytest.raises(RuntimeError, match="injected commit failure"):
+            backend.complete_render_copies()
+        native.clone.assert_called_once()
+        assert backend.render_copies_pending
+        native.advance_write_floor.return_value.wait.side_effect = None
+        calls = list(native.mock_calls)
+        with pytest.raises(RuntimeError, match="reset"):
+            backend.complete_render_copies()
+        assert native.mock_calls == calls, "A failed copy must not be replayed onto partial native state"
+
+        backend.reset()
+        backend.populate(source.ExportToString())
+        backend.complete_render_copies()
+        assert not backend.render_copies_pending
+        assert backend.ordinal == 3
+        calls = list(native.mock_calls)
+        backend.complete_render_copies()
+        assert native.mock_calls == calls
+    finally:
+        backend.close()
 
 
 def test_clone_dependency_boundaries():

@@ -332,7 +332,6 @@ def get_next_free_path(path: str) -> str:
 
     Args:
         path: The base prim path to check.
-        stage: The stage to check. Defaults to the current stage.
 
     Returns:
         A new path that is guaranteed to not exist on the current stage

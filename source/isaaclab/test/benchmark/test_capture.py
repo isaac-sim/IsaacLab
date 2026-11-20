@@ -15,6 +15,7 @@ from isaaclab_newton.physics import (
     MPMSolverCfg,
     NewtonCfg,
     NewtonSolverCfg,
+    SteelSolverCfg,
     VBDSolverCfg,
     XPBDSolverCfg,
 )
@@ -233,6 +234,7 @@ def test_synth_run_id():
         (PhysxCfg(), "physx", ["physx"], None),
         (OvPhysxCfg(), "ovphysx", ["ovphysx"], None),
         (NewtonCfg(solver_cfg=FeatherstoneSolverCfg()), "newton_featherstone", ["newton_featherstone"], None),
+        (NewtonCfg(solver_cfg=SteelSolverCfg()), "newton_steel", ["newton_steel"], None),
         (NewtonCfg(solver_cfg=XPBDSolverCfg()), "newton_xpbd", ["newton_xpbd"], None),
         (NewtonCfg(solver_cfg=VBDSolverCfg()), "newton_vbd", ["newton_vbd"], None),
         (NewtonCfg(solver_cfg=MPMSolverCfg()), "newton_mpm", ["newton_mpm"], None),
@@ -343,3 +345,12 @@ def test_capture_resources_peak_clamped_to_mean_when_peak_row_absent():
     r = capture_resources(_Bm({"GPUInfo": gpu, "CPUInfo": cpu, "MemoryInfo": mem}))
     assert r.gpu_mem_gb.peak == pytest.approx(10.0)
     assert r.ram_gb.peak == pytest.approx(10.0)
+
+
+def test_capture_versions_reads_the_renamed_package_into_the_unchanged_record_field():
+    md = [
+        StringMetadata(name="isaaclab_version", data="4.6.8"),
+        StringMetadata(name="isaaclab_isaacsim_version", data="2.1.0"),
+    ]
+    bm = _Bm({"VersionInfo": _Rec(MeasurementData(measurements=[], metadata=md, artefacts=[]))})
+    assert capture_versions(bm).isaaclab_physx == "2.1.0"

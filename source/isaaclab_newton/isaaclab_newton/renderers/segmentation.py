@@ -42,13 +42,8 @@ if TYPE_CHECKING:
 _UNLABELLED_COLOR: int = 0xFF000000
 """Packed RGBA color for UNLABELLED pixels: ``(0, 0, 0, 255)`` opaque black."""
 
-# Newton ray-tracer sentinel values. These mirror the constants in
-# ``newton._src.sensors.warp_raytrace.raytrace`` (``NO_HIT_SHAPE_ID``, ``MAX_SHAPE_ID``), which are
-# not re-exported by Newton's public API. Keep in sync if Newton changes them.
 _NEWTON_NO_HIT_SHAPE_ID: int = 0xFFFFFFFF
-"""Shape-index value written by the Newton ray tracer when a ray hits nothing (ray miss)."""
-_NEWTON_MAX_SHAPE_ID: int = 0xFFFFFFF0
-"""Guard threshold: any shape_index >= this value is a synthetic/sentinel id, not a real shape."""
+"""Shape index Newton's camera writes for a ray miss (:attr:`SensorCamera.ClearData.clear_shape_index`)."""
 
 _FIRST_ID: int = 2
 """First id assigned to a real semantic/instance group (0 and 1 are reserved)."""
@@ -80,13 +75,13 @@ SemanticPrimPath: TypeAlias = str
 # ------------------------------------------------------------------------------------------------
 # Semantic-filter predicate — RTX parity.
 #
-# The Isaac RTX renderer evaluates :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.semantic_filter`
+# The Isaac RTX renderer evaluates :attr:`~isaaclab_isaacsim.renderers.IsaacRtxRendererCfg.semantic_filter`
 # inside Replicator's C++ ``SyntheticData`` instance-mapping filter (see
-# :func:`isaaclab_physx.renderers.isaac_rtx_renderer._camera_semantic_filter_predicate`). The kit-less
+# :func:`isaaclab_isaacsim.renderers.isaac_rtx_renderer._camera_semantic_filter_predicate`). The kit-less
 # Newton path has no Replicator, so the three functions below re-implement the *same* predicate grammar
 # on the host so :attr:`~isaaclab_newton.renderers.NewtonWarpRendererCfg.semantic_filter` selects
 # exactly the labels the RTX renderer would. The grammar is documented on
-# :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.semantic_filter`.
+# :attr:`~isaaclab_isaacsim.renderers.IsaacRtxRendererCfg.semantic_filter`.
 # ------------------------------------------------------------------------------------------------
 
 
@@ -122,8 +117,8 @@ def _parse_semantic_filter(semantic_filter: str | list[str]) -> list[tuple[str, 
     """Normalize a semantic filter into a list of ``(type, label_expr)`` clauses (RTX parity).
 
     Reproduces the normalization in
-    :func:`isaaclab_physx.renderers.isaac_rtx_renderer._camera_semantic_filter_predicate` so the same
-    :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.semantic_filter` value behaves identically on
+    :func:`isaaclab_isaacsim.renderers.isaac_rtx_renderer._camera_semantic_filter_predicate` so the same
+    :attr:`~isaaclab_isaacsim.renderers.IsaacRtxRendererCfg.semantic_filter` value behaves identically on
     the Newton Warp backend: a list is treated as bare semantic types (``["class"] -> "class:*"``); a
     string is a ``;``-separated disjunction of ``type:label_expr`` clauses (e.g.
     ``"class:* ; *:shelf"``).  Within each ``;``-separated segment, commas that precede an
@@ -163,58 +158,29 @@ def _parse_semantic_filter(semantic_filter: str | list[str]) -> list[tuple[str, 
 
 
 @wp.kernel(enable_backward=False)
-def _remap_shape_index_to_id_kernel(
-    shape_index: wp.array(dtype=wp.uint32, ndim=4),
-    shape_to_id: wp.array(dtype=wp.uint32),
-    shape_count: wp.int32,
-    out_id: wp.array(dtype=wp.int32, ndim=4),
+def _remap_shape_index(
+    shape_index: wp.array(dtype=wp.uint32),
+    table: wp.array(dtype=wp.uint32),
+    miss: wp.uint32,
+    unlabelled: wp.uint32,
+    out: wp.array(dtype=wp.uint32),
 ):
-    """Write the segmentation id of each pixel's shape."""
-    w, c, y, x = wp.tid()
-    idx = shape_index[w, c, y, x]
+    """Write each pixel's table entry, or a sentinel for misses and hits without a shape."""
+    i = wp.tid()
+    idx = shape_index[i]
     if idx == wp.uint32(wp.static(_NEWTON_NO_HIT_SHAPE_ID)):
-        # Ray missed all geometry — no surface was hit.
-        out_id[w, c, y, x] = wp.int32(wp.static(BACKGROUND_ID))
-    elif idx >= wp.uint32(wp.static(_NEWTON_MAX_SHAPE_ID)):
-        # Synthetic hit (particles, deformable mesh, etc.) — real geometry but no shape-array entry.
-        out_id[w, c, y, x] = wp.int32(wp.static(UNLABELLED_ID))
-    elif idx < wp.uint32(shape_count):
-        # Normal geometry hit — look up the pre-built segmentation id for this shape.
-        out_id[w, c, y, x] = wp.int32(shape_to_id[wp.int32(idx)])
+        out[i] = miss
+    elif idx < wp.uint32(table.shape[0]):
+        out[i] = table[wp.int32(idx)]
     else:
-        # Index is in the valid uint32 range but beyond shape_count — should not happen in practice.
-        out_id[w, c, y, x] = wp.int32(wp.static(UNLABELLED_ID))
-
-
-@wp.kernel(enable_backward=False)
-def _remap_shape_index_to_color_kernel(
-    shape_index: wp.array(dtype=wp.uint32, ndim=4),
-    shape_to_color: wp.array(dtype=wp.uint32),
-    shape_count: wp.int32,
-    out_color: wp.array(dtype=wp.uint32, ndim=4),
-):
-    """Write the packed RGBA color of each pixel's shape."""
-    w, c, y, x = wp.tid()
-    idx = shape_index[w, c, y, x]
-    if idx == wp.uint32(wp.static(_NEWTON_NO_HIT_SHAPE_ID)):
-        # Ray missed all geometry — no surface was hit.
-        out_color[w, c, y, x] = wp.uint32(0)
-    elif idx >= wp.uint32(wp.static(_NEWTON_MAX_SHAPE_ID)):
-        # Synthetic hit (particles, deformable mesh, etc.) — real geometry but no shape-array entry.
-        out_color[w, c, y, x] = wp.uint32(wp.static(_UNLABELLED_COLOR))
-    elif idx < wp.uint32(shape_count):
-        # Normal geometry hit — look up the pre-built color for this shape.
-        out_color[w, c, y, x] = shape_to_color[wp.int32(idx)]
-    else:
-        # Index is in the valid uint32 range but beyond shape_count — should not happen in practice.
-        out_color[w, c, y, x] = wp.uint32(wp.static(_UNLABELLED_COLOR))
+        out[i] = unlabelled
 
 
 @dataclass
 class NewtonSegmentationMapping:
     """Device lookup tables and host metadata for one segmentation output.
 
-    Built once per (kind, colorize) by :meth:`NewtonSegmentationMapper.mapping` and reused across frames
+    Built once per (kind, colorize) by :meth:`NewtonSegmentationMapper.build_mapping` and reused across frames
     since the scene geometry and semantics are static after construction.
     """
 
@@ -226,20 +192,28 @@ class NewtonSegmentationMapping:
     info: dict[str, dict]
 
     def convert_shape_index_to_output(self, shape_index: wp.array, out_view: wp.array) -> None:
-        """Generate the segmentation output into ``out_view`` (colorized RGBA or raw uint32 ids).
+        """Generate the segmentation output into ``out_view`` (colorized packed RGBA or raw int32 ids).
 
         Args:
-            shape_index: Newton ``shape_index_image`` scratch, ``(world_count, 1, H, W)`` uint32.
-            out_view: Destination view aliasing the camera output buffer as ``(world_count, 1, H, W)``,
-                dtype uint32 (both colorized and non-colorized).
+            shape_index: Newton ``shape_index_image`` scratch, ``(view_count, H, W)`` uint32.
+            out_view: Destination view aliasing the camera output buffer as ``(view_count, H, W)``,
+                dtype uint32 when colorized and int32 otherwise.
         """
         if self.shape_count == 0:
             out_view.zero_()
             return
-        kernel = _remap_shape_index_to_color_kernel if self.colorize else _remap_shape_index_to_id_kernel
-        mapping = self.shape_to_color if self.colorize else self.shape_to_id
+        if self.colorize:
+            table, miss, unlabelled = self.shape_to_color, 0, _UNLABELLED_COLOR
+        else:
+            table, miss, unlabelled = self.shape_to_id, BACKGROUND_ID, UNLABELLED_ID
+        # Raw int32 ids are written through a uint32 view.
+        out = wp.array(ptr=out_view.ptr, dtype=wp.uint32, shape=out_view.size, device=out_view.device, copy=False)
         wp.launch(
-            kernel, shape_index.shape, [shape_index, mapping, self.shape_count], [out_view], device=out_view.device
+            _remap_shape_index,
+            shape_index.size,
+            [shape_index.flatten(), table, miss, unlabelled],
+            [out],
+            device=out_view.device,
         )
 
 

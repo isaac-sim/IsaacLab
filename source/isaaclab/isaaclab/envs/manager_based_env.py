@@ -230,6 +230,9 @@ class ManagerBasedEnv:
             self.scene.update(dt=self.physics_dt)
         self.video_recorders: list[VideoRecorder] = [VideoRecorder(cfg, self) for cfg in self.cfg.video_recorders]
 
+        # export after asset initialization, before startup events
+        if self.cfg.scene.export_usd_path is not None:
+            self.scene.export_to_usd(self.cfg.scene.export_usd_path)
         # add timeline event to load managers
         report_activity("Setting up managers")
         self.load_managers()
@@ -377,7 +380,7 @@ class ManagerBasedEnv:
 
             However, in case of extension mode, the user must call this function manually after the simulator
             is reset. This is because the simulator is only reset when the user calls
-            :meth:`SimulationContext.reset_async` and it isn't possible to call async functions in the constructor.
+            :meth:`~isaaclab.sim.SimulationContext.reset`.
 
         """
         # prepare the managers

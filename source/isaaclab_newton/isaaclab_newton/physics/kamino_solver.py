@@ -55,7 +55,13 @@ class KaminoSolver(NewtonSolver):
             loop_closing = loop_closing and bool((start.numpy()[1:] > end.numpy()).any())
             cfg = cfg.replace(use_fk_solver=loop_closing)
         if cfg.max_contacts_per_world is not None:
-            model.rigid_contact_max = int(cfg.max_contacts_per_world) * model.world_count
+            contact_max = int(cfg.max_contacts_per_world) * model.world_count
+            if model.rigid_contact_max is not None and model.rigid_contact_max != contact_max:
+                raise ValueError(
+                    f"Kamino max_contacts_per_world requests {contact_max} contacts, but the model already"
+                    f" requests {model.rigid_contact_max}. Set one consistent contact capacity."
+                )
+            model.rigid_contact_max = contact_max
             logger.info(
                 "[KAMINO] Capping rigid_contact_max to %d (%d/world * %d worlds)",
                 model.rigid_contact_max,
@@ -73,6 +79,17 @@ class KaminoSolver(NewtonSolver):
     def init_state(self, state: State) -> None:
         """Initialize the output state's persistent Kamino buffers; FK initializes the input state."""
         self.native.reset(state, config=self.native.ResetConfig.preserve())
+
+    def supports_capture(self) -> bool:
+        """On the CPU, P-ADMM captures only with a direct linear solver.
+
+        Kamino's iterative linear solvers (selected explicitly or by sparse dynamics) copy strided views on the CPU,
+        which Warp's CPU graph capture rejects.
+        """
+        config = self.native._config
+        if self.native.model.device.is_cuda or config.dynamics_solver != "padmm":
+            return True
+        return not config.sparse_dynamics and config.dynamics.linear_solver_type in ("LLTB", "LLTBRCM", "LLTS")
 
     def uses_collision_pipeline(self) -> bool:
         return not self.cfg.use_collision_detector

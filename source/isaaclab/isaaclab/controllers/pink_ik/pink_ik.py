@@ -236,8 +236,9 @@ class PinkIKController:
             dt: The time step for computing joint position changes in seconds.
 
         Returns:
-            The target joint positions as a tensor of shape (num_joints,) on the specified device.
-            If the IK solver fails, returns the current joint positions unchanged to maintain stability.
+            The target positions of the controlled joints as a tensor of shape (num_controlled_joints,) on the
+            specified device. If the IK solver fails, returns the current controlled joint positions unchanged
+            to maintain stability.
         """
         # Get the current controlled joint positions
         curr_controlled_joint_pos = [curr_joint_pos[i] for i in self.controlled_joint_indices]

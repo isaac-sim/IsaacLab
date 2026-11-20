@@ -13,8 +13,8 @@ from typing import TYPE_CHECKING, Any, ClassVar
 from ..utils import configclass
 
 if TYPE_CHECKING:
+    from isaaclab_isaacsim.physics import PhysxCfg
     from isaaclab_ov.physics import OvPhysxCfg
-    from isaaclab_physx.physics import PhysxCfg
 
     from .physics_manager import PhysicsManager
 
@@ -36,6 +36,9 @@ class PhysicsCfg:
 
     launcher_type: ClassVar[str | None] = None
     """The launcher that starts the runtime this backend runs in, as ``"module:Class"``, or None if none is needed."""
+
+    mesh_variant_source_root: str | None = None
+    """USD source namespace for native mesh variants, when provided by the backend."""
 
     deterministic: bool = False
     """Whether to request reproducible physics from the backend. Defaults to False.
@@ -77,7 +80,7 @@ def _resolve_physx_auto_cfg(physics_cfg: PhysicsCfg, use_isaac_sim: bool) -> Phy
         expected_type = OvPhysxCfg
         field_name = "ovphysx"
     else:
-        from isaaclab_physx.physics import PhysxCfg
+        from isaaclab_isaacsim.physics import PhysxCfg
 
         selected = physics_cfg.isaacsim_physx
         expected_type = PhysxCfg

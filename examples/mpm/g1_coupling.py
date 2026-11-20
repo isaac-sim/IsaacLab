@@ -197,8 +197,8 @@ def _kinematic_box(
     contact_margin: float,
 ) -> Any:
     """Create one visible kinematic collider."""
+    from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
     from isaaclab_newton.sim.schemas import NewtonCollisionCfg
-    from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
     import isaaclab.sim as sim_utils
     from isaaclab.assets import RigidObjectCfg

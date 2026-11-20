@@ -6,9 +6,9 @@
 import os
 from dataclasses import MISSING
 
+from isaaclab_isaacsim.physics import PhysxCfg
+from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
-from isaaclab_physx.physics import PhysxCfg
-from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
@@ -274,7 +274,7 @@ class PlaceToy2BoxEnvCfg(ManagerBasedRLEnvCfg):
 
 
 """
-Env to Replay Sim2Lab Demonstrations with JointSpaceAction
+Env to Place Toy into Box with AgiBot Right Arm using RMPFlow
 """
 
 

@@ -5,7 +5,7 @@
 
 """Shared recorded robot-PoV camera configuration for contributed tasks."""
 
-from isaaclab_physx.renderers import IsaacRtxRendererCfg
+from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.sensors import CameraCfg

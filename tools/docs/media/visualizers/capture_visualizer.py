@@ -53,7 +53,7 @@ from pathlib import Path
 
 import gymnasium as gym
 import torch
-from isaaclab_physx.renderers import IsaacRtxRendererCfg
+from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
 from isaaclab_visualizers.kit import KitBackendCfg
 from isaaclab_visualizers.newton import NewtonGLBackendCfg, NewtonRTXBackendCfg
 from isaaclab_visualizers.rerun import RerunBackendCfg
@@ -2002,7 +2002,7 @@ _STREAMING_CAM_PRIM_PATH = "{ENV_REGEX_NS}/StreamingCamera"
 _STREAMING_INTERACTIVE_EYE = (18.0, -18.0, 14.0)
 _STREAMING_INTERACTIVE_LOOKAT = (0.0, 0.0, 0.0)
 
-# Streaming panel size (see KitVisualizer._setup_camera_image_window).
+# Streaming panel size (see KitVisualizer.initialize).
 _STREAMING_WINDOW_WIDTH = 960
 _STREAMING_WINDOW_HEIGHT = 600
 

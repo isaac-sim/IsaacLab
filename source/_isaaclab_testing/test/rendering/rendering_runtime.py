@@ -17,7 +17,7 @@ from typing import Any
 import torch
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_ov.physics import OvPhysxCfg
-from isaaclab_physx.physics import PhysxCfg
+from isaaclab_isaacsim.physics import PhysxCfg
 
 from isaaclab.app import launch_simulation
 from isaaclab.physics import PhysicsCfg
@@ -86,6 +86,9 @@ def build_rendering_scene(
     """
     scene_cfg = copy.deepcopy(scene_cfg)
     scene_cfg.camera.data_types = list(data_types)
+    if {"rgb", "rgba"}.isdisjoint(scene_cfg.camera.data_types):
+        # The ISP only processes color output, which it requires.
+        scene_cfg.camera.isp_cfg = None
     scene_cfg.camera.background_color = background_color
     if physics_cfg is None:
         physics_cfg = {

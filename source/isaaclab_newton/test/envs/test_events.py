@@ -83,6 +83,7 @@ def event_env(
         prim_path="{ENV_REGEX_NS}/Robot",
         spawn=sim_utils.UsdFileCfg(usd_path=str(path)),
         actuators={},
+        joint_ordering=("right_elbow", "right_shoulder", "left_elbow", "left_shoulder"),
         body_ordering=list(reversed(body_names)),
     )
     observations = ObservationGroupCfg()
@@ -127,6 +128,8 @@ def test_material_body_selection(event_env: ManagerBasedEnv):
         "dynamic_friction_range": (0.2, 0.2),
         "restitution_range": (0.1, 0.1),
         "num_buckets": 1,
+        "contact_stiffness_range": (2500.0, 2500.0),
+        "contact_damping_range": (100.0, 100.0),
     }
     friction = wp.to_torch(model.shape_material_mu)
     restitution = wp.to_torch(model.shape_material_restitution)
@@ -134,10 +137,19 @@ def test_material_body_selection(event_env: ManagerBasedEnv):
     expected_restitution = restitution.clone()
     expected_friction[selected] = 0.4
     expected_restitution[selected] = 0.1
+    stiffness = wp.to_torch(model.shape_material_ke)
+    damping = wp.to_torch(model.shape_material_kd)
+    expected_stiffness = stiffness.clone()
+    expected_damping = damping.clone()
+    expected_stiffness[selected] = 2500.0
+    expected_damping[selected] = 100.0
     term = randomize_rigid_body_material(EventTermCfg(func=randomize_rigid_body_material, params=params), env)
     term(env, torch.tensor([1], device=env.device, dtype=torch.int32), **params)
     torch.testing.assert_close(friction, expected_friction)
     torch.testing.assert_close(restitution, expected_restitution)
+
+    torch.testing.assert_close(stiffness, expected_stiffness)
+    torch.testing.assert_close(damping, expected_damping)
 
 
 def test_collider_offsets_preserve_unselected_environments(event_env: ManagerBasedEnv):
@@ -203,7 +215,7 @@ def test_gravity_selectors_preserve_global_world(event_env: ManagerBasedEnv):
     gravity.copy_(original)
 
 
-def test_joint_friction_preserves_unselected_environments(event_env: ManagerBasedEnv):
+def test_joint_friction_preserves_unselected_joints_and_environments(event_env: ManagerBasedEnv):
     env = event_env
     robot = env.scene["robot"]
     model = env.sim.backend_manager.backend.model
@@ -212,17 +224,25 @@ def test_joint_friction_preserves_unselected_environments(event_env: ManagerBase
     expected_friction = friction.clone()
     expected_damping = damping.clone()
     dof_starts = model.joint_qd_start.numpy()
-    params = {"asset_cfg": SceneEntityCfg("robot"), "operation": "abs"}
-    term = randomize_joint_parameters(EventTermCfg(func=randomize_joint_parameters, params=params), env)
-    for selector, row, value in ((torch.tensor([1], device=env.device), 1, 0.5), (slice(2, 3), 2, 0.7)):
+    joint_name = "right_elbow"
+    assert robot.joint_names.index(joint_name) != robot.backend_joint_names.index(joint_name)
+    for selector, row, value, joint_names in (
+        (torch.tensor([1], device=env.device), 1, 0.5, None),
+        (slice(2, 3), 2, 0.7, None),
+        (torch.tensor([1], device=env.device), 1, 0.9, [joint_name]),
+    ):
+        asset_cfg = SceneEntityCfg("robot", joint_names=joint_names)
+        asset_cfg.resolve(env.scene)
+        params = {"asset_cfg": asset_cfg, "operation": "abs"}
+        term = randomize_joint_parameters(EventTermCfg(func=randomize_joint_parameters, params=params), env)
         term(env, selector, friction_distribution_params=(value, value), **params)
         selected = [
             dof
             for joint, label in enumerate(model.joint_label)
-            if f"/env_{row}/" in label and label.rsplit("/", 1)[-1] in robot.joint_names
+            if f"/env_{row}/" in label and label.rsplit("/", 1)[-1] in (joint_names or robot.joint_names)
             for dof in range(dof_starts[joint], dof_starts[joint + 1])
         ]
-        assert len(selected) == robot.num_joints
+        assert len(selected) == (len(joint_names) if joint_names else robot.num_joints)
         expected_friction[selected] = value
         expected_damping[selected] = value
         torch.testing.assert_close(friction, expected_friction)

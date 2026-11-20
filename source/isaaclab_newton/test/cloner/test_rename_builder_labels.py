@@ -251,9 +251,12 @@ class TestVisualizationClonePlan(unittest.TestCase):
         expected = {"/Scene/PeriodicRope": (3, True), "/Scene/SharedRope": (2, False)}
         expected.update((f"/Scene/copy_{index}/Rope", (2, False)) for index in range(2))
         self.assertEqual(set(record.cable_bindings), set(expected))
+        expected_scales = {}
         for path, (count, closed) in expected.items():
             shapes = [builder.shape_label.index(f"{path}_edge_capsule_{index}") for index in range(count)]
             self.assertEqual(record.cable_bindings[path], (shapes, True) if closed else shapes)
+            expected_scales.update((index, builder.shape_scale[index]) for index in shapes)
+        self.assertEqual(record.cable_scales, expected_scales)
 
     def test_visualization_builder_preserves_nested_attachment_and_disables_collision_pairs(self):
         stage = Usd.Stage.CreateInMemory()

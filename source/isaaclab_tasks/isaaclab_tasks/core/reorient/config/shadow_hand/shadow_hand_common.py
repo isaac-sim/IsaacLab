@@ -10,10 +10,10 @@ domain-randomization presets, and the sim mixins. No task tunables: reward
 scales and thresholds live inline in the workflow configuration files.
 """
 
+from isaaclab_isaacsim.physics import PhysxCfg
+from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_ov.physics import OvPhysxCfg
-from isaaclab_physx.physics import PhysxCfg
-from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
@@ -135,7 +135,7 @@ class ShadowHandManagerResetEventCfg:
         func=mdp.reset_reorient_hand,
         mode="reset",
         params={
-            "joint_position_noise": 0.2,  # [rad]
+            "joint_position_noise": 0.2,  # fraction from default toward a uniform sample within the joint limits
             "joint_velocity_noise": 0.0,  # [rad/s]
         },
     )

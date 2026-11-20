@@ -185,7 +185,7 @@ class NewtonManager(PhysicsManager):
         self._flag_outer_capture()
 
     def _flag_outer_capture(self) -> None:
-        """Flag writes recorded into an outer CUDA graph capture."""
+        """Flag writes recorded into an outer graph capture."""
         if self.backend.device.is_capturing:
             self.backend.transforms_may_change_on_graph_replay = True
 
@@ -348,8 +348,22 @@ class NewtonManager(PhysicsManager):
         self.builder.request_contact_attributes(attr)
 
     def add_model_change(self, change: ModelFlags) -> None:
-        """Register a model change to notify the solver at the next step."""
-        self.backend.model_changes.add(change)
+        """Register a model change to notify the solver at the next step.
+
+        Inside a graph capture, the refresh of this change alone is recorded instead, so every replay applies it;
+        changes queued before the capture stay queued for the next step.
+        """
+        backend = self.backend
+        if wp.get_device(backend.device).is_capturing:
+            queued, backend.model_changes = backend.model_changes, {change}
+            try:
+                backend.notify_model_changes()
+            finally:
+                backend.model_changes = queued
+        else:
+            backend.model_changes.add(change)
+        if change & ModelFlags.SHAPE_TYPE_AND_SOURCE:
+            backend.geometry_change_version += 1
 
     def invalidate_fk(
         self,
@@ -451,8 +465,14 @@ class NewtonManager(PhysicsManager):
         device = self._device
         logger.info(f"Finalizing model on device: {device}")
         builder.up_axis = Axis.Z
+        clone = self._clone
+        cable_bindings = {} if clone is None else clone.cable_bindings
         if (solver_cfg := self._cfg.solver_cfg) is not None:
             solver_cfg.class_type.prepare_builder(solver_cfg, builder)
+        collision_cfg = self._cfg.collision_cfg
+        cable_scales = None
+        if clone is not None and collision_cfg is not None and collision_cfg.sdf_all_shapes is not None:
+            cable_scales = clone.cable_scales
         with Timer(
             name="newton_finalize_builder",
             msg="Finalize builder took:",
@@ -465,11 +485,10 @@ class NewtonManager(PhysicsManager):
             self.backend.model.set_gravity(sim.cfg.gravity)
 
         self.backend.decimation = self._decimation
-        clone = self._clone
         if clone is not None:
             self.backend.particle_ranges = clone.particle_ranges
         self._scene_data_backend.initialize_geometry(
-            [] if clone is None else clone.geometry_batches, {} if clone is None else clone.cable_bindings
+            [] if clone is None else clone.geometry_batches, cable_bindings, cable_scales
         )
         logger.info("Dispatching PHYSICS_READY callbacks")
         self.dispatch_event(PhysicsEvent.PHYSICS_READY)
@@ -492,7 +511,11 @@ class NewtonManager(PhysicsManager):
             synchronize="both",
             device=self.get_device(),
         ):
-            backend.init_solver(None if plan is None else plan.env_template, relaxed_capture=self._relaxed_capture)
+            backend.init_solver(
+                None if plan is None else plan.env_template,
+                relaxed_capture=self._relaxed_capture,
+                initial_body_variants=() if self._clone is None else self._clone.initial_body_variants,
+            )
         if self._handled_actions is not None:
             self._handle_actions()
         self._mark_transforms_changed()
@@ -535,14 +558,15 @@ class NewtonManager(PhysicsManager):
         self.backend.activate_actuators()
 
     def register_solver_init_callback(self, callback: Callable[[], None]) -> None:
-        """Append a one-shot hook invoked once the solver exists, before the initial FK and any CUDA graph capture."""
+        """Append a one-shot hook invoked once the solver exists, before the initial FK and any graph capture."""
         self.backend.solver_init_callbacks.append(callback)
 
     def register_pre_actuator_callback(self, callback: Callable[[], None]) -> None:
         """Append a hook invoked before the Newton actuators of every physics step.
 
-        Each callback is recorded into the captured step, so it must be graph-safe. Hard resets discard these hooks;
-        register them again when the new model is ready.
+        Each callback is recorded into the captured step, so it must be graph-safe; see
+        :attr:`~isaaclab_newton.physics.NewtonCfg.use_cuda_graph`. Hard resets discard these hooks; register them
+        again when the new model is ready.
         """
         self.backend.pre_actuator_callbacks.append(callback)
         self.backend.invalidate_graph()
@@ -551,9 +575,9 @@ class NewtonManager(PhysicsManager):
         """Append a hook invoked after the Newton actuators of every physics step.
 
         Each callback is recorded into the captured step right after the Newton actuators and before the solver
-        substeps, so its writes to ``state``/``control`` are visible to the integrator on the same iteration.
-        Callbacks fire in registration order. Hard resets discard these hooks; register them again when the new model
-        is ready.
+        substeps, so its writes to ``state``/``control`` are visible to the integrator on the same iteration, and it
+        must be graph-safe; see :attr:`~isaaclab_newton.physics.NewtonCfg.use_cuda_graph`. Callbacks fire in
+        registration order. Hard resets discard these hooks; register them again when the new model is ready.
         """
         self.backend.post_actuator_callbacks.append(callback)
         self.backend.invalidate_graph()
@@ -561,7 +585,8 @@ class NewtonManager(PhysicsManager):
     def register_state_force_callback(self, callback: Callable[[State], None]) -> None:
         """Register a graph-safe callback that applies forces before every solver substep.
 
-        Hard resets discard these hooks; register them again when the new model is ready.
+        See :attr:`~isaaclab_newton.physics.NewtonCfg.use_cuda_graph` for what graph-safe requires. Hard resets
+        discard these hooks; register them again when the new model is ready.
 
         Args:
             callback: Function that adds forces [N, N·m] to the provided state.
@@ -573,8 +598,8 @@ class NewtonManager(PhysicsManager):
     def register_post_step_callback(self, callback: Callable[[], None]) -> None:
         """Append a hook invoked once per :meth:`step`, after the last solver substep and before sensors update.
 
-        The hook reflects the state after all decimation iterations of the step. Callbacks must be graph-safe (fixed
-        shapes, no host branching on device data) because they are recorded into the captured step.
+        The hook reflects the state after all decimation iterations of the step. Callbacks must be graph-safe because
+        they are recorded into the captured step; see :attr:`~isaaclab_newton.physics.NewtonCfg.use_cuda_graph`.
         Hard resets discard these hooks; register them again when the new model is ready.
         """
         self.backend.post_step_callbacks.append(callback)

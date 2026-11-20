@@ -237,7 +237,7 @@ specific to warp envs; for Newton physics features and related guides see
 **Physics backend**
 
 - **Newton only.** PhysX is not supported under the warp env path. Asset and sensor
-  ``class_type`` fields resolve to ``isaaclab_physx.*`` classes that depend on
+  ``class_type`` fields resolve to ``isaaclab_isaacsim.*`` classes that depend on
   ``omni.physics.tensors`` (a Kit module the warp runtime does not initialise), and several
   warp APIs (env-mask reset, CUDA graph capture) require the Newton articulation. Configure
   the cfg with a Newton physics block (or the typed selector ``physics=newton_mjwarp``,
@@ -577,7 +577,7 @@ Available Warp MDP Terms
 
    * - Category
      - Available Terms
-   * - Observations (11)
+   * - Observations (12)
      - | ``base_pos_z``
        | ``base_lin_vel``
        | ``base_ang_vel``
@@ -589,12 +589,15 @@ Available Warp MDP Terms
        | ``joint_vel_rel``
        | ``last_action``
        | ``generated_commands``
-   * - Rewards (16)
+       | ``body_incoming_wrench``
+   * - Rewards (18)
      - | ``is_alive``
        | ``is_terminated``
+       | ``is_terminated_term``
        | ``lin_vel_z_l2``
        | ``ang_vel_xy_l2``
        | ``flat_orientation_l2``
+       | ``base_height_l2``
        | ``joint_torques_l2``
        | ``joint_vel_l1``
        | ``joint_vel_l2``

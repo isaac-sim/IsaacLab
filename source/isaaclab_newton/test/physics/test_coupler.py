@@ -146,6 +146,20 @@ def _valid_proxy_setup(
     )
 
 
+@pytest.mark.parametrize(
+    "collision_cfg",
+    [
+        NewtonCollisionPipelineCfg(sdf_all_shapes=NewtonCollisionPipelineCfg.SDFAllShapesCfg()),
+        NewtonCollisionPipelineCfg(speculative_contact_gap_max=0.01),
+    ],
+)
+def test_proxy_rejects_unsupported_collision_options(collision_cfg):
+    cfg, _, proxies = _valid_proxy_setup()
+    proxies[0].collision_pipeline = collision_cfg
+    with pytest.raises(ValueError, match="Proxy collision pipelines do not support"):
+        coupler._build_proxy_coupled_solver(_FakeModel(), [], proxies, cfg, wp.DeterministicMode.NOT_GUARANTEED)
+
+
 def test_config_validation_requires_entries():
     with pytest.raises(ValueError, match="at least one solver entry"):
         coupler._validate_cfg(CouplerProxyCfg())
@@ -497,6 +511,7 @@ def test_mpm_entry_forwards_config_and_execution_policy():
 def test_mpm_grid_controls_coupled_cuda_graph_support(grid_type, max_active_cell_count, expected):
     """A coupled solver must inherit every nested MPM grid's capture capability."""
     mpm_solver = SimpleNamespace(
+        model=SimpleNamespace(device=SimpleNamespace(is_cuda=True)),
         grid_type=grid_type,
         max_active_cell_count=max_active_cell_count,
         grid_padding=0,

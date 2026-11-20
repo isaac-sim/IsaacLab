@@ -5,6 +5,10 @@
 
 """Rerun visualizer backend.
 
+.. deprecated:: 3.2.0
+    The Rerun visualizer will be removed in Isaac Lab 3.3. Use the Viser visualizer
+    (:mod:`isaaclab_visualizers.viser`) instead.
+
 This package keeps imports lazy so configuration-only imports avoid pulling the
 full runtime backend before it is needed.
 """

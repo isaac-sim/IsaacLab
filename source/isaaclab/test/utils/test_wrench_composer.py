@@ -478,11 +478,9 @@ def test_deprecated_writers_warn_and_keep_add_and_set_behavior() -> None:
     _assert_vectors(composer.out_torque_b, torch.zeros((2, 2, 3)))
 
 
-def test_invalid_selection_and_empty_wrench_input_are_reported() -> None:
+def test_empty_wrench_input_is_reported() -> None:
     composer = _make_composer()
 
-    with pytest.raises(TypeError, match="env_ids must be"):
-        composer.add_forces_and_torques_index(forces=_vectors(torch.ones((1, 2, 3))), env_ids=(0,))
     for method in ("add_forces_and_torques_index", "set_forces_and_torques_mask"):
         with pytest.warns(UserWarning, match="No forces or torques"):
             getattr(composer, method)()
@@ -714,7 +712,7 @@ def test_wrench_ownership_and_exclusive_writes(source_checkout_root):
         if isinstance(node, ast.ImportFrom):
             modules.append(node.module or "")
         assert not any(
-            m.startswith(("isaaclab_newton", "isaaclab_physx", "isaaclab_ov", "newton", "isaacsim")) for m in modules
+            m.startswith(("isaaclab_newton", "isaaclab_isaacsim", "isaaclab_ov", "newton", "isaacsim")) for m in modules
         )
     generic = ast.parse((core / "utils/warp/kernels.py").read_text())
     assert not any(

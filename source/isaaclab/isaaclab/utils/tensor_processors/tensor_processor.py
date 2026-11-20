@@ -10,6 +10,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Union
 
 import torch
+import warp as wp
 
 if TYPE_CHECKING:
     from ..warp import ProxyArray
@@ -57,12 +58,14 @@ class TensorProcessor(ABC):
         self._data_dim = data_dim
         self._device = device
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         """Reset state for selected batch entries, or all entries when None.
 
         Args:
             env_ids: The environment ids. Defaults to None, in which case
                 all environments are considered.
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,). Takes precedence over
+                ``env_ids`` and does not synchronize the device. Defaults to None.
         """
         pass
 
@@ -71,11 +74,14 @@ class TensorProcessor(ABC):
         pass
 
     @abstractmethod
-    def __call__(self, data: TensorProcessorData) -> TensorProcessorData:
+    def __call__(self, data: TensorProcessorData, env_mask: wp.array | None = None) -> TensorProcessorData:
         """Process inputs without mutating them and return the result.
 
         Args:
             data: Tensor or nested collection supported by the implementation.
+            env_mask: For camera processors, a boolean mask of environments due for this capture, or None when
+                the renderer does not identify fresh rows. Camera implementations must accept this keyword.
+                Observation-only implementations may omit it; the observation manager passes only ``data``.
 
         Returns:
             Processed data with the structure defined by the implementation.

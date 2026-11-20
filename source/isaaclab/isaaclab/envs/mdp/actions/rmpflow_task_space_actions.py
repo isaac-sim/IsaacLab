@@ -12,11 +12,12 @@ from typing import TYPE_CHECKING
 import torch
 
 import isaaclab.utils.math as math_utils
-import isaaclab.utils.string as string_utils
 from isaaclab.assets.articulation import Articulation
 from isaaclab.controllers.rmp_flow import RmpFlowController
 from isaaclab.managers.action_manager import ActionTerm
 from isaaclab.utils import index_fill_
+
+from .task_space_actions import _POSITION_NAMES, _QUATERNION_NAMES, _ROTATION_NAMES, _resolve_task_space_clip
 
 if TYPE_CHECKING:
     from ... import ManagerBasedEnv
@@ -89,14 +90,7 @@ class RMPFlowAction(ActionTerm):
 
         # parse clip
         if self.cfg.clip is not None:
-            if isinstance(cfg.clip, dict):
-                self._clip = torch.tensor([[-float("inf"), float("inf")]], device=self.device).repeat(
-                    self.num_envs, self.action_dim, 1
-                )
-                index_list, _, value_list = string_utils.resolve_matching_names_values(self.cfg.clip, self._joint_names)
-                self._clip[:, index_list] = torch.tensor(value_list, device=self.device)
-            else:
-                raise ValueError(f"Unsupported clip type: {type(cfg.clip)}. Supported types are dict.")
+            self._clip = _resolve_task_space_clip(self.cfg.clip, self.action_names, self.num_envs, self.device)
 
     """
     Properties.
@@ -108,6 +102,11 @@ class RMPFlowAction(ActionTerm):
             return 6  # delta_eef_xyz, delta_eef_rpy
         else:
             return 7  # absolute_eef_xyz, absolute_eef_quat (x, y, z, w)
+
+    @property
+    def action_names(self) -> list[str]:
+        """Action component names matched by the clip keys: ``pos_*`` [m], then ``rot_*`` [rad] or ``quat_*``."""
+        return list(_POSITION_NAMES + (_ROTATION_NAMES if self.cfg.use_relative_mode else _QUATERNION_NAMES))
 
     @property
     def raw_actions(self) -> torch.Tensor:

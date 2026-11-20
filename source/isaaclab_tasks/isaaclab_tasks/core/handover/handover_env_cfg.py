@@ -6,10 +6,10 @@
 """Configuration for the direct-workflow Shadow Hand handover environment."""
 
 import torch
+from isaaclab_isaacsim.physics import PhysxCfg
+from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_ov.physics import OvPhysxCfg
-from isaaclab_physx.physics import PhysxCfg
-from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
@@ -129,7 +129,7 @@ class PhysicsCfg(PresetCfg):
 
     Newton mirrors the single-agent Shadow Hand Newton port: an elliptic friction
     cone with ``impratio=10``, which weights normal contacts over friction, 100
-    solver iterations and 2 substeps.
+    solver iterations, and 4 substeps (the single-agent port uses 2) for sustained ball-palm contact.
     """
 
     isaacsim_physx = PhysxCfg(

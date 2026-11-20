@@ -13,10 +13,10 @@ from ...utils.backend_utils import FactoryBase
 from .base_frame_transformer_data import BaseFrameTransformerData
 
 if TYPE_CHECKING:
+    from isaaclab_isaacsim.sensors.frame_transformer import FrameTransformerData as PhysXFrameTransformerData
     from isaaclab_newton.sensors.frame_transformer.frame_transformer_data import (
         FrameTransformerData as NewtonFrameTransformerData,
     )
-    from isaaclab_physx.sensors.frame_transformer import FrameTransformerData as PhysXFrameTransformerData
 
 
 class FrameTransformerData(FactoryBase, BaseFrameTransformerData):

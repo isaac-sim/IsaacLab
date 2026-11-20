@@ -20,7 +20,7 @@ def test_workspace_install(
     runtime, _, env = workspace
     probe = "import isaaclab, isaaclab_tasks; from isaaclab.sim import SimulationContext"
     if runtime == "isaacsim":
-        probe += "; from isaaclab_physx.app import KitLauncher"
+        probe += "; from isaaclab_isaacsim.app import KitLauncher"
     else:
         probe += (
             "; import importlib.metadata as m; "

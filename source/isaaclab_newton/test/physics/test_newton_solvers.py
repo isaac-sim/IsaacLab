@@ -24,12 +24,15 @@ from isaaclab_newton.physics import (
     KaminoDynamicsCfg,
     KaminoPADMMCfg,
     KaminoPADMMSolverCfg,
+    KaminoSCCCfg,
+    KaminoSCCSolverCfg,
     MJWarpSolver,
     MJWarpSolverCfg,
     MPMSolver,
     MPMSolverCfg,
     NewtonCfg,
     NewtonManager,
+    SteelSolverCfg,
     VBDSolver,
     VBDSolverCfg,
     XPBDSolverCfg,
@@ -48,15 +51,29 @@ from isaaclab.test.utils import test_devices
 def _model_stub(state_attributes=()) -> SimpleNamespace:
     """Model stand-in carrying what solver construction reads before the Newton solver exists."""
     return SimpleNamespace(
-        get_requested_state_attributes=lambda: list(state_attributes), articulation_start=None, articulation_end=None
+        get_requested_state_attributes=lambda: list(state_attributes),
+        articulation_start=None,
+        articulation_end=None,
+        _has_body_variants=False,
     )
 
 
-def test_solver_kwargs_include_newton_deterministic_mode():
-    """Solver construction receives the mode configured on the outer Newton config."""
+def test_solver_kwargs_include_configured_options_and_newton_deterministic_mode():
+    """Solver construction receives the selected options and outer Newton determinism mode."""
     kwargs = solver_kwargs(SolverXPBD, XPBDSolverCfg(), wp.DeterministicMode.GPU_TO_GPU)
 
     assert kwargs["deterministic"] == wp.DeterministicMode.GPU_TO_GPU
+    steel_kwargs = solver_kwargs(newton.solvers.SolverSteel, SteelSolverCfg(), wp.DeterministicMode.GPU_TO_GPU)
+    assert steel_kwargs["friction_anchor_beta"] == 0.0
+    assert steel_kwargs["use_parallel_streams"] is False
+    parallel_kwargs = solver_kwargs(
+        newton.solvers.SolverSteel,
+        SteelSolverCfg(use_parallel_streams=True, parallel_tree=True),
+        wp.DeterministicMode.GPU_TO_GPU,
+    )
+    assert parallel_kwargs["use_parallel_streams"] is True
+    assert parallel_kwargs["parallel_tree"] is True
+    assert steel_kwargs["parallel_tree"] is False
 
 
 @pytest.mark.parametrize(
@@ -65,6 +82,7 @@ def test_solver_kwargs_include_newton_deterministic_mode():
         (MJWarpSolverCfg(), "mujoco:condim", ("kamino:max_solver_iterations", "mpm:young_modulus")),
         (KaminoPADMMSolverCfg(), "kamino:max_solver_iterations", ("mujoco:condim", "mpm:young_modulus")),
         (MPMSolverCfg(), "mpm:young_modulus", ("mujoco:condim", "kamino:max_solver_iterations")),
+        (SteelSolverCfg(), "steel:min_torsional_patch_radius", ("mujoco:condim", "kamino:max_solver_iterations")),
     ],
 )
 def test_solver_registers_only_its_builder_attributes(solver_cfg, active, inactive):
@@ -242,7 +260,7 @@ _KAMINO_PADMM_FIELD_VALUES = [
     ("contact_warmstart_method", "geom_pair_net_force"),
 ]
 
-_KAMINO_DVI_FIELD_VALUES = [
+_KAMINO_SCC_FIELD_VALUES = [
     ("tolerance", 1.0e-4),
     ("regularization", 1.0e-5),
     ("omega", 1.5),
@@ -287,18 +305,32 @@ def test_kamino_padmm_cfg_forwards_its_fields_and_not_isaac_lab_metadata():
     assert not any(hasattr(newton_cfg, name) for name in ("class_type", "solver_type", "max_contacts_per_world"))
 
 
-def test_kamino_dvi_cfg_forwards_its_fields():
-    """Every tunable DVI field, and disabled preconditioning, reaches Newton's config."""
-    solver_cfg = KaminoDVISolverCfg(
+def test_kamino_scc_cfg_forwards_its_fields():
+    """Every tunable SCC field, and disabled preconditioning, reaches Newton's config."""
+    solver_cfg = KaminoSCCSolverCfg(
         dynamics=KaminoDynamicsCfg(preconditioning=False),
-        dynamics_solver_cfg=KaminoDVICfg(**dict(_KAMINO_DVI_FIELD_VALUES)),
+        dynamics_solver_cfg=KaminoSCCCfg(**dict(_KAMINO_SCC_FIELD_VALUES)),
     )
 
     newton_cfg = solver_cfg.to_solver_config()
 
-    assert newton_cfg.dynamics_solver == "dvi"
-    _assert_forwarded(newton_cfg.dvi, _KAMINO_DVI_FIELD_VALUES)
+    assert newton_cfg.dynamics_solver == "scc"
+    _assert_forwarded(newton_cfg.scc, _KAMINO_SCC_FIELD_VALUES)
     _assert_forwarded(newton_cfg.dynamics, _KAMINO_DYNAMICS_FIELD_VALUES[:1])
+
+
+def test_kamino_dvi_cfg_warns_and_builds_scc() -> None:
+    """The legacy solver config warns with its replacement and still accepts DVI settings."""
+    with pytest.warns(
+        DeprecationWarning,
+        match=r"KaminoDVISolverCfg is deprecated and will be removed in a future release\. Use KaminoSCCSolverCfg",
+    ):
+        solver_cfg = KaminoDVISolverCfg(dynamics_solver_cfg=KaminoDVICfg(max_alternating_iterations=7))
+
+    newton_cfg = solver_cfg.to_solver_config()
+
+    assert newton_cfg.dynamics_solver == "scc"
+    assert newton_cfg.scc.max_alternating_iterations == 7
 
 
 @pytest.mark.parametrize(
@@ -310,7 +342,7 @@ def test_kamino_dvi_cfg_forwards_its_fields():
             id="padmm_adaptive_penalties_dense",
         ),
         pytest.param(
-            KaminoDVISolverCfg(dynamics=KaminoDynamicsCfg(preconditioning=True)), "preconditioning", id="dvi_precond"
+            KaminoSCCSolverCfg(dynamics=KaminoDynamicsCfg(preconditioning=True)), "preconditioning", id="scc_precond"
         ),
     ],
 )

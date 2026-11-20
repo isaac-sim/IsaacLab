@@ -54,8 +54,8 @@ class NewtonSolver:
     single_state: ClassVar[bool] = False
     """Whether the solver steps in place on one :class:`newton.State`."""
 
-    deterministic: ClassVar[bool] = False
-    """Whether the solver can honor a Warp determinism guarantee."""
+    max_deterministic_mode: ClassVar[wp.DeterministicMode] = wp.DeterministicMode.NOT_GUARANTEED
+    """Strongest Warp determinism guarantee the solver can honor."""
 
     contact_sensors: ClassVar[bool] = True
     """Whether the Newton solver can provide CONTACT_F observables to contact sensors."""
@@ -121,7 +121,13 @@ class NewtonSolver:
         return True
 
     def supports_capture(self) -> bool:
-        """Whether the solver can be recorded into a CUDA graph."""
+        """Whether the solver's step can be recorded into a graph and replayed on the solver's device.
+
+        On the CPU, Warp's graph capture records only Warp kernel launches and memory operations. Other work in the
+        step, such as :meth:`warp.Mesh.refit`, a nested :func:`warp.capture_launch`, torch operations, or host
+        reads, runs once at capture time and never on replay, so a solver whose step does such work on the CPU must
+        return False there.
+        """
         return True
 
     # ----- Contacts -----

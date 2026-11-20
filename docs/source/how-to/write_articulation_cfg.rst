@@ -60,7 +60,7 @@ The simulation selects the physics backend separately.
 
 For common USD properties, use the solver-common fragments from ``isaaclab.sim.schemas``, such as
 :class:`~sim.schemas.UsdPhysicsRigidBodyCfg` and :class:`~sim.schemas.UsdPhysicsDriveCfg`. Pass
-a backend's fragments from ``isaaclab_physx.sim.schemas.Physx*Cfg`` for PhysX tuning and
+a backend's fragments from ``isaaclab_isaacsim.sim.schemas.Physx*Cfg`` for PhysX tuning and
 ``isaaclab_newton.sim.schemas.Newton*Cfg`` / ``Mujoco*Cfg`` for Newton and MJWarp-specific
 settings alongside them in the same spawner field. See :ref:`schema-fragments` for
 the fragment API. The Cartpole below already has both PhysX and Newton articulation fragments;
@@ -181,7 +181,7 @@ to combine them into a single actuator model.
    ``None`` retains the imported USD value; explicit actuator configurations use
    effort mode. Zero-gain USD drives therefore need no placeholder solely for a
    configured actuator. See :ref:`import-new-asset-ensure-drives-exist` for when
-   :attr:`~isaaclab.sim.spawners.from_files.FileCfg.ensure_drives_exist`
+   :attr:`~isaaclab.sim.spawners.from_files.UsdFileCfg.ensure_drives_exist`
    remains useful.
 
 
