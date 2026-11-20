@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from typing import Any, ClassVar
+from typing import Any
 
 from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
 from isaaclab_newton.renderers import NewtonOptixRendererCfg, NewtonWarpRendererCfg
@@ -54,17 +54,22 @@ def set_isaac_rtx_global_settings(renderer_cfg: Any, **settings: Any) -> None:
     _visit(renderer_cfg)
 
 
+VISUALIZER_PRESET_FIELDS = {"newton": "newton_gl"}
+"""Visualizer names whose :class:`MultiBackendVisualizerCfg` field is spelled differently."""
+
+
 @configclass
 class MultiBackendVisualizerCfg(PresetCfg):
     """Built-in visualizers selected with ``visualizer=NAME``; no viewer opens by default."""
 
     kit: KitBackendCfg = KitBackendCfg()
-    newton: NewtonGLBackendCfg = NewtonGLBackendCfg()
+    newton_gl: NewtonGLBackendCfg = NewtonGLBackendCfg()
     newton_rtx: NewtonGLBackendCfg = NewtonGLBackendCfg(initial_renderer="rtx")
     rerun: RerunBackendCfg = RerunBackendCfg()
     viser: ViserBackendCfg = ViserBackendCfg()
     none: list[VisualizerBackendCfg] = []
     default: list[VisualizerBackendCfg] = []
 
-    _aliases: ClassVar[dict[str, str]] = {"newton_gl": "newton"}
-    _quiet_aliases: ClassVar[frozenset[str]] = frozenset(_aliases)
+    # ``visualizer=newton`` is translated to ``newton_gl`` where the selector is parsed
+    # (``VISUALIZER_PRESET_FIELDS``), not by an alias here: that would also match the global
+    # ``physics=newton`` / ``presets=newton`` selectors.
