@@ -68,3 +68,5 @@
   :class:`~isaaclab_experimental.mdp2.mdp.Uniform` (in a tunable range), from a
   :class:`~isaaclab_experimental.mdp2.mdp.Choice`, or replayed in the order of the resets with
   :class:`~isaaclab_experimental.mdp2.mdp.Replay`, independent of the number of worlds.
+* Added :data:`~isaaclab_experimental.mdp2.mdp.resting_on`, one where an object rests on another by its contact force
+  in a cone and its speed, like Arena's ``object_on_destination``, for a milestone with ``hold``.

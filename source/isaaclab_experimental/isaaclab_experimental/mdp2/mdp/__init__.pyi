@@ -60,6 +60,7 @@ __all__ = [
     "track_ang_vel_z_exp",
     "track_lin_vel_xy_exp",
     "undesired_contacts",
+    "resting_on",
     "value",
     "bad_orientation",
     "illegal_contact",
@@ -121,6 +122,7 @@ from .rewards import (
     lin_vel_z_l2,
     track_ang_vel_z_exp,
     track_lin_vel_xy_exp,
+    resting_on,
     undesired_contacts,
     value,
 )
