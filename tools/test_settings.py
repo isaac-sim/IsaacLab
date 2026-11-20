@@ -52,6 +52,9 @@ PER_TEST_TIMEOUTS = {
     "test_shadow_hand_camera_presets.py": 5000,
     "test_surface_gripper.py": 3000,
     "test_contact_sensor.py": 2000,
+    "test_tmp_valiant_teal_probe.py": 2400,
+    "test_tmp_valiant_teal_diagnostics.py": 2400,
+    "test_tmp_valiant_teal_isolated.py": 2400,
 }
 """A dictionary of tests and their timeouts in seconds.
 
