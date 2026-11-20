@@ -74,6 +74,7 @@ class ResetViewer:
         self._message = ""
         self._requests: queue.SimpleQueue = queue.SimpleQueue()
         self._panels: list[Any] = []
+        self._frame_end = time.perf_counter()
         self.snapshot = self._snapshot()
 
     @property
@@ -97,7 +98,10 @@ class ResetViewer:
         return len(self._panels)
 
     def update(self) -> None:
-        """Apply the queued requests, step the episodes if playing, render, and refresh the panels."""
+        """Apply the queued requests, step the episodes if playing, render, and refresh the panels.
+
+        Episodes play in real time, one step per ``step_dt``, and a paused view renders at 30 frames per second.
+        """
         while not self._requests.empty():
             action, args = self._requests.get()
             getattr(self, action)(*args)
@@ -105,8 +109,10 @@ class ResetViewer:
             self.env.step(self.policy(self.env.observations))
         else:
             self.env.sim.render()
-            time.sleep(1.0 / 60.0)  # nothing moves while paused
         self._refresh()
+        # Unpaced, episodes would play as fast as the simulation steps.
+        self._frame_end = max(self._frame_end + (self.env.step_dt if self.playing else 1.0 / 30.0), time.perf_counter())
+        time.sleep(max(0.0, self._frame_end - time.perf_counter()))
 
     def show(self, slot: int) -> None:
         """Restart every world from its slot ``slot``, paused, and keep restarting there while playing."""
