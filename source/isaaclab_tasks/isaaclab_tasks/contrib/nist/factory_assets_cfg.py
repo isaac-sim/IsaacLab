@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from isaaclab_isaacsim.sim.schemas import PhysxArticulationCfg, PhysxCollisionCfg, PhysxRigidBodyCfg
 from isaaclab_newton.sim.schemas import (
     MujocoRigidBodyCfg,
     NewtonArticulationCfg,
@@ -10,7 +11,6 @@ from isaaclab_newton.sim.schemas import (
     NewtonSDFCollisionCfg,
 )
 from isaaclab_newton.sim.spawners.materials import NewtonMaterialCfg
-from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxCollisionCfg, PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators.actuator_cfg import ImplicitActuatorCfg

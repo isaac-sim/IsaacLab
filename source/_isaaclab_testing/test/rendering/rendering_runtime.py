@@ -17,7 +17,7 @@ from typing import Any
 import torch
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_ov.physics import OvPhysxCfg
-from isaaclab_physx.physics import PhysxCfg
+from isaaclab_isaacsim.physics import PhysxCfg
 
 from isaaclab.app import launch_simulation
 from isaaclab.physics import PhysicsCfg

@@ -11,6 +11,7 @@ external environment configurations.
 
 import warnings
 from copy import deepcopy
+from dataclasses import dataclass
 
 import pytest
 
@@ -471,6 +472,34 @@ def test_register_task_mixed_overrides():
     assert hydra_args == ["--flag"]
 
 
+def test_selecting_a_preset_that_picks_the_kit_backend_warns_and_still_resolves():
+    """A deprecated Isaac Sim (Kit) preset keeps working and warns that it runs on Kit."""
+    from isaaclab_isaacsim.physics import PhysxCfg as KitPhysxCfg
+
+    env = PresetCfgEnvCfg()
+    env.backend = preset(default=NewtonCfg(), isaacsim_physx=KitPhysxCfg())
+    with pytest.warns(FutureWarning, match=r"'isaacsim_physx' runs on Isaac Sim"):
+        env_cfg, _, _ = _register(env, overrides=["presets=isaacsim_physx"])
+    assert isinstance(env_cfg.backend, KitPhysxCfg)
+
+
+@pytest.mark.parametrize("name", ["isaacsim_physx", "isaacsim_rtx"])
+def test_a_preset_named_like_a_kit_selector_that_changes_another_field_does_not_warn(name):
+    env = PresetCfgEnvCfg()
+    env.decimation = preset(default=4, **{name: 8})
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", FutureWarning)
+        env_cfg, _, _ = _register(env, overrides=[f"presets={name}"])
+    assert env_cfg.decimation == 8
+
+
+def test_a_rejected_isaac_sim_preset_reports_only_its_own_error():
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", FutureWarning)
+        with pytest.raises(ValueError):
+            _register(PresetCfgEnvCfg(), overrides=["physics=isaacsim_physx"])
+
+
 def test_register_task_warns_about_a_misspelled_field():
     """A misspelled env override warns that it adds a field beside the one it was meant to set."""
     with pytest.warns(UserWarning, match="has no field 'decimaton'"):
@@ -817,6 +846,18 @@ def test_resolve_presets_traverses_dict_values():
     resolved = resolve_presets(cfg)
     assert resolved.robot.actuators["legs"].armature == 0.0
     assert not isinstance(resolved.robot.actuators["legs"].armature, PresetCfg)
+
+
+def test_resolve_presets_keeps_unchanged_tuples_of_frozen_dataclasses():
+    """resolve_presets does not reassign a frozen dataclass field whose tuple holds no preset."""
+
+    @dataclass(frozen=True)
+    class FrozenTermCfg:
+        joint_ids: tuple = (0, 1)
+
+    term = FrozenTermCfg()
+    resolved = resolve_presets({"term": term})
+    assert resolved["term"] is term
 
 
 def test_dict_preset_global_newton_mjwarp():

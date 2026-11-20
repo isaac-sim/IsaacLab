@@ -19,8 +19,9 @@ import contextlib
 import signal
 import sys
 import types
+import warnings
 
-import isaaclab_physx.app as physx_app
+import isaaclab_isaacsim.app as physx_app
 import pytest
 
 from pxr import Gf
@@ -220,3 +221,42 @@ def test_legacy_recording_reuses_the_display_producer(kit_branch_taken, visualiz
         assert cfg.sim.visualizer_cfgs[0].headless == (not visualizers)
         assert args.get("enable_cameras", False) == (source == "kit")
     assert kit_branch_taken == [True] * (source == "kit")
+
+
+def test_launching_kit_warns_with_the_reason_it_is_needed(kit_branch_taken):
+    with pytest.warns(FutureWarning, match=r"Running on Isaac Sim \(Kit\) is deprecated .*explicit Kit requirement"):
+        with launch_simulation(SimulationCfg(physics=PhysicsCfg(), device="cpu"), {"require_kit": True}):
+            pass
+
+    assert kit_branch_taken == [True]
+
+
+@pytest.mark.parametrize("launcher_args", [{"livestream": 1}, {"xr": True}], ids=["livestream", "xr"])
+def test_livestream_and_xr_launch_kit_without_the_deprecation_warning(kit_branch_taken, launcher_args):
+    with warnings.catch_warnings():
+        warnings.filterwarnings("error", message="Running on Isaac Sim")
+        with launch_simulation(
+            SimulationCfg(physics=PhysicsCfg(), device="cpu"), {"require_kit": True, **launcher_args}
+        ):
+            pass
+
+    assert kit_branch_taken == [True]
+
+
+def test_the_xr_environment_variable_launches_kit_without_the_deprecation_warning(kit_branch_taken, monkeypatch):
+    monkeypatch.setenv("XR", "1")
+    with warnings.catch_warnings():
+        warnings.filterwarnings("error", message="Running on Isaac Sim")
+        with launch_simulation(SimulationCfg(physics=PhysicsCfg(), device="cpu"), {"require_kit": True}):
+            pass
+
+    assert kit_branch_taken == [True]
+
+
+def test_the_launcher_physics_selector_warns_for_isaac_sim_and_still_selects_it():
+    from isaaclab_isaacsim.physics import PhysxCfg
+
+    cfg = SimulationCfg(device="cpu")
+    with pytest.warns(FutureWarning, match="'isaacsim_physx' runs on Isaac Sim"):
+        sim_launcher.validate_launch(cfg, {"physics": "isaacsim_physx"})
+    assert isinstance(cfg.physics, PhysxCfg)

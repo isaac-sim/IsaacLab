@@ -503,6 +503,8 @@ environment. Costs that are small for one environment can dominate a large batch
   over filling through Python lists, arithmetic on temporary arrays, or a round trip through another library.
 * Keep operations on Warp-owned arrays in Warp. Use ``ProxyArray`` when consumers need multiple
   array interfaces; do not convert to Torch and back merely to mutate a Warp buffer.
+* Asset write APIs use the caller's active Warp stream. Coordinate Torch/Warp streams and input
+  lifetimes at the calling boundary; do not choose streams from input types inside an asset setter.
 * Keep per-step control flow direct, with one call to each lifecycle operation. Perform optional
   work only for the active consumer and preserve the configured update cadence.
 * Remove redundant copies and ``contiguous()`` calls only after checking layout and ownership requirements.

@@ -133,7 +133,7 @@ def test_launch_simulation_device(monkeypatch, kit_device, cfg_device, args, env
         def close(self, exit_code=0):
             pass
 
-    monkeypatch.setitem(sys.modules, "isaaclab_physx.app", types.SimpleNamespace(KitLauncher=_FakeKitLauncher))
+    monkeypatch.setitem(sys.modules, "isaaclab_isaacsim.app", types.SimpleNamespace(KitLauncher=_FakeKitLauncher))
     env_cfg = SimpleNamespace(sim=SimulationCfg(device=cfg_device))
     if kit_device == "kitless":
         env_cfg.sim.physics = PhysicsCfg()
