@@ -260,7 +260,7 @@ def test_apple_cosmos_task_generates_the_head_camera_image_for_whole_episodes():
     # Cosmos renders depth on its 4:3 canvas; the policy still reads a 640 x 480 rgb image.
     assert (camera.width, camera.height) == (736, 544)
     assert camera.tensor_processors[-1].outputs == ["rgb"]
-    assert cfg.observations.policy.ego_view.params["sensor_cfg"].name == "head_camera"
+    assert cfg.observations.camera_images.ego_view.params["sensor_cfg"].name == "head_camera"
     model = next(p.backend for p in camera.tensor_processors if isinstance(p, CosmosTransferProcessorCfg))
     # One frame per 30 Hz step for a 20 s episode, plus the first frame, in the service's 1 + 4*k budget.
     assert model.max_episode_frames >= 601 and (model.max_episode_frames - 1) % 4 == 0

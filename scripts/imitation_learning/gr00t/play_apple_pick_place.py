@@ -86,19 +86,19 @@ POLICY_TIMEOUT_MS = 120000
 """The GR00T server compiles its model on the first request, so the first reply takes much longer than the others."""
 
 
-def get_action_chunk(policy: PolicyClient, obs: dict[str, torch.Tensor]) -> dict[str, np.ndarray]:
+def get_action_chunk(policy: PolicyClient, obs: dict[str, dict[str, torch.Tensor]]) -> dict[str, np.ndarray]:
     """Return the action chunk for every environment, each array shaped ``(num_envs, horizon, dim)``."""
     # the N1.7 server takes the observation with options and returns the actions with an info dict
     return policy.get_action({"observation": policy_observation(obs), "options": None})[0]
 
 
-def policy_observation(obs: dict[str, torch.Tensor]) -> dict:
-    """Convert the task's named policy observations to the GR00T observation format."""
-    num_envs = obs["ego_view"].shape[0]
+def policy_observation(obs: dict[str, dict[str, torch.Tensor]]) -> dict:
+    """Convert the task's named joint positions and head camera image to the GR00T observation format."""
+    image = obs["camera_images"]["ego_view"]
     return {
-        "video": {"ego_view": obs["ego_view"].to(torch.uint8).cpu().numpy()[:, None]},
-        "state": {name: value.float().cpu().numpy()[:, None] for name, value in obs.items() if name != "ego_view"},
-        "language": {"annotation.human.task_description": [[INSTRUCTION] for _ in range(num_envs)]},
+        "video": {"ego_view": image.to(torch.uint8).cpu().numpy()[:, None]},
+        "state": {name: value.float().cpu().numpy()[:, None] for name, value in obs["policy"].items()},
+        "language": {"annotation.human.task_description": [[INSTRUCTION] for _ in range(image.shape[0])]},
     }
 
 
@@ -109,10 +109,10 @@ def task_actions(chunk: dict[str, np.ndarray], device: str) -> torch.Tensor:
     return torch.as_tensor(np.concatenate(positions + efforts, axis=-1), dtype=torch.float32, device=device)
 
 
-def save_frame(obs: dict[str, torch.Tensor], index: int):
+def save_frame(obs: dict[str, dict[str, torch.Tensor]], index: int):
     """Save the first environment's head camera image, the one the policy sees."""
     os.makedirs(args_cli.save_frames, exist_ok=True)
-    image = obs["ego_view"][0].to(torch.uint8).cpu().numpy()
+    image = obs["camera_images"]["ego_view"][0].to(torch.uint8).cpu().numpy()
     Image.fromarray(image).save(os.path.join(args_cli.save_frames, f"frame_{index:05d}.png"))
 
 
@@ -124,20 +124,20 @@ def main():
         obs, _ = env.reset()
         frames = 0
         if args_cli.save_frames:
-            save_frame(obs["policy"], frames)
+            save_frame(obs, frames)
         actions, step = None, 0
         episodes = successes = 0
         while episodes < args_cli.num_episodes and env.unwrapped.sim.is_running():
             # play each predicted chunk to its end before asking for the next one
             if actions is None or step == actions.shape[1]:
-                chunk = get_action_chunk(policy, obs["policy"])
+                chunk = get_action_chunk(policy, obs)
                 actions, step = task_actions(chunk, env.unwrapped.device), 0
             with torch.inference_mode():
                 obs, _, terminated, truncated, _ = env.step(actions[:, step])
             step += 1
             frames += 1
             if args_cli.save_frames and frames % FRAME_INTERVAL == 0:
-                save_frame(obs["policy"], frames)
+                save_frame(obs, frames)
             done = terminated | truncated
             if done.any():
                 succeeded = env.unwrapped.termination_manager.get_term("success")[done]

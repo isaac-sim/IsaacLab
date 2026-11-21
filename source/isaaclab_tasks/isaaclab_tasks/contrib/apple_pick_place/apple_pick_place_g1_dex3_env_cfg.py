@@ -298,13 +298,10 @@ def _joints(names: list[str]) -> dict:
 
 @configclass
 class ObservationsCfg:
-    """Head camera image and joint positions, named like the policy's inputs."""
+    """Joint positions and the head camera image, named like the policy's inputs."""
 
     @configclass
     class PolicyCfg(ObsGroup):
-        ego_view = ObsTerm(
-            func=base_mdp.image_rgb, params={"sensor_cfg": SceneEntityCfg("head_camera"), "normalize": False}
-        )
         left_leg = ObsTerm(func=base_mdp.joint_pos, params=_joints(LEFT_LEG))
         right_leg = ObsTerm(func=base_mdp.joint_pos, params=_joints(RIGHT_LEG))
         waist = ObsTerm(func=base_mdp.joint_pos, params=_joints(WAIST))
@@ -316,7 +313,17 @@ class ObservationsCfg:
         def __post_init__(self):
             self.concatenate_terms = False
 
+    @configclass
+    class CameraImagesCfg(ObsGroup):
+        ego_view = ObsTerm(
+            func=base_mdp.image_rgb, params={"sensor_cfg": SceneEntityCfg("head_camera"), "normalize": False}
+        )
+
+        def __post_init__(self):
+            self.concatenate_terms = False
+
     policy: PolicyCfg = PolicyCfg()
+    camera_images: CameraImagesCfg = CameraImagesCfg()
 
 
 @configclass
