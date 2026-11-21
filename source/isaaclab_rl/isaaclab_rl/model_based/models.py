@@ -17,7 +17,8 @@ from rsl_rl.modules import EmpiricalNormalization
 from tensordict import TensorDict
 
 if TYPE_CHECKING:
-    from .interfaces import StateRepresentation, TaskSpec
+    from .interfaces import TaskSpec
+    from .representations import StateRepresentation
 
 
 class _CudaGraphNormalization(EmpiricalNormalization):

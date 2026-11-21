@@ -28,7 +28,7 @@ from isaaclab_rl.model_based.optim import (
 if TYPE_CHECKING:
     from isaaclab_rl.model_based.models import Dynamics
 
-    from .interfaces import StateRepresentation
+    from .representations import StateRepresentation
 
 
 @dataclass

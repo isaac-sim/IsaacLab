@@ -27,11 +27,13 @@ from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab_rl.model_based import (
     bptt,
     models,
-    quaternion,
     replay_buffer,
     representations,
     reset_sampling,
     world_model_learner,
+)
+from isaaclab_rl.model_based import (
+    math as quaternion,
 )
 from isaaclab_rl.model_based.config import REFERENCE_REVISION
 from isaaclab_rl.model_based.rollout import MultiTaskWorldModelEnv

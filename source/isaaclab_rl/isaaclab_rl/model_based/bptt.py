@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import torch
 import torch.nn as nn
@@ -24,7 +25,8 @@ from isaaclab_rl.model_based.optim import (
     graph_state,
 )
 
-from .interfaces import WorldModelEnv
+if TYPE_CHECKING:
+    from .rollout import MultiTaskWorldModelEnv
 
 
 @dataclass
@@ -75,7 +77,7 @@ class BpttPolicyLearner:
     def __init__(
         self,
         policy: nn.Module,
-        wm_env: WorldModelEnv,
+        wm_env: MultiTaskWorldModelEnv,
         cfg: BpttPolicyLearnerCfg,
         device: str = "cpu",
     ):
@@ -156,7 +158,7 @@ class ActorCriticPolicyLearner(BpttPolicyLearner):
         self,
         policy: nn.Module,
         critic: nn.Module,
-        wm_env: WorldModelEnv,
+        wm_env: MultiTaskWorldModelEnv,
         cfg: ActorCriticPolicyLearnerCfg,
         device: str = "cpu",
     ):

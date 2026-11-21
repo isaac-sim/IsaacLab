@@ -34,8 +34,8 @@ invented learning algorithm. Its source boundaries are:
   the ETH Zurich / Chong Zhang attribution and MIT license in
   ``docs/licenses/dependencies/supermimic-license.txt``. Isaac Lab integration
   code uses the repository's BSD-3-Clause license.
-* **Quaternion arithmetic:** the WXYZ helpers preserve the operation order of
-  the BSD-3-Clause, Isaac Lab-derived helpers in
+* **Quaternion arithmetic:** WXYZ adapters reuse Isaac Lab math. Matrix conversion
+  and inversion retain the norm reduction order of the BSD-3-Clause helpers in
   `mjlab at revision 8ee51fbc
   <https://github.com/mujocolab/mjlab/blob/8ee51fbcf806a7419189f706d9e394cbeb7790fa/src/mjlab/utils/lab_api/math.py>`_.
 * **Normalization utility:** networks reuse ``rsl_rl.modules.EmpiricalNormalization``;
@@ -101,7 +101,8 @@ separate comparison before claiming paper-level reproduction.
 The G1 task uses a 20 ms control period with four 5 ms physics steps. Physical
 and imagined rewards call the same tracking formula. Native XYZW root/body
 quaternions are converted to the reference WXYZ layout at the interface. WXYZ
-arithmetic retains the reference's floating-point operation order. G1 maximal
+adapters reuse Isaac Lab quaternion utilities; matrix conversion and inversion
+retain the reference norm reduction order for optimizer parity. G1 maximal
 coordinates use the reference IK's two/three-hinge-chain assumptions; this is not
 a general inverse-kinematics solver for arbitrary robots.
 

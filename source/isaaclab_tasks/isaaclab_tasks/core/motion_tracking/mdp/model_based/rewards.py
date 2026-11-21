@@ -20,8 +20,14 @@ from __future__ import annotations
 
 import torch
 
-from isaaclab_rl.model_based.math import rotation_error_magnitude, small_matmul
-from isaaclab_rl.model_based.quaternion import matrix_from_quat, quat_inv, quat_mul, yaw_quat
+from isaaclab_rl.model_based.math import (
+    matrix_from_quat,
+    quat_inv,
+    quat_mul,
+    rotation_error_magnitude,
+    small_matmul,
+    yaw_quat,
+)
 
 
 def _reanchor_targets(

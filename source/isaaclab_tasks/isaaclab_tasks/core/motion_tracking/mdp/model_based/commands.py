@@ -11,7 +11,7 @@ from isaaclab.envs.mdp.actions import JointPositionAction
 from isaaclab.managers import CommandTerm
 from isaaclab.utils.math import quat_from_euler_xyz, quat_mul
 
-from isaaclab_rl.model_based.quaternion import to_native
+from isaaclab_rl.model_based.math import to_native
 from isaaclab_rl.model_based.representations import motion_goal_window
 
 from isaaclab_tasks.core.motion_tracking.mdp.model_based.reference import MotionReference

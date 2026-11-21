@@ -20,24 +20,8 @@ import torch
 
 from isaaclab.utils.math import axis_angle_from_quat, matrix_from_quat, quat_from_angle_axis, quat_from_matrix
 
-from .analytic_ik import AnalyticIK
-from .math import matrix_to_quat
-from .quaternion import to_native
-
-
-# Joint order of the LAFAN1 retarget CSVs (Unitree SDK order).
-def so3_exp(v: torch.Tensor) -> torch.Tensor:
-    """Rotation vector (..., 3) -> matrix, smooth at zero."""
-    theta2 = (v * v).sum(-1, keepdim=True)
-    theta = torch.sqrt(theta2 + 1e-12)
-    small = theta2 < 1e-8
-    a = torch.where(small, 1 - theta2 / 6, torch.sin(theta) / theta)
-    b = torch.where(small, 0.5 - theta2 / 24, (1 - torch.cos(theta)) / (theta2 + 1e-12))
-    x, y, z = v.unbind(-1)
-    zero = torch.zeros_like(x)
-    K = torch.stack((zero, -z, y, z, zero, -x, -y, x, zero), -1).reshape(v.shape[:-1] + (3, 3))
-    eye = torch.eye(3, device=v.device, dtype=v.dtype).expand(K.shape)
-    return eye + a[..., None] * K + b[..., None] * (K @ K)
+from .math import matrix_to_quat, to_native
+from .maxcoord import AnalyticIK
 
 
 def so3_log(R: torch.Tensor) -> torch.Tensor:

@@ -16,7 +16,7 @@ import torch
 from isaaclab.app import launch_simulation
 from isaaclab.test.utils import DeviceScope, test_devices
 
-from isaaclab_rl.model_based.quaternion import matrix_from_quat
+from isaaclab_rl.model_based.math import matrix_from_quat
 from isaaclab_rl.model_based.runner import build_actor
 
 from isaaclab_tasks.core.motion_tracking.mdp.model_based.adapter import MotionTrackingAdapter

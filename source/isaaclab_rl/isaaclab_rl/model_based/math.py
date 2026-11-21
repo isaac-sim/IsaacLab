@@ -7,18 +7,17 @@
 # Copyright 2026 the SuperMimic authors. See docs/licenses/dependencies/supermimic-official-license.txt.
 # Modified for Isaac Lab package boundaries and simulator interfaces.
 
-"""Shared utility functions used across multiple modules.
+"""Differentiable rotation helpers and WXYZ adapters for Isaac Lab math.
 
-Representation-specific helpers live in dedicated modules:
-- :mod:`isaaclab_rl.model_based.gencoord` — generalized-coordinate representation
-- :mod:`isaaclab_rl.model_based.maxcoord` — maximal-coordinate representation
+Reference motion and checkpoints retain WXYZ storage. Native quaternion operations
+use XYZW; matrix conversion and inversion retain the reference norm reduction order.
 """
 
 from __future__ import annotations
 
 import torch
 
-from isaaclab_rl.model_based.quaternion import matrix_from_quat, quat_mul
+from isaaclab.utils import math as native_math
 
 
 def matrix_to_quat(rot_mat: torch.Tensor) -> torch.Tensor:
@@ -160,20 +159,6 @@ def rodrigues_apply(
     return cos_a * v + sin_a * k_cross_v + (1.0 - cos_a) * k_dot_v * k
 
 
-def rodrigues_rotate(v: torch.Tensor, omega: torch.Tensor) -> torch.Tensor:
-    """Rotate vectors v by axis-angle omega using Rodrigues' formula.
-
-    Args:
-      v: (..., 3) vectors to rotate
-      omega: (..., 3) axis-angle rotation (axis * angle)
-
-    Returns:
-      (..., 3) rotated vectors
-    """
-    k, cos_a, sin_a = rodrigues_precompute(omega)
-    return rodrigues_apply(v, k, cos_a, sin_a)
-
-
 def quat_integrate(quat: torch.Tensor, ang_vel: torch.Tensor, dt: float) -> torch.Tensor:
     """Integrate quaternion by angular velocity over dt (axis-angle method).
 
@@ -193,3 +178,78 @@ def quat_integrate(quat: torch.Tensor, ang_vel: torch.Tensor, dt: float) -> torc
     delta_q = torch.cat([torch.cos(half_angle), torch.sin(half_angle) * axis], dim=-1)
     q_next = quat_mul(delta_q, quat)
     return q_next / torch.norm(q_next, dim=-1, keepdim=True)
+
+
+def to_native(quat: torch.Tensor) -> torch.Tensor:
+    """Convert reference/checkpoint WXYZ quaternions to native XYZW."""
+    return native_math.convert_quat(quat, to="xyzw")
+
+
+def from_native(quat: torch.Tensor) -> torch.Tensor:
+    """Convert native XYZW quaternions to reference/checkpoint WXYZ."""
+    return native_math.convert_quat(quat, to="wxyz")
+
+
+# Matrix conversion retains BSD-3-Clause Isaac Lab/mjlab arithmetic.
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers.
+# See the repository LICENSE.
+@torch.jit.script
+def matrix_from_quat(quaternions: torch.Tensor) -> torch.Tensor:
+    """WXYZ matrix conversion with the reference's FP32 norm reduction order.
+
+    Reordering the four squared components before summation changes BPTT optimizer
+    updates. Keep this BSD-licensed Isaac Lab formula at the reference boundary;
+    multiplication and vector rotation delegate to the native utilities.
+    """
+    r, i, j, k = torch.unbind(quaternions, -1)
+    two_s = 2.0 / (quaternions * quaternions).sum(-1)
+
+    o = torch.stack(
+        (
+            1 - two_s * (j * j + k * k),
+            two_s * (i * j - k * r),
+            two_s * (i * k + j * r),
+            two_s * (i * j + k * r),
+            1 - two_s * (i * i + k * k),
+            two_s * (j * k - i * r),
+            two_s * (i * k - j * r),
+            two_s * (j * k + i * r),
+            1 - two_s * (i * i + j * j),
+        ),
+        -1,
+    )
+    return o.reshape(quaternions.shape[:-1] + (3, 3))
+
+
+def quat_inv(quat: torch.Tensor) -> torch.Tensor:
+    """Inverse with the reference WXYZ norm reduction used by frame transforms."""
+    conjugate = from_native(native_math.quat_conjugate(to_native(quat)))
+    return conjugate / quat.pow(2).sum(dim=-1, keepdim=True).clamp(min=1e-9)
+
+
+def quat_mul(first: torch.Tensor, second: torch.Tensor) -> torch.Tensor:
+    """Multiply reference WXYZ quaternions."""
+    return from_native(native_math.quat_mul(to_native(first), to_native(second)))
+
+
+def quat_apply(quat: torch.Tensor, vector: torch.Tensor) -> torch.Tensor:
+    """Rotate a vector by a reference WXYZ quaternion."""
+    return native_math.quat_apply(to_native(quat), vector)
+
+
+def quat_apply_inverse(quat: torch.Tensor, vector: torch.Tensor) -> torch.Tensor:
+    """Rotate a vector by the inverse of a reference WXYZ quaternion."""
+    return native_math.quat_apply_inverse(to_native(quat), vector)
+
+
+def yaw_quat(quat: torch.Tensor) -> torch.Tensor:
+    """Yaw component of a reference WXYZ quaternion."""
+    return from_native(native_math.yaw_quat(to_native(quat)))
+
+
+def subtract_frame_transforms(
+    t01: torch.Tensor, q01: torch.Tensor, t02: torch.Tensor, q02: torch.Tensor
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Relative frame transform with reference WXYZ orientations."""
+    inverse = quat_inv(q01)
+    return quat_apply(inverse, t02 - t01), quat_mul(inverse, q02)

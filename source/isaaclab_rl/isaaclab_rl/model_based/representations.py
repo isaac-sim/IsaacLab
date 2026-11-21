@@ -23,7 +23,6 @@ from typing import Literal
 import torch
 import torch.nn as nn
 
-from isaaclab_rl.model_based.analytic_ik import AnalyticIK
 from isaaclab_rl.model_based.gencoord import (
     compute_gencoord_state,
     decompose_rep_state,
@@ -31,13 +30,18 @@ from isaaclab_rl.model_based.gencoord import (
     rep_state_dim_from_num_joints,
 )
 from isaaclab_rl.model_based.math import (
+    matrix_from_quat,
+    quat_apply,
+    quat_apply_inverse,
     quat_integrate,
     quat_to_rot6d,
     rodrigues_apply,
     rodrigues_precompute,
     rot6d_to_matrix,
+    subtract_frame_transforms,
 )
 from isaaclab_rl.model_based.maxcoord import (
+    AnalyticIK,
     compute_maxcoord_rep_state,
     decompose_maxcoord_rep_state,
     maxcoord_full_state_dim,
@@ -45,12 +49,6 @@ from isaaclab_rl.model_based.maxcoord import (
     maxcoord_rep_state_dim,
     reconstruct_full_from_aux_and_rep,
     world_frame_bodies,
-)
-from isaaclab_rl.model_based.quaternion import (
-    matrix_from_quat,
-    quat_apply,
-    quat_apply_inverse,
-    subtract_frame_transforms,
 )
 
 from .interfaces import MotionReference as MotionLoader

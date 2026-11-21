@@ -3,56 +3,22 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+# TaskSpec and observation assembly derived from HybridRobotics/SuperMimic, revision
+# 5efbf114e11f725c31d83e217be987c13c0e4ce2, Copyright 2026 the SuperMimic authors.
+# See docs/licenses/dependencies/supermimic-official-license.txt.
+
 """Task contracts consumed by the model-based learners.
 
 Tasks supply reference motion, physical context and differentiable objectives.
 The learners do not depend on a particular robot, simulator, or observation layout.
 """
 
+from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Protocol
 
 import torch
 from tensordict import TensorDict
-
-
-class TaskSpec(Protocol):
-    """Dimensions and routing name of one goal encoder."""
-
-    name: str
-    goal_dim: int
-
-
-class StateRepresentation(Protocol):
-    """State conversion and integration supplied by a task's torch module."""
-
-    rep_state_dim: int
-    prediction_dim: int
-    dt: float
-    LOSS_WEIGHT_CONFIG: dict[str, str]
-
-    def represent(self, full_state: torch.Tensor) -> torch.Tensor: ...
-
-    def extract_aux_state(self, full_state: torch.Tensor) -> torch.Tensor: ...
-
-    def apply_prediction(
-        self, aux_state: torch.Tensor, rep_state: torch.Tensor, prediction: torch.Tensor, dt: float
-    ) -> tuple[torch.Tensor, torch.Tensor]: ...
-
-    def loss_blocks(self, rep_state: torch.Tensor, aux_state: torch.Tensor) -> dict[str, torch.Tensor]: ...
-
-
-class WorldModelEnv(Protocol):
-    """Differentiable rollout environment, with no simulator dependency."""
-
-    dynamics: torch.nn.Module
-    representation: StateRepresentation
-    max_step_reward: float
-
-    def sample_initial_states(self) -> TensorDict: ...
-
-    def reset(self, batch: TensorDict) -> TensorDict: ...
-
-    def step(self, actions: torch.Tensor) -> tuple[TensorDict, torch.Tensor, torch.Tensor, dict]: ...
 
 
 class MotionReference(Protocol):
@@ -74,3 +40,29 @@ class SimulationContext(Protocol):
     def find(self, name: str) -> slice | None: ...
 
     def denormalize(self, values: torch.Tensor, columns: slice) -> torch.Tensor: ...
+
+
+ExtractFromMotion = Callable[[MotionReference, torch.Tensor, torch.Tensor], torch.Tensor]
+
+
+@dataclass(frozen=True)
+class TaskSpec:
+    """Contract for one task slot of the multi-encoder actor."""
+
+    name: str
+    goal_dim: int
+    extract_training_goal: ExtractFromMotion
+
+
+def build_actor_obs_td(
+    goals_by_name: dict[str, torch.Tensor],
+    history: torch.Tensor,
+    critic: torch.Tensor | None = None,
+) -> TensorDict:
+    """``history`` (B, H, obs_dim) (+ optional ``critic``) plus one ``goal_<name>``
+    key per task. The newest frame ``history[:, -1]`` is the current obs."""
+    obs: dict[str, torch.Tensor] = {"history": history}
+    if critic is not None:
+        obs["critic"] = critic
+    obs.update({f"goal_{name}": goal for name, goal in goals_by_name.items()})
+    return TensorDict(obs, batch_size=[history.shape[0]], device=history.device)

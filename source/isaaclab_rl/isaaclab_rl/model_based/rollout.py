@@ -7,25 +7,10 @@
 # Copyright 2026 the SuperMimic authors. See docs/licenses/dependencies/supermimic-official-license.txt.
 # Modified for Isaac Lab package boundaries and simulator interfaces.
 
-"""Differentiable world model environment for motion tracking.
-
-Replaces the physics simulator with a learned ``Dynamics`` + ``StateRepresentation``
-while a reference motion clip supplies per-frame goals. Follows a template-method
-pattern inspired by mjlab's ManagerBasedRlEnv:
-
-  reset()  →  _on_reset()  →  get_observations()
-  step()   →  _wm_step()  →  _compute_commands()  →  get_observations()
-
-``_wm_step`` bundles dynamics + termination + reward for one env step. The env
-holds state only after ``reset()``. Subclasses implement only
-``get_observations``, whose actor keys are the one thing that differs between a
-single-actor policy and the multi-encoder actor, and may override
-``_build_task_goals`` to emit extra per-task goal tensors.
-"""
+"""Differentiable world-model rollout with history and per-task goal encoders."""
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 import torch
@@ -33,20 +18,15 @@ from tensordict import TensorDict
 
 from isaaclab_rl.model_based.replay_buffer import ReplayBuffer
 
-from .task_specs import TaskSpec, build_actor_obs_td
+from .interfaces import TaskSpec, build_actor_obs_td
 
 if TYPE_CHECKING:
     from isaaclab_rl.model_based.models import Dynamics
     from isaaclab_rl.model_based.representations import StateRepresentation
 
 
-class WorldModelEnv(ABC):
-    """Differentiable world model env for motion tracking.
-
-    Owns the reference-motion buffers, the bundled ``_wm_step``, goal updates,
-    and the reset/observation plumbing. ``get_observations`` is the only abstract
-    method; subclasses choose how to assemble the actor observation.
-    """
+class MultiTaskWorldModelEnv:
+    """Integrate learned dynamics and reference goals while retaining action gradients."""
 
     def __init__(
         self,
@@ -59,10 +39,13 @@ class WorldModelEnv(ABC):
         anchor_ori_threshold: float,
         batch_size: int,
         replay_buffer: ReplayBuffer,
+        task_specs: list[TaskSpec],
         history_length: int,
         termination_softness: float,
         device: str = "cpu",
     ) -> None:
+        self.task_specs = task_specs
+        assert task_specs[0].name == "motion", "task_specs[0] must be the motion task"
         self.device = device
         self.dynamics = dynamics
         self.representation = representation
@@ -80,23 +63,6 @@ class WorldModelEnv(ABC):
         self._termination_softness = termination_softness
         self._anchor_pos_threshold = anchor_pos_threshold
         self._anchor_ori_threshold = anchor_ori_threshold
-
-    # ------------------------------------------------------------------
-    # Subclass surface
-    # ------------------------------------------------------------------
-
-    @abstractmethod
-    def get_observations(self) -> TensorDict:
-        """Build the observation TensorDict: a ``"critic"`` key plus the
-        actor's input keys."""
-        ...
-
-    def _build_task_goals(self) -> None:  # noqa: B027
-        """Build extra per-task goal tensors after a goal update. Default: none."""
-
-    # ------------------------------------------------------------------
-    # Template methods
-    # ------------------------------------------------------------------
 
     @property
     def num_actions(self) -> int:
@@ -276,61 +242,6 @@ class WorldModelEnv(ABC):
         aux_state = self.representation.extract_aux_state(full_states)
         rep_state = self.representation.represent(full_states)
         return aux_state.detach(), rep_state.detach()
-
-
-class MotionTrackingEnv(WorldModelEnv):
-    """WM env for a single-actor policy. Actor obs comes from the reference clip."""
-
-    def get_observations(self) -> TensorDict:
-        actor = self.representation.build_actor_obs(self._sensor_history(), self._actor_goal_obs)
-        return TensorDict(
-            {"actor": actor, "critic": self._critic_obs()},
-            batch_size=[self.num_envs],
-            device=self.device,
-        )
-
-
-class MultiTaskWorldModelEnv(WorldModelEnv):
-    """WM env for motion tracking with per-slot goal modalities.
-
-    Reward is motion-tracking for every slot; tasks differ only in what
-    ``goal_<name>`` key the actor's encoder consumes. ``get_observations``
-    emits all per-task goal keys full-batch and the actor slices its own
-    slot range. The obs-history ring (history_length > 1) lives in the base.
-    """
-
-    def __init__(
-        self,
-        dynamics: Dynamics,
-        representation: StateRepresentation,
-        motion,
-        num_actions: int,
-        max_step_reward: float,
-        anchor_pos_threshold: float,
-        anchor_ori_threshold: float,
-        batch_size: int,
-        replay_buffer: ReplayBuffer,
-        task_specs: list[TaskSpec],
-        history_length: int,
-        termination_softness: float,
-        device: str = "cpu",
-    ) -> None:
-        self.task_specs = task_specs
-        assert task_specs[0].name == "motion", "task_specs[0] must be the motion task"
-        super().__init__(
-            dynamics=dynamics,
-            representation=representation,
-            motion=motion,
-            num_actions=num_actions,
-            max_step_reward=max_step_reward,
-            anchor_pos_threshold=anchor_pos_threshold,
-            anchor_ori_threshold=anchor_ori_threshold,
-            batch_size=batch_size,
-            replay_buffer=replay_buffer,
-            history_length=history_length,
-            termination_softness=termination_softness,
-            device=device,
-        )
 
     def _build_task_goals(self) -> None:
         # The anchor task's goal is the actor goal already built in _update_goal; reuse it.

@@ -15,7 +15,7 @@ Rep state:  [z(1), g_b(3), v_b(3), w_b(3), qj(N), vj(N)]
 
 import torch
 
-from isaaclab_rl.model_based.quaternion import quat_apply_inverse
+from isaaclab_rl.model_based.math import quat_apply_inverse
 
 
 def infer_num_joints_from_state_dim(state_dim: int) -> int:
@@ -31,10 +31,6 @@ def infer_num_joints_from_state_dim(state_dim: int) -> int:
 
 def rep_state_dim_from_num_joints(num_joints: int) -> int:
     return 10 + 2 * num_joints
-
-
-def rep_state_dim_from_state_dim(state_dim: int) -> int:
-    return rep_state_dim_from_num_joints(infer_num_joints_from_state_dim(state_dim))
 
 
 def full_state_offsets(num_joints: int) -> tuple[int, int, int, int]:

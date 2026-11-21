@@ -17,7 +17,7 @@ import torch.nn.functional as F
 from isaaclab.utils.math import matrix_from_quat, quat_from_matrix
 
 from isaaclab_rl.model_based.kinematics import ArticulationKinematics, ForwardKinematics, so3_log
-from isaaclab_rl.model_based.quaternion import from_native
+from isaaclab_rl.model_based.math import from_native
 
 CONTROL_DT = 0.02
 
