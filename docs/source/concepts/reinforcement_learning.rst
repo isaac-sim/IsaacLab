@@ -220,6 +220,9 @@ Use ``play`` with one of the following checkpoint selectors:
      - Downloads the latest checkpoint of a W&B run (RSL-RL only). A run URL also works; append
        ``?checkpoint=<iteration>`` to choose an iteration.
 
+RLinf accepts a checkpoint path, ``latest``, or ``best``. Both selectors choose the newest saved RLinf checkpoint.
+See :ref:`rlinf-post-training` for examples.
+
 For example, play the best local checkpoint and record a short video:
 
 .. code-block:: bash
