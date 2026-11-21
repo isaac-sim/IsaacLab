@@ -64,7 +64,7 @@ def _visualizer(views) -> NewtonVisualizerBase:
     viz._sim = SimpleNamespace(get_physics_step_count=lambda: 10, get_physics_dt=lambda: 0.1)
     viz._image_views = list(views)
     viz._followers = {view: CameraFollower(view.cfg.source, _Scene()) for view in views if viz._is_tracking_view(view)}
-    viz.rtx_rendering, viz._rtx_pose_view, viz._perspective_poses = False, None, {}
+    viz.rtx_rendering, viz._rtx_pose_view, viz._perspective_pose = False, None, None
     return viz
 
 
@@ -122,9 +122,8 @@ def test_the_free_perspective_pose_is_kept_while_another_source_is_shown():
     camera.pos, camera.pitch, camera.yaw = (9.0, 9.0, 9.0), 0.0, 0.0  # A Tracking Camera or sensor moved it.
     viz.cfg.focal_length = 50.0
 
-    assert viz._restore_perspective_pose(free)
+    assert viz._restore_perspective_pose()
     assert (tuple(camera.pos), camera.pitch, camera.yaw, viz.cfg.focal_length) == ((1.0, 2.0, 3.0), -10.0, 45.0, 12.0)
-    assert not viz._restore_perspective_pose(task)  # A view that was never left has nothing to restore.
 
 
 def test_resetting_the_tracking_camera_works_while_the_rtx_view_is_current():
@@ -154,6 +153,12 @@ def test_resetting_the_tracking_camera_works_while_the_rtx_view_is_current():
     assert viz._reset_tracking_camera(viz._followers[view])
 
     assert cfg.eye == (2.0, 0.0, 1.0)
+
+
+def test_a_perspective_that_was_never_left_has_no_pose_to_restore():
+    viz = _visualizer([_view(PerspectiveCameraCfg())])
+
+    assert not viz._restore_perspective_pose()
 
 
 def _rtx_view():
@@ -195,30 +200,14 @@ def test_switching_to_rtx_and_back_returns_to_the_perspective_view():
     assert viz.current_image_view is free and not viz.rtx_rendering
 
 
-def test_rtx_returns_to_the_perspective_it_started_from():
-    first, second, rtx = _view(PerspectiveCameraCfg()), _view(PerspectiveCameraCfg()), _rtx_view()
-    viz = _switchable([first, second, rtx])
-    viz.current_image_view = second
-
-    viz.set_rtx_rendering(True)
-    viz.set_rtx_rendering(False)
-
-    assert viz.current_image_view is second
-
-
-def test_choosing_another_perspective_under_rtx_is_the_one_shown_after_leaving_rtx():
-    first, second, rtx = _view(PerspectiveCameraCfg()), _view(PerspectiveCameraCfg()), _rtx_view()
-    viz = _switchable([first, second, rtx])
-    viz._perspective_poses = {}
-    viz._restore_perspective_pose = lambda view: True
-    viz._remember_perspective_pose = lambda: None
-    rtx.invalidate = lambda: None
+def test_choosing_the_perspective_while_rtx_is_shown_keeps_the_rtx_view():
+    free, rtx = _view(PerspectiveCameraCfg()), _rtx_view()
+    viz = _switchable([free, rtx])
     viz.set_rtx_rendering(True)
 
-    viz._choose_camera_source(1)
-    viz.set_rtx_rendering(False)
+    viz._choose_camera_source(0)  # the OVRTX camera already follows the Perspective
 
-    assert viz.current_image_view is second
+    assert viz.current_image_view is rtx and viz.rtx_rendering
 
 
 def test_the_rtx_switch_waits_a_frame_so_the_message_is_shown_first():
@@ -357,43 +346,6 @@ def test_the_camera_speed_slider_sets_the_free_cameras_keyboard_speed():
     viz.current_image_view = free
     viz._draw_camera_speed(imgui)
     assert viz._viewer.camera_speed == 12.0 and viz._viewer.camera_speed_boost == 12.0
-
-
-def test_leaving_rtx_for_a_perspective_view_returns_to_the_one_rtx_followed():
-    first, second, rtx = _view(PerspectiveCameraCfg()), _view(PerspectiveCameraCfg()), _rtx_view()
-    viz = _switchable([first, second, rtx])
-    viz.set_camera_view = lambda eye, lookat: None
-    viz._focal_length_to_vertical_fov_degrees = lambda focal=None: 40.0
-    viz._remember_perspective_pose = lambda: None
-    viz._viewer.camera.fov = 0.0
-    for view in (first, second):
-        view.invalidate = lambda: None
-    viz.set_rtx_rendering(True)
-    assert viz._rtx_perspective is first
-
-    viz._choose_camera_source(1)  # while RTX is shown
-    viz.set_rtx_rendering(False)
-
-    assert viz.current_image_view is second
-
-
-def test_choosing_an_unvisited_perspective_source_in_rtx_applies_its_declared_pose():
-    first = _view(PerspectiveCameraCfg())
-    second = _view(PerspectiveCameraCfg(eye=(4.0, 5.0, 6.0), lookat=(0.0, 0.0, 1.0), focal_length=30.0))
-    viz = _switchable([first, second, _rtx_view()])
-    viz.set_rtx_rendering(True)
-    placed = []
-    for view in (first, second):
-        view.invalidate = lambda: None
-    viz.set_camera_view = lambda eye, lookat: placed.append((eye, lookat))
-    viz._focal_length_to_vertical_fov_degrees = lambda focal=None: 40.0
-    viz._remember_perspective_pose = lambda: None
-    viz._viewer.camera.fov = 0.0
-
-    viz._choose_camera_source(1)
-
-    assert placed == [((4.0, 5.0, 6.0), (0.0, 0.0, 1.0))] and viz.cfg.focal_length == 30.0
-    assert viz._rtx_perspective is second
 
 
 def test_a_window_with_only_the_rtx_camera_draws_its_camera_controls():
