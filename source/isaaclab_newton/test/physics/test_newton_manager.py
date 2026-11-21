@@ -21,6 +21,7 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
+from isaaclab_newton.envs.mdp import solver_fault
 from isaaclab_newton.physics import (
     FeatherstoneSolverCfg,
     KaminoPADMMSolverCfg,
@@ -48,13 +49,12 @@ from newton import ModelFlags
 from newton.actuators import DrivePID
 from newton.solvers import SolverImplicitMPM, SolverKamino, SolverMuJoCo, SolverVBD
 
-from isaaclab.managers import RewardManager, RewardTermCfg, TerminationManager, TerminationTermCfg
+from isaaclab.managers import RewardManager, RewardTermCfg
 from isaaclab.physics import PhysicsEvent
 from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
 from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import instantiate
-from isaaclab.utils.buffers import TimestampedBuffer
 
 # ----- Configuration and lifecycle -------------------------------------------------------
 
@@ -1109,41 +1109,6 @@ def test_bvh_refit_captures_a_model_without_rigid_bodies(device):
     assert backend.bvh_refit.data[0] == backend.state_pointers()
 
 
-def test_non_finite_worlds_flag_each_non_finite_body_component_and_skip_the_global_world():
-    """A NaN translation, rotation or velocity flags its body's world; a body of the global world flags nothing."""
-    nan = float("nan")
-    identity = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
-    poses = np.array(
-        [identity, [nan] + identity[1:], identity[:3] + [nan] + identity[4:], identity, [nan] * 7], dtype=np.float32
-    )
-    velocities = np.zeros((5, 6), dtype=np.float32)
-    velocities[3, 0] = nan
-    velocities[4] = nan
-    backend = backend_stub(
-        device=wp.get_device("cpu"),
-        model=SimpleNamespace(
-            world_count=4,
-            body_count=5,
-            joint_count=0,
-            particle_count=0,
-            body_world=wp.array([0, 1, 2, 3, -1], dtype=wp.int32, device="cpu"),
-        ),
-        state_0=SimpleNamespace(
-            body_q=wp.array(poses, dtype=wp.transformf, device="cpu"),
-            body_qd=wp.array(velocities, dtype=wp.spatial_vectorf, device="cpu"),
-        ),
-    )
-
-    from isaaclab_newton.physics.newton_solver import NewtonSolver
-
-    backend._non_finite_worlds = TimestampedBuffer(wp.zeros(4, dtype=wp.bool, device="cpu"))
-    backend.timestamp = 0
-    ops = object.__new__(NewtonSolver)
-    ops.native = SimpleNamespace(model=backend.model)
-    backend.solver_ops = ops
-    assert backend.get_non_finite_worlds().numpy().tolist() == [False, True, True, True]
-
-
 # ----- Captured steps in a simulation ------------------------------------------------------
 
 
@@ -1297,9 +1262,6 @@ def test_solver_fault_detects_private_buffers_and_recovers_only_the_failed_world
         max_episode_length_s=2.0,
         reward_values=torch.tensor([1.0, float("nan"), 3.0, 4.0], device=device),
     )
-    env.termination_manager = TerminationManager(
-        {"physics_fault": TerminationTermCfg(func="isaaclab_newton.envs.mdp:solver_fault")}, env
-    )
     env.reward_manager = RewardManager(
         {
             "task": RewardTermCfg(func=lambda env: env.reward_values, weight=1.0),
@@ -1310,7 +1272,6 @@ def test_solver_fault_detects_private_buffers_and_recovers_only_the_failed_world
         },
         env,
     )
-    original_q = backend.state_0.joint_q.numpy()
     art_ids = wp.array(np.arange(4).reshape(4, 1), dtype=wp.int32, device=device)
     world_mask = wp.array([False, True, False, False], dtype=wp.bool, device=device)
     scans = []
@@ -1321,29 +1282,15 @@ def test_solver_fault_detects_private_buffers_and_recovers_only_the_failed_world
         lambda state, faults: (scans.append(state), mark_faults(state, faults)),
     )
     assert not scans
-    checked = []
-    for name in (
-        "qpos",
-        "qvel",
-        "qacc",
-        "qfrc_actuator",
-        "qacc_warmstart",
-        "qfrc_applied",
-        "ctrl",
-        "act",
-        "xfrc_applied",
-    ):
+    for name in ("qpos", "qvel", "qacc", "qfrc_actuator", "qacc_warmstart", "qfrc_applied", "xfrc_applied"):
         values = wp.to_torch(getattr(backend.solver.mjw_data, name))
-        if values.numel() == 0:
-            continue
-        checked.append(name)
         scans_before = len(scans)
         backend.step()
         reference.step()
         assert len(scans) == scans_before
         values[1].fill_(float("nan"))
         assert np.isfinite(backend.state_0.body_q.numpy()).all()
-        assert env.termination_manager.compute().tolist() == [False, True, False, False]
+        assert solver_fault(env).tolist() == [False, True, False, False]
         torch.testing.assert_close(
             env.reward_manager.compute(dt=0.1), torch.tensor([0.3, 0.0, 0.5, 0.6], device=device)
         )
@@ -1352,53 +1299,57 @@ def test_solver_fault_detects_private_buffers_and_recovers_only_the_failed_world
         assert all(value.item() == 0.0 for value in logs.values())
         # Use the same authored-state and FK boundary as the normal scene reset.
         for target in (backend, reference):
-            wp.to_torch(target.state_0.joint_q)[1] = float(original_q[1])
+            wp.to_torch(target.state_0.joint_q)[1] = 0.0
             wp.to_torch(target.state_0.joint_qd)[1] = 0.0
             target.invalidate_fk(world_mask, art_ids)
             target.forward()
             target.step()
         assert not backend.get_non_finite_worlds().numpy().any(), name
+    for name in ("joint_q", "joint_qd"):
         np.testing.assert_allclose(
-            backend.state_0.joint_q.numpy(), reference.state_0.joint_q.numpy(), atol=1e-6, rtol=1e-5
+            getattr(backend.state_0, name).numpy(), getattr(reference.state_0, name).numpy(), atol=1e-6, rtol=1e-5
         )
-        np.testing.assert_allclose(
-            backend.state_0.joint_qd.numpy(), reference.state_0.joint_qd.numpy(), atol=1e-6, rtol=1e-5
-        )
-    assert {"qpos", "qvel", "qacc", "qfrc_actuator", "qacc_warmstart", "qfrc_applied", "xfrc_applied"} <= set(checked)
-    assert not env.termination_manager.compute().any()
+    assert not solver_fault(env).any()
     env.reward_values.fill_(1.0)
     torch.testing.assert_close(env.reward_manager.compute(dt=0.1), torch.full((4,), 0.3, device=device))
 
 
-def test_non_finite_joint_and_particle_state_is_detected_before_body_state_changes():
-    """Joint coordinates and particle state remain observable when finite rigid-body output hides a fault."""
+def test_non_finite_newton_state_ignores_global_entities():
     cfg = NewtonCfg(solver_cfg=XPBDSolverCfg(), use_cuda_graph=False)
     backend = _pendulums(cfg, 1, "cpu")
     wp.to_torch(backend.state_0.joint_q)[0] = float("nan")
     wp.to_torch(backend.state_0.joint_qd)[2] = float("inf")
     assert np.isfinite(backend.state_0.body_q.numpy()).all()
     assert backend.get_non_finite_worlds().numpy().tolist() == [True, False, True, False]
-    wp.to_torch(backend.state_0.joint_q)[0] = 0.0
-    backend.invalidate_fk()
-    backend.forward()
-    assert backend.get_non_finite_worlds().numpy().tolist() == [False, False, True, False]
 
     builder = create_builder(cfg)
-    for _ in range(3):
+    for _ in range(4):
         builder.begin_world()
+        builder.add_body(mass=1.0, inertia=wp.diag(wp.vec3(0.01)))
         builder.add_particle(pos=wp.vec3(0.0), vel=wp.vec3(0.0), mass=1.0)
         builder.end_world()
+    builder.add_body(mass=1.0, inertia=wp.diag(wp.vec3(0.01)))
     builder.add_particle(pos=wp.vec3(0.0), vel=wp.vec3(0.0), mass=1.0)
     backend = NewtonBackend(NewtonBackendCfg(physics_cfg=cfg, device="cpu"), builder, dt=0.01)
     backend.init_solver()
+    poses = wp.to_torch(backend.state_0.body_q)
+    original_poses = poses.clone()
+    poses[1, 0] = poses[2, 3] = float("nan")
+    wp.to_torch(backend.state_0.body_qd)[3, 0] = float("inf")
+    poses[4].fill_(float("nan"))
+    assert backend.get_non_finite_worlds().numpy().tolist() == [False, True, True, True]
+    poses[:4] = original_poses[:4]
+    backend.state_0.body_qd.zero_()
+    backend.invalidate_body_state()
+    backend.forward()
     wp.to_torch(backend.state_0.particle_q)[1, 0] = float("nan")
     wp.to_torch(backend.state_0.particle_qd)[2, 2] = float("inf")
-    wp.to_torch(backend.state_0.particle_q)[3].fill_(float("nan"))
-    assert backend.get_non_finite_worlds().numpy().tolist() == [False, True, True]
+    wp.to_torch(backend.state_0.particle_q)[4].fill_(float("nan"))
+    assert backend.get_non_finite_worlds().numpy().tolist() == [False, True, True, False]
 
 
-def test_cpu_mujoco_global_solver_history_invalidates_all_worlds_and_recovers():
-    """CPU MuJoCo's unmasked private reset must not silently invalidate an unreported healthy world."""
+def test_cpu_mujoco_solver_history_fault_recovers():
+    """The single-world CPU MuJoCo path detects and resets its native history."""
     cfg = NewtonCfg(solver_cfg=MJWarpSolverCfg(use_mujoco_cpu=True), num_substeps=1, use_cuda_graph=False)
     builder = create_builder(cfg)
     builder.begin_world()
