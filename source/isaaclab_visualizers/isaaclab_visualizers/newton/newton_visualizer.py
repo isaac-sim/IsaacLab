@@ -460,9 +460,11 @@ class NewtonViewerGL(ViewerGL):
                             "WASD - Move",
                             "Shift + WASD - Move 2x faster",
                             "QE - Up / down",
-                            *(["Left drag - Look around"] if viewer.composite_pointer is None else [
-                                "Left drag on sphere - Aim gaze", "Left drag on retina - Look around"
-                            ]),
+                            *(
+                                ["Left drag - Look around"]
+                                if viewer.composite_pointer is None
+                                else ["Left drag on sphere - Aim gaze", "Left drag on retina - Look around"]
+                            ),
                             "Middle Click - Orbit",
                             "Shift + Middle Click - Pan",
                             "Ctrl + Middle Click - Dolly",
