@@ -5,6 +5,7 @@
 
 """Factory composition with reset-selectable assembly variants."""
 
+from isaaclab.envs.reset import ResetStateSamplerCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -26,7 +27,7 @@ from .factory_env_cfg import (
 )
 from .factory_presets import EndEffectorBodyCfg, GripperGraspOffsetCfg
 from .factory_variant_scene_cfg import FactoryVariantSceneCfg
-from .utils.variant_sampling import SamplerCfg, UniformSamplingStrategyCfg
+from .utils.variant_sampling import BalancedVariantScoreCfg
 from .variant_reset_env_cfg import VARIANT_ACCUMULATOR_RESET
 
 
@@ -152,7 +153,9 @@ class FactoryVariantEnvCfg(FactoryEnvCfg):
     def play_mode(self) -> None:
         """Evaluate from uniformly sampled random-start states."""
         self.scene.num_envs = 128
-        uniform = SamplerCfg(strategies=[UniformSamplingStrategyCfg(weight=1.0)], eps=0.0)
+        uniform = ResetStateSamplerCfg(
+            history_length=1, scores=[BalancedVariantScoreCfg(beta_weight=0.0, floor=1.0)], uniform_weight=0.0
+        )
         reset = self.events.reset_strategies.params
         reset["state_table_size"] = 500
         reset["sampling"] = uniform
