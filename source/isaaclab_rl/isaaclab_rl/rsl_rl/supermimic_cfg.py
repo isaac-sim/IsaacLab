@@ -64,7 +64,7 @@ class RslRlSuperMimicAlgorithmCfg:
     task_cfg: RslRlSuperMimicTaskCfg = MISSING
     """Differentiable task configured by the environment owner."""
 
-    replay_buffer_size: int = 1_000_000
+    replay_buffer_capacity: int = 1_000_000
     """Replay capacity in transitions across all environments."""
 
     max_replay_memory_fraction: float | None = None
@@ -94,28 +94,28 @@ class RslRlSuperMimicAlgorithmCfg:
     learning_rate: float = 2e-4
     """Initial learning rate of each optimizer."""
 
-    lr_decay_iterations: int = 250_000
+    num_schedule_updates: int = 250_000
     """Learner iterations in the shared cosine learning-rate schedule."""
 
-    lr_final_ratio: float = 0.03
+    final_learning_rate_ratio: float = 0.03
     """Final learning rate relative to its initial value."""
 
     gamma: float = 0.99
     """Reward discount."""
 
-    gae_lambda: float = 0.95
+    lam: float = 0.95
     """TD(lambda) mixing coefficient for value targets."""
 
-    critic_epochs: int = 5
+    num_critic_epochs: int = 5
     """Epochs per critic fit."""
 
-    critic_minibatches: int = 4
+    num_critic_mini_batches: int = 4
     """Minibatches per critic epoch."""
 
-    warmup_steps: int = 64
+    num_warmup_steps: int = 64
     """Stored steps per environment required before learning."""
 
-    world_model_warmup_iterations: int = 500
+    num_world_model_warmup_iterations: int = 500
     """Learner iterations fitting only dynamics."""
 
     action_noise: float = 0.1
@@ -135,6 +135,9 @@ class RslRlSuperMimicAlgorithmCfg:
 
     max_grad_norm: float = 1.0
     """Global gradient-norm limit for each model."""
+
+    use_cuda_graph: bool = False
+    """Whether to capture learner iterations with CUDA graphs; results match eager execution."""
 
 
 @configclass

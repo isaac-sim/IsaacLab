@@ -40,7 +40,7 @@ class G1FlatSuperMimicRunnerCfg(RslRlSuperMimicRunnerCfg):
         obs_normalization=True,
     )
     algorithm = RslRlSuperMimicAlgorithmCfg(
-        replay_buffer_size=4_096_000,
+        replay_buffer_capacity=4_096_000,
         # dt 0.02 * (track_lin 1 + track_ang 1 + feet_air_time 0.75 * 0.4).
         max_step_reward=0.046,
         task_cfg=RslRlSuperMimicTaskCfg(class_name="isaaclab_tasks.core.velocity.supermimic:VelocityTask"),
