@@ -540,7 +540,9 @@ class InteractiveScene:
         force_recompute = not self.cfg.lazy_sensor_update
         batched_sensors: list[SensorBase] = []
         for sensor in self._sensors.values():
-            if force_recompute and sensor.supports_batch_update:
+            if force_recompute and getattr(sensor.cfg, "render_on_demand", False) is True:
+                sensor.update(dt, force_recompute=False)  # rendered when its data is read, not on every update
+            elif force_recompute and sensor.supports_batch_update:
                 # Defer buffer refresh until all sensors have advanced.
                 sensor.update(dt, force_recompute=False)
                 batched_sensors.append(sensor)
