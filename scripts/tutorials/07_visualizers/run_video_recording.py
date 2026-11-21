@@ -9,13 +9,13 @@ This script demonstrates three progressively richer recording configurations,
 all using the Shadow Hand cube-reorientation task
 (``Isaac-Reorient-Cube-Shadow-Camera-Direct``).
 
-Example 1 — Kit viewport (simplest)
-    One clip from the Kit interactive viewport, showing 4 parallel environments.
+Example 1 — Newton viewport (simplest)
+    One clip from the Newton interactive viewport, showing 4 parallel environments.
 
     .. code-block:: bash
 
         uv run python scripts/tutorials/07_visualizers/run_video_recording.py \
-            --example 1 --num_envs 4 --viz kit
+            --example 1 --num_envs 4 --viz newton
 
 Example 2 — scene sensor only, headless
     One clip captured directly from the scene's tiled-camera sensor.
@@ -26,13 +26,13 @@ Example 2 — scene sensor only, headless
         uv run python scripts/tutorials/07_visualizers/run_video_recording.py \
             --example 2 --num_envs 16
 
-Example 3 — Kit viewport + Kit tiled grid + Newton viewport + scene sensor
-    Four independent clip streams recorded simultaneously.
+Example 3 — Newton viewport + tiled grid + scene sensor
+    Three independent clip streams recorded simultaneously.
 
     .. code-block:: bash
 
         uv run python scripts/tutorials/07_visualizers/run_video_recording.py \
-            --example 3 --num_envs 4 --viz kit,newton_gl
+            --example 3 --num_envs 4 --viz newton
 
 Clips are written to ``videos/recording_tutorial/example_<N>/`` in the working directory.
 Examples 1 and 2 each demonstrate one recording source; Example 3 combines all of them.
@@ -70,15 +70,15 @@ _NUM_STEPS = 115  # slightly more than _VIDEO_LENGTH so the clip flushes cleanly
 
 _TASK_SHADOW = "Isaac-Reorient-Cube-Shadow-Camera-Direct"
 
-# Kit viewport camera: positioned to show a 2×2 grid of Shadow Hand environments.
+# Viewport camera: positioned to show a 2×2 grid of Shadow Hand environments.
 # env_spacing=1.0 with 4 envs → envs centered at ±0.5 in x and y.
 # Cube spawns at ~(0, -0.39, 0.6) per env; wrist cylinder is the landmark at the top.
 _SHADOW_EYE = (0.0, -2.2, 1.8)
 _SHADOW_LOOKAT = (0.0, -0.1, 0.4)
 _SHADOW_ENV_SPACING = 1.0
 
-# Skip the first few steps so the RTX renderer has warmed up before recording starts.
-_KIT_STEP_OFFSET = 5
+# Skip the first few steps so the scene has settled before recording starts.
+_RENDER_STEP_OFFSET = 5
 
 
 def _output_dir(example: int) -> str:
@@ -101,21 +101,21 @@ def _shadow_env_cfg(num_envs: int, env_spacing: float = _SHADOW_ENV_SPACING):
 
 
 def _build_env_cfg_example_1(num_envs: int):
-    """Shadow Hand + Kit viewport: one clip from the interactive viewport."""
-    from isaaclab_visualizers.kit import KitBackendCfg
+    """Shadow Hand + Newton viewport: one clip from the interactive viewport."""
+    from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
     env_cfg = _shadow_env_cfg(num_envs)
-    env_cfg.sim.visualizer_cfgs = [VisualizerCfg(eye=_SHADOW_EYE, lookat=_SHADOW_LOOKAT, backend=KitBackendCfg())]
+    env_cfg.sim.visualizer_cfgs = [VisualizerCfg(eye=_SHADOW_EYE, lookat=_SHADOW_LOOKAT, backend=NewtonGLBackendCfg())]
 
     out = _output_dir(1)
     env_cfg.video_recorders = [
         VideoRecorderCfg(
-            source="viz:kit",
+            source="viz:newton",
             output_dir=out,
-            output_filename_prefix="kit_viewport",
+            output_filename_prefix="newton_viewport",
             video_length=_VIDEO_LENGTH,
             fps=30,
-            step_offset=_KIT_STEP_OFFSET,
+            step_offset=_RENDER_STEP_OFFSET,
         ),
     ]
     return env_cfg, _TASK_SHADOW
@@ -139,57 +139,38 @@ def _build_env_cfg_example_2(num_envs: int):
 
 
 def _build_env_cfg_example_3(num_envs: int):
-    """Shadow Hand + Kit viewport + Kit tiled grid + Newton viewport + sensor: four simultaneous streams.
-
-    Note: ``source='viz:newton'`` captures the full Newton GL window. When
-    ``streaming_view=True`` is set on the Newton GL :class:`~isaaclab.visualizers.VisualizerCfg`,
-    the GL window displays the per-environment camera panel, so this effectively records
-    a Newton streaming view without a separate ``render_tiled_rgb_array()`` call.
-    """
-    from isaaclab_visualizers.kit import KitBackendCfg
+    """Record the Newton window, its tiled camera panel, and a scene sensor together."""
     from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
     env_cfg = _shadow_env_cfg(num_envs)
-    kit_cfg = VisualizerCfg(
-        eye=_SHADOW_EYE,
-        lookat=_SHADOW_LOOKAT,
-        streaming_view=True,
-        streaming_envs=min(num_envs, 16),
-        backend=KitBackendCfg(),
-    )
-    newton_cfg = VisualizerCfg(
-        eye=_SHADOW_EYE,
-        lookat=_SHADOW_LOOKAT,
-        window=WindowCfg(size=(1280, 720)),
-        focal_length=25.0,
-        backend=NewtonGLBackendCfg(),
-    )
-    env_cfg.sim.visualizer_cfgs = [kit_cfg, newton_cfg]
-
+    env_cfg.sim.visualizer_cfgs = [
+        VisualizerCfg(
+            eye=_SHADOW_EYE,
+            lookat=_SHADOW_LOOKAT,
+            streaming_view=True,
+            streaming_envs=min(num_envs, 16),
+            window=WindowCfg(size=(1280, 720)),
+            focal_length=25.0,
+            backend=NewtonGLBackendCfg(),
+        )
+    ]
     out = _output_dir(3)
     env_cfg.video_recorders = [
-        VideoRecorderCfg(
-            source="viz:kit",
-            output_dir=out,
-            output_filename_prefix="kit_viewport",
-            video_length=_VIDEO_LENGTH,
-            fps=30,
-            step_offset=_KIT_STEP_OFFSET,
-        ),
-        VideoRecorderCfg(
-            source="viz:kit:streaming_view",
-            output_dir=out,
-            output_filename_prefix="tiled_kit_viewport",
-            video_length=_VIDEO_LENGTH,
-            fps=30,
-            step_offset=_KIT_STEP_OFFSET,
-        ),
         VideoRecorderCfg(
             source="viz:newton",
             output_dir=out,
             output_filename_prefix="newton_viewport",
             video_length=_VIDEO_LENGTH,
             fps=30,
+            step_offset=_RENDER_STEP_OFFSET,
+        ),
+        VideoRecorderCfg(
+            source="viz:newton:streaming_view",
+            output_dir=out,
+            output_filename_prefix="tiled_newton_viewport",
+            video_length=_VIDEO_LENGTH,
+            fps=30,
+            step_offset=_RENDER_STEP_OFFSET,
         ),
         VideoRecorderCfg(
             source="sensor:tiled_camera",

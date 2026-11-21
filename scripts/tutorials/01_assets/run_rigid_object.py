@@ -18,6 +18,8 @@ This script demonstrates how to create a rigid object and interact with it.
 
 import argparse
 
+from isaaclab_ov.physics import OvPhysxCfg
+
 from isaaclab.app import add_launcher_args, launch_simulation
 
 # add argparse arguments
@@ -121,7 +123,12 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, RigidObj
 def main():
     """Main function."""
     # Configure the simulation
-    sim_cfg = sim_utils.SimulationCfg(device=args_cli.device)
+    sim_cfg = sim_utils.SimulationCfg(
+        physics=OvPhysxCfg(
+            bounce_threshold_velocity=0.5, friction_correlation_distance=0.025, friction_offset_threshold=0.04
+        ),
+        device=args_cli.device,
+    )
     # Launch the simulator runtime that the configuration needs
     with launch_simulation(sim_cfg, args_cli):
         # Initialize the simulation context

@@ -289,7 +289,7 @@ def test_every_packaged_script_is_registered_for_cli_launch():
     ("extra_args", "expected_visualizers", "expected_overrides"),
     [
         ((), ["newton"], ["presets=platforms"]),
-        (("physics=isaacsim_physx",), ["kit"], ["presets=platforms", "physics=isaacsim_physx"]),
+        (("physics=isaacsim_physx",), ["newton"], ["presets=platforms", "physics=isaacsim_physx"]),
         (("--viz", "none"), [], ["presets=platforms", "visualizer=none"]),
     ],
     ids=("newton-default", "physx-default", "explicit-none"),
@@ -333,16 +333,16 @@ def test_g1_terrain_forwards_visualizer_selection(monkeypatch, extra_args, expec
 @pytest.mark.parametrize(
     ("extra_args", "expected_visualizers", "expected_overrides", "expected_video_source"),
     [
-        ((), [], ["presets=granular"], "viz:kit"),
+        ((), [], ["presets=granular"], "viz:newton"),
         (("--viz", "newton"), ["newton"], ["presets=granular", "visualizer=newton"], None),
         (("--viz", "none"), [], ["presets=granular", "visualizer=none"], None),
         (("--viz", "rerun", "--video"), ["rerun"], ["presets=granular", "visualizer=rerun"], "viz"),
-        (("physics=isaacsim_physx",), ["kit"], ["presets=granular", "physics=isaacsim_physx"], None),
+        (("physics=isaacsim_physx",), ["newton"], ["presets=granular", "physics=isaacsim_physx"], None),
         (
             ("--physics", "isaacsim_physx", "--video"),
-            ["kit"],
+            ["newton"],
             ["presets=granular", "physics=isaacsim_physx"],
-            "viz:kit",
+            "viz:newton",
         ),
     ],
     ids=(

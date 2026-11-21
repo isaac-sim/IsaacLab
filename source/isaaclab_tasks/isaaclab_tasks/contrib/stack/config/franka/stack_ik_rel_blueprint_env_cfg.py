@@ -9,6 +9,7 @@ import os
 from typing import TYPE_CHECKING
 
 import torch
+from isaaclab_ov.renderers import OVRTXRendererCfg
 from torchvision.utils import save_image
 
 import isaaclab.sim as sim_utils
@@ -250,6 +251,7 @@ class FrankaCubeStackBlueprintEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvC
 
         # Set table view camera
         self.scene.table_cam = CameraCfg(
+            renderer_cfg=OVRTXRendererCfg(),
             prim_path="{ENV_REGEX_NS}/table_cam",
             update_period=0.0333,
             height=704,
@@ -265,6 +267,7 @@ class FrankaCubeStackBlueprintEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvC
 
         # Set table view camera
         self.scene.table_high_cam = CameraCfg(
+            renderer_cfg=OVRTXRendererCfg(),
             prim_path="{ENV_REGEX_NS}/table_high_cam",
             update_period=0.0333,
             height=704,

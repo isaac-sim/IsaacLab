@@ -8,16 +8,16 @@ This script demonstrates how to work with the deformable object and interact wit
 
 .. code-block:: bash
 
-    # Usage with default PhysX physics and default kit visualizer.
-    uv run --extra isaacsim --extra tetrahedralization python scripts/tutorials/01_assets/run_deformable_object.py
+    # Usage with default OvPhysX physics and default Newton visualizer.
+    uv run --extra ov --extra tetrahedralization python scripts/tutorials/01_assets/run_deformable_object.py
 
-    # Usage with Newton VBD physics and default kit visualizer.
-    uv run --extra isaacsim --extra tetrahedralization python scripts/tutorials/01_assets/run_deformable_object.py \
+    # Usage with Newton VBD physics and default Newton visualizer.
+    uv run --extra ov --extra tetrahedralization python scripts/tutorials/01_assets/run_deformable_object.py \
         --backend newton_vbd
 
     # Usage with OvPhysX physics without a visualizer.
     uv run --extra ovphysx --extra tetrahedralization python scripts/tutorials/01_assets/run_deformable_object.py \
-        --backend ovphysx
+        --backend ovphysx --viz none
 
 """
 
@@ -31,13 +31,11 @@ from isaaclab.app import add_launcher_args, launch_simulation
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Tutorial on interacting with a deformable object.")
 parser.add_argument(
-    "--backend", type=str, default="physx", choices=["physx", "newton_vbd", "ovphysx"], help="Physics backend."
+    "--backend", type=str, default="ovphysx", choices=["physx", "newton_vbd", "ovphysx"], help="Physics backend."
 )
 # append simulation launcher CLI arguments
 add_launcher_args(parser)
-# Kit cannot be combined with OvPhysX, so use no visualizer by default for that backend
-backend_args, _ = parser.parse_known_args()
-parser.set_defaults(visualizer=None if backend_args.backend == "ovphysx" else ["kit"])
+parser.set_defaults(visualizer=["newton"])
 # parse the arguments
 args_cli = parser.parse_args()
 args_cli.physics = args_cli.backend

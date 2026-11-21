@@ -25,14 +25,15 @@ velocity, and mass noise, teleporting out-of-bounds objects back in.
 
 .. code-block:: bash
 
-    # Usage with default PhysX physics and default kit visualizer.
-    uvx --from 'isaaclab[isaacsim]' isaaclab example bin-packing
+    # Usage with default PhysX physics and default Newton visualizer.
+    uvx --from 'isaaclab[ov]' isaaclab example bin-packing
 
 """
 
 from __future__ import annotations
 
 import argparse
+from contextlib import closing
 from typing import TYPE_CHECKING
 
 from isaaclab.app import add_launcher_args, launch_simulation
@@ -42,10 +43,10 @@ parser = argparse.ArgumentParser(
     conflict_handler="resolve",
 )
 parser.add_argument("--num_envs", type=int, default=16, help="Number of environments to spawn.")
-parser.add_argument("--physics", default="isaacsim_physx", choices=["isaacsim_physx"], help="Physics backend.")
+parser.add_argument("--physics", default="ovphysx", choices=["ovphysx"], help="Physics backend.")
 parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["kit"])
+parser.set_defaults(visualizer=["newton"])
 args_cli = parser.parse_args()
 if args_cli.max_steps == 0 or args_cli.max_steps < -1:
     parser.error("--max_steps must be positive or -1.")
@@ -57,6 +58,7 @@ from random import Random
 import torch
 import warp as wp
 from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
+from isaaclab_ov.sim.views import OvPhysxView
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
@@ -305,9 +307,21 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene) -> 
     Returns:
         None: The simulator side-effects are applied through ``scene`` and ``sim``.
     """
+    with closing(
+        OvPhysxView(
+            sim.backend_manager.get_physx_instance(),
+            pattern="/World/envs/env_*/Groceries/Grocery_*",
+            device=scene.device,
+            eager=True,
+            tensor_types=["rigid_body_pose"],
+        )
+    ) as root_view:
+        _step_groceries(sim, scene, root_view)
+
+
+def _step_groceries(sim: sim_utils.SimulationContext, scene: InteractiveScene, root_view: OvPhysxView) -> None:
+    """Reset and step groceries through the standalone PhysX tensor view."""
     device = scene.device
-    physics_sim_view = sim.backend_manager.get_physics_sim_view()
-    root_view = physics_sim_view.create_rigid_body_view("/World/envs/env_*/Groceries/Grocery_*")
     if root_view.count == 0:
         raise RuntimeError("The flat grocery view matched no rigid bodies.")
 
@@ -348,16 +362,18 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene) -> 
                 pose = spawn_pose_w.clone()
                 noise_quat = math_utils.quat_from_euler_xyz(noise[..., 0], noise[..., 1], noise[..., 2])
                 pose[..., 3:7] = math_utils.quat_mul(pose[..., 3:7], noise_quat)
-                root_view.set_transforms(wp.from_torch(pose.contiguous()), all_indices)
+                root_view.set_attribute("rigid_body_pose", wp.from_torch(pose.contiguous()), indices=all_indices)
                 # Only randomize the angular velocity; leave the linear velocity at zero.
                 body_velocity = torch.zeros((*shape, 6), device=device)
                 body_velocity[..., 3:6] = math_utils.sample_uniform(
                     velocity_ranges[:, 0], velocity_ranges[:, 1], (*shape, 3), device=device
                 )
-                root_view.set_velocities(wp.from_torch(body_velocity.contiguous()), all_indices)
+                root_view.set_attribute(
+                    "rigid_body_velocity", wp.from_torch(body_velocity.contiguous()), indices=all_indices
+                )
                 # Vary the mass so the drop behavior differs between resets.
                 masses = torch.rand((root_view.count, 1), device="cpu") * 0.2 + 0.2
-                root_view.set_masses(wp.from_torch(masses), cpu_indices)
+                root_view.set_attribute("rigid_body_mass", wp.from_torch(masses), indices=cpu_indices)
                 scene.reset()
 
         # Write data to sim
@@ -366,7 +382,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene) -> 
         sim.step()
         step_count += 1
         # Bring out-of-bounds objects back to the bin.
-        transforms = root_view.get_transforms()
+        transforms = root_view.get_attribute("rigid_body_pose")
         transforms_t = wp.to_torch(transforms) if isinstance(transforms, wp.array) else transforms
         xy = transforms_t[:, :2] - env_origins[:, :2]
         stray = torch.nonzero(~((xy >= bounds_xy[0]) & (xy <= bounds_xy[1])).all(dim=-1)).flatten()
@@ -374,13 +390,17 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene) -> 
             stray_indices = wp.from_torch(stray.to(dtype=torch.int32))
             corrected_transforms = transforms_t.clone()
             corrected_transforms[stray] = spawn_pose_w[stray]
-            velocities = root_view.get_velocities()
+            velocities = root_view.get_attribute("rigid_body_velocity")
             corrected_velocities = (
                 wp.to_torch(velocities).clone() if isinstance(velocities, wp.array) else velocities.clone()
             )
             index_fill_(corrected_velocities, stray, 0.0)
-            root_view.set_transforms(wp.from_torch(corrected_transforms.contiguous()), stray_indices)
-            root_view.set_velocities(wp.from_torch(corrected_velocities.contiguous()), stray_indices)
+            root_view.set_attribute(
+                "rigid_body_pose", wp.from_torch(corrected_transforms.contiguous()), indices=stray_indices
+            )
+            root_view.set_attribute(
+                "rigid_body_velocity", wp.from_torch(corrected_velocities.contiguous()), indices=stray_indices
+            )
         # Increment counter
         count += 1
         # Update buffers

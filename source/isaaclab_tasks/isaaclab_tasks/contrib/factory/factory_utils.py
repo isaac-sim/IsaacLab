@@ -6,7 +6,9 @@
 import numpy as np
 import torch
 import warp as wp
+from isaaclab_ov.physics import OvPhysxCfg
 
+from isaaclab.assets import BaseArticulation
 from isaaclab.utils import math as torch_utils
 
 
@@ -29,15 +31,27 @@ def wrap_yaw(angle):
     return torch.where(angle > np.deg2rad(235), angle - 2 * np.pi, angle)
 
 
-def set_friction(asset, value, num_envs):
-    """Update material properties for a given asset."""
-    materials = wp.to_torch(asset.root_view.get_material_properties())
-    materials[..., 0] = value  # Static friction.
-    materials[..., 1] = value  # Dynamic friction.
-    env_ids = torch.arange(num_envs, device="cpu")
-    asset.root_view.set_material_properties(
-        wp.from_torch(materials.contiguous()), wp.from_torch(env_ids.to(torch.int32))
-    )
+def set_friction(asset, value, num_envs, physics_cfg):
+    """Update shape friction while preserving the existing restitution."""
+    view = asset.root_view
+    if isinstance(physics_cfg, OvPhysxCfg):
+        from ovphysx.types import TensorType
+
+        material_type = (
+            TensorType.ARTICULATION_SHAPE_FRICTION_AND_RESTITUTION
+            if isinstance(asset, BaseArticulation)
+            else TensorType.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION
+        )
+        materials = wp.to_torch(view.get_attribute(material_type))
+    else:
+        materials = wp.to_torch(view.get_material_properties())
+    materials[..., 0] = value
+    materials[..., 1] = value
+    env_ids = wp.from_torch(torch.arange(num_envs, device="cpu", dtype=torch.int32))
+    if isinstance(physics_cfg, OvPhysxCfg):
+        view.set_attribute(material_type, wp.from_torch(materials.contiguous()), indices=env_ids)
+    else:
+        view.set_material_properties(wp.from_torch(materials.contiguous()), env_ids)
 
 
 def set_body_inertias(robot):

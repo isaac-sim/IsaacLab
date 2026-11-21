@@ -5,6 +5,7 @@
 
 from isaaclab_isaacsim.physics import PhysxCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
+from isaaclab_ov.physics import OvPhysxCfg
 
 from isaaclab.envs import ManagerBasedRLEnvCfg, ViewerCfg
 from isaaclab.envs.reset import ResetStateSamplerCfg
@@ -223,7 +224,20 @@ class FactoryPhysicsCfg(PresetCfg):
     Factory's scene also contains the robot, NIST board, and table.
     """
 
-    default = PhysxCfg(
+    isaacsim_physx = PhysxCfg(
+        solver_type=1,
+        max_position_iteration_count=192,
+        max_velocity_iteration_count=1,
+        bounce_threshold_velocity=0.2,
+        friction_offset_threshold=0.01,
+        friction_correlation_distance=0.00625,
+        gpu_max_rigid_contact_count=2**23,
+        gpu_max_rigid_patch_count=2**23,
+        gpu_collision_stack_size=2**32 - 1,
+        gpu_max_num_partitions=1,
+        gpu_found_lost_pairs_capacity=2**22,
+    )
+    ovphysx = OvPhysxCfg(
         solver_type=1,
         max_position_iteration_count=192,
         max_velocity_iteration_count=1,
@@ -270,8 +284,8 @@ class FactoryPhysicsCfg(PresetCfg):
         debug_mode=False,
         use_cuda_graph=True,
     )
-    isaacsim_physx = default
-    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
+    default = ovphysx
+    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
 
 
 @configclass

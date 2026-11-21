@@ -13,7 +13,7 @@ compressibility comparison to observe the response to sustained compression.
 .. code-block:: bash
 
     uv run --extra isaacsim python scripts/tutorials/08_mpm/material_parameters.py \
-      --preset young_modulus --visualizer kit
+      --preset young_modulus --visualizer newton
 """
 
 from __future__ import annotations
@@ -239,7 +239,7 @@ parser.add_argument(
     help="Compress sphere specimens with a descending kinematic plate after they settle.",
 )
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["kit"])
+parser.set_defaults(visualizer=["newton"])
 args_cli = parser.parse_args()
 
 if not 0.0 <= args_cli.particle_jitter_fraction <= 0.5:

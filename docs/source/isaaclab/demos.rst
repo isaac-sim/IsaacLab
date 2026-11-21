@@ -93,7 +93,7 @@ No source checkout is required.
        </button>
        <button type="button" class="demo-card" aria-pressed="false"
                data-demo-name="Pick and Place" data-demo-id="pick-and-place"
-               data-demo-physics="isaacsim_physx" data-demo-visualizers="kit"
+               data-demo-physics="isaacsim_physx" data-demo-visualizers="newton"
                data-demo-description="Interactively pick up a cube with a parallel robot and place it on a target.">
          <img src="../../_static/demos/pick_and_place.jpg" alt="Interactive pick and place demo" loading="lazy">
          <span>Pick and Place</span>
@@ -143,7 +143,7 @@ No source checkout is required.
        </aside>
        <aside class="admonition hint demo-command-note" data-demo-note="pick-and-place" hidden>
          <p class="admonition-title">Pick and place</p>
-         <p>Pick and place requires Kit input.</p>
+         <p>Pick and place uses the Newton viewer for input. Its surface gripper still requires Isaac Sim physics.</p>
        </aside>
      <aside class="admonition hint demo-command-note" data-demo-note="rizon-sharpa-coffee" hidden>
        <p class="admonition-title">Coffee assets</p>
@@ -207,7 +207,7 @@ additional packages used to download and run the released ONNX models:
 
 .. code-block:: bash
 
-   uv sync --extra isaacsim --extra video
+   uv sync --extra ov --extra video
    uv pip install "huggingface-hub>=0.34" "onnxruntime-gpu>=1.22"
 
 The demo downloads the planner and tracker from
@@ -218,20 +218,20 @@ Run either backend:
 
 .. code-block:: bash
 
-   uv run --extra isaacsim --extra video isaaclab demo sonic \
+   uv run --extra ov --extra video isaaclab demo sonic \
      --physics newton_mjwarp --output logs/sonic_newton
 
    uv run --extra isaacsim --extra video isaaclab demo sonic \
      --physics isaacsim_physx --video --output logs/sonic_physx
 
-Without ``--viz``, Newton records offscreen with Kit/RTX and opens no simulation window;
-PhysX opens Kit and records only with ``--video``. Both commands above save
+Without ``--viz``, Newton records its viewport offscreen and opens no simulation window;
+PhysX opens the Newton visualizer and records only with ``--video``. Both commands above save
 ``sonic_0000.mp4`` in the selected output directory (``logs/sonic`` when ``--output`` is omitted).
 The terminal reports simulation progress. Recording advances
 in simulation time, so the full MPM scene can take substantially longer than the video
 duration. Pass ``--seconds`` to change the simulation duration.
 
-Pass ``--viz newton`` or ``--viz kit`` to open a Newton simulation window instead.
+Pass ``--viz newton`` or ``--viz kit`` to choose an interactive visualizer instead.
 With an explicit ``--viz`` selection, recording is opt-in via ``--video``.
 
 Append ``env.sim.device=cuda:1`` to select a different CUDA device for physics and SONIC

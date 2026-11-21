@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
+from isaaclab_ov.renderers import OVRTXRendererCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
@@ -337,6 +338,7 @@ class FrankaCubeStackVisuomotorEnvCfg(StackEnvCfg):
         # Set cameras
         # Set wrist camera
         self.scene.wrist_cam = CameraCfg(
+            renderer_cfg=OVRTXRendererCfg(),
             prim_path="{ENV_REGEX_NS}/Robot/(Geometry/.*/)?panda_hand/wrist_cam",
             update_period=0.0,
             height=200,
@@ -352,6 +354,7 @@ class FrankaCubeStackVisuomotorEnvCfg(StackEnvCfg):
 
         # Set table view camera
         self.scene.table_cam = CameraCfg(
+            renderer_cfg=OVRTXRendererCfg(),
             prim_path="{ENV_REGEX_NS}/table_cam",
             update_period=0.0,
             height=200,

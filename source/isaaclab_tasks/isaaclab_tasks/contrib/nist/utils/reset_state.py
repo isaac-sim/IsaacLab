@@ -70,8 +70,7 @@ def set_reset_state(env, states: Tensor, env_ids: Tensor, reset_assets: Sequence
                 root_state = root_state.clone()
                 root_state[:, :3] += env.scene.env_origins[env_ids]
             rigid_object.write_root_link_pose_to_sim_index(root_pose=root_state[:, :7], env_ids=env_ids)
-            if not getattr(rigid_object.root_view, "is_fixed_base", False):
-                rigid_object.write_root_com_velocity_to_sim_index(root_velocity=root_state[:, 7:], env_ids=env_ids)
+            rigid_object.write_root_com_velocity_to_sim_index(root_velocity=root_state[:, 7:], env_ids=env_ids)
             offset += 13
 
     if offset != states.shape[1]:

@@ -19,6 +19,8 @@ The camera sensor is based on using Warp kernels which do ray-casting against st
 
 import argparse
 
+from isaaclab_ov.physics import OvPhysxCfg
+
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.utils import instantiate
 
@@ -150,7 +152,11 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
 def main():
     """Main function."""
     # Configure the simulation
-    sim_cfg = sim_utils.SimulationCfg()
+    sim_cfg = sim_utils.SimulationCfg(
+        physics=OvPhysxCfg(
+            bounce_threshold_velocity=0.5, friction_correlation_distance=0.025, friction_offset_threshold=0.04
+        ),
+    )
     # Launch the simulator runtime that the configuration needs
     with launch_simulation(sim_cfg, args_cli):
         # Initialize the simulation context

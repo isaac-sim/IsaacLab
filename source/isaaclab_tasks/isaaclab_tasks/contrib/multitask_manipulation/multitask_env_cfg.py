@@ -7,7 +7,7 @@
 
 import math
 
-from isaaclab_isaacsim.physics import PhysxCfg
+from isaaclab_ov.physics import OvPhysxCfg
 
 import isaaclab.envs.mdp as base_mdp
 from isaaclab.assets import AssetBaseCfg
@@ -108,7 +108,25 @@ def _make_scene_cfg() -> InteractiveSceneCfg:
     """Compose three task layouts from their homogeneous source scenes."""
     scene = OpenArmCubeLiftEnvCfg().scene
     scene.table = None
-    add_scene(scene, FrankaCabinetEnvCfg().scene, asset_skip=_skip_global_asset)
+    cabinet_scene = FrankaCabinetEnvCfg().scene
+    cabinet_scene.cabinet.joint_ordering = (
+        "drawer_bottom_joint",
+        "drawer_top_joint",
+        "door_left_joint",
+        "door_right_joint",
+    )
+    cabinet_scene.cabinet.body_ordering = (
+        "sektion",
+        "drawer_bottom",
+        "drawer_top",
+        "door_left_link",
+        "door_right_link",
+        "drawer_handle_bottom",
+        "drawer_handle_top",
+        "door_left_nob_link",
+        "door_right_nob_link",
+    )
+    add_scene(scene, cabinet_scene, asset_skip=_skip_global_asset)
     reach_scene = UR10ReachEnvCfg().scene
     reach_scene.table = None
     add_scene(scene, reach_scene, asset_skip=_skip_global_asset)
@@ -482,7 +500,8 @@ class MultitaskManipulationEnvCfg(ManagerBasedRLEnvCfg):
         self.episode_length_s = 12.0
         self.sim.dt = 1.0 / 120.0
         self.sim.render_interval = self.decimation
-        self.sim.physics = PhysxCfg(
+        self.sim.physics = OvPhysxCfg(
+            friction_offset_threshold=0.04,
             bounce_threshold_velocity=0.01,
             friction_correlation_distance=0.00625,
             gpu_max_rigid_patch_count=4 * 5 * 2**15,

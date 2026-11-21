@@ -8,7 +8,7 @@
 .. code-block:: bash
 
     # Usage
-    uvx --from 'isaaclab[isaacsim]' isaaclab example camera
+    uvx --from 'isaaclab[ov]' isaaclab example camera
 
 """
 
@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from isaaclab_ov.renderers import OVRTXRendererCfg
 
 from isaaclab.app import add_launcher_args, launch_simulation
 
@@ -32,12 +33,12 @@ parser.add_argument("--save_interval", type=int, default=100, help="Steps betwee
 parser.add_argument("--output_dir", type=Path, default=Path("output/camera"), help="Directory for saved images.")
 parser.add_argument(
     "--physics",
-    default="isaacsim_physx",
-    choices=["isaacsim_physx"],
+    default="ovphysx",
+    choices=["ovphysx"],
     help="Physics backend.",
 )
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["kit"])
+parser.set_defaults(visualizer=["newton"])
 args_cli = parser.parse_args()
 if args_cli.log_interval < 1:
     parser.error("--log_interval must be at least 1.")
@@ -87,6 +88,7 @@ class SensorsSceneCfg(InteractiveSceneCfg):
 
     # sensors
     camera = CameraCfg(
+        renderer_cfg=OVRTXRendererCfg(),
         prim_path="{ENV_REGEX_NS}/Robot/base/front_cam",
         update_period=0.1,
         height=480,

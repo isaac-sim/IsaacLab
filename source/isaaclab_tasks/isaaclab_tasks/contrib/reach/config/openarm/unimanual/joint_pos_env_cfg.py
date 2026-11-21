@@ -14,7 +14,11 @@ from isaaclab_tasks.contrib.reach.config.openarm.unimanual.reach_openarm_uni_env
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets.robots.openarm import OPENARM_UNI_CFG
+from isaaclab_assets.robots.openarm import (
+    OPENARM_UNI_CFG,
+    OPENARM_UNI_ISAACSIM_BODY_ORDER,
+    OPENARM_UNI_ISAACSIM_JOINT_ORDER,
+)
 
 ##
 # Environment configuration
@@ -33,6 +37,8 @@ class OpenArmReachEnvCfg(ReachEnvCfg):
         self.scene.robot = replace(
             OPENARM_UNI_CFG,
             prim_path="{ENV_REGEX_NS}/Robot",
+            joint_ordering=OPENARM_UNI_ISAACSIM_JOINT_ORDER,
+            body_ordering=OPENARM_UNI_ISAACSIM_BODY_ORDER,
             init_state=ArticulationCfg.InitialStateCfg(
                 joint_pos={
                     "openarm_joint1": 1.57,

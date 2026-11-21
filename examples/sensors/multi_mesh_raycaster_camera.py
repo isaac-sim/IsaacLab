@@ -9,15 +9,15 @@
 .. code-block:: bash
 
     # with allegro hand
-    uvx --from 'isaaclab[isaacsim]' isaaclab example multi-mesh-ray-caster-camera \\
+    uvx --from 'isaaclab[ov]' isaaclab example multi-mesh-ray-caster-camera \\
         --num_envs 16 --asset_type allegro_hand
 
     # with anymal-D bodies
-    uvx --from 'isaaclab[isaacsim]' isaaclab example multi-mesh-ray-caster-camera \\
+    uvx --from 'isaaclab[ov]' isaaclab example multi-mesh-ray-caster-camera \\
         --num_envs 16 --asset_type anymal_d
 
     # with random multiple objects
-    uvx --from 'isaaclab[isaacsim]' isaaclab example multi-mesh-ray-caster-camera \\
+    uvx --from 'isaaclab[ov]' isaaclab example multi-mesh-ray-caster-camera \\
         --num_envs 16 --asset_type objects
 
 """
@@ -48,7 +48,7 @@ parser.add_argument(
     help="Physics backend.",
 )
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["kit"])
+parser.set_defaults(visualizer=["newton"])
 args_cli = parser.parse_args()
 if args_cli.log_interval < 1:
     parser.error("--log_interval must be at least 1.")

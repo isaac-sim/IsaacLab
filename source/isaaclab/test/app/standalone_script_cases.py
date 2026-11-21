@@ -188,6 +188,30 @@ class SmokeResult:
 _NEWTON_MJCF = str(Path(importlib.util.find_spec("newton").origin).parent / "examples" / "assets" / "nv_ant.xml")
 
 OVERRIDES = {
+    "scripts/tutorials/05_controllers/run_osc.py": ScriptOverride(
+        fixed_physics_backend="ovphysx", visualizers=(None, "newton")
+    ),
+    "scripts/tutorials/05_controllers/run_diff_ik.py": ScriptOverride(
+        fixed_physics_backend="ovphysx", visualizers=(None, "newton")
+    ),
+    "scripts/tutorials/04_sensors/run_frame_transformer.py": ScriptOverride(
+        fixed_physics_backend="ovphysx", visualizers=(None, "newton")
+    ),
+    "scripts/tutorials/02_scene/create_scene.py": ScriptOverride(
+        fixed_physics_backend="ovphysx", visualizers=(None, "newton")
+    ),
+    "scripts/tutorials/01_assets/run_rigid_object.py": ScriptOverride(
+        fixed_physics_backend="ovphysx", visualizers=(None, "newton")
+    ),
+    "scripts/tutorials/01_assets/run_deformable_object.py": ScriptOverride(
+        fixed_physics_backend="ovphysx", visualizers=(None, "newton")
+    ),
+    "scripts/tutorials/01_assets/run_articulation.py": ScriptOverride(
+        fixed_physics_backend="ovphysx", visualizers=(None, "newton")
+    ),
+    "scripts/tutorials/01_assets/add_new_robot.py": ScriptOverride(
+        fixed_physics_backend="ovphysx", visualizers=(None, "newton")
+    ),
     "examples/demos/nist.py": ScriptOverride(
         fixed_physics_backend="newton_mjwarp",
         visualizers=(None, "newton"),
@@ -205,11 +229,6 @@ OVERRIDES = {
     "examples/heterogeneous_scene.py": ScriptOverride(args=("--num_task", "2")),
     "examples/deformables.py": ScriptOverride(
         case_skip_reasons={
-            (
-                "isaacsim_physx",
-                "default",
-                "newton",
-            ): "Newton visualizer requires the Newton VBD physics backend",
             ("isaacsim_physx", "default", "rerun"): "Rerun cannot import PhysX deformable attributes",
             ("isaacsim_physx", "default", "viser"): "Viser cannot import PhysX deformable attributes",
         }
@@ -300,7 +319,7 @@ OVERRIDES = {
         visualizers=(None, "newton", "rerun", "viser"),
     ),
     "examples/demos/microduck_warehouse.py": ScriptOverride(fixed_physics_backend="newton_xpbd"),
-    "examples/demos/pick_and_place.py": ScriptOverride(visualizers=("kit",)),
+    "examples/demos/pick_and_place.py": ScriptOverride(visualizers=("newton",)),
     "examples/sensors/ppisp_camera.py": ScriptOverride(
         args=("--max_steps", "3", "--warmup_steps", "1", "--image_width", "64", "--image_height", "64"),
         startup_timeout=600.0,
@@ -319,12 +338,20 @@ OVERRIDES = {
         args=(_NEWTON_MJCF, str(Path(tempfile.gettempdir()) / "isaaclab_converter_smoke" / "mjcf")),
         readiness_pattern=r"Generated USD file:",
     ),
-    "scripts/tutorials/00_sim/create_empty.py": ScriptOverride(visualizers=(None, "kit")),
-    "scripts/tutorials/00_sim/launch_app.py": ScriptOverride(visualizers=(None, "kit")),
-    "scripts/tutorials/00_sim/log_time.py": ScriptOverride(visualizers=(None, "kit")),
-    "scripts/tutorials/00_sim/spawn_prims.py": ScriptOverride(visualizers=(None, "kit")),
+    "scripts/tutorials/00_sim/create_empty.py": ScriptOverride(
+        fixed_physics_backend="ovphysx", visualizers=(None, "newton")
+    ),
+    "scripts/tutorials/00_sim/launch_app.py": ScriptOverride(
+        fixed_physics_backend="ovphysx", visualizers=(None, "newton")
+    ),
+    "scripts/tutorials/00_sim/log_time.py": ScriptOverride(
+        fixed_physics_backend="ovphysx", visualizers=(None, "newton")
+    ),
+    "scripts/tutorials/00_sim/spawn_prims.py": ScriptOverride(
+        fixed_physics_backend="ovphysx", visualizers=(None, "newton")
+    ),
     "scripts/tutorials/01_assets/run_surface_gripper.py": ScriptOverride(
-        args=("--device", "cpu"), visualizers=(None, "kit")
+        args=("--device", "cpu"), visualizers=(None, "newton")
     ),
     "scripts/tutorials/03_envs/create_cartpole_base_env.py": ScriptOverride(readiness_pattern=r"Resetting environment"),
     "scripts/tutorials/03_envs/create_cube_base_env.py": ScriptOverride(readiness_pattern=r"Mean position error"),
@@ -335,10 +362,18 @@ OVERRIDES = {
         skip_reason="requires a user-supplied TorchScript checkpoint"
     ),
     "scripts/tutorials/03_envs/run_cartpole_rl_env.py": ScriptOverride(readiness_pattern=r"Resetting environment"),
-    "scripts/tutorials/04_sensors/add_sensors_on_robot.py": ScriptOverride(args=("--enable_cameras",)),
-    "scripts/tutorials/04_sensors/run_ray_caster.py": ScriptOverride(visualizers=(None, "kit")),
-    "scripts/tutorials/04_sensors/run_ray_caster_camera.py": ScriptOverride(visualizers=(None, "kit")),
-    "scripts/tutorials/04_sensors/run_usd_camera.py": ScriptOverride(visualizers=(None, "kit")),
+    "scripts/tutorials/04_sensors/add_sensors_on_robot.py": ScriptOverride(
+        fixed_physics_backend="ovphysx", visualizers=(None, "newton")
+    ),
+    "scripts/tutorials/04_sensors/run_ray_caster.py": ScriptOverride(
+        fixed_physics_backend="ovphysx", visualizers=(None, "newton")
+    ),
+    "scripts/tutorials/04_sensors/run_ray_caster_camera.py": ScriptOverride(
+        fixed_physics_backend="ovphysx", visualizers=(None, "newton")
+    ),
+    "scripts/tutorials/04_sensors/run_usd_camera.py": ScriptOverride(
+        fixed_physics_backend="ovphysx", visualizers=(None, "newton")
+    ),
     "scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py": ScriptOverride(
         readiness_pattern=r"Gym action space",
         visualizers=("kit", "newton"),

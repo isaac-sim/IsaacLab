@@ -55,9 +55,15 @@ class FactoryEnv(DirectRLEnv):
         )
 
         # Set masses and frictions.
-        factory_utils.set_friction(self._held_asset, self.cfg_task.held_asset_cfg.friction, self.scene.num_envs)
-        factory_utils.set_friction(self._fixed_asset, self.cfg_task.fixed_asset_cfg.friction, self.scene.num_envs)
-        factory_utils.set_friction(self._robot, self.cfg_task.robot_cfg.friction, self.scene.num_envs)
+        factory_utils.set_friction(
+            self._held_asset, self.cfg_task.held_asset_cfg.friction, self.scene.num_envs, self.cfg.sim.physics
+        )
+        factory_utils.set_friction(
+            self._fixed_asset, self.cfg_task.fixed_asset_cfg.friction, self.scene.num_envs, self.cfg.sim.physics
+        )
+        factory_utils.set_friction(
+            self._robot, self.cfg_task.robot_cfg.friction, self.scene.num_envs, self.cfg.sim.physics
+        )
 
     def _init_tensors(self):
         """Initialize tensors once."""

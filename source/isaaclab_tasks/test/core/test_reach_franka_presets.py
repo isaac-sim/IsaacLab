@@ -69,10 +69,10 @@ def test_minimal_preset_changes_only_collision_scope(task, presets):
 def test_reach_diffik_abs_legacy_task_is_a_deprecated_alias():
     spec = registry[_CONTRIB_DIFFIK_ABS_TASK]
 
-    assert spec.kwargs["deprecated"] == {"alias": "--task Isaac-Reach-Franka physics=isaacsim_physx presets=diffik_abs"}
+    assert spec.kwargs["deprecated"] == {"alias": "--task Isaac-Reach-Franka physics=ovphysx presets=diffik_abs"}
     legacy_cfg = load_cfg_from_registry(_CONTRIB_DIFFIK_ABS_TASK, "env_cfg_entry_point")
 
-    canonical_cfg = _load_env_cfg("diffik_abs", "isaacsim_physx")
+    canonical_cfg = _load_env_cfg("diffik_abs", "ovphysx")
     legacy_cfg = resolve_presets(legacy_cfg)
     assert to_dict(legacy_cfg) == to_dict(canonical_cfg)
 
