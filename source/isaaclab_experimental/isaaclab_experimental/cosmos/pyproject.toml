@@ -1,0 +1,42 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+[build-system]
+requires = ["setuptools>=70.0,<82.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "isaaclab-cosmos"
+version = "0.1.0"
+description = "Standalone Cosmos streaming service and Isaac Lab camera integration."
+license = {text = "BSD-3-Clause"}
+authors = [{name = "Isaac Lab Project Developers"}]
+maintainers = [{name = "Isaac Lab Project Developers"}]
+requires-python = ">=3.12"
+# The inference backend and its matching Torch/CUDA stack are installed through
+# Cosmos Framework's setup. The server frontend needs only these lightweight dependencies.
+dependencies = [
+    "numpy>=2",
+    "lazy-loader>=0.4",
+]
+
+[project.scripts]
+isaaclab-cosmos-server = "isaaclab_experimental.cosmos.server.worker:main"
+
+[project.urls]
+Homepage = "https://github.com/isaac-sim/IsaacLab"
+Repository = "https://github.com/isaac-sim/IsaacLab"
+
+[tool.setuptools]
+packages = [
+    "isaaclab_experimental.cosmos",
+    "isaaclab_experimental.cosmos.client",
+    "isaaclab_experimental.cosmos.server",
+]
+package-dir = {"isaaclab_experimental.cosmos" = "."}
+include-package-data = true
+
+[tool.setuptools.package-data]
+"*" = ["*.pyi"]
