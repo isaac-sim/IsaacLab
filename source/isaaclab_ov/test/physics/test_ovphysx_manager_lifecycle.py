@@ -802,11 +802,14 @@ def test_binding_readiness_preserves_priorities_across_resets(monkeypatch, share
         assert events == []
 
 
-@pytest.mark.parametrize("clone_fails", [False, True])
+@pytest.mark.parametrize(
+    ("explicit_warmup", "clone_fails"),
+    [(True, False), (False, False), (False, True)],
+)
 def test_warmup_collects_clone_receipt_before_model_init(
-    monkeypatch, manager_module, backend_module, manager, clone_fails
+    monkeypatch, manager_module, backend_module, manager, explicit_warmup, clone_fails
 ):
-    """Accepted clone failures prevent warmup and model-ready publication."""
+    """Both runtime APIs complete cloning before publishing model readiness; clone failures prevent it."""
     from pxr import Usd, UsdPhysics
 
     from isaaclab.physics import PhysicsEvent
@@ -819,9 +822,6 @@ def test_warmup_collects_clone_receipt_before_model_init(
     clones = [("/World/env_0", targets, transforms, env_ids, 0)]
 
     class FakePhysX:
-        def warmup(self):
-            events.append("warmup")
-
         def clone(self, source, destinations, poses, *, env_ids):
             events.append(("clone", source, destinations, poses, env_ids))
             return task
@@ -832,10 +832,21 @@ def test_warmup_collects_clone_receipt_before_model_init(
             if clone_fails:
                 raise RuntimeError("clone task failed")
 
+    if explicit_warmup:
+
+        class LegacyPhysX(FakePhysX):
+            def warmup(self):
+                events.append("warmup")
+
+        physx = LegacyPhysX()
+    else:
+        physx = FakePhysX()
+
     backend = backend_module.OvPhysxBackend.__new__(backend_module.OvPhysxBackend)
-    backend.physx = FakePhysX()
+    backend.physx = physx
     backend.stage = object()
     backend.owns_scene = True
+    backend.is_ready = False
     backend.load = lambda usda, *, deformable_entries: events.append("load")
     stage = Usd.Stage.CreateInMemory()
     UsdPhysics.Scene.Define(stage, "/World/PhysicsScene")
@@ -857,7 +868,8 @@ def test_warmup_collects_clone_receipt_before_model_init(
         manager._warmup_and_load()
 
     assert events == ["load", ("clone", "/World/env_0", targets, transforms, env_ids), "wait"] + (
-        [] if clone_fails else ["warmup", PhysicsEvent.MODEL_INIT]
+        [] if clone_fails else (["warmup"] if explicit_warmup else []) + [PhysicsEvent.MODEL_INIT]
     )
     assert backend.scene_data is manager._scene_data_backend
+    assert backend.is_ready is (not clone_fails)
     assert manager._warmup_done is (not clone_fails)

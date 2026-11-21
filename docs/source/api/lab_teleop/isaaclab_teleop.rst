@@ -23,6 +23,8 @@ isaaclab_teleop
     XrAnchorRotationMode
     XrAnchorSynchronizer
     OvLibrariesXrCfg
+    OvLibrariesXrCameraFeedCfg
+    OvLibrariesXrDesktopMirrorCfg
     OvLibrariesXrSession
     OvxrRendererCfg
 
@@ -68,6 +70,12 @@ Kitless OVXR Session
 --------------------
 
 .. autoclass:: OvLibrariesXrCfg
+    :members:
+
+.. autoclass:: OvLibrariesXrCameraFeedCfg
+    :members:
+
+.. autoclass:: OvLibrariesXrDesktopMirrorCfg
     :members:
 
 .. autoclass:: OvLibrariesXrSession

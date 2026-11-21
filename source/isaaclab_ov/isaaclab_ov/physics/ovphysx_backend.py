@@ -140,7 +140,10 @@ class OvPhysxBackend:
         """Initialize the attached stage after native cloning, before reading scene data."""
         if self.physx is None or self.stage is None:
             raise RuntimeError("The OVPhysX backend has no attached stage.")
-        self.physx.warmup()
+        # Pinned runtimes need explicit warmup before metadata and binding access, including on CPU.
+        # Newer runtimes finish construction and DirectGPU upload in the attach and clone tasks.
+        if hasattr(self.physx, "warmup"):
+            self.physx.warmup()
         self.is_ready = True
 
     def step(self, dt: float) -> None:

@@ -90,9 +90,16 @@ def test_live_entry_failure_closes_resources_and_reports_cause(
             "torch": SimpleNamespace(inference_mode=contextlib.nullcontext),
         }
     )
-    cfg = SimpleNamespace(isaac_teleop=SimpleNamespace(teleoperation_active_default=False))
+    cfg = SimpleNamespace(
+        isaac_teleop=SimpleNamespace(
+            teleoperation_active_default=False,
+            require_initial_bimanual_hand_tracking=False,
+            action_conditioner=None,
+            action_validator=None,
+        )
+    )
     if not use_capture:
-        cfg = SimpleNamespace()  # Native inputs must not read Capture-only configuration.
+        cfg = SimpleNamespace()  # Native inputs must not read Capture-only action policy.
     if stage != "input":
         # Startup failures propagate after cleanup, so the command exits non-zero.
         with caplog.at_level(logging.ERROR), pytest.raises(RuntimeError) as caught:
@@ -134,7 +141,7 @@ def test_input_cleanup_failure_leaves_the_xr_session_open(monkeypatch, entry_nam
         state["context"] = current
         runtime_namespace["close_teleop_resources"](env, camera, presentation, {}, interface)
 
-    monkeypatch.setattr(agent, "_resolve_env_cfg", lambda: (None, None, True))
+    monkeypatch.setattr(agent, "_resolve_env_cfg", lambda: (None, None, True, ()))
     monkeypatch.setattr(agent, "args_cli", SimpleNamespace(using_ovxr=ovxr), raising=False)
     monkeypatch.setattr(agent, "run_teleoperation", run)
     monkeypatch.setattr(agent, "launch_simulation", lambda _cfg, _args: launch_simulation(PhysicsCfg()))

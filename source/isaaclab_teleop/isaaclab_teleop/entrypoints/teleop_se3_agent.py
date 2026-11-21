@@ -45,18 +45,30 @@ from .. import (
     CLOUDXR_JS_ENV,
     CLOUDXR_STANDALONE_ENV,
     IsaacTeleopCfg,
+    OvLibrariesXrCameraFeedCfg,
     se3_gamepad_teleop_cfg,
     se3_keyboard_teleop_cfg,
     se3_spacemouse_teleop_cfg,
 )
+from ..action_policy import initial_hand_tracking_issue, prepare_teleop_action
 from ..device_selection import create_teleop_device, select_teleop_cfg
-from ._ovxr_launch import prepare_ovxr_launch, reject_ovxr_runtime_conflicts
+from ._ovxr_launch import (
+    add_ovxr_presentation_args,
+    cuda_index_list,
+    ovxr_renderer_cfg,
+    prepare_ovxr_launch,
+    reject_ovxr_runtime_conflicts,
+    resolve_ovxr_camera_feeds,
+    validate_ovxr_presentation_args,
+)
 from ._ovxr_presentation import OvxrPresentation, admit_reset_publication, update_idle_presentation
 from ._ovxr_runtime import (
     RENDERER_ATTACH_TIMEOUT_S,
     OvxrShutdownSignals,
     close_teleop_resources,
+    hold_teleop_frame,
     pace_ovxr_control_loop,
+    warn_rejected_teleop_frame,
 )
 
 logger = logging.getLogger(__name__)
@@ -137,6 +149,13 @@ def _build_parser() -> argparse.ArgumentParser:
         default="ar",
         help="OVXR session mode. Defaults to 'ar'; pass 'vr' for an opaque background.",
     )
+    parser.add_argument(
+        "--ovrtx_active_cuda_gpus",
+        type=cuda_index_list,
+        default=None,
+        help="Comma-separated CUDA indices for OVRTX rendering, e.g. 0. Does not select physics or camera outputs.",
+    )
+    add_ovxr_presentation_args(parser)
 
     add_launcher_args(parser)
     return parser
@@ -161,6 +180,9 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         parser.error("--ovxr_step_hz must be finite and non-negative; 0 disables active-control pacing")
     if args_cli.ovxr_step_hz > 0.0 and not args_cli.using_ovxr:
         parser.error("--ovxr_step_hz requires --ovxr")
+    if not args_cli.using_ovxr and args_cli.ovrtx_active_cuda_gpus is not None:
+        parser.error("--ovrtx_active_cuda_gpus requires --ovxr")
+    validate_ovxr_presentation_args(parser, args_cli, using_ovxr=args_cli.using_ovxr)
 
     # Call an external callback if requested.
     if args_cli.external_callback:
@@ -193,12 +215,14 @@ def main() -> None:  # noqa: C901
     Returns:
         None
     """
-    env_cfg, teleop_cfg, use_isaac_teleop = _resolve_env_cfg()
+    env_cfg, teleop_cfg, use_isaac_teleop, selected_cameras = _resolve_env_cfg()
     with launch_simulation(env_cfg, args_cli):
-        run_teleoperation(env_cfg, teleop_cfg, use_isaac_teleop=use_isaac_teleop)
+        run_teleoperation(env_cfg, teleop_cfg, use_isaac_teleop=use_isaac_teleop, selected_cameras=selected_cameras)
 
 
-def _resolve_env_cfg() -> tuple[ManagerBasedRLEnvCfg, IsaacTeleopCfg | DeviceCfg, bool]:
+def _resolve_env_cfg() -> tuple[
+    ManagerBasedRLEnvCfg, IsaacTeleopCfg | DeviceCfg, bool, tuple[OvLibrariesXrCameraFeedCfg, ...]
+]:
     """Resolve task configuration and teleop ownership before runtime launch."""
     # Resolve the task configuration through Hydra so CLI presets are applied.
     env_cfg, _ = resolve_task_config(args_cli.task, "")
@@ -254,15 +278,46 @@ def _resolve_env_cfg() -> tuple[ManagerBasedRLEnvCfg, IsaacTeleopCfg | DeviceCfg
         # strip them so the XR headset view is the sole render product.
         if args_cli.disable_external_cameras:
             env_cfg = remove_camera_configs(env_cfg)
+    selected_cameras = ()
     if args_cli.using_ovxr:
-        env_cfg = prepare_ovxr_launch(env_cfg, args_cli.task, args_cli.num_envs)
+        if args_cli.ovxr_camera_feed is not None:
+            # Resolve the panels before launch preparation removes the other cameras, so that an
+            # invalid selection or task layout fails before launch.
+            selected_cameras = resolve_ovxr_camera_feeds(
+                env_cfg, args_cli, ovxr_renderer_cfg(args_cli.ovrtx_active_cuda_gpus)
+            )
+        env_cfg = prepare_ovxr_launch(
+            env_cfg, args_cli.task, args_cli.num_envs, keep=tuple(args_cli.ovxr_camera_feed or ())
+        )
     # A task without a physics selection keeps None: SimulationContext defaults it to PhysxCfg.
     configs, kit_sources = validate_launch(env_cfg, vars(args_cli).copy())
     if args_cli.using_ovxr:
         reject_ovxr_runtime_conflicts(configs, kit_sources)
     if use_isaac_teleop and teleop_cfg.prepare_environment is not None:
         teleop_cfg.prepare_environment(env_cfg)
-    return (env_cfg, teleop_cfg, use_isaac_teleop)
+    return env_cfg, teleop_cfg, use_isaac_teleop, selected_cameras
+
+
+def _apply_teleop_frame(env, action, issue: str | None, haptic_driver, *, render: bool = True) -> tuple[bool, bool]:
+    """Step one valid action, or hold the scene while an unsafe tracker frame is rejected.
+
+    ``render`` is false under OVXR, which owns rendering and republishes the unchanged scene.
+    Returns whether an action was applied and whether the environment auto-reset.
+    """
+    if issue is not None:
+        hold_teleop_frame(env, haptic_driver, render=render)
+        return False, False
+    # process actions
+    actions = action.repeat(env.num_envs, 1)
+    # apply actions
+    _, _, terminated, truncated, _ = env.step(actions)
+    # The teleop anchor and target frame follow environment 0; other environments' resets
+    # must not re-seed its input state.
+    auto_reset = bool(terminated[0] or truncated[0])
+    # render controller haptics from post-step contact forces
+    if haptic_driver is not None:
+        haptic_driver.update()
+    return True, auto_reset
 
 
 def run_teleoperation(  # noqa: C901
@@ -270,6 +325,7 @@ def run_teleoperation(  # noqa: C901
     teleop_cfg: IsaacTeleopCfg | DeviceCfg,
     *,
     use_isaac_teleop: bool,
+    selected_cameras: tuple[OvLibrariesXrCameraFeedCfg, ...] = (),
 ) -> None:
     """Create the environment and teleop device, then run the teleoperation loop until the app is closed."""
 
@@ -307,7 +363,12 @@ def run_teleoperation(  # noqa: C901
 
         if args_cli.using_ovxr:
             presentation = OvxrPresentation.prepare(
-                env_cfg, args_cli, application_name=f"isaaclab-ovxr-teleop-{args_cli.task}"
+                env_cfg,
+                args_cli,
+                application_name=f"isaaclab-ovxr-teleop-{args_cli.task}",
+                camera_feeds=selected_cameras,
+                # Selected panels already carry this configuration from launch resolution.
+                renderer_cfg=None if selected_cameras else ovxr_renderer_cfg(args_cli.ovrtx_active_cuda_gpus),
             )
 
         try:
@@ -416,17 +477,28 @@ def run_teleoperation(  # noqa: C901
 
             haptic_driver = create_haptic_feedback_driver(env.unwrapped, teleop_interface, env_cfg)
 
+        require_initial_bimanual_tracking = (
+            env_cfg.isaac_teleop.require_initial_bimanual_hand_tracking if use_isaac_teleop else False
+        )
+        initialized_hand_tracking: set[str] = set()
+        skipped_tracking_frames = 0
+        action_conditioner = env_cfg.isaac_teleop.action_conditioner if use_isaac_teleop else None
+        action_validator = env_cfg.isaac_teleop.action_validator if use_isaac_teleop else None
+        action_state: dict = {}
+
         if use_isaac_teleop:
             # the device reads these from the focused visualizer window
             print("Isaac Capture control keys: [B] start/resume  [P] pause  [R] reset")
 
         def run_loop():
             """Inner function to run the teleop loop with access to nonlocal variables."""
-            nonlocal should_reset_recording_instance, teleoperation_active
+            nonlocal should_reset_recording_instance, skipped_tracking_frames, teleoperation_active
 
             # reset environment
             env.reset()
             teleop_interface.reset()
+            initialized_hand_tracking.clear()
+            action_state.clear()
             if presentation is not None:
                 presentation.mark_changed(env, reset=True)
 
@@ -468,26 +540,33 @@ def run_teleoperation(  # noqa: C901
                             if ctrl.should_reset:
                                 should_reset_recording_instance = True
 
+                        if not teleoperation_active:
+                            action_state.clear()
+
                         auto_reset = False
                         # action is None when Isaac Capture session hasn't started yet
                         # (e.g. waiting for user to click "Start AR")
                         if action is None or not teleoperation_active:
-                            update_idle_presentation(env, presentation)
+                            update_idle_presentation(env, presentation, report_timing=False)
                             if haptic_driver is not None:
                                 haptic_driver.stop()
                             action_applied = False
                         else:
-                            # process actions
-                            actions = action.repeat(env.num_envs, 1)
-                            # apply actions
-                            _, _, terminated, truncated, _ = env.step(actions)
-                            # The teleop anchor and target frame follow environment 0; other environments'
-                            # resets must not re-seed its input state.
-                            auto_reset = bool(terminated[0] or truncated[0])
-                            # render controller haptics from post-step contact forces
-                            if haptic_driver is not None:
-                                haptic_driver.update()
-                            action_applied = True
+                            issue = initial_hand_tracking_issue(
+                                teleop_interface,
+                                initialized_hand_tracking,
+                                required=require_initial_bimanual_tracking,
+                            )
+                            if issue is None:
+                                action, issue = prepare_teleop_action(
+                                    env, action, action_conditioner, action_validator, action_state
+                                )
+                            action_applied, auto_reset = _apply_teleop_frame(
+                                env, action, issue, haptic_driver, render=presentation is None
+                            )
+                            if issue is not None:
+                                skipped_tracking_frames += 1
+                                warn_rejected_teleop_frame(issue, skipped_tracking_frames)
 
                         reset_applied = should_reset_recording_instance or auto_reset
                         if reset_applied:
@@ -497,10 +576,13 @@ def run_teleoperation(  # noqa: C901
                                 if use_isaac_teleop:
                                     teleop_interface.notify_reset()
                             elif use_isaac_teleop:
-                                # env.step already reset the environment; preserve operator controls.
+                                # env.step already reset the robot. Notify the input graph
+                                # without echoing another operator/environment reset.
                                 teleop_interface.notify_reset()
                             else:
                                 teleop_interface.reset()
+                            initialized_hand_tracking.clear()
+                            action_state.clear()
                             camera_feed_session.refresh()
                             should_reset_recording_instance = False
                             print("Environment reset complete")

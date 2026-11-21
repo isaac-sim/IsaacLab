@@ -15,7 +15,9 @@ __all__ = [
     "HapticFeedbackReceiver",
     "IsaacTeleopCfg",
     "IsaacTeleopDevice",
+    "OvLibrariesXrCameraFeedCfg",
     "OvLibrariesXrCfg",
+    "OvLibrariesXrDesktopMirrorCfg",
     "SupportsControlEvents",
     "SystemCheckItem",
     "SystemCheckResult",
@@ -70,7 +72,7 @@ from .isaac_teleop_device import IsaacTeleopDevice, create_isaac_teleop_device
 
 # Kit installs lack the OVXR runtime and OV renderers, so __init__.py leaves these out of __all__.
 from .ov_libraries_xr import OvLibrariesXrSession  # noqa: F401
-from .ovxr_cfg import OvLibrariesXrCfg
+from .ovxr_cfg import OvLibrariesXrCameraFeedCfg, OvLibrariesXrCfg, OvLibrariesXrDesktopMirrorCfg
 from .ovxr_renderer import OvxrRendererCfg  # noqa: F401
 from .session_lifecycle import cloudxr_eula_accepted
 from .system_check import SystemCheckItem, SystemCheckResult, check_system_requirements

@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Native engine, markers and visual materials of the OVXR renderer's OVStage scene.
+"""Native engine, markers, visual materials and camera panels of the OVXR renderer's OVStage scene.
 
 These follow the OVStage path of Isaac Lab's OVRTX renderer
 (:mod:`isaaclab_ov.renderers.ovrtx_renderer` and :mod:`isaaclab_ov.renderers.visual_materials`):
@@ -17,6 +17,7 @@ import ctypes
 import itertools
 import logging
 import os
+import threading
 import weakref
 from collections.abc import Sequence
 from dataclasses import MISSING
@@ -41,10 +42,13 @@ from isaaclab.markers.visualization_markers_cfg import VisualizationMarkersCfg
 from isaaclab.sim import BackendCfg, use_stage
 from isaaclab.utils import configclass
 
+from .ovxr_gpu_publication import parse_active_cuda_gpus
+
 if TYPE_CHECKING:
     from isaaclab_ov.stage import OvstageBackend
 
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
+    from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 
     from .ovxr_renderer import OvxrRenderer, OvxrRendererCfg
 
@@ -75,6 +79,24 @@ def _marker_transforms_kernel(
     transforms[i] = local_transforms[i] * wp.transpose(wp.transform_compose(p, q, s))
 
 
+@wp.kernel(enable_backward=False)
+def _camera_transforms_kernel(
+    positions: wp.array(dtype=wp.vec3),
+    orientations: wp.array(dtype=wp.quatf),
+    transforms: wp.array(dtype=wp.mat44d),
+):
+    """Convert world-frame camera poses to OVRTX's OpenGL row-vector matrices in one pass."""
+    i = wp.tid()
+    orientation = orientations[i] * wp.quatf(0.5, -0.5, -0.5, 0.5)
+    transforms[i] = wp.mat44d(wp.transpose(wp.transform_to_matrix(wp.transformf(positions[i], orientation))))
+
+
+# OVRTX selects rendering GPUs once per process. None is unselected; an empty tuple requests native GPU
+# selection for a CPU simulation.
+_initial_gpu_selection: tuple[int, ...] | None = None
+_initialization_lock = threading.Lock()
+
+
 @configclass
 class _OvxrEngineCfg(BackendCfg):
     """Native OVRTX engine of one OVXR renderer, which attaches to that renderer's own OVStage."""
@@ -88,10 +110,19 @@ class _OvxrEngineCfg(BackendCfg):
     """Native renderer log level."""
     device: str = MISSING
     """Normalized simulation device: ``cpu`` or ``cuda:<index>``."""
+    active_cuda_gpus: str | None = None
+    """Native rendering GPUs, such as ``"0,1"``, or ``None`` to render on the simulation device.
+
+    A CPU simulation without a selection uses native GPU selection.
+    """
 
 
 class _OvxrEngine:
-    """Own one native renderer, which reads its GPU transform cache and renders on the simulation GPU."""
+    """Own one native renderer, which reads its GPU transform cache and renders on the selected GPUs.
+
+    The first engine fixes the rendering GPUs for the process, including after teardown or failed
+    startup; a later engine that resolves to another selection is rejected before native startup.
+    """
 
     def __init__(self, cfg: _OvxrEngineCfg):
         self.cfg = cfg
@@ -103,9 +134,18 @@ class _OvxrEngine:
             with contextlib.suppress(OSError):
                 ctypes.CDLL(str(dependency))
         # Select the simulation's CUDA device for rendering, matching Kit's ``activeCudaGpus`` setting.
+        # An explicit ``active_cuda_gpus`` selection takes precedence.
         sim_device = wp.get_device(cfg.device)
+        active_cuda_gpus = (
+            cfg.active_cuda_gpus
+            if cfg.active_cuda_gpus is not None
+            else str(sim_device.ordinal)
+            if sim_device.is_cuda
+            else None
+        )
+        selection = parse_active_cuda_gpus(active_cuda_gpus) if active_cuda_gpus is not None else ()
         native_cfg = RendererConfig(
-            active_cuda_gpus=str(sim_device.ordinal) if sim_device.is_cuda else None,
+            active_cuda_gpus=active_cuda_gpus,
             log_file_path=cfg.log_file_path,
             log_level=cfg.log_level,
             read_gpu_transforms=True,
@@ -113,9 +153,34 @@ class _OvxrEngine:
             suppress_deprecation_warnings=True,
             texture_streaming_mode=TextureStreamingMode.SYNCHRONOUS,
         )
-        # Redirection may initialize the native library and must use the same settings.
-        redirect_shader_cache(native_cfg)
-        self.renderer = Renderer(native_cfg)
+        global _initial_gpu_selection
+        with _initialization_lock:
+            initial = _initial_gpu_selection
+            if initial is not None and selection != initial:
+                source = (
+                    "from active_cuda_gpus"
+                    if cfg.active_cuda_gpus is not None
+                    else f"for simulation device {cfg.device!r}, since active_cuda_gpus is unset"
+                )
+                raise ValueError(
+                    "OVRTX selects rendering GPUs once per process: an OVXR renderer already uses"
+                    f" {initial or 'the native default'}, but this one requests"
+                    f" {selection or 'the native default'} {source}. Every OVXR renderer in a process must"
+                    " resolve to the same GPUs; start a new process to select different rendering GPUs."
+                )
+            visible = wp.get_cuda_device_count()
+            if any(index >= visible for index in selection):
+                # Reject before the selection is reserved for the process.
+                raise ValueError(
+                    f"active_cuda_gpus {active_cuda_gpus!r} names a CUDA device this process cannot see"
+                    f" ({visible} visible)."
+                )
+            # Cache redirection and failed renderer construction can retain native system state. Reserve
+            # the selection before either call; keep_system_alive also preserves it after close.
+            _initial_gpu_selection = selection
+            # Redirection may initialize the native library and must use the same settings.
+            redirect_shader_cache(native_cfg)
+            self.renderer = Renderer(native_cfg)
 
     def detach(self) -> None:
         """Release the borrowed stage before it is rebuilt or destroyed."""
@@ -175,6 +240,40 @@ def _resolve_env_light_partitions(
             " environments."
         )
     return assignments
+
+
+class _OvxrPanelRenderData:
+    """One camera panel's render product, pose binding and pose buffer in the OVXR renderer's OVStage.
+
+    The fields that :func:`~isaaclab_ov.renderers.ovrtx_usd.build_render_product_as_string` reads follow
+    the OVRTX renderer's camera render data; a panel is one camera view.
+    """
+
+    def __init__(self, spec: CameraRenderSpec, render_scope_name: str, device: str):
+        """Create render data for a panel camera in its assigned render scope.
+
+        Args:
+            spec: Camera render specification of the panel's single view.
+            render_scope_name: Root scope containing the panel's render product and RenderVars.
+            device: Simulation device, which holds the panel's pose buffer.
+        """
+        self.render_scope_name = render_scope_name
+        self.render_product_path = f"/{render_scope_name}/RenderProduct"
+        self.camera_paths = list(spec.camera_prim_paths)
+        self.width = spec.cfg.width
+        self.height = spec.cfg.height
+        self.num_cols = self.num_rows = 1
+        self.camera_xform_binding: ovstage.Query | None = None
+        self.camera_transforms = wp.empty(len(self.camera_paths), dtype=wp.mat44d, device=device)
+        self.resources = contextlib.ExitStack()
+        """Release the product and its binding, in reverse acquisition order."""
+
+    def cleanup(self) -> None:
+        """Release the panel's product and pose binding. Safe to call repeatedly."""
+        try:
+            self.resources.close()
+        finally:
+            self.camera_xform_binding = None
 
 
 def _remove_usd_reference(scene: OvstageBackend, reference: int) -> None:
