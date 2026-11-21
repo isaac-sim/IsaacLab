@@ -5,15 +5,16 @@
 
 from __future__ import annotations
 
+from functools import partial
 from types import SimpleNamespace
 from typing import Any
 
+import leapp
 import torch
-from leapp import annotate
-from leapp.utils.tensor_description import TensorSemantics
+from leapp import Kind, TensorSemantics, annotate
 
 from ..warp.proxy_array import ProxyArray
-from .leapp_semantics import LeappTensorSemantics, resolve_leapp_element_names
+from .leapp_semantics import LeappTensorSemantics, resolve_semantics_axes
 
 
 class TracedProxyArray(ProxyArray):
@@ -32,13 +33,20 @@ class TracedProxyArray(ProxyArray):
     ) -> None:
         super().__init__(proxy_array.warp)
         astorch = super().torch
-        sem = TensorSemantics(
-            name=input_name,
-            ref=astorch,
-            kind=semantics_meta.kind,
-            element_names=resolve_leapp_element_names(semantics_meta, real_data),
-            extra=build_state_connection(entity_name, property_name),
+        kind = semantics_meta.kind
+        constructor = (
+            getattr(leapp, kind.name.lower()) if isinstance(kind, Kind) else partial(TensorSemantics, kind=kind)
         )
+        kwargs = {
+            "axes": resolve_semantics_axes(semantics_meta, real_data, astorch),
+            "is_setpoint": semantics_meta.is_setpoint,
+        }
+        for field in ("reference", "expressed_in"):
+            value = getattr(semantics_meta, field)
+            if value is not None:
+                kwargs[field] = value
+        sem = constructor(input_name, astorch, **kwargs)
+        sem.extra = build_state_connection(entity_name, property_name)
         annotated = annotate.input_tensors(task_name, sem)
         object.__setattr__(self, "_traced_array", annotated)
 
