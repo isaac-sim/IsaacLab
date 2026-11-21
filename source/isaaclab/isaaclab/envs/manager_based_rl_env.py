@@ -239,8 +239,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         self.reset_buf = self.termination_manager.compute()
         self.reset_terminated = self.termination_manager.terminated
         self.reset_time_outs = self.termination_manager.time_outs
-        invalid_envs = self.termination_manager.invalid_transitions
-        self.reward_buf = self.reward_manager.compute(dt=self.step_dt, invalid_envs=invalid_envs)
+        self.reward_buf = self.reward_manager.compute(dt=self.step_dt)
 
         self.recorder_manager.record_post_step()
 
@@ -250,8 +249,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             # capture the terminal observation before reset and expose it for Same-Step autoreset.
             if self.cfg.compute_final_obs:
                 self.extras["final_obs"] = self.observation_manager.compute()
-                if invalid_envs is not None:
-                    _zero_invalid_observations(self.extras["final_obs"], invalid_envs)
             self.recorder_manager.record_pre_reset(reset_env_ids)
 
             self._reset_idx(reset_env_ids)
@@ -431,12 +428,3 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         self.extras["log"].update(info)
 
         index_fill_(self.episode_length_buf, env_ids, 0)
-
-
-def _zero_invalid_observations(observations: dict, invalid_envs: torch.Tensor) -> None:
-    """Zero complete observation rows for corrupted terminal transitions."""
-    for value in observations.values():
-        if isinstance(value, dict):
-            _zero_invalid_observations(value, invalid_envs)
-        else:
-            value.masked_fill_(invalid_envs.reshape((-1,) + (1,) * (value.ndim - 1)), 0.0)

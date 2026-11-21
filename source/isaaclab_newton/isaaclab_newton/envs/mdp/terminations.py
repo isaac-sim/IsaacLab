@@ -17,10 +17,5 @@ if TYPE_CHECKING:
 
 
 def solver_fault(env: ManagerBasedRLEnv) -> torch.Tensor:
-    """Terminate worlds with nonfinite Newton state or persistent solver buffers.
-
-    Configure with TerminationTermCfg(invalid_transition=True) to zero the faulted transition's reward
-    and terminal observation. Normal environment reset clears solver history for the affected worlds.
-    CPU MuJoCo has global solver history, so a fault in that history terminates every world.
-    """
+    """Terminate worlds with nonfinite Newton state or persistent solver buffers."""
     return wp.to_torch(env.sim.backend_manager.get_non_finite_worlds())

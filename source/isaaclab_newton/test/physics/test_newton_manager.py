@@ -48,6 +48,7 @@ from newton import ModelFlags
 from newton.actuators import DrivePID
 from newton.solvers import SolverImplicitMPM, SolverKamino, SolverMuJoCo, SolverVBD
 
+from isaaclab.managers import RewardManager, RewardTermCfg, TerminationManager, TerminationTermCfg
 from isaaclab.physics import PhysicsEvent
 from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
 from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context
@@ -1285,6 +1286,28 @@ def test_solver_fault_detects_private_buffers_and_recovers_only_the_failed_world
     """Poisoned MuJoCo state is detected even with finite body poses, and masked recovery matches a clean solve."""
     cfg = NewtonCfg(solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=True), num_substeps=1, use_cuda_graph=False)
     backend, reference = (_pendulums(cfg, 1, device) for _ in range(2))
+    manager = NewtonManager(cfg)
+    manager.backend = backend
+    env = SimpleNamespace(
+        num_envs=4,
+        device=device,
+        sim=SimpleNamespace(backend_manager=manager, is_playing=lambda: False),
+        max_episode_length_s=2.0,
+        reward_values=torch.tensor([1.0, float("nan"), 3.0, 4.0], device=device),
+    )
+    env.termination_manager = TerminationManager(
+        {"solver_fault": TerminationTermCfg(func="isaaclab_newton.envs.mdp:solver_fault")}, env
+    )
+    env.reward_manager = RewardManager(
+        {
+            "task": RewardTermCfg(func=lambda env: env.reward_values, weight=1.0),
+            "bonus": RewardTermCfg(func=lambda env: 2.0, weight=1.0),
+            "solver_fault_reward": RewardTermCfg(
+                func="isaaclab_newton.envs.mdp:zero_reward_on_solver_fault", weight=1.0
+            ),
+        },
+        env,
+    )
     original_q = backend.state_0.joint_q.numpy()
     art_ids = wp.array(np.arange(4).reshape(4, 1), dtype=wp.int32, device=device)
     world_mask = wp.array([False, True, False, False], dtype=wp.bool, device=device)
@@ -1306,7 +1329,12 @@ def test_solver_fault_detects_private_buffers_and_recovers_only_the_failed_world
         checked.append(name)
         values[1].fill_(float("nan"))
         assert np.isfinite(backend.state_0.body_q.numpy()).all()
-        assert backend.get_non_finite_worlds().numpy().tolist() == [False, True, False, False]
+        assert env.termination_manager.compute().tolist() == [False, True, False, False]
+        torch.testing.assert_close(
+            env.reward_manager.compute(dt=0.1), torch.tensor([0.3, 0.0, 0.5, 0.6], device=device)
+        )
+        logs = env.reward_manager.reset(torch.tensor([1], device=device))
+        assert all(value.item() == 0.0 for value in logs.values())
         # Use the same authored-state and FK boundary as the normal scene reset.
         for target in (backend, reference):
             wp.to_torch(target.state_0.joint_q)[1] = float(original_q[1])
@@ -1322,6 +1350,9 @@ def test_solver_fault_detects_private_buffers_and_recovers_only_the_failed_world
             backend.state_0.joint_qd.numpy(), reference.state_0.joint_qd.numpy(), atol=1e-6, rtol=1e-5
         )
     assert {"qpos", "qvel", "qacc", "qfrc_actuator", "qacc_warmstart", "qfrc_applied", "xfrc_applied"} <= set(checked)
+    assert not env.termination_manager.compute().any()
+    env.reward_values.fill_(1.0)
+    torch.testing.assert_close(env.reward_manager.compute(dt=0.1), torch.full((4,), 0.3, device=device))
 
 
 def test_non_finite_joint_and_particle_state_is_detected_before_body_state_changes():

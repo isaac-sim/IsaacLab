@@ -119,22 +119,6 @@ def test_compute():
     assert reset_env_1["Episode_Reward/scalar"].item() == 1.0
     assert all(value.item() == 0.0 for value in rew_man.reset(torch.tensor([2])).values())
 
-    # A fault invalidates every term in that row, including finite positive rewards.
-    rew_man.reset()
-    rew_man.set_term_cfg(
-        "scaled", RewardTermCfg(func=lambda env: torch.tensor([float("nan"), 5.0, float("inf")]), weight=-2.0)
-    )
-    torch.testing.assert_close(
-        rew_man.compute(dt, invalid_envs=torch.tensor([True, False, True])), torch.tensor([0.0, -1.5, 0.0])
-    )
-    faults = rew_man.reset(torch.tensor([0, 2]))
-    assert all(value == 0.0 for value in faults.values())
-    healthy = rew_man.reset(torch.tensor([1]))
-    assert healthy["Episode_Reward/scaled"].item() == -1.25
-    assert healthy["Episode_Reward/scalar"].item() == 0.5
-    # With no invalid-transition mask, nonfinite rewards still surface.
-    assert not torch.isfinite(rew_man.compute(dt)[[0, 2]]).any()
-
 
 def test_config_empty(env):
     """Test the creation of reward manager with empty config."""

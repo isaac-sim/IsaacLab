@@ -122,7 +122,7 @@ class RewardManager(ManagerBase):
             term_cfg.func.reset(env_ids=env_ids)
         return extras
 
-    def compute(self, dt: float, invalid_envs: torch.Tensor | None = None) -> torch.Tensor:
+    def compute(self, dt: float) -> torch.Tensor:
         """Computes the reward signal as a weighted sum of individual terms.
 
         This function calls each reward term managed by the class and adds them to compute the net
@@ -130,7 +130,6 @@ class RewardManager(ManagerBase):
 
         Args:
             dt: The time-step interval of the environment.
-            invalid_envs: Mask of corrupted transitions whose rewards and episode contributions are zero.
 
         Returns:
             The net reward signal of shape (num_envs,).
@@ -148,8 +147,6 @@ class RewardManager(ManagerBase):
             else:
                 # broadcast scalar values
                 step_reward[:] = value * term_cfg.weight
-        if invalid_envs is not None:
-            self._step_reward.masked_fill_(invalid_envs[:, None], 0.0)
         # update total reward and episodic sums with the time-step scaling
         torch.sum(self._step_reward, dim=1, out=self._reward_buf).mul_(dt)
         self._episode_sum_buf.add_(self._step_reward, alpha=dt)

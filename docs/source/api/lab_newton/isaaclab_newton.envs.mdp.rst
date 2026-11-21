@@ -12,23 +12,38 @@ Events
 Terminations
 ------------
 
-Configure a physics fault as an invalid transition to reset the affected environments and zero their
-reward contributions and terminal observations before they reach the learner.
+Configure ``solver_fault`` as a termination and ``zero_reward_on_solver_fault`` as the last nonzero
+reward term. The reward term reuses the termination mask and clears complete reward rows before
+summation and episode accumulation. Its ``termination_name`` parameter defaults to ``"solver_fault"``.
 
 .. code-block:: python
 
-   from isaaclab.managers import TerminationTermCfg
-   from isaaclab_newton.envs.mdp import solver_fault
+   from isaaclab.managers import RewardTermCfg, TerminationTermCfg
+   from isaaclab_newton.envs.mdp import solver_fault, zero_reward_on_solver_fault
+   from isaaclab.utils import configclass
 
-   solver_fault_term = TerminationTermCfg(func=solver_fault, invalid_transition=True)
+   @configclass
+   class TerminationsCfg:
+       solver_fault = TerminationTermCfg(func=solver_fault)
+
+   @configclass
+   class RewardsCfg:
+       # Declare task reward terms above this final term.
+       solver_fault_reward = RewardTermCfg(func=zero_reward_on_solver_fault, weight=1.0)
 
 Detection includes Newton body, joint and particle state. MuJoCo additionally checks its private
 persistent buffers. MJWarp checks and resets these buffers per world. CPU MuJoCo uses global solver
 history, so a fault in that history terminates every environment.
 
-
 .. automodule:: isaaclab_newton.envs.mdp.terminations
     :members:
+
+Rewards
+-------
+
+.. automodule:: isaaclab_newton.envs.mdp.rewards
+    :members:
+
 
 Classes
 -------
