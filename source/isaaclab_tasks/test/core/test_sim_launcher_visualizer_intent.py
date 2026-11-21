@@ -78,7 +78,7 @@ def test_visualizer_preset_preserves_custom_settings_and_validates_selection(mon
     viewer = cfg.visualizer_cfgs
     viewer.backend.newton_gl.particle_color = (0.1, 0.2, 0.3)
     args = argparse.Namespace(visualizer="newton", max_visible_envs=3)
-    cfg = resolve_presets(cfg, overrides={"visualizer_cfgs.backend": "newton_gl"})
+    cfg = resolve_presets(cfg, overrides={"visualizer_cfgs.backend": args.visualizer})
     assert isinstance(viewer.backend, NewtonGLBackendCfg)
     with sim_launcher.launch_simulation(cfg, args):
         assert cfg.visualizer_cfgs == [viewer]
@@ -101,8 +101,9 @@ def test_visualizer_preset_preserves_custom_settings_and_validates_selection(mon
         resolve_presets(MultiBackendVisualizerCfg(), overrides={"": "missing"})
     rtx = resolve_presets(MultiBackendVisualizerCfg(), overrides={"": "newton_rtx"})
     assert isinstance(rtx, NewtonGLBackendCfg) and rtx.initial_renderer == "rtx"
-    viewer = resolve_presets(MultiBackendVisualizerCfg(), overrides={"": "newton_gl"})
+    viewer = resolve_presets(MultiBackendVisualizerCfg(), overrides={"": "newton"})
     assert isinstance(viewer, NewtonGLBackendCfg)
+    assert isinstance(resolve_presets(MultiBackendVisualizerCfg(), overrides={"": "newton_gl"}), NewtonGLBackendCfg)
 
     viewer = VisualizerCfg(max_visible_envs=3, backend=viewer)
     other = VisualizerCfg(max_visible_envs=5, backend=NewtonGLBackendCfg())
@@ -116,7 +117,7 @@ def test_visualizer_preset_preserves_custom_settings_and_validates_selection(mon
         ),
         (
             VisualizerCfg(max_visible_envs=3, backend=MultiBackendVisualizerCfg(newton_gl=viewer.backend)),
-            ["visualizer=kit", "env.sim.visualizer_cfgs.backend=newton_gl"],
+            ["visualizer=kit", "env.sim.visualizer_cfgs.backend=newton"],
             [viewer],
         ),
         (
