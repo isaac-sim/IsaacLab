@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import warp as wp
-from isaaclab_physx.renderers.isaac_rtx_renderer_utils import apply_isaac_rtx_global_settings
+from isaaclab_isaacsim.renderers.isaac_rtx_renderer_utils import apply_isaac_rtx_global_settings
 from isaaclab_visualizers.kit import KitVisualizer
 
 from pxr import Usd, UsdGeom, UsdShade, Vt

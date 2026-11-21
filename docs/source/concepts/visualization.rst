@@ -130,7 +130,7 @@ alias.
           uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --viz kit
 
           # Multiple visualizers simultaneously (comma-separated, no spaces)
-          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --viz rerun,newton_rtx
+          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --viz viser,newton_rtx
 
 .. note::
 
@@ -149,7 +149,7 @@ Visualizer presets
 ~~~~~~~~~~~~~~~~~~
 
 Task commands accept ``visualizer=newton_gl``, ``visualizer=kit``, or
-``visualizer=rerun,newton_gl``. ``--viz`` and ``--visualizer`` are aliases for the same
+``visualizer=viser,newton_gl``. ``--viz`` and ``--visualizer`` are aliases for the same
 selection. ``visualizer=none`` disables viewers. Selection happens during configuration
 composition, before choosing process runtimes or creating the scene.
 
@@ -191,7 +191,7 @@ Compose standalone declarations during initial configuration, then call the core
        ...
 
 One ``VisualizerCfg`` supplies the common settings for every selected backend. Selecting
-``rerun,newton_gl`` creates both viewers; no outer list or repeated common settings is needed.
+``viser,newton_gl`` creates both viewers; no outer list or repeated common settings is needed.
 Backend-specific options are available when needed, but ordinary configuration uses the unchanged
 ``MultiBackendVisualizerCfg()`` declaration.
 
@@ -217,9 +217,9 @@ Task entry points perform this selection through ``resolve_task_config``:
 
 .. code-block:: bash
 
-   uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole visualizer=rerun,newton_gl
+   uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole visualizer=viser,newton_gl
 
-``--viz rerun,newton_gl`` is equivalent. Task composition selects the backends inside
+``--viz viser,newton_gl`` is equivalent. Task composition selects the backends inside
 ``VisualizerCfg.backend`` before launch; launch creates each viewer with the shared settings.
 Viewer implementations are imported only when constructed.
 
@@ -245,8 +245,8 @@ Visualizer Overview
    * - **Newton RTX**
      - High-quality RTX rendering; experimental, missing some features
    * - **Rerun**
-     - Web-based, supports recording and replay; limited UI toggles
-   * - **Kit**
+     - Deprecated in Isaac Lab 3.2 and removed in 3.3; use Viser instead
+   * - **Kit** (deprecated)
      - High-quality RTX rendering, rich Isaac Sim tooling; longer start-up time
 
 .. tab-set::
@@ -421,10 +421,15 @@ Visualizer Overview
          Newton RTX (OVRTX) is a kitless renderer and cannot be used in the same process as Kit
          (``presets=isaacsim_physx``). ``presets=ovphysx`` is itself kitless and works fine with
          Newton RTX. Use ``presets=newton_mjwarp,ovrtx`` or ``presets=ovphysx,ovrtx`` with
-         ``--viz newton_rtx``, or switch to ``--viz newton_gl``, ``--viz viser``, ``--viz rerun``,
+         ``--viz newton_rtx``, or switch to ``--viz newton_gl``, ``--viz viser``,
          or ``--viz kit`` with a Kit-compatible physics backend.
 
    .. tab-item:: Rerun
+
+      .. deprecated:: 3.2.0
+
+         The Rerun visualizer is deprecated and will be removed in Isaac Lab 3.3. Use the Viser
+         visualizer (``--viz viser``) instead. Creating the visualizer at launch emits a :class:`FutureWarning`.
 
       Like Viser, `Rerun <https://rerun.io/>`_ streams simulation state to a local web server, for
       remote monitoring, timeline playback, and recording to ``.rrd`` files.
@@ -492,6 +497,11 @@ Visualizer Overview
             :pyobject: VisualizerCfg
 
    .. tab-item:: Kit
+
+      .. deprecated:: 3.1
+         The Kit visualizer is deprecated and will be removed in 3.2. Use Newton GL (``--viz newton_gl``)
+         for the interactive window, tracking cameras and RTX rendering, and the OVRTX renderer for
+         Kit-free RTX rendering of sensor cameras. Livestreaming and XR still start Kit and do not warn.
 
       The Kit visualizer embeds Isaac Lab inside a Kit process, providing access to the
       full Isaac Sim USD stage, RTX renderer, and GUI tooling. It has the highest startup and
@@ -1030,7 +1040,7 @@ Rerun uses fixed built-in viewer shading with no scene-driven lighting.
 **Kit: incompatible with ovphysx / ovrtx presets**
 
 ``--viz kit`` cannot be used with ``presets=ovphysx`` or ``presets=ovrtx`` in the same process.
-Use ``--viz newton_gl``, ``--viz rerun``, or ``--viz viser`` with those presets, or omit
+Use ``--viz newton_gl`` or ``--viz viser`` with those presets, or omit
 ``--viz`` for headless execution.
 
 **Newton RTX: incompatible with Kit**
@@ -1039,7 +1049,7 @@ Use ``--viz newton_gl``, ``--viz rerun``, or ``--viz viser`` with those presets,
 ``isaacsim_physx`` (i.e. ``presets=isaacsim_physx``), since OVRTX is a kitless renderer and cannot share
 a process with Kit. ``presets=ovphysx`` is itself kitless and remains supported. Use
 ``presets=newton_mjwarp,ovrtx`` or ``presets=ovphysx,ovrtx`` with ``--viz newton_rtx``, or switch
-to ``--viz newton_gl``, ``--viz viser``, ``--viz rerun``, or ``--viz kit`` with a Kit-compatible
+to ``--viz newton_gl``, ``--viz viser``, or ``--viz kit`` with a Kit-compatible
 physics backend.
 
 **Rerun: large environment performance**
@@ -1092,7 +1102,7 @@ Where to go next
 - :doc:`/source/how-to/record_video`: recording MP4 clips from a visualizer or sensor
 - :doc:`/source/how-to/create_visualization_markers`: creating and configuring custom visualization markers
 - :doc:`/source/how-to/capture_sensor_frames`: saving per-frame sensor outputs during training
-- :doc:`/source/concepts/renderers`: renderer backends (RTX, Newton Warp, OVRTX)
+- :doc:`/source/concepts/renderers`: renderer backends (RTX, Newton Warp, Newton OptiX, OVRTX)
 - :doc:`/source/concepts/scene_data_providers`: how scene data flows to visualizers
 - :ref:`physics-backends-newton`: Newton backend guide
 - :doc:`/source/isaaclab/migrating`: visualizer migration reference

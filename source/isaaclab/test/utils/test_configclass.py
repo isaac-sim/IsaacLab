@@ -1122,6 +1122,20 @@ def test_nested_non_configclass_custom_validation_is_not_called():
     assert validate(ParentCfg()) == []
 
 
+def test_validation_enters_objects_that_refer_to_themselves_once():
+    """Objects held by a config may refer back to themselves, like the module of a Warp function."""
+
+    class Node:
+        def __init__(self):
+            self.node = self
+
+    @configclass
+    class ParentCfg:
+        node: Node = Node()
+
+    assert validate(ParentCfg()) == []
+
+
 def test_missing_fields_precede_nested_custom_validation():
     """Missing-field reporting remains the first validation phase for the whole tree."""
 

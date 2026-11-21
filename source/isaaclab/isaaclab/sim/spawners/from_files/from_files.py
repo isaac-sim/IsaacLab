@@ -14,8 +14,6 @@ from typing import TYPE_CHECKING
 import numpy as np
 from filelock import FileLock
 
-from isaaclab.utils.version import has_kit
-
 from ... import converters, schemas
 from ...utils import (
     add_labels,
@@ -28,6 +26,7 @@ from ...utils import (
     get_first_matching_child_prim,
     has_deformable_body_api,
     make_uninstanceable,
+    move_rigid_body_to_root,
     select_usd_variants,
     set_prim_visibility,
 )
@@ -710,6 +709,9 @@ def spawn_from_usd_file(
         # make instance proxies editable before any override tries to author properties on them
         if cfg.make_uninstanceable:
             make_uninstanceable(prim_path, stage=stage)
+        # TODO: Consider a generic asset reorganization mechanism for ill-formed assets in place of this option.
+        if cfg.move_rigid_body_to_root:
+            move_rigid_body_to_root(prim_path, stage=stage)
 
     # author the deformable dict slot first so any collision_props keyed to the created sim mesh
     # (e.g. {"/sim_mesh": [...]}) can match it in _apply_body_schema_properties below
@@ -756,7 +758,7 @@ def spawn_from_usd_file(
                     shader, _, _ = UsdShade.Material(prim).ComputeSurfaceSource(context)
                     if shader:
                         _author_material_inputs(shader.GetPrim(), cfg.visual_material)
-        elif has_kit():
+        else:
             material_path = (
                 cfg.visual_material_path
                 if cfg.visual_material_path.startswith("/")
@@ -764,8 +766,6 @@ def spawn_from_usd_file(
             )
             cfg.visual_material.func(material_path, cfg.visual_material)
             bind_visual_material(prim_path, material_path, stage=stage)
-        else:
-            logger.warning("Skipping visual material application for '%s' in kitless mode.", prim_path)
 
     for part_path, material_path in cfg.visual_material_bindings.items():
         from pxr import UsdShade  # noqa: PLC0415
@@ -833,7 +833,7 @@ def spawn_from_usd_with_compliant_contact_material(
         prim_paths = cfg.physics_material_prim_path
 
     if stiff is not None or damp is not None:
-        from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg  # noqa: PLC0415
+        from isaaclab_isaacsim.sim.spawners.materials import PhysxRigidBodyMaterialCfg  # noqa: PLC0415
 
         material_kwargs = {}
         if stiff is not None:

@@ -16,7 +16,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 @pytest.mark.parametrize(
     "module_name,cfg_name,implementation",
     [
-        ("isaaclab_physx.renderers", "IsaacRtxRendererCfg", "IsaacRtxRenderer"),
+        ("isaaclab_isaacsim.renderers", "IsaacRtxRendererCfg", "IsaacRtxRenderer"),
         ("isaaclab_newton.renderers", "NewtonWarpRendererCfg", "NewtonWarpRenderer"),
         ("isaaclab_ov.renderers", "OVRTXRendererCfg", "OVRTXRenderer"),
     ],
@@ -32,7 +32,7 @@ def test_renderer_cfg_names_its_implementation(module_name, cfg_name, implementa
 @pytest.mark.parametrize(
     "module_name,cfg_name,required_output",
     [
-        ("isaaclab_physx.renderers", "IsaacRtxRendererCfg", RenderBufferKind.SIMPLE_SHADING_FULL_MDL),
+        ("isaaclab_isaacsim.renderers", "IsaacRtxRendererCfg", RenderBufferKind.SIMPLE_SHADING_FULL_MDL),
         ("isaaclab_newton.renderers", "NewtonWarpRendererCfg", RenderBufferKind.ALBEDO),
         ("isaaclab_ov.renderers", "OVRTXRendererCfg", RenderBufferKind.SIMPLE_SHADING_FULL_MDL),
     ],

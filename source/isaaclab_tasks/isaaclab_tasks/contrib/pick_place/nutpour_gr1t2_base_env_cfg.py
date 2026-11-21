@@ -6,7 +6,7 @@
 import tempfile
 from dataclasses import MISSING
 
-from isaaclab_physx.sim.schemas import PhysxCollisionCfg
+from isaaclab_isaacsim.sim.schemas import PhysxCollisionCfg
 
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
