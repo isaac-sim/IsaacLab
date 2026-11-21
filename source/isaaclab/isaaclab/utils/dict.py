@@ -62,8 +62,8 @@ def class_to_dict(obj: object) -> dict[str, Any]:
         # Keep lazy callable references as strings; don't force callable introspection.
         if isinstance(value, ResolvableString):
             data[key] = str(value)
-        # check if attribute is callable -- function
-        elif callable(value):
+        # check if attribute is callable -- function or class; a callable instance is dumped as its fields
+        elif callable(value) and hasattr(value, "__name__"):
             data[key] = callable_to_string(value)
         # check if attribute is a dictionary
         elif hasattr(value, "__dict__") or isinstance(value, dict):

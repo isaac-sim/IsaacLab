@@ -155,6 +155,19 @@ def test_class_to_dict_serializes_enums_as_values():
     assert not isinstance(data["level"], dict)
 
 
+def test_class_to_dict_serializes_callable_instances_as_fields():
+    """A callable object without a name, such as a configured sampler, should serialize to its fields."""
+
+    class _Fill:
+        def __init__(self):
+            self.bank_size = 16
+
+        def __call__(self):
+            pass
+
+    assert dict_utils.class_to_dict({"fill": _Fill()}) == {"fill": {"bank_size": 16}}
+
+
 def test_update_class_from_dict_restores_enums_from_values():
     """Serializing and reloading a config should hand back enum members, not raw scalars."""
     cfg = _EnumCfg()
