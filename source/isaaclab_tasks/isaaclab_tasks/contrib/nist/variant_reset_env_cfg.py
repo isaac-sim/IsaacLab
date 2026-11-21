@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+from isaaclab.envs.reset import ResetStateSamplerCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ManagerTermBaseCfg, SceneEntityCfg
 
@@ -15,7 +16,7 @@ from isaaclab_tasks.utils.success_monitor import SuccessMonitorCfg
 from . import mdp
 from .assembly_profile_cfg import UniformPoseNoiseCfg
 from .factory_presets import EndEffectorBodyCfg, GripperGraspOffsetCfg, GripperJointNamesCfg, IKJointNamesCfg
-from .utils.variant_sampling import BetaSamplingStrategyCfg, SamplerCfg
+from .utils.variant_sampling import BalancedVariantScoreCfg
 
 RESET_ASSETS = ["nistboard", "fixed_asset", "held_asset", "robot"]
 
@@ -344,10 +345,7 @@ VARIANT_ACCUMULATOR_RESET = EventTerm(
         "state_tag_term": "reset_strategies",
         "variant_context": "assembly_variants",
         "success_monitor_cfg": SuccessMonitorCfg(monitored_history_len=50),
-        "sampling": SamplerCfg(
-            strategies=[BetaSamplingStrategyCfg(target=0.66, kappa=1.0, weight=1.0)],
-            eps=1e-4,
-        ),
+        "sampling": ResetStateSamplerCfg(history_length=1, scores=[BalancedVariantScoreCfg()], uniform_weight=0.0),
         "reset_term": SCENE_RESET,
         "report": True,
     },
