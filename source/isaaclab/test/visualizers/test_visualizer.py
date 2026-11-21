@@ -70,6 +70,8 @@ def test_visualizer_cfg_camera_sources():
     assert (cfg.eye, cfg.focal_length, cfg.streaming_view) == ((1.0, 2.0, 3.0), 24.0, False)
     with pytest.raises(ValueError, match="at least one display source"):
         VisualizerCfg(cameras=[])
+    with pytest.raises(ValueError, match="at most one PerspectiveCameraCfg"):
+        VisualizerCfg(cameras=[PerspectiveCameraCfg(), PerspectiveCameraCfg(eye=(1.0, 1.0, 1.0))])
 
 
 def test_visualizer_cfg_validates_presentation():
