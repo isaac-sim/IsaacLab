@@ -54,6 +54,7 @@ from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
 from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import instantiate
+from isaaclab.utils.buffers import TimestampedBuffer
 
 # ----- Configuration and lifecycle -------------------------------------------------------
 
@@ -436,7 +437,7 @@ def _recording_backend(
         fk_mask=wp.zeros(1, dtype=wp.bool, device=device),
         kinematics_dirty=False,
         transforms_may_change_on_graph_replay=False,
-        state_version=0,
+        timestamp=0,
         model_changes=set(),
         warned_model_changes=set(),
         pre_actuator_callbacks=[],
@@ -849,7 +850,7 @@ def test_forward_resolves_flagged_worlds_once_and_not_while_an_outer_graph_recor
         kinematics_dirty=True,
         transforms_may_change_on_graph_replay=False,
         model_changes=set(),
-        state_version=0,
+        timestamp=0,
     )
     scene_data = NewtonSceneDataBackend(manager)
 
@@ -1135,9 +1136,8 @@ def test_non_finite_worlds_flag_each_non_finite_body_component_and_skip_the_glob
 
     from isaaclab_newton.physics.newton_solver import NewtonSolver
 
-    backend._non_finite_worlds = wp.zeros(4, dtype=wp.bool, device="cpu")
-    backend._non_finite_worlds_version = -1
-    backend.state_version = 0
+    backend._non_finite_worlds = TimestampedBuffer(wp.zeros(4, dtype=wp.bool, device="cpu"))
+    backend.timestamp = 0
     ops = object.__new__(NewtonSolver)
     ops.native = SimpleNamespace(model=backend.model)
     backend.solver_ops = ops
