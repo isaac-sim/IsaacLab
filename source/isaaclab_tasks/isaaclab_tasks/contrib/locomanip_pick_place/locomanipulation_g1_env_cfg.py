@@ -27,15 +27,16 @@ from isaaclab_tasks.contrib.pick_place import mdp as manip_mdp
 from isaaclab_tasks.utils.hydra import preset
 
 from isaaclab_assets.robots.unitree import G1_29DOF_CFG
-from isaaclab_assets.robots.unitree_g1_oem import G1_OEM_FLOATING_DEX3_URI, spawn_g1_oem_usd
+from isaaclab_assets.robots.unitree_g1_oem import (
+    G1_DEX3_HAND_CONTACT_LINKS,
+    G1_OEM_FLOATING_DEX3_URI,
+    spawn_g1_oem_usd,
+)
 
 from isaaclab_tasks.contrib.locomanip_pick_place.configs.pink_controller_cfg import (  # isort: skip
     G1_UPPER_BODY_IK_ACTION_CFG,
 )
 from isaaclab_tasks.contrib.robot_pov_camera_cfg import g1_robot_pov_camera_cfg  # isort: skip
-
-
-_HAND_CONTACT_LINKS = "(?:palm|thumb_[0-2]|(?:index|middle)_[01])"
 
 
 def _build_g1_locomanipulation_pipeline():
@@ -311,12 +312,12 @@ class LocomanipulationG1SceneCfg(InteractiveSceneCfg):
 
     # Report contacts on the palm and fingers for controller haptics.
     left_hand_contact = ContactSensorCfg(
-        prim_path=f"{{ENV_REGEX_NS}}/Robot/left_hand_{_HAND_CONTACT_LINKS}_link",
+        prim_path=f"{{ENV_REGEX_NS}}/Robot/left_hand_{G1_DEX3_HAND_CONTACT_LINKS}_link",
         update_period=0.0,
         history_length=3,
     )
     right_hand_contact = ContactSensorCfg(
-        prim_path=f"{{ENV_REGEX_NS}}/Robot/right_hand_{_HAND_CONTACT_LINKS}_link",
+        prim_path=f"{{ENV_REGEX_NS}}/Robot/right_hand_{G1_DEX3_HAND_CONTACT_LINKS}_link",
         update_period=0.0,
         history_length=3,
     )

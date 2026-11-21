@@ -46,7 +46,7 @@ from ...velocity_env_cfg import (
     RoughPhysicsCfg,
 )
 from .flat_env_cfg import G1FlatEnvCfg
-from .oem_colliders import LAB_G1_29DOF_USD, get_oem_minimal_usd, spawn_g1_oem_depth_student, spawn_g1_oem_minimal
+from .oem_colliders import LAB_G1_29DOF_USD, get_oem_locomotion_usd, spawn_g1_oem_minimal
 from .terrains import G1_ROUGH_TERRAINS_CFG
 
 if TYPE_CHECKING:
@@ -206,10 +206,8 @@ def get_action_parameters(robot_cfg: ArticulationCfg) -> tuple[dict[str, float],
     from pxr import Usd, UsdGeom, UsdPhysics
 
     usd_path = robot_cfg.spawn.usd_path
-    if robot_cfg.spawn.func in (spawn_g1_oem_minimal, spawn_g1_oem_depth_student):
-        usd_path = get_oem_minimal_usd(
-            usd_path, match_depth_action_scale=robot_cfg.spawn.func == spawn_g1_oem_depth_student
-        )
+    if robot_cfg.spawn.func is spawn_g1_oem_minimal:
+        usd_path = get_oem_locomotion_usd(usd_path, "minimal")
     stage = Usd.Stage.Open(retrieve_file_path(usd_path))
     if stage.GetCompositionErrors():
         raise ValueError(f"Could not compose G1 asset: {stage.GetCompositionErrors()}")
@@ -315,7 +313,13 @@ class G1TerminationsCfg(velocity_env_cfg.TerminationsCfg):
 
     base_contact = DoneTerm(
         func=mdp.illegal_contact,
-        params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names="torso_link"), "threshold": 1.0},
+        params={
+            # Unitree's head is a separate body, so the OEM preset also watches it.
+            "sensor_cfg": SceneEntityCfg(
+                "contact_forces", body_names=preset(default="torso_link", oem=["torso_link", "head_link"])
+            ),
+            "threshold": 1.0,
+        },
     )
     base_height = DoneTerm(
         func=mdp.pelvis_below_terrain_clearance,
@@ -386,7 +390,7 @@ class G1SceneCfg(velocity_env_cfg.MySceneCfg):
             ),
             "waist": ImplicitActuatorCfg(
                 joint_names_expr=["waist_roll_joint", "waist_pitch_joint"],
-                joint_effort_limit=50.0,
+                joint_effort_limit=preset(default=50.0, oem=35.0),
                 stiffness=200.0,
                 damping=5.0,
                 armature=0.01,
@@ -518,10 +522,10 @@ class G1StudentObservationsCfg(G1ObservationsCfg):
         self.depth_mirror.depth.params["sensor_cfg"] = SceneEntityCfg("depth_camera_mirror")
 
 
-def _locomotion_spawn_preset(spawn: UsdFileCfg, *, spawn_oem=spawn_g1_oem_minimal):
+def _locomotion_spawn_preset(spawn: UsdFileCfg):
     return preset(
         default=spawn,
-        oem=replace(spawn, usd_path=G1_OEM_FLOATING_DEX3_URI, variants=None, func=spawn_oem),
+        oem=replace(spawn, usd_path=G1_OEM_FLOATING_DEX3_URI, variants=None, func=spawn_g1_oem_minimal),
     )
 
 
@@ -555,5 +559,5 @@ class G1RoughDepthStudentEnvCfg(G1RoughTeacherEnvCfg):
     """G1 student with five proprioceptive frames and mirrored depth supervision."""
 
     scene: G1DepthStudentSceneCfg = G1DepthStudentSceneCfg(num_envs=4096, env_spacing=2.5)
-    scene.robot.spawn = _locomotion_spawn_preset(scene.robot.spawn, spawn_oem=spawn_g1_oem_depth_student)
+    scene.robot.spawn = _locomotion_spawn_preset(scene.robot.spawn)
     observations: G1StudentObservationsCfg = G1StudentObservationsCfg()

@@ -59,7 +59,8 @@ def test_fixed_base_g1_pip_preserves_policy_observations_and_fixed_root():
 
     assert hasattr(cfg.scene, "robot_pov_cam")
     assert not hasattr(cfg.observations.policy, "robot_pov_cam")
-    assert cfg.scene.robot.spawn.fix_root_link is True
+    assert resolve_presets(cfg.scene.robot.spawn).fix_root_link is True
+    assert resolve_presets(cfg.scene.robot.spawn, selected=("oem",)).fix_root_link is True
 
 
 def test_locomanipulation_g1_retains_recorded_camera():

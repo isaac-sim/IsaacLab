@@ -11,6 +11,7 @@
 from isaaclab_newton.sim.schemas import NewtonArticulationCfg
 
 from isaaclab.actuators import ImplicitActuatorCfg
+from isaaclab.assets import ArticulationCfg
 from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
@@ -189,29 +190,44 @@ G1_CFG = replace(
 """Configuration for the Unitree G1 Humanoid robot."""
 
 
-G1_ACTION_SCALE = {}
-for actuator in G1_CFG.actuators.values():
-    for name in actuator.joint_names_expr:
-        effort = (
-            actuator.joint_effort_limit[name]
-            if isinstance(actuator.joint_effort_limit, dict)
-            else actuator.joint_effort_limit
-        )
-        stiffness = actuator.stiffness[name] if isinstance(actuator.stiffness, dict) else actuator.stiffness
-        G1_ACTION_SCALE[name] = 0.25 * effort / stiffness
+G1_OEM_CFG = replace(
+    G1_CFG,
+    spawn=replace(G1_CFG.spawn, usd_path=G1_OEM_BARE_URI, variants=None, func=spawn_g1_oem_usd),
+    actuators={
+        **G1_CFG.actuators,
+        # Unitree's URDF limits for the ankle and waist roll/pitch joints.
+        "feet": replace(G1_CFG.actuators["feet"], joint_effort_limit=35.0, joint_velocity_limit=30.0),
+        "waist": replace(G1_CFG.actuators["waist"], joint_effort_limit=35.0, joint_velocity_limit=30.0),
+    },
+)
+"""Configuration for the Unitree G1 OEM package with its URDF drive limits."""
+
+
+def get_action_scale(robot_cfg: ArticulationCfg) -> dict[str, float]:
+    """Return each joint's action scale, a quarter of its effort limit over its stiffness."""
+    action_scale = {}
+    for actuator in robot_cfg.actuators.values():
+        for name in actuator.joint_names_expr:
+            effort = (
+                actuator.joint_effort_limit[name]
+                if isinstance(actuator.joint_effort_limit, dict)
+                else actuator.joint_effort_limit
+            )
+            stiffness = actuator.stiffness[name] if isinstance(actuator.stiffness, dict) else actuator.stiffness
+            action_scale[name] = 0.25 * effort / stiffness
+    return action_scale
+
+
+G1_ACTION_SCALE = get_action_scale(G1_CFG)
 
 
 @configclass
 class G1SceneCfg(MotionTrackingSceneCfg):
     """Flat scene with the official 29-DOF G1 asset without hands."""
 
-    robot = replace(
-        G1_CFG,
-        prim_path="{ENV_REGEX_NS}/Robot",
-        spawn=preset(
-            default=G1_CFG.spawn,
-            oem=replace(G1_CFG.spawn, usd_path=G1_OEM_BARE_URI, variants=None, func=spawn_g1_oem_usd),
-        ),
+    robot = preset(
+        default=replace(G1_CFG, prim_path="{ENV_REGEX_NS}/Robot"),
+        oem=replace(G1_OEM_CFG, prim_path="{ENV_REGEX_NS}/Robot"),
     )
 
 
@@ -219,7 +235,7 @@ class G1SceneCfg(MotionTrackingSceneCfg):
 class G1ActionsCfg(ActionsCfg):
     """Joint position targets scaled by the G1 motor gains and effort limits."""
 
-    joint_pos = replace(ActionsCfg().joint_pos, scale=G1_ACTION_SCALE)
+    joint_pos = replace(ActionsCfg().joint_pos, scale=preset(default=G1_ACTION_SCALE, oem=get_action_scale(G1_OEM_CFG)))
 
 
 @configclass
