@@ -29,7 +29,7 @@ def test_xr_camera_reference_task_selects_recorded_camera():
 def test_g1_xr_camera_uses_calibration_and_head_locked_panel(env_cfg_type):
     """Both G1 tasks present the calibrated camera in a headset-following panel."""
     cfg = env_cfg_type()
-    camera_cfg = cfg.scene.robot_pov_cam
+    camera_cfg = resolve_presets(cfg.scene.robot_pov_cam)
     feed_cfg = cfg.isaac_teleop.xr_camera_feeds[0]
 
     assert feed_cfg.camera_name == "robot_pov_cam"
@@ -49,8 +49,8 @@ def test_g1_xr_camera_uses_calibration_and_head_locked_panel(env_cfg_type):
     assert feed_cfg.enable_dlss_ray_reconstruction is True
     assert feed_cfg.dlss_exec_mode == "quality"
     assert feed_cfg.max_update_hz == 0.0
-    assert camera_cfg.renderer_cfg.default == IsaacRtxRendererCfg()
-    assert camera_cfg.renderer_cfg.isaacsim_rtx == IsaacRtxRendererCfg()
+    assert camera_cfg.renderer_cfg == IsaacRtxRendererCfg()
+    assert resolve_presets(cfg.scene.robot_pov_cam, selected=("isaacsim_rtx",)).renderer_cfg == IsaacRtxRendererCfg()
 
 
 def test_fixed_base_g1_pip_preserves_policy_observations_and_fixed_root():
@@ -59,7 +59,8 @@ def test_fixed_base_g1_pip_preserves_policy_observations_and_fixed_root():
 
     assert hasattr(cfg.scene, "robot_pov_cam")
     assert not hasattr(cfg.observations.policy, "robot_pov_cam")
-    assert cfg.scene.robot.spawn.fix_root_link is True
+    assert resolve_presets(cfg.scene.robot.spawn).fix_root_link is True
+    assert resolve_presets(cfg.scene.robot.spawn, selected=("oem",)).fix_root_link is True
 
 
 def test_locomanipulation_g1_retains_recorded_camera():

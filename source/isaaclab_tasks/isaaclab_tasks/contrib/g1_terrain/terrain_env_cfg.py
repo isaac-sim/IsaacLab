@@ -28,6 +28,9 @@ from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.string import resolve_matching_names
 
+from isaaclab_assets.robots.unitree_g1_oem import G1_OEM_FLOATING_DEX3_URI
+
+from ...core.velocity.config.g1.oem_colliders import spawn_g1_oem_full
 from ...core.velocity.config.g1.rough_env_cfg import (
     DEPTH_HEIGHT,
     DEPTH_MAX_RANGE,
@@ -169,6 +172,10 @@ class TerrainSceneCfg(InteractiveSceneCfg):
         ".*_wrist_yaw_joint": 5.0,
     }
     robot.actuators["hands"].joint_effort_limit = 2.45
+    robot.spawn = preset(
+        default=robot.spawn,
+        oem=replace(robot.spawn, usd_path=G1_OEM_FLOATING_DEX3_URI, variants=None, func=spawn_g1_oem_full),
+    )
     depth_camera = CameraCfg(
         prim_path="{ENV_REGEX_NS}/Robot/torso_link/depth_camera",
         offset=CameraCfg.OffsetCfg(pos=(0.0576, 0.0175, 0.4299), rot=(0.915, 0.0, -0.4035, 0.0), convention="world"),

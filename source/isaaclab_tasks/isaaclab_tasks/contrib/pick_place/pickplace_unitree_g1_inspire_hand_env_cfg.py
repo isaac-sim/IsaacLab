@@ -25,10 +25,12 @@ from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 
 from isaaclab_tasks.contrib import ISAACLAB_TELEOP_AVAILABLE
+from isaaclab_tasks.utils.hydra import preset
 
 from . import mdp
 
 from isaaclab_assets.robots.unitree import G1_INSPIRE_FTP_CFG  # isort: skip
+from isaaclab_assets.robots.unitree_g1_oem import G1_OEM_FIXED_INSPIRE_URI, spawn_g1_oem_usd  # isort: skip
 
 
 def _build_g1_inspire_pickplace_pipeline():
@@ -324,6 +326,10 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
             joint_vel={".*": 0.0},
         ),
     )
+    robot.spawn = preset(
+        default=robot.spawn,
+        oem=replace(robot.spawn, usd_path=G1_OEM_FIXED_INSPIRE_URI, variants=None, func=spawn_g1_oem_usd),
+    )
 
     # Ground plane
     ground = AssetBaseCfg(
@@ -589,7 +595,8 @@ class PickPlaceG1InspireFTPEnvCfg(ManagerBasedRLEnvCfg):
         )
 
         # Defer USD→URDF conversion to controller initialization (requires Isaac Sim at runtime).
-        self.actions.pink_ik_cfg.controller.usd_path = self.scene.robot.spawn.usd_path
+        # The OEM preset shares this arm chain, so both presets convert IK kinematics from the Lab asset.
+        self.actions.pink_ik_cfg.controller.usd_path = G1_INSPIRE_FTP_CFG.spawn.usd_path
         self.actions.pink_ik_cfg.controller.urdf_output_dir = self.temp_urdf_dir
 
         if ISAACLAB_TELEOP_AVAILABLE:

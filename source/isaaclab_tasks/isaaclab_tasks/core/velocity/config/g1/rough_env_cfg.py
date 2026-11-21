@@ -25,13 +25,16 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.sensors import CameraCfg, RayCasterCfg, patterns
 from isaaclab.sim import PinholeCameraCfg, SimulationCfg, UsdFileCfg
-from isaaclab.utils import configclass
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
+from isaaclab.utils import configclass, replace
+from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.modifiers import ModifierCfg
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 
+from isaaclab_tasks.utils.hydra import preset
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
+
+from isaaclab_assets.robots.unitree_g1_oem import G1_OEM_FLOATING_DEX3_URI
 
 from ... import mdp, velocity_env_cfg
 from ...velocity_env_cfg import (
@@ -43,6 +46,7 @@ from ...velocity_env_cfg import (
     RoughPhysicsCfg,
 )
 from .flat_env_cfg import G1FlatEnvCfg
+from .oem_colliders import LAB_G1_29DOF_USD, get_oem_locomotion_usd, spawn_g1_oem_minimal
 from .terrains import G1_ROUGH_TERRAINS_CFG
 
 if TYPE_CHECKING:
@@ -201,7 +205,10 @@ def get_action_parameters(robot_cfg: ArticulationCfg) -> tuple[dict[str, float],
     """Read authored G1 drives and sole geometry before simulation actuator overrides."""
     from pxr import Usd, UsdGeom, UsdPhysics
 
-    stage = Usd.Stage.Open(retrieve_file_path(robot_cfg.spawn.usd_path))
+    usd_path = robot_cfg.spawn.usd_path
+    if robot_cfg.spawn.func is spawn_g1_oem_minimal:
+        usd_path = get_oem_locomotion_usd(usd_path, "minimal")
+    stage = Usd.Stage.Open(retrieve_file_path(usd_path))
     if stage.GetCompositionErrors():
         raise ValueError(f"Could not compose G1 asset: {stage.GetCompositionErrors()}")
     root = stage.GetDefaultPrim()
@@ -306,7 +313,13 @@ class G1TerminationsCfg(velocity_env_cfg.TerminationsCfg):
 
     base_contact = DoneTerm(
         func=mdp.illegal_contact,
-        params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names="torso_link"), "threshold": 1.0},
+        params={
+            # Unitree's head is a separate body, so the OEM preset also watches it.
+            "sensor_cfg": SceneEntityCfg(
+                "contact_forces", body_names=preset(default="torso_link", oem=["torso_link", "head_link"])
+            ),
+            "threshold": 1.0,
+        },
     )
     base_height = DoneTerm(
         func=mdp.pelvis_below_terrain_clearance,
@@ -325,7 +338,7 @@ class G1SceneCfg(velocity_env_cfg.MySceneCfg):
     robot = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/Robot",
         spawn=UsdFileCfg(
-            usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/G1/g1_29dof.usd",
+            usd_path=LAB_G1_29DOF_USD,
             variants={"Colliders": "minimal"},
             activate_contact_sensors=True,
             rigid_props=PhysxRigidBodyCfg(
@@ -377,7 +390,7 @@ class G1SceneCfg(velocity_env_cfg.MySceneCfg):
             ),
             "waist": ImplicitActuatorCfg(
                 joint_names_expr=["waist_roll_joint", "waist_pitch_joint"],
-                joint_effort_limit=50.0,
+                joint_effort_limit=preset(default=50.0, oem=35.0),
                 stiffness=200.0,
                 damping=5.0,
                 armature=0.01,
@@ -509,12 +522,20 @@ class G1StudentObservationsCfg(G1ObservationsCfg):
         self.depth_mirror.depth.params["sensor_cfg"] = SceneEntityCfg("depth_camera_mirror")
 
 
+def _locomotion_spawn_preset(spawn: UsdFileCfg):
+    return preset(
+        default=spawn,
+        oem=replace(spawn, usd_path=G1_OEM_FLOATING_DEX3_URI, variants=None, func=spawn_g1_oem_minimal),
+    )
+
+
 @configclass
 class G1RoughTeacherEnvCfg(LocomotionVelocityRoughEnvCfg):
     """G1 teacher composed from its scene and manager configurations."""
 
     seed = 42
     scene: G1SceneCfg = G1SceneCfg(num_envs=4096, env_spacing=2.5)
+    scene.robot.spawn = _locomotion_spawn_preset(scene.robot.spawn)
     rewards: G129DofRewards = G129DofRewards()
     events: G1EventsCfg = G1EventsCfg(asset_parameters=EventTerm(func=configure_asset_parameters, mode="prestartup"))
     curriculum: G1CurriculumCfg = G1CurriculumCfg()
@@ -538,4 +559,5 @@ class G1RoughDepthStudentEnvCfg(G1RoughTeacherEnvCfg):
     """G1 student with five proprioceptive frames and mirrored depth supervision."""
 
     scene: G1DepthStudentSceneCfg = G1DepthStudentSceneCfg(num_envs=4096, env_spacing=2.5)
+    scene.robot.spawn = _locomotion_spawn_preset(scene.robot.spawn)
     observations: G1StudentObservationsCfg = G1StudentObservationsCfg()
