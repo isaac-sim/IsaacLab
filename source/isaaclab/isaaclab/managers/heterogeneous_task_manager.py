@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
+from dataclasses import MISSING
 from typing import TYPE_CHECKING, Any
 
 import torch
@@ -94,12 +95,26 @@ class HeterogeneousTaskManager:
         with the objects of the first task: the clone combinations of the scene pin the first candidate of every
         slot, so that clone planning does not enumerate the combinations of all candidates.
 
-        Call it before the environment is created, for example in the ``__post_init__`` of its configuration.
+        Call it once, before the environment is created, for example in the ``__post_init__`` of its
+        configuration. Where the scene, events or terminations of ``cfg`` or of the tasks are presets, call it after
+        they are resolved instead.
 
         Args:
             cfg: The environment configuration, modified in place.
             tasks: The task configurations, keyed by task name.
+
+        Raises:
+            ValueError: If ``cfg`` is composed of other tasks already.
         """
+        if cfg.events is None:
+            cfg.events = {}
+        if cfg.terminations is None or isinstance(cfg.terminations, type(MISSING)):
+            cfg.terminations = {}
+        events = _terms(cfg.events)
+        # Copying a configuration composes its tasks again; other tasks would leave slots and terms of the first.
+        previous = events.pop("select_task", None)
+        if previous is not None and list(previous.params.get("tasks", ())) != list(tasks):
+            raise ValueError("The configuration is composed of other tasks already: compose its tasks once.")
         slots = _slot_objects(tasks)
         for slot, objects in enumerate(slots):
             spawn = sim_utils.MultiAssetSpawnerCfg(assets_cfg=_variants(objects)[0], static=False, random_choice=False)
@@ -124,7 +139,6 @@ class HeterogeneousTaskManager:
         terms["time_out"] = TerminationTermCfg(func=task_time_out, time_out=True)
         cfg.episode_length_s = max(task.episode_length_s for task in tasks.values())
         # The tasks are selected before the other reset events write the default states.
-        events = _terms(cfg.events)
         select = EventTermCfg(func=select_task, mode="reset", params={"tasks": tasks})
         others = dict(events)
         events.clear()

@@ -5,6 +5,7 @@
 
 """Unit tests for composing the tasks of a heterogeneous environment into its configuration."""
 
+from dataclasses import MISSING
 from types import SimpleNamespace
 
 import pytest
@@ -70,6 +71,26 @@ def test_compose_tasks_keeps_the_terms_of_the_environment():
     assert cfg.terminations["done"] is own
 
 
+def test_compose_tasks_once_into_a_configuration():
+    """Composing the same tasks again, as copying a configuration does, changes nothing; other tasks are rejected."""
+    cfg = _env_cfg()
+    HeterogeneousTaskManager.compose_tasks(cfg, {"a": _task(5.0), "b": _task(8.0)})
+    HeterogeneousTaskManager.compose_tasks(cfg, {"a": _task(5.0), "b": _task(8.0)})
+    assert list(cfg.events) == ["select_task", "reset"]
+    assert sorted(cfg.terminations) == ["a_done", "b_done", "time_out"]
+    with pytest.raises(ValueError, match="composed of other tasks"):
+        HeterogeneousTaskManager.compose_tasks(cfg, {"b": _task(8.0)})
+
+
+def test_compose_tasks_creates_missing_events_and_terminations():
+    """A configuration without events or terminations gets those of the tasks."""
+    scene = SimpleNamespace(clone_cfg=CloneCfg())
+    cfg = SimpleNamespace(scene=scene, terminations=MISSING, events=None, episode_length_s=0.0)
+    HeterogeneousTaskManager.compose_tasks(cfg, {"a": _task(5.0)})
+    assert list(cfg.events) == ["select_task"]
+    assert sorted(cfg.terminations) == ["a_done", "time_out"]
+
+
 def test_compose_tasks_renames_default_entities():
     """A term's omitted default scene entity names the task's object, so it is renamed to the object's slot."""
     task = SimpleNamespace(
@@ -97,8 +118,8 @@ def test_placeholders_match_kinematic_slots():
     assert [spawn.rigid_props.kinematic_enabled for spawn in stand_ins] == [True, False]
 
 
-def test_environments_start_with_the_first_task():
-    """Every clone combination pins the first candidate of every slot, so clone planning does not enumerate them."""
+def test_clone_combinations_pin_the_first_candidate_of_every_slot():
+    """Clone planning starts every environment with the first task instead of enumerating the candidates."""
     pins = {"object_0": 0, "object_1": 0}
     task = SimpleNamespace(
         scene=SimpleNamespace(cube=_object("cube"), ball=_object("ball")), terminations={}, episode_length_s=5.0
