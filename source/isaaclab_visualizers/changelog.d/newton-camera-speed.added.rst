@@ -1,0 +1,1 @@
+* Added **Camera Speed** and **Shift Boost** sliders to the Newton visualizer's camera controls, which set how fast the keyboard moves the free camera and how much faster it moves while Shift is held.

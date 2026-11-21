@@ -42,7 +42,7 @@ parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this m
 parser.add_argument("--voxel_size", type=float, default=0.08, help="MPM grid voxel size [m].")
 parser.add_argument("--rigid_substeps", type=int, default=4, help="Rigid-solver substeps per coupled step.")
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["newton_gl"])
+parser.set_defaults(visualizer=["newton"])
 args_cli = parser.parse_args()
 
 
