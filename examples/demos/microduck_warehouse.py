@@ -35,7 +35,7 @@ parser.add_argument(
     "--max_steps", type=int, default=-1, help="Number of render frames; -1 runs until the viewer closes."
 )
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["newton_gl"])
+parser.set_defaults(visualizer=["newton"])
 args_cli, overrides = setup_preset_cli(parser)
 if args_cli.max_steps == 0 or args_cli.max_steps < -1:
     parser.error("--max_steps must be positive or -1.")
