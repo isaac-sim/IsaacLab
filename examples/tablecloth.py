@@ -43,7 +43,7 @@ parser.add_argument(
     help="Frame limit; zero completes all pulls and a final hold, negative runs forever.",
 )
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["newton_gl"])
+parser.set_defaults(visualizer=["newton"])
 args_cli = parser.parse_args()
 if not args_cli.device.startswith("cuda"):
     parser.error("This graph-captured example requires a CUDA device.")
