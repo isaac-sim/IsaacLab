@@ -110,12 +110,10 @@ class FactoryVariantEventCfg:
 
 @configclass
 class FactoryVariantRewardsCfg(FactoryRewardsCfg):
-    """Reward assembly success and clear nonfinite MJWarp solver state."""
+    """Reward assembly success."""
 
     success_reward = RewTerm(func=mdp.success_reward, weight=25.0)
-    solver_reset_reward = RewTerm(
-        func="isaaclab_tasks.contrib.nist.mdp.solver_reset:zero_reward_on_solver_reset", weight=1.0
-    )
+    solver_fault_reward = RewTerm(func="isaaclab_newton.envs.mdp:zero_reward_on_solver_fault", weight=1.0)
 
 
 @configclass
@@ -130,7 +128,7 @@ class FactoryVariantTerminationsCfg(FactoryTerminationsCfg):
             "fixed_asset_cfg": SceneEntityCfg("fixed_asset"),
         },
     )
-    solver_reset_required = DoneTerm(func="isaaclab_tasks.contrib.nist.mdp.solver_reset:SolverResetRequired")
+    solver_fault = DoneTerm(func="isaaclab_newton.envs.mdp:solver_fault")
 
 
 @configclass

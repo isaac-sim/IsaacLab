@@ -9,6 +9,43 @@ Events
 .. automodule:: isaaclab_newton.envs.mdp.events
     :members:
 
+Terminations
+------------
+
+Configure ``solver_fault`` as a termination and ``zero_reward_on_solver_fault`` as the last nonzero
+reward term. Both terms query the backend directly. Detection runs lazily once per state
+timestamp and is refreshed after a physics step or completed FK/reset. The reward term clears complete
+reward rows before summation and episode accumulation and does not require a named termination term.
+
+.. code-block:: python
+
+   from isaaclab.managers import RewardTermCfg, TerminationTermCfg
+   from isaaclab_newton.envs.mdp import solver_fault, zero_reward_on_solver_fault
+   from isaaclab.utils import configclass
+
+   @configclass
+   class TerminationsCfg:
+       solver_fault = TerminationTermCfg(func=solver_fault)
+
+   @configclass
+   class RewardsCfg:
+       # Declare task reward terms above this final term.
+       solver_fault_reward = RewardTermCfg(func=zero_reward_on_solver_fault, weight=1.0)
+
+Detection includes Newton body, joint and particle state. MuJoCo additionally checks its private
+persistent buffers. MJWarp checks and resets these buffers per world. CPU MuJoCo uses global solver
+history, so a fault in that history terminates every environment.
+
+.. automodule:: isaaclab_newton.envs.mdp.terminations
+    :members:
+
+Rewards
+-------
+
+.. automodule:: isaaclab_newton.envs.mdp.rewards
+    :members:
+
+
 Classes
 -------
 
