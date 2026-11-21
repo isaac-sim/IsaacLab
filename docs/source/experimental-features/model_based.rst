@@ -42,7 +42,7 @@ invented learning algorithm. Its source boundaries are:
 * **Algorithm and reference task mathematics:**
   ``HybridRobotics/SuperMimic`` at the revision linked above, under Apache-2.0.
   Ported networks, replay, optimizers, learners, runner, and task mathematics retain
-  their upstream attribution and modification notices. The license is retained in
+  their copyright and modification notices. Provenance is documented here; the license is retained in
   ``docs/licenses/dependencies/supermimic-official-license.txt``.
 * **Initial native integration:**
   `Isaac Lab PR #8826 by ooctipus
@@ -60,8 +60,10 @@ invented learning algorithm. Its source boundaries are:
   and runner are separate from the RSL-RL training backend.
 
 Native task interfaces, CLI wiring, distributed coordination, and tests adapt
-these components to Isaac Lab. Source-file notices identify the applicable
-license; the repository's top-level license does not replace third-party notices.
+these components to Isaac Lab. Source repositories, revisions, and license-file
+locations are documented in this section. Source files retain copyright, SPDX,
+and required modification notices; the repository's top-level license does not
+replace third-party notices.
 
 Datasets and robot assets are external inputs with their own terms. Users must
 download them from their providers. See

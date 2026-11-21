@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+# Copyright (c) 2026 ETH Zurich, Chong Zhang.
+
 """Load named reference arrays once, in the runtime robot's joint and body order."""
 
 import csv
@@ -151,8 +153,6 @@ def load_csv_motion(path: str | Path, joint_names: Sequence[str], cfg: CsvMotion
     return motion
 
 
-# Resampling adapted from the MIT integration; see docs/licenses/dependencies/supermimic-license.txt.
-# Copyright (c) 2026 ETH Zurich, Chong Zhang.
 def resample_motion(motion: dict[str, torch.Tensor], source_fps: float, target_fps: float) -> dict[str, torch.Tensor]:
     """Resample one uniformly timed clip in memory; quaternions are XYZW.
 
@@ -246,8 +246,6 @@ class MotionLoader:
             self.body_ang_vel_w: torch.Tensor = arrays["body_ang_vel_w"]
 
 
-# Motion library adaptation derived from SuperMimic (MIT), Copyright (c) 2026 ETH Zurich, Chong Zhang.
-# See docs/licenses/dependencies/supermimic-license.txt.
 def _load_pose_motion(
     path: Path, joint_names: Sequence[str], source_fps: float, target_fps: float, csv: CsvMotionCfg
 ) -> dict[str, torch.Tensor]:

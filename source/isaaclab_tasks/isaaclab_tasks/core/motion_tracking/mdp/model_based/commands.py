@@ -3,6 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+# Copyright 2026 the SuperMimic authors.
+# Copyright (c) 2026 ETH Zurich, Chong Zhang.
+
 """Native reference command for model-based motion tracking."""
 
 import torch
@@ -21,9 +24,6 @@ from .commands_cfg import ReturnSamplerCfg, TasksCfg
 from .rewards import tracking_reward
 
 
-# ReturnSampler and ReturnSamplerCfg are derived from HybridRobotics/SuperMimic
-# (Apache-2.0), revision 5efbf114e11f725c31d83e217be987c13c0e4ce2.
-# Copyright 2026 the SuperMimic authors. See docs/licenses/dependencies/supermimic-official-license.txt.
 class ReturnSampler:
     def __init__(
         self,
@@ -238,8 +238,6 @@ class BiasedJointPositionAction(JointPositionAction):
         self._processed_actions.sub_(self._env.command_manager.get_term("motion").encoder_bias)
 
 
-# Reference kinematics derived from SuperMimic (MIT), Copyright (c) 2026 ETH Zurich, Chong Zhang.
-# See docs/licenses/dependencies/supermimic-license.txt.
 class MotionReference(MotionLibrary):
     """Add differentiable body queries to the shared read-only motion library."""
 
@@ -268,8 +266,6 @@ class MotionReference(MotionLibrary):
         )
 
 
-# Goal construction derived from HybridRobotics/SuperMimic (Apache-2.0).
-# See docs/licenses/dependencies/supermimic-official-license.txt.
 def make_motion_task(representation: StateRepresentation, num_goals: int) -> TaskSpec:
     """Motion-tracking task: goal is the full motion target (actor side)."""
 
@@ -294,7 +290,7 @@ def make_velocity_task(
 ) -> TaskSpec:
     """Velocity-command task: 3D body-frame ``[vx_b, vy_b, wz_b]``.
 
-    Matches mjlab's velocity-tracking command convention: linear x/y in the
+    Linear x/y are in the
     root body frame, yaw rate about the body z-axis. At training time the
     command is projected from the motion's root velocity into the body frame
     and perturbed by fresh per-step uniform noise (``command_noise``,

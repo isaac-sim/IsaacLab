@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+# Copyright 2026 the SuperMimic authors.
+
 """Motion inputs and reset settings for model-based tracking."""
 
 from dataclasses import MISSING, dataclass, field
@@ -12,9 +14,6 @@ from isaaclab.utils import configclass
 from isaaclab.utils.datasets.motion_loader import CsvMotionCfg
 
 
-# ReturnSampler and ReturnSamplerCfg are derived from HybridRobotics/SuperMimic
-# (Apache-2.0), revision 5efbf114e11f725c31d83e217be987c13c0e4ce2.
-# Copyright 2026 the SuperMimic authors. See docs/licenses/dependencies/supermimic-official-license.txt.
 @dataclass
 class ReturnSamplerCfg:
     gamma: float = 0.99
@@ -53,8 +52,6 @@ class ReferenceCommandCfg(CommandTermCfg):
     friction_bodies: list[str] = [".*ankle_roll_link"]
 
 
-# Goal settings derived from HybridRobotics/SuperMimic (Apache-2.0).
-# See docs/licenses/dependencies/supermimic-official-license.txt.
 @dataclass
 class VelocityTaskCfg:
     """Body-frame velocity-command task."""

@@ -3,13 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Portions derived from SuperMimic (MIT), Copyright (c) 2026 ETH Zurich, Chong Zhang.
-# See docs/licenses/dependencies/supermimic-license.txt.
-
-# Rotation and analytic IK portions derived from HybridRobotics/SuperMimic
-# (Apache-2.0), revision 5efbf114e11f725c31d83e217be987c13c0e4ce2.
-# Copyright 2026 the SuperMimic authors; see supermimic-official-license.txt
-# in docs/licenses/dependencies/. Modified for native math and articulation interfaces.
+# Copyright (c) 2026 ETH Zurich, Chong Zhang.
+# Copyright 2026 the SuperMimic authors.
+# Modified for native math and articulation interfaces.
 
 """Differentiable forward/inverse kinematics and WXYZ adapters for native rotation utilities.
 
@@ -31,8 +27,7 @@ from isaaclab.utils.math import axis_angle_from_quat, quat_from_angle_axis, quat
 def matrix_to_quat(rot_mat: torch.Tensor) -> torch.Tensor:
     """Rotation matrix to quaternion — compile-safe (no boolean indexing).
 
-    Same algorithm as pytorch3d/mjlab ``quat_from_matrix`` but uses
-    ``torch.clamp`` + ``torch.gather`` instead of boolean advanced indexing,
+    Uses ``torch.clamp`` + ``torch.gather`` instead of boolean advanced indexing,
     so it produces only static-shaped tensors and works inside
     ``torch.compile(mode="reduce-overhead")``.
 
@@ -198,9 +193,6 @@ def from_native(quat: torch.Tensor) -> torch.Tensor:
     return native_math.convert_quat(quat, to="wxyz")
 
 
-# Matrix conversion retains BSD-3-Clause Isaac Lab/mjlab arithmetic.
-# Copyright (c) 2022-2026, The Isaac Lab Project Developers.
-# See the repository LICENSE.
 @torch.jit.script
 def matrix_from_quat(quaternions: torch.Tensor) -> torch.Tensor:
     """WXYZ matrix conversion with the reference's FP32 norm reduction order.

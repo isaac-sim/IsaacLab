@@ -3,8 +3,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# Derived from HybridRobotics/SuperMimic, revision 5efbf114e11f725c31d83e217be987c13c0e4ce2.
-# Copyright 2026 the SuperMimic authors. See docs/licenses/dependencies/supermimic-official-license.txt.
+# Copyright 2026 the SuperMimic authors.
 # Modified for Isaac Lab package boundaries and simulator interfaces.
 
 """World-model and policy learners with shared optimization and CUDA graph updates."""

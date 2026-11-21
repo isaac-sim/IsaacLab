@@ -113,8 +113,3 @@ class ModelBasedMotionTrackingEnvCfg(ManagerBasedRLEnvCfg):
     )
     decimation = 4
     episode_length_s = 10.0
-
-    def play_mode(self):
-        self.commands.motion.evaluation = True
-        self.commands.motion.reset_noise = False
-        self.episode_length_s = 1.0e9

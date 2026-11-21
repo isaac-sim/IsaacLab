@@ -3,8 +3,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# Derived from HybridRobotics/SuperMimic, revision 5efbf114e11f725c31d83e217be987c13c0e4ce2.
-# Copyright 2026 the SuperMimic authors. See docs/licenses/dependencies/supermimic-official-license.txt.
+# Copyright 2026 the SuperMimic authors.
 # Modified for Isaac Lab package boundaries and simulator interfaces.
 
 """Task contracts and generalized/maximal coordinate representations for learned dynamics."""
@@ -454,7 +453,7 @@ PROPRIO_NOISE_HALF_WIDTHS: dict[str, float] = {
 
 
 def term_major_to_temporal(flat: torch.Tensor, term_widths: list[int], history_length: int) -> torch.Tensor:
-    """Convert mjlab's term-major flat obs to a ``(B, H, sum(w_i))`` frame-major window.
+    """Convert term-major flat obs to a ``(B, H, sum(w_i))`` frame-major window.
 
     Input layout ``[term0_t0..tH-1, term1_t0..tH-1, ...]`` is what the deployed
     actor obs group emits; the decoder consumes frame-major. Applied at the ONNX
@@ -680,7 +679,7 @@ class StateRepresentation(nn.Module, ABC):
         """Sensor-or-state half of the actor input (no goal).
 
         Returns ``rep_state`` in rep_state mode. In proprio mode, returns
-        ``sim_actor_obs`` if provided (mjlab's ``obs["actor"]``) else
+        ``sim_actor_obs`` if provided, else
         synthesizes via :meth:`compute_wm_obs`; ``noisy=True`` adds per-dim
         uniform jitter scaled by the precomputed ``_proprio_noise_bounds``. ``aux_state``,
         ``joint_state`` and ``last_action`` are required only when synthesizing

@@ -3,13 +3,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# Derived from HybridRobotics/SuperMimic, revision 5efbf114e11f725c31d83e217be987c13c0e4ce2.
-# Copyright 2026 the SuperMimic authors. See docs/licenses/dependencies/supermimic-official-license.txt.
+# Copyright 2026 the SuperMimic authors.
 # Modified for Isaac Lab package boundaries and simulator interfaces.
 
 """Gaussian-kernel tracking reward on world-frame bodies.
 
-Mirrors ``mjlab.tasks.tracking.tracking_env_cfg.rewards``: each tracking term is
+Each tracking term is
 ``weight * exp(-err_sq / std**2)``, plus the action-rate and joint-limit
 penalties; body pos/ori targets are re-anchored
 to the predicted root xy + yaw, matching

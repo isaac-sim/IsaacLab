@@ -64,7 +64,9 @@ def run(argv: list[str]) -> None:
     _restore_environment(cfg, checkpoint["env_cfg"])
     update_from_dict(agent, checkpoint["agent_cfg"])
     apply_env_overrides(args, cfg)
-    cfg.play_mode()
+    cfg.commands.motion.evaluation = True
+    cfg.commands.motion.reset_noise = False
+    cfg.episode_length_s = 1.0e9
     if args.motion_dir:
         cfg.commands.motion.motion_dir = args.motion_dir
     if args.asset_path:
