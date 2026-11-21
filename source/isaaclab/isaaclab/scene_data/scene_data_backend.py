@@ -180,3 +180,16 @@ class SceneDataBackend:
     def transform_paths(self) -> list[str]:
         """Return unique native body paths in publication order, fixed for each initialized layout."""
         raise NotImplementedError
+
+    variants_timestamp: int = 0
+    """Logical timestamp, incremented when the selected mesh variant of any transform may have changed."""
+
+    @property
+    def transform_variants(self) -> wp.array | None:
+        """Selected mesh-variant index per transform: ``int32``, shape ``[transform_count]``.
+
+        Rows follow :attr:`transform_paths` and ``-1`` marks a transform without a selection. Returns ``None``
+        when no transform declares variants. Reading it must increment ``variants_timestamp`` when the
+        selection may have changed.
+        """
+        return None
