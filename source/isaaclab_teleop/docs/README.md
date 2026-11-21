@@ -16,7 +16,7 @@ XR anchor synchronization, retargeting pipelines, and action-tensor generation.
 - **Teleop commands** -- register callbacks for `START`, `STOP`, and `RESET` commands dispatched via
   XR controller buttons or the Carbonite message bus.
 - **XR anchor rotation modes** -- `FIXED`, `FOLLOW_PRIM`, `FOLLOW_PRIM_SMOOTHED`, and `CUSTOM`
-  modes for controlling how the anchor orientation tracks the reference prim.
+  modes for controlling how the anchor orientation tracks the reference prim (`CUSTOM` requires Kit).
 - **Retargeting tuning UI** -- optional ImGui window for real-time adjustment of retargeter
   parameters when `retargeters_to_tune` is provided.
 - **XR camera feedback** -- selected scene cameras can be shown through Kit Scene UI using a
@@ -31,6 +31,14 @@ XR anchor synchronization, retargeting pipelines, and action-tensor generation.
 | `XrAnchorManager` | XR anchor prim setup, dynamic/static synchronization, coordinate-frame transform computation |
 | `TeleopSessionLifecycle` | Pipeline building, OpenXR handle acquisition, session create/destroy, action-tensor extraction |
 | `CommandHandler` | Callback registration and XR message-bus command dispatch |
+
+The [OVXR application adapter](OVXR_ADAPTER.md) connects a simulation-owned renderer
+and Stage to Isaac Capture. `isaaclab_teleop` owns session preparation, tracking anchors,
+presentation policy. It borrows the native resources through the lease of
+`OvxrRenderer`, which publishes the scene to its own OVStage; the simulation retains resource ownership. The
+application thread publishes CPU or GPU scene data through the lease's scene publisher before
+Capture consumes each completed publication. Robot-specific action
+conditioning and physics preparation remain in the task package.
 
 ## Usage
 
@@ -180,5 +188,7 @@ run automatically.
 ## Dependencies
 
 - **`isaaclab`** -- core Isaac Lab framework
+- **`isaaclab_ov`** -- required by the optional OVXR session adapter; the standalone `isaaclab_teleop` package does not install this backend automatically
 - **`isaacteleop`** -- Isaac Capture retargeting engine, device I/O, and session management
 - **`isaacsim`** -- Isaac Sim runtime (provides the Kit XR bridge for OpenXR handle acquisition)
+- **OVXR / OVRTX / OVStage** -- matched native runtime and stock peers for OVXR
