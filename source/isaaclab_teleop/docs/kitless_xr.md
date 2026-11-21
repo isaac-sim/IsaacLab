@@ -42,6 +42,30 @@ and restore the caller's arguments on return. The scripts under
 `scripts/environments/teleoperation/` and `scripts/tools/record_demos.py` delegate to
 these package entrypoints.
 
+## Switching a Kit workflow to kitless
+
+Each step of the Kit teleoperation and imitation-learning workflow runs without Isaac Sim. Install
+the `ovxr` selection (add `mimic` for the imitation-learning scripts) instead of `isaacsim`, then:
+
+| Step | Kit | Kitless |
+|---|---|---|
+| Teleoperate | `isaaclab teleop run --xr` | `isaaclab teleop run --ovxr` |
+| Record demonstrations | `isaaclab teleop record --xr` | `isaaclab teleop record --ovxr` |
+| Replay demonstrations | `isaaclab teleop replay` | same command; add `--renderer ovrtx` for an RTX camera |
+| Replay an MCAP capture | `teleop_replay_agent.py` | `teleop_replay_agent.py --ovxr` |
+| Annotate, generate (Mimic) | `annotate_demos.py`, `generate_dataset.py` | same commands with `physics=...` |
+| Train, play (robomimic) | `train.py`, `play.py` | same commands; `play.py` takes `physics=...` |
+
+Select the physics backend with `--physics ovphysx` or `--physics newton_mjwarp`;
+the Mimic scripts take the same choice as `physics=...`. The automatic `physx` selector follows the usual
+Isaac Lab rule: Isaac Sim PhysX when the run needs Kit, otherwise the task's OvPhysX settings.
+Isaac Sim PhysX (`isaacsim_physx`) is not available
+without Kit. Cameras that render through Isaac Sim RTX need a kitless renderer, such as `renderer=ovrtx`,
+when a script keeps them; HDF5 replay of a task such as GR1T2, whose `robot_pov_cam` renders through
+Isaac Sim RTX, needs `--renderer ovrtx`. The OVXR session strips camera observations, so kitless HDF5
+demonstrations are state-only. The G1 locomanipulation SDG task still requires Isaac Sim. To restart an
+OVXR session, start the command again.
+
 ## Live teleoperation
 
 Start with CPU OvPhysX using the command below. The same registered-task
@@ -219,3 +243,71 @@ The mirror requires Vulkan; remove conflicting backend settings before OVUI
 initialization. The mirror opens after the first submitted
 XR image; closing it requests application shutdown. Eye images exclude the
 separate OpenXR camera panels; select a camera product to inspect that feed.
+
+## Physics and rendering on separate GPUs
+
+For GPU-intensive physics, select the physics device with `--device` and the
+rendering devices with `--ovrtx_active_cuda_gpus`. The rendering option requires
+`--ovxr` in the live teleoperation and recording CLIs. The MCAP replay entrypoint does
+not expose GPU selection.
+
+For live teleoperation:
+
+```bash
+uv run --extra ovxr isaaclab teleop run --ovxr \
+    --task IsaacContrib-PickPlace-GR1T2-Abs --num_envs 1 \
+    --physics newton_mjwarp --device cuda:1 \
+    --ovrtx_active_cuda_gpus 0
+```
+
+By default, GPU physics and rendering use the same CUDA device; CPU physics
+leaves GPU selection to OVRTX. When the rendering GPUs exclude the physics GPU,
+the renderer copies deforming geometry and rigid transforms from the physics GPU
+to reusable buffers on the first rendering GPU, and OVStage reads them after the
+copy completes. This adds a copy to each such update. Other
+rendering GPUs, and other inputs such as camera poses, read the physics GPU directly.
+CPU data and already-local geometry keep their placement; mixed CPU/CUDA geometry
+batches are unsupported by OVStage.
+
+OVRTX fixes the rendering GPU selection at the first native initialization in
+each process. The OVXR renderer guards its own selection: the first OVXR session
+fixes it, recreating a session with the same selection is supported, and a
+different selection is rejected, including after teardown or failed startup.
+Start a new process to change rendering GPUs. For CPU simulation, consistently
+use native selection or an explicit GPU list throughout the process.
+
+Ordinary OVRTX cameras render on the simulation GPU. When the session renders on
+any other GPUs, the OVXR renderer rejects an ordinary OVRTX camera registered in
+the same simulation; the OVXR entrypoints remove such cameras. The guard does not
+cover an ordinary OVRTX camera created in another simulation of the same process,
+before or after a split-GPU session: OVRTX keeps the selection of whichever
+renderer initialized it first, so run such cameras in a separate process.
+
+Custom geometry producers must order updates on their current Warp stream and
+avoid concurrent mutation during publication. These controls do not change
+physics fidelity or guarantee a rendering rate.
+
+The compositor/encoder has a separate GPU choice. Align CloudXR's
+`NV_CXR_GPU_INDEX_CUDA` with the rendering GPU and verify effective physical GPU
+identities in the runtime logs. `CUDA_VISIBLE_DEVICES` can remap CUDA ordinals;
+two installed GPUs alone do not enable a split.
+
+Before splitting GPUs, check that PCIe peer copies return correct values in both
+directions on this host, with the application's `CUDA_VISIBLE_DEVICES` selection:
+
+```bash
+uv run --extra ovxr python -m isaaclab_teleop.tools.check_cuda_peer --devices cuda:0 cuda:1
+```
+
+The check copies test patterns both ways through the renderer's own geometry-publication
+path and exits nonzero on a transfer error or a value mismatch. A pass covers only those
+copies on this host, not rendering, physics or performance. Peer-capability flags and CUDA
+completion alone do not establish data integrity; see NVIDIA's
+[bare-metal Linux IOMMU limitation for PCIe peer copies](https://docs.nvidia.com/cuda/cuda-programming-guide/03-advanced/multi-gpu-systems.html#host-iommu-hardware-pci-access-control-services-and-vms).
+If the check fails, keep physics, rendering and compositor on one GPU; changing the host's
+IOMMU configuration is an administrator's task.
+
+Only rigid transforms and geometry points use the completed-copy publication path. Camera
+poses, markers and runtime meshes, and visual materials are small per-publication writes that
+OVStage still reads from the physics GPU. OVStage chooses how it reads them; the check above
+does not cover that route, and these writes have no completed-copy guarantee.

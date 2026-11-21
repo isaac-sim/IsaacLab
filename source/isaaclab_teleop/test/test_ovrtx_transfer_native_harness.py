@@ -47,7 +47,7 @@ class _CaseResult:
     error: BaseException | None = None
 
 
-def _make_env_and_bootstrap(task: str, device: str):
+def _make_env_and_bootstrap(task: str, device: str, active_cuda_gpus: str | None = None):
     import gymnasium as gym
     from isaaclab_ov.physics import OvPhysxCfg
     from isaaclab_teleop import remove_camera_configs
@@ -77,7 +77,7 @@ def _make_env_and_bootstrap(task: str, device: str):
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 3.0)),
     )
-    bootstrap = OvxrSessionBootstrap(cfg.sim, OvxrRendererCfg())
+    bootstrap = OvxrSessionBootstrap(cfg.sim, OvxrRendererCfg(active_cuda_gpus=active_cuda_gpus))
     try:
         bootstrap.create_native_pair()
         env = gym.make(task, cfg=cfg).unwrapped
@@ -90,11 +90,11 @@ def _make_env_and_bootstrap(task: str, device: str):
         raise
 
 
-def _run_case(task: str, device: str, *, transfer: bool) -> _CaseResult:
+def _run_case(task: str, device: str, *, transfer: bool, active_cuda_gpus: str | None = None) -> _CaseResult:
     from isaaclab_teleop.ov_libraries_xr import _IsaacLabOvxrApplicationInterface
     from isaaclab_teleop.ovxr_cfg import OvLibrariesXrCfg
 
-    bootstrap, env = _make_env_and_bootstrap(task, device)
+    bootstrap, env = _make_env_and_bootstrap(task, device, active_cuda_gpus)
     result = _CaseResult(offer_thread=threading.get_native_id())
     host = _IsaacLabOvxrApplicationInterface(bootstrap, env, OvLibrariesXrCfg(auto_launch_cloudxr=False))
     capability = host.offer_render_owner_transfer()
@@ -212,11 +212,18 @@ def _run_case(task: str, device: str, *, transfer: bool) -> _CaseResult:
     return result
 
 
-def _run_native_subprocess(task: str, device: str, transfer: bool) -> None:
+def _run_native_subprocess(task: str, device: str, transfer: bool, active_cuda_gpus: str | None = None) -> None:
     # A native non-daemon thread cannot be bounded by Thread.join alone.
     # Keep the native lifetime in a child that the standard subprocess timeout owns.
     completed = subprocess.run(
-        [sys.executable, str(Path(__file__).resolve()), task, device, "transfer" if transfer else "same-thread"],
+        [
+            sys.executable,
+            str(Path(__file__).resolve()),
+            task,
+            device,
+            "transfer" if transfer else "same-thread",
+            active_cuda_gpus or "-",
+        ],
         capture_output=True,
         text=True,
         timeout=180,
@@ -237,6 +244,16 @@ def test_cross_thread_preuse_owner_transfer_native(device):
     _run_native_subprocess(_TASK, device, True)
 
 
+def test_split_gpu_publication_native():
+    """With rendering on another GPU, the published poses reach the rendering GPU's OVStage."""
+    from isaaclab.test.utils import DeviceScope, test_devices
+
+    devices = [device for device in test_devices(DeviceScope.CUDA) if isinstance(device, str)]
+    if len(devices) < 2:
+        pytest.skip("requires two selected CUDA devices")
+    _run_native_subprocess(_TASK, devices[0], True, active_cuda_gpus=devices[-1].removeprefix("cuda:"))
+
+
 @pytest.mark.parametrize("transfer", [False, True], ids=["same-thread", "transfer"])
 def test_gr1t2_cpu_ovphysx_native(transfer):
     """The prepared GR1T2 scene publishes from CPU OvPhysX, with and without the owner transfer."""
@@ -250,7 +267,12 @@ if __name__ == "__main__":
     faulthandler.dump_traceback_later(60)
     if os.environ.get("ISAACLAB_RUN_NATIVE_OVRTX_TRANSFER") != "1":
         raise RuntimeError("native transfer harness requires its explicit opt-in")
-    result = _run_case(sys.argv[1], sys.argv[2], transfer=sys.argv[3] == "transfer")
+    result = _run_case(
+        sys.argv[1],
+        sys.argv[2],
+        transfer=sys.argv[3] == "transfer",
+        active_cuda_gpus=None if sys.argv[4] == "-" else sys.argv[4],
+    )
     assert result.renderer_id is not None and result.stage_id is not None
     assert result.ordinal is not None
     assert len(result.observed_positions) == 2

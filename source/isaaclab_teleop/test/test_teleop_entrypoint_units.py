@@ -73,6 +73,7 @@ def test_teleop_resolver_validates_the_launch_and_runs_the_task_preparation(monk
             xr=False,
             using_ovxr=kitless,
             ovxr_camera_feed=None,
+            ovrtx_active_cuda_gpus=None,
             disable_external_cameras=False,
             physics=None,
         ),
@@ -147,7 +148,7 @@ def run_live_workflow(monkeypatch):
         env.sim.device = "cpu"
         env.sim.visualizers = ()
         cfg = SimpleNamespace(
-            sim=object(),
+            sim=SimpleNamespace(device="cpu"),
             isaac_teleop=isaaclab_teleop.IsaacTeleopCfg(
                 action_conditioner=conditioner,
                 action_validator=validator,
@@ -1329,7 +1330,7 @@ def test_ovxr_mirror_cli_reaches_session_construction(monkeypatch, entrypoint, f
         monkeypatch.setattr(module, "hydra_overrides", None, raising=False)
     module._parse_args(argv)
     assert module.args_cli.ovxr_desktop_mirror is expected
-    cfg = SimpleNamespace(sim=object(), isaac_teleop=isaaclab_teleop.IsaacTeleopCfg())
+    cfg = SimpleNamespace(sim=SimpleNamespace(device="cpu"), isaac_teleop=isaaclab_teleop.IsaacTeleopCfg())
     received = []
 
     class PreparationReached(Exception):
@@ -1376,11 +1377,12 @@ def test_desktop_mirror_requires_ovxr(monkeypatch, capsys, entrypoint, flags):
     assert "--ovxr_desktop_mirror requires --ovxr" in capsys.readouterr().err
 
 
-def _run_ovxr_camera_feed_workflow(monkeypatch, entrypoint, layout, flags, calls):
+def _run_ovxr_camera_feed_workflow(monkeypatch, entrypoint, layout, flags, calls, *, pip_camera=True):
     """Run an entrypoint's ``main`` with one PiP camera until it prepares the OVXR session.
 
     Task resolution and launch are stubbed; CLI parsing, pre-launch preparation and session
     construction are production code. ``calls`` records the kept cameras, launch and preparation.
+    With ``pip_camera=False`` the task camera exists but no PiP camera is selected.
 
     Returns:
         The task configuration and the arguments passed to session preparation.
@@ -1439,7 +1441,8 @@ def _run_ovxr_camera_feed_workflow(monkeypatch, entrypoint, layout, flags, calls
     with suppress(ModuleNotFoundError):
         monkeypatch.setattr(isaaclab_teleop.OvLibrariesXrSession, "prepare", prepare)
     monkeypatch.setattr(SimulationContext, "instance", lambda: None)
-    arguments = ["--task", "Test", "--ovxr", "--cloudxr_env", "none", "--ovxr_camera_feed", "head_cam", *flags]
+    pip = ["--ovxr_camera_feed", "head_cam"] if pip_camera else []
+    arguments = ["--task", "Test", "--ovxr", "--cloudxr_env", "none", *pip, *flags]
     if entrypoint == "live":
         monkeypatch.setattr(module, "has_kit", lambda: False)
         monkeypatch.setattr(
@@ -1496,6 +1499,59 @@ def test_ovxr_camera_feed_rejects_world_layout_without_a_distance_before_launch(
     with pytest.raises(ValueError, match=r"xr_camera_feed_layout uses 'world' placement.*distance_m"):
         _run_ovxr_camera_feed_workflow(monkeypatch, entrypoint, layout, [], calls)
     assert calls == []
+
+
+def test_ovxr_presentation_takes_one_renderer_configuration_source(monkeypatch):
+    """Camera panels carry the session renderer; an additional explicit one is rejected before preparation."""
+    pytest.importorskip("isaaccapture.ovxr_session_manager")
+    import isaaclab_teleop
+    from isaaclab_teleop.entrypoints._ovxr_presentation import OvxrPresentation
+    from isaaclab_teleop.ovxr_renderer import OvxrRendererCfg
+
+    monkeypatch.setattr(isaaclab_teleop.OvLibrariesXrSession, "prepare", lambda *_a, **_k: pytest.fail("prepared"))
+    camera = SimpleNamespace(camera_cfg=SimpleNamespace(renderer_cfg=OvxrRendererCfg()))
+    with pytest.raises(ValueError, match="do not also pass renderer_cfg"):
+        OvxrPresentation.prepare(
+            SimpleNamespace(),
+            SimpleNamespace(),
+            application_name="test",
+            camera_feeds=(camera,),
+            renderer_cfg=OvxrRendererCfg(),
+        )
+
+
+@pytest.mark.parametrize("pip_camera", [False, True])
+def test_gpu_selection_cli_reaches_the_shared_xr_renderer(monkeypatch, pip_camera):
+    """The GPU options reach the one renderer configuration of the stereo session and its PiP camera."""
+    # These adapter tests require the optional Capture OVXR session module.
+    pytest.importorskip("isaaccapture.ovxr_session_manager")
+    from isaaclab_teleop import XrCameraFeedLayoutCfg
+
+    flags = ["--ovrtx_active_cuda_gpus", "1"]
+    layout = XrCameraFeedLayoutCfg(placement="head_locked")
+    config, prepared = _run_ovxr_camera_feed_workflow(monkeypatch, "live", layout, flags, [], pip_camera=pip_camera)
+
+    [(xr_cfg, renderer_cfg)] = prepared
+    assert renderer_cfg.active_cuda_gpus == "1"
+    # Configclasses copy their fields, so each panel holds a copy of the scene sensor configuration.
+    assert [camera.camera_cfg.prim_path for camera in xr_cfg.camera_feeds] == (
+        [config.scene.head_cam.prim_path] if pip_camera else []
+    )
+    assert all(camera.camera_cfg.renderer_cfg == renderer_cfg for camera in xr_cfg.camera_feeds)
+
+
+@pytest.mark.parametrize(
+    "arguments, message",
+    [
+        (["--ovxr", "--ovrtx_active_cuda_gpus", "cuda:0"], "active_cuda_gpus must list CUDA indices"),
+        (["--ovxr", "--ovrtx_active_cuda_gpus", "0,0"], "more than once"),
+        (["--ovrtx_active_cuda_gpus", "0"], "requires --ovxr"),
+    ],
+)
+def test_gpu_selection_cli_rejects_invalid_options_at_parse_time(monkeypatch, capsys, arguments, message):
+    with pytest.raises(SystemExit):
+        _load_teleop_agent(monkeypatch, *arguments)
+    assert message in capsys.readouterr().err
 
 
 @pytest.mark.parametrize("entrypoint", ["live", "replay"])
@@ -1717,6 +1773,30 @@ def test_rejected_ovxr_frame_does_not_render_on_the_control_thread(monkeypatch, 
     assert renders == [] and steps == []
     assert requests == [True]  # Only the reset publication; the held scene is not republished.
     assert waits == [0.02]  # A rejected frame waits one action period, like a paused one.
+
+
+@pytest.mark.parametrize("failure", ["validation", "exception"])
+def test_action_conditioning_does_not_mutate_nested_state_on_failure(failure):
+    """A rejected proposal cannot mutate accepted tensor or container history."""
+    from isaaclab_teleop.action_policy import prepare_teleop_action
+
+    state = {"history": {"samples": [1], "previous": torch.tensor([2.0])}}
+
+    def condition(_env, action, candidate):
+        candidate["history"]["samples"].append(3)
+        candidate["history"]["previous"].add_(4)
+        if failure == "exception":
+            raise RuntimeError("conditioning failed")
+        return action + 1
+
+    if failure == "exception":
+        with pytest.raises(RuntimeError, match="conditioning failed"):
+            prepare_teleop_action(None, 0, condition, None, state)
+    else:
+        _, issue = prepare_teleop_action(None, 0, condition, lambda action: "invalid" if action else None, state)
+        assert issue == "invalid"
+    assert state["history"]["samples"] == [1]
+    torch.testing.assert_close(state["history"]["previous"], torch.tensor([2.0]))
 
 
 @pytest.mark.parametrize("close_while_pending", [False, True])
@@ -1953,27 +2033,3 @@ def test_live_auto_reset_rebases_dynamic_anchor_before_next_input(monkeypatch, r
     # tracking frame by the jump between the two episodes.
     np.testing.assert_allclose(reads[0][1][:3, :3], reads[1][1][:3, :3], atol=1e-6)
     assert publications[:3] == [((1, 0), True), ((2, 1), True), ((2, 1), True)]
-
-
-@pytest.mark.parametrize("failure", ["validation", "exception"])
-def test_action_conditioning_does_not_mutate_nested_state_on_failure(failure):
-    """A rejected proposal cannot mutate accepted tensor or container history."""
-    from isaaclab_teleop.action_policy import prepare_teleop_action
-
-    state = {"history": {"samples": [1], "previous": torch.tensor([2.0])}}
-
-    def condition(_env, action, candidate):
-        candidate["history"]["samples"].append(3)
-        candidate["history"]["previous"].add_(4)
-        if failure == "exception":
-            raise RuntimeError("conditioning failed")
-        return action + 1
-
-    if failure == "exception":
-        with pytest.raises(RuntimeError, match="conditioning failed"):
-            prepare_teleop_action(None, 0, condition, None, state)
-    else:
-        _, issue = prepare_teleop_action(None, 0, condition, lambda action: "invalid" if action else None, state)
-        assert issue == "invalid"
-    assert state["history"]["samples"] == [1]
-    torch.testing.assert_close(state["history"]["previous"], torch.tensor([2.0]))
