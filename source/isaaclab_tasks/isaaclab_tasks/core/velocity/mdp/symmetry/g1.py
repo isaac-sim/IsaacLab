@@ -38,7 +38,7 @@ _EXPLICIT_SIGNS = {
     "zero_joint": 1.0,
 }
 # Vector mirror factors per (term, device, size), built once so captured CUDA graphs need no host-to-device copy
-_FACTOR_CACHE: dict[tuple[str, str, int], torch.Tensor] = {}
+_FACTOR_CACHE: dict[tuple[str, torch.device, int], torch.Tensor] = {}
 
 
 def _counterpart(name: str) -> str:
@@ -166,7 +166,7 @@ def _mirror_group(env: ManagerBasedRLEnv, group: str, obs: torch.Tensor) -> torc
             size *= int(s)
         block = obs[:, offset : offset + size]
         if name in _VECTOR_MIRRORS:
-            key = (name, str(obs.device), size)
+            key = (name, obs.device, size)
             if key not in _FACTOR_CACHE:
                 _FACTOR_CACHE[key] = torch.tensor(_VECTOR_MIRRORS[name], device=obs.device).repeat(size // 3)
             out[:, offset : offset + size] = block * _FACTOR_CACHE[key]

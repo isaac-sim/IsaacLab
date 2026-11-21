@@ -3,10 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""FlashSAC settings for the manager-based Allegro cube reorientation task.
-
-Settings and iteration counts come from tuning FlashSAC against PPO under the same rewards.
-"""
+"""FlashSAC settings for the manager-based Allegro cube reorientation task."""
 
 from isaaclab.utils import configclass
 
@@ -28,6 +25,7 @@ class AllegroHandManagerSACRunnerCfg(RslRlSacRunnerCfg):
     max_iterations = 8000
     save_interval = 500
     experiment_name = "allegro_hand_sac"
+    obs_groups = {"actor": ["policy"], "critic": ["policy"]}
     actor = RslRlResidualMLPModelCfg(
         hidden_dims=[],
         activation="relu",
