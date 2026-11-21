@@ -561,6 +561,11 @@ class NewtonManager(PhysicsManager):
         """Append a one-shot hook invoked once the solver exists, before the initial FK and any graph capture."""
         self.backend.solver_init_callbacks.append(callback)
 
+    def unregister_solver_init_callback(self, callback: Callable[[], None]) -> None:
+        """Remove a pending one-shot solver initialization hook, if still registered."""
+        if self.backend is not None and callback in self.backend.solver_init_callbacks:
+            self.backend.solver_init_callbacks.remove(callback)
+
     def register_pre_actuator_callback(self, callback: Callable[[], None]) -> None:
         """Append a hook invoked before the Newton actuators of every physics step.
 
@@ -594,6 +599,13 @@ class NewtonManager(PhysicsManager):
         if callback not in self.backend.state_force_callbacks:
             self.backend.state_force_callbacks.append(callback)
             self.backend.invalidate_graph()
+
+    def unregister_state_force_callback(self, callback: Callable[[State], None]) -> None:
+        """Remove a force callback and invalidate Newton's cached step graphs."""
+        backend = self.backend
+        if backend is not None and callback in backend.state_force_callbacks:
+            backend.state_force_callbacks.remove(callback)
+            backend.invalidate_graph()
 
     def register_post_step_callback(self, callback: Callable[[], None]) -> None:
         """Append a hook invoked once per :meth:`step`, after the last solver substep and before sensors update.
