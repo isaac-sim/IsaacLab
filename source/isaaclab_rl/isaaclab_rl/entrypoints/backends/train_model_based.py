@@ -19,7 +19,8 @@ import torch.distributed as dist
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.utils import to_dict
 
-from isaaclab_tasks.core.motion_tracking.mdp.model_based.adapter import MotionTrackingAdapter
+from isaaclab_rl.model_based.rollout import PhysicalRollout
+
 from isaaclab_tasks.utils import resolve_task_config, setup_preset_cli
 
 from ...model_based.runner import ModelBasedRunner
@@ -131,7 +132,7 @@ def _train(args, env_cfg, cfg, rank: int, world_size: int) -> None:
         env = wrap_sensor_capture(env, str(output), args)
         runner = None
         try:
-            adapter = MotionTrackingAdapter(env, cfg)
+            adapter = PhysicalRollout(env, cfg)
             runner = ModelBasedRunner(adapter, cfg)
             adapter.reset()
             start = time.monotonic()

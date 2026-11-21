@@ -14,7 +14,8 @@ import torch
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.utils import update_from_dict
 
-from isaaclab_tasks.core.motion_tracking.mdp.model_based.adapter import MotionTrackingAdapter
+from isaaclab_rl.model_based.rollout import PhysicalRollout
+
 from isaaclab_tasks.utils import resolve_task_config, setup_preset_cli
 
 from ...model_based.runner import REFERENCE_REVISION, build_actor
@@ -66,7 +67,7 @@ def run(argv: list[str]) -> None:
     with launch_simulation(cfg, args):
         env = create_isaaclab_env(task, cfg, args, convert_marl_to_single_agent=False)
         try:
-            adapter = MotionTrackingAdapter(env, agent)
+            adapter = PhysicalRollout(env, agent)
             actor = build_actor(adapter, agent).eval()
             actor.load_state_dict(checkpoint["actor"])
             adapter.reset()
@@ -93,7 +94,9 @@ def _restore_environment(cfg, saved: dict) -> None:
         if isinstance(value, list):
             return [relocate(item) for item in value]
         if isinstance(value, str) and value.startswith(old_prefix):
-            return new_prefix + value[len(old_prefix) :]
+            value = new_prefix + value[len(old_prefix) :]
+        if isinstance(value, str):
+            value = value.replace("mdp.model_based.sim_context:", "mdp.model_based.commands:")
         return value
 
     saved = relocate(saved)

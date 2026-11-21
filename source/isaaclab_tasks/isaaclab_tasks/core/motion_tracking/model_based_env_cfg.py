@@ -19,8 +19,8 @@ from isaaclab.utils import configclass
 from isaaclab_tasks.utils import PresetCfg
 
 from .mdp.model_based import observations
+from .mdp.model_based.commands import randomize_context
 from .mdp.model_based.commands_cfg import ReferenceCommandCfg
-from .mdp.model_based.sim_context import randomize_context
 
 
 @configclass

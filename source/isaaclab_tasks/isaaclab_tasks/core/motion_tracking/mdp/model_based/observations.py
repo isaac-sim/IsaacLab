@@ -7,6 +7,8 @@
 
 import torch
 
+from isaaclab.envs.mdp.observations import joint_pos_rel, joint_vel, last_action
+
 from isaaclab_rl.model_based.kinematics import from_native, matrix_from_quat, quat_apply_inverse
 
 from isaaclab_tasks.core.motion_tracking.mdp.model_based.rewards import tracking_reward
@@ -49,9 +51,9 @@ def actor_sensor(env) -> torch.Tensor:
         (
             quat_apply_inverse(quat, gravity),
             quat_apply_inverse(quat, data.root_link_vel_w.torch[:, 3:]),
-            data.joint_pos.torch - data.default_joint_pos.torch + command.encoder_bias,
-            data.joint_vel.torch,
-            env.action_manager.action,
+            joint_pos_rel(env) + command.encoder_bias,
+            joint_vel(env),
+            last_action(env),
         ),
         -1,
     )
@@ -92,5 +94,4 @@ def anchor_orientation_failure(env, threshold: float) -> torch.Tensor:
 
 def motion_end(env) -> torch.Tensor:
     command = env.command_manager.get_term("motion")
-    clip = torch.searchsorted(command.motion.motion_ends, command.time_steps, right=True)
-    return command.time_steps >= command.motion.motion_ends[clip] - 1
+    return command.at_clip_end

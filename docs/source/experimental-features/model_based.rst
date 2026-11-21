@@ -10,18 +10,28 @@ moving branch or an inferred paper configuration, defines the algorithm baseline
 
 The ``isaaclab_rl.model_based`` package owns neural networks, replay, supervised
 world-model learning, BPTT, critic learning, state integration, differentiable
-kinematics, imagined rollouts, and reset sampling. The
+kinematics, and physical and imagined rollouts. The
 ``isaaclab_tasks.core.motion_tracking`` task supplies reference goals, rewards,
-physical observations, and randomization through native managers. Its G1
+physical observations, reset sampling, and randomization through native managers. Its G1
 configuration reuses the controller from the existing motion-tracking task.
 Train and play use the standard Isaac Lab entrypoints.
 
 ``runner.py`` contains the training configuration and loop; ``learners.py`` owns
 world-model and policy updates, including their optimizers. ``models.py`` defines
-the networks, and ``storage.py`` owns transition replay and reset sampling.
-``representations.py``, ``coordinates.py``, and ``kinematics.py`` define task
-contracts, state layouts, and differentiable geometry; ``rollout.py`` integrates
-them for imagined trajectories.
+the networks. ``representations.py`` and ``kinematics.py`` define state layouts
+and differentiable geometry. ``rollout.py`` owns physical transition collection,
+replay, physics-context normalization, and imagined trajectories. Physical
+collection snapshots state, reference frame, action, and context before stepping
+and pairs them with the resulting reward and termination flags.
+
+The task's ``commands.py`` owns reference goals, per-environment cursors, reset
+sampling, and physical randomization. Its small ``MotionReference`` adds FK body
+queries to the shared ``MotionLibrary`` in ``isaaclab.utils.datasets.motion_loader``;
+the shared library owns read-only loading, clip storage, boundaries, and sharding.
+Shared storage uses native XYZW quaternions; the task converts to WXYZ at the
+algorithm boundary. ``commands_cfg.py`` holds input and sampling settings,
+``observations.py`` assembles task state using standard MDP observations where
+applicable, and ``rewards.py`` supplies the shared physical/imagined objective.
 
 Source attribution and licenses
 -------------------------------

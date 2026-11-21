@@ -5,7 +5,7 @@
 
 """Motion inputs and reset settings for model-based tracking."""
 
-from dataclasses import MISSING, dataclass
+from dataclasses import MISSING, dataclass, field
 
 from isaaclab.managers import CommandTermCfg
 from isaaclab.utils import configclass
@@ -52,3 +52,26 @@ class ReferenceCommandCfg(CommandTermCfg):
     evaluation: bool = False
     sampling_mode: str = "external"
     friction_bodies: list[str] = [".*ankle_roll_link"]
+
+
+# Goal settings derived from HybridRobotics/SuperMimic (Apache-2.0).
+# See docs/licenses/dependencies/supermimic-official-license.txt.
+@dataclass
+class VelocityTaskCfg:
+    """Body-frame velocity-command task."""
+
+    lin_vel_x_range: tuple[float, float] = (-1.5, 1.5)
+    lin_vel_y_range: tuple[float, float] = (-0.5, 0.5)
+    ang_vel_z_range: tuple[float, float] = (-3.14, 3.14)
+    window_frames: int = 25
+    """Centered-mean window over motion-velocity command. 0/1 = raw instantaneous."""
+    command_noise: tuple[float, float, float] = (0.5, 0.5, 0.785)
+    """Uniform noise half-width per axis (lin_x, lin_y, ang_z) added to the
+  velocity command each step, then clamped to the configured ranges."""
+
+
+@dataclass
+class TasksCfg:
+    """Per-task hyperparameters. Field order defines slot block ordering."""
+
+    velocity: VelocityTaskCfg = field(default_factory=VelocityTaskCfg)
