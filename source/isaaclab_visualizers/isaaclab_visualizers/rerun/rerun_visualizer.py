@@ -219,7 +219,7 @@ class RerunVisualizer(BaseVisualizer):
             cfg: Rerun visualizer configuration.
         """
         warnings.warn(
-            "The Rerun visualizer is deprecated in Isaac Lab 3.2 and will be removed in Isaac Lab 3.3. "
+            "The Rerun visualizer is deprecated in Isaac Lab 3.1 and will be removed in Isaac Lab 3.3. "
             "Use the Viser visualizer instead (--viz viser, or VisualizerCfg(backend=ViserBackendCfg())).",
             FutureWarning,
             stacklevel=2,
