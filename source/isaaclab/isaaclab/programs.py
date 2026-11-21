@@ -194,6 +194,11 @@ EXAMPLES = (
         "Drop granular MPM material on obstacles.",
     ),
     ProgramSpec(
+        "mpm-sleeping",
+        "examples/mpm/newton_mpm_sleeping.py",
+        "Move a sphere through sand with GPU sleeping and optional evaluation pages.",
+    ),
+    ProgramSpec(
         "mpm-two-way-coupling",
         "examples/mpm/newton_mpm_twoway_coupling.py",
         "Couple MPM sand with rigid bodies.",
