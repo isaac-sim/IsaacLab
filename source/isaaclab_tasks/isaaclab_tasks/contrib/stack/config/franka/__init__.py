@@ -24,6 +24,17 @@ gym.register(
 )
 
 gym.register(
+    id="IsaacContrib-Stack-Cube-Franka-RL",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.stack_rl_env_cfg:FrankaCubeStackRLEnvCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:FrankaStackPPORunnerCfg",
+        "default_agent": "rsl_rl",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
     id="IsaacContrib-Stack-Cube-Instance-Randomize-Franka",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={

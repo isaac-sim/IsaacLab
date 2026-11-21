@@ -288,8 +288,8 @@ class ObservationsCfg:
 
 
 @configclass
-class TerminationsCfg:
-    """Termination terms for the MDP."""
+class StackCommonTerminationsCfg:
+    """Time limit and drop checks shared by the stacking tasks."""
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
 
@@ -304,6 +304,11 @@ class TerminationsCfg:
     cube_3_dropping = DoneTerm(
         func=mdp.root_height_below_minimum, params={"minimum_height": -0.05, "asset_cfg": SceneEntityCfg("cube_3")}
     )
+
+
+@configclass
+class TerminationsCfg(StackCommonTerminationsCfg):
+    """Termination terms for ordered cube stacking."""
 
     success = DoneTerm(func=mdp.cubes_stacked)
 

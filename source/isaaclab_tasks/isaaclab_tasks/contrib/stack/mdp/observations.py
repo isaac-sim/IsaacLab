@@ -15,6 +15,9 @@ import warp as wp
 import isaaclab.utils.math as math_utils
 from isaaclab.managers import SceneEntityCfg
 
+from .robot_state import end_effector_pose, end_effector_velocity
+from .runtime_state import get_stack_reset_runtime_state
+
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject, RigidObjectCollection
     from isaaclab.envs import ManagerBasedRLEnv
@@ -174,6 +177,116 @@ def object_obs(
             cube_1_to_2,
             cube_2_to_3,
             cube_1_to_3,
+        ),
+        dim=1,
+    )
+
+
+def franka_ee_axes(
+    env: ManagerBasedRLEnv,
+    robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    tool_body_name: str = "panda_hand",
+    tool_offset: tuple[float, float, float] = (0.0, 0.0, 0.1034),
+) -> torch.Tensor:
+    """Return continuous configured-tool x/z axes."""
+    _, orientation = end_effector_pose(
+        env,
+        robot_cfg=robot_cfg,
+        body_name=tool_body_name,
+        body_offset=tool_offset,
+    )
+    rotation = math_utils.matrix_from_quat(orientation)
+    return torch.cat((rotation[:, :, 0], rotation[:, :, 2]), dim=1)
+
+
+def franka_ee_velocity(
+    env: ManagerBasedRLEnv,
+    robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    tool_body_name: str = "panda_hand",
+    tool_offset: tuple[float, float, float] = (0.0, 0.0, 0.1034),
+) -> torch.Tensor:
+    """Return the tool velocity approximation used by the published state policy.
+
+    The linear component adds the link-origin tool offset correction to the hand's
+    center-of-mass velocity. Preserve this convention for compatible checkpoints.
+    """
+    return end_effector_velocity(
+        env,
+        robot_cfg=robot_cfg,
+        body_name=tool_body_name,
+        body_offset=tool_offset,
+    )
+
+
+def joint_position_target(env: ManagerBasedRLEnv, robot_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+    """Return commands for the selected robot joint positions [m or rad]."""
+    robot: Articulation = env.scene[robot_cfg.name]
+    return robot.actuators.target_command.position.torch[:, robot_cfg.joint_ids]
+
+
+def role_conditioned_stack_obs(
+    env: ManagerBasedRLEnv,
+    cube_cfgs: tuple[SceneEntityCfg, ...] = (
+        SceneEntityCfg("cube_1"),
+        SceneEntityCfg("cube_2"),
+        SceneEntityCfg("cube_3"),
+    ),
+    robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    cube_height: float = 0.04,
+    tool_body_name: str = "panda_hand",
+    tool_offset: tuple[float, float, float] = (0.0, 0.0, 0.1034),
+    xy_threshold: float = 0.025,
+    height_threshold: float = 0.012,
+) -> torch.Tensor:
+    """Return the published 64-value cube state in reset-assigned role order.
+
+    The reset fixes an episode-long mapping from cube assets to the base and
+    two movable roles. Changing the color assignment leaves these values
+    unchanged when the physical states stay with their roles.
+
+    Returns:
+        Tensor of shape ``(num_envs, 64)``. Columns contain positions from the
+        environment origin (9 m), positions from the tool center (9 m), cube
+        local z axes (9 unitless), linear and angular velocities within each
+        role (18 m/s and rad/s), directed placement errors (18 m), and half the
+        number of stacked pairs (1 unitless). All vectors use world-aligned axes.
+        The placement errors are ordered by upper role then lower role, omitting
+        identical roles, and point from the upper cube to its target on the lower.
+    """
+    from .rewards import _stack_progress_from_positions
+
+    reset_state = get_stack_reset_runtime_state(env)
+
+    cubes: tuple[RigidObject, ...] = tuple(env.scene[cfg.name] for cfg in cube_cfgs)
+    positions = torch.stack(tuple(cube.data.root_pos_w.torch for cube in cubes), dim=1)
+    quaternions = torch.stack(tuple(cube.data.root_quat_w.torch for cube in cubes), dim=1)
+    velocities = torch.stack(tuple(cube.data.root_vel_w.torch for cube in cubes), dim=1)
+    role_to_cube = reset_state.role_to_cube
+
+    def by_role(values: torch.Tensor) -> torch.Tensor:
+        return values.gather(1, role_to_cube.unsqueeze(-1).expand_as(values))
+
+    local_positions = by_role(positions) - env.scene.env_origins.unsqueeze(1)
+    role_quaternions = by_role(quaternions)
+    role_velocities = by_role(velocities)
+    tool_position, _ = end_effector_pose(env, robot_cfg, tool_body_name, tool_offset)
+    rotation = math_utils.matrix_from_quat(role_quaternions.flatten(end_dim=1)).view(env.num_envs, 3, 3, 3)
+    up_axes = rotation[..., 2]
+    tool_relative = local_positions - (tool_position - env.scene.env_origins).unsqueeze(1)
+
+    vertical_offset = local_positions.new_tensor((0.0, 0.0, cube_height))
+    upper_roles = (0, 0, 1, 1, 2, 2)
+    lower_roles = (1, 2, 0, 2, 0, 1)
+    pair_errors = local_positions[:, lower_roles] + vertical_offset - local_positions[:, upper_roles]
+    progress = _stack_progress_from_positions(positions, xy_threshold, height_threshold, cube_height).unsqueeze(1) / 2.0
+    return torch.cat(
+        (
+            local_positions.flatten(start_dim=1),
+            tool_relative.flatten(start_dim=1),
+            up_axes.flatten(start_dim=1),
+            role_velocities.flatten(start_dim=1),
+            pair_errors.flatten(start_dim=1),
+            progress,
         ),
         dim=1,
     )
