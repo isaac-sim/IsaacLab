@@ -1657,7 +1657,6 @@ class NewtonVisualizerBase(BaseVisualizer):
         ``Tracking Camera (fixed to env)`` when it follows no asset.
         """
         views = self._image_views if indices is None else [self._image_views[i] for i in indices]
-        free = [v for v in views if v.camera is None and not self._is_tracking_view(v)]
         tracking = [v for v in views if self._is_tracking_view(v)]
         labels = []
         for view in views:
@@ -1668,8 +1667,7 @@ class NewtonVisualizerBase(BaseVisualizer):
                 asset = (view.cfg.source.track_path or "").partition("/")[0]
                 labels.append(f"{name} (follows {asset})" if asset else f"{name} (fixed to env)")
             else:
-                name = "Perspective" if len(free) == 1 else f"Perspective {free.index(view) + 1}"
-                labels.append(f"{name} (interactive)")
+                labels.append("Perspective (interactive)")
         return labels
 
     _OUTPUT_NAMES = {
