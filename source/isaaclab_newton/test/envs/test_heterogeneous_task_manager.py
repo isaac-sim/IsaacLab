@@ -19,7 +19,13 @@ from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionP
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg, mdp
-from isaaclab.managers import EventTermCfg, ObservationGroupCfg, ObservationTermCfg, SceneEntityCfg
+from isaaclab.managers import (
+    EventTermCfg,
+    HeterogeneousTaskManager,
+    ObservationGroupCfg,
+    ObservationTermCfg,
+    SceneEntityCfg,
+)
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
@@ -48,9 +54,14 @@ class _SceneCfg(InteractiveSceneCfg):
     ground = AssetBaseCfg(prim_path="/World/ground", spawn=sim_utils.GroundPlaneCfg())
 
 
+def _task_ids(env: ManagerBasedRLEnv) -> torch.Tensor:
+    return env.task_manager.task_ids.unsqueeze(1).float()
+
+
 @configclass
 class _PolicyCfg(ObservationGroupCfg):
     object_1 = ObservationTermCfg(func=mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("object_1")})
+    task = ObservationTermCfg(func=_task_ids)
 
 
 @configclass
@@ -127,7 +138,8 @@ class _CubeLeftTaskCfg(_CubeTaskCfg):
 @pytest.fixture(scope="module", params=test_devices(DeviceScope.CUDA))
 def env(request) -> Iterator[ManagerBasedRLEnv]:
     tasks = {"cube": _CubeTaskCfg(), "spheres": _SpheresTaskCfg(), "cube_left": _CubeLeftTaskCfg()}
-    cfg = _EnvCfg(episode_length_s=0.0, tasks=tasks)
+    cfg = _EnvCfg(episode_length_s=0.0)
+    HeterogeneousTaskManager.compose_tasks(cfg, tasks)
     cfg.sim.device = request.param
     env = ManagerBasedRLEnv(cfg)
     try:
@@ -143,7 +155,9 @@ def test_environments_run_their_tasks(env: ManagerBasedRLEnv):
     assert env.max_episode_length == 50
 
     env.task_manager.set_task([1, 3], [1, 1])
-    env.reset()
+    observations, _ = env.reset()
+    # The observation terms of the environment read the task of each environment.
+    assert observations["policy"][:, 3].tolist() == [0.0, 1.0, 0.0, 1.0]
     # The second slot holds the cube or the first sphere.
     masses = env.scene["object_1"].data.body_mass.torch[:, 0]
     torch.testing.assert_close(masses, torch.tensor([1.0, 2.0, 1.0, 2.0], device=env.device))

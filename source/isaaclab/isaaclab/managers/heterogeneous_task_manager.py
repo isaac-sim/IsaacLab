@@ -15,10 +15,11 @@ import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
+from isaaclab.cloner import InclusionSet
 from isaaclab.utils import dict_to_md5_hash, string_to_callable
 
 from .manager_base import ManagerTermBase, _populate_term_defaults
-from .manager_term_cfg import ManagerTermBaseCfg, TerminationTermCfg
+from .manager_term_cfg import EventTermCfg, ManagerTermBaseCfg, TerminationTermCfg
 from .scene_entity_cfg import SceneEntityCfg
 
 if TYPE_CHECKING:
@@ -29,10 +30,26 @@ class HeterogeneousTaskManager:
     """Manager for environments that each run one of several tasks.
 
     The tasks are complete environment configurations, of which their rigid objects, termination terms and
-    episode lengths are used; :meth:`compose_tasks` adds them to the environment. The other managers and scene
-    entities are shared by all tasks. Each environment runs the task set with :meth:`set_task` from its next reset
-    on: the reset selects the task's objects in the slots, where the task changed, and makes their task poses the
-    default root poses, which the environment's reset events write.
+    episode lengths are used; :meth:`compose_tasks` adds them to an environment configuration, with the reset
+    event that creates the manager as ``env.task_manager``. The other managers and scene entities are shared by
+    all tasks. Each environment runs the task set with :meth:`set_task` from its next reset on: the reset selects
+    the task's objects in the slots, where the task changed, and makes their task poses the default root poses,
+    which the environment's reset events write.
+
+    The objects are selected as reset-time mesh variants, which need the Newton backend with the XPBD solver, or
+    with the MJWarp solver and ``use_mujoco_contacts=False``.
+
+    .. code-block:: python
+
+        @configclass
+        class MultiTaskEnvCfg(ManagerBasedRLEnvCfg):
+            def __post_init__(self):
+                HeterogeneousTaskManager.compose_tasks(self, {"lift": LiftEnvCfg(), "stack": StackEnvCfg()})
+
+
+        env = ManagerBasedRLEnv(MultiTaskEnvCfg())
+        # the first two environments run the stack task from their next reset on
+        env.task_manager.set_task([0, 1], [1, 1])
     """
 
     def __init__(self, cfg: dict[str, ManagerBasedRLEnvCfg], env: ManagerBasedRLEnv):
@@ -59,43 +76,59 @@ class HeterogeneousTaskManager:
         self.task_ids = torch.zeros(env.num_envs, dtype=torch.long, device=env.device)
         """Index of the task each environment runs."""
         self._next_task_ids = self.task_ids.clone()
-        # Task whose objects the slots of each environment hold.
+        # Task whose objects the slots of each environment hold; none before the first reset.
         self._slot_task_ids = torch.full_like(self.task_ids, -1)
-        # The clone plan spreads the candidates over the environments: start each with the objects of its task.
-        self.reset(slice(None))
-        # None before the first reset, which selects the objects of every environment again.
-        self._slot_task_ids.fill_(-1)
 
     @staticmethod
-    def compose_tasks(cfg: ManagerBasedRLEnvCfg) -> None:
-        """Add the objects and terminations of :attr:`~isaaclab.envs.ManagerBasedRLEnvCfg.tasks` to ``cfg``.
+    def compose_tasks(cfg: ManagerBasedRLEnvCfg, tasks: dict[str, ManagerBasedRLEnvCfg]) -> None:
+        """Add the objects and terminations of ``tasks`` to ``cfg``, and the reset event that selects the tasks.
 
         The k-th rigid objects of the tasks are the candidates of the scene entity ``object_<k>``, spawned as the
-        reset-time mesh variants of a :class:`~isaaclab.sim.MultiAssetSpawnerCfg`; objects with equal spawn
-        configurations share a candidate. Each task's terminations, other than time-outs and terms that ``cfg``
-        defines itself, are added as ``<task>_<term>`` with their scene entities, the omitted defaults included,
-        renamed to the slots, and hold only in the environments running the task. A term that ``cfg`` defines itself
-        can evaluate the tasks' terms of its name together (see :meth:`task_terms`). The ``time_out`` term ends
-        episodes at the length of their task.
+        reset-time mesh variants of a :class:`~isaaclab.sim.spawners.wrappers.MultiAssetSpawnerCfg`; objects with
+        equal spawn configurations share a candidate. Each task's terminations, other than time-outs and terms that
+        ``cfg`` defines itself, are added as ``<task>_<term>`` with their scene entities, the omitted defaults
+        included, renamed to the slots, and hold only in the environments running the task. A term that ``cfg``
+        defines itself can evaluate the tasks' terms of its name together (see :meth:`task_terms`). The ``time_out``
+        term ends episodes at the length of their task. The reset event ``select_task`` comes before the other
+        events of ``cfg``, which then write the default states of the selected tasks. Every environment starts
+        with the objects of the first task: the clone combinations of the scene pin the first candidate of every
+        slot, so that clone planning does not enumerate the combinations of all candidates.
+
+        Call it before the environment is created, for example in the ``__post_init__`` of its configuration.
 
         Args:
             cfg: The environment configuration, modified in place.
+            tasks: The task configurations, keyed by task name.
         """
-        for slot, objects in enumerate(_slot_objects(cfg.tasks)):
+        slots = _slot_objects(tasks)
+        for slot, objects in enumerate(slots):
             spawn = sim_utils.MultiAssetSpawnerCfg(assets_cfg=_variants(objects)[0], static=False, random_choice=False)
             obj = RigidObjectCfg(
                 prim_path=f"{{ENV_REGEX_NS}}/object_{slot}", spawn=spawn, init_state=objects[0].init_state
             )
             setattr(cfg.scene, f"object_{slot}", obj)
+        # Every environment starts with the objects of the first task, the first candidates of the slots.
+        pins = {f"object_{slot}": 0 for slot in range(len(slots))}
+        combinations = cfg.scene.clone_cfg.clone_combinations
+        if not combinations:
+            combinations.append(InclusionSet(assets=list(pins)))
+        for combination in combinations:
+            combination.variants.update(pins)
         terms = _terms(cfg.terminations)
-        for index, (task_name, task) in enumerate(cfg.tasks.items()):
+        for index, (task_name, task) in enumerate(tasks.items()):
             for name, term in _terms(task.terminations).items():
                 if term is None or term.time_out or name in terms:
                     continue
                 term = TerminationTermCfg(func=task_term, params={"task": index, "term": _slot_term(task, term)})
                 terms[f"{task_name}_{name}"] = term
         terms["time_out"] = TerminationTermCfg(func=task_time_out, time_out=True)
-        cfg.episode_length_s = max(task.episode_length_s for task in cfg.tasks.values())
+        cfg.episode_length_s = max(task.episode_length_s for task in tasks.values())
+        # The tasks are selected before the other reset events write the default states.
+        events = _terms(cfg.events)
+        select = EventTermCfg(func=select_task, mode="reset", params={"tasks": tasks})
+        others = dict(events)
+        events.clear()
+        events.update({"select_task": select, **others})
 
     @staticmethod
     def placeholder(slot: int, kinematic: bool = False) -> RigidObjectCfg:
@@ -125,8 +158,8 @@ class HeterogeneousTaskManager:
             name: Scene entity name of the slot, ``object_<k>``.
 
         Returns:
-            Index into the slot's :attr:`~isaaclab.sim.MultiAssetSpawnerCfg.assets_cfg` per environment, shape
-            (num_envs,).
+            Index into the slot's :attr:`~isaaclab.sim.spawners.wrappers.MultiAssetSpawnerCfg.assets_cfg` per
+            environment, shape (num_envs,).
         """
         return self._variants[int(name.removeprefix("object_")), self.task_ids]
 
@@ -176,6 +209,22 @@ class HeterogeneousTaskManager:
             self._slot_task_ids[changed] = self.task_ids[changed]
         for slot, obj in enumerate(self._slots):
             obj.data.default_root_pose.torch[env_ids] = self._poses[slot, tasks]
+
+
+class select_task(ManagerTermBase):
+    """Reset event that creates the task manager, ``env.task_manager``, and switches the environments to their tasks.
+
+    :meth:`HeterogeneousTaskManager.compose_tasks` adds it to the environment configuration.
+    """
+
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+        env.task_manager = HeterogeneousTaskManager(cfg.params["tasks"], env)
+
+    def __call__(
+        self, env: ManagerBasedRLEnv, env_ids: torch.Tensor | slice, tasks: dict[str, ManagerBasedRLEnvCfg]
+    ) -> None:
+        env.task_manager.reset(env_ids)
 
 
 class task_term(ManagerTermBase):
@@ -233,7 +282,7 @@ def _variants(objects: list[RigidObjectCfg]) -> tuple[list[sim_utils.SpawnerCfg]
 
 
 def _terms(cfg: object | dict) -> dict[str, Any]:
-    """Return the terms of a termination configuration, a configuration class or a dictionary, as a writable mapping."""
+    """Return the terms of a manager configuration, a configuration class or a dictionary, as a writable mapping."""
     return cfg if isinstance(cfg, dict) else vars(cfg)
 
 

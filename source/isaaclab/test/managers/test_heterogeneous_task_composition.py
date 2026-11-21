@@ -11,7 +11,8 @@ import pytest
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
-from isaaclab.managers import HeterogeneousTaskManager, SceneEntityCfg, TerminationTermCfg
+from isaaclab.cloner import CloneCfg, InclusionSet
+from isaaclab.managers import EventTermCfg, HeterogeneousTaskManager, SceneEntityCfg, TerminationTermCfg
 
 pytestmark = pytest.mark.unit
 
@@ -41,16 +42,23 @@ def _task(episode_length_s: float) -> SimpleNamespace:
     )
 
 
+def _env_cfg() -> SimpleNamespace:
+    """An environment configuration with a reset event, which the tasks are composed into."""
+    events = {"reset": EventTermCfg(func=_holds, mode="reset")}
+    scene = SimpleNamespace(clone_cfg=CloneCfg())
+    return SimpleNamespace(scene=scene, terminations={}, events=events, episode_length_s=0.0)
+
+
 def test_compose_tasks_with_dictionary_terminations_and_nested_terms():
     """Dictionary terminations take the tasks' terms, and the entities of nested terms are renamed to the slots."""
-    cfg = SimpleNamespace(
-        scene=SimpleNamespace(), terminations={}, tasks={"a": _task(5.0), "b": _task(8.0)}, episode_length_s=0.0
-    )
-    HeterogeneousTaskManager.compose_tasks(cfg)
+    cfg = _env_cfg()
+    HeterogeneousTaskManager.compose_tasks(cfg, {"a": _task(5.0), "b": _task(8.0)})
     assert sorted(cfg.terminations) == ["a_done", "b_done", "time_out"]
     nested = cfg.terminations["a_done"].params["term"].params["term"]
     assert nested.params["asset_cfg"].name == "object_0"
     assert cfg.episode_length_s == 8.0
+    # The tasks are selected before the environment's own reset events write the default states.
+    assert list(cfg.events) == ["select_task", "reset"]
 
 
 def test_compose_tasks_renames_default_entities():
@@ -60,8 +68,8 @@ def test_compose_tasks_renames_default_entities():
         terminations={"done": TerminationTermCfg(func=_lifted)},
         episode_length_s=5.0,
     )
-    cfg = SimpleNamespace(scene=SimpleNamespace(), terminations={}, tasks={"a": task}, episode_length_s=0.0)
-    HeterogeneousTaskManager.compose_tasks(cfg)
+    cfg = _env_cfg()
+    HeterogeneousTaskManager.compose_tasks(cfg, {"a": task})
     assert cfg.terminations["a_done"].params["term"].params["asset_cfg"].name == "object_0"
     assert _lifted.__defaults__[0].name == "cube"
 
@@ -74,9 +82,28 @@ def test_placeholders_match_kinematic_slots():
         episode_length_s=5.0,
     )
     cube = SimpleNamespace(scene=SimpleNamespace(cube=_object("cube")), terminations={}, episode_length_s=5.0)
-    cfg = SimpleNamespace(
-        scene=SimpleNamespace(), terminations={}, tasks={"shelf": shelf, "cube": cube}, episode_length_s=0.0
-    )
-    HeterogeneousTaskManager.compose_tasks(cfg)
+    cfg = _env_cfg()
+    HeterogeneousTaskManager.compose_tasks(cfg, {"shelf": shelf, "cube": cube})
     stand_ins = [cfg.scene.object_1.spawn.assets_cfg[1], cfg.scene.object_2.spawn.assets_cfg[1]]
     assert [spawn.rigid_props.kinematic_enabled for spawn in stand_ins] == [True, False]
+
+
+def test_environments_start_with_the_first_task():
+    """Every clone combination pins the first candidate of every slot, so clone planning does not enumerate them."""
+    pins = {"object_0": 0, "object_1": 0}
+    task = SimpleNamespace(
+        scene=SimpleNamespace(cube=_object("cube"), ball=_object("ball")), terminations={}, episode_length_s=5.0
+    )
+    cfg = _env_cfg()
+    HeterogeneousTaskManager.compose_tasks(cfg, {"a": task})
+    assert [(combination.assets, combination.variants) for combination in cfg.scene.clone_cfg.clone_combinations] == [
+        (list(pins), pins)
+    ]
+    # The combinations that the scene declares itself keep their assets.
+    cfg = _env_cfg()
+    cfg.scene.clone_cfg.clone_combinations = [InclusionSet(assets=["left_arm"]), InclusionSet(assets=["right_arm"])]
+    HeterogeneousTaskManager.compose_tasks(cfg, {"a": task})
+    assert [(combination.assets, combination.variants) for combination in cfg.scene.clone_cfg.clone_combinations] == [
+        (["left_arm"], pins),
+        (["right_arm"], pins),
+    ]
