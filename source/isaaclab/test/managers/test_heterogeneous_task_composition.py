@@ -61,6 +61,15 @@ def test_compose_tasks_with_dictionary_terminations_and_nested_terms():
     assert list(cfg.events) == ["select_task", "reset"]
 
 
+def test_compose_tasks_keeps_the_terms_of_the_environment():
+    """A termination that the environment defines itself is not added again for each task."""
+    cfg = _env_cfg()
+    cfg.terminations["done"] = own = TerminationTermCfg(func=_holds)
+    HeterogeneousTaskManager.compose_tasks(cfg, {"a": _task(5.0), "b": _task(8.0)})
+    assert sorted(cfg.terminations) == ["done", "time_out"]
+    assert cfg.terminations["done"] is own
+
+
 def test_compose_tasks_renames_default_entities():
     """A term's omitted default scene entity names the task's object, so it is renamed to the object's slot."""
     task = SimpleNamespace(
