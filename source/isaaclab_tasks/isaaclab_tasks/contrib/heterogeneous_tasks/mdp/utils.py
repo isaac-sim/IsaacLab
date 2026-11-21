@@ -8,8 +8,9 @@
 
 Object geometry is read once from the USD prims: the convex hull of an object's meshes and the bounding box of its
 geometry, both in the object frame at world scale. A container's hull without its upward faces is open to the air
-above the rim. In an environment that switches tasks, an object is a slot of
-:class:`~isaaclab.sim.SwitchableAssetsCfg` candidates, and each environment uses the candidate of its task.
+above the rim. In an environment that switches tasks, an object is a slot whose candidates are the reset-time mesh
+variants of a :class:`~isaaclab.sim.spawners.wrappers.MultiAssetSpawnerCfg`, and each environment uses the candidate
+of its task.
 Contacts are the normal forces between rigid objects that the scene's ``contact`` sensor reports.
 
 A predicate is evaluated for all environments at once, each environment with the parameters of its row.
@@ -57,12 +58,18 @@ class Scene:
         self.names = names
         self.gripper = len(names)
         self._assets = [env.scene[name] for name in names]
-        self._switchable = [isinstance(asset.cfg.spawn, sim_utils.SwitchableAssetsCfg) for asset in self._assets]
+        spawns = [asset.cfg.spawn for asset in self._assets]
+        self._switchable = [isinstance(spawn, sim_utils.MultiAssetSpawnerCfg) and not spawn.static for spawn in spawns]
+        stage = sim_utils.get_current_stage()
         geometry, offsets = [], []
         for asset, switchable in zip(self._assets, self._switchable):
-            prim = sim_utils.find_first_matching_prim(asset.cfg.prim_path)
             offsets.append(len(geometry))
-            geometry += [_geometry(candidate) for candidate in (prim.GetChildren() if switchable else [prim])]
+            if switchable:
+                # The candidates are authored once, outside the environments.
+                prims = [stage.GetPrimAtPath(path) for path in asset.cfg.spawn.spawn_paths]
+            else:
+                prims = [sim_utils.find_first_matching_prim(asset.cfg.prim_path)]
+            geometry += [_geometry(prim) for prim in prims]
         faces = max(len(planes) for *_, planes in geometry)
         # Padding planes (n = 0, d = -1) hold for every point.
         padding = np.array([0.0, 0.0, 0.0, -1.0])

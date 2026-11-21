@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from isaaclab.managers import HeterogeneousTaskManager
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.utils import configclass
 
@@ -542,3 +543,4 @@ class VLAHeterogeneousEnvCfg(VLABenchmarkEnvCfg):
             "PickPlace254": PickPlace254EnvCfg(),
             "PickPlace255": PickPlace255EnvCfg(),
         }
+        HeterogeneousTaskManager.compose_tasks(self, self.tasks)

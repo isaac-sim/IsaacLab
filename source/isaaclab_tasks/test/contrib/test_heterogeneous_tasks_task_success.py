@@ -19,7 +19,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg
 from isaaclab.envs import mdp as isaaclab_mdp
-from isaaclab.managers import ObservationGroupCfg, ObservationTermCfg, SceneEntityCfg
+from isaaclab.managers import HeterogeneousTaskManager, ObservationGroupCfg, ObservationTermCfg, SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
@@ -111,11 +111,12 @@ def env(request) -> Iterator[ManagerBasedRLEnv]:
     cfg = _EnvCfg(episode_length_s=0.0)
     cfg.sim.device = request.param
     cfg.terminations.success = DoneTerm(func=mdp.task_success)
-    cfg.tasks = {
+    tasks = {
         "first_in": _task(mdp.object_in_container, "ball"),
         "second_in": _task(mdp.object_in_container, "ball_b"),
         "first_out": _task(mdp.object_outside_of, "ball"),
     }
+    HeterogeneousTaskManager.compose_tasks(cfg, tasks)
     env = ManagerBasedRLEnv(cfg)
     try:
         yield env
@@ -133,5 +134,5 @@ def test_success_follows_the_predicate_and_objects_of_each_task(env: ManagerBase
     place(env, "object_1", [on, on, on, beside])
     place(env, "object_2", [away, away, (0.06, 0.0, 0.15), away])
     for _ in range(30):
-        env.step(torch.zeros(env.num_envs, 0, device=env.device), auto_reset=False)
+        env.step(torch.zeros(env.num_envs, 0, device=env.device))
     assert env.termination_manager.get_term("success").tolist() == [True, False, False, True]
