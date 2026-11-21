@@ -49,6 +49,8 @@ class MultitaskManipulationEnv(ManagerBasedRLEnv):
             self.extras["log"].update(manager.reset(global_env_ids))
 
         index_fill_(self.episode_length_buf, global_env_ids, 0)
+        index_fill_(self.pending_terminated_buf, global_env_ids, False)
+        index_fill_(self.pending_time_outs_buf, global_env_ids, False)
 
     def _get_entity_selection(self, asset_name: str) -> SceneEntitySelectionCfg:
         """Return the cached selection configuration for a complete scene asset."""
