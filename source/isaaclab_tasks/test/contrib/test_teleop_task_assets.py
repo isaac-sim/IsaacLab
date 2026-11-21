@@ -25,12 +25,16 @@ from isaaclab.utils.assets import retrieve_file_path
 _ENV_ROBOT = "{ENV_REGEX_NS}/Robot"
 
 
-def _open_asset(usd_path: str) -> Usd.Stage:
+def _retrieve_asset(usd_path: str) -> str:
     try:
-        local_path = retrieve_file_path(usd_path)
+        return retrieve_file_path(usd_path)
     except (FileNotFoundError, RuntimeError) as exc:
         # The asset server is optional for local test runs: it may be unreachable or fail the download.
         pytest.skip(f"Robot asset is unavailable: {exc}")
+
+
+def _open_asset(usd_path: str) -> Usd.Stage:
+    local_path = _retrieve_asset(usd_path)
     stage = Usd.Stage.Open(local_path)
     assert stage is not None, local_path
     return stage
@@ -236,3 +240,46 @@ def test_gr1t2_kinematics_urdf_reproduces_the_asset_forward_kinematics():
         for name in arm_joints:
             reversed_pose = usd_link_poses(angles | {name: -angles[name]})[wrist]
             assert pose_change(reversed_pose, expected[wrist]) > 1.0e-2, name
+
+
+@pytest.mark.parametrize("task", ["fixed_base_g1", "gr1t2", "gr1t2_waist"])
+def test_xr_head_exclusions_hide_only_visual_head_meshes(task):
+    """OVXR attach fails closed when an exclusion matches nothing; exclude from the real spawned asset."""
+    from pxr import UsdGeom
+
+    from isaaclab_tasks.contrib.locomanip_pick_place.fixed_base_upper_body_ik_g1_env_cfg import (
+        FixedBaseUpperBodyIKG1EnvCfg,
+    )
+    from isaaclab_tasks.contrib.pick_place.pickplace_gr1t2_env_cfg import PickPlaceGR1T2EnvCfg
+    from isaaclab_tasks.contrib.pick_place.pickplace_gr1t2_waist_enabled_env_cfg import (
+        PickPlaceGR1T2WaistEnabledEnvCfg,
+    )
+
+    cfg_type = {
+        "fixed_base_g1": FixedBaseUpperBodyIKG1EnvCfg,
+        "gr1t2": PickPlaceGR1T2EnvCfg,
+        "gr1t2_waist": PickPlaceGR1T2WaistEnabledEnvCfg,
+    }[task]
+    cfg = cfg_type()
+    if cfg.xr is None or not cfg.xr.excluded_visual_meshes:
+        pytest.skip("The teleoperation configuration is unavailable")
+    from isaaclab_teleop.xr_visual_exclusions import exclude_visual_meshes
+
+    # Reference the robot where the single-environment scene spawns it.
+    stage = Usd.Stage.CreateInMemory()
+    stage.DefinePrim("/World/envs/env_0/Robot").GetReferences().AddReference(
+        _retrieve_asset(cfg.scene.robot.spawn.usd_path)
+    )
+    session_sublayers = list(stage.GetSessionLayer().subLayerPaths)
+    with exclude_visual_meshes(stage, cfg.xr.excluded_visual_meshes) as paths:
+        assert paths
+        for path in paths:
+            prim = stage.GetPrimAtPath(path)
+            assert prim.IsA(UsdGeom.Mesh), path
+            assert "head" in path and "collisions" not in path.split("/")
+            assert not prim.HasAPI(UsdPhysics.CollisionAPI)
+            assert UsdGeom.Imageable(prim).ComputeVisibility() == UsdGeom.Tokens.invisible
+    # The exclusion is temporary: exiting removes its session sublayer and the authored visibility.
+    assert list(stage.GetSessionLayer().subLayerPaths) == session_sublayers
+    for path in paths:
+        assert UsdGeom.Imageable(stage.GetPrimAtPath(path)).ComputeVisibility() == UsdGeom.Tokens.inherited

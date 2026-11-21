@@ -45,13 +45,20 @@ from .. import (
     CLOUDXR_JS_ENV,
     CLOUDXR_STANDALONE_ENV,
     IsaacTeleopCfg,
+    OvLibrariesXrCameraFeedCfg,
     se3_gamepad_teleop_cfg,
     se3_keyboard_teleop_cfg,
     se3_spacemouse_teleop_cfg,
 )
 from ..action_policy import initial_hand_tracking_issue, prepare_teleop_action
 from ..device_selection import create_teleop_device, select_teleop_cfg
-from ._ovxr_launch import prepare_ovxr_launch, reject_ovxr_runtime_conflicts
+from ._ovxr_launch import (
+    add_ovxr_presentation_args,
+    prepare_ovxr_launch,
+    reject_ovxr_runtime_conflicts,
+    resolve_ovxr_camera_feeds,
+    validate_ovxr_presentation_args,
+)
 from ._ovxr_presentation import OvxrPresentation, admit_reset_publication, update_idle_presentation
 from ._ovxr_runtime import (
     RENDERER_ATTACH_TIMEOUT_S,
@@ -140,6 +147,7 @@ def _build_parser() -> argparse.ArgumentParser:
         default="ar",
         help="OVXR session mode. Defaults to 'ar'; pass 'vr' for an opaque background.",
     )
+    add_ovxr_presentation_args(parser)
 
     add_launcher_args(parser)
     return parser
@@ -164,6 +172,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         parser.error("--ovxr_step_hz must be finite and non-negative; 0 disables active-control pacing")
     if args_cli.ovxr_step_hz > 0.0 and not args_cli.using_ovxr:
         parser.error("--ovxr_step_hz requires --ovxr")
+    validate_ovxr_presentation_args(parser, args_cli, using_ovxr=args_cli.using_ovxr)
 
     # Call an external callback if requested.
     if args_cli.external_callback:
@@ -196,12 +205,14 @@ def main() -> None:  # noqa: C901
     Returns:
         None
     """
-    env_cfg, teleop_cfg, use_isaac_teleop = _resolve_env_cfg()
+    env_cfg, teleop_cfg, use_isaac_teleop, selected_cameras = _resolve_env_cfg()
     with launch_simulation(env_cfg, args_cli):
-        run_teleoperation(env_cfg, teleop_cfg, use_isaac_teleop=use_isaac_teleop)
+        run_teleoperation(env_cfg, teleop_cfg, use_isaac_teleop=use_isaac_teleop, selected_cameras=selected_cameras)
 
 
-def _resolve_env_cfg() -> tuple[ManagerBasedRLEnvCfg, IsaacTeleopCfg | DeviceCfg, bool]:
+def _resolve_env_cfg() -> tuple[
+    ManagerBasedRLEnvCfg, IsaacTeleopCfg | DeviceCfg, bool, tuple[OvLibrariesXrCameraFeedCfg, ...]
+]:
     """Resolve task configuration and teleop ownership before runtime launch."""
     # Resolve the task configuration through Hydra so CLI presets are applied.
     env_cfg, _ = resolve_task_config(args_cli.task, "")
@@ -257,15 +268,24 @@ def _resolve_env_cfg() -> tuple[ManagerBasedRLEnvCfg, IsaacTeleopCfg | DeviceCfg
         # strip them so the XR headset view is the sole render product.
         if args_cli.disable_external_cameras:
             env_cfg = remove_camera_configs(env_cfg)
+    selected_cameras = ()
     if args_cli.using_ovxr:
-        env_cfg = prepare_ovxr_launch(env_cfg, args_cli.task, args_cli.num_envs)
+        if args_cli.ovxr_camera_feed is not None:
+            from ..ovxr_renderer import OvxrRendererCfg
+
+            # Resolve the panels before launch preparation removes the other cameras, so that an
+            # invalid selection or task layout fails before launch.
+            selected_cameras = resolve_ovxr_camera_feeds(env_cfg, args_cli, OvxrRendererCfg())
+        env_cfg = prepare_ovxr_launch(
+            env_cfg, args_cli.task, args_cli.num_envs, keep=tuple(args_cli.ovxr_camera_feed or ())
+        )
     # A task without a physics selection keeps None: SimulationContext defaults it to PhysxCfg.
     configs, kit_sources = validate_launch(env_cfg, vars(args_cli).copy())
     if args_cli.using_ovxr:
         reject_ovxr_runtime_conflicts(configs, kit_sources)
     if use_isaac_teleop and teleop_cfg.prepare_environment is not None:
         teleop_cfg.prepare_environment(env_cfg)
-    return (env_cfg, teleop_cfg, use_isaac_teleop)
+    return env_cfg, teleop_cfg, use_isaac_teleop, selected_cameras
 
 
 def _apply_teleop_frame(env, action, issue: str | None, haptic_driver, *, render: bool = True) -> tuple[bool, bool]:
@@ -295,6 +315,7 @@ def run_teleoperation(  # noqa: C901
     teleop_cfg: IsaacTeleopCfg | DeviceCfg,
     *,
     use_isaac_teleop: bool,
+    selected_cameras: tuple[OvLibrariesXrCameraFeedCfg, ...] = (),
 ) -> None:
     """Create the environment and teleop device, then run the teleoperation loop until the app is closed."""
 
@@ -332,7 +353,10 @@ def run_teleoperation(  # noqa: C901
 
         if args_cli.using_ovxr:
             presentation = OvxrPresentation.prepare(
-                env_cfg, args_cli, application_name=f"isaaclab-ovxr-teleop-{args_cli.task}"
+                env_cfg,
+                args_cli,
+                application_name=f"isaaclab-ovxr-teleop-{args_cli.task}",
+                camera_feeds=selected_cameras,
             )
 
         try:
@@ -511,7 +535,7 @@ def run_teleoperation(  # noqa: C901
                         # action is None when Isaac Capture session hasn't started yet
                         # (e.g. waiting for user to click "Start AR")
                         if action is None or not teleoperation_active:
-                            update_idle_presentation(env, presentation)
+                            update_idle_presentation(env, presentation, report_timing=False)
                             if haptic_driver is not None:
                                 haptic_driver.stop()
                             action_applied = False

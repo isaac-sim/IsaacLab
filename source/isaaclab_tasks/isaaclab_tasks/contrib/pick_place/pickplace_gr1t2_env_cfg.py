@@ -701,6 +701,9 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
             self.xr = XrCfg(
                 anchor_pos=(0.0, 0.0, 0.0),
                 anchor_rot=(0.0, 0.0, 0.0, 1.0),
+                # The shared anchor places the default eye inside the robot head.
+                # Exclude visual meshes from the eye partition, not source visibility.
+                excluded_visual_meshes=["{ENV_REGEX_NS}/Robot/head_.*_link/visuals/.*"],
             )
             self.isaac_teleop = IsaacTeleopCfg(
                 prepare_environment=prepare_humanoid_teleop_environment,

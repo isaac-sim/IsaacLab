@@ -152,6 +152,16 @@ def test_bootstrap_rejects_an_ordinary_renderer_configuration(monkeypatch):
     assert _UnusedContext.current is None
 
 
+def test_camera_panels_must_use_the_session_renderer_configuration(bootstrap):
+    """A panel with another configuration would get a second renderer that the session never borrows."""
+    from isaaclab_ov.renderers import OVRTXRendererCfg
+
+    for renderer_cfg in (OVRTXRendererCfg(), OvxrRendererCfg(log_level="warn")):
+        camera = SimpleNamespace(renderer_cfg=renderer_cfg, prim_path="/World/Camera")
+        with pytest.raises(ValueError, match="session's renderer configuration"):
+            bootstrap.configure_auxiliary_camera(camera)
+
+
 class _UnusedContext:
     current = None
 
