@@ -28,3 +28,14 @@ def test_visualizer_newton_selects_the_viewer_only():
     env_cfg, _ = resolve_task_config(_TASK, None, overrides=["visualizer=newton"])
 
     assert [type(view.backend) for view in env_cfg.sim.visualizer_cfgs] == [NewtonGLBackendCfg]
+
+
+def test_newton_selects_the_viewer_only_when_chosen_explicitly():
+    """``--viz newton`` resolves to the Newton viewer, while a global ``physics=newton`` leaves the preset alone."""
+    from isaaclab_tasks.utils.hydra import resolve_presets
+    from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
+
+    chosen = resolve_presets(MultiBackendVisualizerCfg(), overrides={"": "newton"})
+    assert isinstance(chosen, NewtonGLBackendCfg)
+
+    assert resolve_presets(MultiBackendVisualizerCfg(), selected=("newton",)) == []

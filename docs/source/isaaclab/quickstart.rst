@@ -208,7 +208,7 @@ without spaces, such as ``--viz newton,viser``.
      - Open the web-based Viser visualizer, useful for remote connections.
      - ``viser``
    * - ``--viz rerun``
-     - Stream the task to the Rerun visualizer. Deprecated in Isaac Lab 3.2 and removed in 3.3; use ``--viz viser``.
+     - Stream the task to the Rerun visualizer. Deprecated in Isaac Lab 3.1 and removed in 3.3; use ``--viz viser``.
      - ``rerun``
    * - ``--viz kit``
      - Open the Kit visualizer when it is available in your environment.

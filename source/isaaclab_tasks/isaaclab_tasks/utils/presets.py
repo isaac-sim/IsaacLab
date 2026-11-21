@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from typing import Any
+from typing import Any, ClassVar
 
 from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
 from isaaclab_newton.renderers import NewtonOptixRendererCfg, NewtonWarpRendererCfg
@@ -70,6 +70,6 @@ class MultiBackendVisualizerCfg(PresetCfg):
     none: list[VisualizerBackendCfg] = []
     default: list[VisualizerBackendCfg] = []
 
-    # ``visualizer=newton`` is translated to ``newton_gl`` where the selector is parsed
-    # (``VISUALIZER_PRESET_FIELDS``), not by an alias here: that would also match the global
-    # ``physics=newton`` / ``presets=newton`` selectors.
+    # ``newton`` selects ``newton_gl`` only when chosen explicitly (``--viz`` or ``visualizer=``), not as an alias
+    # here: a global ``physics=newton`` / ``presets=newton`` would otherwise match this field as well.
+    _explicit_aliases: ClassVar[dict[str, str]] = VISUALIZER_PRESET_FIELDS
