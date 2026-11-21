@@ -96,21 +96,6 @@ def _flag_worlds(env_mask: wp.array(dtype=wp.bool), consume_mask: bool, world_ma
         env_mask[world] = False
 
 
-@wp.kernel(enable_backward=False)
-def _flag_non_finite_worlds(
-    body_q: wp.array(dtype=wp.transformf),
-    body_qd: wp.array(dtype=wp.spatial_vectorf),
-    body_world: wp.array(dtype=wp.int32),
-    non_finite: wp.array(dtype=wp.bool),
-):
-    """Flag the worlds that hold a body whose pose or velocity is not finite."""
-    body = wp.tid()
-    pose = body_q[body]
-    finite_pose = wp.isfinite(wp.transform_get_translation(pose)) and wp.isfinite(wp.transform_get_rotation(pose))
-    if body_world[body] >= 0 and not (finite_pose and wp.isfinite(body_qd[body])):
-        non_finite[body_world[body]] = True
-
-
 @dataclass
 class NewtonCloneRecord:
     """Native replication outputs, kept across hard resets."""
@@ -451,6 +436,7 @@ class NewtonBackend:
         """Body forces [N, N·m] written before the step, re-applied before every substep."""
         self.world_mask = wp.zeros(self.model.world_count + 1, dtype=wp.bool, device=self.device)
         """Worlds to reset; the final slot is Newton's global world, which Isaac Lab never resets."""
+        self._non_finite_worlds = wp.zeros(self.model.world_count, dtype=wp.bool, device=self.device)
         self.fk_mask = wp.zeros(self.model.articulation_count, dtype=wp.bool, device=self.device)
         """Articulations whose forward kinematics must be evaluated."""
         self.kinematics_dirty = False
@@ -508,7 +494,7 @@ class NewtonBackend:
             self.contact_sensors, self.imu_sensors = {}, []
             self.pre_actuator_callbacks, self.post_actuator_callbacks = [], []
             self.state_force_callbacks, self.post_step_callbacks, self.solver_init_callbacks = [], [], []
-            self.world_mask = self.fk_mask = None
+            self.world_mask = self.fk_mask = self._non_finite_worlds = None
 
     def init_solver(
         self,
@@ -794,23 +780,16 @@ class NewtonBackend:
         return captured
 
     def get_non_finite_worlds(self) -> wp.array:
-        """Return which worlds hold a body whose pose or velocity is not finite after the last step.
+        """Return a borrowed per-world mask of nonfinite Newton state and persistent solver buffers.
 
-        Bodies of Newton's global world (``-1``) are not checked; the returned mask has no slot for it.
-
-        Returns:
-            Boolean array of shape (world_count,).
+        Newton's global world is excluded. Solver integrations own checks of their private state.
+        CPU MuJoCo has global solver history, so a fault in that history flags every world.
         """
-        model, state = self.model, self.state_0
-        non_finite = wp.zeros(model.world_count, dtype=wp.bool, device=self.device)
-        wp.launch(
-            _flag_non_finite_worlds,
-            dim=model.body_count,
-            inputs=[state.body_q, state.body_qd, model.body_world],
-            outputs=[non_finite],
-            device=self.device,
-        )
-        return non_finite
+        faults = self._non_finite_worlds
+        faults.zero_()
+        with wp.ScopedDevice(self.device):
+            self.solver_ops.mark_non_finite_worlds(self.state_0, faults)
+        return faults
 
     def state_pointers(self) -> tuple[int, int]:
         """Addresses of :attr:`state_0`'s body and particle arrays, ``0`` for an absent array.

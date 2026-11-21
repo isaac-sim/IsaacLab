@@ -42,15 +42,13 @@ class RewardManager(ManagerBase):
     _env: ManagerBasedRLEnv
     """The environment instance."""
 
-    def __init__(self, cfg: object, env: ManagerBasedRLEnv, *, drop_non_finite: bool = True):
+    def __init__(self, cfg: object, env: ManagerBasedRLEnv):
         """Initialize the reward manager.
 
         Args:
             cfg: The configuration object or dictionary (``dict[str, RewardTermCfg]``).
             env: The environment instance.
-            drop_non_finite: Whether a term value that is not finite counts as zero for that step.
         """
-        self._drop_non_finite = drop_non_finite
         # create buffers to parse and store terms
         self._term_names: list[str] = []
         self._term_cfgs: list[RewardTermCfg] = []
@@ -124,18 +122,15 @@ class RewardManager(ManagerBase):
             term_cfg.func.reset(env_ids=env_ids)
         return extras
 
-    def compute(self, dt: float) -> torch.Tensor:
+    def compute(self, dt: float, invalid_envs: torch.Tensor | None = None) -> torch.Tensor:
         """Computes the reward signal as a weighted sum of individual terms.
 
         This function calls each reward term managed by the class and adds them to compute the net
         reward signal. It also updates the episodic sums corresponding to individual reward terms.
 
-        With ``drop_non_finite``, a term value that is not finite, for instance after the simulation of an
-        environment diverged, counts as zero for that step so that it reaches neither the learner nor the episodic
-        sums.
-
         Args:
             dt: The time-step interval of the environment.
+            invalid_envs: Mask of corrupted transitions whose rewards and episode contributions are zero.
 
         Returns:
             The net reward signal of shape (num_envs,).
@@ -153,8 +148,8 @@ class RewardManager(ManagerBase):
             else:
                 # broadcast scalar values
                 step_reward[:] = value * term_cfg.weight
-        if self._drop_non_finite:
-            self._step_reward.nan_to_num_(nan=0.0, posinf=0.0, neginf=0.0)
+        if invalid_envs is not None:
+            self._step_reward.masked_fill_(invalid_envs[:, None], 0.0)
         # update total reward and episodic sums with the time-step scaling
         torch.sum(self._step_reward, dim=1, out=self._reward_buf).mul_(dt)
         self._episode_sum_buf.add_(self._step_reward, alpha=dt)

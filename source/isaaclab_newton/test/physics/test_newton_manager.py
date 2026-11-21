@@ -1120,7 +1120,11 @@ def test_non_finite_worlds_flag_each_non_finite_body_component_and_skip_the_glob
     backend = backend_stub(
         device=wp.get_device("cpu"),
         model=SimpleNamespace(
-            world_count=4, body_count=5, body_world=wp.array([0, 1, 2, 3, -1], dtype=wp.int32, device="cpu")
+            world_count=4,
+            body_count=5,
+            joint_count=0,
+            particle_count=0,
+            body_world=wp.array([0, 1, 2, 3, -1], dtype=wp.int32, device="cpu"),
         ),
         state_0=SimpleNamespace(
             body_q=wp.array(poses, dtype=wp.transformf, device="cpu"),
@@ -1128,6 +1132,12 @@ def test_non_finite_worlds_flag_each_non_finite_body_component_and_skip_the_glob
         ),
     )
 
+    from isaaclab_newton.physics.newton_solver import NewtonSolver
+
+    backend._non_finite_worlds = wp.zeros(4, dtype=wp.bool, device="cpu")
+    ops = object.__new__(NewtonSolver)
+    ops.native = SimpleNamespace(model=backend.model)
+    backend.solver_ops = ops
     assert backend.get_non_finite_worlds().numpy().tolist() == [False, True, True, True]
 
 
@@ -1268,3 +1278,93 @@ def test_handled_actions_run_before_every_physics_step_like_the_environment_loop
     np.testing.assert_allclose(velocities[:2], velocities[2:], rtol=1e-5, atol=1e-6)
     # damping holds the body well below free-fall speed
     assert velocities[0][0, 2] > -0.5 * 9.81 * num_steps * decimation * 0.01
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
+def test_solver_fault_detects_private_buffers_and_recovers_only_the_failed_world(device):
+    """Poisoned MuJoCo state is detected even with finite body poses, and masked recovery matches a clean solve."""
+    cfg = NewtonCfg(solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=True), num_substeps=1, use_cuda_graph=False)
+    backend, reference = (_pendulums(cfg, 1, device) for _ in range(2))
+    original_q = backend.state_0.joint_q.numpy()
+    art_ids = wp.array(np.arange(4).reshape(4, 1), dtype=wp.int32, device=device)
+    world_mask = wp.array([False, True, False, False], dtype=wp.bool, device=device)
+    checked = []
+    for name in (
+        "qpos",
+        "qvel",
+        "qacc",
+        "qfrc_actuator",
+        "qacc_warmstart",
+        "qfrc_applied",
+        "ctrl",
+        "act",
+        "xfrc_applied",
+    ):
+        values = wp.to_torch(getattr(backend.solver.mjw_data, name))
+        if values.numel() == 0:
+            continue
+        checked.append(name)
+        values[1].fill_(float("nan"))
+        assert np.isfinite(backend.state_0.body_q.numpy()).all()
+        assert backend.get_non_finite_worlds().numpy().tolist() == [False, True, False, False]
+        # Use the same authored-state and FK boundary as the normal scene reset.
+        for target in (backend, reference):
+            wp.to_torch(target.state_0.joint_q)[1] = float(original_q[1])
+            wp.to_torch(target.state_0.joint_qd)[1] = 0.0
+            target.invalidate_fk(world_mask, art_ids)
+            target.forward()
+            target.step()
+        assert not backend.get_non_finite_worlds().numpy().any(), name
+        np.testing.assert_allclose(
+            backend.state_0.joint_q.numpy(), reference.state_0.joint_q.numpy(), atol=1e-6, rtol=1e-5
+        )
+        np.testing.assert_allclose(
+            backend.state_0.joint_qd.numpy(), reference.state_0.joint_qd.numpy(), atol=1e-6, rtol=1e-5
+        )
+    assert {"qpos", "qvel", "qacc", "qfrc_actuator", "qacc_warmstart", "qfrc_applied", "xfrc_applied"} <= set(checked)
+
+
+def test_non_finite_joint_and_particle_state_is_detected_before_body_state_changes():
+    """Joint coordinates and particle state remain observable when finite rigid-body output hides a fault."""
+    cfg = NewtonCfg(solver_cfg=XPBDSolverCfg(), use_cuda_graph=False)
+    backend = _pendulums(cfg, 1, "cpu")
+    wp.to_torch(backend.state_0.joint_q)[0] = float("nan")
+    wp.to_torch(backend.state_0.joint_qd)[2] = float("inf")
+    assert np.isfinite(backend.state_0.body_q.numpy()).all()
+    assert backend.get_non_finite_worlds().numpy().tolist() == [True, False, True, False]
+    wp.to_torch(backend.state_0.joint_q)[0] = 0.0
+    assert backend.get_non_finite_worlds().numpy().tolist() == [False, False, True, False]
+
+    builder = create_builder(cfg)
+    for _ in range(3):
+        builder.begin_world()
+        builder.add_particle(pos=wp.vec3(0.0), vel=wp.vec3(0.0), mass=1.0)
+        builder.end_world()
+    builder.add_particle(pos=wp.vec3(0.0), vel=wp.vec3(0.0), mass=1.0)
+    backend = NewtonBackend(NewtonBackendCfg(physics_cfg=cfg, device="cpu"), builder, dt=0.01)
+    backend.init_solver()
+    wp.to_torch(backend.state_0.particle_q)[1, 0] = float("nan")
+    wp.to_torch(backend.state_0.particle_qd)[2, 2] = float("inf")
+    wp.to_torch(backend.state_0.particle_q)[3].fill_(float("nan"))
+    assert backend.get_non_finite_worlds().numpy().tolist() == [False, True, True]
+
+
+def test_cpu_mujoco_global_solver_history_invalidates_all_worlds_and_recovers():
+    """CPU MuJoCo's unmasked private reset must not silently invalidate an unreported healthy world."""
+    cfg = NewtonCfg(solver_cfg=MJWarpSolverCfg(use_mujoco_cpu=True), num_substeps=1, use_cuda_graph=False)
+    builder = create_builder(cfg)
+    builder.begin_world()
+    link = builder.add_link(mass=1.0, inertia=wp.diag(wp.vec3(0.01)))
+    builder.add_articulation([builder.add_joint_revolute(-1, link)])
+    builder.end_world()
+    backend = NewtonBackend(NewtonBackendCfg(physics_cfg=cfg, device="cpu"), builder, dt=0.01)
+    backend.init_solver()
+    backend.solver.mj_data.qacc_warmstart[0] = float("nan")
+    assert backend.get_non_finite_worlds().numpy().all()
+    backend.invalidate_fk(
+        wp.array([True], dtype=wp.bool, device="cpu"),
+        wp.array(np.arange(1).reshape(1, 1), dtype=wp.int32, device="cpu"),
+    )
+    backend.forward()
+    backend.step()
+    assert not backend.get_non_finite_worlds().numpy().any()

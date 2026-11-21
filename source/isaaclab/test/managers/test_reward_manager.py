@@ -92,67 +92,48 @@ def test_config_equivalence(env):
 
 
 def test_compute():
-    """A partial reset reports each term's accumulated reward and preserves other environments.
-
-    A non-finite term value counts as zero for that step, so the reward and the episodic sums stay finite, and the
-    environment accumulates normally again once it is reset.
-    """
+    """A partial reset reports each term's accumulated reward and preserves other environments."""
     num_envs, dt, max_episode_length_s = 3, 0.25, 2.0
-    nan, inf = float("nan"), float("inf")
     sim = MagicMock()
     sim.is_playing.return_value = False
-    env = SimpleNamespace(
-        num_envs=num_envs,
-        device="cpu",
-        sim=sim,
-        max_episode_length_s=max_episode_length_s,
-        step=0,
-        root_speed=torch.full((num_envs,), 4.0),
-    )
+    env = SimpleNamespace(num_envs=num_envs, device="cpu", sim=sim, max_episode_length_s=max_episode_length_s, step=0)
     cfg = {
         "scaled": RewardTermCfg(func=env_index_scaled, weight=-2.0, params={"factor": 1.0}),
         "scalar": RewardTermCfg(func=grilled_chicken, weight=4.0),
         "disabled": RewardTermCfg(func=grilled_chicken_with_bbq, weight=0.0, params={"bbq": True}),
-        "speed": RewardTermCfg(func=root_speed, weight=1.0),
     }
     rew_man = RewardManager(cfg, env)
 
-    env.step = 1
-    torch.testing.assert_close(rew_man.compute(dt=dt), torch.tensor([2.0, 1.5, 1.0]))
-    # The simulation of environments 1 and 2 diverged: their speed contributes nothing this step.
-    env.step, env.root_speed = 2, torch.tensor([4.0, nan, inf])
-    torch.testing.assert_close(rew_man.compute(dt=dt), torch.tensor([2.0, 0.0, -1.0]))
+    for step, expected in ((1, [1.0, 0.5, 0.0]), (2, [1.0, 0.0, -1.0])):
+        env.step = step
+        torch.testing.assert_close(rew_man.compute(dt=dt), torch.tensor(expected))
 
     reset_env_2 = rew_man.reset(torch.tensor([2]))
     assert {name: value.item() for name, value in reset_env_2.items()} == {
         "Episode_Reward/scaled": -1.5,
         "Episode_Reward/scalar": 1.0,
         "Episode_Reward/disabled": 0.0,
-        "Episode_Reward/speed": 0.5,
     }
-    # Environment 2 restarts from a valid state while environment 1 is still diverged.
-    env.step, env.root_speed = 3, torch.tensor([4.0, nan, 4.0])
-    torch.testing.assert_close(rew_man.compute(dt=dt), torch.tensor([2.0, -0.5, -1.0]))
-
     reset_env_1 = rew_man.reset(torch.tensor([1]))
-    assert {name: value.item() for name, value in reset_env_1.items()} == {
-        "Episode_Reward/scaled": -1.5,
-        "Episode_Reward/scalar": 1.5,
-        "Episode_Reward/disabled": 0.0,
-        "Episode_Reward/speed": 0.5,
-    }
-    reset_env_2 = rew_man.reset(torch.tensor([2]))
-    assert {name: value.item() for name, value in reset_env_2.items()} == {
-        "Episode_Reward/scaled": -1.5,
-        "Episode_Reward/scalar": 0.5,
-        "Episode_Reward/disabled": 0.0,
-        "Episode_Reward/speed": 0.5,
-    }
+    assert reset_env_1["Episode_Reward/scaled"].item() == -0.75
+    assert reset_env_1["Episode_Reward/scalar"].item() == 1.0
+    assert all(value.item() == 0.0 for value in rew_man.reset(torch.tensor([2])).values())
 
-    # Without the option, non-finite values pass through.
-    env.root_speed = torch.tensor([4.0, nan, inf])
-    reward = RewardManager(cfg, env, drop_non_finite=False).compute(dt=dt)
-    assert reward[0].item() == 2.0 and torch.isnan(reward[1]) and torch.isinf(reward[2])
+    # A fault invalidates every term in that row, including finite positive rewards.
+    rew_man.reset()
+    rew_man.set_term_cfg(
+        "scaled", RewardTermCfg(func=lambda env: torch.tensor([float("nan"), 5.0, float("inf")]), weight=-2.0)
+    )
+    torch.testing.assert_close(
+        rew_man.compute(dt, invalid_envs=torch.tensor([True, False, True])), torch.tensor([0.0, -1.5, 0.0])
+    )
+    faults = rew_man.reset(torch.tensor([0, 2]))
+    assert all(value == 0.0 for value in faults.values())
+    healthy = rew_man.reset(torch.tensor([1]))
+    assert healthy["Episode_Reward/scaled"].item() == -1.25
+    assert healthy["Episode_Reward/scalar"].item() == 0.5
+    # With no invalid-transition mask, nonfinite rewards still surface.
+    assert not torch.isfinite(rew_man.compute(dt)[[0, 2]]).any()
 
 
 def test_config_empty(env):
@@ -217,8 +198,3 @@ def test_invalid_reward_config(env):
 
 def env_index_scaled(env, factor: float):
     return factor * env.step * torch.arange(env.num_envs, dtype=torch.float, device=env.device)
-
-
-def root_speed(env):
-    """A state-based term, which is NaN or infinite for an environment whose simulation diverged."""
-    return env.root_speed

@@ -470,6 +470,13 @@ class TerminationTermCfg(ManagerTermBaseCfg):
     shape (num_envs,).
     """
 
+    invalid_transition: bool = False
+    """Whether this term identifies a corrupted transition, such as a physics fault.
+
+    The environment treats it as a termination, zeros every reward term before accumulation, and zeros
+    its terminal observation. Normal task failures and time limits should leave this False.
+    """
+
     time_out: bool = False
     """Whether the termination term contributes towards episodic timeouts. Defaults to False.
 

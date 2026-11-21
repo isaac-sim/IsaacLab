@@ -17,9 +17,10 @@ if TYPE_CHECKING:
 
 
 def solver_fault(env: ManagerBasedRLEnv) -> torch.Tensor:
-    """Terminate the environments whose body pose or velocity is not finite after the last step.
+    """Terminate worlds with nonfinite Newton state or persistent solver buffers.
 
-    See :meth:`~isaaclab_newton.physics.NewtonManager.get_non_finite_worlds`. Resetting such an environment
-    restores a valid state while the other environments keep running.
+    Configure with TerminationTermCfg(invalid_transition=True) to zero the faulted transition's reward
+    and terminal observation. Normal environment reset clears solver history for the affected worlds.
+    CPU MuJoCo has global solver history, so a fault in that history terminates every world.
     """
     return wp.to_torch(env.sim.backend_manager.get_non_finite_worlds())

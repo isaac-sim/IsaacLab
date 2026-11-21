@@ -69,6 +69,7 @@ class TerminationManager(ManagerBase):
         # create buffer for managing termination per environment
         self._truncated_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.bool)
         self._terminated_buf = torch.zeros_like(self._truncated_buf)
+        self._invalid_buf = torch.zeros_like(self._truncated_buf)
 
     def __str__(self) -> str:
         """Returns: A string representation for termination manager."""
@@ -112,6 +113,11 @@ class TerminationManager(ManagerBase):
         timed out (i.e. reached max episode length).
         """
         return self._truncated_buf
+
+    @property
+    def invalid_transitions(self) -> torch.Tensor | None:
+        """Faulted environments this step, or None when no term declares invalid transitions."""
+        return self._invalid_buf if any(cfg.invalid_transition for cfg in self._term_cfgs) else None
 
     @property
     def terminated(self) -> torch.Tensor:
@@ -161,11 +167,15 @@ class TerminationManager(ManagerBase):
         # reset computation
         self._truncated_buf[:] = False
         self._terminated_buf[:] = False
+        self._invalid_buf[:] = False
         # iterate over all the termination terms
         for i, term_cfg in enumerate(self._term_cfgs):
             value = term_cfg.func(self._env, **term_cfg.params)
             # store timeout signal separately
-            if term_cfg.time_out:
+            if term_cfg.invalid_transition:
+                self._invalid_buf |= value
+                self._terminated_buf |= value
+            elif term_cfg.time_out:
                 self._truncated_buf |= value
             else:
                 self._terminated_buf |= value

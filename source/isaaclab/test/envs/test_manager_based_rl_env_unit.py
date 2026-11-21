@@ -107,10 +107,15 @@ def test_obs_space_follows_clip_constraint():
 
 
 @pytest.mark.kitless
-@pytest.mark.parametrize("env_kind", ["manager", "direct", "marl"])
+@pytest.mark.parametrize("env_kind", ["manager", "manager_fault", "direct", "marl"])
 def test_final_observations_are_owned_and_cleared_each_step_and_reset(env_kind: str) -> None:
     """An autoreset step exposes owned terminal observations; the next step and an explicit reset drop them."""
-    cls = {"manager": ManagerBasedRLEnv, "direct": DirectRLEnv, "marl": DirectMARLEnv}[env_kind]
+    cls = {
+        "manager": ManagerBasedRLEnv,
+        "manager_fault": ManagerBasedRLEnv,
+        "direct": DirectRLEnv,
+        "marl": DirectMARLEnv,
+    }[env_kind]
     env = object.__new__(cls)
     env._is_closed = True
     env.cfg = SimpleNamespace(
@@ -168,7 +173,7 @@ def test_final_observations_are_owned_and_cleared_each_step_and_reset(env_kind: 
     timeout = torch.zeros(2, dtype=torch.bool)
     reward = torch.zeros(2)
     actions = torch.zeros(2, 1)
-    if env_kind == "manager":
+    if env_kind in ("manager", "manager_fault"):
         group = ObservationGroupCfg()
         group.value = ObservationTermCfg(func=lambda env: state)
         env.observation_manager = ObservationManager({"policy": group}, env)
@@ -180,7 +185,12 @@ def test_final_observations_are_owned_and_cleared_each_step_and_reset(env_kind: 
             record_post_reset=lambda ids: None,
         )
         env.action_manager = SimpleNamespace(process_action=lambda action: None, apply_action=lambda: None)
-        env.termination_manager = SimpleNamespace(compute=lambda: done.clone(), terminated=done, time_outs=timeout)
+        env.termination_manager = SimpleNamespace(
+            compute=lambda: done.clone(),
+            terminated=done,
+            time_outs=timeout,
+            invalid_transitions=done if env_kind == "manager_fault" else None,
+        )
         env.reward_manager = SimpleNamespace(compute=lambda **kwargs: reward)
         env.command_manager = SimpleNamespace(compute=lambda **kwargs: None)
     else:
@@ -202,11 +212,16 @@ def test_final_observations_are_owned_and_cleared_each_step_and_reset(env_kind: 
         obs = extras_of(agent)["final_obs"]
         return obs if env_kind == "marl" else obs["policy"]
 
+    if env_kind == "manager_fault":
+        state[0] = float("nan")
+
     # step 1 ends env 0's episode: its terminal observation is the post-physics state, unaffected by the reset
     done[0] = True
     env.step(actions)
     for agent in agents:
-        torch.testing.assert_close(terminal(agent), torch.tensor([[11.0], [21.0]]))
+        torch.testing.assert_close(
+            terminal(agent), torch.tensor([[0.0 if env_kind == "manager_fault" else 11.0], [21.0]])
+        )
     # step 2 has no reset, so no terminal observation remains from step 1
     done[0] = False
     env.step(actions)
@@ -223,7 +238,7 @@ def test_final_observations_are_owned_and_cleared_each_step_and_reset(env_kind: 
         assert extras_of(agent)["log"] == {"episode": 1}
         assert extras_of(agent)["user"] is sentinel
     # reset_to does the same for manager-based environments
-    if env_kind == "manager":
+    if env_kind in ("manager", "manager_fault"):
         env.step(actions)
         assert "final_obs" in env.extras
         env.reset_to({}, None)
@@ -269,8 +284,9 @@ def test_step_forwards_reset_state_before_observations(automatic: bool, manual: 
         compute=lambda: torch.tensor([automatic, False]),
         terminated=torch.tensor([automatic, False]),
         time_outs=torch.zeros(2, dtype=torch.bool),
+        invalid_transitions=None,
     )
-    env.reward_manager = SimpleNamespace(compute=lambda dt: torch.zeros(2))
+    env.reward_manager = SimpleNamespace(compute=lambda **kwargs: torch.zeros(2))
     env._reset_idx = lambda ids: calls.append("reset")
     env.command_manager = SimpleNamespace(compute=lambda dt: None)
     env.event_manager = SimpleNamespace(active_terms={})

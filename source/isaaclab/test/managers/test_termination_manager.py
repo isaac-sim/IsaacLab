@@ -120,3 +120,22 @@ def test_time_out_vs_terminated_split(env):
     out = tm.compute()
     assert torch.all(out)
     assert torch.all(tm.terminated) and torch.all(tm.time_outs)
+
+
+def test_invalid_transitions_are_terminations_and_update_with_the_config(env):
+    """Fault masks combine configured terms and override coincident timeout semantics."""
+    tm = TerminationManager(
+        {
+            "fault": TerminationTermCfg(func=fail_every_5_steps, invalid_transition=True, time_out=True),
+            "time_limit": TerminationTermCfg(func=fail_every_10_steps, time_out=True),
+        },
+        env,
+    )
+    env.counter = 5
+    tm.compute()
+    assert tm.invalid_transitions.all() and tm.terminated.all() and not tm.time_outs.any()
+    env.counter = 6
+    tm.compute()
+    assert not tm.invalid_transitions.any() and not tm.dones.any()
+    tm.set_term_cfg("fault", TerminationTermCfg(func=fail_every_5_steps))
+    assert tm.invalid_transitions is None

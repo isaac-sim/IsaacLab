@@ -123,7 +123,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         self.termination_manager = TerminationManager(self.cfg.terminations, self)
         logger.info(f"Termination Manager: {self.termination_manager}")
         # -- reward manager
-        self.reward_manager = RewardManager(self.cfg.rewards, self, drop_non_finite=self.cfg.drop_non_finite_values)
+        self.reward_manager = RewardManager(self.cfg.rewards, self)
         logger.info(f"Reward Manager: {self.reward_manager}")
         # -- curriculum manager
         self.curriculum_manager = CurriculumManager(self.cfg.curriculum, self)
@@ -157,11 +157,9 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         }
         scalars = {
             "episode": {
-                "mean_reward": lambda: (
-                    float(getattr(self, "reward_buf", None).mean())
-                    if getattr(self, "reward_buf", None) is not None
-                    else 0.0
-                ),
+                "mean_reward": lambda: float(getattr(self, "reward_buf", None).mean())
+                if getattr(self, "reward_buf", None) is not None
+                else 0.0,
                 "episode_length": lambda: float(self.episode_length_buf.float().mean()),
             }
         }
@@ -241,7 +239,8 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         self.reset_buf = self.termination_manager.compute()
         self.reset_terminated = self.termination_manager.terminated
         self.reset_time_outs = self.termination_manager.time_outs
-        self.reward_buf = self.reward_manager.compute(dt=self.step_dt)
+        invalid_envs = self.termination_manager.invalid_transitions
+        self.reward_buf = self.reward_manager.compute(dt=self.step_dt, invalid_envs=invalid_envs)
 
         self.recorder_manager.record_post_step()
 
@@ -250,10 +249,9 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         if len(reset_env_ids) > 0:
             # capture the terminal observation before reset and expose it for Same-Step autoreset.
             if self.cfg.compute_final_obs:
-                final_obs = self.observation_manager.compute()
-                if self.cfg.drop_non_finite_values:
-                    _drop_non_finite(final_obs)
-                self.extras["final_obs"] = final_obs
+                self.extras["final_obs"] = self.observation_manager.compute()
+                if invalid_envs is not None:
+                    _zero_invalid_observations(self.extras["final_obs"], invalid_envs)
             self.recorder_manager.record_pre_reset(reset_env_ids)
 
             self._reset_idx(reset_env_ids)
@@ -435,10 +433,10 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         index_fill_(self.episode_length_buf, env_ids, 0)
 
 
-def _drop_non_finite(observations: dict) -> None:
-    """Replace NaN and infinite entries of nested observation tensors by zero, in place."""
+def _zero_invalid_observations(observations: dict, invalid_envs: torch.Tensor) -> None:
+    """Zero complete observation rows for corrupted terminal transitions."""
     for value in observations.values():
         if isinstance(value, dict):
-            _drop_non_finite(value)
+            _zero_invalid_observations(value, invalid_envs)
         else:
-            value.nan_to_num_(nan=0.0, posinf=0.0, neginf=0.0)
+            value.masked_fill_(invalid_envs.reshape((-1,) + (1,) * (value.ndim - 1)), 0.0)

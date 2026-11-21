@@ -332,7 +332,7 @@ class NewtonManager(PhysicsManager):
         return {} if clone is None else clone.source_builders
 
     def get_non_finite_worlds(self) -> wp.array:
-        """Return which worlds hold a non-finite body state; see :meth:`NewtonBackend.get_non_finite_worlds`."""
+        """Return faulted worlds; see :meth:`NewtonBackend.get_non_finite_worlds`."""
         return self.backend.get_non_finite_worlds()
 
     def request_extended_state_attribute(self, attr: str) -> None:
