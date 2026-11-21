@@ -12,13 +12,6 @@ from collections.abc import Sequence
 import warp as wp
 
 from ...utils.backend_utils import FactoryBase
-from ...utils.leapp import (
-    POSE7_ELEMENT_NAMES,
-    QUAT_XYZW_ELEMENT_NAMES,
-    XYZ_ELEMENT_NAMES,
-    InputKindEnum,
-    leapp_tensor_semantics,
-)
 from ...utils.warp import ProxyArray
 from ...utils.warp.memory import split_views
 from .base_pva_data import BasePvaData
@@ -77,7 +70,6 @@ class _PvaDataStorage(BasePvaData):
             self._projected_gravity_b = ProxyArray(self._gravity_b)
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names=POSE7_ELEMENT_NAMES)
     def pose_w(self) -> ProxyArray | None:
         """Pose of the sensor origin in world frame [m, unitless].
 
@@ -87,7 +79,6 @@ class _PvaDataStorage(BasePvaData):
         return self._pose_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names=XYZ_ELEMENT_NAMES)
     def pos_w(self) -> ProxyArray | None:
         """Position of the sensor origin in world frame [m].
 
@@ -96,7 +87,6 @@ class _PvaDataStorage(BasePvaData):
         return self._pos_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names=QUAT_XYZW_ELEMENT_NAMES)
     def quat_w(self) -> ProxyArray | None:
         """Orientation of the sensor origin in world frame.
 
@@ -106,7 +96,6 @@ class _PvaDataStorage(BasePvaData):
         return self._quat_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.VECTOR3D, element_names=XYZ_ELEMENT_NAMES)
     def projected_gravity_b(self) -> ProxyArray | None:
         """Gravity direction unit vector projected on the PVA frame.
 
@@ -117,7 +106,6 @@ class _PvaDataStorage(BasePvaData):
         return self._projected_gravity_b
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
     def lin_vel_b(self) -> ProxyArray | None:
         """PVA frame linear velocity relative to the world expressed in PVA frame [m/s].
 
@@ -128,7 +116,6 @@ class _PvaDataStorage(BasePvaData):
         return self._lin_vel_b
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
     def ang_vel_b(self) -> ProxyArray | None:
         """PVA frame angular velocity relative to the world expressed in PVA frame [rad/s].
 
@@ -139,7 +126,6 @@ class _PvaDataStorage(BasePvaData):
         return self._ang_vel_b
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_ACCELERATION, element_names=XYZ_ELEMENT_NAMES)
     def lin_acc_b(self) -> ProxyArray | None:
         """Linear acceleration (coordinate) in the PVA frame [m/s^2].
 
@@ -152,7 +138,6 @@ class _PvaDataStorage(BasePvaData):
         return self._lin_acc_b
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_ACCELERATION, element_names=XYZ_ELEMENT_NAMES)
     def ang_acc_b(self) -> ProxyArray | None:
         """PVA frame angular acceleration relative to the world expressed in PVA frame [rad/s^2].
 
