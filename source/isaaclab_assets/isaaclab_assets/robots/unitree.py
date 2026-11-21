@@ -949,7 +949,7 @@ H2_SHARPA_CFG: ArticulationCfg = ArticulationCfg(
             restitution=0.0,
         ),
     ),
-    prim_path="/World/envs/env_.*/Robot",
+    prim_path="{ENV_REGEX_NS}/Robot",
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(-0.95, 0.0, 1.05),
         rot=(0.0, 0.0, 0.0, 1.0),

@@ -13,7 +13,7 @@ from isaaclab.sensors import CameraCfg
 ##
 
 H2_HEAD_CAMERA_CFG = CameraCfg(
-    prim_path="/World/envs/env_.*/Robot/head_yaw_link/head_camera",
+    prim_path="{ENV_REGEX_NS}/Robot/head_yaw_link/head_camera",
     update_period=0.02,
     height=480,
     width=640,
