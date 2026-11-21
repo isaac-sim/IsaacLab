@@ -166,25 +166,6 @@ Playback restores the saved configuration. Use ``--motion_dir``, ``--asset_path`
 and ``--kinematics_path`` to relocate inputs; use ``--video`` for the standard
 native video recorder.
 
-Validation
-----------
-
-Differential tests load the pinned upstream tensor modules independently and
-compare state integration, losses, action gradients, actor routing, GAE, replay,
-reset sampling, reward gradients, and a complete GPU actor/critic optimizer step.
-The local mjlab checkout supplies its original quaternion primitives for this
-comparison, without loading its simulator. Native physical tests independently
-check kinematics against simulated body buffers, physical/imagined reward parity,
-reference-frame advancement, and reset history.
-
-.. code-block:: bash
-
-   export ISAACLAB_SUPERMIMIC_REFERENCE=/path/to/supermimic
-   export ISAACLAB_MJLAB_REFERENCE=/path/to/mjlab
-   export ISAACLAB_G1_TRACKING_DATA=/path/to/g1_tracking
-   uv run --extra test python -m pytest source/isaaclab_rl/test/test_model_based_reference.py
-   uv run --extra test python -m pytest source/isaaclab_tasks/test/test_model_based_tracking.py
-
 Checkpoint compatibility
 ------------------------
 
