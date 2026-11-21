@@ -774,8 +774,6 @@ class NewtonVisualizerBase(BaseVisualizer):
     _rtx_visibility_limited = False
     _rtx_switch: str | None = None
     """``"requested"`` once the HUD asked for RTX and showed the wait message, ``"loading"`` until its first frame."""
-    _rtx_perspective = None
-    """The free Perspective view the OVRTX camera follows while RTX is shown."""
     _borrowing_view = False
     """Whether an off-screen capture has swapped the displayed view, so the window controls must not act on it."""
     _rtx_appearance: RtxAppearance | None = None
@@ -797,8 +795,8 @@ class NewtonVisualizerBase(BaseVisualizer):
         self._overlay_publisher = None
         self._pose_started = False
         self._marker_revision = -1
-        self._perspective_poses: dict[object, tuple] = {}
-        """Last pose and focal length of each free Perspective view, kept while another source is shown."""
+        self._perspective_pose: tuple | None = None
+        """Last pose and focal length of the Perspective view, kept while another source is shown."""
         self._sensor_tiles: dict[object, int] = {}
         """Number of environments each multi-environment scene camera offers, by image view."""
         self._rtx_appearance: RtxAppearance | None = None
@@ -1278,14 +1276,10 @@ class NewtonVisualizerBase(BaseVisualizer):
     def _view_labels(self, indices: list[int] | None = None) -> list[str]:
         """Name the listed image views: a free view is the Perspective."""
         views = self._image_views if indices is None else [self._image_views[i] for i in indices]
-        free = [v for v in views if v.camera is None]
-        labels = []
-        for view in views:
-            if view.camera is not None:
-                labels.append(self._sensor_label(view.cfg.source, view.camera.cfg.data_types))
-            else:
-                labels.append("Perspective" if len(free) == 1 else f"Perspective {free.index(view) + 1}")
-        return labels
+        return [
+            "Perspective" if view.camera is None else self._sensor_label(view.cfg.source, view.camera.cfg.data_types)
+            for view in views
+        ]
 
     _OUTPUT_NAMES = {
         "rgb": "RGB",
@@ -1319,42 +1313,30 @@ class NewtonVisualizerBase(BaseVisualizer):
         """Switch the camera source; a free source keeps the OVRTX renderer when it is on."""
         view = self._image_views[index]
         if self.rtx_rendering and view.camera is None:
-            self._remember_perspective_pose()
-            self._rtx_perspective = view
-            self._restore_perspective_pose(view)
-            self.current_image_view.invalidate()
-            return
+            return  # the OVRTX camera already follows the Perspective
         self._select_camera(index)
 
-    def _free_view_in_use(self):
-        """Return the free Perspective view whose pose the viewer camera holds, or None when another source has it."""
-        view = self.current_image_view
-        if view is not None and view.camera is not None and getattr(self, "rtx_rendering", False):
-            # The OVRTX camera follows the free view.
-            view = self._rtx_perspective or next((v for v in self._image_views if v.camera is None), None)
-        if view is None or view.camera is not None:
-            return None
-        return view
-
     def _remember_perspective_pose(self) -> None:
-        """Save the free Perspective view's pose before another source takes over the viewer camera."""
-        view = self._free_view_in_use()
-        if view is not None and self._viewer is not None:
+        """Save the Perspective's pose before another source takes over the viewer camera."""
+        current = self.current_image_view
+        if current is None or self._viewer is None:
+            return
+        # The viewer camera holds the Perspective's pose while it is shown, and while the OVRTX camera follows it.
+        if current.camera is None or (self.rtx_rendering and any(v.camera is None for v in self._image_views)):
             camera = self._viewer.camera
             pos = camera.pos
-            self._perspective_poses[view] = (
+            self._perspective_pose = (
                 (float(pos[0]), float(pos[1]), float(pos[2])),
                 camera.pitch,
                 camera.yaw,
                 self.cfg.focal_length,
             )
 
-    def _restore_perspective_pose(self, view) -> bool:
-        """Put the viewer camera back where the free Perspective *view* was left; False when it was never left."""
-        saved = self._perspective_poses.get(view)
-        if saved is None:
+    def _restore_perspective_pose(self) -> bool:
+        """Put the viewer camera back where the Perspective was left; False when it was never left."""
+        if self._perspective_pose is None:
             return False
-        pos, pitch, yaw, focal = saved
+        pos, pitch, yaw, focal = self._perspective_pose
         self._viewer.set_camera(PygletVec3(*pos), pitch, yaw)
         self.cfg.focal_length = focal
         self._viewer.camera.fov = self._focal_length_to_vertical_fov_degrees(focal)
@@ -1385,7 +1367,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         camera = self.current_image_view.cfg.source
         self.current_image_view.invalidate()
         if isinstance(camera, PerspectiveCameraCfg):
-            if not keep_pose and not self._restore_perspective_pose(self.current_image_view):
+            if not keep_pose and not self._restore_perspective_pose():
                 self.set_camera_view(camera.eye, camera.lookat)
                 self.cfg.focal_length = camera.focal_length
                 self._viewer.camera.fov = self._focal_length_to_vertical_fov_degrees()
@@ -1509,8 +1491,7 @@ class NewtonVisualizerBase(BaseVisualizer):
     def close(self) -> None:
         """Detach perspective producers before releasing the visualizer's borrowed views."""
         self._pending_mesh_submissions.clear()
-        self._perspective_poses.clear()
-        self._rtx_perspective = None
+        self._perspective_pose = None
         self._sensor_tiles.clear()
         if self._rtx_appearance is not None:
             if self._rtx_appearance.available:
@@ -1951,9 +1932,6 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         if rtx_index is None:
             raise RuntimeError("The scene has no OVRTX viewer camera; see NewtonGLBackendCfg.rtx_camera.")
         free = [i for i, view in enumerate(self._image_views) if view.camera is None]
-        if enabled:  # the RTX view continues from the free Perspective that is shown now, if any
-            current = self.current_image_view
-            self._rtx_perspective = current if current is not None and current.camera is None else None
         # While the RTX view is shown its camera joins the scene's shared render, so reading it does not submit every
         # camera product a second time; otherwise it renders only on demand.
         self._image_views[rtx_index].camera.cfg.render_on_demand = not enabled
@@ -1963,14 +1941,9 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             if self._rtx_appearance is not None and self._rtx_appearance.available:
                 self._rtx_appearance.apply_lights()
         else:
-            followed = self._rtx_perspective
-            if followed in self._image_views and followed.camera is None:
-                target = self._image_views.index(followed)
-            else:
-                target = free[0] if free else next(i for i in range(len(self._image_views)) if i != rtx_index)
+            target = free[0] if free else next(i for i in range(len(self._image_views)) if i != rtx_index)
             # Only a perspective view continues from the viewer's pose; a scene sensor keeps the task's own placement.
             self._select_camera(target, keep_pose=self._image_views[target].camera is None)
-            self._rtx_perspective = None
 
     @property
     def visible_env_limit(self) -> int:

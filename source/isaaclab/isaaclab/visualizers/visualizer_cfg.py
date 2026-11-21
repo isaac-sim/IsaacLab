@@ -189,8 +189,8 @@ class VisualizerCfg:
     cameras: list[PerspectiveCameraCfg | SceneCameraCfg] | None = None
     """Camera sources available to the visualizer.
 
-    PerspectiveCameraCfg configures the interactive view; SceneCameraCfg refers to an existing scene
-    sensor. Newton GL and RTX display the first source and offer a dropdown for switching sources.
+    PerspectiveCameraCfg configures the interactive view and may appear at most once; SceneCameraCfg refers
+    to an existing scene sensor. Newton GL and RTX display the first source and offer a dropdown for switching sources.
     Kit, Rerun, and Viser display the first scene source in their camera panel.
     None uses eye/lookat/focal_length and the streaming settings below.
     Every explicit scene source must provide all requested streaming_gt_types channels.
@@ -304,6 +304,10 @@ class VisualizerCfg:
         if self.cameras is not None:
             if not self.cameras:
                 raise ValueError("cameras must contain at least one display source.")
+            if sum(isinstance(camera, PerspectiveCameraCfg) for camera in self.cameras) > 1:
+                raise ValueError(
+                    "cameras may contain at most one PerspectiveCameraCfg, the viewer's interactive camera."
+                )
             self.streaming_view = any(isinstance(camera, SceneCameraCfg) for camera in self.cameras)
             if isinstance(camera := self.cameras[0], PerspectiveCameraCfg):
                 self.eye, self.lookat, self.focal_length = camera.eye, camera.lookat, camera.focal_length
