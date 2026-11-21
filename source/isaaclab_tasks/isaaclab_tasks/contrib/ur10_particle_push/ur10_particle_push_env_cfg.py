@@ -36,7 +36,7 @@ from isaaclab.sim.schemas import UsdPhysicsCollisionCfg, UsdPhysicsRigidBodyCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.visualizers import VisualizerCfg
+from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
 
 from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
 
@@ -620,6 +620,7 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
             eye=(1.7, 1.5, 1.0),
             lookat=(0.55, 0.0, 0.0),
             backend=MultiBackendVisualizerCfg(kit=KitBackendCfg(origin_type="env", origin_env_index=0)),
+            cameras=[TrackingCameraCfg(eye=(1.7, 1.5, 1.0), lookat=(0.55, 0.0, 0.0))],
         ),
     )
     actions: ActionsCfg = ActionsCfg()

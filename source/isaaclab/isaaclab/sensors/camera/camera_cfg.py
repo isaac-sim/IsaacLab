@@ -104,6 +104,12 @@ class CameraCfg(SensorBaseCfg):
         on :attr:`renderer_cfg` instead.
     """
 
+    render_on_demand: bool = False
+    """Whether the camera renders only when its data is read, even when the scene updates its sensors eagerly.
+
+    Defaults to False. A visualizer's viewer camera sets it, so that it renders only while its view is shown.
+    """
+
     data_types: list[str] = ["rgb"]
     """List of sensor names/types to enable for the camera. Defaults to ["rgb"].
 
