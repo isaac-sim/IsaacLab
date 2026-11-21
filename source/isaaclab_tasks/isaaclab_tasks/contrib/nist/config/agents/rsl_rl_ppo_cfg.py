@@ -11,13 +11,13 @@ from .models import SimBaModelCfg
 
 
 @configclass
-class FactoryVariantPPORunnerCfg(RslRlOnPolicyRunnerCfg):
+class NISTPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     """PPO runner using SimBa and encoded variant point clouds."""
 
     num_steps_per_env = 32
     max_iterations = 50000
     save_interval = 200
-    experiment_name = "factory"
+    experiment_name = "nist"
     obs_groups = {"actor": ["policy", "perception"], "critic": ["policy", "perception"]}
     actor = SimBaModelCfg(
         distribution_cfg=RslRlMLPModelCfg.GaussianDistributionCfg(init_std=1.0, std_type="scalar"),

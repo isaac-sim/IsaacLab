@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Recover the Factory variant task from nonfinite MJWarp solver state."""
+"""Recover the NIST variant task from nonfinite MJWarp solver state."""
 
 from __future__ import annotations
 

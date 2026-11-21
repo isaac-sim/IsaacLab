@@ -326,7 +326,7 @@ def _check_random_actions(
                 choice = reset_event.params["reset_term"].params["terms"][reset_event.params["state_tag_term"]]
                 table_size = max(table_size, len(variants) * len(choice.params["terms"]))
             reset_event.params["state_table_size"] = table_size
-            if task_name == "IsaacContrib-Factory-Franka":
+            if task_name == "IsaacContrib-NIST-Franka":
                 # Exercise every label/variant reset path; small runs have too few settled poses to screen them all.
                 reset_event.params["acceptance_conditions"] = {}
         # set config args

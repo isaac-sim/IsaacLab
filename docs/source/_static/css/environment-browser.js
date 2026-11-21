@@ -83,7 +83,6 @@
             ["IsaacContrib-DrLegs-HoldPose", "rsl_rl", "isaacsim_physx,newton_kamino", "", "", "environment-previews/dr_legs.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||", "newton_kamino||"]],
             ["IsaacContrib-DrLegs-Walk", "rsl_rl", "isaacsim_physx,newton_kamino", "", "", "environment-previews/dr_legs.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||", "newton_kamino||"]],
             ["IsaacContrib-ExhaustPipe-GR1T2-Pink-IK-Abs", "", "", "", "", "environment-previews/gr1_exhaust_pipe.jpg"],
-            ["IsaacContrib-Factory-Franka", "rsl_rl", "", "", "", "environment-previews/factory_franka_nist.jpg"],
             ["IsaacContrib-Factory-GearMesh-Direct", "rl_games", "", "", "", "environment-previews/gear_mesh.jpg"],
             ["IsaacContrib-Factory-NutThread-Direct", "rl_games", "", "", "", "environment-previews/nut_thread.jpg"],
             ["IsaacContrib-Factory-PegInsert-Direct", "rl_games", "", "", "", "environment-previews/peg_insert.jpg"],
@@ -101,6 +100,7 @@
             ["IsaacContrib-Lift-Cube-Franka-IK-Rel", "", "", "", "", "environment-previews/franka_lift.jpg"],
             ["IsaacContrib-Lift-Cube-OpenArm", "rl_games,rsl_rl", "", "", "", "environment-previews/openarm_uni_lift.jpg"],
             ["IsaacContrib-Multitask-Manipulation", "rsl_rl", "", "", "", "environment-previews/multitask_manipulation.jpg"],
+            ["IsaacContrib-NIST-Franka", "rsl_rl", "", "", "", "environment-previews/nist_franka.jpg"],
             ["IsaacContrib-Navigation-3DObstacles-ARL-Robot-1", "rl_games,rsl_rl,skrl", "", "", "", "environments/previews/drone_arl/arl_robot_1_navigation.jpg"],
             ["IsaacContrib-Navigation-Flat-AnymalC", "rsl_rl,skrl", "", "", "", "environment-previews/anymal_c_nav.jpg"],
             ["IsaacContrib-NutPour-GR1T2-Pink-IK-Abs", "", "", "", "", "environment-previews/gr1_nut_pour.jpg"],
@@ -232,7 +232,7 @@
         if (/Velocity|Navigation|TrackPosition|Locomanip|Humanoid/.test(task)) {
             return "locomotion";
         }
-        if (/Lift|Reach|Reorient|Drawer|Handover|Keyboard|Assemble|Assembly|Factory|Forge|Stack|PickPlace|Place|Particle|Cabinet|Gear|Trocar/.test(task)) {
+        if (/Lift|Reach|Reorient|Drawer|Handover|Keyboard|Assemble|Assembly|Factory|NIST|Forge|Stack|PickPlace|Place|Particle|Cabinet|Gear|Trocar/.test(task)) {
             return "manipulation";
         }
         return "classic";

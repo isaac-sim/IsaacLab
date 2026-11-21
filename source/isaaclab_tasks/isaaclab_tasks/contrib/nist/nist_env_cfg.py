@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Factory composition with reset-selectable assembly variants."""
+"""NIST composition with reset-selectable assembly variants."""
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
 
@@ -19,14 +19,14 @@ from isaaclab.utils.configclass import configclass
 
 from . import mdp
 from .assembly_variants import ASSEMBLY_VARIANT_NAMES
-from .factory_presets import EndEffectorBodyCfg, GripperGraspOffsetCfg, JointEffortNamesCfg
-from .factory_variant_scene_cfg import FactoryVariantSceneCfg
+from .nist_presets import EndEffectorBodyCfg, GripperGraspOffsetCfg, JointEffortNamesCfg
+from .nist_reset_env_cfg import VARIANT_ACCUMULATOR_RESET
+from .nist_scene_cfg import NISTSceneCfg
 from .utils.variant_sampling import BalancedVariantScoreCfg
-from .variant_reset_env_cfg import VARIANT_ACCUMULATOR_RESET
 
 
 @configclass
-class FactoryVariantObservationsCfg:
+class NISTObservationsCfg:
     """Policy state and scene geometry observations."""
 
     @configclass
@@ -85,8 +85,8 @@ class FactoryVariantObservationsCfg:
 
 
 @configclass
-class FactoryVariantEventCfg:
-    """Add assembly selection to the shared Factory startup events."""
+class NISTEventCfg:
+    """Add assembly selection to the NIST startup events."""
 
     assembly_variants = EventTerm(
         func=mdp.AssemblyVariantContext,
@@ -134,7 +134,7 @@ class FactoryVariantEventCfg:
 
 
 @configclass
-class FactoryVariantRewardsCfg:
+class NISTRewardsCfg:
     """Reward assembly success and clear nonfinite MJWarp solver state."""
 
     action_l2 = RewTerm(func=mdp.action_l2_clamped, weight=-1e-4)
@@ -152,7 +152,7 @@ class FactoryVariantRewardsCfg:
 
 
 @configclass
-class FactoryVariantTerminationsCfg:
+class NISTTerminationsCfg:
     """Use variant geometry and Newton failure detection."""
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
@@ -184,7 +184,7 @@ class FactoryVariantTerminationsCfg:
 
 
 @configclass
-class FactoryVariantActionsCfg:
+class NISTActionsCfg:
     """Franka joint actions for the assembly variant task."""
 
     arm_action = mdp.RelativeJointPositionActionCfg(
@@ -202,17 +202,17 @@ class FactoryVariantActionsCfg:
 
 
 @configclass
-class FactoryVariantEnvCfg(ManagerBasedRLEnvCfg):
-    """Factory environment with reset-selectable assembly pairs."""
+class NISTEnvCfg(ManagerBasedRLEnvCfg):
+    """NIST environment with reset-selectable assembly pairs."""
 
-    class_type: type | str = "{DIR}.factory_variant_env:FactoryVariantEnv"
-    scene: FactoryVariantSceneCfg = FactoryVariantSceneCfg()
-    observations: FactoryVariantObservationsCfg = FactoryVariantObservationsCfg()
-    events: FactoryVariantEventCfg = FactoryVariantEventCfg()
-    terminations: FactoryVariantTerminationsCfg = FactoryVariantTerminationsCfg()
-    rewards: FactoryVariantRewardsCfg = FactoryVariantRewardsCfg()
+    class_type: type | str = "{DIR}.nist_env:NISTEnv"
+    scene: NISTSceneCfg = NISTSceneCfg()
+    observations: NISTObservationsCfg = NISTObservationsCfg()
+    events: NISTEventCfg = NISTEventCfg()
+    terminations: NISTTerminationsCfg = NISTTerminationsCfg()
+    rewards: NISTRewardsCfg = NISTRewardsCfg()
     viewer: ViewerCfg = ViewerCfg(eye=(0.0, 0.8, 0.4), lookat=(0.0, 0.0, 0.4))
-    actions: FactoryVariantActionsCfg = FactoryVariantActionsCfg()
+    actions: NISTActionsCfg = NISTActionsCfg()
 
     def __post_init__(self) -> None:
         self.decimation = 4

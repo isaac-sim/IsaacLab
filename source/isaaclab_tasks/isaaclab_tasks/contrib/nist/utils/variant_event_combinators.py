@@ -140,10 +140,10 @@ class variant_reset_accumulator(ManagerTermBase):
             self.sampled_cells[env_ids] = self.state_cell_indices[slot_idx]
             reset_state.set_reset_state(env, self.state_data[slot_idx], env_ids, self.reset_assets, is_relative=True)
             env.extras["diagnostics"] = {
-                "factory_reset_slot": self.sampled_slots,
-                "factory_reset_cell": self.sampled_cells,
-                "factory_reset_labels": tuple(self.state_tag_names),
-                "factory_asset_variants": self.variant_names,
+                "nist_reset_slot": self.sampled_slots,
+                "nist_reset_cell": self.sampled_cells,
+                "nist_reset_labels": tuple(self.state_tag_names),
+                "nist_asset_variants": self.variant_names,
             }
 
     def _precollect(self, env: ManagerBasedRLEnv, reset_term: EventTermCfg) -> None:

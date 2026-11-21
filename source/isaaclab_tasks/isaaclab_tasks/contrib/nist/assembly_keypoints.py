@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Keypoint definitions for all NIST Factory assembly assets.
+"""Keypoint definitions for all NIST assembly assets.
 
 All quaternions use IsaacLab's (x, y, z, w) convention.
 Positions are in meters relative to the asset's root frame.
