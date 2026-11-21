@@ -1663,9 +1663,10 @@ def create_rotation_matrix_from_view(
     if up_axis not in ("Y", "Z"):
         raise ValueError(f"Invalid up axis: {up_axis}. Valid options are 'Y' and 'Z'.")
     up = (0.0, 1.0, 0.0) if up_axis == "Y" else (0.0, 0.0, 1.0)
-    up_axis_vec = torch.tensor(up, device=device, dtype=torch.float32).repeat(eyes.shape[0], 1)
-
     forward = targets - eyes
+    # reference axes take the input precision; torch.cross does not promote mixed dtypes
+    up_axis_vec = torch.tensor(up, device=device, dtype=forward.dtype).repeat(eyes.shape[0], 1)
+
     # 1e-5 matches the torch.nn.functional.normalize eps below: smaller magnitudes produce a sub-unit z_axis
     undefined_forward = (torch.linalg.norm(forward, dim=1, keepdim=True) < 1e-5) | ~torch.isfinite(forward).all(
         dim=1, keepdim=True
@@ -1675,11 +1676,11 @@ def create_rotation_matrix_from_view(
     z_axis = -torch.nn.functional.normalize(forward, eps=1e-5)
     x_axis = torch.nn.functional.normalize(torch.cross(up_axis_vec, z_axis, dim=1), eps=1e-5)
     y_axis = torch.nn.functional.normalize(torch.cross(z_axis, x_axis, dim=1), eps=1e-5)
-    is_close = torch.isclose(x_axis, torch.tensor(0.0), atol=5e-3).all(dim=1, keepdim=True)
+    is_close = torch.isclose(x_axis, torch.tensor(0.0, dtype=x_axis.dtype), atol=5e-3).all(dim=1, keepdim=True)
     if is_close.any():
         # alt-up substitution when up_axis_vec is parallel to z_axis; both x and y must be recomputed.
         # World X is non-parallel to z whenever the symptom fires for the supported up_axis values.
-        alt_up = torch.tensor((1.0, 0.0, 0.0), device=device, dtype=torch.float32).repeat(eyes.shape[0], 1)
+        alt_up = torch.tensor((1.0, 0.0, 0.0), device=device, dtype=forward.dtype).repeat(eyes.shape[0], 1)
         replacement_x = torch.nn.functional.normalize(torch.cross(alt_up, z_axis, dim=1), eps=1e-5)
         replacement_y = torch.nn.functional.normalize(torch.cross(z_axis, replacement_x, dim=1), eps=1e-5)
         x_axis = torch.where(is_close, replacement_x, x_axis)

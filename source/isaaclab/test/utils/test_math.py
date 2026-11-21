@@ -1133,6 +1133,20 @@ def test_create_rotation_matrix_from_view_lookat_along_up_axis(device, eye, up_a
 
 
 @pytest.mark.parametrize("device", test_devices())
+def test_create_rotation_matrix_from_view_keeps_float64(device):
+    """float64 eyes and targets, including a view along the up axis, should return a float64 orthonormal frame."""
+    eyes = torch.tensor([[0.0, 0.0, 5.0], [1.0, 2.0, 3.0]], device=device, dtype=torch.float64)
+    targets = torch.zeros(2, 3, device=device, dtype=torch.float64)
+    R = math_utils.create_rotation_matrix_from_view(eyes, targets, up_axis="Z", device=device)
+    assert R.dtype == torch.float64
+    identity = torch.eye(3, device=device, dtype=torch.float64).expand(2, 3, 3)
+    torch.testing.assert_close(R @ R.transpose(-1, -2), identity, atol=1e-5, rtol=1e-5)
+    torch.testing.assert_close(
+        torch.linalg.det(R), torch.ones(2, device=device, dtype=torch.float64), atol=1e-5, rtol=1e-5
+    )
+
+
+@pytest.mark.parametrize("device", test_devices())
 def test_create_rotation_matrix_from_view_batched_partial_failure(device):
     """Mixed batch with one degenerate row (eyes == targets) should produce an all-NaN row and a valid rotation."""
     eyes = torch.tensor([[1.0, 2.0, 3.0], [0.0, 0.0, 5.0]], device=device)
