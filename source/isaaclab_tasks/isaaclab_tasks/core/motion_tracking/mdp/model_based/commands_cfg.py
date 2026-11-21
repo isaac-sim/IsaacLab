@@ -5,11 +5,34 @@
 
 """Motion inputs and reset settings for model-based tracking."""
 
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 
 from isaaclab.managers import CommandTermCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.datasets.motion_loader import CsvMotionCfg
+
+
+# ReturnSampler and ReturnSamplerCfg are derived from HybridRobotics/SuperMimic
+# (Apache-2.0), revision 5efbf114e11f725c31d83e217be987c13c0e4ce2.
+# Copyright 2026 the SuperMimic authors. See docs/licenses/dependencies/supermimic-official-license.txt.
+@dataclass
+class ReturnSamplerCfg:
+    gamma: float = 0.99
+    """Discount of the measured return; sets v_max = max_step_reward / (1 - gamma)."""
+    horizon: int = 20
+    """Steps per update. Each env's last `horizon` steps turn into returns that
+  bootstrap from V where the window ends."""
+    memory: int = 256
+    """Most samples a bin's V remembers: V is the exact mean of a bin's first
+  `memory` samples; after that, earlier samples count as `memory` samples against
+  each update's new ones, so V follows the current policy."""
+    steepness: float = 25.0
+    """Softmax gain on V / v_max."""
+    explore: float = 0.5
+    """Share of resets spread uniformly over all bins."""
+    keep: float = 0.1
+    """Share of resets on bins in proportion to the summed square of the focus each
+  received: concentrated focus earns keep, focus spread thin earns almost none."""
 
 
 @configclass

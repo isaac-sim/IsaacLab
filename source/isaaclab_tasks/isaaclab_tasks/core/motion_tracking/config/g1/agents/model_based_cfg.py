@@ -9,8 +9,8 @@ from isaaclab.utils import configclass
 
 from isaaclab_rl.model_based.learners import ActorCriticPolicyLearnerCfg, BpttPolicyLearnerCfg, WorldModelLearnerCfg
 from isaaclab_rl.model_based.runner import ModelBasedRunnerCfg
-from isaaclab_rl.model_based.storage import ReturnSamplerCfg
 
+from ....mdp.model_based.commands_cfg import ReturnSamplerCfg
 from ....mdp.model_based.goals import TasksCfg
 
 

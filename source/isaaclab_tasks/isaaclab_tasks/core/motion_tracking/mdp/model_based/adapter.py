@@ -13,13 +13,13 @@ import torch
 from tensordict import TensorDict
 
 from isaaclab_rl.model_based.representations import NUM_GOAL_FRAMES, build_actor_obs_td, create_representation
-from isaaclab_rl.model_based.rollout import MultiTaskWorldModelEnv
-from isaaclab_rl.model_based.storage import FieldSpec, ReturnSampler
+from isaaclab_rl.model_based.rollout import FieldSpec, MultiTaskWorldModelEnv
 
 from isaaclab_tasks.core.motion_tracking.mdp.model_based.goals import resolve_task_specs
 from isaaclab_tasks.core.motion_tracking.mdp.model_based.observations import motion_end
 from isaaclab_tasks.core.motion_tracking.mdp.model_based.sim_context import SimContext
 
+from .commands import ReturnSampler
 from .rewards import tracking_reward
 
 

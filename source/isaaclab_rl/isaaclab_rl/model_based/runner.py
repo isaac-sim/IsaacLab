@@ -25,7 +25,7 @@ from .learners import (
     WorldModelLearnerCfg,
 )
 from .models import Dynamics, MultiEncoderAE, build_mlp
-from .storage import ReplayBuffer
+from .rollout import ReplayBuffer
 
 
 @configclass
