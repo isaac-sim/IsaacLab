@@ -30,6 +30,19 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
 
+def _index(ids: slice | list[int] | torch.Tensor, device: str) -> slice | torch.Tensor:
+    """Return a slice unchanged and other indices as a device tensor, which CUDA graph capture can replay."""
+    return ids if isinstance(ids, slice) else torch.as_tensor(ids, dtype=torch.long, device=device)
+
+
+def _product(values: torch.Tensor) -> torch.Tensor:
+    """Multiply along the last dimension; unlike ``prod``, its backward needs no host synchronization."""
+    result = values[..., 0]
+    for index in range(1, values.shape[-1]):
+        result = result * values[..., index]
+    return result
+
+
 class VelocityStateRepresentation:
     """Floating-base coordinates with world-frame SO(3) tangent increments.
 
@@ -170,7 +183,15 @@ class VelocityTask(DifferentiableTask):
         action = owner.action_manager.get_term(owner.action_manager.active_terms[0])
         if type(action) is not JointPositionAction or action.cfg.clip is not None:
             raise ValueError("VelocityTask requires an unclipped JointPositionAction.")
-        self.action_joints = action._joint_ids
+        self.action_joints = _index(action._joint_ids, device)
+        self.sensor_feet = _index(self.sensor_foot_ids, device)
+        self.term_joints = {
+            name: _index(cfg.params["asset_cfg"].joint_ids if "asset_cfg" in cfg.params else slice(None), device)
+            for name, cfg in self.rewards.items()
+        }
+        self.termination_bodies = {
+            name: _index(cfg.params["sensor_cfg"].body_ids, device) for name, cfg in self.terminations.items()
+        }
         self.action_scale = torch.as_tensor(action._scale, device=device)
         self.action_offset = torch.as_tensor(action._offset, device=device)
         if self.action_scale.ndim > 1:
@@ -189,6 +210,13 @@ class VelocityTask(DifferentiableTask):
                 getattr(self, parameter)[ids] = values[0]
             limit = cfg.actuator_effort_limit if cfg.actuator_effort_limit is not None else cfg.joint_effort_limit
             self.effort_limit[ids] = resolve_joint_parameter(limit, torch.inf, names, 1, device)[0]
+
+    def to(self, device: torch.device | str) -> VelocityTask:
+        """Move tensor attributes and the per-term index tensors."""
+        super().to(device)
+        for table in (self.term_joints, self.termination_bodies):
+            table.update({name: _index(ids, device) for name, ids in table.items()})
+        return self
 
     def actor_obs(
         self, state: State, goal: torch.Tensor, context: torch.Tensor, prev_actions: torch.Tensor
@@ -261,9 +289,8 @@ class VelocityTask(DifferentiableTask):
             raise ValueError("Velocity termination needs predicted or observed contact labels.")
         survival = torch.ones_like(next_state[0][..., 0])
         contacts = labels[..., self.num_feet : self.num_feet + self.num_bodies]
-        for cfg in self.terminations.values():
-            ids = cfg.params["sensor_cfg"].body_ids
-            survival = survival * (1 - contacts[..., ids]).prod(-1)
+        for ids in self.termination_bodies.values():
+            survival = survival * _product(1 - contacts[..., ids])
         return 1 - survival
 
     def reward_terms(
@@ -290,7 +317,7 @@ class VelocityTask(DifferentiableTask):
         results = {}
         for name, cfg in self.rewards.items():
             kind, params = cfg.func.__name__, cfg.params
-            ids = params["asset_cfg"].joint_ids if "asset_cfg" in params else slice(None)
+            ids = self.term_joints[name]
             value = torch.zeros_like(lin[..., 0])
             if cfg.weight == 0:
                 results[name] = value
@@ -328,12 +355,12 @@ class VelocityTask(DifferentiableTask):
                 value = ((self.limits[..., 0] - q).relu() + (q - self.limits[..., 1]).relu())[..., ids].sum(-1)
             elif kind == "feet_slide":
                 foot_velocity = next_state[6].reshape(*lin.shape[:-1], self.num_feet, 3)[..., :2]
-                value = (foot_velocity.norm(dim=-1) * contacts[..., self.sensor_foot_ids]).sum(-1)
+                value = (foot_velocity.norm(dim=-1) * contacts[..., self.sensor_feet]).sum(-1)
             elif kind == "feet_air_time_positive_biped":
                 contact = labels[..., : self.num_feet]
                 # Probability of exactly one stance foot, valid for soft labels.
                 single = sum(
-                    contact[..., i] * torch.cat((1 - contact[..., :i], 1 - contact[..., i + 1 :]), -1).prod(-1)
+                    contact[..., i] * _product(torch.cat((1 - contact[..., :i], 1 - contact[..., i + 1 :]), -1))
                     for i in range(self.num_feet)
                 )
                 in_mode = contact * next_state[8] + (1 - contact) * next_state[7]
