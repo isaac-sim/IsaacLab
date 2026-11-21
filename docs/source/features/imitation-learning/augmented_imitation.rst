@@ -431,7 +431,9 @@ Below is an explanation of the different settings used for evaluation:
 .. note::
     The evaluation results will help you understand if the visual augmentation has improved the policy's performance and robustness. Compare these results with evaluations on the original dataset to measure the impact of augmentation.
 
-Example usage for the cube stacking task:
+For the released checkpoints, first read :ref:`augmented-imitation-released-checkpoints` below.
+
+Example usage for the cube stacking task with a policy trained on the current Isaac Lab version:
 
 .. tab-set::
 
@@ -447,15 +449,27 @@ Example usage for the cube stacking task:
           --seeds 0 \
           --num_rollouts 15
 
+This example evaluates only seed 0, rather than the three seeds used in the historical comparison below.
+
 .. tip::
    Verify that the models directory is not empty. By default, the training script saves models every 20 epochs starting from epoch 100.
 
 .. note::
    This script can take over a day or even longer to run (depending on the hardware being used). This behavior is expected.
 
-We use the above script to compare models trained with 1000 Mimic-generated demonstrations, 2000 Mimic-generated demonstrations and 2000 Cosmos-Mimic-generated demonstrations (1000 original mimic + 1000 Cosmos augmented) respectively. We use the same seeds (0, 1000 and 5000) for all three models and provide the metrics (averaged across best checkpoints for each seed) below:
+The historical comparison below groups models by their reported training data: 1000 Mimic-generated
+demonstrations, 2000 Mimic-generated demonstrations, and 2000 Cosmos-Mimic-generated demonstrations
+(1000 original Mimic + 1000 Cosmos augmented). The reported protocol used the same seeds (0, 1000,
+and 5000) for all three models and averaged the best checkpoint results for each seed.
 
-.. rubric:: Model Comparison
+.. warning::
+   The original Isaac Lab / Isaac Sim versions, rendering settings, and per-checkpoint results
+   have not been documented with this table. The robustness results are under investigation in
+   `issue #9033 <https://github.com/isaac-sim/IsaacLab/issues/9033>`__ and should not be treated as
+   validated results for the current release. The legacy evaluation setup below is a reported
+   workaround for running the checkpoints, not the confirmed setup that produced this table.
+
+.. rubric:: Model Comparison (historical results)
 
 .. list-table::
     :widths: 25 25 25 25
@@ -490,4 +504,53 @@ We use the above script to compare models trained with 1000 Mimic-generated demo
       - 0%
       - 4.4%
 
-The above trained models' checkpoints can be accessed `here <https://huggingface.co/datasets/nvidia/PhysicalAI-Robotics-Manipulation-Augmented/tree/main/robomimic_bc_rnn_visuomotor_models>`_ in case you wish to use the models directly.
+.. _augmented-imitation-released-checkpoints:
+
+Released checkpoint compatibility
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The historical models' checkpoints are available on
+`Hugging Face <https://huggingface.co/datasets/nvidia/PhysicalAI-Robotics-Manipulation-Augmented/tree/main/robomimic_bc_rnn_visuomotor_models>`__.
+
+.. note::
+   The two released 2k directory names disagree with their training metadata. At
+   `dataset revision 9a9167b <https://huggingface.co/datasets/nvidia/PhysicalAI-Robotics-Manipulation-Augmented/tree/9a9167bcf5e59f130b115395c5da411c11e3cebc/robomimic_bc_rnn_visuomotor_models>`__,
+   the epoch-400 checkpoint in ``franka_stack_mimic_2k_table_only`` records
+   ``datasets/cosmos_mimic_res_200_2k_final.hdf5`` in ``train.data``, while the checkpoint in
+   ``franka_stack_mimic_cosmos_2k_table_only`` records ``datasets/mimic_dataset_res_200_2k_final.hdf5``.
+   The accompanying configuration files and training logs use the same mapping. Check the model
+   metadata when comparing results; the intended labels and actual training dataset contents
+   still require confirmation in `issue #9033 <https://github.com/isaac-sim/IsaacLab/issues/9033>`__.
+
+.. warning::
+   These checkpoints predate Isaac Lab 3.0 and are not validated with the current evaluation
+   environment. Isaac Lab 3.0 changed quaternion ordering from WXYZ to XYZW, including the
+   ``eef_quat`` observation (see :doc:`/source/isaaclab/migrating`). Rendering also differs between
+   Isaac Sim versions. Reordering the quaternion alone does not establish compatibility with
+   the images used during training.
+
+In `issue #9033 <https://github.com/isaac-sim/IsaacLab/issues/9033>`__, the reporter obtained successful
+rollouts with Isaac Lab **v2.2.0**, Isaac Sim **5.0.0**, and ``--rendering_mode balanced``.
+The same report found zero successes with ``performance`` rendering and did not reproduce the
+published robustness gains with ``balanced``. The report does not establish compatibility with
+other Isaac Lab 2.x releases.
+
+To try that setup, use the v2.2.0 checkout and its Isaac Sim 5.0.0 environment.
+
+Point ``--input_dir`` to a single run's ``models/`` directory containing the checkpoint files;
+the script does not search subdirectories. For example, using the released Mimic 1k run:
+
+.. code-block:: bash
+
+   ./isaaclab.sh -p scripts/imitation_learning/robomimic/robust_eval.py \
+     --task Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-v0 \
+     --input_dir /path/to/robomimic_bc_rnn_visuomotor_models/franka_stack_mimic_1k_table_only/20250416141542/models \
+     --log_dir robust_results/released_checkpoints \
+     --log_file result \
+     --seeds 0 \
+     --num_rollouts 15 \
+     --enable_cameras \
+     --rendering_mode balanced
+
+For evaluation on Isaac Lab 3.0, generate demonstrations and train policies with the same
+observation conventions and rendering configuration used for evaluation.
