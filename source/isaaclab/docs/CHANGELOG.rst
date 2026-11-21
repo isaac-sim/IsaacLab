@@ -3,6 +3,33 @@ Changelog
 
 .. towncrier release notes start
 
+47.2.0 (2026-11-19)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``CameraCfg.tensor_processors``, which compute camera outputs from render outputs and earlier
+  processor outputs after each capture, and reset and close with the camera.
+* Camera processors accept an ``env_mask`` keyword identifying the environments due for each capture.
+  Asynchronous rendering passes ``env_mask=None`` because the current capture mask does not describe the
+  published image.
+* Extended ``randomize_rigid_body_material`` with optional contact stiffness [N/m] and damping [N*s/m] ranges. Zero stiffness was rejected because it selects different contact models across engines; use a custom event for that behavior.
+* Added :func:`~isaaclab.sim.utils.newton_model_utils.resolve_display_color`, which returns the display color of a
+  prim's bound visual material.
+* Added a reusable self-collision reward that counts physics frames with filtered
+  robot-to-robot contact forces above a threshold.
+* Added :class:`~isaaclab.utils.datasets.MotionLoader` for named NPZ reference motions,
+  with local and server-hosted files, joint/body reordering and data validation.
+
+Fixed
+^^^^^
+
+* Applied configured visual materials when spawning USD assets without Isaac Sim.
+* Fixed :func:`~isaaclab.utils.configclass` validation recursing forever on objects held by a config that refer back
+  to themselves, such as the module of a Warp function in an MDP2 task.
+
+
 47.1.0 (2026-11-18)
 ~~~~~~~~~~~~~~~~~~~
 

@@ -157,7 +157,7 @@ DEPRECATED_WRITERS = {
 
 def _physx_cfgs():
     """Import the PhysX schema cfg module, skipping the test when the extension is absent."""
-    return pytest.importorskip("isaaclab_physx.sim.schemas.schemas_cfg")
+    return pytest.importorskip("isaaclab_isaacsim.sim.schemas.schemas_cfg")
 
 
 def _newton_cfgs():
@@ -247,7 +247,7 @@ import isaaclab  # noqa: F401  # warm up the package itself; the schema modules 
 
 modules = [
     "isaaclab.sim.schemas.schemas_cfg",
-    "isaaclab_physx.sim.schemas.schemas_cfg",
+    "isaaclab_isaacsim.sim.schemas.schemas_cfg",
     "isaaclab_newton.sim.schemas.schemas_cfg",
 ]
 assert not any(m in sys.modules for m in modules), "schema cfg modules were already imported"

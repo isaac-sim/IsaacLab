@@ -39,11 +39,7 @@ Select **Train** or **Play** and **rsl_rl** to generate the base command.
 Reference motions
 -----------------
 
-Six 50 Hz clips are available under the asset-server prefix:
-
-.. code-block:: bash
-
-   MOTION_DATA_PATH="https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.2/Isaac/IsaacLab/Motions/G1/v1"
+Six 50 Hz clips are available in the same asset-server directory:
 
 .. list-table::
    :header-rows: 1
@@ -82,9 +78,10 @@ Use a separate experiment name to keep its checkpoints together:
 
 .. code-block:: bash
 
+   MOTION_FILE="https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.2/Isaac/IsaacLab/Motions/G1/v1/g1_walk.npz"
    uv run isaaclab train --rl_library rsl_rl --task Isaac-Motion-Tracking-G1 \
        --experiment_name g1_motion_tracking_walk \
-       env.commands.motion.motion_file="${MOTION_DATA_PATH}/g1_walk.npz"
+       env.commands.motion.motion_file="${MOTION_FILE}"
 
 The actor uses reference **joint positions/velocities, relative torso orientation, angular velocity,
 joint feedback, and previous actions**. The critic additionally receives privileged position and

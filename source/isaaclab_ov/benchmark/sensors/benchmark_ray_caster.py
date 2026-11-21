@@ -5,7 +5,7 @@
 
 """Benchmark the OVPhysX RayCaster update path.
 
-Mirrors ``isaaclab_physx/benchmark/sensors/benchmark_ray_caster.py`` but runs
+Mirrors ``isaaclab_isaacsim/benchmark/sensors/benchmark_ray_caster.py`` but runs
 kitless against the OVPhysX backend. By default, matched sensors cast against a
 plane and deterministic rough terrain, including shared scene-pose refresh.
 
@@ -43,8 +43,8 @@ if args_cli.grid_resolution <= 0:
 
 import torch
 import warp as wp
+from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
 from isaaclab_ov.physics import OvPhysxCfg
-from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg

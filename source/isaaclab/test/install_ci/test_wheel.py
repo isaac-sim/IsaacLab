@@ -55,7 +55,7 @@ assert importlib.util.find_spec('pytetwild') is None
         run(
             str(python),
             "-c",
-            "from isaaclab_physx.app import KitLauncher; from isaaclab.sim import SimulationContext",
+            "from isaaclab_isaacsim.app import KitLauncher; from isaaclab.sim import SimulationContext",
             cwd=directory,
         )
     else:

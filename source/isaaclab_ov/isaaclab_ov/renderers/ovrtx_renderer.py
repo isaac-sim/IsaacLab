@@ -82,8 +82,6 @@ from isaaclab_ov.renderers.ovrtx_annotator_utils import (
     decode_stable_id_map,
     decode_stable_id_semantic_id_map,
 )
-from isaaclab_ov.renderers.ovrtx_compat import OVRTX_USES_NAMED_SEGMENTATION_MAPS
-from isaaclab_ov.renderers.ovrtx_compat import OVRTX_VERSION as _OVRTX_VERSION
 from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg, OVRTXRendererCfg
 from isaaclab_ov.renderers.ovrtx_renderer_kernels import (
     accumulate_mesh_normals,
@@ -101,7 +99,6 @@ from isaaclab_ov.renderers.ovrtx_usd import (
 )
 from isaaclab_ov.renderers.visual_materials import OVRTXVisualMaterialWriter
 from isaaclab_ov.stage import (
-    _handle_raw_id,
     export_stage_to_string,
     points_tensor_from_warp,
     xform_tensor_from_numpy,
@@ -109,7 +106,6 @@ from isaaclab_ov.stage import (
 )
 
 if TYPE_CHECKING:
-    from isaaclab_ppisp import PpispPipeline
     from ovrtx import AttributeBinding, FrameOutput, Operation, PendingFetch, RenderVarOutput
 
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
@@ -181,21 +177,10 @@ def _write_file(output_dir: Path, file_name: str, content: str) -> None:
     logger.info("Wrote USD file: %s", output_path)
 
 
-def _decode_segmentation_map_named(render_var: RenderVarOutput, decoder: Callable[[IdentifierMap], Any]) -> Any:
+def _decode_segmentation_map(render_var: RenderVarOutput, decoder: Callable[[IdentifierMap], Any]) -> Any:
     """Decode OVRTX 0.7 label tensors before their mapping is released."""
     with render_var.map(device=Device.CPU) as mapping:
         return decoder({name: np.from_dlpack(mapping[name]) for name in mapping.keys()})
-
-
-def _decode_segmentation_map_packed(render_var: RenderVarOutput, decoder: Callable[[IdentifierMap], Any]) -> Any:
-    """Decode the OVRTX 0.6 label buffer before its mapping is released."""
-    with render_var.map(device=Device.CPU) as mapping:
-        return decoder(np.from_dlpack(mapping))
-
-
-_decode_segmentation_map = (
-    _decode_segmentation_map_named if OVRTX_USES_NAMED_SEGMENTATION_MAPS else _decode_segmentation_map_packed
-)
 
 
 def _write_combined_stage(output_dir: Path, render_product_usd: str) -> None:
@@ -337,13 +322,6 @@ class OVRTXCameraRenderData:
         # Populated for "semantic_segmentation" (with an "idToLabels" mapping) and
         # "instance_segmentation" (with "idToLabels" and "idToSemantics" mappings).
         self.renderer_info: dict[str, Any] = {}
-        # Post-render PPISP pipeline composed when ``spec.cfg.isp_cfg`` is set.
-        # Camera construction has already resolved the ISP configuration.
-        self.ppisp_pipeline: PpispPipeline | None = None
-        if spec.cfg.isp_cfg is not None:
-            from isaaclab_ppisp import PpispPipeline
-
-            self.ppisp_pipeline = PpispPipeline(spec.cfg.isp_cfg)
 
     def cleanup(self) -> None:
         """Release this camera's native resources and buffers. Safe to call repeatedly.
@@ -361,7 +339,6 @@ class OVRTXCameraRenderData:
             self.intrinsic_bindings.clear()
             self.warp_buffers.clear()
             self.renderer_info.clear()
-            self.ppisp_pipeline = None
 
 
 class OVRTXRenderer(BaseRenderer):
@@ -435,7 +412,7 @@ class OVRTXRenderer(BaseRenderer):
                 keep_env_roots=False, env_paths=self.scene.population_env_paths,
                 preserve_references=not (self._use_ovstage and self.scene.cfg.populate_physics),
             )  # fmt: skip
-            if not self._use_ovstage and _OVRTX_VERSION is not None and _OVRTX_VERSION.release[:2] == (0, 7):
+            if not self._use_ovstage:
                 # Author the camera mode before loading the stage: changing it later
                 # leaves cached camera poses stale until another scene update.
                 settings_path = Sdf.Path(stage.GetMetadata("renderSettingsPrimPath") or "/Render/IsaacLabSettings")
@@ -467,7 +444,7 @@ class OVRTXRenderer(BaseRenderer):
                     self.scene.stage.write_attribute(
                         query, attribute_name, ordinal=self.scene.ordinal,
                         tensors=np.array(
-                            [_handle_raw_id(self.scene.paths.intern_token(token)) for token in tokens], dtype=np.uint64
+                            [self.scene.paths.intern_token(token).raw_id for token in tokens], dtype=np.uint64
                         ),
                         is_array=False, semantic=ovstage.AttributeSemantic.TOKEN_ID,
                     ).wait()  # fmt: skip
@@ -478,7 +455,7 @@ class OVRTXRenderer(BaseRenderer):
                 )  # fmt: skip
         self._setup_xform_bindings(stage)
         self._setup_geometry_bindings()
-        if self._use_ovstage and _OVRTX_VERSION is not None and _OVRTX_VERSION.release[:2] == (0, 7):
+        if self._use_ovstage:
             # OVRTX 0.7's GPU camera cache mixes tiled views and misses pose updates.
             # Disable only camera reads before registering products (and before attaching
             # an OVStage), retaining GPU instance transforms for large articulated scenes.
@@ -646,7 +623,7 @@ class OVRTXRenderer(BaseRenderer):
                         "camera",
                         ordinal=self.scene.ordinal,
                         tensors=np.array(
-                            [_handle_raw_id(self.scene.paths.intern_path(p)) for p in camera_paths], dtype=np.uint64
+                            [self.scene.paths.intern_path(p).raw_id for p in camera_paths], dtype=np.uint64
                         ),
                         is_array=True,
                         semantic=ovstage.AttributeSemantic.RELATIONSHIP_PATH_ID,
@@ -665,10 +642,7 @@ class OVRTXRenderer(BaseRenderer):
                         "omni:scenePartition",
                         ordinal=self.scene.ordinal,
                         tensors=np.array(
-                            [
-                                _handle_raw_id(self.scene.paths.intern_token(partition))
-                                for partition in camera_partitions
-                            ],
+                            [self.scene.paths.intern_token(partition).raw_id for partition in camera_partitions],
                             dtype=np.uint64,
                         ),
                         is_array=False,
@@ -735,23 +709,6 @@ class OVRTXRenderer(BaseRenderer):
         render_data.warp_buffers = {
             name: proxy.warp for name, proxy in output_data.items() if name != str(RenderBufferKind.RGB)
         }
-        # When PPISP is composed but the user did not request the raw HDR AOV,
-        # allocate an internal HDR scratch buffer under "rgb_hdr" so both the
-        # HdrColor extractor and PPISP dispatch can use the same buffer map.
-        if render_data.ppisp_pipeline is not None and str(RenderBufferKind.RGB_HDR) not in render_data.warp_buffers:
-            ref_proxy = next(iter(output_data.values()))
-            render_data.warp_buffers[str(RenderBufferKind.RGB_HDR)] = wp.zeros(
-                (render_data.num_envs, render_data.height, render_data.width, 3),
-                dtype=wp.float32,
-                device=ref_proxy.device,
-            )
-        if render_data.ppisp_pipeline is not None:
-            if str(RenderBufferKind.RGBA) not in render_data.warp_buffers:
-                raise ValueError(
-                    "OVRTX renderer ISP requires 'rgba' (or 'rgb', which aliases into rgba) as the"
-                    " LDR output destination, but neither was provided. Add 'rgb' or 'rgba' to"
-                    " Camera.cfg.data_types when isp_cfg is set."
-                )
 
     def prepare_capture(self, render_data: OVRTXCameraRenderData, camera_data: CameraData, frame: ProxyArray) -> None:
         """Snapshot delayed-image metadata without changing live camera state."""
@@ -932,7 +889,7 @@ class OVRTXRenderer(BaseRenderer):
         if ldr_color is not None:
             buffer_key = None
 
-            if render_data.ppisp_pipeline is None and "rgba" in output_buffers:
+            if "rgba" in output_buffers:
                 buffer_key = "rgba"
             else:
                 # The output buffers must contain only one simple shading data type at most after resolution of the data
@@ -969,9 +926,9 @@ class OVRTXRenderer(BaseRenderer):
         hdr_color = frame.render_vars.get(render_data.render_var_keys[_HDR_COLOR_VAR])
         if hdr_color is not None and "rgb_hdr" in output_buffers:
             with self._map_render_var_to_dlpack(hdr_color) as tiled_hdr_data:
-                # OVRTX can fall back from deviceIds to automatic assignment; PPISP needs the output device.
+                # OVRTX can fall back from deviceIds to automatic assignment; HDR consumers need the output device.
                 output_device = str(output_buffers["rgb_hdr"].device)
-                if render_data.ppisp_pipeline is not None and str(tiled_hdr_data.device) != output_device:
+                if str(tiled_hdr_data.device) != output_device:
                     tiled_hdr_data = wp.clone(tiled_hdr_data, device=output_device)
                 if tiled_hdr_data.dtype not in (wp.float16, wp.float32):
                     raise TypeError(f"Unsupported OVRTX HdrColor dtype: {tiled_hdr_data.dtype}.")
@@ -1030,13 +987,6 @@ class OVRTXRenderer(BaseRenderer):
             # camera outputs on the latest capture without assuming the returned list's order.
             frame = frames[0] if len(frames) == 1 else max(frames, key=lambda frame: frame.end_time)
             self._process_render_frame(data, frame, data.warp_buffers)
-
-            # Post-render PPISP uses each camera's own HDR source and RGBA destination.
-            if data.ppisp_pipeline is not None:
-                data.ppisp_pipeline.apply(
-                    data.warp_buffers[str(RenderBufferKind.RGB_HDR)],
-                    data.warp_buffers[str(RenderBufferKind.RGBA)],
-                )
 
     def update_transforms(self) -> None:
         """Write changed SDP transforms to OVRTX."""
@@ -1310,8 +1260,6 @@ class OVRTXMesh:
     def __init__(self, renderer: OVRTXRenderer, path: str):
         self.renderer = renderer
         self.path = path
-        self._reference_generation = 0
-        self._reference_path = path
         self.resources = contextlib.ExitStack()
         self.stage = None
         self._native_resources = self.resources.enter_context(contextlib.ExitStack())
@@ -1417,20 +1365,14 @@ class OVRTXMesh:
                 sampler = UsdShade.Shader.Get(self.stage, "/Mesh/Material/Texture")
                 sampler.CreateInput("scale", Sdf.ValueTypeNames.Float4).Set((*appearance[1], 1.0))
             self._native_resources.close()
-            # OVRTX 0.6 loses geometry when a removed reference's path is reused.
-            # Give each replacement its own path; ordinary GPU geometry writes reuse it.
-            self._reference_path = f"{self.path}/generation_{self._reference_generation}"
-            self._reference_generation += 1
             usd = self.stage.GetRootLayer().ExportToString()
             if self.renderer._use_ovstage:
-                reference = ovstage.population.add_usd_reference_from_string(
-                    self.renderer.scene.stage, usd, self._reference_path
-                )
+                reference = ovstage.population.add_usd_reference_from_string(self.renderer.scene.stage, usd, self.path)
                 self._native_resources.callback(self.renderer._remove_usd_reference, reference)
                 ovstage.population.apply_usd_changes(self.renderer.scene.stage, ordinal=self.renderer.scene.ordinal)
-                self.query = self._native_resources.enter_context(self.renderer.scene.query([self._reference_path]))
+                self.query = self._native_resources.enter_context(self.renderer.scene.query([self.path]))
             else:
-                reference = self.renderer.backend.renderer.add_usd_reference_from_string(usd, self._reference_path)
+                reference = self.renderer.backend.renderer.add_usd_reference_from_string(usd, self.path)
                 self._native_resources.callback(self.renderer.backend.renderer.remove_usd, reference)
         attributes = {"points": points, "normals": normals}
         if uvs is not None:
@@ -1462,7 +1404,7 @@ class OVRTXMesh:
                 ).wait()
             else:
                 self.renderer.backend.renderer.write_array_attribute(
-                    [self._reference_path], name, [values], data_access=DataAccess.ASYNC, cuda_stream=stream
+                    [self.path], name, [values], data_access=DataAccess.ASYNC, cuda_stream=stream
                 )
         token = "invisible" if hidden or not len(points) else "inherited"
         if self.renderer._use_ovstage:
@@ -1470,13 +1412,13 @@ class OVRTXMesh:
                 self.query,
                 "visibility",
                 ordinal=self.renderer.scene.ordinal,
-                tensors=np.array([_handle_raw_id(self.renderer.scene.paths.intern_token(token))], dtype=np.uint64),
+                tensors=np.array([self.renderer.scene.paths.intern_token(token).raw_id], dtype=np.uint64),
                 is_array=False,
                 semantic=ovstage.AttributeSemantic.TOKEN_ID,
             ).wait()
         else:
             self.renderer.backend.renderer.write_attribute(
-                [self._reference_path], "visibility", [token], semantic=Semantic.TOKEN_STRING
+                [self.path], "visibility", [token], semantic=Semantic.TOKEN_STRING
             )
 
     def close(self) -> None:
@@ -1586,7 +1528,7 @@ class OVRTXMarkers:
                     self._root_query,
                     "visibility",
                     ordinal=renderer.scene.ordinal,
-                    tensors=np.array([_handle_raw_id(renderer.scene.paths.intern_token(token))], dtype=np.uint64),
+                    tensors=np.array([renderer.scene.paths.intern_token(token).raw_id], dtype=np.uint64),
                     is_array=False,
                     semantic=ovstage.AttributeSemantic.TOKEN_ID,
                 ).wait()

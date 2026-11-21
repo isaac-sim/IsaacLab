@@ -27,6 +27,7 @@ import random
 from typing import NamedTuple
 
 import torch
+from isaaclab_isaacsim.sim.schemas import PhysxCollisionCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
 from isaaclab_newton.sim.schemas import (
     MujocoRigidBodyCfg,
@@ -35,7 +36,6 @@ from isaaclab_newton.sim.schemas import (
     NewtonSDFCollisionCfg,
 )
 from isaaclab_newton.sim.spawners.materials import NewtonMaterialCfg
-from isaaclab_physx.sim.schemas import PhysxCollisionCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg

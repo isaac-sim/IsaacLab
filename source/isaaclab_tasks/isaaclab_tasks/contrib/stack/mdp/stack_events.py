@@ -35,7 +35,7 @@ def set_default_joint_pose(
     num_joints = len(default_pose)
     joint_ids = torch.arange(num_joints, device=env.device, dtype=torch.int32)
     # Use update_default_joint_values kernel to update all joints for all environments
-    from isaaclab_physx.assets.articulation.kernels import update_default_joint_values
+    from isaaclab_isaacsim.assets.articulation.kernels import update_default_joint_values
 
     wp.launch(
         update_default_joint_values,

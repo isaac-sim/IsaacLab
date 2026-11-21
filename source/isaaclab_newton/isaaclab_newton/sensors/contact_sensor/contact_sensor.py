@@ -441,6 +441,7 @@ class ContactSensor(BaseContactSensor):
             f" track_contact_points: {self._track_contact_points}, track_air_time: {self.cfg.track_air_time},"
             f" track_pose: {self.cfg.track_pose}, device: {self._device}"
         )
+        self._data._body_names = self.sensor_names
         self._data.create_buffers(
             self._num_envs,
             self._num_sensors,
