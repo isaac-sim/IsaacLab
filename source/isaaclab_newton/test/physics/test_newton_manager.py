@@ -79,6 +79,62 @@ def test_native_body_variants_have_one_geometry_owner():
         assert all(symbol not in path.read_text() for symbol in forbidden)
 
 
+@pytest.mark.kitless
+@pytest.mark.parametrize(
+    "binding, expected, use_authored_scales",
+    [
+        pytest.param([0, 1], [[1, 2, 2], [3, 4.5, 6.5], [5, 7, 13]], False, id="legacy_two_segments"),
+        pytest.param(
+            [2, 0, 1],
+            [[13, 17, 16], [7, 9.5, 12], [3, 4.5, 6.5], [5, 7, 13]],
+            False,
+            id="legacy_three_segments",
+        ),
+        pytest.param(
+            ([2, 0, 1], False),
+            [[13, 17, 16], [7, 9.5, 12], [3, 4.5, 6.5], [5, 7, 13]],
+            False,
+            id="explicit_open",
+        ),
+        pytest.param(
+            ([2, 0, 1], True),
+            [[9, 12, 14.5], [7, 9.5, 12], [3, 4.5, 6.5]],
+            True,
+            id="explicit_closed_with_authored_scales",
+        ),
+    ],
+)
+def test_cable_geometry_preserves_open_ends_and_closes_periodic_seam(
+    binding: list[int] | tuple[list[int], bool], expected: list[list[float]], use_authored_scales: bool
+) -> None:
+    """Open cables retain their endpoints and periodic cables use the authored capsule lengths."""
+    poses = wp.array(
+        [[1, 2, 3, 0, 0, 0, 1], [5, 7, 11, 0, 0, 0, 1], [13, 17, 19, 0, 0, 0, 1]],
+        dtype=wp.transformf,
+        device="cpu",
+    )
+    authored_scales = [(0.1, 1, 0.1), (0.1, 2, 0.1), (0.1, 3, 0.1)]
+    model_scales = [(1.0, 1.0, 1.0)] * 3 if use_authored_scales else authored_scales
+    model = SimpleNamespace(
+        device=wp.get_device("cpu"),
+        shape_body=wp.array([0, 1, 2], dtype=wp.int32, device="cpu"),
+        shape_transform=wp.array([wp.transform_identity()] * 3, dtype=wp.transformf, device="cpu"),
+        shape_scale=wp.array(model_scales, dtype=wp.vec3f, device="cpu"),
+    )
+    manager = SimpleNamespace(
+        backend=SimpleNamespace(
+            model=model, state_0=SimpleNamespace(body_q=poses), solver=None, transforms_may_change_on_graph_replay=False
+        )
+    )
+    backend = NewtonSceneDataBackend(manager)
+    cable_scales = (
+        {index: wp.vec3(*scale) for index, scale in enumerate(authored_scales)} if use_authored_scales else None
+    )
+    backend.initialize_geometry([], {"/Cable": binding}, cable_scales)
+    points = SceneDataProvider(backend).get_geometry_points()
+    np.testing.assert_allclose(points["/Cable"].numpy(), expected)
+
+
 @pytest.mark.parametrize(
     "num_substeps, collision_decimation, should_warn",
     [(8, 0, False), (8, 7, False), (8, 8, True), (8, 16, True)],

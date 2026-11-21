@@ -41,26 +41,34 @@ class NewtonSceneDataBackend(SceneDataBackend):
     def initialize_geometry(
         self,
         geometry_batches: list,
-        cable_bindings: dict[str, list[int]],
+        cable_bindings: dict[str, list[int] | tuple[list[int], bool]],
         cable_scales: dict[int, wp.vec3] | None = None,
     ) -> None:
         """Bind imported geometry paths to native particle ranges and capsule endpoints.
 
         Args:
             geometry_batches: Deformable and particle geometry recorded by replication.
-            cable_bindings: Native capsule shape indices of each open cable.
+            cable_bindings: Native capsule shape indices for open cables, or ``(indices, closed)`` tuples.
             cable_scales: Authored capsule scales when collision provisioning changes their geometry.
         """
         self._geometry_batches = list(geometry_batches)
         endpoints, ranges = [], {}
         offset = 0
-        for path, shapes in cable_bindings.items():
+        for path, binding in cable_bindings.items():
+            if isinstance(binding, list):
+                shapes, closed = binding, False
+            else:
+                shapes, closed = binding
             ids = np.asarray(shapes, dtype=np.int32)
-            left = np.concatenate((ids[:1], ids))
-            right = np.concatenate((ids, ids[-1:]))
+            if closed:
+                left, right = np.roll(ids, 1), ids
+            else:
+                left = np.concatenate((ids[:1], ids))
+                right = np.concatenate((ids, ids[-1:]))
             left_sign = np.ones(len(left), dtype=np.int32)
             right_sign = -np.ones(len(right), dtype=np.int32)
-            left_sign[0], right_sign[-1] = -1, 1
+            if not closed:
+                left_sign[0], right_sign[-1] = -1, 1
             endpoints.append(np.column_stack((left, left_sign, right, right_sign)))
             ranges[path] = (offset, len(left))
             offset += len(left)

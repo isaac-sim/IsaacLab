@@ -106,8 +106,8 @@ class NewtonCloneRecord:
     """Per-source builders, keyed by clone-plan source path."""
     particle_ranges: dict[str, tuple[int, int]]
     """``(start, count)`` particle range per replicated deformable prim path."""
-    cable_bindings: dict[str, list[int]]
-    """Shape indices per replicated cable prim path."""
+    cable_bindings: dict[str, list[int] | tuple[list[int], bool]]
+    """Capsule shape indices for open cables, or ``(indices, closed)`` for explicit topology, per prim path."""
     cable_scales: dict[int, wp.vec3]
     """Authored cable capsule scales retained across hard resets."""
     geometry_batches: list
