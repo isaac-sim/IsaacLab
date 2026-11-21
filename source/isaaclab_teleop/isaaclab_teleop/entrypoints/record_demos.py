@@ -69,6 +69,7 @@ from .. import (
     se3_keyboard_teleop_cfg,
     se3_spacemouse_teleop_cfg,
 )
+from ..action_policy import initial_hand_tracking_issue, prepare_teleop_action
 from ..device_selection import create_teleop_device, select_teleop_cfg
 from ._ovxr_launch import prepare_ovxr_launch, reject_ovxr_runtime_conflicts
 from ._ovxr_presentation import OvxrPresentation, admit_reset_publication, update_idle_presentation
@@ -76,8 +77,10 @@ from ._ovxr_runtime import (
     RENDERER_ATTACH_TIMEOUT_S,
     OvxrShutdownSignals,
     close_teleop_resources,
+    hold_teleop_frame,
     pace_ovxr_control_loop,
     requires_hard_sim_reset,
+    warn_rejected_teleop_frame,
 )
 
 if TYPE_CHECKING:
@@ -354,16 +357,21 @@ def create_environment_config(
         env_cfg.isaac_teleop = teleop_cfg
     elif args_cli.using_ovxr:
         raise ValueError("--ovxr requires a task configured with env_cfg.isaac_teleop")
+
+    from isaaclab.app import validate_launch
+
+    if args_cli.xr and args_cli.disable_external_cameras:
+        env_cfg = remove_camera_configs(env_cfg)
     if args_cli.using_ovxr:
         env_cfg = prepare_ovxr_launch(env_cfg, args_cli.task, env_cfg.scene.num_envs)
-    if args_cli.using_ovxr or (isinstance(teleop_cfg, IsaacTeleopCfg) and teleop_cfg.prepare_environment is not None):
-        from isaaclab.app import validate_launch
 
-        # Resolve automatic backend choices that the preparation hook depends on. A task
-        # without a physics selection keeps None: SimulationContext defaults it to PhysxCfg.
-        configs, kit_sources = validate_launch(env_cfg, vars(args_cli).copy())
-        if args_cli.using_ovxr:
-            reject_ovxr_runtime_conflicts(configs, kit_sources)
+    if isinstance(teleop_cfg, IsaacTeleopCfg):
+        if args_cli.using_ovxr or teleop_cfg.prepare_environment is not None:
+            # Resolve automatic backend choices that the preparation hook depends on.
+            configs, kit_sources = validate_launch(env_cfg, vars(args_cli).copy())
+            if args_cli.using_ovxr:
+                reject_ovxr_runtime_conflicts(configs, kit_sources)
+        # Preparation may select the task's action policy, which the recording loop applies.
         if teleop_cfg.prepare_environment is not None:
             teleop_cfg.prepare_environment(env_cfg)
 
@@ -376,14 +384,6 @@ def create_environment_config(
             "No success termination term was found in the environment."
             " Will not be able to mark recorded demos as successful."
         )
-
-    # XR-rendering setup is only needed for the Kit XR path. Without --xr,
-    # Isaac Capture runs standalone (I/O only) and renders normally.
-    if args_cli.xr:
-        # Strip camera configs only when external cameras are explicitly disabled; otherwise keep
-        # them (defaulted on) so cameras render alongside the XR view.
-        if args_cli.disable_external_cameras:
-            env_cfg = remove_camera_configs(env_cfg)
 
     # modify configuration such that the environment runs indefinitely until
     # the goal is reached or other termination conditions are met
@@ -653,6 +653,13 @@ def run_simulation_loop(  # noqa: C901
 
         haptic_driver = create_haptic_feedback_driver(env.unwrapped, teleop_interface, env.cfg)
 
+    require_initial_bimanual_tracking = teleop_cfg.require_initial_bimanual_hand_tracking if use_isaac_teleop else False
+    initialized_hand_tracking: set[str] = set()
+    skipped_tracking_frames = 0
+    action_conditioner = teleop_cfg.action_conditioner if use_isaac_teleop else None
+    action_validator = teleop_cfg.action_validator if use_isaac_teleop else None
+    action_state: dict = {}
+
     if use_isaac_teleop and not args_cli.using_ovxr:
         # the device reads these from the focused visualizer window, which OVXR does not open
         print("Isaac Capture control keys: [B] start/resume  [P] pause  [R] reset")
@@ -676,16 +683,18 @@ def run_simulation_loop(  # noqa: C901
                 clock=time.perf_counter,
             )
 
-    def inner_loop():
+    def inner_loop():  # noqa: C901
         """Inner loop function with access to nonlocal variables."""
         nonlocal current_recorded_demo_count, success_step_count, should_reset_recording_instance
-        nonlocal running_recording_instance, label_text
+        nonlocal running_recording_instance, label_text, skipped_tracking_frames
 
         # Reset before starting
         if _reset_sim_buffer(env):
             env.sim.reset()
         env.reset()
         teleop_interface.reset()
+        initialized_hand_tracking.clear()
+        action_state.clear()
         if presentation is not None:
             presentation.mark_changed(env, reset=True)
 
@@ -732,21 +741,33 @@ def run_simulation_loop(  # noqa: C901
                         else:
                             should_reset_recording_instance = True
 
+                if not running_recording_instance:
+                    action_state.clear()
+
                 if action is None:
                     update_idle_presentation(env, presentation)
                     if haptic_driver is not None:
                         haptic_driver.stop()
                     pace_ovxr(iteration_started_s, action_applied=False)
                     continue
-                # Expand to batch dimension
-                actions = action.repeat(env.num_envs, 1)
+
+                # Apply the task's action policy before stepping, as the live agent does.
+                issue = None
+                if running_recording_instance:
+                    issue = initial_hand_tracking_issue(
+                        teleop_interface, initialized_hand_tracking, required=require_initial_bimanual_tracking
+                    )
+                    if issue is None:
+                        action, issue = prepare_teleop_action(
+                            env, action, action_conditioner, action_validator, action_state
+                        )
 
                 # Perform action on environment
-                action_applied = running_recording_instance
+                action_applied = running_recording_instance and issue is None
                 auto_reset = False
-                if running_recording_instance:
-                    # Compute actions based on environment
-                    obv = env.step(actions)
+                if action_applied:
+                    # Expand to batch dimension and compute actions based on environment
+                    obv = env.step(action.repeat(env.num_envs, 1))
                     auto_reset = notify_teleop_of_auto_reset(obv, teleop_interface)
                     if auto_reset:
                         camera_feed_session.refresh()
@@ -758,6 +779,10 @@ def run_simulation_loop(  # noqa: C901
                             subtasks = obv[0].get("subtask_terms")
                         elif subtasks:
                             show_subtask_instructions(instruction_display, subtasks, obv, env.cfg)
+                elif issue is not None:
+                    hold_teleop_frame(env, haptic_driver, render=presentation is None)
+                    skipped_tracking_frames += 1
+                    warn_rejected_teleop_frame(issue, skipped_tracking_frames)
                 else:
                     update_idle_presentation(env, presentation)
                     # not stepping: zero haptics so a paused grip stops buzzing
@@ -804,6 +829,9 @@ def run_simulation_loop(  # noqa: C901
                     )
                     camera_feed_session.refresh()
                     should_reset_recording_instance = False
+                if reset_applied:
+                    initialized_hand_tracking.clear()
+                    action_state.clear()
 
                 if presentation is not None:
                     presentation.publish(env, changed=action_applied, reset=reset_applied)

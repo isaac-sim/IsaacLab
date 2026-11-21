@@ -5,6 +5,7 @@
 
 """In-process teleoperation entrypoint, configuration, and control-loop contracts."""
 
+import os
 import signal
 import sys
 import time
@@ -18,6 +19,70 @@ import torch
 ROOT = Path(__file__).resolve().parents[3]
 
 
+@pytest.mark.parametrize(("kitless", "with_preparation"), [(True, False), (True, True), (False, True)])
+def test_teleop_resolver_validates_the_launch_and_runs_the_task_preparation(monkeypatch, kitless, with_preparation):
+    """The task resolver validates the launch once and runs the task's preparation hook when it has one."""
+    from types import SimpleNamespace
+
+    from isaaclab_teleop import (
+        IsaacTeleopCfg,
+        se3_gamepad_teleop_cfg,
+        se3_keyboard_teleop_cfg,
+        se3_spacemouse_teleop_cfg,
+    )
+    from isaaclab_teleop.device_selection import select_teleop_cfg
+
+    from isaaclab.devices import DeviceCfg
+
+    from isaaclab_tasks.utils import hydra
+
+    monkeypatch.setattr(hydra, "enumerate_task_presets", lambda _task: None)
+    preparations = []
+    from isaaclab_ov.physics import OvPhysxCfg
+
+    config = SimpleNamespace(
+        sim=SimpleNamespace(device="cpu", physics=OvPhysxCfg(), visualizer_cfgs=[]),
+        scene=SimpleNamespace(num_envs=1),
+        terminations=SimpleNamespace(time_out=1),
+        isaac_teleop=IsaacTeleopCfg(
+            prepare_environment=(lambda selected: preparations.append(selected)) if with_preparation else None,
+        ),
+    )
+    validations = []
+    from isaaclab_teleop.entrypoints import teleop_se3_agent as agent
+
+    namespace = {
+        "__package__": "isaaclab_teleop.entrypoints",
+        "IsaacTeleopCfg": IsaacTeleopCfg,
+        "DeviceCfg": DeviceCfg,
+        "select_teleop_cfg": select_teleop_cfg,
+        "se3_keyboard_teleop_cfg": se3_keyboard_teleop_cfg,
+        "se3_spacemouse_teleop_cfg": se3_spacemouse_teleop_cfg,
+        "se3_gamepad_teleop_cfg": se3_gamepad_teleop_cfg,
+        "os": os,
+        "sys": sys,
+        "ManagerBasedRLEnvCfg": SimpleNamespace,
+        "resolve_task_config": lambda *_args, **_kwargs: (config, None),
+        "validate_launch": lambda *_args: (validations.append(_args) or ((), ())),
+        "args_cli": SimpleNamespace(
+            task="Test",
+            device="cpu",
+            num_envs=1,
+            teleop_device=None,
+            sensitivity=1.0,
+            xr=False,
+            using_ovxr=kitless,
+            disable_external_cameras=False,
+            physics=None,
+        ),
+    }
+    for key, value in namespace.items():
+        monkeypatch.setattr(agent, key, value, raising=False)
+    agent._resolve_env_cfg()
+    assert len(validations) == 1
+    assert preparations == ([config] if with_preparation else [])
+
+
 @pytest.fixture
 def run_live_workflow(monkeypatch):
     """Run the imported live owner with finite input, renderer, and simulation endpoints."""
@@ -28,7 +93,18 @@ def run_live_workflow(monkeypatch):
     import isaaclab_teleop
     from isaaclab_teleop.entrypoints import teleop_se3_agent as agent
 
-    def run(env, interface, session, *, step_hz=0.0, refresh=lambda: None, started=True):
+    def run(
+        env,
+        interface,
+        session,
+        *,
+        conditioner=None,
+        validator=None,
+        step_hz=0.0,
+        refresh=lambda: None,
+        started=True,
+        require_hands=False,
+    ):
         class Device:
             session_cleanup_failed = False
             target_frame_prim_path = None
@@ -56,6 +132,10 @@ def run_live_workflow(monkeypatch):
             def last_control_events(self):
                 return interface.control_events()
 
+            @property
+            def hand_tracking_presence(self):
+                return interface.hand_tracking_presence()
+
         camera = SimpleNamespace(bind=lambda _env: contextlib.nullcontext(), refresh=refresh, close=lambda: None)
         session.external_oxr_handles = None
         vars(session).setdefault("start_render_worker", lambda *_args, **_kwargs: started)
@@ -67,7 +147,11 @@ def run_live_workflow(monkeypatch):
         env.sim.visualizers = ()
         cfg = SimpleNamespace(
             sim=object(),
-            isaac_teleop=isaaclab_teleop.IsaacTeleopCfg(),
+            isaac_teleop=isaaclab_teleop.IsaacTeleopCfg(
+                action_conditioner=conditioner,
+                action_validator=validator,
+                require_initial_bimanual_hand_tracking=require_hands,
+            ),
         )
         monkeypatch.setattr(
             agent,
@@ -126,6 +210,8 @@ def test_kitless_loop_respects_control_rate_and_processes_reset(
     refreshes = []
     publications = []
     applied = []
+    seeded_from = []
+    stepped_values = []
     sequence = active is None
     anchor_ready = False
 
@@ -151,9 +237,16 @@ def test_kitless_loop_respects_control_rate_and_processes_reset(
         clock += 0.003  # Caller work consumes part of the independent 20ms action budget.
         return torch.ones((1, 36)) if active or (sequence and advances != 4) else None
 
-    def step(_value):
+    def step(value):
         applied.append(clock)
+        stepped_values.append(value.clone())
         return None, None, torch.tensor([False]), torch.tensor([False]), {}
+
+    def condition(_env, value, state):
+        previous = state.get("frames", 0)
+        seeded_from.append(previous)
+        state["frames"] = previous + 1
+        return value + previous + 2
 
     sim = SimpleNamespace(
         is_running=lambda: clock < (0.199 if sequence else 0.119),
@@ -178,6 +271,8 @@ def test_kitless_loop_respects_control_rate_and_processes_reset(
             wait_for_shutdown=sleep,
             request_render=request,
         ),
+        conditioner=condition,
+        validator=lambda value: None,
         step_hz=step_hz,
         refresh=lambda: refreshes.append(clock),
     )
@@ -192,6 +287,16 @@ def test_kitless_loop_respects_control_rate_and_processes_reset(
     assert len(refreshes) == 1
     assert sum(kwargs["force"] for _identity, kwargs in publications) == 2
     assert any(kwargs["force"] for _identity, kwargs in publications)
+
+    if sequence:
+        # Both STOP branches clear an established ramp before the next accepted action.
+        assert seeded_from == [0, 0, 0]
+        for value in stepped_values:
+            torch.testing.assert_close(value, torch.full((1, 36), 3.0))
+    elif active:
+        assert seeded_from == [0, 1, 2]
+        for index, value in enumerate(stepped_values):
+            torch.testing.assert_close(value, torch.full((1, 36), 3.0 + index))
 
 
 def test_paused_loop_retries_the_latest_unaccepted_publication(monkeypatch, run_live_workflow):
@@ -324,7 +429,7 @@ def run_record_workflow(monkeypatch):
     import isaaclab_teleop
     from isaaclab_teleop.entrypoints import record_demos
 
-    def run(env, session, events, *arguments, make=None, create_device=None):
+    def run(env, session, events, *arguments, make=None, create_device=None, teleop_cfg=None, haptic_driver=None):
         camera = SimpleNamespace(
             bind=lambda _env: contextlib.nullcontext(),
             refresh=lambda: None,
@@ -352,12 +457,13 @@ def run_record_workflow(monkeypatch):
         monkeypatch.setattr(record_demos, "time", SimpleNamespace(perf_counter=lambda: 0.0, time=time.time))
         monkeypatch.setattr(record_demos.gym, "make", make or make_env)
         monkeypatch.setattr(record_demos, "create_teleop_device", create_device)
-        monkeypatch.setattr(isaaclab_teleop, "create_haptic_feedback_driver", lambda *_args: None)
+        monkeypatch.setattr(isaaclab_teleop, "create_haptic_feedback_driver", lambda *_args: haptic_driver)
         monkeypatch.setattr(isaaclab_teleop.XrCameraFeedSession, "prepare", lambda *_args, **_kwargs: camera)
         monkeypatch.setattr(isaaclab_teleop.OvLibrariesXrSession, "prepare", prepare)
         cfg = SimpleNamespace(sim=object())
+        teleop_cfg = isaaclab_teleop.IsaacTeleopCfg() if teleop_cfg is None else teleop_cfg
         with contextlib.ExitStack() as cleanup:
-            record_demos.record_demos(cfg, None, isaaclab_teleop.IsaacTeleopCfg(), cleanup)
+            record_demos.record_demos(cfg, None, teleop_cfg, cleanup)
 
     return run
 
@@ -550,6 +656,120 @@ def test_record_ovxr_startup_failure_drains_xr_before_releasing_the_environment(
     assert {sig: signal.getsignal(sig) for sig in original} == original
 
 
+def test_record_loop_applies_task_action_policy_like_live(run_record_workflow, caplog):
+    """The recorder gates on initial hand tracking, conditions and validates actions, and clears that state."""
+    import logging
+
+    from isaaclab_teleop import IsaacTeleopCfg
+
+    events = []
+    frames = []
+    steps = []
+    seeds = []
+    haptics = []
+    presence = {1: (False, True), 3: (True, False), 5: (False, True)}
+
+    class Device:
+        session_cleanup_failed = False
+        target_frame_prim_path = None
+        xr_render_anchor_path = None
+        external_anchor_state = None
+        required_openxr_extensions = ()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def reset(self):
+            events.append("device-reset")
+
+        def notify_reset(self):
+            pass
+
+        def advance(self):
+            frames.append(len(frames) + 1)
+            return torch.full((1, 1), float(frames[-1]))
+
+        @property
+        def last_control_events(self):
+            return SimpleNamespace(is_active=frames[-1] != 7, should_reset=frames[-1] == 4)
+
+        @property
+        def hand_tracking_presence(self):
+            return presence.get(frames[-1], (True, True))
+
+    def condition(_env, action, state):
+        seeds.append(state.get("last"))
+        state["last"] = int(action.item())
+        return action * 10
+
+    def step(actions):
+        steps.append(int(actions.item()))
+        return {}, None, torch.tensor([False]), torch.tensor([False]), {}
+
+    fail = pytest.fail
+    env = SimpleNamespace(
+        num_envs=1,
+        step_dt=0.02,
+        cfg=SimpleNamespace(),
+        scene=SimpleNamespace(env_prim_paths=["/World/envs/env_0"], physics_backend="newton"),
+        sim=SimpleNamespace(
+            visualizers=(),
+            is_running=lambda: len(frames) < 8,
+            is_stopped=lambda: False,
+            get_physics_step_count=lambda: len(steps),
+            render=lambda: fail("OVXR owns rendering; a rejected frame must not render on the control thread"),
+            reset=lambda: fail("Kitless physics must not be rebuilt"),
+        ),
+        recorder_manager=SimpleNamespace(reset=lambda: None, exported_successful_episode_count=0),
+        reset=lambda: events.append("env-reset"),
+        step=step,
+        close=lambda: None,
+    )
+    session = SimpleNamespace(
+        shutdown_requested=False,
+        start_render_worker=lambda *_args, **_kwargs: True,
+        request_render=lambda *_args, **_kwargs: 1,
+        wait_for_shutdown=lambda _seconds: False,
+    )
+    teleop_cfg = IsaacTeleopCfg(
+        require_initial_bimanual_hand_tracking=True,
+        action_conditioner=condition,
+        action_validator=lambda action: "rejected" if action.item() == 30 else None,
+    )
+    driver = SimpleNamespace(update=lambda: haptics.append("update"), stop=lambda: haptics.append("stop"))
+    with caplog.at_level(logging.WARNING, logger="isaaclab_teleop.entrypoints._ovxr_runtime"):
+        run_record_workflow(
+            env,
+            session,
+            events,
+            create_device=lambda *_args, **_kwargs: Device(),
+            teleop_cfg=teleop_cfg,
+            haptic_driver=driver,
+        )
+
+    # Frames 1 and 5 wait for both hands (the operator reset at frame 4 clears the latch); frame 3's
+    # conditioned action is rejected; frame 7 pauses. Only accepted, conditioned actions step.
+    assert steps == [20, 40, 60, 80]
+    # Rejected conditioning is not committed; reset and pause clear the conditioner state.
+    assert seeds == [None, 2, 2, None, None]
+    assert haptics == ["stop", "update", "stop", "update", "stop", "update", "stop", "update"]
+    issues = [record.args[0] for record in caplog.records]
+    assert issues == ["waiting for initial left hand tracking", "rejected", "waiting for initial left hand tracking"]
+    assert events == [
+        "xr-prepare",
+        "make",
+        "env-reset",
+        "device-reset",
+        "env-reset",
+        "device-reset",
+        "xr-close",
+        "camera-close",
+    ]
+
+
 @pytest.mark.parametrize("selector", [["--physics", "ovphysx"], ["physics=ovphysx"]])
 @pytest.mark.parametrize("ovxr", [False, True])
 def test_teleop_replay_agent_resolves_typed_presets_without_reapplying_physics(monkeypatch, selector, ovxr):
@@ -573,11 +793,14 @@ def test_teleop_replay_agent_resolves_typed_presets_without_reapplying_physics(m
     monkeypatch.setattr(replay, "hydra_overrides", None, raising=False)
     namespace = vars(replay)
     replay._parse_args()
+    prepared_configs = []
     physics = OvPhysxCfg()
     cfg = SimpleNamespace(
         sim=SimulationCfg(physics=physics),
         scene=SimpleNamespace(num_envs=1),
-        isaac_teleop=isaaclab_teleop.IsaacTeleopCfg(),
+        isaac_teleop=isaaclab_teleop.IsaacTeleopCfg(
+            prepare_environment=lambda selected: prepared_configs.append(selected)
+        ),
         terminations=SimpleNamespace(
             success=TerminationTermCfg(func=lambda env: False),
             time_out=TerminationTermCfg(func=lambda env: False),
@@ -604,6 +827,18 @@ def test_teleop_replay_agent_resolves_typed_presets_without_reapplying_physics(m
     )
     assert legacy_args.start_on_replay
     assert not hasattr(namespace["args_cli"], "physics")
+    assert prepared_configs == [cfg]
+
+
+def test_require_hand_replay_data_option_is_off_by_default_and_documents_synchronous_retargeting():
+    from isaaclab_teleop.entrypoints import teleop_replay_agent as replay
+
+    parser = replay._build_parser()
+    arguments = ["--task", "Test", "--replay_file", "recording.mcap"]
+    assert parser.parse_args(arguments).require_hand_replay_data is False
+    assert parser.parse_args([*arguments, "--require_hand_replay_data"]).require_hand_replay_data is True
+    assert parser.parse_args([*arguments, "--no-require_hand_replay_data"]).require_hand_replay_data is False
+    assert "retargets synchronously" in " ".join(parser.format_help().split())
 
 
 @pytest.mark.parametrize(
@@ -770,6 +1005,57 @@ def test_teleop_launcher_preserves_the_resolved_physics_configuration(monkeypatc
     assert physics_cfg.solver_cfg.njmax == 1536
 
 
+@pytest.mark.parametrize(
+    "task_name,physics",
+    [
+        ("IsaacContrib-PickPlace-GR1T2-Abs", "isaacsim_physx"),
+        ("IsaacContrib-PickPlace-GR1T2-Abs", "ovphysx"),
+        ("IsaacContrib-PickPlace-GR1T2-Abs", "newton_mjwarp"),
+        ("IsaacContrib-PickPlace-Locomanipulation-G1-Abs", "ovphysx"),
+        ("IsaacContrib-PickPlace-Locomanipulation-G1-Abs", "newton_mjwarp"),
+        ("IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs", "ovphysx"),
+        ("IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs", "newton_mjwarp"),
+    ],
+)
+def test_teleop_launcher_prepares_humanoid_backends(monkeypatch, task_name, physics):
+    """The entrypoint runs the task's preparation hook for the selected standalone backend."""
+    # Standalone backends run under --ovxr, which removes the task cameras before launch validation.
+    ovxr = () if physics == "isaacsim_physx" else ("--ovxr",)
+    agent = _load_teleop_agent(monkeypatch, "--task", task_name, "--physics", physics, *ovxr)
+    env_cfg, _teleop_cfg, _use_isaac_teleop = agent._resolve_env_cfg()
+    assert env_cfg._prepared_physics_backend == (None if physics == "isaacsim_physx" else physics)
+
+
+def test_task_action_hook_validates_before_and_after_conditioning(monkeypatch):
+    agent = _load_teleop_agent(monkeypatch)
+    calls = []
+
+    def validate(action):
+        calls.append(("validate", action))
+        return "rejected" if action in (3, 6) else None
+
+    def condition(env, action, state):
+        calls.append(("condition", env, action, state))
+        state["last"] = action
+        return action + 1
+
+    state = {}
+    action, issue = agent.prepare_teleop_action("env", 1, condition, validate, state)
+    assert (action, issue, state) == (2, None, {"last": 1})
+    assert [call[0] for call in calls] == ["validate", "condition", "validate"]
+
+    calls.clear()
+    action, issue = agent.prepare_teleop_action("env", 3, condition, validate, state)
+    assert (action, issue) == (3, "rejected")
+    assert [call[0] for call in calls] == ["validate"]
+
+    # A conditioned action rejected by the second validation leaves the state uncommitted.
+    calls.clear()
+    action, issue = agent.prepare_teleop_action("env", 5, condition, validate, state)
+    assert (action, issue, state) == (6, "rejected", {"last": 1})
+    assert [call[0] for call in calls] == ["validate", "condition", "validate"]
+
+
 def test_ovxr_presentation_starts_once_and_adopts_later_input_anchors():
     """A failed start leaves the worker unstarted; a started worker adopts each later device's anchor."""
     from unittest.mock import Mock
@@ -868,6 +1154,186 @@ def test_ovxr_rejects_kit_runtimes_and_local_visualizers(configs, kit_sources, m
         reject_ovxr_runtime_conflicts(configs, kit_sources)
 
 
+@pytest.mark.parametrize(
+    ("left_active", "right_active", "expected"),
+    (
+        (False, True, "waiting for initial left hand tracking"),
+        (True, False, "waiting for initial right hand tracking"),
+    ),
+)
+def test_kitless_hand_guard_requires_both_hands_together_then_allows_held_dropout(
+    monkeypatch, left_active, right_active, expected
+):
+    agent = _load_teleop_agent(monkeypatch)
+
+    class OptionalHand:
+        def __init__(self, active):
+            self.is_none = not active
+
+    lifecycle = SimpleNamespace(
+        HAND_LEFT_KEY="hand_left",
+        HAND_RIGHT_KEY="hand_right",
+        last_step_result={
+            "hand_left": OptionalHand(left_active),
+            "hand_right": OptionalHand(right_active),
+        },
+    )
+    from isaaclab_teleop import IsaacTeleopDevice
+
+    interface = IsaacTeleopDevice.__new__(IsaacTeleopDevice)
+    interface._session_lifecycle = lifecycle
+    initialized = set()
+
+    assert agent.initial_hand_tracking_issue(interface, initialized) == expected
+    lifecycle.last_step_result = {"hand_left": OptionalHand(right_active), "hand_right": OptionalHand(left_active)}
+    other_missing = "right" if right_active else "left"
+    assert (
+        agent.initial_hand_tracking_issue(interface, initialized)
+        == f"waiting for initial {other_missing} hand tracking"
+    )
+    assert not initialized
+    lifecycle.last_step_result = {"hand_left": OptionalHand(True), "hand_right": OptionalHand(True)}
+    # Numeric zero is not a sentinel: a present, valid fully-open hand frame is accepted.
+    assert agent.initial_hand_tracking_issue(interface, initialized) is None
+    assert initialized == {"left", "right"}
+
+    lifecycle.last_step_result = {"hand_left": OptionalHand(False), "hand_right": OptionalHand(False)}
+    assert agent.initial_hand_tracking_issue(interface, initialized) is None
+
+    initialized.clear()
+    assert agent.initial_hand_tracking_issue(interface, initialized) == "waiting for initial left/right hand tracking"
+
+
+def test_kitless_hand_guard_renders_without_step_and_next_valid_frame_resumes(monkeypatch):
+    agent = _load_teleop_agent(monkeypatch)
+
+    class Sim:
+        def __init__(self):
+            self.render_count = 0
+
+        def render(self):
+            self.render_count += 1
+
+    class Env:
+        def __init__(self):
+            self.num_envs = 1
+            self.sim = Sim()
+            self.actions = []
+
+        def step(self, action):
+            self.actions.append(action.clone())
+            return None, None, torch.tensor([False]), torch.tensor([False]), {}
+
+    env = Env()
+    haptics = {"update": 0, "stop": 0}
+
+    class HapticDriver:
+        def update(self):
+            haptics["update"] += 1
+
+        def stop(self):
+            haptics["stop"] += 1
+
+    driver = HapticDriver()
+    valid = torch.arange(36, dtype=torch.float32)
+
+    assert agent._apply_teleop_frame(env, valid, None, driver) == (True, False)
+    assert agent._apply_teleop_frame(env, torch.zeros_like(valid), "missing left hand tracking", driver) == (
+        False,
+        False,
+    )
+    assert agent._apply_teleop_frame(env, valid, None, driver) == (True, False)
+
+    assert env.sim.render_count == 1
+    assert len(env.actions) == 2
+    torch.testing.assert_close(env.actions[0], env.actions[1])
+    assert haptics == {"update": 2, "stop": 1}
+
+
+@pytest.mark.parametrize("entrypoint", ["live", "replay"])
+def test_task_preparation_precedes_ovxr_simulation_context(monkeypatch, entrypoint):
+    """Both actual workflows finalize the selected config before OVXR allocates its context."""
+    pytest.importorskip("ovrtx")
+    pytest.importorskip("isaaccapture.ovxr_session_manager")
+    from contextlib import contextmanager
+
+    import isaaclab_teleop
+    from isaaclab_ov.physics import OvPhysxCfg
+    from isaaclab_teleop import ovxr_session
+    from isaaclab_teleop.entrypoints import teleop_replay_agent, teleop_se3_agent
+
+    from isaaclab.sim import SimulationCfg, SimulationContext
+
+    from isaaclab_tasks.utils import parse_cfg
+
+    calls = []
+
+    def prepare_environment(selected_cfg):
+        assert selected_cfg is config
+        calls.append("prepare")
+        selected_cfg.sim.dt = 0.007
+
+    config = SimpleNamespace(
+        sim=SimulationCfg(physics=OvPhysxCfg()),
+        scene=SimpleNamespace(num_envs=1),
+        terminations=SimpleNamespace(success=None, time_out=None),
+        isaac_teleop=isaaclab_teleop.IsaacTeleopCfg(prepare_environment=prepare_environment),
+    )
+
+    class ContextReached(RuntimeError):
+        pass
+
+    class ContextAllocation:
+        def __init__(self, sim_cfg):
+            assert sim_cfg is config.sim
+            assert sim_cfg.dt == 0.007
+            assert calls == ["prepare", "launch"]
+            calls.append("context")
+            raise ContextReached
+
+        @staticmethod
+        def instance():
+            return None
+
+    @contextmanager
+    def launch(selected_cfg, _args):
+        assert selected_cfg is config
+        calls.append("launch")
+        yield
+
+    def validate_launch(selected_cfg, _args):
+        assert selected_cfg is config
+        return (), ()
+
+    module = teleop_se3_agent if entrypoint == "live" else teleop_replay_agent
+    monkeypatch.setattr(sys, "argv", ["teleop-test"])
+    monkeypatch.setattr(module, "args_cli", None, raising=False)
+    monkeypatch.setattr(module, "ManagerBasedRLEnvCfg", SimpleNamespace)
+    resolver_owner = teleop_se3_agent if entrypoint == "live" else parse_cfg
+    monkeypatch.setattr(resolver_owner, "resolve_task_config", lambda *_args, **_kwargs: (config, None))
+    monkeypatch.setattr(module, "validate_launch", validate_launch)
+    monkeypatch.setattr(module, "launch_simulation", launch)
+    monkeypatch.setattr(SimulationContext, "instance", lambda: None)
+    monkeypatch.setattr(ovxr_session, "SimulationContext", ContextAllocation)
+    monkeypatch.setitem(sys.modules, "ovxr", SimpleNamespace(apply_renderer_settings=lambda _settings: None))
+    arguments = ["--task", "Test", "--ovxr", "--cloudxr_env", "none"]
+    if entrypoint == "live":
+        monkeypatch.setattr(module, "has_kit", lambda: False)
+        monkeypatch.setattr(
+            isaaclab_teleop.XrCameraFeedSession,
+            "prepare",
+            lambda *_args, **_kwargs: SimpleNamespace(close=lambda: None),
+        )
+    else:
+        monkeypatch.setattr(module, "hydra_overrides", None, raising=False)
+        arguments += ["--replay_file", "recording.mcap"]
+    module._parse_args(arguments)
+
+    with pytest.raises(ContextReached):
+        module.main()
+    assert calls == ["prepare", "launch", "context"]
+
+
 _UNSET_PHYSICS_TASK = "IsaacContrib-PickPlace-GR1T2-Abs"
 _UNSET_PHYSICS_OVXR_ERROR = rf"task '{_UNSET_PHYSICS_TASK}' leaves sim.physics unset.*Run this task with --xr"
 
@@ -948,6 +1414,54 @@ def test_replay_unset_task_physics_keeps_simulation_default_or_rejects_ovxr(monk
     # No physics selection defaults to Isaac Sim PhysX, which launches Kit without a forced requirement.
     assert env_cfg.sim.physics is None
     assert not getattr(replay.args_cli, "require_kit", False)
+
+
+def test_rejected_ovxr_frame_does_not_render_on_the_control_thread(monkeypatch, run_live_workflow):
+    """OVXR owns rendering, so a rejected frame holds the scene without a control-thread render or step."""
+    from isaaclab_teleop.entrypoints import teleop_se3_agent as agent
+
+    advances = 0
+    renders = []
+    steps = []
+    requests = []
+    waits = []
+
+    def advance():
+        nonlocal advances
+        advances += 1
+        return torch.ones((1, 2))
+
+    def request(identity, *, force):
+        requests.append(force)
+        return 1
+
+    monkeypatch.setattr(agent, "time", SimpleNamespace(perf_counter=lambda: 0.0, sleep=waits.append))
+    env = SimpleNamespace(
+        num_envs=1,
+        step_dt=0.02,
+        reset=lambda: None,
+        step=steps.append,
+        sim=SimpleNamespace(
+            is_running=lambda: advances < 1,
+            get_physics_step_count=lambda: len(steps),
+            get_physics_dt=lambda: 0.005,
+            render=lambda: renders.append(True),
+        ),
+    )
+    run_live_workflow(
+        env,
+        SimpleNamespace(
+            advance=advance,
+            reset=lambda: None,
+            control_events=lambda: SimpleNamespace(is_active=True, should_reset=False),
+        ),
+        SimpleNamespace(shutdown_requested=False, request_render=request, wait_for_shutdown=waits.append),
+        validator=lambda _action: "rejected",
+    )
+    assert advances == 1
+    assert renders == [] and steps == []
+    assert requests == [True]  # Only the reset publication; the held scene is not republished.
+    assert waits == [0.02]  # A rejected frame waits one action period, like a paused one.
 
 
 @pytest.mark.parametrize("close_while_pending", [False, True])
@@ -1058,6 +1572,20 @@ def test_replay_waits_for_initial_and_recorded_reset_publication(monkeypatch, cl
         assert admissions == [(1, 1), (1, 2), (2, 1), (2, 2)]
 
 
+@pytest.mark.parametrize("done,expected", [((False, True), False), ((True, False), True)])
+@pytest.mark.parametrize("termination", ["terminated", "truncated"])
+def test_auto_reset_follows_the_teleoperated_environment(termination, done, expected):
+    """Only environment 0, which owns the anchor and target frame, re-seeds teleop input."""
+    from isaaclab_teleop.entrypoints import teleop_se3_agent as agent
+
+    flags = torch.tensor(done)
+    step = (None, None, flags, torch.zeros(2, dtype=torch.bool), {})
+    if termination == "truncated":
+        step = (None, None, torch.zeros(2, dtype=torch.bool), flags, {})
+    env = SimpleNamespace(num_envs=2, step=lambda _actions: step)
+    assert agent._apply_teleop_frame(env, torch.zeros(3), None, None) == (True, expected)
+
+
 @pytest.mark.parametrize("termination", ["terminated", "truncated"])
 def test_live_auto_reset_rebases_dynamic_anchor_before_next_input(monkeypatch, run_live_workflow, termination):
     """Auto-reset changes the anchor epoch without resetting the environment twice."""
@@ -1092,6 +1620,7 @@ def test_live_auto_reset_rebases_dynamic_anchor_before_next_input(monkeypatch, r
     reset_calls = []
     actions = []
     reads = []
+    seeds = []
     publications = []
     refreshes = []
     rejected_reset = False
@@ -1122,12 +1651,18 @@ def test_live_auto_reset_rebases_dynamic_anchor_before_next_input(monkeypatch, r
         reads.append((anchor.external_epoch[0], anchor.get_world_matrix().copy()))
         return torch.ones(1)
 
+    def condition(_env, action, state):
+        seeds.append(state.get("previous"))
+        state["previous"] = 1
+        return action
+
     interface = SimpleNamespace(
         advance=advance,
         reset=anchor.reset,
         control_events=lambda: SimpleNamespace(is_active=True, should_reset=False),
         _anchor_manager=anchor,
         _session_lifecycle=lifecycle,
+        hand_tracking_presence=lambda: (True, len(reads) != 2),
     )
     interface.notify_reset = lambda: IsaacTeleopDevice.notify_reset(interface)
     run_live_workflow(
@@ -1137,7 +1672,7 @@ def test_live_auto_reset_rebases_dynamic_anchor_before_next_input(monkeypatch, r
             reset=lambda: reset_calls.append("env"),
             step=step,
             sim=SimpleNamespace(
-                is_running=lambda: len(reads) < 2,
+                is_running=lambda: len(reads) < 3,
                 get_physics_step_count=lambda: len(actions),
                 get_physics_dt=lambda: 0.01,
             ),
@@ -1149,10 +1684,13 @@ def test_live_auto_reset_rebases_dynamic_anchor_before_next_input(monkeypatch, r
             report_host_timing=lambda *_args: None,
             wait_for_shutdown=lambda _: None,
         ),
+        conditioner=condition,
         refresh=lambda: refreshes.append("refresh"),
+        require_hands=True,
     )
     assert reset_calls == ["env"]
     assert len(actions) == 2
+    assert seeds == [None, None]
     assert refreshes == ["refresh"]
     assert reads[1][0] == reads[0][0] + 1
     np.testing.assert_allclose(reads[1][1][:3, 3] - reads[0][1][:3, 3], (3, 3, 3), atol=1e-6)
@@ -1160,6 +1698,30 @@ def test_live_auto_reset_rebases_dynamic_anchor_before_next_input(monkeypatch, r
     # tracking frame by the jump between the two episodes.
     np.testing.assert_allclose(reads[0][1][:3, :3], reads[1][1][:3, :3], atol=1e-6)
     assert publications[:3] == [((1, 0), True), ((2, 1), True), ((2, 1), True)]
+
+
+@pytest.mark.parametrize("failure", ["validation", "exception"])
+def test_action_conditioning_does_not_mutate_nested_state_on_failure(failure):
+    """A rejected proposal cannot mutate accepted tensor or container history."""
+    from isaaclab_teleop.action_policy import prepare_teleop_action
+
+    state = {"history": {"samples": [1], "previous": torch.tensor([2.0])}}
+
+    def condition(_env, action, candidate):
+        candidate["history"]["samples"].append(3)
+        candidate["history"]["previous"].add_(4)
+        if failure == "exception":
+            raise RuntimeError("conditioning failed")
+        return action + 1
+
+    if failure == "exception":
+        with pytest.raises(RuntimeError, match="conditioning failed"):
+            prepare_teleop_action(None, 0, condition, None, state)
+    else:
+        _, issue = prepare_teleop_action(None, 0, condition, lambda action: "invalid" if action else None, state)
+        assert issue == "invalid"
+    assert state["history"]["samples"] == [1]
+    torch.testing.assert_close(state["history"]["previous"], torch.tensor([2.0]))
 
 
 @pytest.mark.parametrize("conflict", ["custom-anchor", "kit-visualizer", "kit-visualizer-list"])

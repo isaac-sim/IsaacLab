@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import MISSING, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from isaaclab.utils import configclass
 
@@ -311,6 +311,12 @@ class IsaacTeleopCfg:
     app_name: str = "IsaacLabTeleop"
     """Application name for the Isaac Capture session."""
 
+    require_initial_bimanual_hand_tracking: bool = False
+    """Wait for both hands to be present before the first environment step.
+
+    An environment or device reset clears the initialization latch. Later
+    tracking loss follows the configured retargeting pipeline's behavior.
+    """
     prepare_environment: Callable[[ManagerBasedRLEnvCfg], None] | None = None
     """Optional task-owned preparation of the resolved environment configuration.
 
@@ -325,4 +331,27 @@ class IsaacTeleopCfg:
 
         This hook is experimental and may change or be removed in a future release, for example once
         tasks declare their backend-specific settings through presets.
+    """
+    action_conditioner: Callable[[Any, Any, dict[str, Any]], Any] | None = None
+    """Optional task-owned pre-step action conditioner.
+
+    The callable receives ``(env, action, state)``. The launcher retains the
+    state dictionary across active frames and clears it on pause or reset.
+    State updates from a frame that fails validation after conditioning are discarded.
+
+    .. note::
+
+        This hook is experimental and may change or be removed in a future release, for example once
+        the task's action term conditions its own targets.
+    """
+    action_validator: Callable[[Any], str | None] | None = None
+    """Optional task-owned fail-closed action validator.
+
+    Return ``None`` for a valid action or a concise reason to render without a
+    physics step. Validation runs both before and after conditioning.
+
+    .. note::
+
+        This hook is experimental and may change or be removed in a future release, for example once
+        the task's action term validates its own targets.
     """
