@@ -44,16 +44,39 @@ these package entrypoints.
 
 ## Live teleoperation
 
+Start with CPU OvPhysX using the command below. The same registered-task
+selectors apply to live input and MCAP replay:
+
+| Task | Physics selectors |
+| --- | --- |
+| `IsaacContrib-PickPlace-GR1T2-Abs` | `ovphysx`, `newton_mjwarp`, `isaacsim_physx` |
+| `IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs` | `ovphysx`, `newton_mjwarp`, `isaacsim_physx` |
+| `IsaacContrib-PickPlace-Locomanipulation-G1-Abs` | `ovphysx`, `newton_mjwarp`, `isaacsim_physx` |
+| `IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs` | `ovphysx`, `newton_mjwarp`, `isaacsim_physx` |
+| `IsaacContrib-Stack-Cube-SO101-IK-Abs-v0` | `ovphysx`, `isaacsim_physx` |
+
+Omitting `--physics` retains the Kit/Isaac Sim default. Use `--physics ovphysx
+--device cpu` for standalone CPU physics, or `--physics newton_mjwarp --device
+cuda:0` for Newton; these standalone selections support `--ovxr`. Kit's
+`isaacsim_physx` selection uses its separate `--xr` workflow and Isaac Sim
+installation, not `--ovxr`. The task presets retain backend-specific solver
+settings and, for SO101, choose the matching USD Physics variant. SO101 also
+defines a `newton_mjwarp` preset, but the environment catalog
+(`tools/environ_docs.py`) disables that combination after the environment smoke
+matrix found runtime constraints, so it is not listed here.
+
+For example, replace the task in this command with any row above:
+
 ```bash
 uv run --extra ovxr isaaclab teleop run \
-    --task IsaacContrib-Stack-Cube-SO101-IK-Abs-v0 --num_envs 1 \
+    --task IsaacContrib-PickPlace-GR1T2-Abs --num_envs 1 \
     --device cpu --physics ovphysx --ovxr
 ```
 
-Use `--physics ovphysx --device cpu` for CPU OVPhysX. `--ovxr` selects OVStage
-and starts CloudXR with the `cloudxrjs` profile by default. Connect a supported
-CloudXR client, then use its Play and Reset controls. Pause/resume is available
-only on clients that expose it; Reset is a separate action.
+`--ovxr` selects OVStage and starts CloudXR with the `cloudxrjs` profile by
+default. Connect a supported CloudXR client, then use its Play and Reset
+controls. Pause/resume is available only on clients that expose it; Reset is a
+separate action.
 
 The SO101 IK task resets its joints to the configured nominal pose without
 joint-position noise, giving the clutch a repeatable reset pose. Its configured
@@ -96,7 +119,7 @@ environment action interval when no explicit rate is set. This option requires
 
 ```bash
 uv run --extra ovxr python scripts/environments/teleoperation/teleop_replay_agent.py \
-    --task IsaacContrib-Stack-Cube-SO101-IK-Abs-v0 --num_envs 1 \
+    --task IsaacContrib-PickPlace-GR1T2-Abs --num_envs 1 \
     --device cpu --physics ovphysx --ovxr \
     --replay_file /absolute/path/to/session.mcap
 ```
@@ -107,7 +130,11 @@ automated success checks; its report carries each run's outcome, with empty rend
 no application render loop runs. A task that sets `target_frame_prim_path`, such as
 `IsaacContrib-Stack-Cube-SO101-IK-Abs-v0`, cannot replay headless without Kit and is rejected before
 launch: use `--ovxr` or a Kit run. A kitless replay consumes exactly one recorded frame per step, so
-it runs as fast as the simulator allows and does not depend on rendering or loop timing. A recorded STOP, task success/failure, or `--max_replay_duration_s` ends
+it runs as fast as the simulator allows and does not depend on rendering or loop timing. Add
+`--require_hand_replay_data` to end the run at the end of the capture's recorded hand data, which the
+agent counts before the run, and report it as a success when the applied actions changed; this checks
+that a capture plays back in full without relying on the task's success condition. A tracking dropout
+inside the recording does not end the run, and a capture without a two-hand frame is rejected. A recorded STOP, task success/failure, or `--max_replay_duration_s` ends
 the run. Playback waits for recorded START messages, including after a recorded
 RESET. Reset does not rewind recorded input. For legacy captures started locally
 without recorded START messages, add `--start_on_replay` to start automatically
@@ -135,6 +162,6 @@ replays the HDF5 file on the kitless backend selected with `--physics`. A task t
 Isaac Sim RTX camera also needs a kitless renderer, such as `--renderer ovrtx`; otherwise the
 camera's Kit renderer conflicts with the kitless physics.
 
-HDF5 recording for the humanoid kitless tasks still requires Kit/Isaac Sim because the
-recording loop does not apply their action-conditioning and tracking-readiness policies.
-Tasks without those policies can continue recording with Newton.
+Recording applies a task's initial hand-tracking gate and action conditioning and validation
+before each step, as live teleoperation and MCAP replay do, so the humanoid tasks also record
+with kitless physics.

@@ -3,7 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Control-loop pacing, shutdown signals, cleanup and reset policy shared by the teleoperation entrypoints."""
+"""Control-loop pacing, rejected frames, shutdown signals, cleanup and reset policy shared by the teleoperation
+entrypoints."""
 
 from __future__ import annotations
 
@@ -63,6 +64,25 @@ def pace_ovxr_control_loop(
             time.sleep(remaining_s)
         else:
             wait_for_shutdown(remaining_s)
+
+
+def hold_teleop_frame(env, haptic_driver, *, render: bool = True) -> None:
+    """Hold the scene without a physics step while an unsafe teleop frame is rejected.
+
+    ``render`` is false under OVXR, which owns rendering and republishes the unchanged scene.
+    """
+    if render:
+        env.sim.render()
+    if haptic_driver is not None:
+        haptic_driver.stop()
+
+
+def warn_rejected_teleop_frame(issue: str, skipped_frames: int) -> None:
+    """Log a rejected teleop frame: the first five, then every 200th."""
+    if skipped_frames <= 5 or skipped_frames % 200 == 0:
+        logger.warning(
+            "Rendering without a physics step for unsafe teleop frame (%s); skipped=%d", issue, skipped_frames
+        )
 
 
 class OvxrShutdownSignals:

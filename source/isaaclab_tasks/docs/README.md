@@ -58,3 +58,15 @@ gym.register(
 > **Note:** As a practice, we specify all the environments in a single file to avoid name conflicts between different
 > tasks or environments. However, this practice is debatable and we are open to suggestions to deal with a large
 > scaling in the number of tasks or environments.
+
+## Standalone physics for GR1T2 and G1 teleoperation tasks
+
+For standalone OVPhysX, the fixed-base G1 task's backend preparation hook moves the
+tabletop collision anchor onto its existing meshes, using the same preparation as GR1T2.
+OVPhysX cooks the steering wheel's authored collision meshes. The bin's existing
+primitive colliders and the object's drop termination remain enabled.
+Registered GR1T2 and G1 tasks prepare the selected backend before scene construction,
+including when created through `gym.make()` or `instantiate(cfg)` without the
+teleoperation launcher. Newton uses its separate backend preparation. Resolve a
+fresh task configuration when changing backends after preparation; copying a prepared
+configuration preserves its selected backend and caller overrides.

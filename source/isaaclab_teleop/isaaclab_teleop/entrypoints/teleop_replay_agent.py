@@ -42,7 +42,7 @@ Gating:
     at replay startup and resume after each recorded RESET.
 
 End-of-replay termination:
-    Four distinct signals end the current run by breaking out of the
+    Five distinct signals end the current run by breaking out of the
     inner loop. ``_run_single_replay`` returns its populated
     :class:`_RunStats`, and the outer batch driver in :func:`main`
     moves on to the next replay (or returns from ``main`` when the
@@ -65,9 +65,18 @@ End-of-replay termination:
     4. **Wall-clock ``--max_replay_duration_s`` safety cap**, for
        recordings that produce neither a STOP, a success, nor a failure
        within the configured window.
+    5. **The end of the recorded hand data**, with
+       ``--require_hand_replay_data``. The agent counts the capture's
+       hand frames before the run and retargets synchronously, so each
+       input read consumes one recorded frame. The retargeting graph
+       holds its last action once the recording ends; the run ends
+       after the counted frames instead of stepping that held action.
+       It is a success when an applied action differed from the one
+       applied before it, and a failure otherwise. A tracking dropout
+       inside the recording does not end the run.
 
     With ``--num_replays N > 1`` each run is independently terminated by
-    one of the four signals above; the agent then rebuilds the
+    one of the signals above; the agent then rebuilds the
     :class:`IsaacTeleopDevice` (reopening the MCAP at frame 0) and runs
     again. The USD stage is loaded only once.
 
@@ -156,8 +165,13 @@ Stats output:
               "run_index": 0,
               "outcome": "success",
               "active_iterations": 322,
+              "rejected_action_frames": 0,
+              "last_action_rejection": null,
               "active_duration_s": 21.503,
               "success_step_count": 1,
+              "input_exhausted": false,  # true at the end of the recorded hand data
+              "replay_complete": false,  # ... when the applied actions changed
+              "recorded_hand_frames": null,  # counted with --require_hand_replay_data
               "cpu_frame_time_ms": {  # per-render ms (wall time between sim.render calls)
                 "mean": ..., "p50": ..., "p90": ..., "p95": ..., "p99": ...,
                 "min": ..., "max": ..., "stddev": ..., "n": ...
@@ -187,7 +201,8 @@ Exit codes:
     ``timeout > failure > incomplete > success``):
 
     * ``0`` -- every run reproduced the recording (``success_term``
-      fired on each run).
+      fired on each run, or with ``--require_hand_replay_data`` each
+      run replayed changing actions to the end of the recorded hand data).
     * ``1`` -- one or more runs terminated/truncated mid-trajectory,
       or finished without any explicit terminator firing.
     * ``2`` -- one or more runs hit ``--max_replay_duration_s``.
@@ -286,6 +301,7 @@ from isaaclab.cli import load_external_tasks
 from isaaclab.devices.openxr import remove_camera_configs
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.envs.utils._manual_success import _prepare_success_term
+from isaaclab.utils import replace
 from isaaclab.utils.version import has_kit
 
 import isaaclab_tasks  # noqa: F401
@@ -296,6 +312,7 @@ from .. import (
     CLOUDXR_JS_ENV,
     CLOUDXR_STANDALONE_ENV,
 )
+from ..action_policy import initial_hand_tracking_issue, prepare_teleop_action
 from ._ovxr_launch import prepare_ovxr_launch, reject_ovxr_runtime_conflicts
 from ._ovxr_presentation import OvxrPresentation, admit_reset_publication, update_idle_presentation
 from ._ovxr_runtime import RENDERER_ATTACH_TIMEOUT_S, requires_hard_sim_reset
@@ -358,6 +375,18 @@ def _build_parser() -> argparse.ArgumentParser:
         "--start_on_replay",
         action="store_true",
         help="Start automatically at startup and after RESET for legacy captures without recorded START messages.",
+    )
+    parser.add_argument(
+        "--require_hand_replay_data",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help=(
+            "End the run at the end of the capture's recorded hand data instead of stepping the held last"
+            " action, and report it as a success when the applied actions changed, otherwise as a failure. The"
+            " run retargets synchronously unless the task selects a mode, so that each step consumes exactly one"
+            " recorded frame, and a capture without a two-hand frame is rejected. For replay acceptance checks"
+            " that do not depend on the task's success condition."
+        ),
     )
     parser.add_argument(
         "--num_success_steps",
@@ -537,6 +566,8 @@ class _RunStats:
     outcome: str = "incomplete"  # "success" | "failure" | "incomplete" | "timeout"
     active_frame_times_ms: list[float] = field(default_factory=list)
     active_iterations: int = 0
+    rejected_action_frames: int = 0
+    last_action_rejection: str | None = None
     active_render_calls: int = 0
     active_duration_s: float = 0.0
     success_step_count: int = 0  # final consecutive-success counter at terminator
@@ -544,17 +575,25 @@ class _RunStats:
     # Defaults to ``{}`` so a run that never reached the active loop
     # produces a missing-but-not-None ``"gpu_stats"`` slot.
     gpu_stats: dict = field(default_factory=dict)
+    input_exhausted: bool = False  # the recorded hand data ended (``--require_hand_replay_data``)
+    replay_complete: bool = False  # ... after the applied actions changed
+    recorded_hand_frames: int | None = None  # the capture's hand frames, counted for that option
 
     def to_dict(self, run_index: int) -> dict:
         return {
             "run_index": run_index,
             "outcome": self.outcome,
             "active_iterations": self.active_iterations,
+            "rejected_action_frames": self.rejected_action_frames,
+            "last_action_rejection": self.last_action_rejection,
             "active_duration_s": round(self.active_duration_s, 6),
             "success_step_count": self.success_step_count,
             "cpu_frame_time_ms": _compute_frame_stats(self.active_frame_times_ms),
             "fps": _compute_fps_stats(self.active_frame_times_ms),
             "gpu_stats": self.gpu_stats,
+            "input_exhausted": self.input_exhausted,
+            "replay_complete": self.replay_complete,
+            "recorded_hand_frames": self.recorded_hand_frames,
         }
 
 
@@ -1114,9 +1153,11 @@ def _prepare_env_cfg(
       returned ``terminated``/``truncated`` tensors and ends the run with a
       ``failure`` outcome, since the recorded trajectory did not reproduce.
 
-    It also checks the launch before any runtime starts. With ``--ovxr`` it also
-    removes camera sensors and rejects a launch that needs more than one
-    environment, a stage path other than OVStage, Kit or a local visualizer.
+    It also checks the launch before any runtime starts and runs the task's
+    :attr:`~isaaclab_teleop.IsaacTeleopCfg.prepare_environment` hook, which may
+    modify the returned configuration. With ``--ovxr`` it also removes camera
+    sensors and rejects a launch that needs more than one environment, a stage
+    path other than OVStage, Kit or a local visualizer.
     Without ``--ovxr`` it rejects a launch without Kit for a task that sets
     :attr:`~isaaclab_teleop.IsaacTeleopCfg.target_frame_prim_path`, because only
     Kit or the OVXR session reads that frame.
@@ -1201,6 +1242,71 @@ def _handle_reset(env: gym.Env, teleop_interface: "IsaacTeleopDevice", *, hard_s
     _reset_replay_environment(env, hard_sim_reset=hard_sim_reset, reset_recorder=True)
     teleop_interface.reset()
     teleop_interface.notify_reset()
+
+
+_HAND_DATA_END_WINDOW_FRAMES = 10000
+"""Consecutive frames without hand data after which a capture's hand recording has ended.
+
+Isaac Capture's replay reader has no end-of-stream signal, and a recorded hand has no tracked flag: an
+untracked hand and a frame past the end both read as no data. The recording therefore ends at the last
+frame with data for either hand that is followed by this many frames without any, so a shorter tracking
+dropout stays inside the recording. Reading the window takes a few milliseconds.
+"""
+
+
+def _count_recorded_hand_frames(replay_file: str) -> int:
+    """Count the frames of a capture's ``hands`` channel, up to the last frame with data for either hand.
+
+    Reads the capture with its own read-only Isaac Capture reader, independent of the replay session.
+
+    Args:
+        replay_file: Path of the MCAP capture.
+
+    Returns:
+        The number of recorded frames, including frames inside it that have no hand data.
+
+    Raises:
+        ValueError: If no frame has data for both hands, as in a controller-only or one-hand capture.
+    """
+    from isaacteleop.deviceio_session import McapReplayConfig, ReplaySession
+    from isaacteleop.deviceio_trackers import HandTracker
+
+    tracker = HandTracker()
+    session = ReplaySession.run(McapReplayConfig(replay_file, [(tracker, "hands")]))
+    try:
+        frames_read = recorded_frames = 0
+        two_hand_frame = False
+        while frames_read - recorded_frames < _HAND_DATA_END_WINDOW_FRAMES:
+            session.update()
+            frames_read += 1
+            left = tracker.get_left_hand(session) is not None
+            right = tracker.get_right_hand(session) is not None
+            if left or right:
+                recorded_frames = frames_read
+                two_hand_frame = two_hand_frame or (left and right)
+    finally:
+        session.close()
+    if not two_hand_frame:
+        raise ValueError(
+            f"--require_hand_replay_data needs recorded two-hand data, but '{replay_file}' has no frame with both"
+            " hands (a controller-only or one-hand capture). Replay it without this option."
+        )
+    return recorded_frames
+
+
+def _finish_at_end_of_hand_data(stats: _RunStats, changing_actions: int) -> None:
+    """Classify a run that reached the end of its recorded hand data."""
+    stats.input_exhausted = True
+    if changing_actions:
+        stats.replay_complete = True
+        stats.outcome = "success"
+        print(
+            f"Replay complete at the end of the recorded hand data after {stats.active_iterations} active steps;"
+            " the held action is not applied."
+        )
+    else:
+        stats.outcome = "failure"
+        print("The recorded hand data ended without a change in the applied actions.")
 
 
 def _process_success_condition(
@@ -1299,7 +1405,7 @@ def _render_replay_idle(env: gym.Env, presentation: OvxrPresentation | None) -> 
         presentation.session.wait_for_shutdown(env.step_dt)
 
 
-def _run_single_replay(
+def _run_single_replay(  # noqa: C901
     env: gym.Env,
     isaac_teleop_cfg,
     success_term: object | None,
@@ -1307,6 +1413,7 @@ def _run_single_replay(
     total_runs: int,
     teleop_interface: "IsaacTeleopDevice",
     presentation: OvxrPresentation | None = None,
+    recorded_hand_frames: int | None = None,
 ) -> _RunStats:
     """Run a single replay pass against ``env`` and return the per-run stats.
 
@@ -1334,8 +1441,11 @@ def _run_single_replay(
         total_runs: Total number of runs in the batch; used only for log
             framing ("Replay 1/5: ...").
         teleop_interface: Fresh input device retained by the batch cleanup owner.
+        recorded_hand_frames: With ``--require_hand_replay_data``, the capture's hand frame count from
+            :func:`_count_recorded_hand_frames`: the run ends once that many frames were read, which
+            requires synchronous retargeting. ``None`` disables that end.
     """
-    stats = _RunStats()
+    stats = _RunStats(recorded_hand_frames=recorded_hand_frames)
 
     # Default NVML-backed provider samples GPU utilization + used
     # memory once per active iteration. ``NvmlGpuStatsProvider``
@@ -1407,9 +1517,16 @@ def _run_single_replay(
             f"Replay {run_index + 1}/{total_runs} started; replaying MCAP from {args_cli.replay_file}"
             f" (max_replay_duration_s={args_cli.max_replay_duration_s:.1f})."
         )
+        action_state: dict = {}
+        initialized_hand_tracking: set[str] = set()
         teleop_active = False
         teleop_was_active = False  # only terminate on STOP after a real START
         success_step_count = 0
+        # End-of-recording acceptance (``--require_hand_replay_data``): every input read consumes one
+        # recorded frame, so the recording ends after ``recorded_hand_frames`` reads.
+        consumed_frames = 0
+        previous_action: torch.Tensor | None = None
+        changing_actions = 0
         replay_start_s = time.monotonic()
         # First time we run env.step on this replay; used to bound the
         # active duration that drives mean-FPS. Stays None until a sample
@@ -1443,7 +1560,12 @@ def _run_single_replay(
                         break
                     if not admit_reset_publication(env, presentation):
                         continue
+                    if recorded_hand_frames is not None and consumed_frames >= recorded_hand_frames:
+                        # The next read would return the action held past the end of the recording.
+                        _finish_at_end_of_hand_data(stats, changing_actions)
+                        break
                     action = _advance_replay_input(teleop_interface, presentation)
+                    consumed_frames += 1
                     ctrl = poll_control_events(teleop_interface)
 
                     # Track active state from the replayed _teleop_control
@@ -1477,6 +1599,8 @@ def _run_single_replay(
                         break
 
                     if ctrl.should_reset:
+                        action_state.clear()
+                        initialized_hand_tracking.clear()
                         _handle_reset(
                             env,
                             teleop_interface,
@@ -1493,7 +1617,28 @@ def _run_single_replay(
                     # teleop_se3_agent.py:309-328). Pre-START operator
                     # setup frames render only; the recorded START flips
                     # us into the stepping branch.
+                    if not teleop_active:
+                        action_state.clear()
                     if action is None or not teleop_active:
+                        _render_replay_idle(env, presentation)
+                        continue
+
+                    issue = initial_hand_tracking_issue(
+                        teleop_interface,
+                        initialized_hand_tracking,
+                        required=isaac_teleop_cfg.require_initial_bimanual_hand_tracking,
+                    )
+                    if issue is None:
+                        action, issue = prepare_teleop_action(
+                            env,
+                            action,
+                            isaac_teleop_cfg.action_conditioner,
+                            isaac_teleop_cfg.action_validator,
+                            action_state,
+                        )
+                    if issue is not None:
+                        stats.rejected_action_frames += 1
+                        stats.last_action_rejection = issue
                         _render_replay_idle(env, presentation)
                         continue
 
@@ -1503,6 +1648,11 @@ def _run_single_replay(
                     iter_start_s = time.perf_counter()
                     if active_start_s is None:
                         active_start_s = iter_start_s
+                    if recorded_hand_frames is not None:
+                        # The first applied action has no predecessor and is not a change.
+                        if previous_action is not None and not torch.equal(previous_action, action):
+                            changing_actions += 1
+                        previous_action = action.clone()
                     actions = action.repeat(env.num_envs, 1)
                     sampling_active[0] = True
                     try:
@@ -1705,6 +1855,10 @@ def _run_replay_batch(env_cfg: ManagerBasedRLEnvCfg, success_term: object | None
     previous_handlers = {}
     shutting_down = False
     all_runs: list[_RunStats] = []
+    # Refuse a capture without two-hand data before the environment or a viewer is built.
+    recorded_hand_frames = (
+        _count_recorded_hand_frames(args_cli.replay_file) if args_cli.require_hand_replay_data else None
+    )
 
     try:
         # CloudXR launch is hoisted to the agent (batch scope) so it
@@ -1746,11 +1900,19 @@ def _run_replay_batch(env_cfg: ManagerBasedRLEnvCfg, success_term: object | None
 
         env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
 
+        teleop_cfg = env_cfg.isaac_teleop
+        if recorded_hand_frames is not None and teleop_cfg.retargeting_execution is None:
+            # The frame count ends a run only if every input read consumes exactly one recorded frame,
+            # also with Kit, where a replay otherwise retargets in a pipeline.
+            from isaacteleop.teleop_session_manager import RetargetingExecutionConfig
+
+            teleop_cfg = replace(teleop_cfg, retargeting_execution=RetargetingExecutionConfig(mode="sync"))
+
         for run_idx in range(args_cli.num_replays):
             # Keep the input owner visible to batch cleanup even when its drain fails.
             # CloudXR stays batch-owned so its IPC survives between replay devices.
             teleop_interface = create_isaac_teleop_device(
-                env_cfg.isaac_teleop,
+                teleop_cfg,
                 env_prim_path=env.scene.env_prim_paths[0],
                 sim_device=args_cli.device,
                 callbacks={},
@@ -1772,6 +1934,7 @@ def _run_replay_batch(env_cfg: ManagerBasedRLEnvCfg, success_term: object | None
                 total_runs=args_cli.num_replays,
                 teleop_interface=teleop_interface,
                 presentation=presentation,
+                recorded_hand_frames=recorded_hand_frames,
             )
             all_runs.append(run_stats)
             print(f"Replay {run_idx + 1}/{args_cli.num_replays} outcome: {run_stats.outcome}")

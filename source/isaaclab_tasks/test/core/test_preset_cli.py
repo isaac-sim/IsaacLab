@@ -271,8 +271,18 @@ def test_help_text_branch_strings(monkeypatch, capsys, build_key, expected_phras
         assert phrase in flat, f"Missing phrase: {phrase!r}"
 
 
+@pytest.mark.parametrize(
+    "task_name",
+    [
+        "IsaacContrib-PickPlace-GR1T2-Abs",
+        "IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs",
+        "IsaacContrib-PickPlace-Locomanipulation-G1-Abs",
+        "IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs",
+        "IsaacContrib-Stack-Cube-SO101-IK-Abs-v0",
+    ],
+)
 @pytest.mark.parametrize("physics", [None, "isaacsim_physx", "ovphysx", "newton_mjwarp"])
-def test_teleop_tasks_resolve_public_physics_selectors(physics):
+def test_teleop_tasks_resolve_public_physics_selectors(monkeypatch, task_name, physics):
     """Resolve registered tasks through the public flag parser before backend preparation."""
     from isaaclab_isaacsim.physics import PhysxCfg
     from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
@@ -282,7 +292,6 @@ def test_teleop_tasks_resolve_public_physics_selectors(physics):
     from isaaclab_tasks.utils import parse_env_cfg
     from isaaclab_tasks.utils.hydra import setup_preset_cli
 
-    task_name = "IsaacContrib-Stack-Cube-SO101-IK-Abs-v0"
     arguments = ["--task", task_name]
     if physics is not None:
         arguments.extend(["--physics", physics])
@@ -291,10 +300,11 @@ def test_teleop_tasks_resolve_public_physics_selectors(physics):
     expected_type = {None: PhysxCfg, "isaacsim_physx": PhysxCfg, "ovphysx": OvPhysxCfg, "newton_mjwarp": NewtonCfg}
     assert isinstance(cfg.sim.physics, expected_type[physics])
     assert cfg.scene.num_envs == 1 and cfg.sim.device == "cpu"
-    assert cfg.scene.robot.spawn.variants["Physics"] == ("physics" if physics == "newton_mjwarp" else "physx")
+    if "SO101" in task_name:
+        assert cfg.scene.robot.spawn.variants["Physics"] == ("physics" if physics == "newton_mjwarp" else "physx")
     if physics == "newton_mjwarp":
         assert isinstance(cfg.sim.physics.solver_cfg, MJWarpSolverCfg)
-    if physics == "ovphysx":
+    if physics == "ovphysx" and "SO101" in task_name:
         # The OvPhysX selection keeps the task's Isaac Sim PhysX grasp tuning.
         _, physx_selections = setup_preset_cli(_make_parser(), ["--task", task_name, "--physics", "isaacsim_physx"])
         physx_cfg = parse_env_cfg(task_name, device="cpu", num_envs=1, overrides=physx_selections).sim.physics

@@ -210,6 +210,7 @@ def test_presented_replay_preserves_startup_ownership_and_batch_completion(monke
             replay_file="fixture.mcap",
             num_replays=requested,
             stats_output_file=None,
+            require_hand_replay_data=False,
         ),
         "OvxrPresentation": Presentation,
         "signal": SimpleNamespace(SIGINT=1, SIGTERM=2, signal=install_signal),
@@ -307,6 +308,7 @@ def test_native_replay_cleanup_preserves_cause_and_borrowed_owners(monkeypatch, 
             auto_launch_cloudxr=True,
             replay_file="fixture.mcap",
             enable_debug_visualization=False,
+            require_hand_replay_data=False,
         ),
         raising=False,
     )
@@ -425,7 +427,15 @@ def test_replay_control_timing_uses_recorded_events_or_explicit_legacy_start(mon
         ),
         raising=False,
     )
-    cfg = IsaacTeleopCfg()
+    conditioning_frames = []
+
+    def condition(_env, action, state):
+        previous = state.get("frames", 0)
+        conditioning_frames.append(previous)
+        state["frames"] = previous + 1
+        return action
+
+    cfg = IsaacTeleopCfg(action_conditioner=condition)
     stats = replay._run_single_replay(env, cfg, None, run_index=1, total_runs=2, teleop_interface=RecordedDevice())
     assert applied == ([2, 3, 4, 5, 6, 9, 10, 11] if start_on_replay else [5, 6, 10, 11])
     assert resets == [-1, 0, 7]
@@ -434,6 +444,7 @@ def test_replay_control_timing_uses_recorded_events_or_explicit_legacy_start(mon
     # The control channel already consumed the recorded RESET; the notification still resets retargeters.
     assert lifecycle._retargeter_reset_pending
     assert lifecycle._retargeter_reset_frame_id == 7
+    assert conditioning_frames == ([0, 1, 2, 3, 4, 0, 1, 2] if start_on_replay else [0, 1, 0, 1])
     assert stats.active_iterations == len(applied)
     assert stats.outcome == "incomplete"
 
@@ -517,3 +528,232 @@ def test_replay_renderer_startup_shares_the_cold_start_bound():
     )
     replay._start_replay_presentation("env", presentation)
     assert waits == [RENDERER_ATTACH_TIMEOUT_S]
+
+
+@pytest.mark.parametrize(
+    ("recorded_hand_frames", "recorded_actions", "dropout_frames", "stepped", "result"),
+    [
+        # Without the option the held last action keeps being stepped until another terminator.
+        (None, [1.0, 2.0, 3.0], (), [1.0, 2.0, 3.0, 3.0, 3.0, 3.0], ("incomplete", False, False)),
+        # The run ends once the recorded frames were read; the held action is not stepped.
+        (3, [1.0, 2.0, 3.0], (), [1.0, 2.0, 3.0], ("success", True, True)),
+        # A frame without hands inside the recording does not end the run.
+        (5, [1.0, 2.0, 2.0, 4.0, 5.0], (2,), [1.0, 2.0, 2.0, 4.0, 5.0], ("success", True, True)),
+        # Constant actions and a single applied action did not replay any motion.
+        (3, [1.0, 1.0, 1.0], (), [1.0, 1.0, 1.0], ("failure", True, False)),
+        (1, [1.0], (), [1.0], ("failure", True, False)),
+    ],
+)
+def test_required_hand_data_ends_the_run_after_the_recorded_frames(
+    monkeypatch, recorded_hand_frames, recorded_actions, dropout_frames, stepped, result
+):
+    """The recorded frame count ends the run; only a change between applied actions makes it a success."""
+    import torch
+    from isaaclab_teleop import IsaacTeleopCfg
+    from isaaclab_teleop.entrypoints import teleop_replay_agent as replay
+
+    frames = []
+
+    class Device:
+        last_control_events = SimpleNamespace(is_active=True, should_reset=False)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def reset(self):
+            pass
+
+        def advance(self):
+            # The retargeting graph holds the last recorded action after the recording ends.
+            frames.append(len(frames))
+            return torch.full((1,), recorded_actions[min(len(frames), len(recorded_actions)) - 1])
+
+        @property
+        def hand_tracking_presence(self):
+            present = len(frames) <= len(recorded_actions) and len(frames) - 1 not in dropout_frames
+            return present, present
+
+    steps = []
+
+    def step(actions):
+        steps.append(float(actions[0, 0]))
+        return None, None, torch.tensor([False]), torch.tensor([False]), {}
+
+    env = SimpleNamespace(
+        num_envs=1,
+        scene=SimpleNamespace(physics_backend="ovphysx", env_prim_paths=["/World/envs/env_0"]),
+        sim=SimpleNamespace(device="cpu", render=lambda: None, is_running=lambda: len(frames) < 6),
+        reset=lambda: None,
+        step=step,
+    )
+    monkeypatch.setattr(replay, "has_kit", lambda: False)
+    monkeypatch.setattr(
+        replay, "NvmlGpuStatsProvider", lambda: SimpleNamespace(sample=lambda: None, summary=lambda: {})
+    )
+    monkeypatch.setattr(
+        replay,
+        "args_cli",
+        SimpleNamespace(
+            device="cpu",
+            replay_file="recording.mcap",
+            start_on_replay=False,
+            enable_debug_visualization=False,
+            max_replay_duration_s=10.0,
+            num_success_steps=1000,
+        ),
+        raising=False,
+    )
+    stats = replay._run_single_replay(
+        env,
+        IsaacTeleopCfg(),
+        None,
+        run_index=1,
+        total_runs=2,
+        teleop_interface=Device(),
+        recorded_hand_frames=recorded_hand_frames,
+    )
+    assert steps == stepped
+    assert (stats.outcome, stats.input_exhausted, stats.replay_complete) == result
+    report = stats.to_dict(1)
+    assert report["recorded_hand_frames"] == recorded_hand_frames
+    assert (report["input_exhausted"], report["replay_complete"]) == result[1:]
+
+
+@pytest.mark.parametrize(
+    ("frames", "counted", "frames_read"),
+    [
+        # Both hands, a dropout shorter than the end window, then one hand: all inside the recording.
+        ([(True, True), (True, True), (False, False), (False, False), (True, False)], 5, 8),
+        ([(False, False), (True, True)], 2, 5),
+        # One-hand and controller-only captures have no two-hand frame.
+        ([(True, False), (False, True)], None, 5),
+        ([], None, 3),
+    ],
+)
+def test_recorded_hand_frames_are_counted_with_an_independent_reader(monkeypatch, frames, counted, frames_read):
+    """The count ends at the last frame with either hand, found by reading a fixed window past it."""
+    from isaaclab_teleop.entrypoints import teleop_replay_agent as replay
+
+    events = []
+
+    class Session:
+        def __init__(self):
+            self.frame = (False, False)
+            self.updates = 0
+
+        def update(self):
+            self.frame = frames[self.updates] if self.updates < len(frames) else (False, False)
+            self.updates += 1
+
+        def close(self):
+            events.append(("close", self.updates))
+
+    class HandTracker:
+        def get_left_hand(self, session):
+            return "pose" if session.frame[0] else None
+
+        def get_right_hand(self, session):
+            return "pose" if session.frame[1] else None
+
+    def run(config):
+        events.append(("open", config))
+        return Session()
+
+    session_module = ModuleType("isaacteleop.deviceio_session")
+    session_module.McapReplayConfig = lambda path, trackers: (path, [(type(t), name) for t, name in trackers])
+    session_module.ReplaySession = SimpleNamespace(run=run)
+    trackers_module = ModuleType("isaacteleop.deviceio_trackers")
+    trackers_module.HandTracker = HandTracker
+    monkeypatch.setitem(sys.modules, session_module.__name__, session_module)
+    monkeypatch.setitem(sys.modules, trackers_module.__name__, trackers_module)
+    monkeypatch.setattr(replay, "_HAND_DATA_END_WINDOW_FRAMES", 3)
+    if counted is None:
+        with pytest.raises(ValueError, match="'capture.mcap' has no frame with both hands"):
+            replay._count_recorded_hand_frames("capture.mcap")
+    else:
+        assert replay._count_recorded_hand_frames("capture.mcap") == counted
+    # A hand tracker reads the capture's hands channel; the reader is closed also when the capture is refused.
+    assert events == [("open", ("capture.mcap", [(HandTracker, "hands")])), ("close", frames_read)]
+
+
+@pytest.mark.parametrize("case", ["task_default", "task_mode", "no_two_hand_frame"])
+def test_required_hand_data_is_counted_before_the_batch_and_replayed_synchronously(monkeypatch, case):
+    """A capture without two-hand data is refused before anything is built; a task-selected mode is kept."""
+    from isaaclab_teleop import IsaacTeleopCfg
+    from isaaclab_teleop.entrypoints import teleop_replay_agent as replay
+    from isaacteleop.teleop_session_manager import RetargetingExecutionConfig
+
+    from isaaclab.sim import SimulationContext
+
+    task_cfg = IsaacTeleopCfg()
+    if case == "task_mode":
+        task_cfg.retargeting_execution = RetargetingExecutionConfig(mode="pipelined")
+    calls = []
+
+    def count(path):
+        calls.append(("count", path))
+        if case == "no_two_hand_frame":
+            raise ValueError("no frame with both hands")
+        return 7
+
+    def create_device(selected, **_kwargs):
+        calls.append(("device", selected.retargeting_execution.mode.value))
+        return SimpleNamespace(session_cleanup_failed=False)
+
+    def run(**kwargs):
+        calls.append(("run", kwargs["recorded_hand_frames"]))
+        return SimpleNamespace(outcome="success", to_dict=lambda index: {"outcome": "success"})
+
+    env = SimpleNamespace(
+        sim=SimpleNamespace(is_running=lambda: True),
+        scene=SimpleNamespace(env_prim_paths=["/World/envs/env_0"]),
+        close=lambda: calls.append("env-close"),
+    )
+    monkeypatch.setattr(SimulationContext, "instance", lambda: None)
+    namespace = {
+        "args_cli": SimpleNamespace(
+            ovxr=False,
+            device="cpu",
+            enable_debug_visualization=False,
+            require_kit=False,
+            task="task",
+            replay_file="capture.mcap",
+            num_replays=2,
+            stats_output_file=None,
+            cloudxr_env=None,
+            auto_launch_cloudxr=False,
+            require_hand_replay_data=True,
+        ),
+        "has_kit": lambda: False,
+        "_count_recorded_hand_frames": count,
+        "_maybe_launch_cloudxr": lambda *_args: None,
+        "gym": SimpleNamespace(make=lambda *_args, **_kwargs: calls.append("make") or SimpleNamespace(unwrapped=env)),
+        "create_isaac_teleop_device": create_device,
+        "_run_single_replay": run,
+        "_extract_env_perf_cfg": lambda cfg: None,
+        "_print_stdout_summary": lambda report: None,
+    }
+    for name, value in namespace.items():
+        monkeypatch.setattr(replay, name, value, raising=False)
+    env_cfg = SimpleNamespace(isaac_teleop=task_cfg)
+    if case == "no_two_hand_frame":
+        with pytest.raises(ValueError, match="no frame with both hands"):
+            replay._run_replay_batch(env_cfg, None)
+        assert calls == [("count", "capture.mcap")]
+        return
+    assert replay._run_replay_batch(env_cfg, None) == 0
+    mode = "pipelined" if case == "task_mode" else "sync"
+    assert calls == [
+        ("count", "capture.mcap"),
+        "make",
+        ("device", mode),
+        ("run", 7),
+        ("device", mode),
+        ("run", 7),
+        "env-close",
+    ]
+    # Only the runs' configuration is changed, not the task's.
+    assert (task_cfg.retargeting_execution is None) is (case == "task_default")
