@@ -464,6 +464,12 @@ class NewtonBackend:
         """Run after the Newton actuators of every physics step, before its solver substeps."""
         self.state_force_callbacks: list[Callable[[State], None]] = []
         """Add forces [N, N·m] to the input state of every solver substep."""
+        self.post_solver_substep_callbacks: list[
+            Callable[[Contacts | None, SolverBase.Observables | None, State, float], None]
+        ] = []
+        """Run after each solve, before output-state swapping and force clearing."""
+        self.solver_observables: SolverBase.Observables | None = None
+        """Requested solver outputs populated by every substep, or ``None``."""
         self.post_step_callbacks: list[Callable[[], None]] = []
         """Run once after the last solver substep of a :meth:`step`."""
         self.solver_init_callbacks: list[Callable[[], None]] = []
@@ -488,7 +494,8 @@ class NewtonBackend:
         if self.cfg is not None:
             self.solver = self.solver_ops = self.collision_pipeline = self.contacts = self.contact_observables = None
             self.actuators = None
-            self.staged_body_f = self.capture = None
+            self.staged_body_f = self.capture = self.solver_observables = None
+            self.post_solver_substep_callbacks = []
             self.graphs = {}
             self.contact_sensors, self.imu_sensors = {}, []
             self.pre_actuator_callbacks, self.post_actuator_callbacks = [], []
@@ -500,6 +507,7 @@ class NewtonBackend:
         env_template: str | None = None,
         *,
         relaxed_capture: Callable[[], bool] | None = None,
+        observable_kinds: set[str] | None = None,
         initial_body_variants: tuple[tuple[int, int], ...] = (),
     ) -> None:
         """Build the solver and its contacts, run the solver-init callbacks, and evaluate the initial FK.
@@ -509,6 +517,7 @@ class NewtonBackend:
             initial_body_variants: Clone selections applied after the solver compiles the shared shape layout.
             relaxed_capture: Returns, when the step is captured, whether to capture in relaxed mode; see
                 :func:`capture_graph`. Defaults to strict capture.
+            observable_kinds: Solver output kinds to allocate before solver-init callbacks bind their consumers.
         """
         solver_cfg, mode = self.cfg.solver_cfg, self.deterministic_mode
         if mode > (max_mode := solver_cfg.class_type.max_deterministic_mode):
@@ -534,9 +543,12 @@ class NewtonBackend:
         if not ops.single_state:
             ops.init_state(self.state_1)
         self._allocate_contacts()
-        self.contact_observables = None
+        requested = set(observable_kinds or ())
         if self.contact_sensors:
-            self.contact_observables = solver.observables(SensorContact.solver_observable_kinds, contacts=self.contacts)
+            requested.update(SensorContact.solver_observable_kinds)
+        outputs = solver.observables(requested, contacts=self.contacts) if requested else None
+        self.solver_observables = outputs.select(observable_kinds) if observable_kinds else None
+        self.contact_observables = outputs if self.contact_sensors else None
         state_0 = self.state_0
         self.staged_body_f = wp.zeros_like(state_0.body_f) if state_0.body_count else None
         callbacks, self.solver_init_callbacks = self.solver_init_callbacks, []
@@ -708,9 +720,20 @@ class NewtonBackend:
             if self.contacts is None:
                 self._allocate_contacts()
             if self.contact_observables is None:
-                self.contact_observables = self.solver.observables(
-                    SensorContact.solver_observable_kinds, contacts=self.contacts
-                )
+                self.contact_observables = self.solver_observables
+                if self.contact_observables is None or not SensorContact.solver_observable_kinds.issubset(
+                    self.contact_observables.kinds
+                ):
+                    existing = self.solver_observables
+                    self.contact_observables = self.solver.observables(
+                        SensorContact.solver_observable_kinds | (existing.kinds if existing is not None else set()),
+                        contacts=self.contacts,
+                    )
+                    if existing is not None:
+                        # Keep arrays already bound by substep consumers while extending the final solve's outputs.
+                        for name, value in vars(existing).items():
+                            if isinstance(value, wp.array):
+                                setattr(self.contact_observables, name, value)
             self.invalidate_graph()
         return sensor
 
@@ -905,7 +928,11 @@ class NewtonBackend:
         """Run the post-actuator callbacks and the solver substeps of one physics step."""
         for callback in self.post_actuator_callbacks:
             callback()
-        contacts = self.contacts if self.collision_pipeline is not None or observables is not None else None
+        contacts = (
+            self.contacts
+            if self.collision_pipeline is not None or observables is not None or self.solver_observables is not None
+            else None
+        )
         self._run_solver_substeps(contacts, observables=observables)
 
     def _finish_step(self) -> None:
@@ -936,9 +963,13 @@ class NewtonBackend:
             for callback in self.state_force_callbacks:
                 callback(state)
             state_out = state if ops.single_state else self.state_1
-            # Only final-substep contact forces are read by sensors.
-            step_observables = observables if i == num_substeps - 1 else None
+            # Substep consumers need every solve; sensors alone need only the final one.
+            step_observables = self.solver_observables
+            if observables is not None and i == num_substeps - 1:
+                step_observables = observables
             ops.step(state, state_out, control, contacts, dt, observables=step_observables)
+            for callback in self.post_solver_substep_callbacks:
+                callback(contacts, step_observables, state_out, dt)
             if not ops.single_state:
                 if num_substeps % 2 == 1 and i == num_substeps - 1:
                     state.assign(self.state_1)
