@@ -437,6 +437,7 @@ class NewtonBackend:
         self.world_mask = wp.zeros(self.model.world_count + 1, dtype=wp.bool, device=self.device)
         """Worlds to reset; the final slot is Newton's global world, which Isaac Lab never resets."""
         self._non_finite_worlds = wp.zeros(self.model.world_count, dtype=wp.bool, device=self.device)
+        self._non_finite_worlds_version = -1
         self.fk_mask = wp.zeros(self.model.articulation_count, dtype=wp.bool, device=self.device)
         """Articulations whose forward kinematics must be evaluated."""
         self.kinematics_dirty = False
@@ -782,13 +783,16 @@ class NewtonBackend:
     def get_non_finite_worlds(self) -> wp.array:
         """Return a borrowed per-world mask of nonfinite Newton state and persistent solver buffers.
 
+        Scan lazily once per published state version; physics steps and completed FK/reset invalidate the cache.
         Newton's global world is excluded. Solver integrations own checks of their private state.
         CPU MuJoCo has global solver history, so a fault in that history flags every world.
         """
         faults = self._non_finite_worlds
-        faults.zero_()
-        with wp.ScopedDevice(self.device):
-            self.solver_ops.mark_non_finite_worlds(self.state_0, faults)
+        if self._non_finite_worlds_version != self.state_version:
+            faults.zero_()
+            with wp.ScopedDevice(self.device):
+                self.solver_ops.mark_non_finite_worlds(self.state_0, faults)
+            self._non_finite_worlds_version = self.state_version
         return faults
 
     def state_pointers(self) -> tuple[int, int]:

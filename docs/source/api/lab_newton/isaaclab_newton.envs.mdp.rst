@@ -13,8 +13,9 @@ Terminations
 ------------
 
 Configure ``solver_fault`` as a termination and ``zero_reward_on_solver_fault`` as the last nonzero
-reward term. The reward term reuses the termination mask and clears complete reward rows before
-summation and episode accumulation. Its ``termination_name`` parameter defaults to ``"solver_fault"``.
+reward term. Both terms query the backend directly. Detection runs lazily once per published state
+version and is refreshed after a physics step or completed FK/reset. The reward term clears complete
+reward rows before summation and episode accumulation and does not require a named termination term.
 
 .. code-block:: python
 

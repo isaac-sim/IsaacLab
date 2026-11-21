@@ -250,5 +250,7 @@ def test_fault_detection_uses_parent_and_entry_local_state_indices():
     wp.to_torch(backend.state_0.joint_q)[3] = float("nan")
     assert backend.get_non_finite_worlds().numpy().tolist() == [False, True]
     wp.to_torch(backend.state_0.joint_q)[3] = 0.0
+    backend.invalidate_fk()
+    backend.forward()
     wp.to_torch(backend.solver_ops.native.entry_state("left").joint_q)[0] = float("inf")
     assert backend.get_non_finite_worlds().numpy().tolist() == [True, False]

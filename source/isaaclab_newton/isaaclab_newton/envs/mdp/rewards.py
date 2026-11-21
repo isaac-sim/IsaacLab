@@ -9,16 +9,18 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import warp as wp
+
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
 
-def zero_reward_on_solver_fault(env: ManagerBasedRLEnv, termination_name: str = "solver_fault") -> float:
+def zero_reward_on_solver_fault(env: ManagerBasedRLEnv) -> float:
     """Zero rewards for faulted worlds before summation and episode accumulation.
 
-    Configure this after every other nonzero reward term, with a nonzero weight. The named termination
-    must use :func:`~isaaclab_newton.envs.mdp.solver_fault`; its mask is reused without scanning the solver again.
+    Configure this after every other nonzero reward term, with a nonzero weight. The lazy backend query
+    shares its result with other fault consumers without requiring a named termination term.
     """
-    faults = env.termination_manager.get_term(termination_name)
+    faults = wp.to_torch(env.sim.backend_manager.get_non_finite_worlds())
     env.reward_manager._step_reward.masked_fill_(faults[:, None], 0.0)
     return 0.0

@@ -1136,6 +1136,8 @@ def test_non_finite_worlds_flag_each_non_finite_body_component_and_skip_the_glob
     from isaaclab_newton.physics.newton_solver import NewtonSolver
 
     backend._non_finite_worlds = wp.zeros(4, dtype=wp.bool, device="cpu")
+    backend._non_finite_worlds_version = -1
+    backend.state_version = 0
     ops = object.__new__(NewtonSolver)
     ops.native = SimpleNamespace(model=backend.model)
     backend.solver_ops = ops
@@ -1282,7 +1284,7 @@ def test_handled_actions_run_before_every_physics_step_like_the_environment_loop
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
-def test_solver_fault_detects_private_buffers_and_recovers_only_the_failed_world(device):
+def test_solver_fault_detects_private_buffers_and_recovers_only_the_failed_world(device, monkeypatch):
     """Poisoned MuJoCo state is detected even with finite body poses, and masked recovery matches a clean solve."""
     cfg = NewtonCfg(solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=True), num_substeps=1, use_cuda_graph=False)
     backend, reference = (_pendulums(cfg, 1, device) for _ in range(2))
@@ -1296,7 +1298,7 @@ def test_solver_fault_detects_private_buffers_and_recovers_only_the_failed_world
         reward_values=torch.tensor([1.0, float("nan"), 3.0, 4.0], device=device),
     )
     env.termination_manager = TerminationManager(
-        {"solver_fault": TerminationTermCfg(func="isaaclab_newton.envs.mdp:solver_fault")}, env
+        {"physics_fault": TerminationTermCfg(func="isaaclab_newton.envs.mdp:solver_fault")}, env
     )
     env.reward_manager = RewardManager(
         {
@@ -1311,6 +1313,14 @@ def test_solver_fault_detects_private_buffers_and_recovers_only_the_failed_world
     original_q = backend.state_0.joint_q.numpy()
     art_ids = wp.array(np.arange(4).reshape(4, 1), dtype=wp.int32, device=device)
     world_mask = wp.array([False, True, False, False], dtype=wp.bool, device=device)
+    scans = []
+    mark_faults = backend.solver_ops.mark_non_finite_worlds
+    monkeypatch.setattr(
+        backend.solver_ops,
+        "mark_non_finite_worlds",
+        lambda state, faults: (scans.append(state), mark_faults(state, faults)),
+    )
+    assert not scans
     checked = []
     for name in (
         "qpos",
@@ -1327,12 +1337,17 @@ def test_solver_fault_detects_private_buffers_and_recovers_only_the_failed_world
         if values.numel() == 0:
             continue
         checked.append(name)
+        scans_before = len(scans)
+        backend.step()
+        reference.step()
+        assert len(scans) == scans_before
         values[1].fill_(float("nan"))
         assert np.isfinite(backend.state_0.body_q.numpy()).all()
         assert env.termination_manager.compute().tolist() == [False, True, False, False]
         torch.testing.assert_close(
             env.reward_manager.compute(dt=0.1), torch.tensor([0.3, 0.0, 0.5, 0.6], device=device)
         )
+        assert len(scans) == scans_before + 1
         logs = env.reward_manager.reset(torch.tensor([1], device=device))
         assert all(value.item() == 0.0 for value in logs.values())
         # Use the same authored-state and FK boundary as the normal scene reset.
@@ -1364,6 +1379,8 @@ def test_non_finite_joint_and_particle_state_is_detected_before_body_state_chang
     assert np.isfinite(backend.state_0.body_q.numpy()).all()
     assert backend.get_non_finite_worlds().numpy().tolist() == [True, False, True, False]
     wp.to_torch(backend.state_0.joint_q)[0] = 0.0
+    backend.invalidate_fk()
+    backend.forward()
     assert backend.get_non_finite_worlds().numpy().tolist() == [False, False, True, False]
 
     builder = create_builder(cfg)
