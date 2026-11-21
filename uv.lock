@@ -1,5 +1,5 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = "==3.12.*"
 resolution-markers = [
     "platform_machine == 'x86_64' and sys_platform == 'linux'",
@@ -33,6 +33,7 @@ overrides = [
     { name = "urllib3", specifier = ">=2.8.0" },
     { name = "usd-exchange", specifier = "==3.0.1" },
     { name = "usd-optimize", specifier = "~=1.3.1" },
+    { name = "websockets", specifier = ">=17.3" },
 ]
 
 [[package]]
@@ -1740,7 +1741,7 @@ wheels = [
 
 [[package]]
 name = "isaaccapture"
-version = "1.7.68a1"
+version = "1.7.118rc1"
 source = { registry = "https://pypi.nvidia.com/" }
 dependencies = [
     { name = "isaacteleop" },
@@ -1748,8 +1749,8 @@ dependencies = [
     { name = "pyyaml" },
 ]
 wheels = [
-    { url = "https://pypi.nvidia.com/isaaccapture/isaaccapture-1.7.68a1-cp312-cp312-manylinux_2_35_aarch64.whl", hash = "sha256:492894dbcaf5b11c5c514394ad76cdc31773da3093f16dfb6a74b910f744f892" },
-    { url = "https://pypi.nvidia.com/isaaccapture/isaaccapture-1.7.68a1-cp312-cp312-manylinux_2_35_x86_64.whl", hash = "sha256:1c1cada052031941af0b23945c6cee566f6a925e43eefdd6c98b30343212222a" },
+    { url = "https://pypi.nvidia.com/isaaccapture/isaaccapture-1.7.118rc1-cp312-cp312-manylinux_2_35_aarch64.whl", hash = "sha256:1533a9005311eef80f77e13de733dc09ecae6e1d00ae2f43a5a511315750e715" },
+    { url = "https://pypi.nvidia.com/isaaccapture/isaaccapture-1.7.118rc1-cp312-cp312-manylinux_2_35_x86_64.whl", hash = "sha256:973521e66f12a77ec68d2bfadff680a4694016e4dfdd9f1a5a82482a9608ca14" },
 ]
 
 [package.optional-dependencies]
@@ -1759,6 +1760,14 @@ cloudxr = [
     { name = "pillow" },
     { name = "websockets" },
 ]
+desktop-mirror = [
+    { name = "cuda-bindings" },
+    { name = "ovui" },
+]
+ovxr = [
+    { name = "cuda-bindings" },
+    { name = "ovxr" },
+]
 retargeters = [
     { name = "cmeel-tinyxml2" },
     { name = "cmeel-urdfdom" },
@@ -1767,6 +1776,7 @@ retargeters = [
     { name = "pin" },
     { name = "pyyaml" },
     { name = "scipy" },
+    { name = "six" },
     { name = "torch" },
 ]
 ui = [
@@ -1951,6 +1961,16 @@ ovrtx = [
     { name = "ovrtx" },
     { name = "ovstage" },
 ]
+ovxr = [
+    { name = "dex-retargeting", marker = "platform_machine == 'x86_64' and sys_platform != 'win32'" },
+    { name = "isaaccapture", extra = ["cloudxr", "desktop-mirror", "ovxr", "retargeters", "ui"], marker = "platform_machine == 'x86_64' and sys_platform != 'win32'" },
+    { name = "isaaclab-mimic", marker = "platform_machine == 'x86_64' and sys_platform != 'win32'" },
+    { name = "isaaclab-teleop", marker = "platform_machine == 'x86_64' and sys_platform != 'win32'" },
+    { name = "ovphysx", marker = "platform_machine == 'x86_64' and sys_platform != 'win32'" },
+    { name = "ovrtx", marker = "platform_machine == 'x86_64' and sys_platform != 'win32'" },
+    { name = "ovstage", marker = "platform_machine == 'x86_64' and sys_platform != 'win32'" },
+    { name = "physx-usd-schemas", marker = "platform_machine == 'x86_64' and sys_platform != 'win32'" },
+]
 rerun = [
     { name = "pyarrow" },
     { name = "rerun-sdk" },
@@ -2046,10 +2066,12 @@ requires-dist = [
     { name = "hydra-core", specifier = ">=1.4.0rc2" },
     { name = "imgui-bundle", specifier = ">=1.92.5" },
     { name = "ipywidgets", marker = "extra == 'mimic'", specifier = ">=8.1.5" },
-    { name = "isaaccapture", extras = ["retargeters", "ui", "cloudxr"], marker = "sys_platform == 'linux' and extra == 'teleop'", specifier = "==1.7.68a1" },
+    { name = "isaaccapture", extras = ["ovxr", "desktop-mirror"], marker = "platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'ovxr'" },
+    { name = "isaaccapture", extras = ["retargeters", "ui", "cloudxr"], marker = "sys_platform == 'linux' and extra == 'teleop'", specifier = "==1.7.118rc1" },
     { name = "isaaclab", editable = "source/isaaclab" },
     { name = "isaaclab-assets", editable = "source/isaaclab_assets" },
     { name = "isaaclab-contrib", editable = "source/isaaclab_contrib" },
+    { name = "isaaclab-dev", extras = ["ov", "teleop"], marker = "platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'ovxr'" },
     { name = "isaaclab-dev", extras = ["sb3", "skrl", "rl-games", "rsl-rl", "viser", "rerun", "ov"], marker = "extra == 'all'" },
     { name = "isaaclab-dev", extras = ["test"], marker = "extra == 'dev'" },
     { name = "isaaclab-experimental", editable = "source/isaaclab_experimental" },
@@ -2071,7 +2093,7 @@ requires-dist = [
     { name = "jinja2" },
     { name = "junitparser", marker = "extra == 'test'" },
     { name = "lazy-loader", specifier = ">=0.4" },
-    { name = "leapp", marker = "extra == 'leapp'", specifier = "==0.7.2" },
+    { name = "leapp", marker = "extra == 'leapp'", specifier = "==0.8.1" },
     { name = "matplotlib", specifier = ">=3.10.3" },
     { name = "meshio", specifier = ">=5.3.5" },
     { name = "moviepy", marker = "extra == 'video'", specifier = ">=1.0.3,<2.0.0.dev0" },
@@ -2156,7 +2178,7 @@ requires-dist = [
     { name = "wandb", marker = "extra == 'wandb'", specifier = ">=0.13.11" },
     { name = "warp-lang", specifier = "==1.17.0" },
 ]
-provides-extras = ["tetrahedralization", "video", "optix", "importers", "test", "dev", "sb3", "skrl", "skrl-jax", "rl-games", "wandb", "rsl-rl", "torchrl", "viser", "rerun", "isaacsim", "ov", "ovphysx", "ovrtx", "mimic", "teleop", "rlinf", "leapp", "all"]
+provides-extras = ["tetrahedralization", "video", "optix", "importers", "test", "dev", "sb3", "skrl", "skrl-jax", "rl-games", "wandb", "rsl-rl", "torchrl", "viser", "rerun", "isaacsim", "ov", "ovphysx", "ovrtx", "mimic", "teleop", "ovxr", "rlinf", "leapp", "all"]
 
 [[package]]
 name = "isaaclab-experimental"
@@ -3075,7 +3097,7 @@ wheels = [
 
 [[package]]
 name = "leapp"
-version = "0.7.2"
+version = "0.8.1"
 source = { registry = "https://pypi.nvidia.com/" }
 dependencies = [
     { name = "fast-sugiyama" },
@@ -3088,7 +3110,7 @@ dependencies = [
     { name = "torch" },
 ]
 wheels = [
-    { url = "https://pypi.nvidia.com/leapp/leapp-0.7.2-py3-none-any.whl", hash = "sha256:86c1581eb09ba1f4b98cd980e19e771682ce3a7ac6766ec087d37496bf5579e0" },
+    { url = "https://pypi.nvidia.com/leapp/leapp-0.8.1-py3-none-any.whl", hash = "sha256:3b6456c890d41e50712c4fb739bbe4faf0c53305dc2bc75d477b67be9dde9a54" },
 ]
 
 [[package]]
@@ -3822,7 +3844,7 @@ wheels = [
 
 [[package]]
 name = "onnxscript"
-version = "0.7.2.dev20260725"
+version = "0.7.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "ml-dtypes" },
@@ -3832,9 +3854,9 @@ dependencies = [
     { name = "packaging" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/51/aa/1aecf63010d380a0c518ea2436204da86d16b244ce09d5f261c1e81bf35a/onnxscript-0.7.2.dev20260725.tar.gz", hash = "sha256:4df491866df7017a5838e0e0149eee5456e53ca21c23f39409b1d32128784b2e", size = 643240, upload-time = "2026-07-25T07:19:01.381Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c4/3a/4d79bce3f460e0df7fed54a92ce80827f25da66511da368bb00783ad8d20/onnxscript-0.7.1.tar.gz", hash = "sha256:309fb86484b11fa4ded90dba580e0d63f1a0827588e521cecaf2eeddb46d6e86", size = 618160, upload-time = "2026-06-29T23:33:21.526Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/8e/27/786e97f8a6408bcd394d63b371d9a8279cc7e82425b2e42d6e558c453443/onnxscript-0.7.2.dev20260725-py3-none-any.whl", hash = "sha256:7bf22861eb9abc0558dfc7405f057e54cbc1b8e1fe02d27df6e3b530b2f22671", size = 750444, upload-time = "2026-07-25T07:19:03.374Z" },
+    { url = "https://files.pythonhosted.org/packages/dd/bd/a0c8e737b6afda10e42a597787d53d5b66e00268df6f59184701eeae37d9/onnxscript-0.7.1-py3-none-any.whl", hash = "sha256:544763b7fdef49940cdd9412ff5135cbae96d59ac6bc1921457f21280f40f4b7", size = 721970, upload-time = "2026-06-29T23:33:23.298Z" },
 ]
 
 [[package]]
@@ -3846,7 +3868,6 @@ dependencies = [
     { name = "configargparse" },
     { name = "dash" },
     { name = "flask" },
-    { name = "ipywidgets" },
     { name = "matplotlib" },
     { name = "nbformat" },
     { name = "numpy" },
@@ -4103,6 +4124,26 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/01/f7/ddb5bb88c2322d78e44479e0440cb55b2c58a6e2a6f1d6c68121aacc37eb/ovstorage-0.3.0-cp310-abi3-manylinux_2_34_aarch64.whl", hash = "sha256:e7e4bdcd25256c8e5b8f06eed2fd8807c3ce25b52f35d56bbe87f9d56fc7840d", size = 66230840, upload-time = "2026-09-22T19:01:15.768Z" },
     { url = "https://files.pythonhosted.org/packages/db/92/c4b66bf2dbe67263366e5ba0b4750b906bd9b48595cbbdfb7995a482d1e5/ovstorage-0.3.0-cp310-abi3-manylinux_2_34_x86_64.whl", hash = "sha256:59bfd5d9382d9615a75a10f505ce9adb88b51766fecd861d3da7b1a597b2ea15", size = 66390101, upload-time = "2026-09-22T19:00:25.824Z" },
     { url = "https://files.pythonhosted.org/packages/ea/d2/69bb2e7b8176213122baa54aaa350ef614f4d9f447a59e74ac0ac263884d/ovstorage-0.3.0-cp310-abi3-win_amd64.whl", hash = "sha256:149a9fece5fc4a48ce18846acdb0d815778fe6fb62ca9719820278ef38eaf421", size = 60547671, upload-time = "2026-09-22T19:01:46.902Z" },
+]
+
+[[package]]
+name = "ovui"
+version = "0.3.0"
+source = { registry = "https://pypi.nvidia.com/" }
+wheels = [
+    { url = "https://pypi.nvidia.com/ovui/ovui-0.3.0-cp312-cp312-manylinux_2_35_x86_64.whl", hash = "sha256:f9d15732c41ae1817346ad856c0e67fae747de536710ed07203046ad33d6a116" },
+]
+
+[[package]]
+name = "ovxr"
+version = "0.2.0.1794933073"
+source = { registry = "https://pypi.nvidia.com/" }
+dependencies = [
+    { name = "ovrtx" },
+    { name = "ovstage" },
+]
+wheels = [
+    { url = "https://pypi.nvidia.com/ovxr/ovxr-0.2.0.1794933073-py3-none-manylinux_2_35_x86_64.whl", hash = "sha256:ed7e48f0f20a9726c4c433edec1d9995b47434072b5ddfe71a1bde378a8bf65a" },
 ]
 
 [[package]]
@@ -6226,16 +6267,19 @@ wheels = [
 
 [[package]]
 name = "websockets"
-version = "14.2"
+version = "17.4"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/94/54/8359678c726243d19fae38ca14a334e740782336c9f19700858c4eb64a1e/websockets-14.2.tar.gz", hash = "sha256:5059ed9c54945efb321f097084b4c7e52c246f2c869815876a69d1efc4ad6eb5", size = 164394, upload-time = "2025-01-19T21:00:56.431Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/75/79/590c5f0cc7d1661195aeefccb0e342b79f4c77d368d526d028821a390332/websockets-17.4.tar.gz", hash = "sha256:09d3939b70df0c8ad2da145ebd50978bccaee1d565e838b0e7921a34d38571eb", size = 191391, upload-time = "2026-10-30T15:10:35.873Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a6/bc/f6678a0ff17246df4f06765e22fc9d98d1b11a258cc50c5968b33d6742a1/websockets-14.2-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:091ab63dfc8cea748cc22c1db2814eadb77ccbf82829bac6b2fbe3401d548eda", size = 170815, upload-time = "2025-01-19T20:59:35.837Z" },
-    { url = "https://files.pythonhosted.org/packages/81/da/72f7caabd94652e6eb7e92ed2d3da818626e70b4f2b15a854ef60bf501ec/websockets-14.2-cp312-cp312-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:a39d7eceeea35db85b85e1169011bb4321c32e673920ae9c1b6e0978590012a3", size = 170178, upload-time = "2025-01-19T20:59:40.423Z" },
-    { url = "https://files.pythonhosted.org/packages/31/e0/812725b6deca8afd3a08a2e81b3c4c120c17f68c9b84522a520b816cda58/websockets-14.2-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:0a6f3efd47ffd0d12080594f434faf1cd2549b31e54870b8470b28cc1d3817d9", size = 170453, upload-time = "2025-01-19T20:59:41.996Z" },
-    { url = "https://files.pythonhosted.org/packages/a3/ae/e7d1a56755ae15ad5a94e80dd490ad09e345365199600b2629b18ee37bc7/websockets-14.2-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:e9d0e53530ba7b8b5e389c02282f9d2aa47581514bd6049d3a7cffe1385cf5fe", size = 169824, upload-time = "2025-01-19T20:59:46.932Z" },
-    { url = "https://files.pythonhosted.org/packages/b3/7d/32cdb77990b3bdc34a306e0a0f73a1275221e9a66d869f6ff833c95b56ef/websockets-14.2-cp312-cp312-win_amd64.whl", hash = "sha256:44bba1a956c2c9d268bdcdf234d5e5ff4c9b6dc3e300545cbe99af59dda9dcce", size = 164421, upload-time = "2025-01-19T20:59:50.674Z" },
-    { url = "https://files.pythonhosted.org/packages/7b/c8/d529f8a32ce40d98309f4470780631e971a5a842b60aec864833b3615786/websockets-14.2-py3-none-any.whl", hash = "sha256:7a6ceec4ea84469f15cf15807a747e9efe57e369c384fa86e022b3bea679b79b", size = 157416, upload-time = "2025-01-19T21:00:54.843Z" },
+    { url = "https://files.pythonhosted.org/packages/cb/18/6229d6583031ca81d092a0cd887a13a57b402fb555acc323d39b45967eb7/websockets-17.4-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:9ae1429ee9e52b139167ed0169757806a27ed7307e942e8c62037a9184e9843b", size = 226321, upload-time = "2026-10-30T15:07:17.563Z" },
+    { url = "https://files.pythonhosted.org/packages/b8/61/7aba018fd53873e792a25afe1f4c005518133477b727d7455f2f7550c425/websockets-17.4-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:51adfc30f467077293a6695d8149bcef501c0728386f3a491054f835dadb60b2", size = 227559, upload-time = "2026-10-30T15:07:18.998Z" },
+    { url = "https://files.pythonhosted.org/packages/c4/73/2a4a5d9c6bca1127f24af7bf08f406a69052d7f341bc81f08d9e8eb446b4/websockets-17.4-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:cfbbba4597f19ad717f79fd3f2a67ae7efae647bd6a61e14554e1b5ad242a5bf", size = 226991, upload-time = "2026-10-30T15:07:27.355Z" },
+    { url = "https://files.pythonhosted.org/packages/db/e7/cb9907fac6f9b28f93beded6efda2953960cd02b633d432acf3451590859/websockets-17.4-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:2a9cb5bbfc33b4ebd3c8d3714d6e09805437f60a14977774e4bd11b5ace46c23", size = 226286, upload-time = "2026-10-30T15:07:36.292Z" },
+    { url = "https://files.pythonhosted.org/packages/59/31/d1636ba67ee9232a60033d90483e48686aa3856014e59110f29015f97bd2/websockets-17.4-cp312-cp312-win_amd64.whl", hash = "sha256:dde9cd67f18803949ebf96de8aba12b8ec5ee3115e34c75a2db85a3b0a6c20d5", size = 219561, upload-time = "2026-10-30T15:07:39.19Z" },
+    { url = "https://files.pythonhosted.org/packages/56/6f/2e8d5610f6184a2e1720bf8ce256402ed99ad30ea87c461fba5bc4d651d9/websockets-17.4-pp312-pypy312_pp80-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:88ba8a439b2bad97bb69c38db5bf0ec16a061ee834cf0f244089186ee803e899", size = 217489, upload-time = "2026-10-30T15:10:29.999Z" },
+    { url = "https://files.pythonhosted.org/packages/29/3a/a05bc57eadcd7e8e072d917888128e6d22e1203984afb21a8da3198982fe/websockets-17.4-pp312-pypy312_pp80-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:868744c68e9342768888c7326604da2228c19bb6946aa46b5f9e1ac32ea8d40b", size = 218356, upload-time = "2026-10-30T15:10:31.432Z" },
+    { url = "https://files.pythonhosted.org/packages/b2/49/eed86bfb8863093a82cbaa52c9159be1ce2374d5ace6fe1f8e8031567e7d/websockets-17.4-pp312-pypy312_pp80-win_amd64.whl", hash = "sha256:829bcaa90be8737c132d9515d6a466e8528e3b3d050d3f3466f36ea94d3beb48", size = 306838, upload-time = "2026-10-30T15:10:32.954Z" },
+    { url = "https://files.pythonhosted.org/packages/eb/27/9db924cb0dbf22eade78d98fbae77790f9bf6bc729e6ab29aef9d68e4156/websockets-17.4-py3-none-any.whl", hash = "sha256:c6bd2c9781915592b209160d0f017d4c7c82ad53075e6b0c24d2a89299e7f9e9", size = 212900, upload-time = "2026-10-30T15:10:34.482Z" },
 ]
 
 [[package]]

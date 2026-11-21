@@ -36,6 +36,7 @@ import contextlib
 import importlib
 import importlib.util
 import logging
+import math
 import os
 import sys
 import time
@@ -69,6 +70,15 @@ from .. import (
     se3_spacemouse_teleop_cfg,
 )
 from ..device_selection import create_teleop_device, select_teleop_cfg
+from ._ovxr_launch import prepare_ovxr_launch, reject_ovxr_runtime_conflicts
+from ._ovxr_presentation import OvxrPresentation, admit_reset_publication, update_idle_presentation
+from ._ovxr_runtime import (
+    RENDERER_ATTACH_TIMEOUT_S,
+    OvxrShutdownSignals,
+    close_teleop_resources,
+    pace_ovxr_control_loop,
+    requires_hard_sim_reset,
+)
 
 if TYPE_CHECKING:
     from .. import XrCameraFeedSession
@@ -117,7 +127,8 @@ def _build_parser() -> argparse.ArgumentParser:
         default=True,
         help=(
             "Call env.sim.reset() before the initial episode and between recording attempts."
-            " Use --no-reset_sim_buffer_each_episode to preserve simulation buffers."
+            " Use --no-reset_sim_buffer_each_episode to preserve simulation buffers. With --ovxr, kitless"
+            " physics keeps its simulator, as in MCAP replay."
         ),
     )
     parser.add_argument(
@@ -127,7 +138,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help=(
             "Path to a CloudXR .env file, or a shorthand: 'cloudxrjs' (Quest/Pico), 'avp' (Apple Vision Pro),"
             " or 'standalone' (headless, no XR client). Set to 'none' to disable CloudXR auto-launch entirely."
-            " When unset, defaults to 'cloudxrjs' with --xr and 'standalone' without --xr."
+            " When unset, defaults to 'cloudxrjs' with --xr or --ovxr and 'standalone' otherwise."
         ),
     )
     parser.add_argument(
@@ -168,6 +179,25 @@ def _build_parser() -> argparse.ArgumentParser:
             " and improve XR performance)."
         ),
     )
+    parser.add_argument(
+        "--ovxr",
+        dest="using_ovxr",
+        action="store_true",
+        default=False,
+        help="Use the OVXR OVRTX/OVStage/OVXR path instead of Kit XR.",
+    )
+    parser.add_argument(
+        "--ovxr_session_mode",
+        choices=("ar", "vr"),
+        default="ar",
+        help="OVXR session mode. Defaults to 'ar'; pass 'vr' for an opaque background.",
+    )
+    parser.add_argument(
+        "--ovxr_step_hz",
+        type=float,
+        default=0.0,
+        help="Maximum host-control rate with --ovxr; 0 leaves active control unthrottled. XR rendering is independent.",
+    )
     add_launcher_args(parser)
     return parser
 
@@ -189,6 +219,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     # the launcher; this selects a camera-rendering experience that provides RTX/DLSS support.
     # Everywhere else we read ``args_cli.disable_external_cameras`` directly.
     args_cli.enable_cameras = not args_cli.disable_external_cameras
+    if args_cli.xr and args_cli.using_ovxr:
+        parser.error("--xr and --ovxr are mutually exclusive OpenXR frame-loop owners")
+    if not math.isfinite(args_cli.ovxr_step_hz) or args_cli.ovxr_step_hz < 0.0:
+        parser.error("--ovxr_step_hz must be finite and non-negative; 0 disables active-control pacing")
+    if args_cli.ovxr_step_hz > 0.0 and not args_cli.using_ovxr:
+        parser.error("--ovxr_step_hz requires --ovxr")
 
     # Call an external callback if requested.
     if args_cli.external_callback:
@@ -199,7 +235,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
     # Resolve CLI profile names once; runtime construction receives a path or None.
     if args_cli.cloudxr_env is None:
-        args_cli.cloudxr_env = "cloudxrjs" if args_cli.xr else "standalone"
+        args_cli.cloudxr_env = "cloudxrjs" if args_cli.xr or args_cli.using_ovxr else "standalone"
     if not args_cli.cloudxr_env.strip() or args_cli.cloudxr_env.lower() == "none":
         args_cli.cloudxr_env = None
     else:
@@ -291,6 +327,7 @@ def create_environment_config(
 
     Raises:
         SystemExit: If parsing the environment configuration fails (the error is logged and the process exits).
+        ValueError: With ``--ovxr``, if the task has no Isaac Capture pipeline or its launch conflicts with OVXR.
     """
     # Resolve the task configuration through Hydra so CLI presets are applied.
     try:
@@ -315,6 +352,20 @@ def create_environment_config(
     )
     if isinstance(teleop_cfg, IsaacTeleopCfg):
         env_cfg.isaac_teleop = teleop_cfg
+    elif args_cli.using_ovxr:
+        raise ValueError("--ovxr requires a task configured with env_cfg.isaac_teleop")
+    if args_cli.using_ovxr:
+        env_cfg = prepare_ovxr_launch(env_cfg, args_cli.task, env_cfg.scene.num_envs)
+    if args_cli.using_ovxr or (isinstance(teleop_cfg, IsaacTeleopCfg) and teleop_cfg.prepare_environment is not None):
+        from isaaclab.app import validate_launch
+
+        # Resolve automatic backend choices that the preparation hook depends on. A task
+        # without a physics selection keeps None: SimulationContext defaults it to PhysxCfg.
+        configs, kit_sources = validate_launch(env_cfg, vars(args_cli).copy())
+        if args_cli.using_ovxr:
+            reject_ovxr_runtime_conflicts(configs, kit_sources)
+        if teleop_cfg.prepare_environment is not None:
+            teleop_cfg.prepare_environment(env_cfg)
 
     # Extract the success condition for manual evaluation in the main loop. Keep
     # an inert term registered under the same name so rewards and other manager
@@ -429,6 +480,17 @@ def process_success_condition(env: gym.Env, success_term: object | None, success
     return success_step_count, False
 
 
+def _reset_sim_buffer(env: gym.Env) -> bool:
+    """Return whether to rebuild the simulator before a recording attempt.
+
+    With ``--ovxr`` this follows the replay agent: kitless physics keeps its solver and the stage
+    leased to the XR render worker.
+    """
+    return args_cli.reset_sim_buffer_each_episode and (
+        not args_cli.using_ovxr or requires_hard_sim_reset(env.scene.physics_backend)
+    )
+
+
 def handle_reset(
     env: gym.Env,
     success_step_count: int,
@@ -453,15 +515,39 @@ def handle_reset(
         Reset success step count (0).
     """
     print("Resetting environment...")
-    if args_cli.reset_sim_buffer_each_episode:
+    if _reset_sim_buffer(env):
         env.sim.reset()
     env.recorder_manager.reset()
     env.reset()
     if teleop_interface is not None and hasattr(teleop_interface, "reset"):
         teleop_interface.reset()
+    if teleop_interface is not None and hasattr(teleop_interface, "notify_reset"):
+        # An operator RESET was already processed by the control channel, so reset() cannot
+        # reset retargeters. This does, and withholds actions computed before env.reset().
+        teleop_interface.notify_reset()
     success_step_count = 0
     instruction_display.show_demo(label_text)
     return success_step_count
+
+
+def notify_teleop_of_auto_reset(step_result: tuple, teleop_interface: object) -> bool:
+    """Report a reset that environment 0 performed inside ``env.step`` to the teleop input.
+
+    The teleop anchor and target frame follow environment 0, so only its termination or truncation
+    restarts the input pipeline. The environment is not reset again.
+
+    Args:
+        step_result: The ``(obs, reward, terminated, truncated, extras)`` tuple from ``env.step``.
+        teleop_interface: The teleop device. Devices without ``notify_reset`` are left unchanged.
+
+    Returns:
+        Whether the device was notified.
+    """
+    _, _, terminated, truncated, _ = step_result
+    if not hasattr(teleop_interface, "notify_reset") or not bool(terminated[0] or truncated[0]):
+        return False
+    teleop_interface.notify_reset()
+    return True
 
 
 def run_simulation_loop(  # noqa: C901
@@ -470,6 +556,9 @@ def run_simulation_loop(  # noqa: C901
     rate_limiter: RateLimiter | None,
     camera_feed_session: "XrCameraFeedSession",
     teleop_cfg: IsaacTeleopCfg | DeviceCfg,
+    *,
+    presentation: OvxrPresentation | None = None,
+    shutdown_signals: OvxrShutdownSignals | None = None,
 ) -> int:
     """Run the main simulation loop for collecting demonstrations.
 
@@ -483,6 +572,8 @@ def run_simulation_loop(  # noqa: C901
         rate_limiter: Optional rate limiter to control simulation speed
         camera_feed_session: Shared XR camera-feed lifecycle
         teleop_cfg: The resolved Capture or native device configuration.
+        presentation: The OVXR presentation with ``--ovxr``. The caller closes it.
+        shutdown_signals: Signal owner installed for ``presentation``. The caller restores it.
 
     Returns:
         int: Number of successful demonstrations recorded
@@ -492,10 +583,10 @@ def run_simulation_loop(  # noqa: C901
     success_step_count = 0
     should_reset_recording_instance = False
     # For Isaac Capture or XR, default to inactive until START is triggered. Without
-    # --xr, recording is started locally (see ``request_start`` below) instead of by
-    # a headset; it flows through the same state machine so keyboard/host pause/resume
-    # keeps working.
-    running_recording_instance = not (args_cli.xr or use_isaac_teleop)
+    # --xr or --ovxr, recording is started locally (see ``request_start`` below) instead
+    # of by a headset; it flows through the same state machine so keyboard/host
+    # pause/resume keeps working.
+    running_recording_instance = not (args_cli.xr or args_cli.using_ovxr or use_isaac_teleop)
 
     # Callback closures for the teleop device
     def reset_recording_instance():
@@ -536,16 +627,23 @@ def run_simulation_loop(  # noqa: C901
             sim_device=args_cli.device,
             callbacks=teleoperation_callbacks,
             visualizers=env.sim.visualizers,
-            cloudxr_env_file=args_cli.cloudxr_env,
-            auto_launch_cloudxr=args_cli.auto_launch_cloudxr,
+            # The OVXR session owns CloudXR and lends its OpenXR handles to the input device.
+            cloudxr_env_file=(None if args_cli.using_ovxr else args_cli.cloudxr_env),
+            auto_launch_cloudxr=args_cli.auto_launch_cloudxr and not args_cli.using_ovxr,
             use_kit_xr_bridge=args_cli.xr,
+            external_oxr_handles_provider=(
+                presentation.session.external_oxr_handles if presentation is not None else None
+            ),
             mcap_record_path=args_cli.mcap_record_path,
             enable_debug_visualization=args_cli.enable_debug_visualization,
             haptic_cfg=getattr(env.cfg, "haptic_feedback", None),
         )
-    except Exception as e:
-        logger.error(f"Failed to create teleop device: {e}")
-        exit(1)
+    except Exception:
+        # Cleanup keeps this error; the command must not report success.
+        logger.exception("Failed to create teleop device")
+        raise
+    if presentation is not None:
+        presentation.input_device = teleop_interface
     if use_isaac_teleop and args_cli.mcap_record_path is not None:
         logger.info("Recording live Isaac Capture session to MCAP (debug-only): %s", args_cli.mcap_record_path)
 
@@ -555,12 +653,28 @@ def run_simulation_loop(  # noqa: C901
 
         haptic_driver = create_haptic_feedback_driver(env.unwrapped, teleop_interface, env.cfg)
 
-    if use_isaac_teleop:
-        # the device reads these from the focused visualizer window
+    if use_isaac_teleop and not args_cli.using_ovxr:
+        # the device reads these from the focused visualizer window, which OVXR does not open
         print("Isaac Capture control keys: [B] start/resume  [P] pause  [R] reset")
 
     label_text = f"Recorded {current_recorded_demo_count} successful demonstrations."
     instruction_display = setup_ui(label_text, env)
+
+    def ovxr_shutdown_requested() -> bool:
+        return presentation is not None and presentation.session.shutdown_requested
+
+    def pace_ovxr(iteration_started_s: float, action_applied: bool) -> None:
+        """Pace OVXR host control as the live agent does; other paths keep their own pacing."""
+        if presentation is not None:
+            pace_ovxr_control_loop(
+                True,
+                action_applied,
+                iteration_started_s=iteration_started_s,
+                action_period_s=env.step_dt,
+                step_hz=args_cli.ovxr_step_hz,
+                wait_for_shutdown=presentation.session.wait_for_shutdown,
+                clock=time.perf_counter,
+            )
 
     def inner_loop():
         """Inner loop function with access to nonlocal variables."""
@@ -568,15 +682,17 @@ def run_simulation_loop(  # noqa: C901
         nonlocal running_recording_instance, label_text
 
         # Reset before starting
-        if args_cli.reset_sim_buffer_each_episode:
+        if _reset_sim_buffer(env):
             env.sim.reset()
         env.reset()
         teleop_interface.reset()
+        if presentation is not None:
+            presentation.mark_changed(env, reset=True)
 
-        # Without --xr there is no headset to send START, so drive the Isaac Capture
+        # Without --xr or --ovxr there is no headset to send START, so drive the Isaac Capture
         # state machine to RUNNING locally ([B]/[P] can still pause/resume). The reset()
         # above is a host reset (a pure pulse), so it does not cancel this start.
-        if use_isaac_teleop and not args_cli.xr:
+        if use_isaac_teleop and not (args_cli.xr or args_cli.using_ovxr):
             teleop_interface.request_start()
 
         subtasks = {}
@@ -589,9 +705,21 @@ def run_simulation_loop(  # noqa: C901
         from ._instruction_display import show_subtask_instructions
 
         with contextlib.suppress(KeyboardInterrupt), torch.inference_mode(), camera_feed_session.bind(env):
-            while env.sim.is_running():
+            while env.sim.is_running() and not ovxr_shutdown_requested():
+                iteration_started_s = time.perf_counter() if presentation is not None else 0.0
+                # Reset invalidates the tracking anchor. Publish the new epoch
+                # before reading input, retaining force across deferred admissions.
+                if not admit_reset_publication(env, presentation):
+                    continue
                 # Get teleop command (may be None while waiting for session start)
-                action = teleop_interface.advance()
+                target_frame_prim_path = (
+                    teleop_interface.target_frame_prim_path if presentation is not None and use_isaac_teleop else None
+                )
+                if target_frame_prim_path is None:
+                    action = teleop_interface.advance()
+                else:
+                    target_T_world = presentation.session.get_target_frame_T_world(target_frame_prim_path)
+                    action = teleop_interface.advance(target_T_world=target_T_world)
 
                 if use_isaac_teleop:
                     ctrl = poll_control_events(teleop_interface)
@@ -605,17 +733,23 @@ def run_simulation_loop(  # noqa: C901
                             should_reset_recording_instance = True
 
                 if action is None:
-                    env.sim.render()
+                    update_idle_presentation(env, presentation)
                     if haptic_driver is not None:
                         haptic_driver.stop()
+                    pace_ovxr(iteration_started_s, action_applied=False)
                     continue
                 # Expand to batch dimension
                 actions = action.repeat(env.num_envs, 1)
 
                 # Perform action on environment
+                action_applied = running_recording_instance
+                auto_reset = False
                 if running_recording_instance:
                     # Compute actions based on environment
                     obv = env.step(actions)
+                    auto_reset = notify_teleop_of_auto_reset(obv, teleop_interface)
+                    if auto_reset:
+                        camera_feed_session.refresh()
                     # render controller haptics from post-step contact forces
                     if haptic_driver is not None:
                         haptic_driver.update()
@@ -625,7 +759,7 @@ def run_simulation_loop(  # noqa: C901
                         elif subtasks:
                             show_subtask_instructions(instruction_display, subtasks, obv, env.cfg)
                 else:
-                    env.sim.render()
+                    update_idle_presentation(env, presentation)
                     # not stepping: zero haptics so a paused grip stops buzzing
                     if haptic_driver is not None:
                         haptic_driver.stop()
@@ -653,20 +787,26 @@ def run_simulation_loop(  # noqa: C901
                     instruction_display.show_demo(label_text)
                     print(label_text)
                     target_time = time.time() + 0.8
-                    while time.time() < target_time:
+                    while time.time() < target_time and not ovxr_shutdown_requested():
                         if rate_limiter:
                             rate_limiter.sleep(env)
                         else:
-                            env.sim.render()
+                            iteration_started_s = time.perf_counter() if presentation is not None else 0.0
+                            update_idle_presentation(env, presentation)
+                            pace_ovxr(iteration_started_s, action_applied=False)
                     break
 
                 # Handle reset if requested
+                reset_applied = should_reset_recording_instance or auto_reset
                 if should_reset_recording_instance:
                     success_step_count = handle_reset(
                         env, success_step_count, instruction_display, label_text, teleop_interface
                     )
                     camera_feed_session.refresh()
                     should_reset_recording_instance = False
+
+                if presentation is not None:
+                    presentation.publish(env, changed=action_applied, reset=reset_applied)
 
                 # Check if simulation is stopped
                 if env.sim.is_stopped():
@@ -675,11 +815,22 @@ def run_simulation_loop(  # noqa: C901
                 # Rate limiting
                 if rate_limiter:
                     rate_limiter.sleep(env)
+                pace_ovxr(iteration_started_s, action_applied)
 
+    # Install after environment/device initialization because embedded native
+    # libraries may replace inherited signal dispositions during startup.
+    if presentation is not None:
+        shutdown_signals.install(presentation)
     # Run the loop with or without context manager based on stack
     if use_isaac_teleop:
         with teleop_interface:
-            inner_loop()
+            # Capture releases borrowed handles before the caller closes OVXR and then the environment.
+            if presentation is None or presentation.start(
+                env,
+                timeout_s=RENDERER_ATTACH_TIMEOUT_S,
+                required_openxr_extensions=teleop_interface.required_openxr_extensions,
+            ):
+                inner_loop()
     else:
         inner_loop()
 
@@ -721,8 +872,12 @@ def record_demos(
     use_isaac_teleop = isinstance(teleop_cfg, IsaacTeleopCfg)
 
     # Apply the RTX/DLSS global settings when Kit runs an RTX render pipeline (Kit visualizer,
-    # external cameras, or XR).
-    if has_kit() and (not args_cli.disable_external_cameras or args_cli.kit_visualizer or args_cli.xr):
+    # external cameras, or XR). OVXR renders without Kit.
+    if (
+        not args_cli.using_ovxr
+        and has_kit()
+        and (not args_cli.disable_external_cameras or args_cli.kit_visualizer or args_cli.xr)
+    ):
         from isaaclab_isaacsim.renderers.isaac_rtx_renderer_utils import apply_isaac_rtx_global_settings
 
         apply_isaac_rtx_global_settings(
@@ -732,8 +887,13 @@ def record_demos(
     camera_feed_session = XrCameraFeedSession.prepare(
         env_cfg,
         enabled=args_cli.xr and use_isaac_teleop,
-        camera_rendering_enabled=not args_cli.disable_external_cameras,
+        camera_rendering_enabled=not args_cli.disable_external_cameras and not args_cli.using_ovxr,
     )
+    if args_cli.using_ovxr:
+        current_recorded_demo_count = _record_ovxr_demos(env_cfg, success_term, teleop_cfg, camera_feed_session)
+        print(f"Recording session completed with {current_recorded_demo_count} successful demonstrations")
+        print(f"Demonstrations saved to: {args_cli.dataset_file}")
+        return
     cleanup.callback(camera_feed_session.close)
     if camera_feed_session.requires_responsive_denoising:
         from isaaclab_isaacsim.renderers.isaac_rtx_renderer_utils import apply_isaac_rtx_global_settings
@@ -770,6 +930,56 @@ def record_demos(
     env.close()
     print(f"Recording session completed with {current_recorded_demo_count} successful demonstrations")
     print(f"Demonstrations saved to: {args_cli.dataset_file}")
+
+
+def _record_ovxr_demos(
+    env_cfg: ManagerBasedRLEnvCfg,
+    success_term: object | None,
+    teleop_cfg: IsaacTeleopCfg,
+    camera_feed_session: "XrCameraFeedSession",
+) -> int:
+    """Record through an OVXR session prepared before the environment and drained before its release.
+
+    OVXR paces host control instead of :class:`RateLimiter`, and the Kit XR visualization manager is not used.
+
+    Returns:
+        The number of successful demonstrations recorded.
+    """
+    from isaaclab.sim import SimulationContext
+
+    previous_context = SimulationContext.instance()
+    env = None
+    presentation = None
+    shutdown_signals = OvxrShutdownSignals()
+    try:
+        presentation = OvxrPresentation.prepare(
+            env_cfg, args_cli, application_name=f"isaaclab-ovxr-record-{args_cli.task}"
+        )
+        try:
+            env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
+        except Exception:
+            # Cleanup below keeps this error; the command must not report success.
+            logger.exception("Failed to create environment")
+            raise
+        return run_simulation_loop(
+            env,
+            success_term,
+            None,
+            camera_feed_session,
+            teleop_cfg,
+            presentation=presentation,
+            shutdown_signals=shutdown_signals,
+        )
+    finally:
+        shutdown_signals.shutting_down = True
+        close_teleop_resources(
+            env,
+            camera_feed_session,
+            presentation,
+            shutdown_signals.previous_handlers,
+            presentation.input_device if presentation is not None else None,
+            previous_context=previous_context,
+        )
 
 
 def run_record_demos_cli(argv: list[str] | None = None) -> int:

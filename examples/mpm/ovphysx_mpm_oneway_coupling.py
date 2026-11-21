@@ -32,7 +32,7 @@ parser = argparse.ArgumentParser(description="OvPhysX rigid ball to Newton MPM s
 parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
 parser.add_argument("--voxel_size", type=float, default=0.025, help="MPM grid voxel size [m].")
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["newton_gl"])
+parser.set_defaults(visualizer=["newton"])
 args_cli = parser.parse_args()
 
 

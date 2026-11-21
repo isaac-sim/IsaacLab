@@ -12,7 +12,7 @@ shared device interfaces and configurable retargeting pipelines.
 .. note::
 
    **Name transition.** Isaac Teleop was rebranded as **Isaac Capture**. Isaac Lab installs
-   ``isaaccapture==1.7.68a1`` through the ``teleop`` extra. This release retains the ``isaacteleop``
+   ``isaaccapture==1.7.118rc1`` through the ``teleop`` extra. This release retains the ``isaacteleop``
    compatibility import used in this documentation; new integrations should use ``isaaccapture``.
    See the `Isaac Capture migration guide
    <https://nvidia.github.io/IsaacCapture/main/references/migration.html>`_ for details.
@@ -346,7 +346,7 @@ Prerequisites
      sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache patchelf
 
   Then clone, check out the release branch matching the ``isaaccapture`` version Isaac Lab is
-  pinned to (``isaaccapture==1.7.68a1`` in the ``teleop`` extra of the root ``pyproject.toml``, so the
+  pinned to (``isaaccapture==1.7.118rc1`` in the ``teleop`` extra of the root ``pyproject.toml``, so the
   plugin's wire format matches the ``isaaccapture`` package Isaac Lab installs), configure, build,
   and install. To target a specific Python version, pass
   ``-DISAAC_TELEOP_PYTHON_VERSION=3.12`` (or ``3.11``, ``3.13``) on the configure line; each
@@ -797,8 +797,8 @@ For direct use of :func:`~isaaclab_teleop.create_isaac_teleop_device` or
 window input explicitly. The session keeps this live sequence so later windows can join;
 omitting it creates a session without window input. ``teleop_se3_agent.py`` and
 ``record_demos.py`` start Kit only when ``--xr`` or the task needs it, so
-``--viz newton_rtx`` works with a Newton-physics task, e.g.
-``--task Isaac-Reach-Franka --viz newton_rtx physics=newton_mjwarp presets=diffik``.
+``--viz newton`` works with a Newton-physics task, e.g.
+``--task Isaac-Reach-Franka --viz newton physics=newton_mjwarp presets=diffik``.
 
 .. list-table::
    :header-rows: 1
@@ -808,7 +808,7 @@ omitting it creates a session without window input. ``teleop_se3_agent.py`` and
      - Keyboard input
    * - ``--viz kit``
      - Keys typed into the Kit window, including keys typed into Kit's own UI (e.g. a text field).
-   * - ``--viz newton_gl`` / ``--viz newton_rtx``
+   * - ``--viz newton``
      - Keys typed into the Newton viewer window, except keys typed into its UI. While a keyboard
        pipeline runs, the viewer's WASD/QE and arrow-key camera movement is turned off; the mouse
        still moves the camera.
@@ -1344,6 +1344,26 @@ other value, keeps the interactive prompt. Acceptance is recorded in
 through this variable -- later runs no longer prompt. The variable applies to every script
 that launches the runtime, including the process-scoped launcher in
 ``teleop_replay_agent.py``.
+
+Replay MCAP with a Kitless OVXR Viewer
+--------------------------------------
+
+The MCAP replay entrypoint can present recorded input through an independent
+OVXR viewer. Follow the :ref:`kitless XR guide <kitless-xr>` to install Isaac
+Capture with its OVXR extra and select the compatible rendering dependencies.
+
+.. code-block:: bash
+
+   uv run --extra ovxr python \
+       scripts/environments/teleoperation/teleop_replay_agent.py \
+       --task IsaacContrib-Stack-Cube-SO101-IK-Abs-v0 --physics ovphysx \
+       --device cpu --num_envs 1 --ovxr \
+       --replay_file /absolute/path/to/session.mcap
+
+MCAP supplies tracker and control input; the connected client supplies the view.
+A recorded STOP, task success or failure, or the replay duration limit ends the
+run. The separate ``isaaclab teleop replay`` command replays HDF5 demonstrations;
+the task's ``--physics`` and ``--renderer`` selections decide whether it starts Kit.
 
 .. _isaac-teleop-xr-anchor:
 

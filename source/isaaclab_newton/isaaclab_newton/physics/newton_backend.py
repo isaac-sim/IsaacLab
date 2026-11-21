@@ -456,6 +456,8 @@ class NewtonBackend:
         """Whether an articulation runs its Newton actuators in the step (:meth:`activate_actuators`)."""
         self.handles_actions = False
         """Whether the environment's actions and asset writes run as pre-actuator callbacks of every physics step."""
+        self.lab_actuators_active = False
+        """Whether any articulation requires Lab actuator computation outside each backend step."""
         self.pre_actuator_callbacks: list[Callable[[], None]] = []
         """Run before the Newton actuators of every physics step."""
         self.post_actuator_callbacks: list[Callable[[], None]] = []
@@ -726,8 +728,8 @@ class NewtonBackend:
         return sensor
 
     def handles_decimation(self) -> bool:
-        """Whether one :meth:`step` runs the whole decimation loop: when it handles actions or runs Newton actuators."""
-        return self.handles_actions or self.actuators_active
+        """Whether one :meth:`step` runs decimation without skipping actions or Lab actuator updates."""
+        return self.handles_actions or (self.actuators_active and not self.lab_actuators_active)
 
     def set_decimation(self, decimation: int) -> None:
         """Set the physics steps per environment step."""
@@ -850,20 +852,13 @@ class NewtonBackend:
             if self.collision_pipeline is None:
                 self.collision_pipeline = ops.create_collision_pipeline(**args)
             self.contacts = self.collision_pipeline.contacts()
-            # MuJoCo Warp can require more contacts than the pipeline estimates.
+            # MuJoCo Warp can require more contacts than the pipeline estimates; rebuild the
+            # pipeline so Contacts retains per-contact hydroelastic properties, matching, and
+            # custom contact attributes alongside any implicit deterministic sort buffers.
             if required > self.contacts.rigid_contact_max:
-                if args["deterministic"]:
-                    # The deterministic sort buffer is sized at construction, so rebuild the pipeline to match.
-                    args["rigid_contact_max"] = required
-                    self.collision_pipeline = ops.create_collision_pipeline(**args)
-                    self.contacts = self.collision_pipeline.contacts()
-                else:
-                    self.contacts = Contacts(
-                        rigid_contact_max=required,
-                        soft_contact_max=0,
-                        device=self.device,
-                        requested_attributes=model.get_requested_contact_attributes(),
-                    )
+                args["rigid_contact_max"] = required
+                self.collision_pipeline = ops.create_collision_pipeline(**args)
+                self.contacts = self.collision_pipeline.contacts()
         if self.contacts is not None:
             ops.prepare_contacts(self.contacts, self.collision_pipeline)
 
@@ -991,13 +986,19 @@ def capture_graph(device: wp.DeviceLike, fn: Callable[[], None], *, relaxed: boo
         with _paused_gc(), wp.ScopedCapture(device=device) as capture:
             fn()
         return capture.graph
-    stream = wp.get_stream(device)
+    # A blocking capture stream forbids concurrent legacy-stream transfers,
+    # including renderer or input uploads. ScopedStream retains the incoming
+    # dependency; graph replay still uses the caller's stream.
+    torch_device = wp.device_to_torch(device)
+    torch_stream = torch.cuda.Stream(device=torch_device)
+    stream = wp.stream_from_torch(torch_stream)
+    # Torch work that the caller runs on Warp's current stream moves with it, so the graph still records it.
+    torch_follows = torch.cuda.current_stream(torch_device).cuda_stream == wp.get_stream(device).cuda_stream
+    follow = torch.cuda.stream(torch_stream) if torch_follows else contextlib.nullcontext()
     mode = wp.CaptureMode.THREAD_LOCAL
     if relaxed:
-        # RTX uses the legacy CUDA stream. A nonblocking stream avoids implicit synchronization.
-        stream = wp.stream_from_torch(torch.cuda.Stream(device=wp.device_to_torch(device)))
         mode = wp.CaptureMode.RELAXED
-    with _paused_gc(), wp.ScopedStream(stream):
+    with _paused_gc(), wp.ScopedStream(stream), follow:
         with wp.ScopedCapture(stream=stream, capture_mode=mode) as capture:
             fn()
     return capture.graph

@@ -1,0 +1,1 @@
+* Rebuilt ``CollisionPipeline`` instead of constructing a bare ``Contacts`` when solver contact capacity exceeds the pipeline estimate in non-deterministic mode, preserving hydroelastic per-contact properties, contact matching, and custom contact attributes.

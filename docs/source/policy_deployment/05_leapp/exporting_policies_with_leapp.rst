@@ -47,7 +47,7 @@ Supported Workflows
 Prerequisites
 -------------
 
-This export flow requires ``leapp``, Python >= 3.10, and PyTorch >= 2.6.
+This export flow requires ``leapp==0.8.1``, Python >= 3.10, and PyTorch >= 2.7.
 ``leapp`` is a specialized optional extra (it is not part of ``--extra all``).
 
 Select extras the same way as ``isaaclab train``: add ``--extra leapp`` on every
@@ -75,7 +75,7 @@ Export a trained policy, then launch the exported policy in Isaac Lab:
    uv run --extra leapp isaaclab leapp deploy \
        --task <TASK_NAME> \
        --pipeline <PATH_TO_EXPORTED_LEAPP_YAML> \
-       --viz newton_gl physics=newton_mjwarp
+       --viz newton physics=newton_mjwarp
 
 Continue with the sections below to select a different RL library, configure the
 export, and validate the generated artifacts.
@@ -237,6 +237,31 @@ backend-specific and launcher arguments (see :func:`~isaaclab.app.add_launcher_a
    If no matching artifact has been published, the exporter reports that it is unavailable and
    exits. Train the task locally and omit ``--checkpoint`` for automatic discovery, or pass an
    explicit checkpoint path. See :ref:`pretrained-checkpoints` for checkpoint availability.
+
+
+Command labels and detailed layouts
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Command configurations accept plain ``element_names``. For example, a planar velocity command
+uses ``["x", "y", "angular_z"]``. A flat list labels a vector command; nested lists label each
+non-environment dimension in order. The exporter adds the system dimension and uses the quantity
+kind to distinguish spatial components from named elements such as joints or bodies.
+
+For detailed layouts, ``axes`` accepts one LEAPP axis descriptor per tensor dimension, including
+the environment dimension. It takes precedence over ``element_names``. Use it for unnamed
+dimensions, sampled time axes with a period, or custom dimension meanings. Neither interface
+changes the tensor shape or reorders its values. Legacy velocity labels such as ``lin_vel_x`` and
+``ang_vel_z`` are normalized to ``x`` and ``angular_z`` for built-in velocity kinds.
+
+Data-property and actuator-write annotations support the same choice through
+``@leapp_tensor_semantics``. Their dynamic label resolvers receive the data object;
+``axes_resolver`` also receives the tensor. Explicit axes or an axis resolver's result take
+precedence over simple names.
+
+Existing bundles with legacy ``element_names`` remain readable. ``isaaclab_connection`` identifies
+the source property or destination method, while the names preserve joint subsets and ordering.
+New exports use the LEAPP 0.8.1 axis format regardless of which configuration interface supplied
+the labels.
 
 
 How It Works (High Level)

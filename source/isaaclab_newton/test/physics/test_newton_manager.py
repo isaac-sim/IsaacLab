@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import gc
 import logging
+import threading
 from functools import partial as P
 from pathlib import Path
 from types import SimpleNamespace
@@ -18,6 +19,7 @@ import isaaclab_newton.physics.newton_manager as newton_manager_module
 import newton
 import numpy as np
 import pytest
+import torch
 import warp as wp
 from isaaclab_newton.physics import (
     FeatherstoneSolverCfg,
@@ -425,6 +427,7 @@ def _recording_backend(
         solver_dt=0.002 / num_substeps,
         actuators=None,
         actuators_active=False,
+        lab_actuators_active=False,
         handles_actions=False,
         contact_sensors={},
         imu_sensors=[],
@@ -528,6 +531,47 @@ def test_deterministic_collision_pipeline_grows_with_the_solver_contact_capacity
     assert backend.contacts.rigid_contact_max == 2
     assert prepared == [backend.contacts]
     assert observable_requests == []
+
+
+@pytest.mark.kitless
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_hydroelastic_contacts_keep_per_contact_stiffness_when_nconmax_grows(device: str) -> None:
+    builder = newton.ModelBuilder(gravity=(0.0, 0.0, -9.81))
+    box_mesh = newton.Mesh.create_box(0.05, 0.05, 0.05, compute_inertia=False)
+    ground_mesh = newton.Mesh.create_box(0.25, 0.25, 0.05, compute_inertia=False)
+    box_mesh.build_sdf(margin=0.005, max_resolution=32, device=device)
+    ground_mesh.build_sdf(margin=0.005, max_resolution=32, device=device)
+
+    builder.begin_world()
+    body = builder.add_body(xform=wp.transform(wp.vec3(0.0, 0.0, 0.025), wp.quat_identity()))
+    builder.add_shape_mesh(
+        body,
+        mesh=box_mesh,
+        cfg=newton.ModelBuilder.ShapeConfig(is_hydroelastic=True, kh=1.0e6, density=1000.0, margin=0.0, gap=0.0),
+    )
+    builder.add_shape_mesh(
+        -1,
+        xform=wp.transform(wp.vec3(0.0, 0.0, -0.025), wp.quat_identity()),
+        mesh=ground_mesh,
+        cfg=newton.ModelBuilder.ShapeConfig(is_hydroelastic=True, kh=1.0e9, margin=0.0, gap=0.0),
+    )
+    builder.end_world()
+
+    # Large nconmax forces required > CollisionPipeline's auto-estimate in non-deterministic mode.
+    cfg = NewtonCfg(solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=False, nconmax=12000), num_substeps=1)
+    cfg.solver_cfg.class_type.prepare_builder(cfg.solver_cfg, builder)
+    backend = NewtonBackend(NewtonBackendCfg(physics_cfg=cfg, device=device), builder, dt=1.0 / 60.0)
+    backend.init_solver()
+    backend.capture = None
+    backend.actuators_active = True
+    backend.step()
+
+    assert backend.contacts.rigid_contact_max == 12000
+    assert backend.contacts.per_contact_shape_properties is True
+    assert backend.contacts.rigid_contact_stiffness is not None
+    contact_count = int(backend.contacts.rigid_contact_count.numpy()[0])
+    assert contact_count > 0
+    assert np.any(backend.contacts.rigid_contact_stiffness.numpy()[:contact_count] > 0.0)
 
 
 def test_collision_cfg_is_rejected_when_the_solver_does_not_use_the_collision_pipeline():
@@ -710,6 +754,66 @@ def test_step_runs_eagerly_once_then_replays_a_graph_only_when_the_solver_suppor
     assert len(replays) == int(supported)
     assert events.count(("step", "state_0", "state_0")) == 2
     assert [event for event in events if event[0] == "check"] == [("check", supported)] * 2
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_graph_capture_allows_concurrent_legacy_stream_copy(device: str) -> None:
+    """A render/UI copy must not invalidate physics capture on the same GPU."""
+    source = wp.full(4, 7.0, device=device)
+    result = wp.zeros(4, device=device)
+    image = torch.full((4,), 23.0, device=device)
+    copied = torch.zeros_like(image)
+    # Setup is complete before capture. No allocations or implicit dependency
+    # on captured physics work are needed by the independent image consumer.
+    wp.synchronize_device(device)
+    torch.cuda.synchronize(device)
+    entered = threading.Event()
+    finished = threading.Event()
+    errors = []
+
+    def copy_image() -> None:
+        try:
+            assert entered.wait(5), "capture did not start"
+            with torch.cuda.device(device), torch.cuda.stream(torch.cuda.default_stream(device)):
+                copied.copy_(image)
+                torch.cuda.default_stream(device).synchronize()
+        except BaseException as error:
+            errors.append(error)
+        finally:
+            finished.set()
+
+    def record_physics() -> None:
+        wp.copy(result, source)
+        entered.set()
+        assert finished.wait(5), "concurrent image copy did not complete"
+
+    worker = threading.Thread(target=copy_image)
+    worker.start()
+    try:
+        graph = newton_backend.capture_graph(device, record_physics)
+    finally:
+        entered.set()
+        worker.join(5)
+        assert not errors, errors
+    assert not worker.is_alive()
+    np.testing.assert_array_equal(result.numpy(), [0.0] * 4)  # Recording did not advance physics.
+    wp.capture_launch(graph)
+    np.testing.assert_array_equal(result.numpy(), [7.0] * 4)
+    np.testing.assert_array_equal(copied.cpu().numpy(), [23.0] * 4)
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_graph_capture_records_torch_work_on_the_warp_stream(device: str) -> None:
+    """Torch work that the caller runs on Warp's current stream is recorded with the Warp work."""
+    values = torch.zeros(4, device=device)
+    wp.synchronize_device(device)
+    with torch.cuda.stream(wp.stream_to_torch(wp.get_stream(device))):
+        graph = newton_backend.capture_graph(device, lambda: values.add_(1.0))
+    torch.cuda.synchronize(device)
+    np.testing.assert_array_equal(values.cpu().numpy(), [0.0] * 4)  # Recording ran nothing.
+    wp.capture_launch(graph)
+    wp.synchronize_device(device)
+    np.testing.assert_array_equal(values.cpu().numpy(), [1.0] * 4)
 
 
 # ----- Reset masks -------------------------------------------------------------------------
@@ -966,7 +1070,7 @@ def test_queries_share_one_bvh_refit_per_publication(monkeypatch, cloth, device)
         observed.append(backend.state_0.body_q.numpy().copy())
 
     monkeypatch.setattr(renderer, "_launch_render", read)
-    render_data = SimpleNamespace(graph=None, ppisp_pipeline=None)
+    render_data = SimpleNamespace(graph=None)
     renderer.render(render_data)
     renderer.render(render_data)
     assert render_data.graph is None

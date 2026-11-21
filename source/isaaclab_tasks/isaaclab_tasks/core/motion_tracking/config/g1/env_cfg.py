@@ -235,7 +235,7 @@ class G1CommandsCfg(CommandsCfg):
             "right_elbow_link",
             "right_wrist_yaw_link",
         ],
-        motion_file=f"{ISAACLAB_NUCLEUS_DIR}/Motions/G1/v1/g1_spinkick.npz",
+        motion_file=f"{ISAACLAB_NUCLEUS_DIR}/Motions/G1/v1/g1_cr7_grounded.npz",
     )
 
 
