@@ -41,6 +41,10 @@ class JointActionCfg(ActionTermCfg):
     """Offset factor for the action (float or dict of regex expressions). Defaults to 0.0."""
     preserve_order: bool = False
     """Whether to preserve the order of the joint names in the action output. Defaults to False."""
+    chunk_length: int = 1
+    """Number of commands per joint in an action, applied in order over the physics steps of the environment step,
+    each for ``decimation / chunk_length`` steps. It must divide ``decimation``. Defaults to 1, one command for the
+    whole environment step."""
 
 
 @configclass
@@ -86,6 +90,10 @@ class JointPositionActionCfg(JointActionCfg):
     If True, this flag results in overwriting the values of :attr:`offset` to the default joint positions
     from the articulation asset.
     """
+
+    interpolate: bool = False
+    """With :attr:`chunk_length` above one, whether the action is one target per joint, reached in
+    :attr:`chunk_length` equal increments, instead of :attr:`chunk_length` targets. Defaults to False."""
 
 
 @configclass
