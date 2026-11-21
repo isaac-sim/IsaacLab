@@ -2073,7 +2073,7 @@ requires-dist = [
     { name = "jinja2" },
     { name = "junitparser", marker = "extra == 'test'" },
     { name = "lazy-loader", specifier = ">=0.4" },
-    { name = "leapp", marker = "extra == 'leapp'", specifier = "==0.7.2" },
+    { name = "leapp", marker = "extra == 'leapp'", specifier = "==0.8.1" },
     { name = "matplotlib", specifier = ">=3.10.3" },
     { name = "meshio", specifier = ">=5.3.5" },
     { name = "moviepy", marker = "extra == 'video'", specifier = ">=1.0.3,<2.0.0.dev0" },
@@ -3092,7 +3092,7 @@ wheels = [
 
 [[package]]
 name = "leapp"
-version = "0.7.2"
+version = "0.8.1"
 source = { registry = "https://pypi.nvidia.com/" }
 dependencies = [
     { name = "fast-sugiyama" },
@@ -3105,7 +3105,7 @@ dependencies = [
     { name = "torch" },
 ]
 wheels = [
-    { url = "https://pypi.nvidia.com/leapp/leapp-0.7.2-py3-none-any.whl", hash = "sha256:86c1581eb09ba1f4b98cd980e19e771682ce3a7ac6766ec087d37496bf5579e0" },
+    { url = "https://pypi.nvidia.com/leapp/leapp-0.8.1-py3-none-any.whl", hash = "sha256:3b6456c890d41e50712c4fb739bbe4faf0c53305dc2bc75d477b67be9dde9a54" },
 ]
 
 [[package]]
@@ -3839,7 +3839,7 @@ wheels = [
 
 [[package]]
 name = "onnxscript"
-version = "0.7.2.dev20260725"
+version = "0.7.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "ml-dtypes" },
@@ -3849,9 +3849,9 @@ dependencies = [
     { name = "packaging" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/51/aa/1aecf63010d380a0c518ea2436204da86d16b244ce09d5f261c1e81bf35a/onnxscript-0.7.2.dev20260725.tar.gz", hash = "sha256:4df491866df7017a5838e0e0149eee5456e53ca21c23f39409b1d32128784b2e", size = 643240, upload-time = "2026-07-25T07:19:01.381Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c4/3a/4d79bce3f460e0df7fed54a92ce80827f25da66511da368bb00783ad8d20/onnxscript-0.7.1.tar.gz", hash = "sha256:309fb86484b11fa4ded90dba580e0d63f1a0827588e521cecaf2eeddb46d6e86", size = 618160, upload-time = "2026-06-29T23:33:21.526Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/8e/27/786e97f8a6408bcd394d63b371d9a8279cc7e82425b2e42d6e558c453443/onnxscript-0.7.2.dev20260725-py3-none-any.whl", hash = "sha256:7bf22861eb9abc0558dfc7405f057e54cbc1b8e1fe02d27df6e3b530b2f22671", size = 750444, upload-time = "2026-07-25T07:19:03.374Z" },
+    { url = "https://files.pythonhosted.org/packages/dd/bd/a0c8e737b6afda10e42a597787d53d5b66e00268df6f59184701eeae37d9/onnxscript-0.7.1-py3-none-any.whl", hash = "sha256:544763b7fdef49940cdd9412ff5135cbae96d59ac6bc1921457f21280f40f4b7", size = 721970, upload-time = "2026-06-29T23:33:23.298Z" },
 ]
 
 [[package]]
