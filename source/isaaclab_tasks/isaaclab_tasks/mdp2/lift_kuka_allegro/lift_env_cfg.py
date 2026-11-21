@@ -13,6 +13,7 @@ from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
+from isaaclab.envs.reset import BetaSamplingScoreCfg, ResetStateSamplerCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim import MeshCapsuleCfg, MeshConeCfg, MeshCuboidCfg, MeshSphereCfg, RigidBodyMaterialBaseCfg
@@ -24,7 +25,6 @@ from isaaclab_assets.robots.kuka_allegro import KUKA_ALLEGRO_CFG
 
 from . import mdp as lift
 from .clearance import mesh_clearance, slab_clearance
-from .reset_bank import reset_from_bank
 
 SIM_DT = 1 / 120
 DECIMATION = 4  # 30 Hz control
@@ -453,17 +453,19 @@ TASK = mdp2.TaskCfg(
             outputs={"gravity_w": scene.gravity_w},
             params={"initial_gravity": (0.0, 0.0, 0.0), "final_gravity": (0.0, 0.0, -9.81)},
         ),
-        # Restart from the valid start states that the policy solves about half the time.
+        # Restart from the valid start states that the policy solves about half the time. Each world banks its own
+        # states, so that they fit the object it spawned.
         "reset": mdp2.Event(
-            reset_from_bank,
+            mdp.reset_from_bank,
             inputs={"succeeded": mdp2.quantities.success},
             outputs={**robot_state, **object_state},
             params={
-                "candidates": CANDIDATES,
-                "bank_size": 16,
-                "history_length": 10,
-                "target_success_rate": 0.5,
-                "kappa": 1.0,
+                "fill": mdp.FillFromCandidates(CANDIDATES, bank_size=16),
+                "sampler": ResetStateSamplerCfg(
+                    history_length=10,
+                    scores=[BetaSamplingScoreCfg(target=0.5, kappa=1.0, weight=0.5)],
+                    uniform_weight=1e-2,
+                ),
             },
         ),
     },

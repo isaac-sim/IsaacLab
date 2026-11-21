@@ -106,13 +106,9 @@ class ResetStateBuffer:
         Returns:
             The supplied output tree, or a new tree when ``out`` is None.
         """
-        state_indices = _as_array(state_indices)
-        if state_indices.ndim != 1 or state_indices.dtype not in (wp.int32, wp.int64):
-            raise ValueError("state_indices must be a one-dimensional int32 or int64 array.")
+        state_indices = self._indices(state_indices, mask)
         if mask is not None:
             mask = _as_array(mask)
-            if mask.shape != state_indices.shape or mask.dtype != wp.bool or mask.device != state_indices.device:
-                raise ValueError("mask must be a boolean array matching state_indices shape and device.")
             if out is None:
                 raise ValueError("Masked reads require a preallocated out tree.")
         num_rows = state_indices.shape[0]
@@ -127,27 +123,66 @@ class ResetStateBuffer:
                 ),
             )
 
+        for source, target in self._pair_fields(out, state_indices, "out"):
+            _gather(source, state_indices, mask, target)
+        return out
+
+    def set_state(
+        self,
+        state_indices: wp.array | ProxyArray | torch.Tensor,
+        values: ResetStateBuffer.State,
+        *,
+        mask: wp.array | ProxyArray | torch.Tensor | None = None,
+    ) -> None:
+        """Copy the value rows enabled by ``mask`` into the selected stored states, the inverse of :meth:`get_state`.
+
+        Invalid indices are skipped. Enabled rows that select the same state write it in an unspecified order. Like
+        :meth:`get_state` with ``out``, this performs no allocation or host synchronization and can be captured.
+
+        Args:
+            state_indices: Dense int32 or int64 row positions, shape [N], on the buffer device.
+            values: Tree with the stored schema and N leading rows.
+            mask: Boolean selection, shape [N]. None writes every value row.
+        """
+        state_indices = self._indices(state_indices, mask)
+        mask = None if mask is None else _as_array(mask)
+        for source, value in self._pair_fields(values, state_indices, "values"):
+            _scatter(value, state_indices, mask, source)
+
+    def _indices(self, state_indices, mask) -> wp.array:
+        state_indices = _as_array(state_indices)
+        if state_indices.ndim != 1 or state_indices.dtype not in (wp.int32, wp.int64):
+            raise ValueError("state_indices must be a one-dimensional int32 or int64 array.")
+        if mask is not None:
+            mask = _as_array(mask)
+            if mask.shape != state_indices.shape or mask.dtype != wp.bool or mask.device != state_indices.device:
+                raise ValueError("mask must be a boolean array matching state_indices shape and device.")
+        return state_indices
+
+    def _pair_fields(
+        self, tree: ResetStateBuffer.State, state_indices: wp.array, name: str
+    ) -> list[tuple[wp.array, wp.array]]:
+        """Pair each stored field with the field of ``tree`` that has ``len(state_indices)`` rows."""
+        num_rows = state_indices.shape[0]
         fields: list[tuple[wp.array, wp.array]] = []
 
         def collect_fields(states, target):
             if not isinstance(target, dict) or target.keys() != states.keys():
-                raise ValueError("out must match the stored state tree.")
-            for name, value in states.items():
+                raise ValueError(f"{name} must match the stored state tree.")
+            for key, value in states.items():
                 if isinstance(value, dict):
-                    collect_fields(value, target[name])
+                    collect_fields(value, target[key])
                     continue
                 shape = (num_rows, *value.shape[1:])
-                result = _as_array(target[name], dtype=value.dtype)
+                result = _as_array(target[key], dtype=value.dtype)
                 if (result.shape, result.dtype, result.device) != (shape, value.dtype, value.device):
-                    raise ValueError(f"out field {name!r} must match the stored trailing shape, dtype, and device.")
+                    raise ValueError(f"{name} field {key!r} must match the stored trailing shape, dtype, and device.")
                 if state_indices.device != value.device:
                     raise ValueError("state_indices and stored states must share a device.")
                 fields.append((value, result))
 
-        collect_fields(self._states, out)
-        for source, target in fields:
-            _gather(source, state_indices, mask, target)
-        return out
+        collect_fields(self._states, tree)
+        return fields
 
 
 def _map_state(states: ResetStateBuffer.State, function: Callable) -> ResetStateBuffer.State:
@@ -181,6 +216,11 @@ def _gather(source, ids, mask, target) -> None:
         )
 
 
+def _scatter(values, ids, mask, target) -> None:
+    if values.size:
+        wp.launch(_scatter_kernel, values.shape, [values, ids, mask, target], device=values.device)
+
+
 @wp.kernel
 def _gather_kernel(
     source: Any,
@@ -211,3 +251,35 @@ def _gather_kernel(
         target[i, j, k] = source[row, j, k]
     else:
         target[i, j, k, component] = source[row, j, k, component]
+
+
+@wp.kernel
+def _scatter_kernel(
+    values: Any,
+    ids: wp.array(dtype=Any),
+    mask: wp.array(dtype=wp.bool),
+    target: Any,
+):
+    i, j, k, component = int(0), int(0), int(0), int(0)
+    if wp.static(len(values.shape) == 1):
+        i = wp.tid()
+    elif wp.static(len(values.shape) == 2):
+        i, j = wp.tid()
+    elif wp.static(len(values.shape) == 3):
+        i, j, k = wp.tid()
+    else:
+        i, j, k, component = wp.tid()
+    if mask and not mask[i]:
+        return
+    index = wp.int64(ids[i])
+    if index < wp.int64(0) or index >= wp.int64(target.shape[0]):
+        return
+    row = int(index)
+    if wp.static(len(values.shape) == 1):
+        target[row] = values[i]
+    elif wp.static(len(values.shape) == 2):
+        target[row, j] = values[i, j]
+    elif wp.static(len(values.shape) == 3):
+        target[row, j, k] = values[i, j, k]
+    else:
+        target[row, j, k, component] = values[i, j, k, component]
