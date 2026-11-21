@@ -51,7 +51,8 @@ from isaaclab.utils.images import display_channels, sensor_key_for_gt_type
 from isaaclab.utils.math import quat_apply, quat_from_matrix, quat_mul
 from isaaclab.visualizers.base_visualizer import _VISUALIZER_MAX_TILES as MAX_TILED_ENVS
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
-from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, WindowCfg
+from isaaclab.visualizers.camera_follower import CameraFollower
+from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, TrackingCameraCfg, WindowCfg
 
 from isaaclab_visualizers.desktop_entry import write_desktop_entry
 from isaaclab_visualizers.newton.newton_overlay_meshes import OverlayMeshPublisher
@@ -468,7 +469,14 @@ class NewtonViewerGL(ViewerGL):
         """Render the visible-environment count slider."""
         owner = self._owner
         imgui.text("Visible Envs")
+        following = owner.tracking_env_only
+        if following:
+            imgui.begin_disabled()
         changed, new_count = imgui.slider_int("##VisibleEnvs", owner.visible_env_count, 1, owner.visible_env_limit)
+        if following:
+            imgui.end_disabled()
+            imgui.text_disabled("Showing only the tracking camera's env")
+            return
         if changed:
             owner.set_visible_env_count(new_count)
         if imgui.is_item_hovered():
@@ -785,6 +793,9 @@ class NewtonVisualizerBase(BaseVisualizer):
     rtx_rendering: bool = False
     sensor_view_selected: bool = False
 
+    _track_env_only = False
+    """Whether only the selected Tracking Camera's environment is drawn."""
+
     def __init__(self, cfg):
         super().__init__(cfg)
         self._viewer = None
@@ -792,11 +803,19 @@ class NewtonVisualizerBase(BaseVisualizer):
         self._runtime_headless = cfg.headless
         self._last_present_time = -math.inf
         self._last_render_step = -1
+        self._borrowing_view = False
         self._pending_mesh_submissions: dict[str, dict[str, Any]] = {}
         self._camera_keys_enabled = True
         self._overlay_publisher = None
         self._pose_started = False
         self._marker_revision = -1
+        self._followers: dict[object, CameraFollower] = {}
+        """Followers of the tracking cameras, by image view."""
+        self._rtx_pose_view = None
+        """Tracking Camera view that moves the OVRTX camera, or None when the free camera drives it."""
+        self._tracking_defaults: dict[object, dict] = {}
+        """What the task declared for each tracking camera, for Reset to Task Default."""
+        self._tracking_error = ""
         self._perspective_poses: dict[object, tuple] = {}
         """Last pose and focal length of each free Perspective view, kept while another source is shown."""
         self._sensor_tiles: dict[object, int] = {}
@@ -810,12 +829,27 @@ class NewtonVisualizerBase(BaseVisualizer):
         """Bind camera sources and the display mode shared by both windows."""
         super().initialize(sim, cameras=cameras)
         # each perspective view renders itself, so a recorder can capture one the window does not show
+        scene = self._sim.get_scene_data_provider().get_interactive_scene()
         for view in self._image_views:
             if view.camera is not None:
                 continue
             if view.render is not None:
                 raise ValueError("A perspective image view must have exactly one rendering owner.")
             view.render = partial(self._capture_view, view)
+            source = view.cfg.source
+            if self._is_tracking_view(view):
+                if scene is None:
+                    raise ValueError("A tracking camera needs an interactive scene to follow.")
+                # fail at initialization, not on a frame: a bad env_index or track_path raises here
+                self._followers[view] = follower = CameraFollower(source, scene, self._env_ids)
+                self._remember_tracking_defaults(view, follower)
+                if self._env_ids is not None and follower.env not in self._env_ids:
+                    logger.warning(
+                        "[NewtonVisualizer] A tracking camera frames environment %d, which is not among the visible "
+                        "environments %s, so it will show an empty scene.",
+                        follower.env,
+                        list(self._env_ids),
+                    )
         self._runtime_headless = self.cfg.headless or (
             sys.platform not in ("win32", "darwin") and not os.environ.get("DISPLAY")
         )
@@ -922,6 +956,11 @@ class NewtonVisualizerBase(BaseVisualizer):
                 renderers[id(renderer)] = renderer
         return tuple(renderers.values())
 
+    @staticmethod
+    def _is_tracking_view(view) -> bool:
+        """Whether *view* is a tracking camera."""
+        return isinstance(view.cfg.source, TrackingCameraCfg)
+
     def _draw_rtx_unavailable(self, imgui) -> None:
         """Show the Renderer choice greyed out, since without the OVRTX viewer camera it cannot be made at runtime."""
         imgui.begin_disabled()
@@ -954,7 +993,7 @@ class NewtonVisualizerBase(BaseVisualizer):
                 imgui.set_tooltip(
                     "Fast rasterizer with visual overlays and markers"
                     if not sensor
-                    else "A scene sensor is rendered by its own renderer. This applies to the free camera"
+                    else "A scene sensor is rendered by its own renderer. This applies to the free and tracking cameras"
                 )
             imgui.same_line()
             if imgui.radio_button("RTX", rtx_on) and not rtx_on and self._rtx_switch is None:
@@ -964,7 +1003,7 @@ class NewtonVisualizerBase(BaseVisualizer):
                 imgui.set_tooltip(
                     "OVRTX path-traced rendering of the scene; slower than OpenGL"
                     if not sensor
-                    else "A scene sensor is rendered by its own renderer. This applies to the free camera"
+                    else "A scene sensor is rendered by its own renderer. This applies to the free and tracking cameras"
                 )
             if sensor:
                 imgui.end_disabled()
@@ -981,10 +1020,19 @@ class NewtonVisualizerBase(BaseVisualizer):
         )
         labels = self._view_labels(indices)
         current = self._image_views.index(self.current_image_view)
-        if current == rtx_index:  # RTX renders the free perspective source.
-            current = next(
-                (i for i in indices if self._image_views[i].camera is None),
-                indices[0],  # No free perspective view: show the first source
+        if current == rtx_index:  # RTX renders the free perspective source or follows a Tracking Camera.
+            pose_view = self._rtx_pose_view
+            current = (
+                self._image_views.index(pose_view)
+                if pose_view is not None
+                else next(
+                    (
+                        i
+                        for i in indices
+                        if self._image_views[i].camera is None and not self._is_tracking_view(self._image_views[i])
+                    ),
+                    indices[0],  # No free perspective view: show the first source
+                )
             )
         position = indices.index(current)
         changed, chosen = imgui.combo("Camera Source", position, labels)
@@ -992,7 +1040,13 @@ class NewtonVisualizerBase(BaseVisualizer):
             self._choose_camera_source(indices[chosen])
         if imgui.is_item_hovered():
             imgui.set_tooltip(labels[position])
-        if self.sensor_view_selected:
+        follower = self._followers.get(self._pose_source_view())
+        if follower is None and self._track_env_only:
+            self._track_env_only = False  # Only a Tracking Camera can restrict the visible environments.
+            self._apply_visible_worlds()
+        if follower is not None:
+            self._draw_tracking_camera_controls(imgui, follower)
+        elif self.sensor_view_selected:
             self._draw_sensor_controls(imgui, self.current_image_view)
         self._draw_camera_info(imgui)
 
@@ -1179,8 +1233,10 @@ class NewtonVisualizerBase(BaseVisualizer):
         return edited
 
     def _source_rank(self, view) -> int:
-        """Order the Camera Source list: the free Perspective, then scene sensors."""
-        return 0 if view.camera is None else 1
+        """Order the Camera Source list: the free Perspective, then Tracking Cameras, then scene sensors."""
+        if view.camera is not None:
+            return 2
+        return 1 if self._is_tracking_view(view) else 0
 
     def _draw_sensor_controls(self, imgui, view) -> None:
         """Choose which channel of a sensor is shown, and which environment, or tile several environments."""
@@ -1260,13 +1316,14 @@ class NewtonVisualizerBase(BaseVisualizer):
         self._last_render_step = -1
 
     def _draw_focal_length(self, imgui) -> None:
-        """Draw the focal length of the free camera; sensors have fixed intrinsics."""
-        view = self.current_image_view
+        """Draw the focal length of the free camera or the Tracking Camera; sensors have fixed intrinsics."""
+        view = self._pose_source_view()
         rtx_index = getattr(self, "rtx_view_index", None)
         rtx_view = self._image_views[rtx_index] if rtx_index is not None else None
         if view.camera is not None and view is not rtx_view:
             return
-        source = self.cfg
+        task = self._is_tracking_view(view)
+        source = view.cfg.source if task else self.cfg
         changed, focal = imgui.slider_float("Focal Length", float(source.focal_length), 5.0, 64.0, "%.0f mm")
         hover_tooltip(imgui, "Lens focal length of the camera; smaller values see a wider area")
         if changed:
@@ -1275,14 +1332,134 @@ class NewtonVisualizerBase(BaseVisualizer):
             view.invalidate()
             self._last_render_step = -1
 
+    def _draw_camera_speed(self, imgui) -> None:
+        """Draw the keyboard speed of the free camera; tracking cameras and sensors do not move with the keys."""
+        view = self._pose_source_view()
+        if view.camera is not None or self._is_tracking_view(view):
+            return
+        speed = float(self._viewer._camera_speed)
+        changed, speed = imgui.slider_float(
+            "Camera Speed", speed, 0.1, 50.0, "%.1f m/s", imgui.SliderFlags_.logarithmic
+        )
+        hover_tooltip(imgui, "How fast the WASD keys move the camera")
+        if changed:
+            self._viewer.camera_speed = speed
+        changed, boost = imgui.slider_float("Shift Boost", float(self._viewer.camera_speed_boost), 1.0, 10.0, "%.1fx")
+        hover_tooltip(imgui, "How much faster the camera moves while Shift is held")
+        if changed:
+            self._viewer.camera_speed_boost = boost
+
+    def _draw_tracking_camera_controls(self, imgui, follower: CameraFollower) -> None:
+        """Edit the selected Tracking Camera: what it follows, where it sits, and where it looks."""
+        cfg = follower.cfg
+        edited = False
+
+        def tip(text: str) -> None:
+            hover_tooltip(imgui, text)
+
+        imgui.separator_text("Tracking Camera")
+        changed, env = imgui.input_int("Environment", follower.env)
+        tip("Environment the camera follows")
+        if changed and 0 <= env < self._sim.get_scene_data_provider().num_envs:
+            follower.set_env(env)
+            self._sync_tracked_env()
+            edited = True
+        asset_name, _, body_name = (cfg.track_path or "").partition("/")
+        assets = ["None (fixed in environment)", *follower.asset_names()]
+        changed, index = imgui.combo("Asset", assets.index(asset_name) if asset_name in assets else 0, assets)
+        tip("Scene asset the camera follows. None keeps it fixed relative to the environment")
+        if changed:
+            edited |= self._set_tracking_path(follower, assets[index] if index else None)
+        if asset_name:
+            bodies = ["Root", *follower.body_names(asset_name)]
+            changed, index = imgui.combo("Body", bodies.index(body_name) if body_name in bodies else 0, bodies)
+            tip("Body of the asset the camera follows. Root follows the asset itself")
+            if changed:
+                edited |= self._set_tracking_path(follower, f"{asset_name}/{bodies[index]}" if index else asset_name)
+        changed, only = imgui.checkbox("Show Only This Env", self._track_env_only)
+        tip("Draw only the camera's environment, following it when the environment changes")
+        if self.rtx_rendering:
+            hud_note(imgui, "RTX: also changes what RTX sensor cameras see.")
+        if changed:
+            self._track_env_only = only
+            self._apply_visible_worlds()
+            edited = True
+        changed, eye = imgui.input_float3("Eye (m)", list(cfg.eye))
+        tip("Camera position, as an offset from the followed asset or the environment origin")
+        if changed:
+            cfg.eye, edited = tuple(float(v) for v in eye), True
+        changed, lookat = imgui.input_float3("Look At (m)", list(cfg.lookat))
+        tip("Point the camera looks at, as an offset from the followed asset or the environment origin")
+        if changed:
+            cfg.lookat, edited = tuple(float(v) for v in lookat), True
+        if asset_name:
+            changed, cfg.follow_heading = imgui.checkbox("Follow Heading", cfg.follow_heading)
+            tip("Turn with the asset's heading, so the camera stays behind it and level")
+            edited |= changed
+            if cfg.follow_heading:
+                changed, smoothing = imgui.slider_float(
+                    "Smoothing", cfg.heading_smoothing_time_constant, 0.0, 2.0, "%.2f s"
+                )
+                tip("Heading filter time constant; larger values damp turns more but lag")
+                if changed:
+                    cfg.heading_smoothing_time_constant, edited = smoothing, True
+        if imgui.button("Reset to Task Default"):
+            edited |= self._reset_tracking_camera(follower)
+        tip("Restore what the task declared for this camera")
+        if self._tracking_error:
+            imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(1.0, 0.35, 0.35, 1.0))
+            imgui.text_wrapped(self._tracking_error)
+            imgui.pop_style_color()
+        if edited:
+            self.current_image_view.invalidate()
+            self._last_render_step = -1
+
+    def _set_tracking_path(self, follower: CameraFollower, track_path: str | None) -> bool:
+        """Follow ``track_path``, reporting an unknown asset or ambiguous body instead of raising."""
+        try:
+            follower.set_track_path(track_path)
+        except ValueError as exc:
+            self._tracking_error = str(exc)
+            return False
+        self._tracking_error = ""
+        return True
+
+    def _reset_tracking_camera(self, follower: CameraFollower) -> bool:
+        """Restore the camera's declared pose, optics, and target; returns whether anything changed."""
+        defaults = self._tracking_defaults.get(self._pose_source_view())  # In RTX the Tracking view is not current.
+        if defaults is None:
+            return False
+        cfg = follower.cfg
+        cfg.eye, cfg.lookat, cfg.focal_length = defaults["eye"], defaults["lookat"], defaults["focal_length"]
+        cfg.follow_heading = defaults["follow_heading"]
+        cfg.heading_smoothing_time_constant = defaults["heading_smoothing_time_constant"]
+        follower.set_env(defaults["env"])
+        self._sync_tracked_env()
+        return self._set_tracking_path(follower, defaults["track_path"]) or True
+
+    @property
+    def tracking_env_only(self) -> bool:
+        """Whether only the selected Tracking Camera's environment is drawn."""
+        return self._track_env_only and self._followers.get(self._pose_source_view()) is not None
+
+    def _sync_tracked_env(self) -> None:
+        """Redraw the visible environments after the Tracking Camera changed environment."""
+        if self._track_env_only:
+            self._apply_visible_worlds()
+
     def _view_labels(self, indices: list[int] | None = None) -> list[str]:
-        """Name the listed image views: a free view is the Perspective."""
+        """Name the listed image views: a task view is the Tracking Camera, a free view is the Perspective."""
         views = self._image_views if indices is None else [self._image_views[i] for i in indices]
-        free = [v for v in views if v.camera is None]
+        free = [v for v in views if v.camera is None and not self._is_tracking_view(v)]
+        tracking = [v for v in views if self._is_tracking_view(v)]
         labels = []
         for view in views:
             if view.camera is not None:
                 labels.append(self._sensor_label(view.cfg.source, view.camera.cfg.data_types))
+            elif self._is_tracking_view(view):
+                labels.append(
+                    "Tracking Camera" if len(tracking) == 1 else f"Tracking Camera {tracking.index(view) + 1}"
+                )
             else:
                 labels.append("Perspective" if len(free) == 1 else f"Perspective {free.index(view) + 1}")
         return labels
@@ -1315,24 +1492,39 @@ class NewtonVisualizerBase(BaseVisualizer):
         kind = " + ".join(outputs[:3]) + " " if outputs else ""
         return f"{prim_path.rstrip('/').rsplit('/', 1)[-1]} ({kind}sensor)"
 
+    def _pose_source_view(self):
+        """Return the view whose camera settings are shown: the one driving the OVRTX camera, or the current view."""
+        if getattr(self, "rtx_rendering", False) and self._rtx_pose_view is not None:
+            return self._rtx_pose_view
+        return self.current_image_view
+
     def _choose_camera_source(self, index: int) -> None:
-        """Switch the camera source; a free source keeps the OVRTX renderer when it is on."""
+        """Switch the camera source; a free or Tracking Camera source keeps the OVRTX renderer when it is on."""
         view = self._image_views[index]
         if self.rtx_rendering and view.camera is None:
             self._remember_perspective_pose()
-            self._rtx_perspective = view
-            self._restore_perspective_pose(view)
+            self._rtx_pose_view = view if self._is_tracking_view(view) else None
+            if self._rtx_pose_view is not None:
+                self._apply_view_pose(view)
+            else:
+                self._rtx_perspective = view
+                if not self._restore_perspective_pose(view):  # a source not visited yet starts from its declared pose
+                    self._apply_declared_pose(view.cfg.source)
             self.current_image_view.invalidate()
+            self._sync_tracked_env()
             return
         self._select_camera(index)
+        self._sync_tracked_env()
 
     def _free_view_in_use(self):
         """Return the free Perspective view whose pose the viewer camera holds, or None when another source has it."""
-        view = self.current_image_view
+        view = self._pose_source_view()
         if view is not None and view.camera is not None and getattr(self, "rtx_rendering", False):
-            # The OVRTX camera follows the free view.
-            view = self._rtx_perspective or next((v for v in self._image_views if v.camera is None), None)
-        if view is None or view.camera is not None:
+            # The OVRTX camera follows the free view it was last pointed at when no Tracking Camera drives it.
+            view = self._rtx_perspective or next(
+                (v for v in self._image_views if v.camera is None and not self._is_tracking_view(v)), None
+            )
+        if view is None or view.camera is not None or self._is_tracking_view(view):
             return None
         return view
 
@@ -1360,6 +1552,48 @@ class NewtonVisualizerBase(BaseVisualizer):
         self._viewer.camera.fov = self._focal_length_to_vertical_fov_degrees(focal)
         return True
 
+    def _remember_tracking_defaults(self, view, follower: CameraFollower) -> None:
+        """Keep what the task declared for a tracking *view*, which its reset control restores."""
+        source = view.cfg.source
+        self._tracking_defaults[view] = {
+            "eye": source.eye,
+            "lookat": source.lookat,
+            "focal_length": source.focal_length,
+            "track_path": source.track_path,
+            "follow_heading": source.follow_heading,
+            "heading_smoothing_time_constant": source.heading_smoothing_time_constant,
+            "env": follower.env,
+        }
+
+    def _apply_view_pose(self, view) -> bool:
+        """Point the viewer camera where a tracking camera looks, leaving the configured poses untouched.
+
+        Returns:
+            Whether the view had a pose yet; a view that follows an asset has none until the asset is ready.
+        """
+        follower = self._followers.get(view)
+        pose = follower and follower.pose(self._sim.get_physics_step_count() * self._sim.get_physics_dt())
+        if pose is None or follower is None:
+            return False
+        eye, target = pose
+        offsets = self._viewer.world_offsets
+        if offsets is not None and not getattr(self, "rtx_rendering", False):  # only OpenGL draws at the offsets
+            shift = wp.to_torch(offsets)[follower.env].tolist()
+            eye = tuple(a + b for a, b in zip(eye, shift))
+            target = tuple(a + b for a, b in zip(target, shift))
+        camera = self._viewer.camera
+        camera.pos = PygletVec3(*eye)
+        camera.look_at(target)
+        self._viewer.set_camera(camera.pos, camera.pitch, camera.yaw)
+        camera.fov = self._focal_length_to_vertical_fov_degrees(view.cfg.source.focal_length)
+        return True
+
+    def _apply_declared_pose(self, source: PerspectiveCameraCfg) -> None:
+        """Move the viewer camera to the pose and focal length a free Perspective source declares."""
+        self.set_camera_view(source.eye, source.lookat)
+        self.cfg.focal_length = source.focal_length
+        self._viewer.camera.fov = self._focal_length_to_vertical_fov_degrees()
+
     def _release_rtx_scene(self) -> None:
         """Give the scene cameras that share the OVRTX renderer back the overlays and lights the viewer added."""
         if self._overlay_publisher is not None:
@@ -1382,13 +1616,15 @@ class NewtonVisualizerBase(BaseVisualizer):
         self.current_image_view = self._image_views[index]
         if leaving_rtx:
             self._apply_rtx_visible_envs()  # restore every environment to the sensors that share the renderer
+        if index != getattr(self, "rtx_view_index", None):
+            self._rtx_pose_view = None
         camera = self.current_image_view.cfg.source
         self.current_image_view.invalidate()
         if isinstance(camera, PerspectiveCameraCfg):
-            if not keep_pose and not self._restore_perspective_pose(self.current_image_view):
-                self.set_camera_view(camera.eye, camera.lookat)
-                self.cfg.focal_length = camera.focal_length
-                self._viewer.camera.fov = self._focal_length_to_vertical_fov_degrees()
+            if isinstance(camera, TrackingCameraCfg):
+                self._apply_view_pose(self.current_image_view)
+            elif not keep_pose and not self._restore_perspective_pose(self.current_image_view):
+                self._apply_declared_pose(camera)
         elif keep_pose:
             self._place_scene_camera_at_viewer(self.current_image_view.camera)
         else:
@@ -1444,19 +1680,24 @@ class NewtonVisualizerBase(BaseVisualizer):
     def _capture_view(self, view, output: wp.array | None) -> wp.array:
         """Capture a perspective *view*, borrowing the viewer camera when the window shows another one."""
         current = self.current_image_view
-        # a free view records what an RTX window shows
-        if view is current or self.rtx_rendering:
+        # a free view records what an RTX window shows, and so does the tracking camera the RTX view follows
+        if view is current or (
+            self.rtx_rendering and (not self._is_tracking_view(view) or view is self._rtx_pose_view)
+        ):
             return self._capture_frame(output)
         camera = self._viewer.camera
         saved = (PygletVec3(camera.pos.x, camera.pos.y, camera.pos.z), camera.pitch, camera.yaw, camera.fov)
         try:
             self._borrowing_view = True
             self.current_image_view = view
-            source = view.cfg.source  # a free view renders from its declared pose and optics
-            camera.pos = PygletVec3(*source.eye)
-            camera.look_at(source.lookat)
-            self._viewer.set_camera(camera.pos, camera.pitch, camera.yaw)
-            camera.fov = self._focal_length_to_vertical_fov_degrees(source.focal_length)
+            if self._is_tracking_view(view):  # rendering may be paused, which leaves the camera where it was
+                self._apply_view_pose(view)
+            else:  # a free view renders from its declared pose and optics
+                source = view.cfg.source
+                camera.pos = PygletVec3(*source.eye)
+                camera.look_at(source.lookat)
+                self._viewer.set_camera(camera.pos, camera.pitch, camera.yaw)
+                camera.fov = self._focal_length_to_vertical_fov_degrees(source.focal_length)
             self._last_render_step = -1
             return self._capture_frame(output)
         finally:
@@ -1505,10 +1746,14 @@ class NewtonVisualizerBase(BaseVisualizer):
         """Invalidate the displayed frame after a simulation reset."""
         super().reset(soft)
         self._last_render_step = -1
+        for follower in self._followers.values():
+            follower.reset()  # the heading filter must not carry the previous episode over
 
     def close(self) -> None:
         """Detach perspective producers before releasing the visualizer's borrowed views."""
         self._pending_mesh_submissions.clear()
+        self._followers.clear()
+        self._tracking_defaults.clear()
         self._perspective_poses.clear()
         self._rtx_perspective = None
         self._sensor_tiles.clear()
@@ -1518,7 +1763,8 @@ class NewtonVisualizerBase(BaseVisualizer):
             self._rtx_appearance.close()
             self._rtx_appearance = None
         for view in self._image_views:
-            if view.camera is None and view.render is not None:  # the perspective views bound in initialize
+            owned = isinstance(view.render, partial) and view.render.func == self._capture_view
+            if owned:
                 view.render = None
                 view.invalidate()
         super().close()
@@ -1596,6 +1842,25 @@ class NewtonVisualizerBase(BaseVisualizer):
             else self._sim.get_physics_step_count()
         )
         return self.current_image_view.read_rgb(frame_id)
+
+    @property
+    def has_tracking_view(self) -> bool:
+        """Whether a tracking camera is declared."""
+        return any(self._is_tracking_view(view) for view in self._image_views)
+
+    def render_tracking_rgb_array(self) -> np.ndarray:
+        """Download the first tracking camera view, whatever the window shows."""
+        view = next((v for v in self._image_views if self._is_tracking_view(v)), None)
+        if view is None:
+            raise RuntimeError("The visualizer declares no tracking camera. Add a TrackingCameraCfg to its cameras.")
+        frame = view.frame
+        # while rendering is paused the tracking view keeps its last frame, instead of picking up the window's view
+        frame_id = (
+            frame.timestamp
+            if self._viewer is not None and self._viewer.is_paused() and frame.data is not None
+            else self._sim.get_physics_step_count()
+        )
+        return view.read_rgb(frame_id)
 
 
 class NewtonGLVisualizer(NewtonVisualizerBase):
@@ -1786,6 +2051,10 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             raise
         try:
             viewer.image_matches_camera = self.rtx_rendering
+            pose_view = self._pose_source_view()
+            # a paused scene is frozen, and so is its camera
+            if self._is_tracking_view(pose_view) and not viewer.is_paused():
+                self._apply_view_pose(pose_view)
             if self.current_image_view.camera is not None:
                 self._navigate_scene_camera()
                 self._refresh_rtx_markers()
@@ -1808,7 +2077,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             for name, arguments in self._pending_mesh_submissions.items():
                 viewer.log_mesh(name, **arguments)
             self._pending_mesh_submissions.clear()
-            if not viewer.is_paused():
+            if not viewer.is_paused() and not self._borrowing_view:  # a capture must not add plot samples
                 self._render_live_plots()
         finally:
             viewer.end_frame()
@@ -1950,24 +2219,32 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         rtx_index = self.rtx_view_index
         if rtx_index is None:
             raise RuntimeError("The scene has no OVRTX viewer camera; see NewtonGLBackendCfg.rtx_camera.")
-        free = [i for i, view in enumerate(self._image_views) if view.camera is None]
+        free = [
+            i for i, view in enumerate(self._image_views) if view.camera is None and not self._is_tracking_view(view)
+        ]
         if enabled:  # the RTX view continues from the free Perspective that is shown now, if any
             current = self.current_image_view
-            self._rtx_perspective = current if current is not None and current.camera is None else None
+            free_now = current is not None and current.camera is None and not self._is_tracking_view(current)
+            self._rtx_perspective = current if free_now else None
         # While the RTX view is shown its camera joins the scene's shared render, so reading it does not submit every
         # camera product a second time; otherwise it renders only on demand.
         self._image_views[rtx_index].camera.cfg.render_on_demand = not enabled
         if enabled:
+            # A Tracking Camera keeps moving the OVRTX camera, which has no pose of its own.
+            current = self.current_image_view
+            self._rtx_pose_view = current if self._is_tracking_view(current) else None
             self._select_camera(rtx_index, keep_pose=True)
             self._apply_rtx_visible_envs()
             if self._rtx_appearance is not None and self._rtx_appearance.available:
                 self._rtx_appearance.apply_lights()
         else:
+            back = self._rtx_pose_view  # _select_camera clears it after the outgoing pose is saved
             followed = self._rtx_perspective
-            if followed in self._image_views and followed.camera is None:
-                target = self._image_views.index(followed)
+            if followed in self._image_views and self._image_views.index(followed) in free:
+                fallback = self._image_views.index(followed)
             else:
-                target = free[0] if free else next(i for i in range(len(self._image_views)) if i != rtx_index)
+                fallback = free[0] if free else next(i for i in range(len(self._image_views)) if i != rtx_index)
+            target = self._image_views.index(back) if back is not None else fallback
             # Only a perspective view continues from the viewer's pose; a scene sensor keeps the task's own placement.
             self._select_camera(target, keep_pose=self._image_views[target].camera is None)
             self._rtx_perspective = None
@@ -1980,6 +2257,8 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
     @property
     def visible_env_count(self) -> int:
         """Number of environments currently shown."""
+        if self.tracking_env_only:
+            return 1
         if self._visible_env_count is not None:
             return min(self._visible_env_count, self.visible_env_limit)
         return self.visible_env_limit
@@ -1994,7 +2273,9 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self._apply_visible_worlds()
 
     def _select_visible_env_ids(self) -> list[int] | None:
-        """Resolve the environments to show from the cfg and the HUD count."""
+        """Resolve the environments to show from the cfg, the HUD count, and the Tracking Camera."""
+        if self.tracking_env_only:
+            return [self._followers[self._pose_source_view()].env]
         if self._visible_env_count is None:
             return self._cfg_visible_env_ids
         ids = self._cfg_visible_env_ids if self._cfg_visible_env_ids is not None else range(self._num_envs)
