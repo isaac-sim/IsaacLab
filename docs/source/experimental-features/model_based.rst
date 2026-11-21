@@ -117,10 +117,17 @@ For prepared references, each NPZ clip supplies float arrays ``joint_pos``,
 ``joint_vel``, ``root_pos_w``, ``root_quat_w`` (WXYZ), ``root_lin_vel_w``, and
 ``root_ang_vel_w`` in the articulation's joint order at 50 Hz. An optional ``fps``
 field must equal 50. Clip boundaries are retained when files are concatenated;
-provided velocities are used unchanged. CSV/NPY pose files are also accepted in
-the legacy XYZ/XYZW/joint-radian format with ``env.commands.motion.source_fps``.
-That path resamples and estimates velocities locally; it does not establish
-equivalence to the official processed dataset.
+provided velocities are used unchanged. CSV poses use the shared read-only
+adapter in ``isaaclab.utils.datasets.motion_loader``, configured through
+``env.commands.motion.csv`` and ``env.commands.motion.source_fps``. Defaults
+retain the legacy headerless XYZ/XYZW/joint-radian format; NPY poses use that
+same layout. Conversion and resampling occur in memory without rewriting or
+filtering the source dataset. Supplied CSV velocities are retained at matching
+rates or interpolated when resampling; missing velocities are estimated within
+each clip. See :doc:`/source/how-to/train_model_based` for column mappings and
+a BONES-SEED example. This does not establish equivalence to the official
+processed dataset. A directory containing NPZ references selects those files;
+otherwise CSV/NPY poses are loaded.
 
 The reference loader is separate from the BeyondMimic named-body NPZ loader:
 its files store root and joint state and supplied velocities, while body state
@@ -224,7 +231,7 @@ model samples, and 4096 policy samples, use:
      --motion_dir /path/to/npz_motions \
      agent.wm.batch_size=1024 agent.policy.batch_size=2048
 
-Distributed tracking requires NPZ reference clips and assigns sorted files to
+Distributed tracking accepts NPZ, CSV, or NPY clips and assigns sorted files to
 ranks in round-robin order. Each rank retains complete clips and its own replay
 buffer and adaptive reset sampler. Together the shards cover the input corpus;
 the samplers do not maintain one global reset distribution. Playback restores

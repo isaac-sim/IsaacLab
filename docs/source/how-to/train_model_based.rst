@@ -32,8 +32,9 @@ from the licenses of the training code.
   substitute an internal storage location or an unofficial mirror.
 
 Keep authentication credentials local and out of configuration files, commits,
-and training source archives. Keep downloaded and converted data outside Git;
-an existing local preparation can be reused for subsequent experiments.
+and training source archives. Keep downloaded data outside Git. Motion loading
+is read-only: column mapping, unit conversion, and resampling happen in memory,
+without a converted dataset, source-file updates, or automatic motion filtering.
 
 Prepare the G1 asset and LAFAN1 references
 ------------------------------------------
@@ -92,27 +93,58 @@ Keep the local asset and motion paths accessible for playback. Reference
 trajectories are kinematic targets; reproducing them does not establish that
 the retargeted motion is dynamically feasible on the robot.
 
-Prepare BONES-SEED instead
---------------------------
+Read other CSV datasets
+-----------------------
 
-After downloading the official G1 archive yourself, reuse the matching G1 MJCF:
+The shared ``isaaclab.utils.datasets.motion_loader`` adapter reads robot poses
+using ``CsvMotionCfg``. Each CSV is one complete, uniformly sampled clip. The
+default is headerless XYZ/XYZW/joint-radian data in the task's joint order, as
+used by the LAFAN1 example. Set ``source_fps`` to the actual input rate.
+
+For named columns, set ``csv.header=true`` and map the root position and rotation
+columns. Joint columns default to the robot's joint names; use
+``joint_column_template`` for a common naming pattern or ``joint_columns`` to
+map individual target joint names to source columns. Headerless files can use
+zero-based column indices instead. Extra numeric columns, such as frame IDs,
+are ignored unless mapped. Missing required columns or nonfinite motion values
+raise an error; the loader does not silently remove samples.
+
+After downloading and extracting the official BONES-SEED G1 archive yourself,
+point training at its CSV directory. Reuse the matching G1 USD/MJCF asset paths
+from the previous example:
 
 .. code-block:: bash
 
-   uv run python scripts/tools/prepare_bones.py \
-       --archive /data/bones-seed/g1.tar.gz \
-       --mjcf /data/g1_tracking/g1_description/g1_29dof.xml \
-       --output /data/bones_prepared --workers 16 --source_fps 120
+   uv run --frozen isaaclab train --rl_library model_based \
+       --task Isaac-Motion-Tracking-GenCoord-G1 \
+       --num_envs 4096 --max_iterations 40000 \
+       --motion_dir /data/bones-seed/g1 \
+       --asset_path /data/g1_tracking/g1_usd/g1_29dof/g1_29dof.usda \
+       --kinematics_path /data/g1_tracking/g1_description/g1_29dof.xml \
+       env.commands.motion.source_fps=120 \
+       env.commands.motion.csv.header=true \
+       'env.commands.motion.csv.root_position=["root_translateX","root_translateY","root_translateZ"]' \
+       'env.commands.motion.csv.root_rotation=["root_rotateX","root_rotateY","root_rotateZ"]' \
+       env.commands.motion.csv.rotation_format=euler_xyz \
+       'env.commands.motion.csv.joint_column_template="{name}_dof"' \
+       env.commands.motion.csv.position_scale=0.01 \
+       env.commands.motion.csv.angles_in_degrees=true
 
-This converter reads the archive directly and writes filtered, resampled 50 Hz
-NPY poses under ``motions/``, per-clip decisions in ``motions.jsonl``, and
-settings and hashes in ``manifest.json``. Its filters are local preprocessing
-choices, not a claim to reproduce the paper's processed subset.
+The adapter accepts XYZW or WXYZ quaternions and extrinsic XYZ Euler angles.
+``position_scale`` converts source lengths to meters; ``angles_in_degrees``
+applies to Euler angles and joint angles. ``world_rotation`` optionally rotates
+the source world frame into the training world frame using an XYZW quaternion.
+It does not change robot-local joint axes or retarget a human skeleton to G1.
 
-For single-GPU training, use the same training command with
-``--motion_dir /data/bones_prepared/motions`` and
-``env.commands.motion.source_fps=50``. Do not use the original archive's 120 Hz
-rate for the converted poses. Multi-GPU reference sharding requires the complete
-50 Hz NPZ format described in
-:doc:`/source/experimental-features/model_based`; these NPY files are not that
-distributed input format.
+Optional ``root_linear_velocity``, ``root_angular_velocity``, and
+``joint_velocity_columns`` mappings read supplied per-second velocities. Root
+velocities must be expressed in the source world frame. At the task's 50 Hz
+rate, supplied velocities are retained; otherwise they are linearly resampled.
+Only missing velocities are estimated from poses, separately within each clip.
+
+CSV clips can also be sharded across GPUs. Both training and playback use the
+same adapter, and checkpoints retain its configuration. The loader writes no
+motion files or disk caches. Dataset-specific feasibility filtering is not part
+of loading: choose clips appropriate for the scene, including required terrain
+or objects. Loading the full BONES archive does not reproduce the paper's
+filtered motion subset.

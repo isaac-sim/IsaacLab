@@ -9,6 +9,7 @@ from dataclasses import MISSING
 
 from isaaclab.managers import CommandTermCfg
 from isaaclab.utils import configclass
+from isaaclab.utils.datasets.motion_loader import CsvMotionCfg
 
 
 @configclass
@@ -22,6 +23,7 @@ class ReferenceCommandCfg(CommandTermCfg):
     joint_names: list[str] = MISSING
     tracked_bodies: list[str] = MISSING
     source_fps: float = 30.0
+    csv: CsvMotionCfg = CsvMotionCfg()
     context_body: str = "torso_link"
     reset_noise: bool = True
     evaluation: bool = False
