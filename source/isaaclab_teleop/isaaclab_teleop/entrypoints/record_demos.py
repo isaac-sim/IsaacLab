@@ -74,6 +74,8 @@ from ..action_policy import initial_hand_tracking_issue, prepare_teleop_action
 from ..device_selection import create_teleop_device, select_teleop_cfg
 from ._ovxr_launch import (
     add_ovxr_presentation_args,
+    cuda_index_list,
+    ovxr_renderer_cfg,
     prepare_ovxr_launch,
     reject_ovxr_runtime_conflicts,
     resolve_ovxr_camera_feeds,
@@ -208,6 +210,12 @@ def _build_parser() -> argparse.ArgumentParser:
         default=0.0,
         help="Maximum host-control rate with --ovxr; 0 leaves active control unthrottled. XR rendering is independent.",
     )
+    parser.add_argument(
+        "--ovrtx_active_cuda_gpus",
+        type=cuda_index_list,
+        default=None,
+        help="Comma-separated CUDA indices for OVRTX rendering, e.g. 0. Does not select physics or camera outputs.",
+    )
     add_ovxr_presentation_args(parser)
     add_launcher_args(parser)
     return parser
@@ -236,6 +244,8 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         parser.error("--ovxr_step_hz must be finite and non-negative; 0 disables active-control pacing")
     if args_cli.ovxr_step_hz > 0.0 and not args_cli.using_ovxr:
         parser.error("--ovxr_step_hz requires --ovxr")
+    if not args_cli.using_ovxr and args_cli.ovrtx_active_cuda_gpus is not None:
+        parser.error("--ovrtx_active_cuda_gpus requires --ovxr")
     validate_ovxr_presentation_args(parser, args_cli, using_ovxr=args_cli.using_ovxr)
 
     # Call an external callback if requested.
@@ -380,11 +390,11 @@ def create_environment_config(
     selected_cameras = ()
     if args_cli.using_ovxr:
         if args_cli.ovxr_camera_feed is not None:
-            from ..ovxr_renderer import OvxrRendererCfg
-
             # Resolve the panels before launch preparation removes the other cameras, so that an
             # invalid selection or task layout fails before launch.
-            selected_cameras = resolve_ovxr_camera_feeds(env_cfg, args_cli, OvxrRendererCfg())
+            selected_cameras = resolve_ovxr_camera_feeds(
+                env_cfg, args_cli, ovxr_renderer_cfg(args_cli.ovrtx_active_cuda_gpus)
+            )
         env_cfg = prepare_ovxr_launch(
             env_cfg, args_cli.task, env_cfg.scene.num_envs, keep=tuple(args_cli.ovxr_camera_feed or ())
         )
@@ -1015,6 +1025,8 @@ def _record_ovxr_demos(
             args_cli,
             application_name=f"isaaclab-ovxr-record-{args_cli.task}",
             camera_feeds=selected_cameras,
+            # Selected panels already carry this configuration from launch resolution.
+            renderer_cfg=None if selected_cameras else ovxr_renderer_cfg(args_cli.ovrtx_active_cuda_gpus),
         )
         try:
             env = gym.make(args_cli.task, cfg=env_cfg).unwrapped

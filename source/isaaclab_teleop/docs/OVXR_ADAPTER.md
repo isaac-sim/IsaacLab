@@ -78,9 +78,14 @@ The adapter retains the renderer and Stage if lease retirement cannot establish 
   resolves to the XR renderer itself (a non-panel camera configured with the
   session's `OvxrRendererCfg`) is rejected, because that renderer produces no camera images.
 - Camera panels provide colour (`rgb`, `rgba`) or `depth` outputs. On a CPU simulation
-  device, their render products leave GPU selection to OVRTX.
+  device, or when `OvxrRendererCfg.active_cuda_gpus` excludes the simulation GPU, their
+  render products leave GPU selection to OVRTX.
 - Eager scene updates (`lazy_sensor_update=False`) write nothing to the XR renderer;
-  its scene publisher writes the same physics state at the reserved ordinal.
+  its scene publisher writes the same physics state at the reserved ordinal. Camera
+  panels' sensors would still attempt their own capture, which the XR renderer rejects,
+  so camera panels require `lazy_sensor_update=True`; the adapter rejects eager
+  retained cameras before starting the worker. The scene publisher refreshes
+  their world poses without triggering camera capture before publication.
 - CPU simulation devices publish scene transforms, but visual-material
   publication requires CUDA material buffers, as it does for Isaac Lab's OVRTX
   renderer. With `--device cpu`, an environment that has `VisualMaterial` assets
@@ -111,6 +116,15 @@ render-product builder, transform kernels and tensor helpers.
   unchanged state, validates panel samples, reserves an ordinal, writes every component, seals
   it, and on failure poisons the pair and abandons the ordinal. Capture's publication guard
   provides the cross-thread exclusion around it.
+- With `OvxrRendererCfg.active_cuda_gpus` excluding the physics GPU, rigid poses and points are
+  copied to the first rendering GPU before OVStage consumes them
+  (`isaaclab_teleop.ovxr_gpu_publication`).
+- The OVXR engine (`isaaclab_teleop.ovxr_scene`) applies `active_cuda_gpus` and guards it. OVRTX
+  selects rendering GPUs once per process, so the first OVXR engine fixes the selection and a later
+  one that resolves to another selection is rejected, including after teardown or failed startup. A
+  selection other than the simulation GPU alone is also rejected when an ordinary OVRTX renderer or
+  engine is registered in the same simulation, when the engine is created and again when the Stage is
+  prepared. Ordinary OVRTX renderers in another simulation of the same process are not checked.
 
 The lease registers the renderer as a consumer of the simulation's visualization-marker registry.
 This enables the existing marker backend even without an ordinary visualizer and lets lazily created

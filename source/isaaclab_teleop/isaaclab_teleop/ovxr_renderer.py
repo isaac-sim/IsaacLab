@@ -32,6 +32,7 @@ import numpy as np
 import ovstage
 import warp as wp
 from isaaclab_ov.cloner import ovstage_replicate
+from isaaclab_ov.renderers import OVRTXBackendCfg, OVRTXRendererCfg
 from isaaclab_ov.renderers.ovrtx_usd import build_render_product_as_string
 from isaaclab_ov.stage import (
     OvstageBackendCfg,
@@ -49,6 +50,7 @@ from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.utils import configclass
 
+from .ovxr_gpu_publication import _excludes_simulation_gpu, _GeometryPublicationBuffers, parse_active_cuda_gpus
 from .ovxr_scene import (
     _camera_transforms_kernel,
     _OvxrEngineCfg,
@@ -492,6 +494,7 @@ class _OvxrLeaseController:
         # The simulation's registry owns both. Clone preparation delivers the scene copies to every
         # registered OVStage, and teardown closes the engine, registered second, before the Stage.
         renderer = self._renderer
+        renderer._reject_ordinary_ovrtx_renderers()
         sim = renderer._sim
         scene = sim.get_or_create_backend(OvstageBackendCfg(scene_key=renderer.cfg))
         renderer.backend = sim.get_or_create_backend(
@@ -500,6 +503,7 @@ class _OvxrLeaseController:
                 log_file_path=renderer.cfg.log_file_path,
                 log_level=renderer.cfg.log_level,
                 device=sim.device,
+                active_cuda_gpus=renderer.cfg.active_cuda_gpus,
             )
         )
         renderer.scene = scene
@@ -621,6 +625,10 @@ class _OvxrLeaseController:
             raise RuntimeError("Cannot release OvxrRenderLease while the owner lane is active")
         if self._publisher is not None:
             self._publisher.close()
+        # Keep the lease active until every retained producer/transfer completes, so
+        # environment teardown keeps the pair after a failed drain.
+        if self._renderer._geometry_publication is not None:
+            self._renderer._geometry_publication.close()
         if lease._state is _OvxrLeaseState.BOUND and (not self._poisoned):
             with self.owner_lane("lease-release ordinal rebase"):
                 self._renderer.scene.ordinal = self._next_ordinal()
@@ -954,7 +962,9 @@ class OvxrRendererCfg(RendererCfg):
     The session's :class:`OvxrRenderer` creates its own OVStage and OVRTX engine and lends them to
     Isaac Capture's render worker. Give the session and every camera it shows as a panel the same
     configuration, so they share one ``OvxrRenderer``. Other cameras keep their own renderer
-    configurations, such as :class:`~isaaclab_ov.renderers.OVRTXRendererCfg`.
+    configurations, such as :class:`~isaaclab_ov.renderers.OVRTXRendererCfg`, which renders on the
+    simulation device. OVRTX selects rendering GPUs once per process, so such cameras can only share
+    the simulation when :attr:`active_cuda_gpus` is unset or names just the simulation GPU.
     """
 
     class_type: type[OvxrRenderer] | str = "{DIR}.ovxr_renderer:OvxrRenderer"
@@ -976,6 +986,23 @@ class OvxrRendererCfg(RendererCfg):
     log_file_path: str = os.path.join(tempfile.gettempdir(), "ovrtx_renderer.log")
     """Path for the OVRTX log file. Defaults to ``<system temp>/ovrtx_renderer.log``."""
 
+    active_cuda_gpus: str | None = None
+    """Comma-separated CUDA device indices that render the session (e.g. ``"1"`` or ``"0,1"``).
+
+    Defaults to the simulation CUDA device; CPU simulations use native GPU selection.
+    The first OVXR engine fixes this selection for the process, even after renderer teardown or
+    failed startup. Later OVXR renderers must request the same selection; conflicting requests raise
+    :class:`ValueError`. Start a new process to change rendering GPUs. This does not change physics.
+    When the set excludes a CUDA simulation GPU, rigid transforms and deformable points produced on
+    the simulation GPU are copied to the first listed GPU before OVStage consumes them. Other inputs,
+    such as camera poses, are read from the simulation GPU, and camera panel products use automatic
+    device assignment.
+
+    Other OVRTX renderers render on the simulation device. A selection other than the simulation GPU
+    alone is therefore rejected when an ordinary OVRTX renderer or engine is registered in the same
+    simulation, both when the session creates its engine and when the Stage is prepared.
+    """
+
     def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
         """Return the outputs a camera panel's render product may provide, with the OVRTX renderer's layouts.
 
@@ -987,6 +1014,11 @@ class OvxrRendererCfg(RendererCfg):
             RenderBufferKind.RGB: RenderBufferSpec(3, wp.uint8),
             RenderBufferKind.DEPTH: RenderBufferSpec(1, wp.float32),
         }
+
+    def __post_init__(self) -> None:
+        # Reject malformed GPU selections before any environment or native resource exists.
+        if self.active_cuda_gpus is not None:
+            parse_active_cuda_gpus(self.active_cuda_gpus)
 
 
 @final
@@ -1030,6 +1062,7 @@ class OvxrRenderer(BaseRenderer):
         """Camera panels' render data, released once the lease is released."""
         self._panels = _OvxrPanelCameras(self)
         self._render_lease = _OvxrLeaseController(self)
+        self._geometry_publication: _GeometryPublicationBuffers | None = None
 
     def acquire_render_lease(self) -> OvxrRenderLease:
         """Reserve the native renderer/scene pair before stage preparation."""
@@ -1059,11 +1092,56 @@ class OvxrRenderer(BaseRenderer):
 
         Raises:
             RuntimeError: Without the session's lease, or when the lease cannot prepare its Stage.
+            ValueError: If :attr:`OvxrRendererCfg.active_cuda_gpus` selects GPUs other than the simulation
+                GPU alone while an ordinary OVRTX renderer is registered in the same simulation.
         """
+        self._reject_ordinary_ovrtx_renderers()
         if not self._render_lease.prepare_stage(num_envs):
             return
+        if self._geometry_publication is None:
+            publication_device = self._geometry_publication_device()
+            if publication_device is not None:
+                self._geometry_publication = _GeometryPublicationBuffers(publication_device)
         self._populate_scene(stage)
         self._render_lease.bind_stage()
+
+    # Split-GPU rendering.
+
+    def _excludes_simulation_gpu(self) -> bool:
+        """Whether :attr:`OvxrRendererCfg.active_cuda_gpus` omits the CUDA simulation GPU."""
+        return _excludes_simulation_gpu(self.cfg.active_cuda_gpus, self._device)
+
+    def _selects_other_than_simulation_gpu(self) -> bool:
+        """Whether an explicit selection differs from the simulation GPU that ordinary OVRTX rendering uses."""
+        if self.cfg.active_cuda_gpus is None:
+            return False
+        ordinary = (self._warp_device.ordinal,) if self._warp_device.is_cuda else ()
+        return parse_active_cuda_gpus(self.cfg.active_cuda_gpus) != ordinary
+
+    def _reject_ordinary_ovrtx_renderers(self) -> None:
+        """Reject a GPU selection that ordinary OVRTX renderers in the same simulation cannot share.
+
+        Ordinary OVRTX renderers render on the simulation device, and OVRTX selects rendering GPUs once
+        per process.
+        """
+        if not self._selects_other_than_simulation_gpu():
+            return
+        if self._sim.get_backends(OVRTXBackendCfg) or self._sim.get_backends(OVRTXRendererCfg):
+            raise ValueError(
+                "An ordinary OVRTX camera cannot share a simulation with an OVXR session that renders on other"
+                f" GPUs: active_cuda_gpus={self.cfg.active_cuda_gpus!r}, simulation device {self._device!r}."
+                " Remove the OVRTX camera, or render the session on the simulation GPU alone."
+            )
+
+    def _geometry_publication_device(self) -> str | None:
+        """Rendering GPU that receives completed geometry copies, or ``None`` to publish in place.
+
+        When OVStage renders on GPUs that exclude the CUDA simulation GPU, geometry produced on the
+        simulation GPU is copied to the first listed rendering GPU before OVStage consumes it.
+        """
+        if not self._excludes_simulation_gpu():
+            return None
+        return f"cuda:{parse_active_cuda_gpus(self.cfg.active_cuda_gpus)[0]}"
 
     # The session's scene publisher writes every scene; ordinary scene updates write nothing.
 
@@ -1151,6 +1229,9 @@ class OvxrRenderer(BaseRenderer):
     def close(self) -> None:
         """Release panels, queries and markers once the lease is released; the registry owns the engine and Stage."""
         self._render_lease.reject_ordinary_operation("close the renderer")
+        # A failed drain must preserve publication storage and its scene bindings for retry.
+        if self._geometry_publication is not None:
+            self._geometry_publication.close()
         try:
             with contextlib.ExitStack() as resources:
                 resources.callback(self._bindings.close)
@@ -1167,6 +1248,7 @@ class OvxrRenderer(BaseRenderer):
             self._initialized_scene = False
             self._visual_material_writer_ref = None
             self.markers.clear()
+            self._geometry_publication = None
             self._closed = True
 
     # Stage preparation on the render owner, following the OVStage path of Isaac Lab's OVRTX renderer.
@@ -1316,12 +1398,17 @@ class OvxrRenderer(BaseRenderer):
         render_data.resources.callback(self.backend.render_products.discard, product_path)
 
     def _panel_product_usd(self, spec: CameraRenderSpec, render_data: _OvxrPanelRenderData) -> str:
-        """Build a panel's render product, pinned to the simulation GPU; a CPU simulation leaves GPU choice to OVRTX."""
+        """Build a panel's render product, pinned to the simulation GPU when that GPU renders.
+
+        A CPU simulation, or rendering GPUs that exclude the simulation GPU, leave the product's GPU choice
+        to OVRTX, which would otherwise skip a product request for a GPU outside the rendering set on every
+        frame.
+        """
         device_id = self._warp_device.ordinal if self._warp_device.is_cuda else 0
         usd = build_render_product_as_string(spec, render_data, device_id=device_id)
-        if self._warp_device.is_cuda:
+        if self._warp_device.is_cuda and not self._excludes_simulation_gpu():
             return usd
-        # The placeholder device index above is removed with the product's only device pin.
+        # The device index above is removed with the product's only device pin.
         usd, removed = re.subn(r"^[ \t]*uint\[\] deviceIds = \[[^\]\n]*\]\n", "", usd, flags=re.MULTILINE)
         if removed != 1:
             raise RuntimeError(f"Expected one deviceIds line in the camera panel's render product; found {removed}")
@@ -1359,16 +1446,23 @@ class OvxrRenderer(BaseRenderer):
             return
         if not self._sdp.get_transforms(self._transforms, allow_passthrough=True, scales=self._object_scales):
             return
-        # The producing CUDA stream orders access to the borrowed buffer.
-        self.scene.stage.write_attribute(
-            binding,
-            "omni:xform",
-            ordinal=self.scene.ordinal,
-            tensors=xform_tensor_from_warp(self._transforms.matrices),
-            is_array=False,
-            semantic=ovstage.AttributeSemantic.MATRIX,
-            cuda_stream=self._cuda_stream(),
-        ).wait()
+        matrices = self._transforms.matrices
+        if self._geometry_publication is not None:
+            # Rendering excludes the simulation GPU: publish a completed copy on the first rendering GPU.
+            self._geometry_publication.write_transforms(
+                self.scene.stage, binding, matrices, self.scene.ordinal, self._producer_stream()
+            )
+        else:
+            # The producing CUDA stream orders access to the borrowed buffer.
+            self.scene.stage.write_attribute(
+                binding,
+                "omni:xform",
+                ordinal=self.scene.ordinal,
+                tensors=xform_tensor_from_warp(matrices),
+                is_array=False,
+                semantic=ovstage.AttributeSemantic.MATRIX,
+                cuda_stream=self._cuda_stream(),
+            ).wait()
         self._transforms_timestamp = timestamp
 
     def _publish_geometries(self) -> None:
@@ -1393,15 +1487,21 @@ class OvxrRenderer(BaseRenderer):
         timestamp = self._sdp.backend.geometry_timestamp
         if self._geometry_timestamp == timestamp:
             return
-        self.scene.stage.write_attribute(
-            binding,
-            "points",
-            ordinal=self.scene.ordinal,
-            tensors=[points_tensor_from_warp(array) for array in points],
-            is_array=True,
-            semantic=ovstage.AttributeSemantic.POINT,
-            cuda_stream=self._cuda_stream(),
-        ).wait()
+        if self._geometry_publication is not None:
+            # Rendering excludes the simulation GPU: publish completed copies on the first rendering GPU.
+            self._geometry_publication.write(
+                self.scene.stage, binding, self._geometry_paths, points, self.scene.ordinal, self._producer_stream()
+            )
+        else:
+            self.scene.stage.write_attribute(
+                binding,
+                "points",
+                ordinal=self.scene.ordinal,
+                tensors=[points_tensor_from_warp(array) for array in points],
+                is_array=True,
+                semantic=ovstage.AttributeSemantic.POINT,
+                cuda_stream=self._cuda_stream(),
+            ).wait()
         self._geometry_timestamp = timestamp
 
     def _publish_camera_pose(
@@ -1424,6 +1524,11 @@ class OvxrRenderer(BaseRenderer):
             cuda_stream=self._cuda_stream(),
         ).wait()
 
+    def _producer_stream(self) -> wp.Stream | None:
+        """Return the simulation device's current Warp stream, which produced the published data; ``None`` on a CPU."""
+        return self._warp_device.stream if self._warp_device.is_cuda else None
+
     def _cuda_stream(self) -> int | None:
         """Return the simulation device's CUDA stream handle, or ``None`` to write host memory on a CPU device."""
-        return (self._warp_device.stream.cuda_stream or 1) if self._warp_device.is_cuda else None
+        stream = self._producer_stream()
+        return (stream.cuda_stream or 1) if stream is not None else None

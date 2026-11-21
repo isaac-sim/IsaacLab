@@ -113,7 +113,10 @@ def test_recording_notifies_teleop_when_environment_zero_resets_itself(terminate
         (["--ovxr_desktop_mirror"], "--ovxr_desktop_mirror requires --ovxr"),
         (["--ovxr_camera_feed", "head_cam"], "--ovxr_camera_feed requires --ovxr"),
         (["--ovxr", "--ovxr_camera_feed", "head_cam", "presets=rgb"], "takes camera names, not overrides"),
-        (["--ovxr", "--ovxr_session_mode", "vr", "--ovxr_step_hz", "20"], None),
+        (["--ovxr", "--ovrtx_active_cuda_gpus", "cuda:0"], "active_cuda_gpus must list CUDA indices"),
+        (["--ovxr", "--ovrtx_active_cuda_gpus", "0,0"], "more than once"),
+        (["--ovrtx_active_cuda_gpus", "0"], "--ovrtx_active_cuda_gpus requires --ovxr"),
+        (["--ovxr", "--ovxr_session_mode", "vr", "--ovxr_step_hz", "20", "--ovrtx_active_cuda_gpus", "1"], None),
         (["--ovxr", "--ovxr_desktop_mirror", "--ovxr_camera_feed", "head_cam"], None),
     ],
 )
@@ -141,6 +144,7 @@ def test_recording_parses_ovxr_options_like_live(monkeypatch, capsys, arguments,
             "ovxr_desktop_mirror_fps",
             "ovxr_camera_feed",
             "ovxr_camera_feed_fps",
+            "ovrtx_active_cuda_gpus",
         )
         parsed.append({name: getattr(args, name) for name in names})
     if message is None:
@@ -202,8 +206,12 @@ def test_recording_ovxr_checks_launch_before_preparing_and_owns_context_cleanup(
 @pytest.mark.parametrize(
     "task", ["IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs", "IsaacContrib-PickPlace-GR1T2-Abs"]
 )
-def test_recording_ovxr_presentation_options_reach_session_construction(monkeypatch, tmp_path, task):
-    """The recorder passes the live agent's PiP and mirror options to the OVXR session, keeping only PiP cameras."""
+@pytest.mark.parametrize("pip_camera", [False, True])
+def test_recording_ovxr_presentation_options_reach_session_construction(monkeypatch, tmp_path, task, pip_camera):
+    """The recorder passes the live agent's PiP, mirror and GPU options to the OVXR session, keeping only PiP cameras.
+
+    The GPU selection reaches the one renderer configuration shared by the stereo session and its PiP camera.
+    """
     import contextlib
     from types import SimpleNamespace
 
@@ -221,7 +229,8 @@ def test_recording_ovxr_presentation_options_reach_session_construction(monkeypa
         "--task", task, "--physics", "ovphysx", "--ovxr",
         "--cloudxr_env", "none", "--dataset_file", str(tmp_path / "demo.hdf5"),
         "--ovxr_camera_feed_fps", "15", "--ovxr_desktop_mirror", "--ovxr_desktop_mirror_fps", "20",
-        "--ovxr_camera_feed", "robot_pov_cam",
+        "--ovrtx_active_cuda_gpus", "1",
+        *(["--ovxr_camera_feed", "robot_pov_cam"] if pip_camera else []),
     ])  # fmt: skip
     launched = []
     prepared = []
@@ -249,14 +258,19 @@ def test_recording_ovxr_presentation_options_reach_session_construction(monkeypa
         record_demos.main()
 
     [cfg] = launched
-    assert cfg.scene.robot_pov_cam is not None
+    assert (getattr(cfg.scene, "robot_pov_cam", None) is not None) is pip_camera
     [(xr_cfg, renderer_cfg)] = prepared
     assert xr_cfg.desktop_mirror is not None and xr_cfg.desktop_mirror.max_fps == 20.0
-    [camera] = xr_cfg.camera_feeds
-    assert camera.name == "robot_pov_cam" and camera.max_fps == 15.0
+    assert renderer_cfg.active_cuda_gpus == "1"
+    assert [(camera.name, camera.max_fps) for camera in xr_cfg.camera_feeds] == (
+        [("robot_pov_cam", 15.0)] if pip_camera else []
+    )
     # G1 declares a head-locked layout and GR1T2 keeps the default one; OVXR shows both head-locked.
-    assert camera.space == "head_locked" and camera.position == pytest.approx((0.0, -0.15, -0.8))
-    assert renderer_cfg == camera.camera_cfg.renderer_cfg
+    assert all(
+        camera.space == "head_locked" and camera.position == pytest.approx((0.0, -0.15, -0.8))
+        for camera in xr_cfg.camera_feeds
+    )
+    assert all(camera.camera_cfg.renderer_cfg == renderer_cfg for camera in xr_cfg.camera_feeds)
 
 
 def test_instruction_display_logs_new_messages_without_kit_labels(caplog):
