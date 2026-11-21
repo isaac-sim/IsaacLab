@@ -34,6 +34,7 @@
             ["Isaac-Lift-Soft-Franka-Camera", "rsl_rl", "isaacsim_physx,newton_mjwarp_vbd_proxy", "isaacsim_rtx,newton_warp,ovrtx", "ik,joint", "environment-previews/franka_lift_soft.jpg", false, {"*": ["joint"]}, {}, "tetrahedralization", null, ["||", "||ik", "||joint", "|isaacsim_rtx|", "|isaacsim_rtx|ik", "|isaacsim_rtx|joint", "|newton_warp|", "|newton_warp|ik", "|newton_warp|joint", "|ovrtx|", "|ovrtx|ik", "|ovrtx|joint", "isaacsim_physx||", "isaacsim_physx||ik", "isaacsim_physx||joint", "isaacsim_physx|isaacsim_rtx|", "isaacsim_physx|isaacsim_rtx|ik", "isaacsim_physx|isaacsim_rtx|joint", "isaacsim_physx|newton_warp|", "isaacsim_physx|newton_warp|ik", "isaacsim_physx|newton_warp|joint", "newton_mjwarp_vbd_proxy||", "newton_mjwarp_vbd_proxy||ik", "newton_mjwarp_vbd_proxy||joint", "newton_mjwarp_vbd_proxy|isaacsim_rtx|", "newton_mjwarp_vbd_proxy|isaacsim_rtx|ik", "newton_mjwarp_vbd_proxy|isaacsim_rtx|joint", "newton_mjwarp_vbd_proxy|newton_warp|", "newton_mjwarp_vbd_proxy|newton_warp|ik", "newton_mjwarp_vbd_proxy|newton_warp|joint", "newton_mjwarp_vbd_proxy|ovrtx|", "newton_mjwarp_vbd_proxy|ovrtx|ik", "newton_mjwarp_vbd_proxy|ovrtx|joint"]],
             ["Isaac-Motion-Tracking-G1", "rsl_rl", "", "", ""],
             ["Isaac-Open-Drawer-Franka-Direct", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_mjwarp,newton_steel,ovphysx", "", "", "environment-previews/franka_open_drawer.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||", "newton_mjwarp||", "newton_steel||", "ovphysx||"]],
+            ["Isaac-Motion-Tracking-G1", "rsl_rl", "", "", "", ""],
             ["Isaac-Open-Drawer-Franka", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_mjwarp,newton_steel,ovphysx", "", "", "environment-previews/franka_open_drawer.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||", "newton_mjwarp||", "newton_steel||", "ovphysx||"]],
             ["Isaac-Pendulum-MARL-Direct", "rl_games,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", "environment-previews/cart_double_pendulum.jpg", false, {}, {"skrl": "MAPPO"}, "", null, ["||", "isaacsim_physx||", "newton_kamino||", "newton_mjwarp||", "ovphysx||"]],
             ["Isaac-Reach-Franka", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_mjwarp,newton_steel,ovphysx", "", "diffik,diffik_abs,hold,joint_pos,minimal,newton_ik", "environment-previews/franka_reach.jpg", true, {"*": ["joint_pos"]}, {}, "", ["joint_pos", "minimal"], ["||", "||diffik", "||diffik_abs", "||hold", "||joint_pos", "||minimal", "||newton_ik", "isaacsim_physx||", "isaacsim_physx||diffik", "isaacsim_physx||diffik_abs", "isaacsim_physx||hold", "isaacsim_physx||joint_pos", "isaacsim_physx||minimal", "newton_mjwarp||", "newton_mjwarp||diffik", "newton_mjwarp||diffik_abs", "newton_mjwarp||hold", "newton_mjwarp||joint_pos", "newton_mjwarp||minimal", "newton_mjwarp||newton_ik", "newton_steel||", "newton_steel||diffik", "newton_steel||diffik_abs", "newton_steel||hold", "newton_steel||joint_pos", "newton_steel||minimal", "newton_steel||newton_ik", "ovphysx||", "ovphysx||diffik", "ovphysx||diffik_abs", "ovphysx||hold", "ovphysx||joint_pos", "ovphysx||minimal"]],
@@ -386,6 +387,9 @@
     const failedPreviewVideos = new Set();
 
     const previewImageUrl = (task) => {
+        if (taskPreviewVideoUrls[task.task]) {
+            return null;
+        }
         const imagePath = previewImageFor(task);
         return imagePath.startsWith("environments/previews/")
             ? new URL(imagePath, previewBaseUrl).href
@@ -403,7 +407,16 @@
         Object.entries(previewClipNames).flatMap(([folder, names]) => names.map((name) => [name, folder])),
     );
 
+    const taskPreviewVideoUrls = {
+        "Isaac-Velocity-Flat-H2": "https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/environments/previews/locomotion/h2_flat.mp4",
+        "Isaac-Velocity-Rough-H2": "https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/environments/previews/locomotion/h2_rough.mp4",
+        "Isaac-Motion-Tracking-G1": "https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/environments/previews/locomotion/g1_cr7.mp4",
+    };
+
     const previewVideoUrl = (task) => {
+        if (taskPreviewVideoUrls[task.task]) {
+            return taskPreviewVideoUrls[task.task];
+        }
         const name = previewImageFor(task).split("/").pop().replace(/\.[^.]+$/, "");
         const folder = previewClipFolders[name];
         return folder ? new URL(`environments/previews/${folder}/${name}.mp4`, previewBaseUrl).href : null;
@@ -552,7 +565,13 @@
         const previewImage = preview.querySelector("[data-preview-image]");
         const previewVideo = preview.querySelector("[data-preview-video]");
         const videoUrl = previewVideoUrl(selectedTask());
-        previewImage.src = previewImageUrl(selectedTask());
+        const imageUrl = previewImageUrl(selectedTask());
+        if (imageUrl) {
+            previewImage.src = imageUrl;
+        } else {
+            previewImage.removeAttribute("src");
+        }
+        previewImage.hidden = !imageUrl;
         previewImage.alt = `${state.task} preview`;
         // Keep the image up until the clip has a frame; tasks without a clip keep their image.
         const showVideo = () => {
@@ -567,14 +586,14 @@
                 if (previewVideo.src === videoUrl) {
                     failedPreviewVideos.add(videoUrl);
                     previewVideo.hidden = true;
-                    previewImage.hidden = false;
+                    previewImage.hidden = !imageUrl;
                 }
             };
             previewVideo.onloadeddata = showVideo;
             previewVideo.setAttribute("aria-label", `${state.task} preview`);
             if (previewVideo.src !== videoUrl) {
                 previewVideo.hidden = true;
-                previewImage.hidden = false;
+                previewImage.hidden = !imageUrl;
                 previewVideo.src = videoUrl;
             } else if (previewVideo.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
                 showVideo();
@@ -584,7 +603,7 @@
             previewVideo.onloadeddata = null;
             previewVideo.pause();
             previewVideo.hidden = true;
-            previewImage.hidden = false;
+            previewImage.hidden = !imageUrl;
         }
         preview.querySelector("[data-preview-task]").textContent = state.task;
         const supportsRl = selectedTask().rl.length > 0;
@@ -635,9 +654,17 @@
         selectButton.type = "button";
         selectButton.className = "environment-task-card-select";
 
-        const image = document.createElement("img");
-        image.alt = "";
-        image.loading = "lazy";
+        const hasVideo = Boolean(taskPreviewVideoUrls[variants[0].task]);
+        const media = document.createElement(hasVideo ? "video" : "img");
+        if (hasVideo) {
+            media.muted = true;
+            media.playsInline = true;
+            media.preload = "metadata";
+            media.setAttribute("aria-hidden", "true");
+        } else {
+            media.alt = "";
+            media.loading = "lazy";
+        }
 
         const content = document.createElement("span");
         content.className = "environment-task-card-content";
@@ -646,7 +673,7 @@
         const symbolsEl = document.createElement("span");
         symbolsEl.className = "environment-task-symbols";
         content.append(nameEl);
-        selectButton.append(image, content);
+        selectButton.append(media, content);
 
         const variantsRow = document.createElement("div");
         variantsRow.className = "environment-task-variants";
@@ -669,8 +696,10 @@
         const refreshCard = () => {
             const activeTask = variants.find((task) => task.task === state.task) || variants[0];
             const isSelected = variants.includes(activeTask) && activeTask.task === state.task;
-            image.src = previewImageUrl(activeTask);
-            image.alt = "";
+            const mediaUrl = hasVideo ? previewVideoUrl(activeTask) : previewImageUrl(activeTask);
+            if (media.src !== mediaUrl) {
+                media.src = mediaUrl;
+            }
             selectButton.dataset.taskName = activeTask.task;
             selectButton.setAttribute("aria-pressed", String(isSelected));
             nameEl.textContent = activeTask.task;
