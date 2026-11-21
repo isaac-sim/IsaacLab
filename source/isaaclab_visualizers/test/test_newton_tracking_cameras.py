@@ -126,15 +126,15 @@ def test_the_tracking_camera_recording_reports_a_visualizer_without_one():
         _visualizer([_view(PerspectiveCameraCfg())]).render_tracking_rgb_array()
 
 
-def test_the_selector_names_the_tracking_camera_and_the_free_perspective():
+def test_the_selector_names_each_camera_with_a_short_descriptor():
     camera = SimpleNamespace(cfg=SimpleNamespace(data_types=["rgba"]))
     sensor = SimpleNamespace(camera=camera, cfg=SimpleNamespace(source="/World/envs/env_0/cam"))
     viz = _visualizer([_view(PerspectiveCameraCfg()), _view(TrackingCameraCfg(env_index=1))])
     viz._image_views.append(sensor)
-    assert viz._view_labels() == ["Perspective", "Tracking Camera", "cam (RGB sensor)"]
+    assert viz._view_labels() == ["Perspective (interactive)", "Tracking Camera (fixed to env)", "cam (RGB sensor)"]
 
     viz = _visualizer([_view(TrackingCameraCfg(env_index=0)), _view(TrackingCameraCfg(track_path="robot"))])
-    assert viz._view_labels() == ["Tracking Camera 1", "Tracking Camera 2"]
+    assert viz._view_labels() == ["Tracking Camera 1 (fixed to env)", "Tracking Camera 2 (follows robot)"]
 
 
 def test_resetting_the_tracking_camera_restores_what_the_task_declared():
