@@ -58,7 +58,7 @@ PER_TEST_TIMEOUTS = {
     "test_tmp_valiant_teal_order.py": 2400,
     "test_tmp_valiant_teal_order_1_10.py": 2400,
     "test_tmp_valiant_teal_order_11_20.py": 2400,
-    "test_tmp_valiant_teal_processes.py": 6000,
+    "test_tmp_valiant_teal_processes.py": 9000,
 }
 """A dictionary of tests and their timeouts in seconds.
 

@@ -860,7 +860,7 @@ jobs:
   test-rendering-correctness:
     name: "rendering-correctness"
     runs-on: [self-hosted, gpu]
-    timeout-minutes: 120
+    timeout-minutes: 180
     continue-on-error: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
     needs: [build, config]
     if: needs.build.result == 'success'

@@ -3,13 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Temporary NVBug 7071342 probe: Valiant in fresh processes that start from the CI job's initial cache state.
+"""Temporary NVBug 7071342 probe: the start of ``test_rendering_kit.py`` in fresh processes. Do not merge.
 
-On CI, ``test_rendering_kit.py``'s Valiant RGB case is the first Gaussian-splat load of the job: it compiles the splat
-shaders and kernels (about 12 s, against 2-4 s for later loads), because the restored driver shader cache comes from a
-cache-warming job that renders no splats and the CUDA and OptiX caches start empty. This wrapper must be the first
-renderer test of the job. It snapshots those caches before any splat has loaded, then restores the snapshot before
-every process, so each process compiles the splat shaders and kernels again. Do not merge.
+On CI the teal Valiant frame appears in the first Kit process of a job, which starts from the restored driver shader
+cache, empty CUDA, OptiX and Kit caches, and no downloaded assets. This wrapper must be the first renderer test of the
+job. It snapshots those caches before anything renders, then restores that state before every process and runs the 20
+cases that precede Valiant followed by the Valiant RGB and HDR cases, to measure how often the teal frame appears.
 """
 
 import glob
@@ -18,6 +17,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -27,7 +27,15 @@ _HERE = Path(__file__).parent
 _ROOT = Path(__file__).parents[4]
 _OUT = Path.cwd() / "tests" / "comparison-images" / "teal-processes"
 _SNAPSHOT = Path("/tmp/nvbug7071342-job-start-caches")
-_VARIANTS = [("isolated-jobstart", 16), ("kit-none-jobstart", 16), ("kit-all-jobstart", 6)]
+_KIT_LOG_GLOBS = (
+    "{sim}/kit/logs/**/*.log",
+    "~/.nvidia-omniverse/logs/**/*.log",
+    "/isaac-sim/.nvidia-omniverse/logs/**/*.log",
+    "~/.cache/packman/chk/kit-kernel/*/logs/**/*.log",
+)
+_VARIANTS = [("regular-jobstart", 45)]
+# Isaac Lab copies remote assets here; a fresh CI job downloads them again.
+_ASSET_CACHES = (Path("/tmp/https"), Path("/tmp/http"))
 
 
 def _isaac_sim_root() -> Path | None:
@@ -84,6 +92,9 @@ def _reset_to_job_start() -> dict[str, int]:
             path.mkdir(parents=True, exist_ok=True)
             shutil.copytree(_SNAPSHOT / name, path, symlinks=True, dirs_exist_ok=True)
         sizes[name] = _size(path)
+    for path in _ASSET_CACHES:
+        sizes[f"assets_{path.name}"] = _size(path)
+        shutil.rmtree(path, ignore_errors=True)
     sim = _isaac_sim_root()
     if sim is not None:
         # Everything else under Kit's cache directory starts empty in a CI job.
@@ -95,6 +106,16 @@ def _reset_to_job_start() -> dict[str, int]:
             else:
                 child.unlink(missing_ok=True)
     return sizes
+
+
+def _kit_logs_since(start: float) -> list[Path]:
+    sim = _isaac_sim_root() or Path("/nonexistent")
+    logs = set()
+    for pattern in _KIT_LOG_GLOBS:
+        for path in glob.glob(os.path.expanduser(pattern.format(sim=sim)), recursive=True):
+            if os.path.getmtime(path) >= start:
+                logs.add(Path(path))
+    return sorted(logs)
 
 
 def _growth(before: dict[str, int]) -> dict[str, int]:
@@ -131,36 +152,6 @@ def _run_isaaclab(label: str, cases: str) -> dict:
     return outputs
 
 
-def _run_isolated(label: str) -> dict:
-    sim = _isaac_sim_root()
-    if sim is None:
-        pytest.skip("Isaac Sim python.sh not found")
-    out = _OUT / label
-    out.mkdir(parents=True, exist_ok=True)
-    env = dict(os.environ, OMNI_KIT_ACCEPT_EULA="YES")
-    # Isaac Sim's bundled PyTorch can fail to resolve the CUDA runtime at SimulationApp startup; Kit ships one.
-    cudart = sorted(glob.glob(str(sim / "extscache/omni.gpu_foundation-*/bin/deps/libcudart.so.12*")))
-    if cudart:
-        env["LD_PRELOAD"] = cudart[-1]
-    command = [str(sim / "python.sh"), str(_HERE / "tmp_valiant_teal_probe_isolated.py"), "--iterations", "1"]
-    result = subprocess.run(
-        [*command, "--out", str(out)], env=env, capture_output=True, text=True, timeout=1200, check=False
-    )
-    (out / "probe.log").write_text(result.stdout[-20000:] + result.stderr[-20000:])
-    summary_path = out / "summary.json"
-    if not summary_path.exists():
-        return {"returncode": result.returncode, "teal": False}
-    record = json.loads(summary_path.read_text())["records"][0]
-    hdr = record["first"]["hdr"]
-    return {
-        "returncode": result.returncode,
-        "seconds": record["seconds"],
-        "first": record["first"],
-        "later_ldr_teal": record["later"]["ldr"]["teal"],
-        "teal": record["first"]["ldr"]["teal"] or hdr["greenish"] or hdr["luma_contrast"] < 0.4,
-    }
-
-
 @pytest.mark.parametrize(("variant", "processes"), _VARIANTS, ids=[variant for variant, _ in _VARIANTS])
 def test_valiant_teal_processes(variant: str, processes: int, request: pytest.FixtureRequest) -> None:
     processes = int(os.environ.get("TEAL_PROCESSES", processes))
@@ -169,10 +160,14 @@ def test_valiant_teal_processes(variant: str, processes: int, request: pytest.Fi
     for index in range(processes):
         label = f"{variant}-p{index:02d}"
         restored = _reset_to_job_start()
-        if variant == "isolated-jobstart":
-            outputs = _run_isolated(label)
-        else:
-            outputs = _run_isaaclab(label, "none" if variant == "kit-none-jobstart" else "all")
+        start = time.time()
+        outputs = _run_isaaclab(label, "all")
+        kit_logs = _kit_logs_since(start)
+        outputs["kit_logs"] = [str(path) for path in kit_logs]
+        # Keep the full Kit log of every teal process, and of the first one as a clean reference.
+        if outputs["teal"] or index == 0:
+            for path in kit_logs:
+                shutil.copy2(path, _OUT / f"{label}-{path.name}")
         records.append({"process": index, "restored_bytes": restored, "growth_bytes": _growth(restored), **outputs})
         (_OUT / f"summary-{variant}.json").write_text(json.dumps(records, indent=1, default=str))
     teal = sum(record["teal"] for record in records)
