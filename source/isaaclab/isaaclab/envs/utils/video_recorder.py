@@ -71,15 +71,10 @@ class VideoRecorder:
                 )
             # Legacy recording follows camera selection in the window.
             if channel == "tracking":
-                if viz.cfg.backend.visualizer_type != "newton":
-                    raise RuntimeError(
-                        f"The {viz.cfg.backend.visualizer_type!r} visualizer cannot record a tracking view. Use "
-                        "'viz:newton:tracking'."
-                    )
                 if not viz.has_tracking_view:
                     raise RuntimeError(
-                        "The newton visualizer declares no tracking camera to record. Add a TrackingCameraCfg to "
-                        "its cameras."
+                        f"The {viz.cfg.backend.visualizer_type!r} visualizer has no tracking camera to record. Add a "
+                        "TrackingCameraCfg to the cameras of a visualizer that supports tracking cameras."
                     )
                 self._capture = viz.render_tracking_rgb_array
             else:

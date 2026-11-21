@@ -160,6 +160,23 @@ class BaseVisualizer(ABC):
             return None
         return self.current_image_view.read_rgb(self._sim.get_physics_step_count())
 
+    @property
+    def has_tracking_view(self) -> bool:
+        """Whether this visualizer displays a Tracking Camera that a recording can read.
+
+        ``False`` unless the visualizer supports tracking cameras and overrides this together with
+        :meth:`render_tracking_rgb_array`.
+        """
+        return False
+
+    def render_tracking_rgb_array(self) -> np.ndarray:
+        """Download the first Tracking Camera view for CPU consumers, whatever the window shows.
+
+        Raises:
+            NotImplementedError: If the visualizer does not support tracking cameras.
+        """
+        raise NotImplementedError(f"{type(self).__name__} does not support tracking cameras.")
+
     @abstractmethod
     def step(self, dt: float) -> None:
         """Update visualization for one step.

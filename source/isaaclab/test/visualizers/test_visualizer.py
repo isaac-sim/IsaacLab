@@ -111,6 +111,14 @@ class _DummyVisualizer(BaseVisualizer):
         return True
 
 
+def test_a_visualizer_has_no_tracking_view_unless_it_supports_tracking_cameras():
+    visualizer = _DummyVisualizer(VisualizerCfg(backend=VisualizerBackendCfg(visualizer_type="dummy")))
+
+    assert visualizer.has_tracking_view is False
+    with pytest.raises(NotImplementedError, match="does not support tracking cameras"):
+        visualizer.render_tracking_rgb_array()
+
+
 @pytest.mark.parametrize(
     "env_ids, cap, num_envs, expected",
     [
