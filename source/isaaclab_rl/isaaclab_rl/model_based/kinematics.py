@@ -20,9 +20,9 @@ from __future__ import annotations
 
 import math
 
-import mujoco
 import numpy as np
 import torch
+from newton import JointType
 
 from isaaclab.utils import math as native_math
 from isaaclab.utils.math import axis_angle_from_quat, quat_from_angle_axis, quat_from_matrix
@@ -279,56 +279,45 @@ def _damped(value: torch.Tensor, surrogate: torch.Tensor) -> torch.Tensor:
     return surrogate + (value - surrogate).detach()
 
 
-def _reduce(mj_model: mujoco.MjModel, body: int, row_of: dict, col_of: dict):
-    """Constants of the chain from tracked ``body`` up to its tracked ancestor,
-    padded to three joints: ``(parent_row, A, B, sign, qpos0, lo, hi, cols)``."""
+def _reduce(kinematics: ArticulationKinematics, body: int, row_of: dict):
+    """Reduce a tracked-body chain to the reference analytic IK constants."""
     path = [body]
-    while (ancestor := int(mj_model.body_parentid[path[-1]])) not in row_of:
+    while (ancestor := kinematics.parent[path[-1]]) not in row_of:
+        if ancestor < 0:
+            raise ValueError("Tracked bodies must descend from the first tracked body.")
         path.append(ancestor)
     y = torch.eye(3, dtype=torch.float64)
     axes, joints = [], []
     for link in reversed(path):
-        y = y @ matrix_from_quat(torch.from_numpy(mj_model.body_quat[link]).double())
-        if (joint := int(mj_model.body_jntadr[link])) >= 0:
-            axes.append(y @ torch.from_numpy(mj_model.jnt_axis[joint]).double())
+        y = y @ kinematics.off_R[link].cpu().double()
+        if (joint := kinematics.joint_idx[link]) >= 0:
+            if kinematics.joint_type[link] != JointType.REVOLUTE:
+                raise ValueError("Analytic IK requires revolute joints.")
+            axes.append(y @ kinematics.axes[link].cpu().double())
             joints.append(joint)
+    if len(joints) not in (2, 3):
+        raise ValueError("Analytic IK requires two or three joints per tracked-body chain.")
     x = torch.stack([axes[0], axes[1], torch.linalg.cross(axes[0], axes[1])])
-
     k = len(joints)
-    qadr = [int(mj_model.jnt_qposadr[j]) for j in joints]
     sign, qpos0, lo, hi = torch.zeros(4, 3, dtype=torch.float64)
     sign[:k] = 1.0
     if k == 3:
         sign[2] = round(float(axes[2] @ x[2]))
-    qpos0[:k] = torch.from_numpy(mj_model.qpos0[qadr])
-    lo[:k], hi[:k] = torch.from_numpy(mj_model.jnt_range[joints]).T
-    cols = [col_of[adr] for adr in qadr] + [-1] * (3 - k)
+    lo[:k], hi[:k] = kinematics.q_lo[joints].cpu().double(), kinematics.q_hi[joints].cpu().double()
+    cols = joints + [-1] * (3 - k)
     return row_of[ancestor], x.T, (x @ y).T, sign, qpos0, lo, hi, cols
 
 
 class AnalyticIK:
-    """One robot's chains as stacked constants, and the batched solve over them.
+    """The reference batched analytic solve, bound to the simulated articulation's chains."""
 
-    ``body_ids`` are the robot's global body ids in entity order, ``joint_q_adr``
-    the qpos addresses in ``qj`` column order, ``tracked_body_rows`` the entity
-    slots the maxcoord state carries; row 0 is the root every chain hangs below.
-    """
-
-    def __init__(
-        self,
-        mj_model: mujoco.MjModel,
-        body_ids: torch.Tensor,
-        joint_q_adr: torch.Tensor,
-        tracked_body_rows: torch.Tensor,
-        device: torch.device | str,
-        dtype: torch.dtype,
-    ):
-        tracked = [int(body_ids[row]) for row in tracked_body_rows]
+    def __init__(self, kinematics: ArticulationKinematics):
+        tracked = kinematics.tracked_idx
         row_of = {body: row for row, body in enumerate(tracked)}
-        col_of = {int(adr): col for col, adr in enumerate(joint_q_adr)}
         parent, a, b, sign, qpos0, lo, hi, cols = zip(
-            *(_reduce(mj_model, body, row_of, col_of) for body in tracked[1:]), strict=True
+            *(_reduce(kinematics, body, row_of) for body in tracked[1:]), strict=True
         )
+        device, dtype = kinematics.device, kinematics.axes.dtype
         self.parent = torch.tensor(parent, device=device)
         self.child = torch.arange(1, len(tracked), device=device)
         self.A, self.B, self.sign, self.qpos0, self.lo, self.hi = (
@@ -403,78 +392,74 @@ def so3_log(R: torch.Tensor) -> torch.Tensor:
 
 
 class ArticulationKinematics:
-    """Differentiable hinge/slide articulation from an MJCF exported from the simulated asset.
+    """Differentiable FK using the joint frames of the already loaded Newton articulation.
 
-    Fixed links and offset joint anchors are retained. Explicit joint/body names identify the
-    first floating articulation, including names prefixed by Newton's USD exporter.
+    The USD importer owns topology, anchors, axes, and limits. Constants are read once
+    from the first environment; FK evaluates arbitrary states without touching the simulator.
     """
 
-    def __init__(self, mjcf_path: str, device: str, joint_names: list[str], tracked: list[str]):
-        model = mujoco.MjModel.from_xml_path(mjcf_path)
+    def __init__(self, model, articulation_id: int, device: str, joint_names: list[str], tracked: list[str]):
         self.device = device
-        roots = [int(model.jnt_bodyid[j]) for j in range(model.njnt) if model.jnt_type[j] == mujoco.mjtJoint.mjJNT_FREE]
-        if not roots:
-            raise ValueError("Motion tracking requires a floating root in the kinematic model.")
+        start = int(model.articulation_start.numpy()[articulation_id])
+        end = int(model.articulation_end.numpy()[articulation_id])
+        parents, children, kinds = (
+            a.numpy()[start:end] for a in (model.joint_parent, model.joint_child, model.joint_type)
+        )
+        roots = [i for i, kind in enumerate(kinds) if kind == JointType.FREE and parents[i] < 0]
+        if len(roots) != 1:
+            raise ValueError("Motion tracking requires one floating root in the articulation.")
         root = roots[0]
-        bodies = [root]
-        for b in range(root + 1, model.nbody):
-            if int(model.body_parentid[b]) in bodies:
-                bodies.append(b)
-        local = {b: i for i, b in enumerate(bodies)}
-
-        def match(name, candidates):
-            if name in candidates:
-                return candidates.index(name)
-            found = [i for i, candidate in enumerate(candidates) if candidate == name or candidate.endswith("_" + name)]
-            if len(found) != 1:
-                raise ValueError(f"Expected one kinematic match for {name!r}, got {[candidates[i] for i in found]}.")
-            return found[0]
-
-        self.body_names = [model.body(b).name for b in bodies]
-        self.tracked_idx = [match(name, self.body_names) for name in tracked]
-        self.parent, self.joint_idx, self.joint_type = [], [], []
-        axes, anchors, offsets, rotations, refs = [], [], [], [], []
-        lower, upper = np.full(len(joint_names), -np.inf), np.full(len(joint_names), np.inf)
+        order, local = [root], {int(children[root]): 0}
+        pending = [i for i in range(end - start) if i != root]
+        while pending:
+            ready = [i for i in pending if int(parents[i]) in local]
+            if not ready:
+                raise ValueError("Kinematics requires an articulation tree rooted at the floating body.")
+            for i in ready:
+                if int(children[i]) in local:
+                    raise ValueError("Kinematics does not support closed joint loops.")
+                local[int(children[i])] = len(order)
+                order.append(i)
+                pending.remove(i)
+        self.body_names = [model.body_label[int(children[i])].rsplit("/", 1)[-1] for i in order]
+        self.tracked_idx = [self.body_names.index(name) for name in tracked]
+        self.parent = [-1 if i == root else local[int(parents[i])] for i in order]
+        self.joint_type = [int(kinds[i]) for i in order]
+        self.joint_idx = []
+        dofs = model.joint_qd_start.numpy()[start:end]
+        joint_axes = model.joint_axis.numpy()
+        lower, upper = model.joint_limit_lower.numpy(), model.joint_limit_upper.numpy()
+        axes = np.zeros((len(order), 3))
+        lo, hi = np.full(len(joint_names), -np.inf), np.full(len(joint_names), np.inf)
         used = set()
-        for b in bodies:
-            self.parent.append(-1 if b == root else local[int(model.body_parentid[b])])
-            jid, count = int(model.body_jntadr[b]), int(model.body_jntnum[b])
-            index, kind, ref = -1, -1, 0.0
-            axis, anchor = np.zeros(3), np.zeros(3)
-            if b != root and count:
-                if count != 1 or int(model.jnt_type[jid]) not in (
-                    int(mujoco.mjtJoint.mjJNT_HINGE),
-                    int(mujoco.mjtJoint.mjJNT_SLIDE),
-                ):
-                    raise ValueError(f"Unsupported joint stack on {model.body(b).name}.")
-                name = model.joint(jid).name
-                found = [i for i, short in enumerate(joint_names) if name == short or name.endswith("_" + short)]
-                if len(found) != 1 or found[0] in used:
-                    raise ValueError(f"Kinematic joint {name!r} does not uniquely match the simulated joint layout.")
-                index = found[0]
+        for row, i in enumerate(order):
+            kind = kinds[i]
+            index = -1
+            if i != root and kind != JointType.FIXED:
+                if kind not in (JointType.REVOLUTE, JointType.PRISMATIC):
+                    raise ValueError("Differentiable FK supports fixed, revolute, and prismatic child joints.")
+                name = model.joint_label[start + i].rsplit("/", 1)[-1]
+                index = joint_names.index(name)
+                if index in used:
+                    raise ValueError(f"Repeated kinematic joint {name!r}.")
                 used.add(index)
-                kind = int(model.jnt_type[jid])
-                ref = model.qpos0[model.jnt_qposadr[jid]]
-                axis, anchor = model.jnt_axis[jid], model.jnt_pos[jid]
-                if model.jnt_limited[jid]:
-                    lower[index], upper[index] = model.jnt_range[jid]
+                axes[row] = joint_axes[dofs[i]]
+                lo[index], hi[index] = lower[dofs[i]], upper[dofs[i]]
             self.joint_idx.append(index)
-            self.joint_type.append(kind)
-            axes.append(axis.copy())
-            anchors.append(anchor.copy())
-            offsets.append(model.body_pos[b].copy())
-            rotations.append(model.body_quat[b].copy())
-            refs.append(ref)
         if len(used) != len(joint_names):
             raise ValueError(f"Missing kinematic joints: {set(range(len(joint_names))) - used}.")
 
         def tensor(values):
             return torch.as_tensor(np.asarray(values), dtype=torch.float32, device=device)
 
-        self.axes, self.anchors, self.off_p = tensor(axes), tensor(anchors), tensor(offsets)
-        self.off_R = native_math.matrix_from_quat(tensor(rotations)[:, [1, 2, 3, 0]])
-        self.refs, self.q_lo, self.q_hi = tensor(refs), tensor(lower), tensor(upper)
-        self.num_bodies = len(bodies)
+        xp, xc = (tensor(a.numpy()[start:end][order]) for a in (model.joint_X_p, model.joint_X_c))
+        rp, rc = native_math.matrix_from_quat(xp[:, 3:]), native_math.matrix_from_quat(xc[:, 3:])
+        self.off_R = rp @ rc.transpose(-1, -2)
+        self.anchors = xc[:, :3]
+        self.off_p = xp[:, :3] - (self.off_R @ self.anchors[..., None]).squeeze(-1)
+        self.axes = (rc @ tensor(axes)[..., None]).squeeze(-1)
+        self.q_lo, self.q_hi = tensor(lo), tensor(hi)
+        self.num_bodies = len(order)
 
     def forward(self, p, R, v, w, q, qd, all_bodies: bool = False):
         positions, rotations, velocities, angular = [p], [R], [v], [w]
@@ -487,9 +472,9 @@ class ArticulationKinematics:
             vi = vp + torch.cross(wp, origin - pp, dim=-1)
             if joint >= 0:
                 axis = (base_R @ self.axes[i, :, None]).squeeze(-1)
-                angle = q[..., joint] - self.refs[i]
+                angle = q[..., joint]
                 speed = qd[..., joint : joint + 1]
-                if self.joint_type[i] == int(mujoco.mjtJoint.mjJNT_HINGE):
+                if self.joint_type[i] == JointType.REVOLUTE:
                     Ri = base_R @ native_math.matrix_from_quat(quat_from_angle_axis(angle, self.axes[i]))
                     pivot = origin + (base_R @ self.anchors[i, :, None]).squeeze(-1)
                     pi = pivot - (Ri @ self.anchors[i, :, None]).squeeze(-1)
@@ -514,12 +499,11 @@ class ArticulationKinematics:
 class ForwardKinematics:
     """Adapt native articulation kinematics to the reference algorithm's callable interface."""
 
-    def __init__(self, path: str, joint_names: list[str], body_names: list[str], device: str):
-        self.kinematics = ArticulationKinematics(path, device, joint_names, body_names)
-        self.path = path
-        self.joint_names = joint_names
+    def __init__(self, robot, model, body_names: list[str], device: str):
+        articulation_id = int(robot.root_view.articulation_ids.numpy().flat[0])
+        self.joint_names = robot.joint_names
         self.body_names = body_names
-        self.device = device
+        self.kinematics = ArticulationKinematics(model, articulation_id, device, self.joint_names, body_names)
 
     def __call__(self, root_pos, root_quat, joint_pos, root_lin_vel, root_ang_vel, joint_vel):
         pos, rot, vel, ang_vel = self.kinematics.forward(
@@ -534,7 +518,4 @@ class ForwardKinematics:
 
     def analytic_ik(self) -> AnalyticIK:
         """Build the reference maximal-coordinate joint reconstruction for this articulation."""
-        model = mujoco.MjModel.from_xml_path(self.path)
-        body_ids = torch.tensor([model.body(name).id for name in self.body_names])
-        joint_q_adr = torch.tensor([model.jnt_qposadr[model.joint(name).id] for name in self.joint_names])
-        return AnalyticIK(model, body_ids, joint_q_adr, torch.arange(len(self.body_names)), self.device, torch.float32)
+        return AnalyticIK(self.kinematics)

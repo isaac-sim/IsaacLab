@@ -13,7 +13,8 @@ Download the data yourself
 
 **Users must obtain the datasets from their original providers themselves.**
 This repository does not distribute motion datasets, prepared dataset caches,
-or trained checkpoints. Training reads local files; it does not download a
+in the source tree. The pretrained playback sample is separate from the full
+training dataset. Training reads local files; it does not download a
 dataset or grant access to one. Review the provider's terms and complete any
 access request before downloading. Dataset and robot-asset licenses are separate
 from the licenses of the training code.
@@ -36,49 +37,38 @@ and training source archives. Keep downloaded data outside Git. Motion loading
 is read-only: column mapping, unit conversion, and resampling happen in memory,
 without a converted dataset, source-file updates, or automatic motion filtering.
 
-Prepare the G1 asset and LAFAN1 references
-------------------------------------------
+Use the matching G1 USD asset
+------------------------------
 
-The following example assumes the downloaded dataset retains its upstream
-directory layout under ``/data/lafan1_download``. Arrange the local inputs for
-the preparation script:
+Provide a floating-base, 29-joint G1 USD asset matching the downloaded reference
+motions. Simulation and differentiable FK/IK use that same articulation: the
+joint tree, local joint frames, axes, and limits are read from the loaded Newton
+model once during initialization. No separate MJCF file or kinematics export is
+required. Keep the robot revision, joint names, geometry, and physical parameters
+consistent when evaluating existing checkpoints.
 
-.. code-block:: bash
+If your robot provider supplies only URDF, use Isaac Lab's existing
+``scripts/tools/convert_urdf.py`` to import it directly into USD. This is an
+optional asset import, not part of motion loading or FK; do not use ``--fix_base``
+for this floating-base task. See :doc:`/source/how-to/import_new_asset` for the
+standard asset import workflow. Conversion does not establish that a different
+robot asset is physically equivalent to the asset used by a checkpoint.
 
-   mkdir -p /data/g1_inputs
-   cp -a /data/lafan1_download/g1 /data/g1_inputs/lafan1_g1
-   cp -a /data/lafan1_download/robot_description/g1 /data/g1_inputs/g1_description
-
-Run these commands from the Isaac Lab repository root. Choose an empty output
-directory; ``--source_dir`` reuses your download without contacting Hugging Face.
-
-.. code-block:: bash
-
-   uv run python scripts/tools/prepare_g1_tracking.py \
-       --source_dir /data/g1_inputs --output /data/g1_tracking
-   uv run python scripts/tools/convert_mjcf.py \
-       /data/g1_tracking/g1_description/g1_29dof.xml \
-       /data/g1_tracking/g1_usd/g1_29dof.usd
-
-The preparation writes a free-floating 29-joint MJCF and ``source.json`` with
-the local source path and file hashes. Preserve the downloaded revision alongside
-that manifest; local input hashes alone do not establish an upstream revision.
-The USD converter writes the composed asset to
-``/data/g1_tracking/g1_usd/g1_29dof/g1_29dof.usda``.
+Use the downloaded ``g1/`` motion directory directly. There is no preparation
+script or copied motion directory, and the loader never modifies these inputs.
 
 Train and play
 --------------
 
-Use the prepared local paths and the LAFAN1 source rate of 30 Hz:
+Use your local USD asset and the LAFAN1 source rate of 30 Hz:
 
 .. code-block:: bash
 
    uv run --frozen isaaclab train --rl_library model_based \
        --task Isaac-Motion-Tracking-GenCoord-G1 \
        --num_envs 4096 --max_iterations 40000 \
-       --motion_dir /data/g1_tracking/lafan1_g1 \
-       --asset_path /data/g1_tracking/g1_usd/g1_29dof/g1_29dof.usda \
-       --kinematics_path /data/g1_tracking/g1_description/g1_29dof.xml \
+       --motion_dir /data/lafan1_download/g1 \
+       --asset_path /data/robots/g1/g1.usda \
        env.commands.motion.source_fps=30
 
 After training, replace the checkpoint path with the file produced by your run:
@@ -92,6 +82,36 @@ After training, replace the checkpoint path with the file produced by your run:
 Keep the local asset and motion paths accessible for playback. Reference
 trajectories are kinematic targets; reproducing them does not establish that
 the retargeted motion is dynamically feasible on the robot.
+
+Pretrained dance sample
+-----------------------
+
+The GenCoord G1 playback checkpoint uses the 320k SuperMimic actor and the
+BONES-SEED ``dance_hiphop_box_step_R_fast_001__A318_M`` reference (375 frames at
+50 Hz). Playback restores the saved physical configuration and fetches the
+single reference file and matching USD specified in that checkpoint. It does
+not download the full dataset or require a separate kinematics model.
+
+The sample checkpoint and its companion assets must first be published to the
+Isaac Lab asset server; they are not included in this repository. Once published:
+
+.. code-block:: bash
+
+   uv run --frozen --extra video isaaclab play --rl_library model_based \
+       --task Isaac-Motion-Tracking-GenCoord-G1 --checkpoint pretrained \
+       --num_envs 1 --video newton_gl --video_length 1500
+
+This records 30 seconds using the task's camera and the standard video recorder.
+The 7.5-second reference restarts at clip boundaries. The published checkpoint
+contains actor weights and playback configuration, not training optimizer state.
+Use a full training checkpoint to resume learning. MaxCoord requires its own
+trained checkpoint; the GenCoord sample cannot be used for that representation.
+
+For an unpublished local copy, pass ``--checkpoint /path/to/checkpoint.pt``,
+``--motion_dir /path/to/dance.npz``, and ``--asset_path /path/to/g1.usdc``.
+``--motion_dir`` accepts either a motion directory or one motion file; playback
+also accepts an asset-server URL for that file. Reference samples remain subject
+to their provider's terms; they do not grant access to the full dataset.
 
 Read other CSV datasets
 -----------------------
@@ -110,7 +130,7 @@ are ignored unless mapped. Missing required columns or nonfinite motion values
 raise an error; the loader does not silently remove samples.
 
 After downloading and extracting the official BONES-SEED G1 archive yourself,
-point training at its CSV directory. Reuse the matching G1 USD/MJCF asset paths
+point training at its CSV directory. Reuse the matching G1 USD asset path
 from the previous example:
 
 .. code-block:: bash
@@ -119,8 +139,7 @@ from the previous example:
        --task Isaac-Motion-Tracking-GenCoord-G1 \
        --num_envs 4096 --max_iterations 40000 \
        --motion_dir /data/bones-seed/g1 \
-       --asset_path /data/g1_tracking/g1_usd/g1_29dof/g1_29dof.usda \
-       --kinematics_path /data/g1_tracking/g1_description/g1_29dof.xml \
+       --asset_path /data/robots/g1/g1.usda \
        env.commands.motion.source_fps=120 \
        env.commands.motion.csv.header=true \
        'env.commands.motion.csv.root_position=["root_translateX","root_translateY","root_translateZ"]' \

@@ -281,6 +281,7 @@ def _load_pose_motion(
 class MotionLibrary:
     """Concatenated clips with exclusive ends, retaining supplied reference velocities.
 
+    The input can be one local file or a directory of clips.
     NPZ clips contain ``joint_pos``, ``joint_vel``, ``root_pos_w``, ``root_quat_w``
     (WXYZ), ``root_lin_vel_w``, and ``root_ang_vel_w``. CSV inputs use
     the configured read-only adapter; NPY inputs use metric XYZW poses. Missing
@@ -305,12 +306,14 @@ class MotionLibrary:
             raise ValueError("Motion frame rates must be finite and positive.")
         names = joint_names
         self.device = device
-        files = sorted(Path(motion_dir).rglob("*.npz"))
+        path = Path(motion_dir)
+        directory = path.parent if path.is_file() else path
+        files = [path] if path.is_file() else sorted(path.rglob("*.npz"))
         if not files:
             files = sorted((*Path(motion_dir).rglob("*.csv"), *Path(motion_dir).rglob("*.npy")))
         if not files:
             raise ValueError(f"No motion NPZ/CSV/NPY files found in {motion_dir}.")
-        clip_names = [str(path.relative_to(motion_dir).with_suffix("")) for path in files]
+        clip_names = [str(path.relative_to(directory).with_suffix("")) for path in files]
         if len(set(clip_names)) != len(clip_names):
             raise ValueError("Motion names must be unique across files.")
         if not 0 <= shard_index < shard_count:
@@ -344,7 +347,7 @@ class MotionLibrary:
                 clip["root_quat_w"] = clip["root_quat_w"][:, [1, 2, 3, 0]]
             clips.append(clip)
         lengths = [len(clip["joint_pos"]) for clip in clips]
-        self.names = [str(path.relative_to(motion_dir).with_suffix("")) for path in files]
+        self.names = [str(path.relative_to(directory).with_suffix("")) for path in files]
         for key in fields:
             setattr(self, key, torch.cat([clip[key] for clip in clips]))
         self.motion_ends = torch.tensor(lengths, device=device).cumsum(0)

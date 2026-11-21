@@ -48,7 +48,6 @@ def run(argv: list[str]) -> None:
     parser.add_argument("--log_dir", help="Directory for checkpoints and metrics.jsonl.")
     parser.add_argument("--motion_dir", help="Reference clips at the task's configured source frame rate.")
     parser.add_argument("--asset_path", help="Matching USD articulation.")
-    parser.add_argument("--kinematics_path", help="Matching MJCF articulation for differentiable kinematics.")
     add_launcher_args(parser)
     args, overrides = setup_preset_cli(parser, argv)
     if args.frontend != "torch":
@@ -64,8 +63,6 @@ def run(argv: list[str]) -> None:
         env_cfg.commands.motion.motion_dir = args.motion_dir
     if args.asset_path:
         env_cfg.scene.robot.spawn.usd_path = args.asset_path
-    if args.kinematics_path:
-        env_cfg.commands.motion.kinematics_path = args.kinematics_path
     env_cfg.commands.motion.sampling_mode = "external" if cfg.sampling_mode == "return" else cfg.sampling_mode
     if cfg.max_iterations < 1 or min(cfg.log_interval, cfg.save_interval, cfg.wm.horizon) < 1:
         parser.error("Iteration counts, logging intervals, and the model horizon must be positive.")

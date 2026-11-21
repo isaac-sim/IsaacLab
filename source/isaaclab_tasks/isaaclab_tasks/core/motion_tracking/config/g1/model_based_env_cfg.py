@@ -58,7 +58,6 @@ class G1ModelBasedEnvCfg(ModelBasedMotionTrackingEnvCfg):
         motion=replace(
             ModelBasedMotionTrackingEnvCfg().commands.motion,
             motion_dir=str(G1_DATA_DIR / "lafan1_g1"),
-            kinematics_path=str(G1_DATA_DIR / "g1_description/g1_29dof.xml"),
             joint_names=G1_JOINT_NAMES,
             tracked_bodies=G1CommandsCfg().motion.body_names,
         ),

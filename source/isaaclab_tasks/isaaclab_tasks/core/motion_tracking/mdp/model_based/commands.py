@@ -150,9 +150,10 @@ class MotionCommand(CommandTerm):
     def __init__(self, cfg, env):
         super().__init__(cfg, env)
         self.robot = env.scene["robot"]
-        self.motion = MotionReference(cfg, self.device)
-        if self.robot.joint_names != self.motion.fk.joint_names:
+        if self.robot.joint_names != cfg.joint_names:
             raise ValueError("Motion joints must match the articulation's native joint order.")
+        fk = ForwardKinematics(self.robot, env.sim.backend_manager.backend.model, cfg.tracked_bodies, self.device)
+        self.motion = MotionReference(cfg, self.device, fk)
         self.time_steps = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
         self.bin_count = int(self.motion.time_step_total // (1 / env.step_dt)) + 1
         self._sampling_distribution = torch.full((self.bin_count,), 1 / self.bin_count, device=self.device)
@@ -242,8 +243,8 @@ class BiasedJointPositionAction(JointPositionAction):
 class MotionReference(MotionLibrary):
     """Add differentiable body queries to the shared read-only motion library."""
 
-    def __init__(self, cfg, device: str):
-        self.fk = ForwardKinematics(cfg.kinematics_path, cfg.joint_names, cfg.tracked_bodies, device)
+    def __init__(self, cfg, device: str, fk: ForwardKinematics):
+        self.fk = fk
         super().__init__(
             cfg.motion_dir,
             cfg.joint_names,

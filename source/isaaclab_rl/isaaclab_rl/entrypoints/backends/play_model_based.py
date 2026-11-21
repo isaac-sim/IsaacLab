@@ -13,6 +13,7 @@ import torch
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.utils import update_from_dict
+from isaaclab.utils.assets import retrieve_file_path
 
 from isaaclab_rl.model_based.rollout import PhysicalRollout
 
@@ -26,6 +27,8 @@ from ..common import (
     create_isaaclab_env,
     enable_cameras_for_video,
     pre_launch_video_config,
+    resolve_published_checkpoint,
+    video_playback_steps,
 )
 
 
@@ -37,13 +40,21 @@ def run(argv: list[str]) -> None:
     parser.add_argument("--checkpoint", required=True)
     parser.add_argument("--motion_dir")
     parser.add_argument("--asset_path")
-    parser.add_argument("--kinematics_path")
     parser.add_argument("--steps", type=int, default=1000)
     add_launcher_args(parser)
     args, overrides = setup_preset_cli(parser, argv)
-    if overrides or args.train_env_cfg or args.frontend != "torch":
+    if any(value != "physics=newton_mjwarp" for value in overrides) or args.train_env_cfg or args.frontend != "torch":
         parser.error("Playback restores the saved configuration; use explicit relocation/device/seed options.")
-    checkpoint = torch.load(args.checkpoint, map_location="cpu", weights_only=True)
+    if args.checkpoint == "pretrained":
+        if args.task is None:
+            parser.error("--task is required with --checkpoint pretrained.")
+        cfg, _ = resolve_task_config(args.task, args.agent, overrides=[])
+        checkpoint_path = resolve_published_checkpoint("model_based", args.task, cfg)
+        if checkpoint_path is None:
+            return
+    else:
+        checkpoint_path = retrieve_file_path(args.checkpoint)
+    checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
     if checkpoint["reference_revision"] != REFERENCE_REVISION:
         parser.error("The checkpoint uses a different reference algorithm revision.")
     task = checkpoint["task"]
@@ -58,20 +69,21 @@ def run(argv: list[str]) -> None:
         cfg.commands.motion.motion_dir = args.motion_dir
     if args.asset_path:
         cfg.scene.robot.spawn.usd_path = args.asset_path
-    if args.kinematics_path:
-        cfg.commands.motion.kinematics_path = args.kinematics_path
-    output = str(Path(args.checkpoint).parent / "play")
+    motion_path = cfg.commands.motion.motion_dir
+    if not Path(motion_path).is_dir():
+        cfg.commands.motion.motion_dir = retrieve_file_path(motion_path)
+    output = str(Path(checkpoint_path).parent)
     enable_cameras_for_video(args)
     pre_launch_video_config(cfg, args)
-    apply_video_recording(cfg, output, args)
     with launch_simulation(cfg, args):
+        apply_video_recording(cfg, output, args, subdir="play", checkpoint_path=checkpoint_path)
         env = create_isaaclab_env(task, cfg, args, convert_marl_to_single_agent=False)
         try:
             adapter = PhysicalRollout(env, agent)
             actor = build_actor(adapter, agent).eval()
             actor.load_state_dict(checkpoint["actor"])
             adapter.reset()
-            for _ in range(args.steps):
+            for _ in range(video_playback_steps(args, cfg) or args.steps):
                 start = time.monotonic()
                 with torch.inference_mode():
                     adapter.advance(actor(adapter.actor_input()))
@@ -121,6 +133,7 @@ def _restore_environment(cfg, saved: dict) -> None:
             setattr(cfg.scene.robot.actuators["joints"], key, dict(actuators["joints"][key]))
     cfg.actions.joint_pos.scale = saved["actions"]["joint_pos"]["scale"]
     command = saved["commands"]["motion"]
+    command.pop("kinematics_path", None)  # Older checkpoints stored a separate MJCF input.
     for key in ("joint_names", "tracked_bodies"):
         if command[key] is None:
             command[key] = getattr(cfg.commands.motion, key)

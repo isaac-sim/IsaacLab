@@ -42,7 +42,6 @@ class ReferenceCommandCfg(CommandTermCfg):
     motion_dir: str = MISSING
     motion_shard_index: int = 0
     motion_shard_count: int = 1
-    kinematics_path: str = MISSING
     joint_names: list[str] = MISSING
     tracked_bodies: list[str] = MISSING
     source_fps: float = 30.0

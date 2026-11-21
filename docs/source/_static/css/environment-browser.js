@@ -355,6 +355,7 @@
         }
         const taskName = task.task;
         const imageRules = [
+            [/^Isaac(?:Contrib)?-Motion-Tracking-GenCoord-G1$/, "environments/previews/motion_tracking/g1_supermimic_dance.jpg"],
             [/Fourbar/, "environments/previews/classic/fourbar_pole.jpg"],
             [/Cartpole/, "environments/previews/classic/cartpole.jpg"],
             [/Pendulum/, "environments/previews/classic/cart_double_pendulum.jpg"],
@@ -405,6 +406,7 @@
     // Preview clips live next to the remote task images, one folder per category, and share the image's file name.
     // Tasks without an uploaded clip fall back to the image.
     const previewClipNames = {
+        motion_tracking: ["g1_supermimic_dance"],
         classic: ["ant", "cart_double_pendulum", "cartpole", "fourbar_pole", "humanoid"],
         locomotion: ["agility_digit_flat", "anymal_d_flat", "anymal_d_rough", "cassie_flat", "cassie_rough", "dr_legs", "g1_flat", "g1_rough", "go2_flat", "go2_rough", "h1_flat", "h1_rough"],
         manipulation: ["allegro_cube", "franka_lift", "franka_lift_cable", "franka_lift_cloth", "franka_lift_soft", "franka_open_drawer", "franka_reach", "kuka_allegro_lift", "kuka_allegro_reorient", "shadow_cube", "shadow_hand_over", "ur10_reach"],

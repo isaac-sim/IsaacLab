@@ -147,7 +147,8 @@ interchangeable would change the learning targets.
 Training and playback
 ---------------------
 
-Use a matching 29-joint G1 USD/MJCF pair and reference directory:
+Use a matching 29-joint G1 USD articulation and reference directory. FK and
+analytic IK read the loaded articulation; no separate MJCF model is required:
 
 .. code-block:: bash
 
@@ -156,8 +157,7 @@ Use a matching 29-joint G1 USD/MJCF pair and reference directory:
      --task Isaac-Motion-Tracking-GenCoord-G1 \
      --num_envs 4096 --max_iterations 40000 \
      --motion_dir /path/to/motions \
-     --asset_path /path/to/g1_29dof.usda \
-     --kinematics_path /path/to/g1_29dof.xml
+     --asset_path /path/to/g1_29dof.usda
 
 Choose ``Isaac-Motion-Tracking-MaxCoord-G1`` for maximal coordinates.
 For a proprioception-history policy, add
@@ -179,8 +179,8 @@ an exact training continuation.
      --checkpoint /path/to/model_040000.pt \
      --num_envs 1 --steps 3000 --visualizer newton_gl --real-time
 
-Playback restores the saved configuration. Use ``--motion_dir``, ``--asset_path``,
-and ``--kinematics_path`` to relocate inputs; use ``--video`` for the standard
+Playback restores the saved configuration. Use ``--motion_dir`` and
+``--asset_path`` to relocate inputs; use ``--video`` for the standard
 native video recorder.
 
 Checkpoint compatibility
@@ -189,7 +189,8 @@ Checkpoint compatibility
 Playback accepts checkpoints from the earlier standalone ``model_based`` task
 layout. It relocates serialized MDP functions, preserves the saved actuator
 gains and action scales, and translates the main branch's renamed actuator-limit
-fields. The previous ``IsaacContrib-Motion-Tracking-GenCoord-G1`` and MaxCoord IDs
+fields. A legacy saved ``kinematics_path`` is ignored: kinematics comes from the
+saved USD asset. The previous ``IsaacContrib-Motion-Tracking-GenCoord-G1`` and MaxCoord IDs
 remain aliases. This does not import the separate experimental ``supermimic``
 backend or add simulator/replay-state resume to weight playback.
 

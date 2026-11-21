@@ -15,6 +15,7 @@ from isaaclab.envs import ManagerBasedRLEnvCfg, mdp
 from isaaclab.managers import EventTermCfg, ObservationGroupCfg, ObservationTermCfg, RewardTermCfg, TerminationTermCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
+from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.utils import PresetCfg
 
@@ -104,7 +105,12 @@ class ModelBasedMotionTrackingEnvCfg(ManagerBasedRLEnvCfg):
     terminations = ReferenceTerminationsCfg()
     events = ReferenceEventsCfg()
     # Four 5 ms integration steps per policy action, matching the reference integrator.
-    sim = sim_utils.SimulationCfg(dt=0.005, render_interval=4, physics=ModelBasedPhysicsCfg())
+    sim = sim_utils.SimulationCfg(
+        dt=0.005,
+        render_interval=4,
+        physics=ModelBasedPhysicsCfg(),
+        visualizer_cfgs=VisualizerCfg(eye=(3.0, -3.0, 2.0), lookat=(0.0, 0.0, 0.75), focal_length=24.0),
+    )
     decimation = 4
     episode_length_s = 10.0
 
