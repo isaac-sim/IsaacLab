@@ -582,7 +582,12 @@ class LoadingScreen:
 
     def _write(self, text: str) -> None:
         """Write *text* straight to the console, bypassing the spool."""
-        self._console.write(text)
+        try:
+            self._console.write(text)
+        except UnicodeEncodeError:
+            # Redirected consoles can use legacy encodings that cannot display every glyph.
+            encoding = self._console.encoding or "ascii"
+            self._console.write(text.encode(encoding, errors="replace").decode(encoding))
         self._console.flush()
 
     def _redirect(self) -> None:

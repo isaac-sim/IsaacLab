@@ -13,7 +13,7 @@ import subprocess
 import sys
 import textwrap
 import time
-from io import StringIO
+from io import BytesIO, StringIO, TextIOWrapper
 from unittest.mock import Mock
 
 import pytest
@@ -41,6 +41,29 @@ def _render(display: RenderableType, width: int, color_system=None) -> str:
         file=stream, width=width, color_system=color_system, force_terminal=color_system is not None, no_color=False
     ).print(display)
     return stream.getvalue()
+
+
+@pytest.mark.kitless
+@pytest.mark.parametrize(
+    ("encoding", "expected_title", "expected_description"),
+    [("cp932", "Isaac Lab ? train", "台車?"), ("utf-8", "Isaac Lab · train", "台車🙂")],
+)
+def test_summary_preserves_encodable_text_on_redirected_console(
+    monkeypatch: pytest.MonkeyPatch, encoding: str, expected_title: str, expected_description: str
+) -> None:
+    with TextIOWrapper(BytesIO(), encoding=encoding, errors="strict") as stream, monkeypatch.context() as patch:
+        patch.setattr(sys, "stdout", stream)
+        patch.setenv("COLUMNS", "80")
+        screen = loading_screen.LoadingScreen(1, enabled=False, logo=False)
+
+        screen.summary("Isaac Lab · train", {"Task": "Isaac-Cartpole", "Description": "台車🙂"})
+
+        output = stream.buffer.getvalue().decode(encoding)
+        assert expected_title in output
+        assert expected_description in output
+        assert "Isaac-Cartpole" in output
+        assert stream.encoding == encoding
+        assert stream.errors == "strict"
 
 
 @pytest.mark.parametrize(
