@@ -13,7 +13,7 @@ import gymnasium as gym
 import numpy as np
 import torch
 
-from ..managers import CommandManager, CurriculumManager, HeterogeneousTaskManager, RewardManager, TerminationManager
+from ..managers import CommandManager, CurriculumManager, RewardManager, TerminationManager
 from ..utils import index_fill_
 from .common import VecEnvStepReturn
 from .manager_based_env import ManagerBasedEnv
@@ -78,10 +78,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         self.episode_length_buf = torch.zeros(cfg.scene.num_envs, device=cfg.sim.device, dtype=torch.long)
         self.reset_buf = torch.zeros(cfg.scene.num_envs, device=cfg.sim.device, dtype=torch.bool)
 
-        # add the objects and terminations of the tasks before the scene is created
-        if cfg.tasks:
-            HeterogeneousTaskManager.compose_tasks(cfg)
-
         # initialize the base class to setup the scene.
         super().__init__(cfg=cfg)
         # store the render mode
@@ -123,9 +119,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         super().load_managers()
 
         # prepare the managers
-        # -- task manager
-        if self.cfg.tasks:
-            self.task_manager = HeterogeneousTaskManager(self.cfg.tasks, self)
         # -- termination manager
         self.termination_manager = TerminationManager(self.cfg.terminations, self)
         logger.info(f"Termination Manager: {self.termination_manager}")
@@ -396,9 +389,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         Args:
             env_ids: A slice or environment indices on the environment device.
         """
-        # switch the environments to their tasks before the reset events write the default states
-        if self.cfg.tasks:
-            self.task_manager.reset(env_ids)
         # update the curriculum for environments that need a reset
         self.curriculum_manager.compute(env_ids=env_ids)
         # reset the internal buffers of the scene elements
