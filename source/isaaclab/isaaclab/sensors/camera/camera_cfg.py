@@ -116,6 +116,14 @@ class CameraCfg(SensorBaseCfg):
     Please refer to the :class:`Camera` class for a list of available data types.
     """
 
+    frame_history_length: int = 0
+    """Number of most recent captures of each output in :attr:`data_types` kept in
+    :attr:`CameraData.frame_history`. Defaults to 0 (disabled).
+
+    The history holds this many copies of every requested output. A renderer that predicts several frames per
+    update, such as a world model, fills the whole history at once; other renderers push one capture per update.
+    """
+
     width: int = MISSING
     """Width of the image in pixels."""
 
@@ -289,6 +297,8 @@ class CameraCfg(SensorBaseCfg):
                     "Camera tensor processor func must be a TensorProcessor class or an import string"
                     f" 'module:Class', not {processor_cfg.func!r}."
                 )
+        if self.frame_history_length < 0:
+            raise ValueError(f"frame_history_length must be 0 (off) or positive, got {self.frame_history_length}")
         if self.renderer_cfg is None:
             return
         supported_specs = self.renderer_cfg.supported_output_types()
