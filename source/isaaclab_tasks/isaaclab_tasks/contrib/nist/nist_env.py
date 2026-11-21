@@ -13,7 +13,7 @@ from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.envs.common import VecEnvObs, VecEnvStepReturn
 
 
-class FactoryVariantEnv(ManagerBasedRLEnv):
+class NISTEnv(ManagerBasedRLEnv):
     """Reset only worlds whose action, reward, or post-reset observation is nonfinite."""
 
     def _invalid_observation_rows(self, observations: VecEnvObs) -> torch.Tensor:

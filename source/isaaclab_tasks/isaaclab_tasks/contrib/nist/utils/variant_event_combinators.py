@@ -12,13 +12,14 @@ from typing import TYPE_CHECKING
 import torch
 from tqdm import tqdm
 
+from isaaclab.envs.reset import ResetStateSampler, ResetStateSamplerCfg
 from isaaclab.managers import EventTermCfg, ManagerTermBase
 from isaaclab.utils import instantiate
 
 from isaaclab_tasks.utils.success_monitor import SuccessMonitorCfg
 
 from . import reset_state
-from .variant_sampling import Sampler, SamplerCfg
+from .variant_sampling import BalancedVariantScoreCfg
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -56,7 +57,7 @@ class variant_reset_accumulator(ManagerTermBase):
         self.sampled_slots = torch.full((env.num_envs,), -1, device=env.device, dtype=torch.long)
         self.sampled_cells = torch.full_like(self.sampled_slots, -1)
         self.precollecting_phase = True
-        self._sampling_cfg: SamplerCfg = cfg.params["sampling"]
+        self._sampling_cfg: ResetStateSamplerCfg = cfg.params["sampling"]
 
         self.state_tag_names: list[str] = []
         self.variant_names: tuple[str, ...] = ()
@@ -65,12 +66,11 @@ class variant_reset_accumulator(ManagerTermBase):
         self._num_cells = 1
         self._num_variants = 1
         self._variant_ids = torch.zeros(env.num_envs, dtype=torch.int32, device=env.device)
-        self.cell_probabilities = torch.full((1, 1), torch.nan, device=env.device)
 
         self._success_monitor_cfg: SuccessMonitorCfg = cfg.params["success_monitor_cfg"]
         self.monitor_success_rate: torch.Tensor | None = None
         self.success_monitor = None
-        self._sampler: Sampler | None = None
+        self._sampler: ResetStateSampler | None = None
 
     def __call__(
         self,
@@ -80,7 +80,7 @@ class variant_reset_accumulator(ManagerTermBase):
         acceptance_conditions: dict,
         state_table_size: int,
         success_monitor_cfg: SuccessMonitorCfg,
-        sampling: SamplerCfg,
+        sampling: ResetStateSamplerCfg,
         reset_term: EventTermCfg | None = None,
         state_tag_term: str = "reset_strategies",
         variant_context: str = "assembly_variants",
@@ -124,17 +124,26 @@ class variant_reset_accumulator(ManagerTermBase):
 
         if env_ids.numel() > 0:
             if self._sampler is None:
-                self._sampler = Sampler(self._sampling_cfg, self.monitor_success_rate)
-
-            probs, slot_idx = self._sample_marginally_balanced(len(env_ids))
-            self.sampled_slots[env_ids] = slot_idx
+                self._sampler = ResetStateSampler(
+                    self._sampling_cfg.replace(seed=(self._sampling_cfg.seed + (env.cfg.seed or 0)) % 2**32),
+                    env.num_envs,
+                    self.state_data.shape[0],
+                    env.device,
+                    metrics={
+                        "monitor_success_rate": self.monitor_success_rate,
+                        "cell_indices": self.state_cell_indices,
+                    },
+                )
+            self._sampler.reset(env_ids=env_ids)
+            self.sampled_slots.copy_(self._sampler.state_ids.torch)
+            slot_idx = self.sampled_slots[env_ids]
             self.sampled_cells[env_ids] = self.state_cell_indices[slot_idx]
             reset_state.set_reset_state(env, self.state_data[slot_idx], env_ids, self.reset_assets, is_relative=True)
             env.extras["diagnostics"] = {
-                "factory_reset_slot": self.sampled_slots,
-                "factory_reset_cell": self.sampled_cells,
-                "factory_reset_labels": tuple(self.state_tag_names),
-                "factory_asset_variants": self.variant_names,
+                "nist_reset_slot": self.sampled_slots,
+                "nist_reset_cell": self.sampled_cells,
+                "nist_reset_labels": tuple(self.state_tag_names),
+                "nist_asset_variants": self.variant_names,
             }
 
     def _precollect(self, env: ManagerBasedRLEnv, reset_term: EventTermCfg) -> None:
@@ -147,8 +156,11 @@ class variant_reset_accumulator(ManagerTermBase):
         self._num_cells = len(self.state_tag_names) * self._num_variants
         if self._state_target_size < self._num_cells:
             raise ValueError("state_table_size must cover every reset-label and assembly-variant cell.")
-        self.cell_probabilities = torch.full(
-            (len(self.state_tag_names), self._num_variants), torch.nan, device=env.device
+        score_cfg = self._sampling_cfg.scores[0]
+        if not isinstance(score_cfg, BalancedVariantScoreCfg):
+            raise TypeError("Variant reset sampling requires BalancedVariantScoreCfg.")
+        self._sampling_cfg = self._sampling_cfg.replace(
+            scores=[score_cfg.replace(num_labels=len(self.state_tag_names), num_variants=self._num_variants)]
         )
 
         capacity = self.state_data.shape[0]
@@ -224,30 +236,6 @@ class variant_reset_accumulator(ManagerTermBase):
         del self.cfg.params["reset_term"]
         self.precollecting_phase = False
 
-    def _sample_marginally_balanced(self, num_samples: int) -> tuple[torch.Tensor, torch.Tensor]:
-        """Balance label and asset marginals without flattening their joint curriculum."""
-        probabilities = self._sampler.probabilities()
-        raw_cell_probabilities = probabilities.new_zeros(self._num_cells)
-        raw_cell_probabilities.scatter_add_(0, self.state_cell_indices, probabilities)
-        cell_probabilities = raw_cell_probabilities.view_as(self.cell_probabilities).clone()
-        for _ in range(4):
-            cell_probabilities.div_(cell_probabilities.sum(dim=1, keepdim=True) * cell_probabilities.shape[0])
-            cell_probabilities.div_(cell_probabilities.sum(dim=0, keepdim=True) * cell_probabilities.shape[1])
-
-        self.cell_probabilities.copy_(cell_probabilities)
-        cell_scale = cell_probabilities.flatten().div_(raw_cell_probabilities)
-        probabilities.mul_(cell_scale[self.state_cell_indices]).div_(probabilities.sum())
-        return probabilities, self._sampler.sample(probabilities, num_samples)
-
-    def _sample_variant(self, num_samples: int, variant_id: int) -> tuple[torch.Tensor, torch.Tensor]:
-        """Sample reset states for one scheduled assembly variant."""
-        probabilities = self._sampler.probabilities()
-        probabilities.mul_(self.state_cell_indices.remainder(self._num_variants) == variant_id)
-        probabilities.div_(probabilities.sum())
-        self.cell_probabilities.zero_()
-        self.cell_probabilities.flatten().scatter_add_(0, self.state_cell_indices, probabilities)
-        return probabilities, self._sampler.sample(probabilities, num_samples)
-
     def apply_sampled_slots(self, env_ids: torch.Tensor) -> None:
         """Restore the assigned table slots for the requested environments."""
         reset_state.set_reset_state(
@@ -288,3 +276,31 @@ class PreparedTermChoice(ManagerTermBase):
     def prepare(self, samples: torch.Tensor) -> None:
         """Set the partition indices used by the next call."""
         self._next_samples.copy_(samples)
+
+
+class ChainedResetTerms(ManagerTermBase):
+    """Apply reset terms in order and propagate their per-environment validity."""
+
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+        self.terms: dict[str, EventTermCfg] = cfg.params["terms"]
+        self.is_valid = torch.ones(env.num_envs, dtype=torch.bool, device=env.device)
+
+    def __call__(
+        self,
+        env: ManagerBasedRLEnv,
+        env_ids: torch.Tensor,
+        terms: dict[str, EventTermCfg],
+        probability: float = 1.0,
+    ) -> None:
+        env_ids = env.scene._ALL_INDICES[env_ids]
+        self.is_valid[env_ids] = True
+        if probability < 1.0:
+            env_ids = env_ids[torch.rand(env_ids.numel(), device=env.device) < probability]
+        if env_ids.numel() == 0:
+            return
+        for term in terms.values():
+            term.func(env, env_ids, **term.params)
+            reported = getattr(term.func, "is_valid", None)
+            if reported is not None:
+                self.is_valid[env_ids] &= reported[env_ids]
