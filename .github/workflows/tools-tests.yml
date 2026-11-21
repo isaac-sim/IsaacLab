@@ -17,14 +17,13 @@ on:
       # Shared CI action helpers and their co-located tests.
       - ".github/actions/_lib/**"
       - ".github/actions/ecr-build-push-pull/**"
-      - ".github/actions/run-tests/**"
       - ".github/test-subsets/postmerge-rendering.toml"
       - ".github/workflows/build.yaml"
       - ".github/workflows/nightly-isaacsim-image.yml"
       - ".github/workflows/nightly-ovstage.yml"
       - ".github/workflows/run-docker-ci.yml"
       - ".github/workflows/tools-tests.yml"
-      - "source/_isaaclab_testing/test/rendering/rendering_cases.py"
+      - "source/_isaaclab_testing/test/rendering/test_rendering_kitless_*.py"
   workflow_dispatch:
 
 concurrency:

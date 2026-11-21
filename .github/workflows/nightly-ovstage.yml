@@ -3,15 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Runs daily against the default branch independently of code merges and Isaac Sim
-# image updates, without launching the rest of the Docker + Tests pipeline.
-
 name: Nightly Kitless OVStage Rendering
 
 on:
   schedule:
-    # Run daily at 6 AM UTC, after nightly-changelog (5 AM UTC) and before
-    # nightly-isaacsim-image (8 AM UTC).
     - cron: '0 6 * * *'
   workflow_dispatch:
 
@@ -47,7 +42,6 @@ jobs:
           echo "isaacsim_image_name=$(yq -r .isaacsim_image_name "$f")" >> "$GITHUB_OUTPUT"
           echo "isaacsim_image_tag=$(yq -r .isaacsim_image_tag "$f")" >> "$GITHUB_OUTPUT"
           echo "ovphysx_wheelhouse_image=$(yq -r '.ovphysx_wheelhouse_image // ""' "$f")" >> "$GITHUB_OUTPUT"
-      # Keep in sync with build.yaml's config job so nightly runs reuse the post-merge ECR image.
       - id: image_tag
         shell: bash
         env:
@@ -87,7 +81,6 @@ jobs:
           cache-tag: cache-base
           verify-test-path: docker/test/test_image_invariants.py
 
-  # Keep in sync with build.yaml's test-rendering-correctness-kitless-ovstage job.
   test-rendering-correctness-kitless-ovstage:
     name: "rendering-correctness-kitless (ovstage)"
     runs-on: [self-hosted, gpu]

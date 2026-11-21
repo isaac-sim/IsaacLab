@@ -945,7 +945,7 @@ jobs:
         container-name: "isaac-lab-rendering-correctness-kitless-legacy-test"
         omni-github-test-type: "rendering-correctness-kitless-legacy"
 
-  # Full OVStage suite post-merge; pull requests opt in per run with ``run-ci ovstage``.
+  # Post-merge by default; pull requests opt in per run with ``run-ci ovstage``.
   test-rendering-correctness-kitless-ovstage:
     name: "rendering-correctness-kitless (ovstage)"
     runs-on: [self-hosted, gpu]

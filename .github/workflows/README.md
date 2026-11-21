@@ -37,24 +37,10 @@ When retiring the workflow, remove `Installation Tests (x86)`,
 `Installation Tests (ARM)`, and `Installation Tests (Windows)` from any required
 status-check rules that reference them.
 
-## Kitless OVStage rendering coverage
+## Kitless OVStage rendering
 
-The full kitless OVStage rendering suite (`-k ovstage` across
-`test_rendering_kitless_newton_ovrtx.py` and
-`test_rendering_kitless_ovphysx_ovrtx.py`) runs in four places:
+`test_rendering_kitless_newton_ovrtx.py` and `test_rendering_kitless_ovphysx_ovrtx.py` (`-k ovstage`) run in full:
 
-- **Post-merge (`build.yaml`)**: runs on pushes to protected branches.
-- **Nightly (`nightly-ovstage.yml`)**: runs once daily against the default
-  branch independently of code merges and Isaac Sim image updates, reusing the
-  ECR CI image, Warp kernel cache, OVRTX shader cache, and `run-package-tests`
-  action without launching the rest of `Docker + Tests`. It also supports manual
-  runs via `workflow_dispatch`:
-
-  ```bash
-  gh workflow run nightly-ovstage.yml --ref main
-  ```
-
-- **Isaac Sim image updates (`nightly-isaacsim-image.yml`)**: comments
-  `run-ci ovstage` when opening or refreshing the rolling image-bump PR.
-- **Other pull requests (`run-docker-ci.yml`)**: opt in per run by commenting
-  `run-ci ovstage`.
+- post-merge on `build.yaml` pushes;
+- daily at `06:00 UTC` and via `gh workflow run nightly-ovstage.yml --ref main`, independent of merges or image updates;
+- on `nightly-isaacsim-image.yml` PRs and per-run on other PRs via `run-ci ovstage`.
