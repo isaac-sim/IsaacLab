@@ -8,11 +8,41 @@
 import importlib
 import importlib.metadata
 import sys
+from contextlib import contextmanager
 from unittest import mock
 
 import pytest
 
 pytestmark = pytest.mark.unit
+
+
+def test_live_entrypoint_preserves_resolved_camera_selection(monkeypatch):
+    """The public workflow carries its resolved PiP selection into the selected runtime."""
+    from isaaclab_teleop.entrypoints import teleop_se3_agent as workflow
+
+    config, teleop_config = object(), object()
+    selected_cameras = (object(),)
+    resolved = (config, teleop_config, True, selected_cameras)
+    monkeypatch.setattr(workflow, "_resolve_env_cfg", lambda: resolved)
+    calls = []
+
+    @contextmanager
+    def launch(env_config, args):
+        assert env_config is config and args.using_ovxr
+        calls.append("launch")
+        yield
+        calls.append("close")
+
+    monkeypatch.setattr(workflow, "launch_simulation", launch)
+
+    def run(env_config, teleop_config, *, use_isaac_teleop, selected_cameras):
+        calls.append((env_config, teleop_config, use_isaac_teleop, selected_cameras))
+
+    monkeypatch.setattr(workflow, "run_teleoperation", run)
+    monkeypatch.setattr(sys, "argv", ["caller"])
+    assert workflow.run_teleop_se3_agent_cli(["--ovxr", "--ovxr_camera_feed", "robot_pov_cam"]) == 0
+    assert calls == ["launch", resolved, "close"]
+    assert sys.argv == ["caller"]
 
 
 @pytest.mark.parametrize(
@@ -78,3 +108,4 @@ def test_live_and_recording_script_help_lists_ovxr(script):
     )
     assert result.returncode == 0, result.stderr
     assert re.search(r"^\s+--ovxr(?:\s|$)", result.stdout, re.MULTILINE)
+    assert "--ovxr_camera_feed" in result.stdout

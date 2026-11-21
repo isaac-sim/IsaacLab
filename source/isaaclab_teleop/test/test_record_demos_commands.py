@@ -22,7 +22,7 @@ def test_recording_defers_command_resampling(monkeypatch, tmp_path, backend_flag
 
     monkeypatch.setattr(sys, "argv", ["record_demos.py"])
     record_demos._parse_args(["--task", "Isaac-Reach-Franka", *backend_flags, "--teleop_device", "spacemouse"])
-    cfg, _, _ = record_demos.create_environment_config(str(tmp_path), "reach")
+    cfg, _, _, _ = record_demos.create_environment_config(str(tmp_path), "reach")
 
     resampling_time_range = cfg.commands.ee_pose.resampling_time_range
     assert all(math.isfinite(bound) for bound in resampling_time_range)
@@ -43,7 +43,7 @@ def test_recording_runs_task_action_policy_on_kitless_physics(monkeypatch, tmp_p
 
     monkeypatch.setattr(sys, "argv", ["record_demos.py"])
     record_demos._parse_args(["--task", task, "--physics", backend, "--renderer", "ovrtx"])
-    cfg, _, teleop_cfg = record_demos.create_environment_config(str(tmp_path), "policy")
+    cfg, _, teleop_cfg, _ = record_demos.create_environment_config(str(tmp_path), "policy")
     assert teleop_cfg is cfg.isaac_teleop
     if "GR1T2" in task:
         assert teleop_cfg.require_initial_bimanual_hand_tracking
@@ -56,7 +56,7 @@ def test_recording_prepares_so101_calibrated_reset(monkeypatch, tmp_path):
 
     monkeypatch.setattr(sys, "argv", ["record_demos.py"])
     record_demos._parse_args(["--task", "IsaacContrib-Stack-Cube-SO101-IK-Abs-v0", "--physics", "isaacsim_physx"])
-    cfg, _, _ = record_demos.create_environment_config(str(tmp_path), "stack")
+    cfg, _, _, _ = record_demos.create_environment_config(str(tmp_path), "stack")
     assert cfg.events.randomize_joint_state.params["std"] == 0.0
 
 
@@ -110,7 +110,11 @@ def test_recording_notifies_teleop_when_environment_zero_resets_itself(terminate
         (["--xr", "--ovxr"], "mutually exclusive"),
         (["--ovxr_step_hz", "20"], "requires --ovxr"),
         (["--ovxr", "--ovxr_step_hz", "nan"], "finite and non-negative"),
+        (["--ovxr_desktop_mirror"], "--ovxr_desktop_mirror requires --ovxr"),
+        (["--ovxr_camera_feed", "head_cam"], "--ovxr_camera_feed requires --ovxr"),
+        (["--ovxr", "--ovxr_camera_feed", "head_cam", "presets=rgb"], "takes camera names, not overrides"),
         (["--ovxr", "--ovxr_session_mode", "vr", "--ovxr_step_hz", "20"], None),
+        (["--ovxr", "--ovxr_desktop_mirror", "--ovxr_camera_feed", "head_cam"], None),
     ],
 )
 def test_recording_parses_ovxr_options_like_live(monkeypatch, capsys, arguments, message):
@@ -127,7 +131,17 @@ def test_recording_parses_ovxr_options_like_live(monkeypatch, capsys, arguments,
             assert message in capsys.readouterr().err
             continue
         args = module._parse_args(["--task", "Test", *arguments])
-        names = ("using_ovxr", "ovxr_session_mode", "ovxr_step_hz", "cloudxr_env", "auto_launch_cloudxr")
+        names = (
+            "using_ovxr",
+            "ovxr_session_mode",
+            "ovxr_step_hz",
+            "cloudxr_env",
+            "auto_launch_cloudxr",
+            "ovxr_desktop_mirror",
+            "ovxr_desktop_mirror_fps",
+            "ovxr_camera_feed",
+            "ovxr_camera_feed_fps",
+        )
         parsed.append({name: getattr(args, name) for name in names})
     if message is None:
         from isaaclab_teleop import CLOUDXR_JS_ENV
@@ -177,12 +191,72 @@ def test_recording_ovxr_checks_launch_before_preparing_and_owns_context_cleanup(
     reject = trace("ovxr-conflicts", record_demos.reject_ovxr_runtime_conflicts)
     monkeypatch.setattr(record_demos, "reject_ovxr_runtime_conflicts", reject)
     monkeypatch.setattr(record_demos, "launch_simulation", launch)
-    monkeypatch.setattr(record_demos, "record_demos", lambda cfg, *_args: calls.append(("record", cfg)))
+    monkeypatch.setattr(record_demos, "record_demos", lambda cfg, *_args, **_kwargs: calls.append(("record", cfg)))
     record_demos.main()
 
     assert calls[:-1] == ["ovxr-launch", "validate_launch", "ovxr-conflicts", "prepare_environment", "launch"]
     cfg = calls[-1][1]
     assert cfg.events.randomize_joint_state.params["std"] == 0.0
+
+
+@pytest.mark.parametrize(
+    "task", ["IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs", "IsaacContrib-PickPlace-GR1T2-Abs"]
+)
+def test_recording_ovxr_presentation_options_reach_session_construction(monkeypatch, tmp_path, task):
+    """The recorder passes the live agent's PiP and mirror options to the OVXR session, keeping only PiP cameras."""
+    import contextlib
+    from types import SimpleNamespace
+
+    # These adapter tests require the OVRTX runtime and the optional Capture OVXR session module.
+    pytest.importorskip("ovrtx")
+    pytest.importorskip("isaaccapture.ovxr_session_manager")
+    import isaaclab_teleop
+    from isaaclab_teleop.entrypoints import record_demos
+
+    from isaaclab.sim import SimulationContext
+
+    monkeypatch.setattr(sys, "argv", ["record_demos.py"])
+    monkeypatch.setattr(record_demos, "args_cli", None, raising=False)
+    record_demos._parse_args([
+        "--task", task, "--physics", "ovphysx", "--ovxr",
+        "--cloudxr_env", "none", "--dataset_file", str(tmp_path / "demo.hdf5"),
+        "--ovxr_camera_feed_fps", "15", "--ovxr_desktop_mirror", "--ovxr_desktop_mirror_fps", "20",
+        "--ovxr_camera_feed", "robot_pov_cam",
+    ])  # fmt: skip
+    launched = []
+    prepared = []
+
+    class SessionReached(RuntimeError):
+        pass
+
+    @contextlib.contextmanager
+    def launch(cfg, _args):
+        launched.append(cfg)
+        yield
+
+    def prepare(_sim_cfg, xr_cfg, renderer_cfg=None):
+        prepared.append((xr_cfg, renderer_cfg))
+        raise SessionReached
+
+    monkeypatch.setattr(record_demos, "launch_simulation", launch)
+    monkeypatch.setattr(record_demos, "has_kit", lambda: False)
+    monkeypatch.setattr(
+        isaaclab_teleop.XrCameraFeedSession, "prepare", lambda *_args, **_kwargs: SimpleNamespace(close=lambda: None)
+    )
+    monkeypatch.setattr(isaaclab_teleop.OvLibrariesXrSession, "prepare", prepare)
+    monkeypatch.setattr(SimulationContext, "instance", lambda: None)
+    with pytest.raises(SessionReached):
+        record_demos.main()
+
+    [cfg] = launched
+    assert cfg.scene.robot_pov_cam is not None
+    [(xr_cfg, renderer_cfg)] = prepared
+    assert xr_cfg.desktop_mirror is not None and xr_cfg.desktop_mirror.max_fps == 20.0
+    [camera] = xr_cfg.camera_feeds
+    assert camera.name == "robot_pov_cam" and camera.max_fps == 15.0
+    # G1 declares a head-locked layout and GR1T2 keeps the default one; OVXR shows both head-locked.
+    assert camera.space == "head_locked" and camera.position == pytest.approx((0.0, -0.15, -0.8))
+    assert renderer_cfg == camera.camera_cfg.renderer_cfg
 
 
 def test_instruction_display_logs_new_messages_without_kit_labels(caplog):

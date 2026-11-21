@@ -92,12 +92,17 @@ For desktop IWER, select **VR** and set **Reference Space** to **local-floor**
 under **Teleoperator adjustment** before connecting. This keeps the emulated
 head and controllers relative to the floor. Between trials, end the previous XR
 session and reload the client page before reconnecting; recheck both settings.
+A blank or below-scene main view with a working camera panel warrants checking
+this client origin before changing the renderer.
 
 `--ovxr` and Kit's `--xr` select separate XR runtimes and are mutually exclusive.
 
-No local window opens by default. `--ovxr_session_mode {ar,vr}` (default `ar`) selects the
-OpenXR session mode in live teleoperation, recording and replay. Headset rendering still
-uses the GPU and works with `DISPLAY` unset.
+OVXR live teleoperation, recording and MCAP replay run without a local window by default.
+Add `--ovxr_desktop_mirror` to open the mirror on a host with a desktop display;
+`--no-ovxr_desktop_mirror` explicitly disables it; `--viz` remains the general
+visualizer selector. `--ovxr_session_mode {ar,vr}` (default `ar`) selects the OpenXR
+session mode in live teleoperation, recording and replay. Headset rendering still uses the GPU
+and works with `DISPLAY` unset when the mirror is disabled. PiP is independent of the mirror.
 Renderer startup waits up to 20 minutes for attachment; it does not bound waiting for a
 client to establish its OpenXR session. A first start compiles shaders, and other rendering
 processes on the same GPU slow attachment; either can take several minutes. Attachment cannot be
@@ -153,7 +158,8 @@ uv run --extra ovxr isaaclab teleop record \
 ```
 
 `record --ovxr` writes HDF5 demonstrations through the same OVXR session as live
-teleoperation, with the same `--ovxr_session_mode` and `--ovxr_step_hz` options;
+teleoperation, with the same `--ovxr_session_mode`, `--ovxr_step_hz`, camera-panel and
+desktop-mirror options;
 `--ovxr_step_hz` replaces the `--step_hz` limit. Recording starts with the client's Play
 control. Resets between attempts keep the kitless simulator instead of rebuilding it, as in
 MCAP replay. Instructions are logged because no Kit window opens. Add `--mcap_record_path`
@@ -165,3 +171,51 @@ camera's Kit renderer conflicts with the kitless physics.
 Recording applies a task's initial hand-tracking gate and action conditioning and validation
 before each step, as live teleoperation and MCAP replay do, so the humanoid tasks also record
 with kitless physics.
+
+## Camera panels and desktop mirror
+
+Select up to three task cameras:
+
+```bash
+uv run --extra ovxr isaaclab teleop run --ovxr \
+    --task IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs \
+    --num_envs 1 --device cpu --physics ovphysx presets=rgb \
+    --ovxr_camera_feed robot_pov_cam left_wrist_cam right_wrist_cam
+```
+
+`--ovxr_camera_feed_fps` limits panel updates. Panel cameras must be
+enabled in the task's `xr_camera_feeds`. OVXR shows camera feeds head-locked, using the
+size, gap and distance of the task's `xr_camera_feed_layout`.
+The session snapshots its camera selection at
+preparation; create a new session to change it. Panels use the same renderer as
+the headset and do not require a desktop display. OVXR panels show no label; a
+feed's `label` and DLSS settings apply to Kit panels only, and the desktop mirror
+lists each camera by its sensor name.
+
+GR1T2 and G1 tasks provide `robot_pov_cam`. Fixed-base G1 adds `left_wrist_cam` and
+`right_wrist_cam` with `presets=rgb`, as in the example above. SO101 does not declare
+a PiP camera in its scene. Use the desktop mirror without `--ovxr_camera_feed` for that task.
+
+Selected OVXR cameras feed the panels only. Their policy image observations are
+removed even with `presets=rgb`, so the application does not request a second
+camera render while OVXR owns rendering. The `presets=rgb` policy-image selection
+applies to Kit workflows.
+
+In Kit XR, the fixed-base G1 task shows its head camera panel with the state-only
+policy. `presets=rgb` adds the wrist cameras and their panels, and resets then
+perform three rerenders when RTX sensors are present so image consumers receive
+refreshed frames. For Kit XR without image feeds, use `--disable_external_cameras`.
+OVXR keeps only the explicitly selected panel cameras. For a custom state-only
+application, remove unused camera configurations before environment construction;
+selecting a state-only policy alone does not disable sensors used by a viewer or recorder.
+
+The optional desktop mirror shows completed eye or camera images locally.
+`--ovxr_desktop_mirror` enables it; `--ovxr_desktop_mirror_fps` limits its update rate. The mirror requires the
+`desktop-mirror` extra, Python 3.12 or newer, and a usable display. On Linux,
+use a GPU-backed desktop session for the mirror. OVUI's default Vulkan backend
+requires no `OMNIUI_BACKEND` setting. Lab and Capture preserve the application's
+backend choice; an already initialized OVUI backend cannot be reconfigured.
+The mirror requires Vulkan; remove conflicting backend settings before OVUI
+initialization. The mirror opens after the first submitted
+XR image; closing it requests application shutdown. Eye images exclude the
+separate OpenXR camera panels; select a camera product to inspect that feed.

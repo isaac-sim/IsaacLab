@@ -66,12 +66,19 @@ from .. import (
     CLOUDXR_JS_ENV,
     CLOUDXR_STANDALONE_ENV,
     IsaacTeleopCfg,
+    OvLibrariesXrCameraFeedCfg,
     se3_keyboard_teleop_cfg,
     se3_spacemouse_teleop_cfg,
 )
 from ..action_policy import initial_hand_tracking_issue, prepare_teleop_action
 from ..device_selection import create_teleop_device, select_teleop_cfg
-from ._ovxr_launch import prepare_ovxr_launch, reject_ovxr_runtime_conflicts
+from ._ovxr_launch import (
+    add_ovxr_presentation_args,
+    prepare_ovxr_launch,
+    reject_ovxr_runtime_conflicts,
+    resolve_ovxr_camera_feeds,
+    validate_ovxr_presentation_args,
+)
 from ._ovxr_presentation import OvxrPresentation, admit_reset_publication, update_idle_presentation
 from ._ovxr_runtime import (
     RENDERER_ATTACH_TIMEOUT_S,
@@ -201,6 +208,7 @@ def _build_parser() -> argparse.ArgumentParser:
         default=0.0,
         help="Maximum host-control rate with --ovxr; 0 leaves active control unthrottled. XR rendering is independent.",
     )
+    add_ovxr_presentation_args(parser)
     add_launcher_args(parser)
     return parser
 
@@ -228,6 +236,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         parser.error("--ovxr_step_hz must be finite and non-negative; 0 disables active-control pacing")
     if args_cli.ovxr_step_hz > 0.0 and not args_cli.using_ovxr:
         parser.error("--ovxr_step_hz requires --ovxr")
+    validate_ovxr_presentation_args(parser, args_cli, using_ovxr=args_cli.using_ovxr)
 
     # Call an external callback if requested.
     if args_cli.external_callback:
@@ -312,7 +321,12 @@ def setup_output_directories() -> tuple[str, str]:
 
 def create_environment_config(
     output_dir: str, output_file_name: str
-) -> tuple[ManagerBasedRLEnvCfg | DirectRLEnvCfg, object | None, IsaacTeleopCfg | DeviceCfg]:
+) -> tuple[
+    ManagerBasedRLEnvCfg | DirectRLEnvCfg,
+    object | None,
+    IsaacTeleopCfg | DeviceCfg,
+    tuple[OvLibrariesXrCameraFeedCfg, ...],
+]:
     """Create and configure the environment configuration.
 
     Parses the environment configuration and makes necessary adjustments for demo recording.
@@ -327,6 +341,7 @@ def create_environment_config(
             - env_cfg: The configured environment configuration
             - success_term: The success termination object or None if not available
             - teleop_cfg: The resolved Capture or native device configuration
+            - selected_cameras: The resolved OVXR PiP panels, empty without ``--ovxr_camera_feed``
 
     Raises:
         SystemExit: If parsing the environment configuration fails (the error is logged and the process exits).
@@ -362,8 +377,17 @@ def create_environment_config(
 
     if args_cli.xr and args_cli.disable_external_cameras:
         env_cfg = remove_camera_configs(env_cfg)
+    selected_cameras = ()
     if args_cli.using_ovxr:
-        env_cfg = prepare_ovxr_launch(env_cfg, args_cli.task, env_cfg.scene.num_envs)
+        if args_cli.ovxr_camera_feed is not None:
+            from ..ovxr_renderer import OvxrRendererCfg
+
+            # Resolve the panels before launch preparation removes the other cameras, so that an
+            # invalid selection or task layout fails before launch.
+            selected_cameras = resolve_ovxr_camera_feeds(env_cfg, args_cli, OvxrRendererCfg())
+        env_cfg = prepare_ovxr_launch(
+            env_cfg, args_cli.task, env_cfg.scene.num_envs, keep=tuple(args_cli.ovxr_camera_feed or ())
+        )
 
     if isinstance(teleop_cfg, IsaacTeleopCfg):
         if args_cli.using_ovxr or teleop_cfg.prepare_environment is not None:
@@ -412,7 +436,7 @@ def create_environment_config(
     env_cfg.recorders.dataset_filename = output_file_name
     env_cfg.recorders.dataset_export_mode = DatasetExportMode.EXPORT_SUCCEEDED_ONLY
 
-    return env_cfg, success_term, teleop_cfg
+    return env_cfg, success_term, teleop_cfg, selected_cameras
 
 
 def setup_ui(label_text: str, env: gym.Env) -> "InstructionDisplay":
@@ -784,7 +808,8 @@ def run_simulation_loop(  # noqa: C901
                     skipped_tracking_frames += 1
                     warn_rejected_teleop_frame(issue, skipped_tracking_frames)
                 else:
-                    update_idle_presentation(env, presentation)
+                    # The publication after this frame reports its host timing.
+                    update_idle_presentation(env, presentation, report_timing=False)
                     # not stepping: zero haptics so a paused grip stops buzzing
                     if haptic_driver is not None:
                         haptic_driver.stop()
@@ -882,10 +907,10 @@ def main() -> None:
     output_dir, output_file_name = setup_output_directories()
 
     # Create and configure environment
-    env_cfg, success_term, teleop_cfg = create_environment_config(output_dir, output_file_name)
+    env_cfg, success_term, teleop_cfg, selected_cameras = create_environment_config(output_dir, output_file_name)
 
     with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
-        record_demos(env_cfg, success_term, teleop_cfg, cleanup)
+        record_demos(env_cfg, success_term, teleop_cfg, cleanup, selected_cameras=selected_cameras)
 
 
 def record_demos(
@@ -893,6 +918,8 @@ def record_demos(
     success_term: object | None,
     teleop_cfg: IsaacTeleopCfg | DeviceCfg,
     cleanup: contextlib.ExitStack,
+    *,
+    selected_cameras: tuple[OvLibrariesXrCameraFeedCfg, ...] = (),
 ) -> None:
     """Create the environment and record demonstrations until the session ends."""
     from .. import XrCameraFeedSession
@@ -918,7 +945,9 @@ def record_demos(
         camera_rendering_enabled=not args_cli.disable_external_cameras and not args_cli.using_ovxr,
     )
     if args_cli.using_ovxr:
-        current_recorded_demo_count = _record_ovxr_demos(env_cfg, success_term, teleop_cfg, camera_feed_session)
+        current_recorded_demo_count = _record_ovxr_demos(
+            env_cfg, success_term, teleop_cfg, camera_feed_session, selected_cameras
+        )
         print(f"Recording session completed with {current_recorded_demo_count} successful demonstrations")
         print(f"Demonstrations saved to: {args_cli.dataset_file}")
         return
@@ -965,6 +994,7 @@ def _record_ovxr_demos(
     success_term: object | None,
     teleop_cfg: IsaacTeleopCfg,
     camera_feed_session: "XrCameraFeedSession",
+    selected_cameras: tuple[OvLibrariesXrCameraFeedCfg, ...],
 ) -> int:
     """Record through an OVXR session prepared before the environment and drained before its release.
 
@@ -981,7 +1011,10 @@ def _record_ovxr_demos(
     shutdown_signals = OvxrShutdownSignals()
     try:
         presentation = OvxrPresentation.prepare(
-            env_cfg, args_cli, application_name=f"isaaclab-ovxr-record-{args_cli.task}"
+            env_cfg,
+            args_cli,
+            application_name=f"isaaclab-ovxr-record-{args_cli.task}",
+            camera_feeds=selected_cameras,
         )
         try:
             env = gym.make(args_cli.task, cfg=env_cfg).unwrapped

@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from ..ov_libraries_xr import OvLibrariesXrSession
+    from ..ovxr_cfg import OvLibrariesXrCameraFeedCfg
     from ..ovxr_renderer import OvxrRendererCfg
 
 
@@ -24,9 +25,10 @@ class OvxrPresentation:
     after that device drained.
     """
 
-    def __init__(self, session: OvLibrariesXrSession) -> None:
+    def __init__(self, session: OvLibrariesXrSession, *, excluded_visual_meshes: Iterable[str] = ()) -> None:
         self.session = session
         """Prepared OVXR session."""
+        self._excluded_visual_meshes = excluded_visual_meshes
         self.input_device: Any = None
         """Input device that borrows the session, or ``None`` before it is created."""
         self.started = False
@@ -42,22 +44,34 @@ class OvxrPresentation:
         args: argparse.Namespace,
         *,
         application_name: str,
+        camera_feeds: tuple[OvLibrariesXrCameraFeedCfg, ...] = (),
         renderer_cfg: OvxrRendererCfg | None = None,
     ) -> OvxrPresentation:
         """Prepare the OVXR session before the environment is constructed.
 
         Args:
-            env_cfg: Resolved environment configuration.
-            args: Parsed namespace with ``ovxr_session_mode``, ``cloudxr_env`` and ``auto_launch_cloudxr``.
+            env_cfg: Resolved environment configuration. Its ``isaac_teleop.xr_cfg`` selects the visual
+                meshes excluded from the XR view.
+            args: Parsed namespace with ``ovxr_session_mode``, ``cloudxr_env``, ``auto_launch_cloudxr``
+                and the shared OVXR presentation options (see
+                :func:`~isaaclab_teleop.entrypoints._ovxr_launch.add_ovxr_presentation_args`).
             application_name: OpenXR application name.
-            renderer_cfg: OVRTX configuration. Defaults to :class:`~isaaclab_teleop.OvxrRendererCfg`.
+            camera_feeds: Resolved camera feeds. The session renders with their shared OVXR renderer
+                configuration.
+            renderer_cfg: OVXR renderer configuration without camera panels. Defaults to
+                :class:`~isaaclab_teleop.OvxrRendererCfg`.
 
         Returns:
             The prepared presentation.
         """
-        from .. import OvLibrariesXrCfg, OvLibrariesXrSession
+        from .. import OvLibrariesXrCfg, OvLibrariesXrDesktopMirrorCfg, OvLibrariesXrSession
         from ..ovxr_renderer import OvxrRendererCfg
 
+        if camera_feeds:
+            # Camera selection assigned one OVXR renderer configuration to every panel; the session shares it.
+            renderer_cfg = camera_feeds[0].camera_cfg.renderer_cfg
+        elif renderer_cfg is None:
+            renderer_cfg = OvxrRendererCfg()
         session = OvLibrariesXrSession.prepare(
             env_cfg.sim,
             OvLibrariesXrCfg(
@@ -65,10 +79,16 @@ class OvxrPresentation:
                 session_mode=args.ovxr_session_mode,
                 cloudxr_env_file=args.cloudxr_env,
                 auto_launch_cloudxr=args.auto_launch_cloudxr,
+                desktop_mirror=(
+                    OvLibrariesXrDesktopMirrorCfg(max_fps=args.ovxr_desktop_mirror_fps)
+                    if args.ovxr_desktop_mirror
+                    else None
+                ),
+                camera_feeds=camera_feeds,
             ),
-            renderer_cfg=OvxrRendererCfg() if renderer_cfg is None else renderer_cfg,
+            renderer_cfg=renderer_cfg,
         )
-        return cls(session)
+        return cls(session, excluded_visual_meshes=env_cfg.isaac_teleop.xr_cfg.excluded_visual_meshes)
 
     def start(self, env: Any, *, timeout_s: float, required_openxr_extensions: Iterable[str] = ()) -> bool:
         """Start the render worker for :attr:`input_device`, or adopt its anchor once started.
@@ -93,6 +113,7 @@ class OvxrPresentation:
             env,
             tracking_anchor_path=device.xr_render_anchor_path,
             required_openxr_extensions=required_openxr_extensions,
+            excluded_visual_meshes=self._excluded_visual_meshes,
             external_anchor_state=device.external_anchor_state,
             timeout_s=timeout_s,
         )
@@ -115,13 +136,15 @@ class OvxrPresentation:
             self._force = True
         self._pending = (self._reset_generation, env.sim.get_physics_step_count())
 
-    def publish(self, env: Any, *, changed: bool = False, reset: bool = False) -> bool:
+    def publish(self, env: Any, *, changed: bool = False, reset: bool = False, report_timing: bool = True) -> bool:
         """Offer the latest unadmitted scene to the render worker.
 
         Args:
             env: Environment whose physics step identifies the publication.
             changed: Whether the scene changed since the last call.
             reset: Whether the change is a reset (see :meth:`mark_changed`).
+            report_timing: Whether this call completes a host frame, whose physics rate the
+                desktop mirror reports.
 
         Returns:
             Whether no publication remains pending.
@@ -131,6 +154,8 @@ class OvxrPresentation:
         if self._pending is not None and self.session.request_render(self._pending, force=self._force) is not None:
             self._pending = None
             self._force = False
+        if report_timing:
+            self.session.report_host_timing(env.sim.get_physics_step_count(), env.sim.get_physics_dt())
         return self._pending is None
 
     def close(self) -> None:
@@ -150,7 +175,7 @@ class OvxrPresentation:
         self.session.close()
 
 
-def update_idle_presentation(env: Any, presentation: OvxrPresentation | None) -> None:
+def update_idle_presentation(env: Any, presentation: OvxrPresentation | None, *, report_timing: bool = True) -> None:
     """Service a paused scene through its presentation owner without stepping physics.
 
     OVXR offers the current scene identity so material changes can publish
@@ -159,7 +184,7 @@ def update_idle_presentation(env: Any, presentation: OvxrPresentation | None) ->
     if presentation is None:
         env.sim.render()
     else:
-        presentation.publish(env, changed=True)
+        presentation.publish(env, changed=True, report_timing=report_timing)
 
 
 def admit_reset_publication(env: Any, presentation: OvxrPresentation | None) -> bool:
@@ -171,7 +196,7 @@ def admit_reset_publication(env: Any, presentation: OvxrPresentation | None) -> 
     """
     if presentation is None or not presentation.reset_pending:
         return True
-    if presentation.publish(env):
+    if presentation.publish(env, report_timing=False):
         return True
     presentation.session.wait_for_shutdown(env.step_dt)
     return False
