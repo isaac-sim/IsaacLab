@@ -93,6 +93,9 @@ class misaligned_imu(ManagerTermBase):
         self._has_pending_reset = False
         self._last_step: int | None = None
         self._output: torch.Tensor | None = None
+        self._candidate_step: int | None = None
+        self._candidates = torch.zeros(self.num_envs, 2, dtype=torch.long, device=self.device)
+        self._env_ids = torch.arange(self.num_envs, device=self.device)
         self.reset()
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
@@ -123,18 +126,39 @@ class misaligned_imu(ManagerTermBase):
         reading = quat_apply(self._quat.unsqueeze(1), vectors).flatten(start_dim=1)
         if repeated_read:
             return torch.where(self._pending_reset.unsqueeze(-1), reading, self._output)
+        if env.is_observation_preview:
+            return self._preview(env.common_step_counter, reading)
         if self._has_pending_reset:
             self._buffer.reset(self._pending_reset)
             self._pending_reset.fill_(False)
             self._has_pending_reset = False
         self._last_step = env.common_step_counter
         self._buffer.append(reading)
-        should_update = (self._step_count.unsqueeze(-1) + self._phase_offsets) % self._update_period == 0
-        candidates = torch.randint(self._min_lag, self._max_lag + 1, (self.num_envs, 2), device=self.device)
-        self._lags = torch.where(should_update, candidates, self._lags)
+        self._lags = self._next_lags(env.common_step_counter)
         self._step_count += 1
         self._output = torch.cat((self._buffer[self._lags[:, 0]][:, :3], self._buffer[self._lags[:, 1]][:, 3:]), dim=-1)
         return self._output
+
+    def _preview(self, step: int, reading: torch.Tensor) -> torch.Tensor:
+        """Return this step's reading as if it were committed, leaving the history, lags and counters unchanged."""
+        history = self._buffer.peek_append(reading)
+        if self._has_pending_reset:
+            # environments reset since the last commit start their history with this reading
+            fresh = self._pending_reset.view(-1, 1, 1)
+            history = torch.where(fresh, reading.unsqueeze(1), history)
+        lags = self._next_lags(step)
+        newest = history.shape[1] - 1
+        angular_velocity = history[self._env_ids, newest - lags[:, 0], :3]
+        gravity = history[self._env_ids, newest - lags[:, 1], 3:]
+        return torch.cat((angular_velocity, gravity), dim=-1)
+
+    def _next_lags(self, step: int) -> torch.Tensor:
+        """Return the lags of ``step``, drawing the redraw candidates once so a preview and the commit agree."""
+        if self._candidate_step != step:
+            self._candidates = torch.randint(self._min_lag, self._max_lag + 1, (self.num_envs, 2), device=self.device)
+            self._candidate_step = step
+        should_update = (self._step_count.unsqueeze(-1) + self._phase_offsets) % self._update_period == 0
+        return torch.where(should_update, self._candidates, self._lags)
 
 
 def imu_noise(data: torch.Tensor, cfg: ImuNoiseCfg) -> torch.Tensor:

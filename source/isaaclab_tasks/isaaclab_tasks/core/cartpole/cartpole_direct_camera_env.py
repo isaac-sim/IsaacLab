@@ -52,9 +52,13 @@ class CartpoleCameraEnv(CartpoleEnv):
             # albedo carries an extra alpha channel that the policy does not use
             images = images[..., :3]
         # channel-first [B, C, H, W] as expected by the CNN policies (rsl_rl, rl_games, skrl)
-        obs = self._frames(images, functools.partial(normalize_camera_image, data_type=data_type))
+        obs = self._frames(
+            images,
+            functools.partial(normalize_camera_image, data_type=data_type),
+            preview=self.is_observation_preview,
+        )
 
-        if self.cfg.write_image_to_file:
+        if self.cfg.write_image_to_file and not self.is_observation_preview:
             save_images_to_file(self._tiled_camera.data.output[data_type].torch / 255.0, f"cartpole_{data_type}.png")
 
         critic_obs = super()._get_observations()["policy"]
