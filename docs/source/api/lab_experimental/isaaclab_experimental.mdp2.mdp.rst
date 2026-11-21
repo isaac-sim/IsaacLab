@@ -21,6 +21,12 @@ Events
 .. automodule:: isaaclab_experimental.mdp2.mdp.events
     :members:
 
+Reset states
+------------
+
+.. automodule:: isaaclab_experimental.mdp2.mdp.reset_states
+    :members:
+
 Rewards
 -------
 
