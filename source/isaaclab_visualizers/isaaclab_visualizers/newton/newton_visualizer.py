@@ -413,7 +413,6 @@ class NewtonViewerGL(ViewerGL):
             view_open = imgui.collapsing_header("Camera View")
             hover_tooltip(imgui, "Choose the renderer and camera source, and adjust how the window draws")
             if view_open:
-                imgui.separator()
                 if viewer._view_controls is not None:
                     viewer._view_controls(imgui)
 
@@ -1139,6 +1138,8 @@ class NewtonVisualizerBase(BaseVisualizer):
         )
         if indices:
             self._draw_camera_source(imgui, indices, rtx_index)
+        if rtx_index is not None or isinstance(self, NewtonGLVisualizer):
+            imgui.separator_text("Rendering")
         if rtx_index is not None:
             rtx_on = self.rtx_rendering
             sensor = self.sensor_view_selected
@@ -1176,6 +1177,7 @@ class NewtonVisualizerBase(BaseVisualizer):
 
     def _draw_camera_source(self, imgui, indices: list[int], rtx_index: int | None) -> None:
         """Draw the Camera Source selector, and the output controls when a scene sensor is selected."""
+        imgui.separator_text("Camera Source")
         labels = self._view_labels(indices)
         current = self._image_views.index(self.current_image_view)
         if current == rtx_index:  # RTX renders the free perspective source or follows a Tracking Camera.
@@ -1214,7 +1216,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         """Draw the free camera's lens and keyboard speed; a scene sensor has fixed intrinsics and does not move."""
         if self.sensor_view_selected:
             return
-        imgui.separator()
+        imgui.separator_text("Navigation")
         self._draw_focal_length(imgui)
         self._draw_camera_speed(imgui)
 
