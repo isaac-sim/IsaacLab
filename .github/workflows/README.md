@@ -36,3 +36,11 @@ prepared environments, so keep the suite out of the general test orchestrator.
 When retiring the workflow, remove `Installation Tests (x86)`,
 `Installation Tests (ARM)`, and `Installation Tests (Windows)` from any required
 status-check rules that reference them.
+
+## Kitless OVStage rendering
+
+`test_rendering_kitless_newton_ovrtx.py` and `test_rendering_kitless_ovphysx_ovrtx.py` (`-k ovstage`) run in full:
+
+- post-merge on `build.yaml` pushes;
+- daily at `06:00 UTC` and via `gh workflow run nightly-ovstage.yml --ref main`, independent of merges or image updates;
+- on `nightly-isaacsim-image.yml` PRs and per-run on other PRs via `run-ci ovstage`.

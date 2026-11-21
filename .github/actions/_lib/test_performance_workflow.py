@@ -14,10 +14,15 @@ import textwrap
 from contextlib import suppress
 from pathlib import Path
 
+import tomllib
 import yaml
 
-_WORKFLOW = Path(__file__).resolve().parents[2] / "workflows/build.yaml"
-_RUN_CI_WORKFLOW = Path(__file__).resolve().parents[2] / "workflows/run-docker-ci.yml"
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+_WORKFLOW = _REPO_ROOT / ".github/workflows/build.yaml"
+_NIGHTLY_IMAGE_WORKFLOW = _REPO_ROOT / ".github/workflows/nightly-isaacsim-image.yml"
+_NIGHTLY_OVSTAGE_WORKFLOW = _REPO_ROOT / ".github/workflows/nightly-ovstage.yml"
+_POSTMERGE_SUBSETS = _REPO_ROOT / ".github/test-subsets/postmerge-rendering.toml"
+_RUN_CI_WORKFLOW = _REPO_ROOT / ".github/workflows/run-docker-ci.yml"
 
 
 def _labeled(login: str) -> dict[str, str | dict[str, str]]:
@@ -175,7 +180,11 @@ process.stdout.write(ok ? '1' : '0');
             args = sys.argv[1:]
             with log_path.open("a", encoding="utf-8") as fh:
                 fh.write(json.dumps(args) + "\\n")
-            if "repos/owner/lab/pulls/42" in args:
+            if "repos/owner/lab/pulls" in args and "GET" in args:
+                print("42")
+            elif "repos/owner/lab/pulls/42" in args and "PATCH" in args:
+                print("https://github.com/owner/lab/pull/42")
+            elif "repos/owner/lab/pulls/42" in args:
                 jq_expr = args[args.index("--jq") + 1]
                 if "@tsv" in jq_expr:
                     print("author\\topen\\tabcdef1234567890")
@@ -251,6 +260,110 @@ process.stdout.write(ok ? '1' : '0');
             assert f"repos/owner/lab/issues/42/labels/{expected_label}" in label_calls[0]
             assert f"labels[]={expected_label}" in label_calls[1]
             assert f"repos/owner/lab/issues/42/labels/{expected_label}" in label_calls[2]
+
+    nightly_image = yaml.safe_load(_NIGHTLY_IMAGE_WORKFLOW.read_text(encoding="utf-8"))
+    open_pr_script = next(
+        step["run"]
+        for step in nightly_image["jobs"]["update-image-pin"]["steps"]
+        if step.get("name") == "Open or refresh the draft PR"
+    )
+    api_log.unlink(missing_ok=True)
+    nightly_run = subprocess.run(
+        ["bash", "-c", open_pr_script],
+        env={
+            **os.environ,
+            "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+            "GH_TOKEN": "token",
+            "REPOSITORY": "owner/lab",
+            "TARGET_BRANCH": "main",
+            "UPDATE_BRANCH": "ci/nightly-isaacsim-image-update",
+            "IMAGE": "nvcr.io/org/isaac-sim",
+            "SOURCE_TAG": "latest-release-6-3",
+            "CURRENT_PIN": "0",
+            "CANDIDATE_PIN": "1",
+            "DIGEST": "sha256:111111111111",
+            "BRANCH_CHANGED": "true",
+            "RUNNER_TEMP": str(tmp_path),
+            "GITHUB_STEP_SUMMARY": str(tmp_path / "github_summary"),
+        },
+        capture_output=True,
+        text=True,
+    )
+    assert nightly_run.returncode == 0, nightly_run.stdout + nightly_run.stderr
+    comment_call = next(
+        c
+        for c in (json.loads(line) for line in api_log.read_text(encoding="utf-8").splitlines())
+        if "repos/owner/lab/issues/42/comments" in c
+    )
+    nightly_comment = next(arg.removeprefix("body=") for arg in comment_call if arg.startswith("body="))
+    assert gate_allows(True, nightly_comment), nightly_comment
+    code, output, outputs, _ = run_authorize(nightly_comment)
+    assert code == 0 and outputs["label"] == "ci:run-ovstage", (nightly_comment, output, outputs)
+
+
+def test_ovstage_ci_coverage(tmp_path: Path) -> None:
+    expected_ovstage_files = {
+        p.name
+        for p in (_REPO_ROOT / "source/_isaaclab_testing/test/rendering").glob("test_rendering_kitless_*_ovrtx.py")
+    }
+    assert expected_ovstage_files
+    assert "rendering-correctness-kitless-ovstage" not in tomllib.loads(_POSTMERGE_SUBSETS.read_text(encoding="utf-8"))
+
+    build_workflow = yaml.safe_load(_WORKFLOW.read_text(encoding="utf-8"))
+    nightly_workflow = yaml.safe_load(_NIGHTLY_OVSTAGE_WORKFLOW.read_text(encoding="utf-8"))
+
+    nightly_on = nightly_workflow.get("on", nightly_workflow.get(True, {}))
+    assert nightly_on["schedule"] and "workflow_dispatch" in nightly_on
+    assert set(nightly_workflow["jobs"]) == {"config", "build", "test-rendering-correctness-kitless-ovstage"}
+    assert "if" not in nightly_workflow["jobs"]["config"]
+    assert "if" not in nightly_workflow["jobs"]["build"]
+    assert nightly_workflow["jobs"]["test-rendering-correctness-kitless-ovstage"]["if"] == (
+        "needs.build.result == 'success'"
+    )
+    assert all("continue-on-error" not in job for job in nightly_workflow["jobs"].values())
+
+    tags = []
+    for wf, event_name in ((build_workflow, "push"), (nightly_workflow, "schedule")):
+        step = next(s for s in wf["jobs"]["config"]["steps"] if s.get("id") == "image_tag")
+        out_file = tmp_path / f"tag-{event_name}"
+        out_file.write_text("", encoding="utf-8")
+        subprocess.run(
+            ["bash", "-c", step["run"]],
+            env={
+                **os.environ,
+                "EVENT_NAME": event_name,
+                "PR_NUMBER": "",
+                "REF_NAME": "main",
+                "SHA": "abcdef123456",
+                "CI_IMAGE_REPOSITORY": "isaac-lab-ci",
+                "CONFIG_REF": "",
+                "CONFIG_HASH": "",
+                "GITHUB_OUTPUT": str(out_file),
+            },
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        outputs = dict(line.split("=", 1) for line in out_file.read_text(encoding="utf-8").splitlines() if "=" in line)
+        tags.append(outputs["ci_image_tag"])
+    assert tags == ["isaac-lab-ci:main-abcdef123456", "isaac-lab-ci:main-abcdef123456"]
+
+    build_with = next(
+        s["with"]
+        for s in build_workflow["jobs"]["test-rendering-correctness-kitless-ovstage"]["steps"]
+        if s.get("uses") == "./.github/actions/run-package-tests"
+    )
+    nightly_with = next(
+        s["with"]
+        for s in nightly_workflow["jobs"]["test-rendering-correctness-kitless-ovstage"]["steps"]
+        if s.get("uses") == "./.github/actions/run-package-tests"
+    )
+    assert {f.strip() for f in build_with["include-files"].split(",")} == expected_ovstage_files
+    assert build_with["test-k-expr"] == "ovstage"
+    assert "test-node-ids-file" not in build_with and "test-node-ids-key" not in build_with
+    assert {k: v for k, v in nightly_with.items() if k != "container-name"} == {
+        k: v for k, v in build_with.items() if k != "container-name"
+    }
 
 
 def test_benchmark_cancellation(tmp_path: Path) -> None:
