@@ -5,6 +5,9 @@
 
 """Factory composition with reset-selectable assembly variants."""
 
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
+
+from isaaclab.envs import ManagerBasedRLEnvCfg, ViewerCfg
 from isaaclab.envs.reset import ResetStateSamplerCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
@@ -16,16 +19,7 @@ from isaaclab.utils.configclass import configclass
 
 from . import mdp
 from .assembly_variants import ASSEMBLY_VARIANT_NAMES
-from .factory_env_cfg import (
-    FIXED_ASSET_MATERIAL_EVENT,
-    HELD_ASSET_MATERIAL_EVENT,
-    ROBOT_MATERIAL_EVENT,
-    FactoryEnvCfg,
-    FactoryPhysicsCfg,
-    FactoryRewardsCfg,
-    FactoryTerminationsCfg,
-)
-from .factory_presets import EndEffectorBodyCfg, GripperGraspOffsetCfg
+from .factory_presets import EndEffectorBodyCfg, GripperGraspOffsetCfg, JointEffortNamesCfg
 from .factory_variant_scene_cfg import FactoryVariantSceneCfg
 from .utils.variant_sampling import BalancedVariantScoreCfg
 from .variant_reset_env_cfg import VARIANT_ACCUMULATOR_RESET
@@ -103,16 +97,54 @@ class FactoryVariantEventCfg:
             "variant_names": ASSEMBLY_VARIANT_NAMES,
         },
     )
-    held_asset_material = HELD_ASSET_MATERIAL_EVENT
-    fixed_asset_material = FIXED_ASSET_MATERIAL_EVENT
-    robot_material = ROBOT_MATERIAL_EVENT
+    held_asset_material = EventTerm(
+        func=mdp.randomize_rigid_body_material,
+        mode="startup",
+        params={
+            "static_friction_range": (0.4, 1.0),
+            "dynamic_friction_range": (0.4, 1.0),
+            "restitution_range": (0.0, 0.0),
+            "num_buckets": 64,
+            "asset_cfg": SceneEntityCfg("held_asset"),
+        },
+    )
+    fixed_asset_material = EventTerm(
+        func=mdp.randomize_rigid_body_material,
+        mode="startup",
+        params={
+            "static_friction_range": (0.4, 1.0),
+            "dynamic_friction_range": (0.4, 1.0),
+            "restitution_range": (0.0, 0.0),
+            "num_buckets": 64,
+            "asset_cfg": SceneEntityCfg("fixed_asset"),
+        },
+    )
+    robot_material = EventTerm(
+        func=mdp.randomize_rigid_body_material,
+        mode="startup",
+        params={
+            "static_friction_range": (0.75, 0.75),
+            "dynamic_friction_range": (0.75, 0.75),
+            "restitution_range": (0.0, 0.0),
+            "num_buckets": 64,
+            "asset_cfg": SceneEntityCfg("robot"),
+        },
+    )
     reset_strategies = VARIANT_ACCUMULATOR_RESET
 
 
 @configclass
-class FactoryVariantRewardsCfg(FactoryRewardsCfg):
+class FactoryVariantRewardsCfg:
     """Reward assembly success and clear nonfinite MJWarp solver state."""
 
+    action_l2 = RewTerm(func=mdp.action_l2_clamped, weight=-1e-4)
+    action_rate_l2 = RewTerm(func=mdp.action_rate_l2_clamped, weight=-1e-4)
+    joint_effort = RewTerm(
+        func=mdp.joint_torques_l2,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=JointEffortNamesCfg())},
+        weight=-1e-4,
+    )
+    early_termination = RewTerm(func=mdp.is_terminated_term, params={"term_keys": "abnormal"}, weight=-0.01)
     success_reward = RewTerm(func=mdp.success_reward, weight=25.0)
     solver_reset_reward = RewTerm(
         func="isaaclab_tasks.contrib.nist.mdp.solver_reset:zero_reward_on_solver_reset", weight=1.0
@@ -120,9 +152,21 @@ class FactoryVariantRewardsCfg(FactoryRewardsCfg):
 
 
 @configclass
-class FactoryVariantTerminationsCfg(FactoryTerminationsCfg):
+class FactoryVariantTerminationsCfg:
     """Use variant geometry and Newton failure detection."""
 
+    time_out = DoneTerm(func=mdp.time_out, time_out=True)
+    assembly_contact_force = DoneTerm(
+        func=mdp.assembly_contact_force,
+        params={"threshold": 50.0, "sensor_cfg": SceneEntityCfg("assembly_contact")},
+    )
+    oob = DoneTerm(
+        func=mdp.out_of_bound,
+        params={
+            "asset_cfg": SceneEntityCfg("held_asset"),
+            "in_bound_range": {"x": (0.0, 1.0), "y": (-0.675, 0.675), "z": (-0.05, 1.0)},
+        },
+    )
     progress_context = DoneTerm(
         func=mdp.variant_progress_context,
         params={
@@ -131,11 +175,34 @@ class FactoryVariantTerminationsCfg(FactoryTerminationsCfg):
             "fixed_asset_cfg": SceneEntityCfg("fixed_asset"),
         },
     )
+    abnormal = DoneTerm(
+        func=mdp.joint_vel_out_of_limit,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names="panda_joint[1-7]")},
+    )
+    success = DoneTerm(func=mdp.success_termination)
     solver_reset_required = DoneTerm(func="isaaclab_tasks.contrib.nist.mdp.solver_reset:SolverResetRequired")
 
 
 @configclass
-class FactoryVariantEnvCfg(FactoryEnvCfg):
+class FactoryVariantActionsCfg:
+    """Franka joint actions for the assembly variant task."""
+
+    arm_action = mdp.RelativeJointPositionActionCfg(
+        asset_name="robot",
+        joint_names=["panda_joint.*"],
+        scale={"(?!panda_joint7$).*": 0.02, "panda_joint7": 0.2},
+        use_zero_offset=True,
+    )
+    gripper_action = mdp.BinaryJointPositionActionCfg(
+        asset_name="robot",
+        joint_names=["panda_finger_.*"],
+        open_command_expr={"panda_finger_.*": 0.04},
+        close_command_expr={"panda_finger_.*": 0.0},
+    )
+
+
+@configclass
+class FactoryVariantEnvCfg(ManagerBasedRLEnvCfg):
     """Factory environment with reset-selectable assembly pairs."""
 
     class_type: type | str = "{DIR}.factory_variant_env:FactoryVariantEnv"
@@ -144,11 +211,44 @@ class FactoryVariantEnvCfg(FactoryEnvCfg):
     events: FactoryVariantEventCfg = FactoryVariantEventCfg()
     terminations: FactoryVariantTerminationsCfg = FactoryVariantTerminationsCfg()
     rewards: FactoryVariantRewardsCfg = FactoryVariantRewardsCfg()
+    viewer: ViewerCfg = ViewerCfg(eye=(0.0, 0.8, 0.4), lookat=(0.0, 0.0, 0.4))
+    actions: FactoryVariantActionsCfg = FactoryVariantActionsCfg()
 
     def __post_init__(self) -> None:
-        super().__post_init__()
+        self.decimation = 4
+        self.episode_length_s = 14.0
+        self.sim.dt = 0.04 / self.decimation
+        self.sim.physics_material.static_friction = 0.5
+        self.sim.physics_material.dynamic_friction = 0.5
         self.sim.render_interval = self.decimation
-        self.sim.physics = FactoryPhysicsCfg().newton_mjwarp
+        # Keep enough constraint and contact capacity for the gear mesh variant.
+        self.sim.physics = NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(
+                solver="newton",
+                integrator="implicitfast",
+                njmax=3000,
+                nconmax=600,
+                impratio=1.0,
+                cone="pyramidal",
+                update_data_interval=2,
+                ls_parallel=False,
+                use_mujoco_contacts=False,
+            ),
+            collision_cfg=NewtonCollisionPipelineCfg(
+                broad_phase="sap",
+                max_triangle_pairs=90_000_000,
+                rigid_contact_max=5_000_000,
+                speculative_contact_gap_max=0.01,
+                sdf_all_shapes=NewtonCollisionPipelineCfg.SDFAllShapesCfg(
+                    sdf_max_resolution=256,
+                    sdf_narrow_band_inner=-0.005,
+                    sdf_narrow_band_outer=0.005,
+                ),
+            ),
+            num_substeps=8,
+            debug_mode=False,
+            use_cuda_graph=True,
+        )
 
     def play_mode(self) -> None:
         """Evaluate from uniformly sampled random-start states."""

@@ -276,3 +276,31 @@ class PreparedTermChoice(ManagerTermBase):
     def prepare(self, samples: torch.Tensor) -> None:
         """Set the partition indices used by the next call."""
         self._next_samples.copy_(samples)
+
+
+class ChainedResetTerms(ManagerTermBase):
+    """Apply reset terms in order and propagate their per-environment validity."""
+
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+        self.terms: dict[str, EventTermCfg] = cfg.params["terms"]
+        self.is_valid = torch.ones(env.num_envs, dtype=torch.bool, device=env.device)
+
+    def __call__(
+        self,
+        env: ManagerBasedRLEnv,
+        env_ids: torch.Tensor,
+        terms: dict[str, EventTermCfg],
+        probability: float = 1.0,
+    ) -> None:
+        env_ids = env.scene._ALL_INDICES[env_ids]
+        self.is_valid[env_ids] = True
+        if probability < 1.0:
+            env_ids = env_ids[torch.rand(env_ids.numel(), device=env.device) < probability]
+        if env_ids.numel() == 0:
+            return
+        for term in terms.values():
+            term.func(env, env_ids, **term.params)
+            reported = getattr(term.func, "is_valid", None)
+            if reported is not None:
+                self.is_valid[env_ids] &= reported[env_ids]
