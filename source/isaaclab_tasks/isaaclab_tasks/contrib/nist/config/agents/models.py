@@ -3,7 +3,17 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""RSL-RL models shared by Factory task compositions."""
+"""RSL-RL models for Factory tasks, with a backbone adapted from SimBa:
+
+@inproceedings{lee2025simba,
+  title={SimBa: Simplicity Bias for Scaling Up Parameters in Deep Reinforcement Learning},
+  author={Lee, Hojoon and Hwang, Dongyoon and Kim, Donghu and Kim, Hyunseung and Tai, Jun Jet
+    and Subramanian, Kaushik and Wurman, Peter R. and Choo, Jaegul and Stone, Peter and Seno, Takuma},
+  booktitle={The Thirteenth International Conference on Learning Representations},
+  year={2025},
+  url={https://arxiv.org/abs/2410.09754},
+}
+"""
 
 from __future__ import annotations
 
