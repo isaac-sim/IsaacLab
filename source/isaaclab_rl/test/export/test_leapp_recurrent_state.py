@@ -16,6 +16,8 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
+pytestmark = pytest.mark.kitless
+
 
 def _load_export_common_module() -> ModuleType:
     """Load shared LEAPP export helpers from the installed package."""
