@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import copy
 import itertools
+import math
 import warnings
 from collections.abc import Callable, Iterable, Sequence
 from typing import Any
@@ -26,6 +27,9 @@ from .cloner_cfg import DEFAULT_ENV_TEMPLATE, CloneCfg, InclusionSet, expand_env
 from .cloner_strategies import sequential
 from .replicate_context import ReplicateContext
 from .usd import UsdReplicateContext
+
+_MAX_WORLD_PROTOTYPES = 10_000_000
+"""Largest number of world prototypes that clone planning enumerates."""
 
 
 def num_spawn_variants(spawn_cfg: Any) -> int:
@@ -48,6 +52,8 @@ def make_valid_clone_combinations(
 
     Repeated names create repeated instances. Each combination's weight is divided equally
     between its variant combinations; neither padding nor duplicate weighted worlds is needed.
+    Only the assets a combination does not pin through :attr:`InclusionSet.variants` are
+    enumerated, so a combination pinning every multi-variant asset is one world prototype.
 
     Args:
         asset_names: Names of the replicated asset declarations.
@@ -68,14 +74,36 @@ def make_valid_clone_combinations(
     for combination in combinations:
         if unknown := set(combination.assets) - known:
             raise ValueError(f"Unknown assets in clone combination: {sorted(unknown)}.")
+        active = {name for name in asset_names if name in combination.assets or name not in claimed}
+        if inactive := set(combination.variants) - active:
+            raise ValueError(f"Clone combination pins variants of assets it does not replicate: {sorted(inactive)}.")
         choices = []
         for index, name in enumerate(asset_names):
             count = combination.assets.count(name) if name in claimed else 1
-            choices.extend([range(*offsets[index : index + 2])] * count)
-        variants = tuple(itertools.product(*choices))
+            rows = range(*offsets[index : index + 2])
+            if name in combination.variants:
+                variant = combination.variants[name]
+                is_index = isinstance(variant, (int, np.integer)) and not isinstance(variant, bool)
+                if not is_index or not 0 <= variant < len(rows):
+                    raise ValueError(f"Cannot pin variant {variant!r} of {name!r}: it declares {len(rows)}.")
+                rows = rows[variant : variant + 1]
+            choices.extend([rows] * count)
+        variants = _world_prototypes(choices)
         worlds.extend(variants)
         weights.extend([combination.weight / len(variants)] * len(variants))
     return tuple(worlds), np.asarray(weights, dtype=np.float64)
+
+
+def _world_prototypes(choices: Sequence[Sequence[int]]) -> tuple[tuple[int, ...], ...]:
+    """Return every world prototype that takes one prototype row from each entry of ``choices``."""
+    count = math.prod(map(len, choices))
+    if count > _MAX_WORLD_PROTOTYPES:
+        raise ValueError(
+            f"Clone planning would enumerate {count:.3g} world prototypes, the product of the variant counts of the"
+            f" replicated assets, which exceeds {_MAX_WORLD_PROTOTYPES}. Pin the variants of the legal compositions"
+            " with InclusionSet.variants."
+        )
+    return tuple(itertools.product(*choices))
 
 
 def replicate(plan: ClonePlan, *, replicate_physics: bool | None = None) -> None:
@@ -263,7 +291,7 @@ def _prepare_cloning(
             shared.extend(indices)
         else:
             groups.append(indices)
-    worlds = tuple(itertools.product(*groups)) if world_prototypes is None else world_prototypes
+    worlds = _world_prototypes(groups) if world_prototypes is None else world_prototypes
     positions = grid_transforms(num_clones, env_spacing)[0] if positions is None else positions
     options = dict(weights=weights, shared_assets=shared, clone_strategy=clone_strategy, env_template=env_template)
     plan = make_clone_plan(asset_prototypes, worlds, num_clones, positions=positions, **options)

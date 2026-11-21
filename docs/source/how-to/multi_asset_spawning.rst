@@ -131,13 +131,26 @@ variant because their batched Newton views currently require a uniform body layo
    :end-at: scene_cfg.robot.spawn.usd_path = scene_cfg.robot.spawn.usd_path[0]
    :dedent: 8
 
+Clone planning creates one world prototype per choice of variant of every multi-variant asset, so their number is the
+product of the variant counts. When only some compositions are legal, or the product is too large to enumerate, list
+them by pinning variants with :attr:`~isaaclab.cloner.InclusionSet.variants`. Each combination then expands only over
+the assets it leaves unpinned, and the clone strategy distributes the worlds over the combinations by their weights:
+
+.. code-block:: python
+
+   scene_cfg.clone_cfg.clone_combinations = [
+       InclusionSet(assets=["part", "fixture"], variants={"part": 0, "fixture": 2}),
+       InclusionSet(assets=["part", "fixture"], variants={"part": 1, "fixture": 0}, weight=3.0),
+   ]
+
 For more detail on prototype assignment and replication, see :doc:`cloning`.
 
 Reset-time selection
 ~~~~~~~~~~~~~~~~~~~~
 
 A rigid object's multi-asset spawner defines the variants and their IDs in list order. Clone composition chooses
-the initial variant for each world. A reset event can change it before writing the episode's pose and velocity:
+the initial variant for each world; pinned variants use the same IDs. A reset event can change it before writing the
+episode's pose and velocity:
 
 .. code-block:: python
 

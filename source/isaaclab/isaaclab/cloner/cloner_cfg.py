@@ -47,6 +47,17 @@ class InclusionSet:
     weight: float = 1.0
     """Relative sampling weight for this clone combination."""
 
+    variants: dict[str, int] = {}
+    """Spawner variant pinned for assets of this clone combination, keyed by scene asset name.
+
+    The value indexes the asset's multi-asset spawner list. A pinned asset contributes only that
+    variant, in each of its repeated instances and each member of a rigid object collection. Every
+    other multi-variant asset of the combination still contributes all of its variants, so the
+    combination expands into their product; pinning all of them states one world composition. The
+    asset must be active in the combination: listed in :attr:`assets`, or referenced by no
+    combination.
+    """
+
 
 @configclass
 class CloneCfg:
@@ -65,6 +76,10 @@ class CloneCfg:
     Each entry names the assets that are active in one legal combination.
     Assets not referenced by any entry are active in every combination. An
     empty list keeps the homogeneous/default behavior.
+
+    A combination expands into one world prototype per choice of spawner variant
+    of its multi-variant assets. Pin variants with :attr:`InclusionSet.variants`
+    to list the legal variant-level compositions instead of their product.
     """
 
     clone_template: str = DEFAULT_ENV_TEMPLATE
