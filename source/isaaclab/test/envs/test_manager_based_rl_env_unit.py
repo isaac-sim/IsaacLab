@@ -117,6 +117,7 @@ def test_final_observations_are_owned_and_cleared_each_step_and_reset(env_kind: 
         decimation=1,
         sim=SimpleNamespace(render_interval=1, dt=0.01),
         compute_final_obs=True,
+        final_obs_every_step=False,
         action_noise_model=None,
         observation_noise_model=None,
         num_rerenders_on_reset=0,
@@ -237,7 +238,12 @@ def test_step_forwards_reset_state_before_observations(automatic: bool, manual: 
     calls = []
     env = object.__new__(ManagerBasedRLEnv)
     env._is_closed = True
-    env.cfg = SimpleNamespace(decimation=1, sim=SimpleNamespace(dt=0.01, render_interval=1), compute_final_obs=False)
+    env.cfg = SimpleNamespace(
+        decimation=1,
+        sim=SimpleNamespace(dt=0.01, render_interval=1),
+        compute_final_obs=False,
+        final_obs_every_step=False,
+    )
     env.scene = SimpleNamespace(num_envs=2, write_data_to_sim=lambda: None, update=lambda dt: None)
     env.sim = SimpleNamespace(
         device="cpu",
@@ -340,6 +346,7 @@ def test_every_step_observations_precede_resets_and_events(env_kind, boundary):
     env.has_rtx_sensors = False
     env.video_recorders = []
     env._physics_handles_decimation = False
+    env._physics_handles_actions = False
     env._sim_step_counter = env.common_step_counter = 0
     env.episode_length_buf = torch.zeros(2, dtype=torch.long)
     env.reset_buf = torch.zeros(2, dtype=torch.bool)
@@ -363,6 +370,7 @@ def test_every_step_observations_precede_resets_and_events(env_kind, boundary):
         env.recorder_manager = SimpleNamespace(
             active_terms=[],
             record_pre_step=lambda: None,
+            record_post_step=lambda: None,
             record_post_physics_decimation_step=lambda: None,
             record_pre_reset=lambda ids: None,
             record_post_reset=lambda ids: None,
@@ -387,7 +395,7 @@ def test_every_step_observations_precede_resets_and_events(env_kind, boundary):
                 env._reset_envs_from_buffer = lambda: None
             actions = torch.zeros(2, 1)
         else:
-            env.possible_agents = ["a", "b"]
+            env.cfg.possible_agents = env.possible_agents = ["a", "b"]
             env._get_dones = lambda: ({"a": done, "b": done.clone()}, {"a": timeout, "b": timeout.clone()})
             env._get_rewards = lambda: {"a": reward, "b": reward.clone()}
             env._get_observations = lambda: {"a": torch.cat((observe(), command), dim=-1), "b": state}
