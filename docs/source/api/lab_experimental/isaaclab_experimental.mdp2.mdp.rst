@@ -9,6 +9,12 @@ Observations
 .. automodule:: isaaclab_experimental.mdp2.mdp.observations
     :members:
 
+Actions
+-------
+
+.. automodule:: isaaclab_experimental.mdp2.mdp.actions
+    :members:
+
 Commands
 --------
 

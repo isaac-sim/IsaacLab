@@ -5,6 +5,7 @@
 
 """Tests for MDP2RLEnv on a headless Newton Cartpole, built from a local USD file."""
 
+import importlib.util
 import math
 import weakref
 from dataclasses import replace
@@ -17,12 +18,15 @@ import warp as wp
 from isaaclab_experimental import mdp2
 from isaaclab_experimental.envs import MDP2RLEnv, MDP2RLEnvCfg, ResetStep, Stage, Step, mdp2_env, mdp2_scene_data
 from isaaclab_experimental.mdp2 import mdp, rng
+from isaaclab_experimental.mdp2.config import group_terms
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.renderers import NewtonOptixRendererCfg, NewtonWarpRendererCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import DelayedPDActuatorCfg, ImplicitActuatorCfg
-from isaaclab.assets import ArticulationCfg
+from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sensors import CameraCfg
 from isaaclab.sim import SimulationCfg, SimulationContext
 
 pytestmark = [pytest.mark.kitless, pytest.mark.skipif(not torch.cuda.is_available(), reason="Newton needs a GPU")]
@@ -373,8 +377,8 @@ def test_env_splits_the_worlds_between_tasks_and_logs_terms_where_they_run(task_
         "steps": observation,
     }
     without_alive = replace(cfg.task, rewards={**cfg.task.rewards, "alive": None})
-    cfg.task = [cfg.task, without_alive]
-    cfg.task_worlds = task_worlds
+    worlds = None if task_worlds is None else dict(zip(("alive", "still"), task_worlds))
+    cfg.task = mdp2.split(alive=cfg.task, still=without_alive, worlds=worlds)
     env = MDP2RLEnv(cfg)
     try:
         # Even shares, or the given number of worlds per task.
@@ -539,6 +543,38 @@ def test_built_in_steps_must_run_once_in_order():
         MDP2RLEnv(cfg)
 
 
+after_steps = mdp2.Term(torch=lambda episode_length, *, steps: (episode_length >= steps).float())
+"""One from the step ``steps`` of the episode on."""
+
+
+def test_env_runs_the_tasks_of_a_sequence_in_turn_and_logs_their_progress():
+    """A sequence of two tasks, each with its own quantity and reward, steps the same captured and uncaptured, and
+    the environment logs how often each task was done in the last episodes."""
+
+    def stage(steps: int) -> mdp2.TaskCfg:
+        ready = mdp2.Quantity(after_steps, inputs={"episode_length": mdp2.episode_length}, params={"steps": steps})
+        bonus = mdp2.Reward(mdp.is_alive, inputs={"terminated": mdp2.terminated})
+        return mdp2.TaskCfg(quantities={"ready": ready}, rewards={"bonus": bonus}, done=mdp2.quantities.ready)
+
+    cfg = cartpole_cfg()
+    cfg.task.terminations["cart_out_of_bounds"] = None
+    cfg.task = mdp2.compose(cfg.task, mdp2.sequence(warm=stage(3), hold=stage(6)))
+    cfg.verify_capture = 10
+    env = MDP2RLEnv(cfg)
+    try:
+        env.reset()
+        for _ in range(env.max_episode_length):
+            _, _, _, _, extras = env.step(torch.zeros(NUM_ENVS, 1, device=env.device))
+        log = extras["log"]
+        assert log["Progress/warm"] == 1.0 and log["Progress/hold"] == 1.0 and log["Progress/task"] == 1.0
+        # The bonus of each task, per second of the episode: warm ran 3 steps, hold the others.
+        steps = env.max_episode_length
+        assert log["Episode_Reward/warm.bonus"].item() == pytest.approx(3 / steps)
+        assert log["Episode_Reward/hold.bonus"].item() == pytest.approx((steps - 3) / steps)
+    finally:
+        env.close()
+
+
 def test_verify_capture_finds_python_state_that_the_graph_freezes():
     """The debug check passes a task whose captured steps are exact, and names a stage whose Python-side state the
     graph froze at capture."""
@@ -631,5 +667,139 @@ def test_stages_that_write_the_scene_are_seen_by_later_work():
             )
             restarted += int(ended.sum())
         assert env.is_captured and restarted > 0
+    finally:
+        env.close()
+
+
+def test_cameras_render_in_the_captured_step_and_the_budget_records_episodes():
+    """Camera images are observed as uint8 terms and rendered by every replayed step, also with two cameras, and an
+    episode budget records each episode, then stops the worlds."""
+    cfg = cartpole_cfg()
+    # The Cartpole has no geometry to render, so the camera watches a cube fall in front of it.
+    cfg.scene.cube = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Cube",
+        spawn=sim_utils.CuboidCfg(
+            size=(0.2, 0.2, 0.2), rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(), mass_props=sim_utils.MassCfg(mass=1.0)
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.2)),
+    )
+    cfg.scene.camera = CameraCfg(
+        prim_path="{ENV_REGEX_NS}/Camera",
+        offset=CameraCfg.OffsetCfg(pos=(0.0, -1.0, 1.0), rot=(0.0, 0.0, 0.7071, 0.7071), convention="world"),
+        data_types=["rgb"],
+        width=96,
+        height=64,
+        spawn=sim_utils.PinholeCameraCfg(focal_length=2.0, horizontal_aperture=2.0, clipping_range=(0.01, 20.0)),
+        renderer_cfg=NewtonWarpRendererCfg(),
+    )
+    # A second camera, watching from the other side; cameras share their renderer.
+    cfg.scene.camera_back = cfg.scene.camera.replace(
+        prim_path="{ENV_REGEX_NS}/CameraBack",
+        offset=CameraCfg.OffsetCfg(pos=(0.0, 1.0, 1.0), rot=(0.0, 0.0, -0.7071, 0.7071), convention="world"),
+    )
+    cfg.task.observations["cameras"] = mdp2.ObservationGroup(
+        terms={
+            name: mdp2.Observation(mdp.image_rgb, inputs={"image": mdp2.Entity(camera).rgb})
+            for name, camera in (("rgb", "camera"), ("rgb_back", "camera_back"))
+        },
+        concatenate=False,
+    )
+    # Indexing with a 1-dimensional tensor, as a 0-dimensional one would be read on the host in the graph.
+    cart_x = mdp2.Term(torch=lambda joint_pos, joint_ids: joint_pos[:, joint_ids][:, 0])
+    cfg.task.quantities["cart_x"] = mdp2.Quantity(
+        cart_x, inputs={"joint_pos": robot.joint_pos, "joint_ids": cart}, record=True
+    )
+    # Cameras that never render would observe stale images.
+    cfg.step = [Step.PHYSICS, Step.EVALUATE, Step.RESET]
+    with pytest.raises(ValueError, match="must hold Step.RENDER"):
+        MDP2RLEnv(cfg)
+    cfg.step = [Step.PHYSICS, Step.RENDER, Step.EVALUATE, Step.RESET]
+    budget = NUM_ENVS + 4
+    cfg.episode_budget = budget
+    env = MDP2RLEnv(cfg)
+    try:
+        assert env.single_observation_space["cameras"]["rgb"].shape == (64, 96, 3)
+        observations, _ = env.reset()
+        assert observations["cameras"]["rgb"].shape == (NUM_ENVS, 64, 96, 3)
+        assert observations["cameras"]["rgb"].dtype == torch.uint8
+        images = []
+        for step in range(13):
+            observations, *_ = env.step(torch.zeros(NUM_ENVS, 1, device=env.device))
+            if step >= 9:
+                images.append({name: image.clone() for name, image in observations["cameras"].items()})
+        assert env.is_captured and env.num_graphs == 1
+        for name in ("rgb", "rgb_back"):
+            # The cube falls by pixels per step by then, so every replayed step renders a new image.
+            assert all(not torch.equal(before[name], after[name]) for before, after in zip(images, images[1:]))
+            # Lit: a stale render graph draws the geometry black.
+            assert images[-1][name].amax(dim=-1).min() > 0
+
+        # Push every cart out of its bounds until the budget is spent.
+        ended = []
+        while env.episodes_completed < budget:
+            _, _, terminated, truncated, _ = env.step(torch.ones(NUM_ENVS, 1, device=env.device))
+            ended.append(int((terminated | truncated).sum()))
+        records = env.episode_records()
+        assert sum(ended) == budget and len(records["world"]) == budget
+        # Every world ran an episode, the first worlds to end a second one, and none ended a third.
+        episodes = torch.bincount(records["world"].long(), minlength=NUM_ENVS)
+        assert episodes.min() == 1 and episodes.sum() == budget
+        assert records["termination/cart_out_of_bounds"].sum() + records["truncated"].sum() == budget
+        # Recorded values are those of the episode's last step, before its reset: out of bounds where it terminated.
+        out_of_bounds = records["cart_x"].abs() > 1.5
+        assert torch.equal(out_of_bounds, records["terminated"].bool())
+        for _ in range(env.max_episode_length):
+            _, _, terminated, truncated, _ = env.step(torch.ones(NUM_ENVS, 1, device=env.device))
+            assert not (terminated | truncated).any()
+        assert env.episodes_completed == budget
+    finally:
+        env.close()
+
+
+def test_play_mode_removes_observation_noise_and_keeps_each_group():
+    """Play mode drops observation noise, in concatenated groups and in groups of a tensor per term alike."""
+    cfg = cartpole_cfg()
+    noisy = mdp2.Observation(mdp.joint_pos, inputs={"joint_pos": robot.joint_pos}, noise=mdp2.UniformNoise(-0.1, 0.1))
+    cfg.task.observations["separate"] = mdp2.ObservationGroup(terms={"joint_pos": noisy}, concatenate=False)
+    cfg.play_mode()
+    for group, concatenate in (("policy", True), ("separate", False)):
+        terms, concatenated = group_terms(cfg.task.observations[group])
+        assert concatenated is concatenate
+        assert all(use.noise is None for use in terms.values() if use is not None)
+
+
+@pytest.mark.skipif(importlib.util.find_spec("optix") is None, reason="needs the optix extra")
+def test_optix_cameras_render_between_the_graphs_of_a_step():
+    """OptiX refits its acceleration structures on the host, so its cameras render between two graphs, and every
+    replayed step still renders a new image."""
+    cfg = cartpole_cfg()
+    cfg.scene.cube = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Cube",
+        spawn=sim_utils.CuboidCfg(
+            size=(0.2, 0.2, 0.2), rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(), mass_props=sim_utils.MassCfg(mass=1.0)
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.2)),
+    )
+    cfg.scene.camera = CameraCfg(
+        prim_path="{ENV_REGEX_NS}/Camera",
+        offset=CameraCfg.OffsetCfg(pos=(0.0, -1.0, 1.0), rot=(0.0, 0.0, 0.7071, 0.7071), convention="world"),
+        data_types=["rgb"],
+        width=96,
+        height=64,
+        spawn=sim_utils.PinholeCameraCfg(focal_length=2.0, horizontal_aperture=2.0, clipping_range=(0.01, 20.0)),
+        renderer_cfg=NewtonOptixRendererCfg(),
+    )
+    image = mdp2.Observation(mdp.image_rgb, inputs={"image": mdp2.Entity("camera").rgb})
+    cfg.task.observations["cameras"] = mdp2.ObservationGroup(terms={"rgb": image}, concatenate=False)
+    env = MDP2RLEnv(cfg)
+    try:
+        env.reset()
+        images = []
+        for step in range(10):
+            observations, *_ = env.step(torch.zeros(NUM_ENVS, 1, device=env.device))
+            if step >= 6:
+                images.append(observations["cameras"]["rgb"].clone())
+        assert env.is_captured and env.num_graphs == 2
+        assert all(not torch.equal(before, after) for before, after in zip(images, images[1:]))
     finally:
         env.close()

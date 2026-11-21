@@ -5,6 +5,7 @@
 
 __all__ = [
     "MDP",
+    "Action",
     "CapturedMDP",
     "Backend",
     "Command",
@@ -19,7 +20,11 @@ __all__ = [
     "Implementation",
     "MDPBuilder",
     "MDPState",
+    "Milestone",
     "Observation",
+    "ObservationColumns",
+    "ObservationGroup",
+    "ObservationSlot",
     "Phase",
     "Quantity",
     "ExecutionPlan",
@@ -33,6 +38,10 @@ __all__ = [
     "StepKind",
     "SubsetSelector",
     "TaskCfg",
+    "TaskMode",
+    "TaskNode",
+    "TaskSelector",
+    "TaskTree",
     "Term",
     "TermCfg",
     "TermContext",
@@ -43,12 +52,17 @@ __all__ = [
     "WorldConfig",
     "apply_actions",
     "commands",
+    "compose",
     "episode_length",
     "evaluate",
     "last_action",
     "observe",
+    "progress",
+    "progress_field",
     "quantities",
     "reset",
+    "sequence",
+    "split",
     "startup",
     "step_dt",
     "term_state",
@@ -60,8 +74,9 @@ __all__ = [
 from . import mdp
 from .builder import MDPBuilder, ScheduleEntry
 from .capture import CapturedMDP
-from .compiled import MDP, Backend, MDPState, Transition, WorldConfig
+from .compiled import MDP, Backend, MDPState, ObservationColumns, Transition, WorldConfig
 from .config import (
+    Action,
     Command,
     Constant,
     DirectAction,
@@ -69,26 +84,35 @@ from .config import (
     Event,
     EventMode,
     FieldSelector,
+    Milestone,
     Observation,
+    ObservationGroup,
     Phase,
     Quantity,
     Reward,
     SubsetSelector,
     TaskCfg,
+    TaskMode,
+    TaskSelector,
     TermCfg,
     Termination,
     TimeLimit,
     UniformNoise,
     commands,
+    compose,
     episode_length,
     last_action,
+    progress,
+    progress_field,
     quantities,
+    sequence,
+    split,
     step_dt,
     term_state,
     terminated,
 )
 from .eager import TermContext
-from .plan import ExecutionPlan, Segment, Step, StepKind
+from .plan import ExecutionPlan, ObservationSlot, Segment, Step, StepKind, TaskNode, TaskTree
 from .rng import uniform
 from .runtime import apply_actions, evaluate, observe, reset, startup
 from .scene import EntitySchema, FieldSchema, SceneData, SceneSchema

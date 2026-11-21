@@ -22,7 +22,9 @@ Terms and task configuration
    SubsetSelector
    TaskCfg
    DirectAction
+   Action
    Observation
+   ObservationGroup
    Reward
    Termination
    TimeLimit
@@ -32,6 +34,13 @@ Terms and task configuration
    Quantity
    UniformNoise
    term_state
+   compose
+   sequence
+   split
+   Milestone
+   TaskMode
+   progress
+   progress_field
 
 Building and running
 --------------------
@@ -41,6 +50,7 @@ Building and running
 
    MDPBuilder
    MDP
+   ObservationColumns
    MDPState
    Transition
    Backend
@@ -73,7 +83,9 @@ Scene data
 .. autoclass:: SubsetSelector
 .. autoclass:: TaskCfg
 .. autoclass:: DirectAction
+.. autoclass:: Action
 .. autoclass:: Observation
+.. autoclass:: ObservationGroup
 .. autoclass:: Reward
 .. autoclass:: Termination
 .. autoclass:: TimeLimit
@@ -84,10 +96,19 @@ Scene data
 .. autoclass:: Quantity
 .. autoclass:: UniformNoise
 .. autofunction:: term_state
+.. autofunction:: compose
+.. autofunction:: sequence
+.. autofunction:: split
+.. autoclass:: Milestone
+.. autoclass:: TaskMode
+   :members:
+.. autodata:: progress
+.. autofunction:: progress_field
 .. autoclass:: MDPBuilder
    :members:
 .. autoclass:: MDP
    :members:
+.. autoclass:: ObservationColumns
 .. autoclass:: MDPState
    :members:
 .. autoclass:: Transition

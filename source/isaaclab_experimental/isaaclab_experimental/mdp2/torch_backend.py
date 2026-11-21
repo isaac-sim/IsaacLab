@@ -7,12 +7,15 @@
 
 from __future__ import annotations
 
+import functools
+import math
+
 import torch
 
 from . import rng
 from .compiled import MDP, MDPState
-from .config import FieldSelector, Phase, last_action, term_state, terminated
-from .plan import Call, Launch, Launches, Step, StepKind, TermOp
+from .config import FieldSelector, Phase, TaskMode, last_action, progress_field, term_state, terminated
+from .plan import Call, Launch, Launches, ObservationSlot, Step, StepKind, TaskTree, TermOp
 from .terms import hook_arguments
 
 
@@ -41,6 +44,13 @@ def _apply_actions(mdp: MDP, call: Call) -> None:
 
     for step in mdp.plan.apply_actions:
         op = step.op
+        if isinstance(op, TermOp):
+            # The hook writes its outputs; it may take the worlds where it is active as ``mask``.
+            active = _active(op, call.state)
+            arguments = {**call.state.arguments[op.name], "action": actions[:, op.columns]}
+            arguments["mask"] = None if active is None else active.torch
+            op.compute(**hook_arguments(op.compute, arguments))
+            continue
         target = call.state.arrays[op.target].torch.view(mdp.num_worlds, -1)
         ids = slice(None) if op.subset is None else call.state.arrays[op.subset].torch
         offset = op.offset
@@ -48,7 +58,7 @@ def _apply_actions(mdp: MDP, call: Call) -> None:
             offset = call.state.arrays[offset].torch.view(mdp.num_worlds, -1)[:, ids]
         value = actions[:, op.columns] * op.scale + offset
 
-        active = call.state.arrays.get(("active", op.name))
+        active = _active(op, call.state)
         if active is not None:
             value = torch.where(active.torch[:, None], value, target[:, ids])
         target[:, ids] = value
@@ -81,11 +91,35 @@ def _begin_reset(mdp: MDP, call: Call) -> None:
         call.state.arrays[last_action, action_dim].torch.masked_fill_(mask[:, None], 0.0)
 
 
+def _active(op, state: MDPState):
+    """Return the worlds where an op runs at this step, None for every world."""
+    return None if op.active_key is None else state.arrays[op.active_key]
+
+
 def _run(mdp: MDP, step: Step, call: Call, stepping: bool) -> None:
-    """Run one step, for the masked worlds if the call has a mask, and only where the op is active."""
+    """Run one step, for the masked worlds if the call has a mask, and only where the op is active.
+
+    A step on entry runs for the worlds where the op's task just started instead.
+    """
     op, state = step.op, call.state
+    match step.kind:
+        case StepKind.UPDATE_PROGRESS:
+            _update_progress(op, state)
+            return
+        case StepKind.START_TASKS:
+            _start_tasks(op, state)
+            return
+        case StepKind.RESET_PROGRESS:
+            _reset_progress(op, state, call.mask.torch)
+            return
+        case StepKind.CLEAR:
+            _clear(mdp, op, call, stepping)
+            return
+
     mask = None if call.mask is None else call.mask.torch
-    active = state.arrays.get(("active", op.name))
+    active = _active(op, state)
+    if step.entry:
+        mask, active = state.arrays[progress_field(op.stage, "entered")].torch, None
     if active is not None:
         mask = active.torch if mask is None else mask & active.torch
 
@@ -165,7 +199,10 @@ def _compute(mdp: MDP, op: TermOp, call: Call, mask: torch.Tensor | None, steppi
         return
 
     observation = op.observation
-    destination = call.observations[observation.group].torch[:, observation.columns]
+    # The op writes the first columns of each step of history of its slot.
+    steps = max(observation.history_length, 1)
+    slot = call.observations[observation.group].torch[:, observation.columns]
+    destination = slot.view(mdp.num_worlds, steps, observation.size)[:, :, : math.prod(op.shape)]
     if observation.noise is not None:
         noise = rng.uniform(
             state.rng.torch[observation.noise_stream], observation.noise.n_min, observation.noise.n_max, op.shape
@@ -181,29 +218,34 @@ def _compute(mdp: MDP, op: TermOp, call: Call, mask: torch.Tensor | None, steppi
         value = _history(op, state, value.reshape(mdp.num_worlds, -1), mask, push=stepping)
 
     value = value.reshape(destination.shape)
-    destination.copy_(value if mask is None else torch.where(mask[:, None], value, destination))
+    destination.copy_(value if mask is None else torch.where(mask[:, None, None], value, destination))
     if stepping and transition.final_observations is not None:
         ended = transition.done.torch if mask is None else transition.done.torch & mask
         final = transition.final_observations[observation.group].torch[:, observation.columns]
-        final.copy_(torch.where(ended[:, None], value, final))
+        final = final.view(destination.shape[0], steps, observation.size)[:, :, : destination.shape[2]]
+        final.copy_(torch.where(ended[:, None, None], value, final))
 
 
 def _history(op: TermOp, state: MDPState, value: torch.Tensor, mask: torch.Tensor | None, push: bool) -> torch.Tensor:
-    """Push a value into an observation's history, or fill the history of new episodes if not ``push``.
+    """Push a value into an observation's history, or fill the history where it starts if not ``push``: in new
+    episodes, or, for an op of a task of a sequence, where the task started at this step.
 
-    Returns the history, oldest first, flattened per world.
+    Returns the history, oldest first, as ``(num_worlds, history_length, size)``.
     """
     history = state.arrays["history", op.name].torch
     selected = torch.ones_like(value[:, 0], dtype=torch.bool) if mask is None else mask
+    length = state.episode_length.torch
+    starts = length == (0 if op.stage is None else state.arrays[progress_field(op.stage, "started_at")].torch)
 
+    filled = value[:, None].expand_as(history)
     if push:
-        shifted = torch.cat([history[:, 1:], value[:, None]], dim=1)
+        shifted = torch.where(starts[:, None, None], filled, torch.cat([history[:, 1:], value[:, None]], dim=1))
     else:
-        selected = selected & (state.episode_length.torch == 0)
-        shifted = value[:, None].expand_as(history)
+        selected = selected & starts
+        shifted = filled
 
     history.copy_(torch.where(selected[:, None, None], shifted, history))
-    return history.flatten(1)
+    return history
 
 
 def _tick(mdp: MDP, op: TermOp, state: MDPState) -> torch.Tensor:
@@ -219,3 +261,111 @@ def _restart(op: TermOp, state: MDPState, mask: torch.Tensor) -> None:
     """Draw a new interval for the timer of an op in the masked worlds."""
     time_left = state.arrays["timer", op.name].torch
     time_left.copy_(torch.where(mask, rng.uniform(state.rng.torch[op.stream], *op.timer, offset=-1), time_left))
+
+
+def _clear(mdp: MDP, slot: ObservationSlot, call: Call, stepping: bool) -> None:
+    """Zero the columns of a slot that no op writes at this step, in the masked worlds."""
+    steps = slot.columns.stop - slot.columns.start
+    columns = torch.arange(steps, device=mdp.device) % slot.size
+    covered = torch.zeros(mdp.num_worlds, steps, dtype=torch.bool, device=mdp.device)
+    for op in slot.ops:
+        active = _active(op, call.state)
+        width = columns < math.prod(op.shape)
+        covered |= width if active is None else active.torch[:, None] & width
+    cleared = ~covered if call.mask is None else ~covered & call.mask.torch[:, None]
+    call.observations[slot.buffer].torch[:, slot.columns].masked_fill_(cleared, 0.0)
+    if stepping and call.transition.final_observations is not None:
+        final = call.transition.final_observations[slot.buffer].torch[:, slot.columns]
+        final.masked_fill_(cleared & call.transition.done.torch[:, None], 0.0)
+
+
+def _progress(state: MDPState, tree: TaskTree, path: str, name: str) -> torch.Tensor:
+    """Return a field of a task's progress in the worlds of its tree."""
+    return state.arrays[progress_field(path, name)].torch[tree.worlds.start : tree.worlds.stop]
+
+
+def _update_progress(trees: tuple[TaskTree, ...], state: MDPState) -> None:
+    """Count the completions of the tasks of every tree, subtasks first, and advance the sequences once."""
+    for tree in trees:
+        length = state.episode_length.torch[tree.worlds.start : tree.worlds.stop]
+        for node in reversed(tree.nodes):
+            if node.path not in tree.completes:
+                continue
+            field = functools.partial(_progress, state, tree, node.path)
+            active, done, holding, score = field("active"), field("done"), field("holding"), field("score")
+
+            if node.done is not None:
+                # Done holds for ``hold`` steps in a row, counted while the task runs and, once done, after it.
+                condition = state.arrays[node.done].torch[tree.worlds.start : tree.worlds.stop] > 0
+                streak, counting = field("streak"), active | done
+                streak.copy_(
+                    torch.where(counting, torch.where(condition, (streak + 1).clamp(max=node.hold), 0), streak)
+                )
+                holding.copy_(counting & (streak >= node.hold))
+                complete = holding
+            else:
+                counted = tree.counted(node)
+                done_children = torch.stack([_progress(state, tree, child.path, "done") for child in counted], 1)
+                held = torch.stack([_progress(state, tree, child.path, "holding") for child in counted], 1)
+                finals = torch.ones_like(active)
+                for k, child in enumerate(counted):
+                    if child.final is not None:
+                        finals &= held[:, k] == child.final
+                if node.mode is TaskMode.SEQUENCE:
+                    stage = field("stage")
+                    current = done_children.gather(1, stage.long().clamp(max=len(counted) - 1)[:, None])[:, 0]
+                    stage.add_((active & ~done & (stage < len(counted)) & current).int())
+                    complete = (stage == len(counted)) & finals
+                    holding.copy_(held[:, -1])
+                else:
+                    required = node.require or len(counted)
+                    complete = (done_children.sum(1) >= required) & finals
+                    holding.copy_(held.sum(1) >= required)
+
+            started = active & ~done & complete
+            field("done_at").copy_(torch.where(started, length, field("done_at")))
+            done.logical_or_(started)
+            score.copy_(_score(state, tree, node) if node.done is None else done.float())
+
+
+def _score(state: MDPState, tree: TaskTree, node) -> torch.Tensor:
+    """Return a task's score from its subtasks': their weighted mean, or the mean of the best ``require`` of them."""
+    counted = tree.counted(node)
+    scores = torch.stack([_progress(state, tree, child.path, "score") for child in counted], 1)
+    if node.mode is TaskMode.TOGETHER and node.require is not None:
+        return scores.topk(node.require, dim=1).values.mean(1)
+    total = sum(child.score for child in counted)
+    return sum(scores[:, k] * (child.score / total) for k, child in enumerate(counted))
+
+
+def _start_tasks(trees: tuple[TaskTree, ...], state: MDPState) -> None:
+    """Start the tasks of the sequences that advanced, parents first, and stop the tasks they left."""
+    for tree in trees:
+        length = state.episode_length.torch[tree.worlds.start : tree.worlds.stop]
+        for node in tree.nodes:
+            if not node.staged:
+                continue
+            parent = tree.parent(node)
+            runs = _progress(state, tree, parent.path, "active").clone()
+            if parent.mode is TaskMode.SEQUENCE:
+                # The last task keeps running once it is done.
+                stage = _progress(state, tree, parent.path, "stage").clamp(max=len(parent.children) - 1)
+                runs &= stage == parent.children.index(node.path)
+            active, entered = _progress(state, tree, node.path, "active"), _progress(state, tree, node.path, "entered")
+            torch.logical_and(runs, ~active, out=entered)
+            started = _progress(state, tree, node.path, "started_at")
+            started.copy_(torch.where(entered, length, started))
+            active.copy_(runs)
+
+
+def _reset_progress(trees: tuple[TaskTree, ...], state: MDPState, mask: torch.Tensor) -> None:
+    """Restart the progress of every task in the masked worlds, as at the start of an episode."""
+    for tree in trees:
+        selected = mask[tree.worlds.start : tree.worlds.stop]
+        for node in tree.nodes:
+            initial = {"done": False, "holding": False, "done_at": -1, "started_at": 0, "score": 0.0, "stage": 0}
+            initial |= {"streak": 0, "entered": False, "active": tree.runs_at_start(node)}
+            for name, value in initial.items():
+                key = progress_field(node.path, name)
+                if key in state.arrays:
+                    state.arrays[key].torch[tree.worlds.start : tree.worlds.stop].masked_fill_(selected, value)
