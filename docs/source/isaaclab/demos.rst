@@ -134,6 +134,16 @@ No source checkout is required.
               alt="Rizon and Sharpa hand scooping coffee beside a filled cup" loading="lazy">
          <span>Rizon–Sharpa Coffee</span>
        </button>
+       <button type="button" class="demo-card" aria-pressed="false"
+               data-demo-name="Foveated Camera" data-demo-id="foveated-camera"
+               data-demo-physics="newton_xpbd" data-demo-fixed-physics="true"
+               data-demo-visualizers="newton_gl,newton_rtx" data-demo-extras="fovi"
+               data-demo-description="Explore the cluttered scene from the docs through a foveated fisheye camera.">
+         <img src="../../_static/demos/foveated_camera.jpg"
+              alt="The cluttered scene through a 180-degree fisheye, and the foveated retina fixating a mustard bottle"
+              loading="lazy">
+         <span>Foveated Camera</span>
+       </button>
      </div>
        <aside class="admonition hint demo-command-note" data-demo-note="h1-locomotion" hidden>
          <p class="admonition-title">H1 locomotion</p>
@@ -192,6 +202,32 @@ View the static MicroDuck Warehouse through selectable renderers and saved camer
 
 Use ``presets=aisle`` for the alternate camera and output presets such as ``depth`` or ``normals``.
 For full MDL minimal shading, select ``renderer=isaacsim_rtx presets=minimal``.
+
+.. _demo-foveated-camera:
+
+Foveated camera
+---------------
+
+Explore the cluttered scene from the sensor docs through a :doc:`foveated camera </source/concepts/sensors/foveated_camera>`.
+Use WASD or the arrow keys to move and Q/E to lower or raise the camera.
+Pass ``--target power_drill`` to start with the retina pointed at the drill.
+
+The Newton viewers show the fisheye on a curved viewing sphere beside the foveated retina. The green lens
+boundary follows the camera mount. The blue gaze circle and sampling grid show the retina's coverage, with the
+surrounding scene faded. Texture and gaze overlays are clipped to the calibrated lens bounds, and retina samples
+outside those bounds are black. Left-drag on the sphere to aim the gaze at a visible point, or left-drag on the
+retina to turn the camera. I/K tilt the gaze and J/L pan it independently of the mount.
+Scroll to dolly the camera. Ctrl+scroll magnifies the retina and shrinks its coverage on the sphere.
+Press H to show or hide the viewer controls.
+
+.. code-block:: bash
+
+   uv run --extra fovi isaaclab demo foveated-camera
+   uv run --extra fovi --extra ovrtx isaaclab demo foveated-camera renderer=ovrtx --viz newton_gl
+   uv run --extra fovi isaaclab demo foveated-camera env.scene.eye.cmf_a_deg=1000
+
+The second command renders the retina with OVRTX, the path tracer of the overview figure; with a cold shader cache,
+its first frame can take several minutes. The last command displays a matched, nearly uniform retina for comparison.
 
 
 .. _demo-sonic:

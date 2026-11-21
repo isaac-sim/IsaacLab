@@ -128,6 +128,13 @@ DEMOS = (
         "examples/demos/rizon_sharpa_coffee.py",
         "Scoop, dissolve and stir coffee using IK (external Rizon/Sharpa robot assets required).",
     ),
+    ProgramSpec(
+        "foveated-camera",
+        "examples/demos/foveated_camera.py",
+        "Explore the docs scene through a foveated camera.",
+        extras=("fovi",),
+        required_modules=("isaaclab_fovi", "fovi"),
+    ),
 )
 
 

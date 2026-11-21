@@ -262,11 +262,15 @@ class NewtonViewerGL(ViewerGL):
 
         if draw_texture is not None:
             self.renderer.render_texture = render_texture
+        self.composite_pointer: Callable[[float, float], bool] | None = None
+        self._composite_drag = False
+        self.sidebar_right = 0.0
         self._implot = self._implot_ctx = None
         if self.gui is not None:
             from imgui_bundle import implot
 
             self._patch_viewer_panel()
+            self._route_composite_pointer()
             # Keep camera keys active while ImGui captures mouse input for its controls.
             self.gui.is_capturing = self.gui.should_ignore_keyboard_input
             self._implot = implot
@@ -275,6 +279,40 @@ class NewtonViewerGL(ViewerGL):
             # Live plots are drawn in the sidebar, not Newton's floating window.
             self.gui._render_scalar_plots = lambda: None
         self.register_ui_callback(self._render_training_controls, position="side")
+
+    def _route_composite_pointer(self) -> None:
+        """Keep a scene-image drag owned by the panel where the press started."""
+        from pyglet.window import mouse
+
+        gui = self.gui
+        press, drag, release = gui.handle_mouse_press, gui.handle_mouse_drag, gui.handle_mouse_release
+
+        def on_press(x, y, button, to_framebuffer_coords):
+            if button == mouse.LEFT:
+                self._composite_drag = False
+                owned = gui.is_available and gui.ui.io.mouse_down_owned[0]
+                if not owned and not self.is_rendering_paused() and self.composite_pointer is not None:
+                    self._composite_drag = self.composite_pointer(x, y)
+                    if self._composite_drag:
+                        return
+            press(x, y, button, to_framebuffer_coords)
+
+        def on_drag(x, y, dx, dy, buttons, to_framebuffer_coords, modifiers=0):
+            if self._composite_drag and buttons & mouse.LEFT:
+                if not self.is_rendering_paused() and self.composite_pointer is not None:
+                    self.composite_pointer(x, y)
+                buttons &= ~mouse.LEFT
+            if buttons:
+                drag(x, y, dx, dy, buttons, to_framebuffer_coords, modifiers)
+
+        def on_release(x, y, button):
+            if button == mouse.LEFT:
+                self._composite_drag = False
+            release(x, y, button)
+
+        gui.handle_mouse_press = on_press
+        gui.handle_mouse_drag = on_drag
+        gui.handle_mouse_release = on_release
 
     @property
     def camera_speed(self) -> float:
@@ -342,7 +380,9 @@ class NewtonViewerGL(ViewerGL):
                 imgui.ImVec2(io.display_size[0], panel_h),
             )
 
-            if not imgui.begin(f"Newton Viewer v{nt.__version__}"):
+            visible = imgui.begin(f"Newton Viewer v{nt.__version__}")
+            viewer.sidebar_right = imgui.get_window_pos().x + imgui.get_window_width()
+            if not visible:
                 imgui.end()
                 return
 
@@ -420,7 +460,11 @@ class NewtonViewerGL(ViewerGL):
                             "WASD - Move",
                             "Shift + WASD - Move 2x faster",
                             "QE - Up / down",
-                            "Left Click - Look around",
+                            *(
+                                ["Left drag - Look around"]
+                                if viewer.composite_pointer is None
+                                else ["Left drag on sphere - Aim gaze", "Left drag on retina - Look around"]
+                            ),
                             "Middle Click - Orbit",
                             "Shift + Middle Click - Pan",
                             "Ctrl + Middle Click - Dolly",
@@ -782,6 +826,7 @@ class NewtonVisualizerBase(BaseVisualizer):
     rtx_view_index: int | None = None
     rtx_rendering: bool = False
     sensor_view_selected: bool = False
+    _DIGITAL_ZOOM_BASE_FOV = 60.0
 
     def __init__(self, cfg):
         super().__init__(cfg)
@@ -803,6 +848,12 @@ class NewtonVisualizerBase(BaseVisualizer):
         self._rtx_appearance_failed = False
         self._sky_custom = ""
         self._sky_custom_open = False
+        self._scene_camera_compositor: Callable[[wp.array, float], wp.array] | None = None
+        self._prepare_scene_camera_composite: Callable[[], None] | None = None
+        self._composited_image: wp.array | None = None
+        self._composite_input: Callable[[float, float], bool] | None = None
+        self._composite_layout = None
+        self._composite_canvas: wp.array | None = None
 
     def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
         """Bind camera sources and the display mode shared by both windows."""
@@ -1377,10 +1428,14 @@ class NewtonVisualizerBase(BaseVisualizer):
             sensor = self.current_image_view.camera
             intrinsics = sensor._data.intrinsic_matrices.torch[0]
             self._viewer.camera.fov = math.degrees(2 * math.atan(sensor.cfg.height / (2 * float(intrinsics[1, 1]))))
+        if self._scene_camera_compositor is not None:
+            self._viewer.camera.fov = self._DIGITAL_ZOOM_BASE_FOV
         # None makes the first navigation step copy the viewer's field of view to a scene camera.
         self._navigation_fov = (
             None if keep_pose and not isinstance(camera, PerspectiveCameraCfg) else self._viewer.camera.fov
         )
+        self._composited_image = None
+        self._composite_layout = None
         if self._viewer.picking is not None:
             # Release an existing drag without replacing any graph-captured picking buffers.
             self._viewer.picking.release()
@@ -1403,12 +1458,15 @@ class NewtonVisualizerBase(BaseVisualizer):
         if viewer.is_paused():
             return
         if viewer.camera.fov != self._navigation_fov:
-            height, width = camera.image_shape
-            focal = height / (2 * math.tan(math.radians(viewer.camera.fov) / 2))
-            intrinsics = torch.tensor(
-                [[focal, 0, width / 2], [0, focal, height / 2], [0, 0, 1]], device=camera.device
-            ).expand(camera.num_instances, -1, -1)
-            camera.set_intrinsic_matrices(intrinsics)
+            if self._scene_camera_compositor is None:
+                height, width = camera.image_shape
+                focal = height / (2 * math.tan(math.radians(viewer.camera.fov) / 2))
+                intrinsics = torch.tensor(
+                    [[focal, 0, width / 2], [0, focal, height / 2], [0, 0, 1]], device=camera.device
+                ).expand(camera.num_instances, -1, -1)
+                camera.set_intrinsic_matrices(intrinsics)
+            else:
+                viewer.camera.fov = min(viewer.camera.fov, self._DIGITAL_ZOOM_BASE_FOV)
             self._navigation_fov = viewer.camera.fov
             self.current_image_view.invalidate()
         current = viewer.camera.get_view_matrix().reshape(4, 4).T
@@ -1498,6 +1556,12 @@ class NewtonVisualizerBase(BaseVisualizer):
                 self._rtx_appearance.suspend()
             self._rtx_appearance.close()
             self._rtx_appearance = None
+        self._scene_camera_compositor = None
+        self._prepare_scene_camera_composite = None
+        self._composited_image = None
+        self._composite_input = None
+        self._composite_layout = None
+        self._composite_canvas = None
         for view in self._image_views:
             if view.camera is None and view.render is not None:  # the perspective views bound in initialize
                 view.render = None
@@ -1542,12 +1606,92 @@ class NewtonVisualizerBase(BaseVisualizer):
         """Return whether a window key is held."""
         return self._viewer is not None and self._viewer.is_key_down(key)
 
+    def set_scene_camera_compositor(
+        self,
+        compositor: Callable[[wp.array, float], wp.array],
+        *,
+        prepare: Callable[[], None] | None = None,
+        show_ui: bool = True,
+        pointer: Callable[[float, float], bool] | None = None,
+    ) -> None:
+        """Compose a scene camera's displayed pixels with an application-provided view.
+
+        The callback receives the RGBA image and the digital magnification. While installed,
+        Ctrl+scroll changes that magnification without writing intrinsics to the scene camera.
+        An optional preparation callback runs before the camera is read for each new composite.
+        Use ``show_ui=False`` to start with an unobstructed image. H still toggles the viewer UI.
+        The optional pointer callback receives normalized image coordinates, with the origin at the upper left.
+        Return true to handle the drag in the composite rather than the scene camera.
+        """
+        self._scene_camera_compositor = compositor
+        self._prepare_scene_camera_composite = prepare
+        self._composite_input = pointer
+        self._viewer.composite_pointer = self._dispatch_composite_pointer if pointer is not None else None
+        self._viewer.show_ui = show_ui
+        self._select_camera(self._image_views.index(self.current_image_view))
+
+    def _dispatch_composite_pointer(self, x: float, y: float) -> bool:
+        if self._composite_layout is None or self._composite_input is None:
+            return False
+        _, (_, height, left, top, width, image_height) = self._composite_layout
+        u, v = (x - left) / width, (height - y - top) / image_height
+        return 0 <= u < 1 and 0 <= v < 1 and self._composite_input(u, v)
+
+    def _present_composite(self, image: wp.array) -> wp.array:
+        """Fit the composite to the space beside the controls and retain its input coordinates."""
+        window = self._viewer.renderer.window
+        if self._runtime_headless or window is None:
+            return image
+        width, height = window.get_size()
+        width, height = max(1, width), max(1, height)
+        sidebar = self._viewer.sidebar_right or 373 * self._viewer.gui.ui.dpi_scale
+        left_margin = min(round(sidebar + 8), width - 1) if self._viewer.show_ui else 0
+        source_h, source_w = image.shape[:2]
+        scale = min((width - left_margin) / source_w, height / source_h)
+        draw_w, draw_h = max(1, round(source_w * scale)), max(1, round(source_h * scale))
+        left, top = left_margin + (width - left_margin - draw_w) // 2, (height - draw_h) // 2
+        layout = (width, height, left, top, draw_w, draw_h)
+        if self._composite_layout != (id(image), layout):
+            pixels = wp.to_torch(image)
+            shape = (height, width, pixels.shape[-1])
+            if self._composite_canvas is None or self._composite_canvas.shape != shape:
+                self._composite_canvas = wp.from_torch(pixels.new_zeros(shape))
+            canvas = wp.to_torch(self._composite_canvas)
+            if self._composite_layout is None or self._composite_layout[1] != layout:
+                canvas.zero_()
+            if (draw_h, draw_w) != (source_h, source_w):
+                scaled = torch.nn.functional.interpolate(
+                    pixels.permute(2, 0, 1)[None].float(),
+                    size=(draw_h, draw_w),
+                    mode="bilinear",
+                    align_corners=False,
+                    antialias=True,
+                )
+                pixels = scaled[0].permute(1, 2, 0)
+            canvas[top : top + draw_h, left : left + draw_w] = pixels
+            self._composite_layout = (id(image), layout)
+        return self._composite_canvas
+
     def _log_streaming_image(self) -> None:
         """Present sensor pixels directly; paused rendering retains the last displayed image."""
         composite = self.current_image_view.frame.data
         if composite is None or not self._viewer.is_paused():
-            composite = self.current_image_view.read(self._sim.get_physics_step_count())
+            frame_id = self._sim.get_physics_step_count()
+            refresh = self.current_image_view.frame.timestamp != frame_id or self._composited_image is None
+            if refresh and self._prepare_scene_camera_composite is not None:
+                self._prepare_scene_camera_composite()
+            composite = self.current_image_view.read(frame_id)
+            if composite is not None and self._scene_camera_compositor is not None:
+                if refresh:
+                    base = math.tan(math.radians(self._DIGITAL_ZOOM_BASE_FOV / 2))
+                    zoom = base / math.tan(math.radians(self._navigation_fov / 2))
+                    self._composited_image = self._scene_camera_compositor(composite, zoom)
+                composite = self._composited_image
+        elif self._composited_image is not None:
+            composite = self._composited_image
         if composite is not None:
+            if composite is self._composited_image:
+                composite = self._present_composite(composite)
             self._viewer.log_image("Streaming View", composite, fullscreen=True)
 
     def _capture_frame(self, output: wp.array | None) -> wp.array:
@@ -1562,6 +1706,8 @@ class NewtonVisualizerBase(BaseVisualizer):
             self._render_frame()
         if self.current_image_view.camera is None:
             return self._viewer.get_frame(output)
+        if self._composited_image is not None:
+            return self._composited_image
         return self.current_image_view.frame.data
 
     def render_rgb_array(self) -> np.ndarray:
@@ -1570,6 +1716,8 @@ class NewtonVisualizerBase(BaseVisualizer):
             raise RuntimeError("The visualizer must be initialized before capturing an image.")
         if self.current_image_view.camera is not None:
             self._capture_frame(None)
+            if self._composited_image is not None:
+                return self._composited_image.numpy()[..., :3]
         frame = self.current_image_view.frame
         frame_id = (
             frame.timestamp

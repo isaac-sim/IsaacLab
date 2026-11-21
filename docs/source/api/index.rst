@@ -91,6 +91,19 @@ The following modules are available in the ``isaaclab_contrib`` extension:
    rl
    sensors
 
+isaaclab_fovi extension
+-----------------------
+
+The following modules are available in the ``isaaclab_fovi`` extension:
+
+.. currentmodule:: isaaclab_fovi
+
+.. autosummary::
+   :toctree: lab_fovi
+
+   mdp
+   sensors
+
 isaaclab_tasks extension
 ------------------------
 
