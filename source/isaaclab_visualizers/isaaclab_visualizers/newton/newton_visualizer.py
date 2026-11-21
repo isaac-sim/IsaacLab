@@ -1219,7 +1219,8 @@ class NewtonVisualizerBase(BaseVisualizer):
                 )
             )
         position = indices.index(current)
-        changed, chosen = imgui.combo("Camera Source", position, labels)
+        imgui.set_next_item_width(-1)  # the section header names it, so the dropdown needs no label
+        changed, chosen = imgui.combo("##CameraSource", position, labels)
         if changed:
             self._choose_camera_source(indices[chosen])
         if imgui.is_item_hovered():
@@ -1240,7 +1241,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         """Draw the free camera's lens and keyboard speed; a scene sensor has fixed intrinsics and does not move."""
         if self.sensor_view_selected:
             return
-        imgui.separator_text("Navigation")
+        imgui.separator_text("Camera Settings")
         self._draw_focal_length(imgui)
         self._draw_camera_speed(imgui)
 
