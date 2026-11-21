@@ -86,20 +86,25 @@ def make_valid_clone_combinations(
                 is_index = isinstance(variant, (int, np.integer)) and not isinstance(variant, bool)
                 if not is_index or not 0 <= variant < len(rows):
                     raise ValueError(f"Cannot pin variant {variant!r} of {name!r}: it declares {len(rows)}.")
-                rows = rows[variant : variant + 1]
+                rows = (rows[int(variant)],)
             choices.extend([rows] * count)
-        variants = _world_prototypes(choices)
+        variants = _world_prototypes(choices, len(worlds))
         worlds.extend(variants)
         weights.extend([combination.weight / len(variants)] * len(variants))
     return tuple(worlds), np.asarray(weights, dtype=np.float64)
 
 
-def _world_prototypes(choices: Sequence[Sequence[int]]) -> tuple[tuple[int, ...], ...]:
-    """Return every world prototype that takes one prototype row from each entry of ``choices``."""
-    count = math.prod(map(len, choices))
+def _world_prototypes(choices: Sequence[Sequence[int]], planned: int = 0) -> tuple[tuple[int, ...], ...]:
+    """Return every world prototype that takes one prototype row from each entry of ``choices``.
+
+    Args:
+        choices: Prototype rows to choose from, per asset instance.
+        planned: Number of world prototypes that the plan already holds.
+    """
+    count = planned + math.prod(map(len, choices))
     if count > _MAX_WORLD_PROTOTYPES:
         raise ValueError(
-            f"Clone planning would enumerate {count:.3g} world prototypes, the product of the variant counts of the"
+            f"Clone planning would enumerate {count} world prototypes, the product of the variant counts of the"
             f" replicated assets, which exceeds {_MAX_WORLD_PROTOTYPES}. Pin the variants of the legal compositions"
             " with InclusionSet.variants."
         )
