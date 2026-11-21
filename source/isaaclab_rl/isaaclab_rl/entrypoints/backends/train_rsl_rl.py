@@ -11,6 +11,7 @@ import argparse
 import contextlib
 import logging
 import os
+import re
 import time
 from datetime import datetime
 
@@ -97,9 +98,10 @@ def _resolve_checkpoint(args_cli: argparse.Namespace, agent_cfg: RslRlBaseRunner
             metadata={"agent": args_cli.agent},
         )
     if args_cli.checkpoint and os.path.isdir(args_cli.checkpoint):
-        return get_checkpoint_path(
-            os.path.dirname(args_cli.checkpoint), os.path.basename(args_cli.checkpoint), agent_cfg.load_checkpoint
-        )
+        # ``--checkpoint`` overwrites ``agent_cfg.load_checkpoint`` with this directory, so it is not a file pattern.
+        # Anchor the run name: ``run_dir`` is a prefix regex, so ``run`` would also match a sibling ``run-retry``.
+        run_name = re.escape(os.path.basename(os.path.normpath(args_cli.checkpoint))) + "$"
+        return get_checkpoint_path(os.path.dirname(os.path.normpath(args_cli.checkpoint)), run_name, r"model_.*\.pt")
     if args_cli.checkpoint:
         return retrieve_file_path(args_cli.checkpoint)
     if isinstance(agent_cfg, RslRlDistillationRunnerCfg):
