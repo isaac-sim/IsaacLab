@@ -251,8 +251,8 @@ class VisualizerCfg:
     cameras: list[PerspectiveCameraCfg | TrackingCameraCfg | SceneCameraCfg] | None = None
     """Camera sources available to the visualizer.
 
-    PerspectiveCameraCfg configures the interactive view, TrackingCameraCfg a view that frames an environment
-    or follows an asset, and SceneCameraCfg refers to an existing scene sensor.
+    PerspectiveCameraCfg configures the interactive view and may appear at most once, TrackingCameraCfg a view that
+    frames an environment or follows an asset, and SceneCameraCfg refers to an existing scene sensor.
     Newton GL and RTX display the first source and offer a dropdown for switching sources. Newton GL adds a free
     view in front of a leading TrackingCameraCfg (see ``with_free_view``) and shows that one first.
     Kit, Rerun, and Viser display the first scene source in their camera panel.
@@ -372,6 +372,16 @@ class VisualizerCfg:
         if self.cameras is not None:
             if not self.cameras:
                 raise ValueError("cameras must contain at least one display source.")
+            if (
+                sum(
+                    isinstance(camera, PerspectiveCameraCfg) and not isinstance(camera, TrackingCameraCfg)
+                    for camera in self.cameras
+                )
+                > 1
+            ):
+                raise ValueError(
+                    "cameras may contain at most one PerspectiveCameraCfg, the viewer's interactive camera."
+                )
             # tracking cameras only add to the cameras the visualizer finds, so they leave the streaming choice alone
             if not self.tracking_cameras_only():
                 self.streaming_view = any(isinstance(camera, SceneCameraCfg) for camera in self.cameras)
