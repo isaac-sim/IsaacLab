@@ -549,6 +549,17 @@ def _make_articulation_shell() -> Articulation:
     return articulation
 
 
+@pytest.mark.kitless
+def test_zero_dof_articulation_data_has_empty_joint_properties():
+    """Fixed assembly fixtures can initialize without allocating joint friction storage."""
+    bindings = MockOvPhysxBindingSet(num_instances=2, num_joints=0, num_bodies=1)
+    data = ArticulationData(bindings.view, "cpu", backend_manager=OvPhysxManager(OvPhysxCfg()))
+    assert data.default_joint_pos.shape == (2, 0)
+    assert data.joint_friction_coeff.shape == (2, 0)
+    assert data.joint_dynamic_friction_coeff.shape == (2, 0)
+    assert data.joint_viscous_friction_coeff.shape == (2, 0)
+
+
 def test_process_tendons_scopes_to_articulation_root():
     """Tendon discovery should ignore joints that live outside the current articulation subtree."""
     articulation = _make_articulation_shell()

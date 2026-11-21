@@ -17,8 +17,12 @@ from the USD ``PhysicsScene`` prim. :class:`~isaaclab_ov.physics.OvPhysxCfg` hol
 GPU buffer settings that USD does not represent.
 It can also author selected contact settings onto that prim:
 ``bounce_threshold_velocity``, ``friction_correlation_distance`` and
-``solve_articulation_contact_last``. Contact settings left at ``None`` keep the
-stage value.
+``solve_articulation_contact_last``. Optional ``solver_type`` (0 for PGS, 1 for TGS),
+``min_position_iteration_count``, ``max_position_iteration_count``,
+``min_velocity_iteration_count``, ``max_velocity_iteration_count``,
+``friction_offset_threshold``, and ``gpu_max_num_partitions`` preserve task-specific
+solver tuning when migrating from Isaac Sim PhysX. Settings left at ``None`` keep
+the stage value. GPU partition settings apply only to GPU scenes.
 
 OvPhysX is selected through :class:`~isaaclab_ov.physics.OvPhysxCfg`:
 

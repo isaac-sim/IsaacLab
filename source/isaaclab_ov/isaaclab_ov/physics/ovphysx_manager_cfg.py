@@ -10,7 +10,7 @@ from __future__ import annotations
 import os
 import tempfile
 from dataclasses import MISSING
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from isaaclab.physics import PhysicsCfg
 from isaaclab.sim import BackendCfg
@@ -108,6 +108,27 @@ class OvPhysxCfg(PhysicsCfg):
 
     gpu_collision_stack_size: int = 2**26
     """GPU collision stack size in bytes."""
+
+    solver_type: Literal[0, 1] | None = None
+    """Scene solver: 0 for PGS or 1 for TGS. ``None`` preserves the stage value."""
+
+    min_position_iteration_count: int | None = None
+    """Lower bound on actor position iterations. ``None`` preserves the stage value."""
+
+    max_position_iteration_count: int | None = None
+    """Upper bound on actor position iterations. ``None`` preserves the stage value."""
+
+    min_velocity_iteration_count: int | None = None
+    """Lower bound on actor velocity iterations. ``None`` preserves the stage value."""
+
+    max_velocity_iteration_count: int | None = None
+    """Upper bound on actor velocity iterations. ``None`` preserves the stage value."""
+
+    friction_offset_threshold: float | None = None
+    """Contact distance for friction constraints [m]. ``None`` preserves the stage value."""
+
+    gpu_max_num_partitions: int | None = None
+    """Maximum GPU solver partitions. ``None`` preserves the stage value."""
 
     bounce_threshold_velocity: float | None = None
     """Relative contact velocity below which contacts do not bounce [m/s].
