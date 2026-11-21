@@ -291,13 +291,8 @@ def test_step_forwards_reset_state_before_observations(automatic: bool, manual: 
 
 @pytest.mark.parametrize("env_kind", ["manager", "direct", "marl"])
 @pytest.mark.parametrize("boundary", ["auto", "manual", "continuing"])
-def test_every_step_observations_precede_resets_and_events(env_kind, boundary):
+def test_every_step_observations_precede_resets_and_events(env_kind: str, boundary: str) -> None:
     """Capture stateless physical successors before resets, command changes and pushes."""
-    import torch
-
-    from isaaclab.envs import DirectMARLEnv, DirectRLEnv
-    from isaaclab.managers import ObservationGroupCfg, ObservationManager, ObservationTermCfg
-
     cls = {"manager": ManagerBasedRLEnv, "direct": DirectRLEnv, "marl": DirectMARLEnv}[env_kind]
     env = object.__new__(cls)
     env._is_closed = True
