@@ -298,7 +298,8 @@ def test_a_free_view_records_the_rtx_window_instead_of_an_opengl_render():
 
 
 def test_the_camera_speed_slider_sets_the_free_cameras_keyboard_speed():
-    free, sensor = _view(PerspectiveCameraCfg()), _View("/World/Camera", camera=object())
+    free = _view(PerspectiveCameraCfg())
+    sensor = _View("/World/Camera", camera=SimpleNamespace(cfg=SimpleNamespace(prim_path="/World/Camera")))
     viz = _switchable([free, sensor])
     viz._viewer = SimpleNamespace(_camera_speed=5.0, camera_speed=5.0, camera_speed_boost=2.0)
     imgui = SimpleNamespace(
@@ -359,8 +360,7 @@ def test_a_window_with_only_the_rtx_camera_draws_its_camera_controls():
     viz = _switchable([_rtx_view()])
     viz.current_image_view = viz._image_views[0]
     viz._borrowing_view = False
-    viz._draw_appearance = viz._draw_focal_length = lambda imgui: None
-    viz._draw_camera_info = lambda imgui: None
+    viz._draw_appearance = viz._draw_navigation_controls = viz._draw_camera_info = lambda imgui: None
     imgui = Mock()
     imgui.is_item_hovered.return_value = False
     imgui.radio_button.return_value = False  # disabled radio buttons are never clicked
@@ -369,3 +369,40 @@ def test_a_window_with_only_the_rtx_camera_draws_its_camera_controls():
 
     imgui.combo.assert_not_called()
     imgui.begin_disabled.assert_called_once()
+
+
+def test_camera_view_controls_are_ordered_source_renderer_appearance_navigation_then_camera_data():
+    from unittest.mock import Mock
+
+    viz = _switchable([_view(PerspectiveCameraCfg()), _rtx_view()])
+    viz._borrowing_view = False
+    order = []
+    viz._draw_appearance = lambda imgui: order.append("appearance")
+    viz._draw_focal_length = lambda imgui: order.append("focal length")
+    viz._draw_camera_speed = lambda imgui: order.append("camera speed")
+    imgui = Mock()
+    imgui.is_item_hovered.return_value = False
+    imgui.combo.side_effect = lambda *args: order.append("camera source") or (False, 0)
+    imgui.radio_button.side_effect = lambda *args: order.append("renderer") or False
+    imgui.separator_text.side_effect = lambda text: order.append(text)
+    camera = viz._viewer.camera
+    camera.pos, camera.pitch, camera.yaw, camera.fov = (1.0, 2.0, 3.0), 0.0, 0.0, 40.0
+
+    viz._draw_streaming_view_controls(imgui)
+
+    assert order == [
+        "camera source",
+        "renderer",
+        "renderer",
+        "appearance",
+        "focal length",
+        "camera speed",
+        "Camera Data",
+    ]
+    imgui.text_disabled.assert_not_called()  # the camera data is plain text, not greyed out
+    assert [call.args[0].split(":")[0] for call in imgui.text.call_args_list] == [
+        "Renderer",
+        "Position",
+        "Rotation",
+        "FOV",
+    ]

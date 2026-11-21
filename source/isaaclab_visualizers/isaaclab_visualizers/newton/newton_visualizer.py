@@ -1098,6 +1098,8 @@ class NewtonVisualizerBase(BaseVisualizer):
             (i for i in range(len(self._image_views)) if i != rtx_index),
             key=lambda i: self._source_rank(self._image_views[i]),
         )
+        if indices:
+            self._draw_camera_source(imgui, indices, rtx_index)
         if rtx_index is not None:
             rtx_on = self.rtx_rendering
             sensor = self.sensor_view_selected
@@ -1130,10 +1132,11 @@ class NewtonVisualizerBase(BaseVisualizer):
         elif isinstance(self, NewtonGLVisualizer):
             self._draw_rtx_unavailable(imgui)
         self._draw_appearance(imgui)
-        self._draw_focal_length(imgui)
-        if not indices:  # the window declares only its OVRTX camera
-            self._draw_camera_info(imgui)
-            return
+        self._draw_navigation_controls(imgui)
+        self._draw_camera_info(imgui)
+
+    def _draw_camera_source(self, imgui, indices: list[int], rtx_index: int | None) -> None:
+        """Draw the Camera Source selector, and the output controls when a scene sensor is selected."""
         labels = self._view_labels(indices)
         current = self._image_views.index(self.current_image_view)
         if current == rtx_index:  # RTX renders the free perspective source.
@@ -1152,21 +1155,27 @@ class NewtonVisualizerBase(BaseVisualizer):
             )
         if self.sensor_view_selected:
             self._draw_sensor_controls(imgui, self.current_image_view)
-        self._draw_camera_info(imgui)
+
+    def _draw_navigation_controls(self, imgui) -> None:
+        """Draw the free camera's lens and keyboard speed; a scene sensor has fixed intrinsics and does not move."""
+        if self.sensor_view_selected:
+            return
+        imgui.separator()
+        self._draw_focal_length(imgui)
+        self._draw_camera_speed(imgui)
 
     def _draw_camera_info(self, imgui) -> None:
         """Draw the navigation camera's position, field of view, and orientation."""
         camera = getattr(self._viewer, "camera", None)
         if camera is None or self.sensor_view_selected:  # A sensor draws its own image, not this camera's view.
             return
-        imgui.separator()
-        self._draw_camera_speed(imgui)
+        imgui.separator_text("Camera Data")
         pos = camera.pos
-        imgui.text_disabled(f"Position: ({pos[0]:.2f}, {pos[1]:.2f}, {pos[2]:.2f})")
+        imgui.text(f"Position: ({pos[0]:.2f}, {pos[1]:.2f}, {pos[2]:.2f})")
         hover_tooltip(imgui, "World position of the camera [m]")
-        imgui.text_disabled(f"Rotation: (pitch {camera.pitch:.1f}, yaw {camera.yaw:.1f}) deg")
+        imgui.text(f"Rotation: (pitch {camera.pitch:.1f}, yaw {camera.yaw:.1f}) deg")
         hover_tooltip(imgui, "Look direction: pitch up or down, yaw around the vertical axis")
-        imgui.text_disabled(f"FOV: {camera.fov:.1f} deg")
+        imgui.text(f"FOV: {camera.fov:.1f} deg")
         hover_tooltip(imgui, "Vertical field of view; the Focal Length slider changes it")
 
     def _rtx_appearance_controller(self) -> RtxAppearance | None:
@@ -1440,8 +1449,8 @@ class NewtonVisualizerBase(BaseVisualizer):
             self._last_render_step = -1
 
     def _draw_camera_speed(self, imgui) -> None:
-        """Draw the keyboard speed of the free camera; sensors do not move with the keys."""
-        if self.current_image_view.camera is not None:
+        """Draw the keyboard speed of the free camera, which the RTX view follows; sensors do not move with keys."""
+        if self.sensor_view_selected:
             return
         speed = float(self._viewer._camera_speed)
         changed, speed = imgui.slider_float(
