@@ -79,6 +79,6 @@ Warp array.
 .. Maintenance notes
 
    These pages are the source of truth for the ``isaaclab-using-sensors-actuators`` agent skill
-   (`skills/user/use-sensors-actuators/ <../../../../skills/user/use-sensors-actuators/SKILL.md>`__).
+   (`skills/user/isaaclab-using-sensors-actuators/ <../../../../skills/user/isaaclab-using-sensors-actuators/SKILL.md>`__).
    When sensor behavior changes, keep the API documentation, maintained demos, these concept pages,
    and the skill synchronized.

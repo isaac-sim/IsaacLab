@@ -505,8 +505,8 @@ Design principles
 
    This page is the source of truth for the ``isaaclab-selecting-backends`` and
    ``isaaclab-using-presets`` agent skills
-   (`skills/user/select-backends/ <../../../skills/user/select-backends/SKILL.md>`__,
-   `skills/user/use-presets/ <../../../skills/user/use-presets/SKILL.md>`__).
+   (`skills/user/isaaclab-selecting-backends/ <../../../skills/user/isaaclab-selecting-backends/SKILL.md>`__,
+   `skills/user/isaaclab-using-presets/ <../../../skills/user/isaaclab-using-presets/SKILL.md>`__).
    When you change this page, update those skills so agent guidance stays in sync. See
    :doc:`/source/developer-tools/agent_skills`.
 

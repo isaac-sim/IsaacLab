@@ -1,6 +1,10 @@
 ---
 name: isaaclab-transferring-policies-sim-to-sim
 description: Transfers Isaac Lab policies between PhysX and Newton MJWarp in both directions. Use when checking PresetCfg-resolved task and checkpoint compatibility, correcting cross-backend articulation joint and body ordering, handling Franka mimic-joint drive differences, matching cross-backend actuator behavior, adding transfer-oriented domain randomization, or running PhysX/PhysX, PhysX/Newton, Newton/Newton, and Newton/PhysX evaluations. Fully validated tasks include Isaac-Lift-Franka, Isaac-Velocity-Rough-G1, and Isaac-Velocity-Rough-AnymalD.
+license: Apache-2.0
+metadata:
+  author: Isaac Lab Team <Isaac-Lab@exchange.nvidia.com>
+  tags: [sim-to-sim, physx, newton, policy-transfer]
 audience: user
 status: experimental
 owners:
@@ -22,6 +26,14 @@ Read the [sim-to-sim guide](../../../docs/source/how-to/transfer_policies_betwee
 5. **Introducing domain randomization.** Randomize plausible robot/object friction, object mass/inertia, joint gains/friction, joint armature, gravity, actuator response, reset pose/geometry, and observation noise. Keep inertia valid and coupled mechanisms coherent. If transfer needs extreme ranges, revisit the nominal model. Use curriculum when the final distribution blocks learning, promote to final deployment difficulty, and keep a separate deterministic nominal evaluation.
 6. **Validate the full matrix.** Evaluate PP, PN, NN, and NP. For each source policy, reproduce the same-backend baseline and deploy the exact checkpoint in the other backend.
 7. **Run a validated transfer.** The guide lists three fully validated tasks in a compact table — `Isaac-Lift-Franka`, `Isaac-Velocity-Rough-G1`, and `Isaac-Velocity-Rough-AnymalD` — with each task's experiment directory and task-specific notes. Substitute the task ID and directory into the generic PP/PN/NN/NP commands above. The play entry point applies `play_mode` overrides automatically. `Isaac-Reorient-Cube-Allegro` is shown as a PhysX-to-Newton demonstration only.
+
+## Examples
+
+Representative requests this skill handles (worked patterns in [examples.md](examples.md)):
+
+- "Can I run this PhysX checkpoint in Newton?"
+- "The policy alternates saturated actions in MJWarp."
+- "How do I demonstrate transfer in both directions with Franka?"
 
 ## Validation
 

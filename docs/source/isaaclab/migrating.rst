@@ -42,7 +42,7 @@ your project does not use that feature.
 .. Maintenance notes
 
    This part of the page is the source of truth for the ``isaaclab-migrating-2x-to-3x`` agent skill
-   (`skills/user/migrate-2x-to-3x/ <../../../skills/user/migrate-2x-to-3x/SKILL.md>`__).
+   (`skills/_internal/migrate-2x-to-3x/ <../../../skills/_internal/migrate-2x-to-3x/SKILL.md>`__).
    When you change it, update the skill so agent guidance stays in sync. See
    :doc:`/source/developer-tools/agent_skills`.
 
@@ -3662,7 +3662,7 @@ Migration from Isaac Gym and IsaacGymEnvs
 .. Maintenance notes
 
    This section is the source of truth for the ``isaaclab-migrating-from-isaac-gym`` agent skill
-   (`skills/user/migrate-from-isaac-gym/ <../../../skills/user/migrate-from-isaac-gym/SKILL.md>`__).
+   (`skills/user/isaaclab-migrating-from-isaac-gym/ <../../../skills/user/isaaclab-migrating-from-isaac-gym/SKILL.md>`__).
    When you change this section, update the skill so agent guidance stays in sync. See
    :doc:`/source/developer-tools/agent_skills`.
 
