@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import subprocess
 import sys
 from unittest import mock
@@ -117,8 +118,15 @@ _LEAPP_DEPLOY_ARGS = ["--task", "Isaac-Cartpole", "--pipeline", "exported/Isaac-
 )
 def test_cli_subcommand_dispatches_and_propagates_status(argv, module, runner, runner_args, status):
     """Subcommands forward their arguments in-process and turn a nonzero result into the exit status."""
+    import torch
+
     run = mock.Mock(return_value=status)
+    # ``leapp export`` disables TorchScript process-wide; restore it so later tests are unaffected.
+    jit_enabled = bool(torch.jit._state._enabled)
+    stack = contextlib.ExitStack()
+    stack.callback(torch.jit._state.enable if jit_enabled else torch.jit._state.disable)
     with (
+        stack,
         mock.patch.dict(sys.modules, {module: mock.Mock(**{runner: run})}),
         mock.patch.object(cli, "load_external_tasks"),
         mock.patch.object(sys, "argv", ["isaaclab", *argv]),
