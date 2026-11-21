@@ -35,12 +35,13 @@ class _DelayedActuator:
     """Shared command history and reset lifecycle for delayed actuator models."""
 
     def __init__(self, cfg: DelayedImplicitActuatorCfg | DelayedPDActuatorCfg, *args, **kwargs) -> None:
-        if not 0 <= cfg.min_delay <= cfg.max_delay:
+        self._max_delay = 0 if cfg.max_delay is None else cfg.max_delay
+        if not 0 <= cfg.min_delay <= self._max_delay:
             raise ValueError("Expected 0 <= min_delay <= max_delay.")
         super().__init__(cfg, *args, **kwargs)
-        self.positions_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
-        self.velocities_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
-        self.efforts_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
+        self.positions_delay_buffer = DelayBuffer(self._max_delay, self._num_envs, device=self._device)
+        self.velocities_delay_buffer = DelayBuffer(self._max_delay, self._num_envs, device=self._device)
+        self.efforts_delay_buffer = DelayBuffer(self._max_delay, self._num_envs, device=self._device)
         self._delay_buffers = (self.positions_delay_buffer, self.velocities_delay_buffer, self.efforts_delay_buffer)
 
     def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None) -> None:
@@ -48,7 +49,7 @@ class _DelayedActuator:
         if env_mask is not None:
             # draw a delay for every environment and keep the selected ones, so the mask stays on the device
             time_lags = torch.randint(
-                self.cfg.min_delay, self.cfg.max_delay + 1, (self._num_envs,), dtype=torch.int, device=self._device
+                self.cfg.min_delay, self._max_delay + 1, (self._num_envs,), dtype=torch.int, device=self._device
             )
             selected = wp.to_torch(env_mask)
             for delay_buffer in self._delay_buffers:
@@ -61,7 +62,7 @@ class _DelayedActuator:
         num_envs = len(range(self._num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
         time_lags = torch.randint(
             low=self.cfg.min_delay,
-            high=self.cfg.max_delay + 1,
+            high=self._max_delay + 1,
             size=(num_envs,),
             dtype=torch.int,
             device=self._device,
@@ -529,6 +530,8 @@ class RemotizedPDActuator(DelayedPDActuator):
         # effort clipping, so the parsed actuator limits are replaced with infinity.
         self.actuator_effort_limit = torch.full_like(self.actuator_effort_limit, torch.inf)
         self.actuator_velocity_limit = torch.full_like(self.actuator_velocity_limit, torch.inf)
+        if cfg.joint_parameter_lookup is None:
+            raise ValueError("joint_parameter_lookup must be provided for the Isaac Lab remotized actuator model.")
         self._joint_parameter_lookup = torch.tensor(cfg.joint_parameter_lookup, device=device)
         # define remotized joint torque limit
         self._torque_limit = LinearInterpolation(self.angle_samples, self.max_torque_samples, device=device)
