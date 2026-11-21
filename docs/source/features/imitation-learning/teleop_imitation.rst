@@ -3,6 +3,8 @@
 Synthetic Data Generation and Imitation Learning with Isaac Lab Mimic
 =====================================================================
 
+.. include:: /source/features/imitation-learning/_mimic_deprecation.include
+
 .. important::
    Isaac Lab Mimic is only supported on Linux.
 
