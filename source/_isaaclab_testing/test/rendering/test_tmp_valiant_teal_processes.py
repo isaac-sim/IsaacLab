@@ -3,12 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Temporary NVBug 7071342 probe: Valiant in fresh processes that start with cold Kit caches. Do not merge.
+"""Temporary NVBug 7071342 probe: Valiant in fresh processes that start from the CI job's initial cache state.
 
-On CI, ``test_rendering_kit.py`` is the first Kit process on a fresh runner, so its Valiant RGB case is the first load
-of the Gaussian asset, with caches still cold. Every earlier probe ran after it and found warm caches. Each process
-started here first wipes the caches that the first Kit process of a CI job starts without (CI restores only the
-NVIDIA driver shader cache), then renders Valiant once.
+On CI, ``test_rendering_kit.py``'s Valiant RGB case is the first Gaussian-splat load of the job: it compiles the splat
+shaders and kernels (about 12 s, against 2-4 s for later loads), because the restored driver shader cache comes from a
+cache-warming job that renders no splats and the CUDA and OptiX caches start empty. This wrapper must be the first
+renderer test of the job. It snapshots those caches before any splat has loaded, then restores the snapshot before
+every process, so each process compiles the splat shaders and kernels again. Do not merge.
 """
 
 import glob
@@ -25,7 +26,8 @@ import pytest
 _HERE = Path(__file__).parent
 _ROOT = Path(__file__).parents[4]
 _OUT = Path.cwd() / "tests" / "comparison-images" / "teal-processes"
-_VARIANTS = [("isolated-cold", 30), ("cold-none", 20), ("cold-all", 10)]
+_SNAPSHOT = Path("/tmp/nvbug7071342-job-start-caches")
+_VARIANTS = [("isolated-jobstart", 16), ("kit-none-jobstart", 16), ("kit-all-jobstart", 6)]
 
 
 def _isaac_sim_root() -> Path | None:
@@ -35,31 +37,70 @@ def _isaac_sim_root() -> Path | None:
     return None
 
 
-def _cache_dirs() -> list[Path]:
-    roots = [Path.home() / ".cache" / "ov"]
+def _restored_caches() -> dict[str, Path]:
+    """Caches the first renderer process of a CI job starts with, keyed by snapshot name."""
+    home = Path.home()
+    caches = {
+        "home_compute": home / ".nv" / "ComputeCache",
+        "isaacsim_compute": Path("/isaac-sim/.nv/ComputeCache"),
+        "gl": Path(os.environ.get("XDG_CACHE_HOME", home / ".cache")) / "nvidia",
+    }
     sim = _isaac_sim_root()
     if sim is not None:
-        roots += [sim / "kit" / "cache", sim / ".cache"]
-    if os.environ.get("XDG_CACHE_HOME"):
-        roots.append(Path(os.environ["XDG_CACHE_HOME"]))
-    found = set()
-    for root in roots:
-        for name in ("DerivedDataCache", "shadercache", "texturecache"):
-            for path in glob.glob(str(root / "**" / name), recursive=True):
-                if "nv_shadercache" not in path:
-                    found.add(Path(path))
-    return sorted(found)
+        caches["nv_shadercache"] = sim / "kit" / "cache" / "nv_shadercache"
+    for path in glob.glob("/var/tmp/OptixCache*"):
+        caches[f"optix_{Path(path).name}"] = Path(path)
+    return caches
 
 
-def _wipe_caches() -> dict[str, int]:
+def _size(path: Path) -> int:
+    return sum(f.stat().st_size for f in path.rglob("*") if f.is_file()) if path.exists() else 0
+
+
+def _clear(path: Path) -> None:
+    # Several caches are bind mounts, so empty them rather than removing the directory.
+    if not path.exists():
+        return
+    for child in path.iterdir():
+        if child.is_dir() and not child.is_symlink():
+            shutil.rmtree(child, ignore_errors=True)
+        else:
+            child.unlink(missing_ok=True)
+
+
+def _reset_to_job_start() -> dict[str, int]:
     # Never touch a developer's caches; on CI the container and runner are disposable.
     if not os.environ.get("GITHUB_ACTIONS"):
         return {}
-    wiped = {}
-    for path in _cache_dirs():
-        wiped[str(path)] = sum(f.stat().st_size for f in path.rglob("*") if f.is_file())
-        shutil.rmtree(path, ignore_errors=True)
-    return wiped
+    caches = _restored_caches()
+    if not _SNAPSHOT.exists():
+        for name, path in caches.items():
+            if path.exists():
+                shutil.copytree(path, _SNAPSHOT / name, symlinks=True)
+    sizes = {}
+    for name, path in caches.items():
+        _clear(path)
+        if (_SNAPSHOT / name).exists():
+            path.mkdir(parents=True, exist_ok=True)
+            shutil.copytree(_SNAPSHOT / name, path, symlinks=True, dirs_exist_ok=True)
+        sizes[name] = _size(path)
+    sim = _isaac_sim_root()
+    if sim is not None:
+        # Everything else under Kit's cache directory starts empty in a CI job.
+        for child in (sim / "kit" / "cache").iterdir():
+            if child.name == "nv_shadercache":
+                continue
+            if child.is_dir() and not child.is_symlink():
+                shutil.rmtree(child, ignore_errors=True)
+            else:
+                child.unlink(missing_ok=True)
+    return sizes
+
+
+def _growth(before: dict[str, int]) -> dict[str, int]:
+    if not before:
+        return {}
+    return {name: _size(path) - before.get(name, 0) for name, path in _restored_caches().items()}
 
 
 def _run_isaaclab(label: str, cases: str) -> dict:
@@ -76,7 +117,7 @@ def _run_isaaclab(label: str, cases: str) -> dict:
         f"--junitxml={xml}",
         str(_HERE / "test_tmp_valiant_teal_order.py"),
     ]
-    result = subprocess.run(command, env=env, capture_output=True, text=True, timeout=1200, check=False)
+    result = subprocess.run(command, env=env, capture_output=True, text=True, timeout=1500, check=False)
     (_OUT / f"{label}.log").write_text(result.stdout[-20000:] + result.stderr[-20000:])
     outputs = {"returncode": result.returncode}
     if xml.exists():
@@ -103,7 +144,7 @@ def _run_isolated(label: str) -> dict:
         env["LD_PRELOAD"] = cudart[-1]
     command = [str(sim / "python.sh"), str(_HERE / "tmp_valiant_teal_probe_isolated.py"), "--iterations", "1"]
     result = subprocess.run(
-        [*command, "--out", str(out)], env=env, capture_output=True, text=True, timeout=900, check=False
+        [*command, "--out", str(out)], env=env, capture_output=True, text=True, timeout=1200, check=False
     )
     (out / "probe.log").write_text(result.stdout[-20000:] + result.stderr[-20000:])
     summary_path = out / "summary.json"
@@ -127,12 +168,12 @@ def test_valiant_teal_processes(variant: str, processes: int, request: pytest.Fi
     records = []
     for index in range(processes):
         label = f"{variant}-p{index:02d}"
-        wiped = _wipe_caches()
-        if variant == "isolated-cold":
+        restored = _reset_to_job_start()
+        if variant == "isolated-jobstart":
             outputs = _run_isolated(label)
         else:
-            outputs = _run_isaaclab(label, "none" if variant == "cold-none" else "all")
-        records.append({"process": index, "wiped_bytes": wiped, **outputs})
+            outputs = _run_isaaclab(label, "none" if variant == "kit-none-jobstart" else "all")
+        records.append({"process": index, "restored_bytes": restored, "growth_bytes": _growth(restored), **outputs})
         (_OUT / f"summary-{variant}.json").write_text(json.dumps(records, indent=1, default=str))
     teal = sum(record["teal"] for record in records)
     request.node.user_properties.extend([("processes", str(len(records))), ("teal_processes", str(teal))])
