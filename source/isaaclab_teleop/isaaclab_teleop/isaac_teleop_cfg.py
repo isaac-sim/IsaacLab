@@ -38,6 +38,8 @@ if TYPE_CHECKING:
     from isaacteleop.retargeting_engine.interface import BaseRetargeter, OutputCombiner
     from isaacteleop.teleop_session_manager import PluginConfig, RetargetingExecutionConfig
 
+    from isaaclab.envs import ManagerBasedRLEnvCfg
+
 
 @configclass
 class XrCameraFeedCfg:
@@ -234,7 +236,9 @@ class IsaacTeleopCfg:
     it is not installed). When ``None``, Isaac Lab resolves it at session start to
     Isaac Capture's pipelined, deadline-paced default
     (``RetargetingExecutionConfig(mode="pipelined", pacing=DeadlinePacingConfig(safety_margin_s=0.025))``),
-    where ``isaacteleop`` is guaranteed to be available. Set this explicitly to
+    where ``isaacteleop`` is guaranteed to be available. An MCAP replay without Kit resolves it to
+    ``RetargetingExecutionConfig(mode="sync")`` instead, so that every step consumes exactly the next
+    recorded frame. Set this explicitly to
     ``RetargetingExecutionConfig(mode="sync")`` for exact current-frame
     retargeting while debugging or comparing behavior.
     """
@@ -306,3 +310,19 @@ class IsaacTeleopCfg:
 
     app_name: str = "IsaacLabTeleop"
     """Application name for the Isaac Capture session."""
+
+    prepare_environment: Callable[[ManagerBasedRLEnvCfg], None] | None = None
+    """Optional task-owned preparation of the resolved environment configuration.
+
+    The teleoperation launchers (live, replay and recording) call this once, after launcher
+    validation and before creating any simulation resources, including the OVXR bootstrap. The hook may rely
+    on resolved presets and on the validated runtime selections, such as the physics
+    and renderer backends, and must not change them. A task's environment entry point
+    may apply the same preparation again, so it must be idempotent. Keep this
+    callable's imports safe before simulator startup.
+
+    .. note::
+
+        This hook is experimental and may change or be removed in a future release, for example once
+        tasks declare their backend-specific settings through presets.
+    """

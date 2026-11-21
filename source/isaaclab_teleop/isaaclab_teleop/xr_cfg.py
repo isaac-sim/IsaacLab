@@ -60,6 +60,10 @@ class XrCfg:
     :func:`~isaaclab_teleop.create_isaac_teleop_device` expands ``{ENV_REGEX_NS}`` when
     given an ``env_prim_path``; direct device construction requires a concrete path.
 
+    Kit sessions use XRCore to follow the reference. Application-owned OVXR presentation
+    uses committed physics references for the same rotation and height policies. Input cannot
+    consume an unseeded or failed publication epoch; no static pose is substituted.
+
     If None, the anchor will use the static :attr:`anchor_pos` and :attr:`anchor_rot` values.
     """
 
@@ -79,8 +83,9 @@ class XrCfg:
     anchor_rotation_smoothing_time: float = 1.0
     """Time constant [s] for rotation smoothing in FOLLOW_PRIM_SMOOTHED mode.
 
-    Smoothing uses :meth:`isaaclab.sim.SimulationContext.get_rendering_dt`, which returns
-    the configured rendering timestep or a visualizer override. The interpolation factor is
+    Kit smoothing uses :meth:`isaaclab.sim.SimulationContext.get_rendering_dt`, which returns
+    the configured rendering timestep or a visualizer override. OVXR uses elapsed XR-frame time.
+    The interpolation factor is
     clamped to [0.05, 1.0] per update.
     Smaller values (e.g., 0.1) result in faster/snappier response but less smoothing.
     Larger values (e.g., 0.75–2.0) result in slower/smoother response but more lag.

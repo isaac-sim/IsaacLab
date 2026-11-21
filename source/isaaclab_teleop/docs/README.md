@@ -144,6 +144,7 @@ rendering without blocking.
 | `sim_device` | `str` | `"cuda:0"` | Torch device for output action tensors |
 | `retargeting_execution` | `RetargetingExecutionConfig \| None` | `None` (resolved at session start to `mode="pipelined", pacing=DeadlinePacingConfig(safety_margin_s=0.025)`) | Isaac Capture retargeting execution settings; deferred so the config imports without `isaacteleop` |
 | `teleoperation_active_default` | `bool` | `False` | Whether teleoperation is active on session start |
+| `prepare_environment` | `Callable \| None` | `None` | Task-owned, idempotent preparation of the resolved environment configuration before any simulation resources |
 | `app_name` | `str` | `"IsaacLabTeleop"` | Application name for the Isaac Capture session |
 
 The 25 ms `DeadlinePacingConfig` safety margin staggers Isaac Capture's Python work behind Isaac Lab's
@@ -156,12 +157,19 @@ contend for the GIL at the start of the step.
 |---|---|---|---|
 | `anchor_pos` | `tuple[float, float, float]` | `(0, 0, 0)` | XR anchor position in world frame |
 | `anchor_rot` | `tuple[float, float, float, float]` | `(0, 0, 0, 1)` | XR anchor rotation (quaternion xyzw) |
-| `anchor_prim_path` | `str \| None` | `None` | Prim to attach anchor to for dynamic positioning |
+| `anchor_prim_path` | `str \| None` | `None` | Prim to attach anchor to for dynamic positioning; OVXR reads committed physics poses and shares the same anchor policy |
 | `anchor_rotation_mode` | `XrAnchorRotationMode` | `FIXED` | How anchor rotation tracks the reference prim |
 | `anchor_rotation_smoothing_time` | `float` | `1.0` | Slerp time constant (seconds) for `FOLLOW_PRIM_SMOOTHED` mode |
 | `anchor_rotation_custom_func` | `Callable` | identity | Custom rotation function for `CUSTOM` mode |
 | `near_plane` | `float` | `0.15` | Near clipping plane distance for the XR device |
 | `fixed_anchor_height` | `bool` | `True` | Fix anchor height to initial value of the reference prim |
+
+## Capture and replay boundaries
+
+MCAP records DeviceIO tracker/control input, not historical simulation scenes.
+Environment/control reset does not rewind MCAP input. `record_demos.py --ovxr` records HDF5
+demonstrations through OVXR, and `replay_demos.py` replays them on the kitless
+backend selected with `--physics`; see the [kitless XR guide](kitless_xr.md).
 
 ## Utilities
 
@@ -184,6 +192,8 @@ In the Isaac Sim UI, set the AR panel to **System OpenXR Runtime** and click **S
 
 For a fully headless experience, omit `--visualizer kit` when running Docker, and the XR teleop session will
 run automatically.
+
+For OVXR, use the separate [kitless XR installation and runtime guide](kitless_xr.md).
 
 ## Dependencies
 
