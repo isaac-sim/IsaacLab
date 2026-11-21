@@ -124,6 +124,15 @@ On its own, the MPM solver advances only particles. Rigid bodies act as
 colliders whose motion comes from elsewhere, such as kinematic pose writes, and
 the material does not push back on them.
 
+The ``mpm-ovphysx-one-way-coupling`` example uses this one-way pattern with a
+rigid body simulated outside Newton. A standalone
+:class:`~isaaclab_ov.physics.OvPhysxBackend` rolls a ball, and each step writes its
+pose to a kinematic sphere that the MPM solver treats as a moving collider:
+
+.. code-block:: bash
+
+   uv run --extra ovphysx isaaclab example mpm-ovphysx-one-way-coupling
+
 Two-way interaction uses the experimental coupler in
 :mod:`isaaclab_newton.physics.coupling`. A
 :class:`~isaaclab_newton.physics.coupling.CouplerProxyCfg` partitions one Newton model

@@ -221,6 +221,12 @@ OVERRIDES = {
         visualizers=("newton",),
         required_modules=("isaaclab_contrib",),
     ),
+    "examples/mpm/ovphysx_mpm_oneway_coupling.py": ScriptOverride(
+        args=("--max_steps", "2", "--voxel_size", "0.05"),
+        fixed_physics_backend="ovphysx",
+        visualizers=(None, "newton"),
+        required_modules=("ovphysx", "isaaclab_newton"),
+    ),
     # Smoke launches retain every robot family and MPM solver path with smaller scenes.
     "examples/demos/zoo.py": ScriptOverride(args=("--num_envs", "1"), startup_timeout=600.0),
     "examples/demos/sonic.py": ScriptOverride(
