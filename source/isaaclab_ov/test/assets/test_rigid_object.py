@@ -391,6 +391,20 @@ def test_rigid_object_real_ovphysx_seams(scene: _RigidScene) -> None:
         assert torch.count_nonzero(composer.composed_force.torch) == 0
         assert torch.count_nonzero(composer.composed_torque.torch) == 0
 
+    # A product of inertia makes OVPhysX re-derive the principal axes; the COM caches follow without a step.
+    rigid_object.data.body_com_quat_w  # primes the world-frame COM cache before the inertia write
+    inertias = rigid_object.data.body_inertia.torch.clone()
+    inertias[..., [1, 3]] = 0.25 * inertias[..., [0]]
+    rigid_object.set_inertias_index(inertias=wp.from_torch(inertias, dtype=wp.float32))
+    torch.testing.assert_close(
+        rigid_object.data.body_com_quat_b.torch[:, 0],
+        wp.to_torch(rigid_object.root_view.get_attribute(TT.RIGID_BODY_COM_POSE)).to(device)[:, 3:7],
+    )
+    torch.testing.assert_close(
+        rigid_object.data.body_com_quat_w.torch,
+        quat_mul(rigid_object.data.body_link_quat_w.torch, rigid_object.data.body_com_quat_b.torch),
+    )
+
 
 @pytest.mark.parametrize("scene", test_devices(), indirect=True)
 def test_initialization_with_kinematic_enabled(scene: _RigidScene) -> None:
