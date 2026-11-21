@@ -293,6 +293,7 @@ autodoc_mock_imports = [
     "ipywidgets",
     "mpl_toolkits",
     "isaacteleop",
+    "isaaccapture",
     "scipy",
     "hydra",
     "hydra.core",

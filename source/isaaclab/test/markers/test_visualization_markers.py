@@ -31,6 +31,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.cloner import make_clone_plan
 from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 from isaaclab.markers.config import FRAME_MARKER_CFG, POSITION_GOAL_MARKER_CFG
+from isaaclab.markers.vis_marker_registry import VisMarkerRegistry
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.utils.math import random_orientation
 from isaaclab.visualizers import ImageView, ImageViewCfg, PerspectiveCameraCfg
@@ -136,6 +137,7 @@ def test_marker_backend_selection(
             "has_gui": has_gui,
             "has_offscreen_render": has_offscreen_render,
             "visualizers": visualizers,
+            "vis_marker_registry": VisMarkerRegistry(),
             "get_setting": lambda self, key: settings.get(key, False),
         },
     )()
