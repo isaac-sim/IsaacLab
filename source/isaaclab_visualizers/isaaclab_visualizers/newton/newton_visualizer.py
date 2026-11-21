@@ -1623,7 +1623,11 @@ class NewtonVisualizerBase(BaseVisualizer):
             self._apply_visible_worlds()
 
     def _view_labels(self, indices: list[int] | None = None) -> list[str]:
-        """Name the listed image views: a task view is the Tracking Camera, a free view is the Perspective."""
+        """Name the listed image views, each with a short descriptor in parentheses like the scene sensors have.
+
+        A free view is a ``Perspective (interactive)``, a tracking view ``Tracking Camera (follows robot)`` or
+        ``Tracking Camera (fixed to env)`` when it follows no asset.
+        """
         views = self._image_views if indices is None else [self._image_views[i] for i in indices]
         free = [v for v in views if v.camera is None and not self._is_tracking_view(v)]
         tracking = [v for v in views if self._is_tracking_view(v)]
@@ -1632,11 +1636,12 @@ class NewtonVisualizerBase(BaseVisualizer):
             if view.camera is not None:
                 labels.append(self._sensor_label(view.cfg.source, view.camera.cfg.data_types))
             elif self._is_tracking_view(view):
-                labels.append(
-                    "Tracking Camera" if len(tracking) == 1 else f"Tracking Camera {tracking.index(view) + 1}"
-                )
+                name = "Tracking Camera" if len(tracking) == 1 else f"Tracking Camera {tracking.index(view) + 1}"
+                asset = (view.cfg.source.track_path or "").partition("/")[0]
+                labels.append(f"{name} (follows {asset})" if asset else f"{name} (fixed to env)")
             else:
-                labels.append("Perspective" if len(free) == 1 else f"Perspective {free.index(view) + 1}")
+                name = "Perspective" if len(free) == 1 else f"Perspective {free.index(view) + 1}"
+                labels.append(f"{name} (interactive)")
         return labels
 
     _OUTPUT_NAMES = {

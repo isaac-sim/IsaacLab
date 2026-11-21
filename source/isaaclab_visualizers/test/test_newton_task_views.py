@@ -72,7 +72,7 @@ def test_a_lone_free_view_is_called_perspective_and_a_task_view_the_tracking_cam
     free, task = _view(PerspectiveCameraCfg()), _view(TrackingCameraCfg(env_index=0, eye=(2.0, 0.0, 1.0)))
     viz = _visualizer([free, task])
 
-    assert viz._view_labels([0, 1]) == ["Perspective", "Tracking Camera"]
+    assert viz._view_labels([0, 1]) == ["Perspective (interactive)", "Tracking Camera (fixed to env)"]
     assert [viz._is_tracking_view(view) for view in viz._image_views] == [False, True]
 
 
@@ -82,10 +82,10 @@ def test_views_are_numbered_only_when_several_share_a_name():
     viz = _visualizer(views)
 
     assert viz._view_labels([0, 1, 2, 3]) == [
-        "Perspective 1",
-        "Perspective 2",
-        "Tracking Camera 1",
-        "Tracking Camera 2",
+        "Perspective 1 (interactive)",
+        "Perspective 2 (interactive)",
+        "Tracking Camera 1 (fixed to env)",
+        "Tracking Camera 2 (fixed to env)",
     ]
 
 
@@ -94,7 +94,7 @@ def test_scene_cameras_are_named_by_their_prim_without_the_environment_pattern()
     sensor = _View("/World/envs/env_[^/]+/Robot/wrist_camera", camera=camera)
     viz = _visualizer([_view(PerspectiveCameraCfg()), sensor])
 
-    assert viz._view_labels([0, 1]) == ["Perspective", "wrist_camera (RGB sensor)"]
+    assert viz._view_labels([0, 1]) == ["Perspective (interactive)", "wrist_camera (RGB sensor)"]
 
 
 def test_the_camera_list_puts_perspective_first_then_tracking_cameras_then_sensors():
