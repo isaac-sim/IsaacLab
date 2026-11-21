@@ -803,9 +803,14 @@ def test_binding_readiness_preserves_priorities_across_resets(monkeypatch, share
         assert events == []
 
 
-@pytest.mark.parametrize("clone_fails", [False, True])
-def test_warmup_collects_clone_receipt_before_model_init(monkeypatch, manager_module, manager, clone_fails):
-    """Accepted clone failures prevent warmup and model-ready publication."""
+@pytest.mark.parametrize(
+    ("explicit_warmup", "clone_fails"),
+    [(True, False), (False, False), (False, True)],
+)
+def test_warmup_collects_clone_receipt_before_model_init(
+    monkeypatch, manager_module, manager, explicit_warmup, clone_fails
+):
+    """Both runtime APIs complete cloning before publishing model readiness; clone failures prevent it."""
     from pxr import Usd, UsdPhysics
 
     from isaaclab.physics import PhysicsEvent
@@ -818,9 +823,6 @@ def test_warmup_collects_clone_receipt_before_model_init(monkeypatch, manager_mo
     clones = [("/World/env_0", targets, transforms, env_ids, 0)]
 
     class FakePhysX:
-        def warmup(self):
-            events.append("warmup")
-
         def clone(self, source, destinations, poses, *, env_ids):
             events.append(("clone", source, destinations, poses, env_ids))
             return task
@@ -831,7 +833,17 @@ def test_warmup_collects_clone_receipt_before_model_init(monkeypatch, manager_mo
             if clone_fails:
                 raise RuntimeError("clone task failed")
 
-    backend = SimpleNamespace(physx=FakePhysX(), stage=None, owns_scene=True, load=lambda usda: None)
+    if explicit_warmup:
+
+        class LegacyPhysX(FakePhysX):
+            def warmup(self):
+                events.append("warmup")
+
+        physx = LegacyPhysX()
+    else:
+        physx = FakePhysX()
+
+    backend = SimpleNamespace(physx=physx, stage=None, owns_scene=True, load=lambda usda: None)
     stage = Usd.Stage.CreateInMemory()
     UsdPhysics.Scene.Define(stage, "/World/PhysicsScene")
     sim = manager._sim
@@ -854,6 +866,6 @@ def test_warmup_collects_clone_receipt_before_model_init(monkeypatch, manager_mo
     with pytest.raises(RuntimeError, match="clone task failed") if clone_fails else nullcontext():
         manager._warmup_and_load()
     assert events == [("clone", "/World/env_0", targets, transforms, env_ids), "wait"] + (
-        [] if clone_fails else ["warmup", "defer_bindings", PhysicsEvent.MODEL_INIT]
+        [] if clone_fails else (["warmup"] if explicit_warmup else []) + ["defer_bindings", PhysicsEvent.MODEL_INIT]
     )
     assert manager._warmup_done is (not clone_fails)
