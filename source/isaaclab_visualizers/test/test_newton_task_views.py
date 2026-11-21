@@ -426,7 +426,7 @@ def test_a_window_with_only_the_rtx_camera_draws_its_camera_controls():
     imgui.begin_disabled.assert_called_once()
 
 
-def test_camera_view_controls_are_ordered_source_renderer_appearance_navigation_then_camera_data():
+def test_camera_view_controls_are_grouped_under_headers_in_order():
     from unittest.mock import Mock
 
     viz = _switchable([_view(PerspectiveCameraCfg()), _rtx_view()])
@@ -446,10 +446,13 @@ def test_camera_view_controls_are_ordered_source_renderer_appearance_navigation_
     viz._draw_streaming_view_controls(imgui)
 
     assert order == [
+        "Camera Source",
         "camera source",
+        "Rendering",
         "renderer",
         "renderer",
         "appearance",
+        "Navigation",
         "focal length",
         "camera speed",
         "Camera Data",
