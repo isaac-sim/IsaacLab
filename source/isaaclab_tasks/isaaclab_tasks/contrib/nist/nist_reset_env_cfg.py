@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Reset composition for the homogeneous Factory scene."""
+"""Reset composition for the homogeneous NIST scene."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from isaaclab_tasks.utils.success_monitor import SuccessMonitorCfg
 
 from . import mdp
 from .assembly_profile_cfg import UniformPoseNoiseCfg
-from .factory_presets import EndEffectorBodyCfg, GripperGraspOffsetCfg, GripperJointNamesCfg, IKJointNamesCfg
+from .nist_presets import EndEffectorBodyCfg, GripperGraspOffsetCfg, GripperJointNamesCfg, IKJointNamesCfg
 from .utils.variant_sampling import BalancedVariantScoreCfg
 
 RESET_ASSETS = ["nistboard", "fixed_asset", "held_asset", "robot"]

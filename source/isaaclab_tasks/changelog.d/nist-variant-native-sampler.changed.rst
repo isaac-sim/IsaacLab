@@ -1,2 +1,2 @@
 * Used the shared reset-state sampler for NIST assembly variants while preserving the task's balanced reset-label and asset-variant sampling weights.
-* **Breaking:** Reassigned ``IsaacContrib-Factory-Franka`` to the reset-selectable variant task and removed its old static-assembly implementation. Use ``IsaacContrib-Factory-Franka`` instead of ``IsaacContrib-Factory-Variant-Franka`` for variant training and playback.
+* **Breaking:** Renamed the reset-selectable assembly task to ``IsaacContrib-NIST-Franka`` and removed the old static Factory task. The ``IsaacContrib-Factory-Franka`` and ``IsaacContrib-Factory-Variant-Franka`` IDs and their Factory configuration entry points are no longer registered. Use ``IsaacContrib-NIST-Franka`` for training and playback.

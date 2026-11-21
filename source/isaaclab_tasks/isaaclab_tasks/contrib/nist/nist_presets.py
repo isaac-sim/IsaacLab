@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""PresetCfg definitions for Factory task-specific parameters.
+"""PresetCfg definitions for NIST task-specific parameters.
 
 Each preset maps task variant names to the corresponding keypoint-derived values.
 The preset fields supply per-assembly geometry for the reset-selectable variant task.
@@ -34,7 +34,7 @@ from .assembly_profile_cfg import (
     IncrementalSegmentCfg,
     UniformYawCfg,
 )
-from .factory_assets_cfg import FRANKA_PANDA_NEWTON_CFG, FRANKA_PANDA_PHYSX_CFG
+from .nist_assets_cfg import FRANKA_PANDA_NEWTON_CFG, FRANKA_PANDA_PHYSX_CFG
 
 # ---------------------------------------------------------------------------
 # Robot-specific presets
@@ -134,7 +134,7 @@ def _dist(a: kpts.Offset, b: kpts.Offset) -> tuple[float, float, float]:
 
 
 @configclass
-class FactoryAssemblyProfileCfg(PresetCfg):
+class NISTAssemblyProfileCfg(PresetCfg):
     """Assembly profile per task variant.
 
     Each field is an :class:`AssemblyProfileCfg` describing the full assembly
