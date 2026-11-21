@@ -437,7 +437,7 @@ def test_camera_view_controls_are_grouped_under_headers_in_order():
         "renderer",
         "renderer",
         "appearance",
-        "Navigation",
+        "Camera Settings",
         "focal length",
         "camera speed",
         "Camera Data",
