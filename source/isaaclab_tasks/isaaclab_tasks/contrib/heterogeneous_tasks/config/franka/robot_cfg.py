@@ -7,8 +7,8 @@
 
 import math
 
-from isaaclab_newton.sim.schemas import MujocoJointCfg, NewtonArticulationCfg
-from isaaclab_physx.sim.schemas import PhysxArticulationCfg
+from isaaclab_isaacsim.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
+from isaaclab_newton.sim.schemas import MujocoJointCfg, MujocoRigidBodyCfg, NewtonArticulationCfg
 
 from isaaclab.assets import ArticulationCfg
 from isaaclab.utils import clone
@@ -17,6 +17,22 @@ from isaaclab_assets.robots.franka import FRANKA_ROBOTIQ_GRIPPER_CFG
 
 FRANKA_ROBOTIQ_CFG = clone(FRANKA_ROBOTIQ_GRIPPER_CFG)
 FRANKA_ROBOTIQ_CFG.prim_path = "{ENV_REGEX_NS}/robot"
+# TODO: Temporary location. Replace the Hugging Face URL with the Isaac Lab Nucleus path once the asset is uploaded
+# there. The asset is the Isaac Sim Franka with the Isaac Lab Franka arm inertias; its Robotiq gripper variant sits on
+# the flange ``panda_link8`` with rubber finger pads.
+FRANKA_ROBOTIQ_CFG.spawn.usd_path = (
+    "https://huggingface.co/datasets/LiFanxing/franka_robotiq/resolve/47163169a7decfe1131d3734b51007f74fe0f594"
+    "/franka.usd"
+)
+# PhysX switches gravity off per body, while Newton reads gravity switches only on the physics scene, so MuJoCo Warp
+# compensates gravity on the bodies instead.
+FRANKA_ROBOTIQ_CFG.spawn.rigid_props = [
+    PhysxRigidBodyCfg(disable_gravity=True, max_depenetration_velocity=5.0),
+    MujocoRigidBodyCfg(gravcomp=1.0),
+]
+# Effort limits [N*m] of the Franka arm joints.
+FRANKA_ROBOTIQ_CFG.actuators["panda_shoulder"].joint_effort_limit = 87.0
+FRANKA_ROBOTIQ_CFG.actuators["panda_forearm"].joint_effort_limit = 12.0
 FRANKA_ROBOTIQ_CFG.spawn.activate_contact_sensors = True
 FRANKA_ROBOTIQ_CFG.spawn.articulation_props = [
     PhysxArticulationCfg(
