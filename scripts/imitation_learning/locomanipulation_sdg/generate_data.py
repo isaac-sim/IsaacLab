@@ -488,7 +488,7 @@ def setup_navigation_scene(
 
     def clear_nav_map_buffer(world_xy: torch.Tensor | np.ndarray):
         nav_fs = nav_map.freespace_mask()
-        pixel_xy = nav_map.world_to_pixel_numpy(np.asarray(world_xy)[None])[0].astype(int)
+        pixel_xy = np.floor(nav_map.world_to_pixel_numpy(np.asarray(world_xy)[None])[0]).astype(int)
         x_px, y_px = int(pixel_xy[0]), int(pixel_xy[1])
         if not (0 <= y_px < nav_fs.shape[0] and 0 <= x_px < nav_fs.shape[1]) or nav_fs[y_px, x_px]:
             return
