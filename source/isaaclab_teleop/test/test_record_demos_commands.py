@@ -13,14 +13,174 @@ import pytest
 pytestmark = pytest.mark.unit
 
 
-def test_recording_defers_command_resampling(monkeypatch, tmp_path):
+@pytest.mark.parametrize(
+    "backend_flags", [["--physics", "isaacsim_physx"], ["--physics", "physx", "--xr"], ["--physics", "newton_mjwarp"]]
+)
+def test_recording_defers_command_resampling(monkeypatch, tmp_path, backend_flags):
     """Recording defers command resampling beyond a realistic demonstration."""
     from isaaclab_teleop.entrypoints import record_demos
 
     monkeypatch.setattr(sys, "argv", ["record_demos.py"])
-    record_demos._parse_args(["--task", "Isaac-Reach-Franka", "--teleop_device", "spacemouse"])
+    record_demos._parse_args(["--task", "Isaac-Reach-Franka", *backend_flags, "--teleop_device", "spacemouse"])
     cfg, _, _ = record_demos.create_environment_config(str(tmp_path), "reach")
 
     resampling_time_range = cfg.commands.ee_pose.resampling_time_range
     assert all(math.isfinite(bound) for bound in resampling_time_range)
     assert min(resampling_time_range) > 24 * 60 * 60
+
+
+def test_recording_prepares_so101_calibrated_reset(monkeypatch, tmp_path):
+    from isaaclab_teleop.entrypoints import record_demos
+
+    monkeypatch.setattr(sys, "argv", ["record_demos.py"])
+    record_demos._parse_args(["--task", "IsaacContrib-Stack-Cube-SO101-IK-Abs-v0", "--physics", "isaacsim_physx"])
+    cfg, _, _ = record_demos.create_environment_config(str(tmp_path), "stack")
+    assert cfg.events.randomize_joint_state.params["std"] == 0.0
+
+
+def test_recording_reset_notifies_teleop_after_environment_reset(monkeypatch):
+    """An operator RESET already consumed by the control channel still resets retargeters."""
+    from types import SimpleNamespace
+
+    from isaaclab_teleop.entrypoints import record_demos
+
+    calls = []
+    monkeypatch.setattr(record_demos, "args_cli", SimpleNamespace(reset_sim_buffer_each_episode=False), raising=False)
+    env = SimpleNamespace(
+        recorder_manager=SimpleNamespace(reset=lambda: calls.append("recorder-reset")),
+        reset=lambda: calls.append("env-reset"),
+    )
+    device = SimpleNamespace(
+        reset=lambda: calls.append("device-reset"), notify_reset=lambda: calls.append("device-notify-reset")
+    )
+
+    assert record_demos.handle_reset(env, 3, SimpleNamespace(show_demo=lambda _text: None), "label", device) == 0
+    assert calls == ["recorder-reset", "env-reset", "device-reset", "device-notify-reset"]
+
+
+@pytest.mark.parametrize(
+    ("terminated", "truncated", "notified"),
+    [
+        ((True, False), (False, False), True),
+        ((False, False), (False, True), False),
+        ((False, False), (True, False), True),
+    ],
+)
+def test_recording_notifies_teleop_when_environment_zero_resets_itself(terminated, truncated, notified):
+    """A termination inside ``env.step`` restarts teleop input only for the teleoperated environment."""
+    from types import SimpleNamespace
+
+    import torch
+    from isaaclab_teleop.entrypoints import record_demos
+
+    calls = []
+    device = SimpleNamespace(notify_reset=lambda: calls.append("notify"))
+    step_result = (None, None, torch.tensor(terminated), torch.tensor(truncated), {})
+    assert record_demos.notify_teleop_of_auto_reset(step_result, device) is notified
+    assert calls == (["notify"] if notified else [])
+    # Devices without the notification keep their state, as before.
+    assert record_demos.notify_teleop_of_auto_reset(step_result, SimpleNamespace()) is False
+
+
+@pytest.mark.parametrize(
+    ("arguments", "message"),
+    [
+        (["--xr", "--ovxr"], "mutually exclusive"),
+        (["--ovxr_step_hz", "20"], "requires --ovxr"),
+        (["--ovxr", "--ovxr_step_hz", "nan"], "finite and non-negative"),
+        (["--ovxr", "--ovxr_session_mode", "vr", "--ovxr_step_hz", "20"], None),
+    ],
+)
+def test_recording_parses_ovxr_options_like_live(monkeypatch, capsys, arguments, message):
+    """The recorder accepts and rejects the live agent's OVXR options with the same results."""
+    from isaaclab_teleop.entrypoints import record_demos, teleop_se3_agent
+
+    parsed = []
+    for module in (record_demos, teleop_se3_agent):
+        monkeypatch.setattr(sys, "argv", ["entrypoint.py"])
+        monkeypatch.setattr(module, "args_cli", None, raising=False)
+        if message is not None:
+            with pytest.raises(SystemExit):
+                module._parse_args(["--task", "Test", *arguments])
+            assert message in capsys.readouterr().err
+            continue
+        args = module._parse_args(["--task", "Test", *arguments])
+        names = ("using_ovxr", "ovxr_session_mode", "ovxr_step_hz", "cloudxr_env", "auto_launch_cloudxr")
+        parsed.append({name: getattr(args, name) for name in names})
+    if message is None:
+        from isaaclab_teleop import CLOUDXR_JS_ENV
+
+        assert parsed[0] == parsed[1]
+        assert parsed[0]["using_ovxr"] and parsed[0]["cloudxr_env"] == CLOUDXR_JS_ENV
+
+
+def test_recording_ovxr_checks_launch_before_preparing_and_owns_context_cleanup(monkeypatch, tmp_path):
+    """OVXR checks precede generic validation, the task hook and simulation launch, as in live teleoperation."""
+    import contextlib
+
+    from isaaclab_teleop.entrypoints import record_demos
+
+    import isaaclab.app
+
+    monkeypatch.setattr(sys, "argv", ["record_demos.py"])
+    monkeypatch.setattr(record_demos, "args_cli", None, raising=False)
+    record_demos._parse_args([
+        "--task", "IsaacContrib-Stack-Cube-SO101-IK-Abs-v0", "--physics", "ovphysx", "--ovxr",
+        "--dataset_file", str(tmp_path / "stack.hdf5"),
+    ])  # fmt: skip
+    calls = []
+
+    def trace(name, function):
+        def traced(*args, **kwargs):
+            calls.append(name)
+            return function(*args, **kwargs)
+
+        return traced
+
+    resolve = record_demos.resolve_task_config
+
+    def resolve_traced(*args, **kwargs):
+        cfg, runner = resolve(*args, **kwargs)
+        cfg.isaac_teleop.prepare_environment = trace("prepare_environment", cfg.isaac_teleop.prepare_environment)
+        return cfg, runner
+
+    @contextlib.contextmanager
+    def launch(_cfg, _args):
+        calls.append("launch")
+        yield
+
+    monkeypatch.setattr(record_demos, "resolve_task_config", resolve_traced)
+    monkeypatch.setattr(record_demos, "prepare_ovxr_launch", trace("ovxr-launch", record_demos.prepare_ovxr_launch))
+    monkeypatch.setattr(isaaclab.app, "validate_launch", trace("validate_launch", isaaclab.app.validate_launch))
+    reject = trace("ovxr-conflicts", record_demos.reject_ovxr_runtime_conflicts)
+    monkeypatch.setattr(record_demos, "reject_ovxr_runtime_conflicts", reject)
+    monkeypatch.setattr(record_demos, "launch_simulation", launch)
+    monkeypatch.setattr(record_demos, "record_demos", lambda cfg, *_args: calls.append(("record", cfg)))
+    record_demos.main()
+
+    assert calls[:-1] == ["ovxr-launch", "validate_launch", "ovxr-conflicts", "prepare_environment", "launch"]
+    cfg = calls[-1][1]
+    assert cfg.events.randomize_joint_state.params["std"] == 0.0
+
+
+def test_instruction_display_logs_new_messages_without_kit_labels(caplog):
+    """Without a Kit window, instructions are logged once per change instead of dropped."""
+    import logging
+    from types import SimpleNamespace
+
+    from isaaclab_teleop.entrypoints._instruction_display import InstructionDisplay
+
+    display = InstructionDisplay(xr=False)
+    with caplog.at_level(logging.INFO, logger="isaaclab_teleop.entrypoints._instruction_display"):
+        display.show_subtask("Current objective: stack")
+        display.show_subtask("Current objective: stack")
+        display.show_demo("Recorded 1 successful demonstrations.")
+        assert [record.getMessage() for record in caplog.records] == [
+            "Current objective: stack",
+            "Recorded 1 successful demonstrations.",
+        ]
+        caplog.clear()
+        subtask_label, demo_label = SimpleNamespace(text=""), SimpleNamespace(text="")
+        display.set_labels(subtask_label, demo_label)
+        display.show_subtask("Next objective: place")
+        assert subtask_label.text == "Next objective: place" and not caplog.records

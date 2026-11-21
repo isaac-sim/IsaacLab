@@ -79,6 +79,10 @@ The adapter retains the renderer and Stage if lease retirement cannot establish 
   `OvxrRendererCfg`) is rejected, because that renderer produces no camera images.
 - Eager scene updates (`lazy_sensor_update=False`) write nothing to the XR renderer;
   its scene publisher writes the same physics state at the reserved ordinal.
+- CPU simulation devices publish scene transforms, but visual-material
+  publication requires CUDA material buffers, as it does for Isaac Lab's OVRTX
+  renderer. With `--device cpu`, an environment that has `VisualMaterial` assets
+  fails at `sim.reset()`.
 - Dynamic anchoring takes any object implementing
   `OvLibrariesXrSession.ExternalAnchorState`; `start_render_worker()` rejects
   other objects before the worker claims the lease.
@@ -123,13 +127,15 @@ with an ordinary `OVRTXRendererCfg` keep Isaac Lab's OVRTX renderer and its own 
 The adapter and lease unit tests double the native OVRTX and OVStage endpoints.
 An opt-in harness runs the render-owner transfer and complete scene publication
 against the real libraries, on the manager-based `Isaac-Cartpole` task with its
-`ovphysx` physics preset and one environment on `cuda:0`. It needs a CUDA GPU,
-OVRTX, OVStage, OvPhysX and an Isaac Capture release with OVXR session support;
-it starts no XR session or CloudXR runtime. Each case runs in a child process:
+`ovphysx` physics preset and one environment on `cuda:0`. The transfer case
+also runs with CPU physics, which publishes host scene tensors to the GPU
+renderer. It needs a CUDA GPU, OVRTX, OVStage, OvPhysX and an Isaac Capture
+release with OVXR session support; it starts no XR session or CloudXR runtime.
+Each case runs in a child process:
 
 ```bash
 ISAACLAB_RUN_NATIVE_OVRTX_TRANSFER=1 uv run python -m pytest \
     source/isaaclab_teleop/test/test_ovrtx_transfer_native_harness.py
 ```
 
-Without `ISAACLAB_RUN_NATIVE_OVRTX_TRANSFER=1`, both cases are skipped.
+Without `ISAACLAB_RUN_NATIVE_OVRTX_TRANSFER=1`, every case is skipped.

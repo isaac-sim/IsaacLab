@@ -986,13 +986,19 @@ def capture_graph(device: wp.DeviceLike, fn: Callable[[], None], *, relaxed: boo
         with _paused_gc(), wp.ScopedCapture(device=device) as capture:
             fn()
         return capture.graph
-    stream = wp.get_stream(device)
+    # A blocking capture stream forbids concurrent legacy-stream transfers,
+    # including renderer or input uploads. ScopedStream retains the incoming
+    # dependency; graph replay still uses the caller's stream.
+    torch_device = wp.device_to_torch(device)
+    torch_stream = torch.cuda.Stream(device=torch_device)
+    stream = wp.stream_from_torch(torch_stream)
+    # Torch work that the caller runs on Warp's current stream moves with it, so the graph still records it.
+    torch_follows = torch.cuda.current_stream(torch_device).cuda_stream == wp.get_stream(device).cuda_stream
+    follow = torch.cuda.stream(torch_stream) if torch_follows else contextlib.nullcontext()
     mode = wp.CaptureMode.THREAD_LOCAL
     if relaxed:
-        # RTX uses the legacy CUDA stream. A nonblocking stream avoids implicit synchronization.
-        stream = wp.stream_from_torch(torch.cuda.Stream(device=wp.device_to_torch(device)))
         mode = wp.CaptureMode.RELAXED
-    with _paused_gc(), wp.ScopedStream(stream):
+    with _paused_gc(), wp.ScopedStream(stream), follow:
         with wp.ScopedCapture(stream=stream, capture_mode=mode) as capture:
             fn()
     return capture.graph
