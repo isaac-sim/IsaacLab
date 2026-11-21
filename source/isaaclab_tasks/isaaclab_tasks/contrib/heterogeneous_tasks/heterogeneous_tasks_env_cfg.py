@@ -8,7 +8,6 @@
 import math
 from dataclasses import MISSING
 
-from isaaclab_newton.envs import mdp as newton_mdp
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
 
@@ -160,10 +159,9 @@ class EventsCfg:
 
 @configclass
 class TerminationsCfg:
-    """Time-out and physics faults, which reset only the failed environment; tasks add their success term."""
+    """Time-out; tasks add their success term."""
 
     time_out = DoneTerm(func=isaaclab_mdp.time_out, time_out=True)
-    solver_fault = DoneTerm(func=newton_mdp.solver_fault)
 
 
 @configclass
