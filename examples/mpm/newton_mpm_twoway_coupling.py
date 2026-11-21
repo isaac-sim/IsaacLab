@@ -144,7 +144,7 @@ def create_sim_cfg():
         device=args_cli.device,
         gravity=GRAVITY,
         visualizer_cfgs=VisualizerCfg(
-            backend=MultiBackendVisualizerCfg(newton=NewtonGLBackendCfg(particle_color=PARTICLE_COLOR)),
+            backend=MultiBackendVisualizerCfg(newton_gl=NewtonGLBackendCfg(particle_color=PARTICLE_COLOR)),
         ),
         physics=NewtonCfg(solver_cfg=solver_cfg),
     )
