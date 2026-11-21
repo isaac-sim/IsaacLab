@@ -7,29 +7,34 @@
 # Copyright 2026 the SuperMimic authors. See docs/licenses/dependencies/supermimic-official-license.txt.
 # Modified for Isaac Lab package boundaries and simulator interfaces.
 
-"""State representations for the world model.
-
-Two representations are provided:
-- GenCoordRepresentation: generalized-coordinate (joint-space) representation
-- MaxCoordRepresentation: maximal-coordinate per-body representation
-"""
+"""Task contracts and generalized/maximal coordinate representations for learned dynamics."""
 
 from __future__ import annotations
 
 import math
 from abc import ABC, abstractmethod
-from typing import Literal
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Literal, Protocol
 
 import torch
 import torch.nn as nn
+from tensordict import TensorDict
 
-from isaaclab_rl.model_based.gencoord import (
+from isaaclab_rl.model_based.coordinates import (
     compute_gencoord_state,
+    compute_maxcoord_rep_state,
+    decompose_maxcoord_rep_state,
     decompose_rep_state,
     infer_num_joints_from_state_dim,
+    maxcoord_full_state_dim,
+    maxcoord_prediction_dim,
+    maxcoord_rep_state_dim,
+    reconstruct_full_from_aux_and_rep,
     rep_state_dim_from_num_joints,
+    world_frame_bodies,
 )
-from isaaclab_rl.model_based.math import (
+from isaaclab_rl.model_based.kinematics import (
     matrix_from_quat,
     quat_apply,
     quat_apply_inverse,
@@ -40,20 +45,55 @@ from isaaclab_rl.model_based.math import (
     rot6d_to_matrix,
     subtract_frame_transforms,
 )
-from isaaclab_rl.model_based.maxcoord import (
-    AnalyticIK,
-    compute_maxcoord_rep_state,
-    decompose_maxcoord_rep_state,
-    maxcoord_full_state_dim,
-    maxcoord_prediction_dim,
-    maxcoord_rep_state_dim,
-    reconstruct_full_from_aux_and_rep,
-    world_frame_bodies,
-)
 
-from .interfaces import MotionReference as MotionLoader
-from .interfaces import SimulationContext as SimContext
-from .kinematics import ForwardKinematics
+from .kinematics import AnalyticIK, ForwardKinematics
+
+
+class MotionReference(Protocol):
+    """Reference channels consumed by state integration and goal encoding."""
+
+    joint_pos: torch.Tensor
+    joint_vel: torch.Tensor
+    root_pos_w: torch.Tensor
+    root_quat_w: torch.Tensor
+    root_lin_vel_w: torch.Tensor
+    root_ang_vel_w: torch.Tensor
+    motion_starts: torch.Tensor
+    motion_ends: torch.Tensor
+
+
+class SimulationContext(Protocol):
+    """Normalization layout shared by physical and imagined observations."""
+
+    def find(self, name: str) -> slice | None: ...
+
+    def denormalize(self, values: torch.Tensor, columns: slice) -> torch.Tensor: ...
+
+
+ExtractFromMotion = Callable[[MotionReference, torch.Tensor, torch.Tensor], torch.Tensor]
+
+
+@dataclass(frozen=True)
+class TaskSpec:
+    """Contract for one task slot of the multi-encoder actor."""
+
+    name: str
+    goal_dim: int
+    extract_training_goal: ExtractFromMotion
+
+
+def build_actor_obs_td(
+    goals_by_name: dict[str, torch.Tensor],
+    history: torch.Tensor,
+    critic: torch.Tensor | None = None,
+) -> TensorDict:
+    """``history`` (B, H, obs_dim) (+ optional ``critic``) plus one ``goal_<name>``
+    key per task. The newest frame ``history[:, -1]`` is the current obs."""
+    obs: dict[str, torch.Tensor] = {"history": history}
+    if critic is not None:
+        obs["critic"] = critic
+    obs.update({f"goal_{name}": goal for name, goal in goals_by_name.items()})
+    return TensorDict(obs, batch_size=[history.shape[0]], device=history.device)
 
 
 def create_representation(
@@ -165,7 +205,7 @@ def _assemble_goal(
     return wm_goal, actor_goal
 
 
-def goal_window_indices(motion: MotionLoader, motion_times: torch.Tensor) -> torch.Tensor:
+def goal_window_indices(motion: MotionReference, motion_times: torch.Tensor) -> torch.Tensor:
     """Clamped windowed frame indices ``[t, t+stride, ..., t+(N-1)*stride]``, ``(E, N)``.
 
     Future offsets are clamped to the last frame of each env's current clip so the
@@ -180,7 +220,7 @@ def goal_window_indices(motion: MotionLoader, motion_times: torch.Tensor) -> tor
     return torch.minimum(motion_times[:, None] + offsets, last_valid[:, None])
 
 
-def motion_goal_window(motion: MotionLoader, motion_times: torch.Tensor) -> torch.Tensor:
+def motion_goal_window(motion: MotionReference, motion_times: torch.Tensor) -> torch.Tensor:
     """Windowed joint targets as the goal content, ``(E, N * 2J)`` — per frame
     ``[joint_pos(J), joint_vel(J)]``.
     """
@@ -189,7 +229,7 @@ def motion_goal_window(motion: MotionLoader, motion_times: torch.Tensor) -> torc
     return frames.reshape(frames.shape[0], -1)
 
 
-def motion_anchor_window(motion: MotionLoader, motion_times: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+def motion_anchor_window(motion: MotionReference, motion_times: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
     """Motion anchor (the root) world pose ``(pos (E, N, 3), quat (E, N, 4))`` at
     the same windowed indices as :func:`motion_goal_window`.
     """
@@ -284,7 +324,7 @@ class StateRepresentation(nn.Module, ABC):
         """Reconstruct full state from aux_state + rep_state (on-demand, for viz)."""
         ...
 
-    def bind(self, fk, soft_joint_pos_limits: torch.Tensor, sim_context: SimContext, reward_fn) -> None:
+    def bind(self, fk, soft_joint_pos_limits: torch.Tensor, sim_context: SimulationContext, reward_fn) -> None:
         """Resolve env-dependent state needed by the reward and the proprio sensor."""
         self._soft_joint_pos_limits = soft_joint_pos_limits
         self._reward_fn = reward_fn
@@ -378,7 +418,7 @@ class StateRepresentation(nn.Module, ABC):
 
     def compute_wm_goal(
         self,
-        motion: MotionLoader,
+        motion: MotionReference,
         motion_times: torch.Tensor,
         aux_state: torch.Tensor,
     ) -> tuple[torch.Tensor, torch.Tensor]:
@@ -464,7 +504,7 @@ class GenCoordRepresentation(StateRepresentation):
         self._default_joint_pos = default_joint_pos
         self.fk: ForwardKinematics  # set by bind
 
-    def bind(self, fk, soft_joint_pos_limits: torch.Tensor, sim_context: SimContext, reward_fn) -> None:
+    def bind(self, fk, soft_joint_pos_limits: torch.Tensor, sim_context: SimulationContext, reward_fn) -> None:
         super().bind(fk, soft_joint_pos_limits, sim_context, reward_fn)
         self.fk = fk
 
@@ -607,9 +647,9 @@ class MaxCoordRepresentation(StateRepresentation):
         self.register_buffer("_default_joint_pos", default_joint_pos, persistent=False)
         self.register_buffer("_gravity_w", torch.tensor([0.0, 0.0, -1.0]), persistent=False)
         self.analytic_ik: AnalyticIK  # set by bind
-        self._encoder_bias: tuple[slice, SimContext] | None = None
+        self._encoder_bias: tuple[slice, SimulationContext] | None = None
 
-    def bind(self, fk, soft_joint_pos_limits: torch.Tensor, sim_context: SimContext, reward_fn) -> None:
+    def bind(self, fk, soft_joint_pos_limits: torch.Tensor, sim_context: SimulationContext, reward_fn) -> None:
         super().bind(fk, soft_joint_pos_limits, sim_context, reward_fn)
         self.analytic_ik = fk.analytic_ik()
         columns = sim_context.find("encoder_bias")

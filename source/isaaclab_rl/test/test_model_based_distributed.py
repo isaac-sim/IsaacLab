@@ -11,8 +11,8 @@ import torch
 import torch.distributed as dist
 import torch.multiprocessing as mp
 
+from isaaclab_rl.model_based.learners import _optimize_step
 from isaaclab_rl.model_based.models import _CudaGraphNormalization
-from isaaclab_rl.model_based.optim import _optimize_step
 
 
 def _compare_updates(rank: int, rendezvous: str) -> None:

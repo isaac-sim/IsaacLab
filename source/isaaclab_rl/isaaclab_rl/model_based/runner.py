@@ -7,18 +7,54 @@
 # Copyright 2026 the SuperMimic authors. See docs/licenses/dependencies/supermimic-official-license.txt.
 # Modified to compose task adapters and use Isaac Lab entrypoints for logging and checkpoints.
 
-"""Physical collection, supervised dynamics learning, and imagined policy updates."""
+"""Training settings and physical collection, dynamics learning, and imagined policy updates."""
 
 import math
 
 import torch
 import torch.distributed as dist
 
-from .bptt import ActorCriticPolicyLearner, ActorCriticPolicyLearnerCfg, BpttPolicyLearner
-from .config import REFERENCE_REVISION, ModelBasedRunnerCfg
+from isaaclab.utils import configclass
+
+from .learners import (
+    ActorCriticPolicyLearner,
+    ActorCriticPolicyLearnerCfg,
+    BpttPolicyLearner,
+    BpttPolicyLearnerCfg,
+    WorldModelLearner,
+    WorldModelLearnerCfg,
+)
 from .models import Dynamics, MultiEncoderAE, build_mlp
-from .replay_buffer import ReplayBuffer
-from .world_model_learner import WorldModelLearner
+from .storage import ReplayBuffer
+
+
+@configclass
+class ModelBasedRunnerCfg:
+    """Learning iterations count vectorized physical environment steps."""
+
+    seed: int = 42
+    max_iterations: int = 1000000
+    buffer_size: int = 1000
+    replay_ratio: int = 16
+    dynamics_hidden_dims: tuple[int, ...] = (2048, 2048, 2048)
+    latent_dim: int = 32
+    actor_hidden_dims: tuple[int, ...] = (2048, 1024, 512, 256)
+    critic_hidden_dims: tuple[int, ...] = (256, 128)
+    latent_bc_weight: float = 0.1
+    history_length: int = 1
+    allow_tf32: bool = False
+    lr_decay_iterations: int | None = None
+    lr_final_factor: float = 0.03
+    termination_softness: float = 0.05
+    wm: WorldModelLearnerCfg = WorldModelLearnerCfg()
+    policy: BpttPolicyLearnerCfg | ActorCriticPolicyLearnerCfg = ActorCriticPolicyLearnerCfg()
+    log_interval: int = 10
+    save_interval: int = 1000
+    wandb_project: str | None = None
+    wandb_name: str | None = None
+
+
+REFERENCE_REVISION = "5efbf114e11f725c31d83e217be987c13c0e4ce2"
 
 
 class Ratio:

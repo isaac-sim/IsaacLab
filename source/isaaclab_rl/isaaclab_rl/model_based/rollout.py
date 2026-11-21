@@ -16,9 +16,9 @@ from typing import TYPE_CHECKING
 import torch
 from tensordict import TensorDict
 
-from isaaclab_rl.model_based.replay_buffer import ReplayBuffer
+from isaaclab_rl.model_based.storage import ReplayBuffer
 
-from .interfaces import TaskSpec, build_actor_obs_td
+from .representations import TaskSpec, build_actor_obs_td
 
 if TYPE_CHECKING:
     from isaaclab_rl.model_based.models import Dynamics

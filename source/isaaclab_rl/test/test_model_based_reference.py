@@ -24,20 +24,9 @@ from tensordict import TensorDict
 
 from isaaclab.test.utils import DeviceScope, test_devices
 
-from isaaclab_rl.model_based import (
-    bptt,
-    models,
-    replay_buffer,
-    representations,
-    reset_sampling,
-    world_model_learner,
-)
-from isaaclab_rl.model_based import (
-    math as quaternion,
-)
-from isaaclab_rl.model_based.config import REFERENCE_REVISION
+from isaaclab_rl.model_based import kinematics, learners, models, representations, storage
 from isaaclab_rl.model_based.rollout import MultiTaskWorldModelEnv
-from isaaclab_rl.model_based.runner import Ratio
+from isaaclab_rl.model_based.runner import REFERENCE_REVISION, Ratio
 
 from isaaclab_tasks.core.motion_tracking.config.g1.model_based_env_cfg import G1ModelBasedEnvCfg
 from isaaclab_tasks.core.motion_tracking.mdp.model_based import rewards
@@ -93,7 +82,7 @@ def test_quaternion_adapter_values_and_gradients(reference):
     v = torch.randn(7, 3, dtype=torch.float64)
     for operation in ("matrix_from_quat", "quat_apply", "quat_apply_inverse", "quat_mul", "yaw_quat", "quat_inv"):
         outputs, gradients = [], []
-        for module in (reference.math, quaternion):
+        for module in (reference.math, kinematics):
             value = q.clone().requires_grad_()
             args = (
                 (value, v)
@@ -134,7 +123,7 @@ def test_dynamics_loss_and_action_gradient_match_reference(reference, kind):
     actions = torch.randn(batch, frames, num_joints)
     context = torch.randn(batch, 4)
     outputs, gradients = [], []
-    for module, model, rep in zip((reference.wm, world_model_learner), dynamics, reps, strict=True):
+    for module, model, rep in zip((reference.wm, learners), dynamics, reps, strict=True):
         learner = module.WorldModelLearner(model, rep, module.WorldModelLearnerCfg())
         action = actions.clone().requires_grad_()
         represented, aux = rep.represent(full), rep.extract_aux_state(full)
@@ -174,13 +163,13 @@ def test_actor_and_gae_match_reference(reference):
     for expected, actual in zip(*gradients, strict=True):
         torch.testing.assert_close(actual, expected, rtol=0, atol=0)
     args = (torch.randn(5, 6, 1), torch.randn(6, 1), torch.rand(5, 6, 1), torch.rand(5, 6, 1), 0.99, 0.95)
-    torch.testing.assert_close(bptt.gae_returns(*args), reference.policy.gae_returns(*args), rtol=0, atol=0)
+    torch.testing.assert_close(learners.gae_returns(*args), reference.policy.gae_returns(*args), rtol=0, atol=0)
 
 
 def test_replay_and_return_sampling_match_reference(reference):
     """Protect episode boundaries, circular-buffer age, history padding, and curriculum updates."""
     buffers = []
-    for module in (reference.buffer, replay_buffer):
+    for module in (reference.buffer, storage):
         buffer = module.ReplayBuffer(
             {
                 "state": module.FieldSpec(1),
@@ -215,7 +204,7 @@ def test_replay_and_return_sampling_match_reference(reference):
             assert not (results[1][0]["terminated"][:, :-1] | results[1][0]["truncated"][:, :-1]).any()
     samplers = [
         module.ReturnSampler(module.ReturnSamplerCfg(horizon=3), 4, 20, 3, 0.1)
-        for module in (reference.sampler, reset_sampling)
+        for module in (reference.sampler, storage)
     ]
     for step in range(12):
         args = (
@@ -247,7 +236,7 @@ def test_tracking_reward_value_and_gradient_match_reference(reference):
         reward = module.tracking_reward(
             torch.cat((predicted[:, 0], q[:, 0]), -1),
             predicted,
-            quaternion.matrix_from_quat(q),
+            kinematics.matrix_from_quat(q),
             velocity,
             velocity,
             joint,
@@ -304,10 +293,10 @@ def test_actor_critic_optimizer_step_matches_reference(reference, device):
         device=device,
     )
     original_rollout = importlib.import_module("supermimic.envs.multi_task_world_model_env").MultiTaskWorldModelEnv
-    learners = []
+    policy_learners = []
     for network_module, rep_module, policy_module, rollout_class in (
         (reference.models, reference.representation, reference.policy, original_rollout),
-        (models, representations, bptt, MultiTaskWorldModelEnv),
+        (models, representations, learners, MultiTaskWorldModelEnv),
     ):
         torch.manual_seed(55)
         rep = rep_module.create_representation(
@@ -356,21 +345,23 @@ def test_actor_critic_optimizer_step_matches_reference(reference, device):
                 motion=motion, num_actions=29, max_step_reward=0.1, anchor_pos_threshold=0.25, anchor_ori_threshold=0.8
             )
         rollout = rollout_class(**kwargs)
-        learners.append(
+        policy_learners.append(
             policy_module.ActorCriticPolicyLearner(
                 actor, critic, rollout, policy_module.ActorCriticPolicyLearnerCfg(horizon=4, batch_size=batch), device
             )
         )
     outputs = []
-    for learner in learners:
+    for learner in policy_learners:
         learner.wm_env.dynamics.requires_grad_(False)
         torch.manual_seed(81)
         outputs.append(learner._train_batch(start.clone()))
     for key in outputs[0]:
         torch.testing.assert_close(outputs[1][key], outputs[0][key], rtol=2e-4, atol=2e-6)
     for name in ("actor", "critic"):
-        for key, expected in getattr(learners[0], name).state_dict().items():
-            torch.testing.assert_close(getattr(learners[1], name).state_dict()[key], expected, rtol=2e-4, atol=2e-6)
+        for key, expected in getattr(policy_learners[0], name).state_dict().items():
+            torch.testing.assert_close(
+                getattr(policy_learners[1], name).state_dict()[key], expected, rtol=2e-4, atol=2e-6
+            )
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
@@ -378,7 +369,7 @@ def test_adam_schedule_survives_cuda_graph_replay(device):
     """Captured Adam must update every layer and read changing rates like eager Adam."""
     import copy
 
-    from isaaclab_rl.model_based.optim import CapturedUpdate, build_optimizers, graph_state
+    from isaaclab_rl.model_based.learners import CapturedUpdate, build_optimizers, graph_state
 
     torch.manual_seed(7)
     model = torch.nn.Sequential(

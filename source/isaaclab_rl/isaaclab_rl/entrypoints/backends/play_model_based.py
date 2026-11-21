@@ -17,8 +17,7 @@ from isaaclab.utils import update_from_dict
 from isaaclab_tasks.core.motion_tracking.mdp.model_based.adapter import MotionTrackingAdapter
 from isaaclab_tasks.utils import resolve_task_config, setup_preset_cli
 
-from ...model_based.config import REFERENCE_REVISION
-from ...model_based.runner import build_actor
+from ...model_based.runner import REFERENCE_REVISION, build_actor
 from ..common import (
     add_common_play_args,
     apply_env_overrides,

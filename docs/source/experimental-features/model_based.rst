@@ -16,6 +16,13 @@ physical observations, and randomization through native managers. Its G1
 configuration reuses the controller from the existing motion-tracking task.
 Train and play use the standard Isaac Lab entrypoints.
 
+``runner.py`` contains the training configuration and loop; ``learners.py`` owns
+world-model and policy updates, including their optimizers. ``models.py`` defines
+the networks, and ``storage.py`` owns transition replay and reset sampling.
+``representations.py``, ``coordinates.py``, and ``kinematics.py`` define task
+contracts, state layouts, and differentiable geometry; ``rollout.py`` integrates
+them for imagined trajectories.
+
 Source attribution and licenses
 -------------------------------
 

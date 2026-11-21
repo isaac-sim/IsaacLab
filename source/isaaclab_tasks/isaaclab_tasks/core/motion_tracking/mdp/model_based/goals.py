@@ -22,9 +22,8 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab_rl.model_based.interfaces import TaskSpec
-from isaaclab_rl.model_based.math import quat_apply_inverse
-from isaaclab_rl.model_based.representations import actor_goal_dim
+from isaaclab_rl.model_based.kinematics import quat_apply_inverse
+from isaaclab_rl.model_based.representations import TaskSpec, actor_goal_dim
 
 if TYPE_CHECKING:
     from isaaclab_rl.model_based.representations import StateRepresentation

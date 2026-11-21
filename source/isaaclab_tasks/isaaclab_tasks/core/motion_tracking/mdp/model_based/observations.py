@@ -7,7 +7,7 @@
 
 import torch
 
-from isaaclab_rl.model_based.math import from_native, matrix_from_quat, quat_apply_inverse
+from isaaclab_rl.model_based.kinematics import from_native, matrix_from_quat, quat_apply_inverse
 
 from isaaclab_tasks.core.motion_tracking.mdp.model_based.rewards import tracking_reward
 
