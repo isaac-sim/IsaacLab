@@ -247,7 +247,7 @@ def create_sim_cfg():
             focal_length=30.0,
             enable_live_plots=False,
             backend=MultiBackendVisualizerCfg(
-                newton=NewtonGLBackendCfg(
+                newton_gl=NewtonGLBackendCfg(
                     show_particles=SHOW_PARTICLES,
                     particle_color=WATER_COLOR,
                     initial_renderer=args_cli.initial_renderer,

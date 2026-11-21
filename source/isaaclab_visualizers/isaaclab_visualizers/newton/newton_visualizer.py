@@ -601,6 +601,10 @@ class NewtonViewerGL(ViewerGL):
         """Draw one toggle per visualization marker group the task registers."""
         imgui.separator_text("Visualization Markers")
         groups = list(self.marker_groups)
+        if (
+            getattr(self._owner, "rtx_view_index", None) is not None
+        ):  # OVRTX draws the markers as prims of the shared scene
+            hud_note(imgui, "RTX: markers also show up in RTX sensor cameras.")
         if not groups:
             imgui.text_disabled("This task registers no visualization markers")
             hover_tooltip(
