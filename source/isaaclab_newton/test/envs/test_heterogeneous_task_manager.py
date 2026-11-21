@@ -181,6 +181,13 @@ def test_environments_run_their_tasks(env: ManagerBasedRLEnv):
     )
 
 
+def test_task_terms_name_the_slots(env: ManagerBasedRLEnv):
+    """A term that the environment evaluates itself gets the tasks' terms with their objects renamed to the slots."""
+    terms = env.task_manager.task_terms("success")
+    assert [terms[task].params["asset_cfg"].name for task in range(3)] == ["object_1", "object_2", "object_1"]
+    assert env.task_manager.task_terms("failure") == {}
+
+
 def test_tasks_share_equal_objects(env: ManagerBasedRLEnv):
     """Tasks whose objects in a slot have equal spawn configurations share the candidate, each at its own pose."""
     assert [len(env.scene[f"object_{slot}"].cfg.spawn.assets_cfg) for slot in range(3)] == [2, 2, 2]
