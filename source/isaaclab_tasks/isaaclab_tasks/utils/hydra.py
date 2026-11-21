@@ -211,6 +211,9 @@ class PresetCfg:
     _aliases: ClassVar[dict[str, str]] = {}
 
     _quiet_aliases: ClassVar[frozenset[str]] = frozenset()
+    _explicit_aliases: ClassVar[dict[str, str]] = {}
+    """Names that select a field only when chosen explicitly, e.g. ``visualizer=NAME``, never by a global preset such
+    as ``physics=NAME`` or ``presets=NAME``."""
     """Names in :attr:`_aliases` that are alternative spellings, so selecting them does not warn."""
 
     _alias_messages: ClassVar[dict[str, str]] = {}
@@ -368,7 +371,11 @@ def _pick_alternative(
     field_names = set(fields)
     if explicit_name is not None:
         explicit_name = _normalize_preset_name(
-            explicit_name, field_names, preset_obj._aliases, preset_obj._quiet_aliases, preset_obj._alias_messages
+            explicit_name,
+            field_names,
+            {**preset_obj._aliases, **preset_obj._explicit_aliases},
+            preset_obj._quiet_aliases | preset_obj._explicit_aliases.keys(),
+            preset_obj._alias_messages,
         )
         if explicit_name in fields:
             return fields[explicit_name]
@@ -601,9 +608,7 @@ def register_task(
         if token == PresetTarget.DOMAIN.value:
             global_presets.extend(v.strip() for v in val.split(",") if v.strip())
         elif token == PresetTarget.VISUALIZER.value:
-            from .presets import VISUALIZER_PRESET_FIELDS
-
-            names = [VISUALIZER_PRESET_FIELDS.get(name, name) for name in (v.strip() for v in val.split(",")) if name]
+            names = [name.strip() for name in val.split(",") if name.strip()]
             if not names:
                 raise ValueError("visualizer= requires a preset name; use visualizer=none to disable viewers.")
             selectors[PresetTarget.VISUALIZER.matches] = names if len(names) > 1 else names[0]
