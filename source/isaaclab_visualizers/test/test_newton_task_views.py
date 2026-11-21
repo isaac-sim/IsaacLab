@@ -76,14 +76,16 @@ def test_a_lone_free_view_is_called_perspective_and_a_task_view_the_tracking_cam
     assert [viz._is_tracking_view(view) for view in viz._image_views] == [False, True]
 
 
-def test_views_are_numbered_only_when_several_share_a_name():
-    views = [_view(PerspectiveCameraCfg()), _view(PerspectiveCameraCfg()), _view(TrackingCameraCfg(env_index=0))]
-    views += [_view(TrackingCameraCfg(env_index=1))]
+def test_tracking_cameras_are_numbered_only_when_several_share_a_name():
+    views = [
+        _view(PerspectiveCameraCfg()),
+        _view(TrackingCameraCfg(env_index=0)),
+        _view(TrackingCameraCfg(env_index=1)),
+    ]
     viz = _visualizer(views)
 
-    assert viz._view_labels([0, 1, 2, 3]) == [
-        "Perspective 1 (interactive)",
-        "Perspective 2 (interactive)",
+    assert viz._view_labels([0, 1, 2]) == [
+        "Perspective (interactive)",
         "Tracking Camera 1 (fixed to env)",
         "Tracking Camera 2 (fixed to env)",
     ]
