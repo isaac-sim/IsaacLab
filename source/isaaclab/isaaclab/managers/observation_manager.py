@@ -16,7 +16,7 @@ import torch
 from prettytable import PrettyTable
 
 from ..envs.utils.io_descriptors import _warn_io_descriptors_deprecated
-from ..utils import instantiate, noise, tensor_processors, to_dict
+from ..utils import instantiate, noise, string_to_callable, tensor_processors, to_dict
 from ..utils.buffers import CircularBuffer, DelayBuffer
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
@@ -393,6 +393,8 @@ class ObservationManager(ManagerBase):
         6. Apply delay based on :attr:`ObservationTermCfg.delay_min_lag` and :attr:`ObservationTermCfg.delay_max_lag`
         7. Append the delayed observation to history if requested
 
+        After history assembly and concatenation, the optional group postprocess callback is applied.
+
         We apply noise before clipping and scaling to maintain the integrity of how noise affects the data
         as it truly exists in the real world. If the noise is applied after clipping or scaling, the noise
         could be artificially constrained or amplified, which might misrepresent how noise naturally occurs
@@ -496,18 +498,20 @@ class ObservationManager(ManagerBase):
             group_obs[term_name] = obs if owned else obs.clone()
 
         # concatenate all observations in the group together
+        observations = group_obs
         if self._group_obs_concatenate[group_name]:
             if len(group_obs) == 1:
-                return next(iter(group_obs.values()))
-            if self._group_obs_time_major[group_name]:
+                observations = next(iter(group_obs.values()))
+            elif self._group_obs_time_major[group_name]:
                 history_length = term_cfgs[0].history_length
-                return torch.cat(
+                observations = torch.cat(
                     [obs.reshape(self._env.num_envs, history_length, -1) for obs in group_obs.values()], dim=-1
                 ).reshape(self._env.num_envs, -1)
-            # set the concatenate dimension, account for the batch dimension if positive dimension is given
-            return torch.cat(list(group_obs.values()), dim=self._group_obs_concatenate_dim[group_name])
-        else:
-            return group_obs
+            else:
+                # Account for the batch dimension when concatenating.
+                observations = torch.cat(list(group_obs.values()), dim=self._group_obs_concatenate_dim[group_name])
+        postprocess = self._group_obs_postprocess[group_name]
+        return postprocess(self._env, observations) if postprocess is not None else observations
 
     def serialize(self) -> dict:
         """Serialize the observation term configurations for all active groups.
@@ -587,6 +591,8 @@ class ObservationManager(ManagerBase):
                 " observation manager."
             )
 
+        self._group_obs_postprocess = {}
+
         # check if config is dict already
         if isinstance(self.cfg, dict):
             group_cfg_items = self.cfg.items()
@@ -603,6 +609,12 @@ class ObservationManager(ManagerBase):
                     f"Observation group '{group_name}' is not of type 'ObservationGroupCfg'."
                     f" Received: '{type(group_cfg)}'."
                 )
+            postprocess = group_cfg.postprocess
+            if isinstance(postprocess, str):
+                postprocess = string_to_callable(postprocess)
+            if postprocess is not None and not callable(postprocess):
+                raise TypeError(f"Observation group '{group_name}' postprocess must be callable.")
+            self._group_obs_postprocess[group_name] = postprocess
             # initialize list for the group settings
             self._group_obs_term_names[group_name] = []
             self._group_obs_term_dim[group_name] = []
@@ -637,6 +649,7 @@ class ObservationManager(ManagerBase):
             for term_name, term_cfg in term_cfg_items:
                 # skip non-obs settings
                 if term_name in [
+                    "postprocess",
                     "enable_corruption",
                     "concatenate_terms",
                     "history_length",

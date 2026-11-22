@@ -12,18 +12,19 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
-from isaaclab.managers import ManagerTermBaseCfg
-
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
 
-def zero_observation_on_solver_fault(env: ManagerBasedRLEnv, observation: ManagerTermBaseCfg) -> torch.Tensor:
-    """Evaluate a nested observation and zero only solver-faulted rows before history storage.
+def zero_observation_on_solver_fault(
+    env: ManagerBasedRLEnv, observations: torch.Tensor | dict[str, torch.Tensor]
+) -> torch.Tensor | dict[str, torch.Tensor]:
+    """Zero complete faulted rows, including history, as an observation group postprocessor.
 
-    Configure observation processing and history on the outer observation term. Unflagged rows and
-    the source tensor remain unchanged, including nonfinite values unrelated to a solver fault.
+    The manager supplies owned tensors after assembly. Unflagged rows, including nonfinite values
+    unrelated to solver faults, and the source and history buffers remain unchanged.
     """
-    data = observation.func(env, **observation.params)
     faults = wp.to_torch(env.sim.backend_manager.get_non_finite_worlds())
-    return data.masked_fill(faults.reshape((-1,) + (1,) * (data.ndim - 1)), 0.0)
+    for data in observations.values() if isinstance(observations, dict) else (observations,):
+        data.masked_fill_(faults.reshape((-1,) + (1,) * (data.ndim - 1)), 0.0)
+    return observations

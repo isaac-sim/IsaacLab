@@ -476,7 +476,12 @@ def test_group_history_flatten_order(setup_env, history_order, history_newest_fi
     def second_term(env):
         return env.data.lin_vel_w[:, :1]
 
-    cfg = ObservationGroupCfg(history_length=2, history_newest_first=history_newest_first)
+    def postprocess(callback_env, observations):
+        assert callback_env is env
+        assert observations.shape == (env.num_envs, 6)
+        return observations + env.dt
+
+    cfg = ObservationGroupCfg(history_length=2, history_newest_first=history_newest_first, postprocess=postprocess)
     if history_order is not None:
         cfg.history_order = history_order
     cfg.first = ObservationTermCfg(func=first_term)
@@ -490,7 +495,7 @@ def test_group_history_flatten_order(setup_env, history_order, history_newest_fi
 
     assert manager.group_obs_dim["policy"] == (6,)
     assert observation.shape == (env.num_envs, 6)
-    torch.testing.assert_close(observation, torch.tensor(expected_values).expand(env.num_envs, -1))
+    torch.testing.assert_close(observation, torch.tensor(expected_values).expand(env.num_envs, -1) + env.dt)
 
 
 def test_unflattened_term_history_newest_first(setup_env):

@@ -32,23 +32,21 @@ reward rows before summation and episode accumulation and does not require a nam
        # Declare task reward terms above this final term.
        solver_fault_reward = RewardTermCfg(func=zero_reward_on_solver_fault, weight=1.0)
 
-To zero observations only when the solver fails, wrap the raw observation in
-:func:`~isaaclab_newton.envs.mdp.zero_observation_on_solver_fault` using a nested
-:class:`~isaaclab.managers.ManagerTermBaseCfg`. Keep processing and history on the outer observation term.
-The lazy fault mask is shared with termination and reward evaluation. Unflagged rows, including any
-unrelated nonfinite values, and source tensors remain unchanged.
+To zero complete observation rows, including history, configure
+:func:`~isaaclab_newton.envs.mdp.zero_observation_on_solver_fault` as each group's ``postprocess`` callback.
+It runs after processing, history assembly and concatenation, including terminal observation reads.
+The lazy fault mask is shared with termination and reward evaluation. Unflagged rows, including unrelated
+nonfinite values, and source and history buffers remain unchanged. Normal reset clears the affected histories.
 
 .. code-block:: python
 
-   from isaaclab.managers import ManagerTermBaseCfg, ObservationTermCfg
+   from isaaclab.managers import ObservationGroupCfg, ObservationTermCfg
    from isaaclab.envs import mdp
-   from isaaclab_newton.envs.mdp import zero_observation_on_solver_fault
 
-   joint_pos = ObservationTermCfg(
-       func=zero_observation_on_solver_fault,
-       params={"observation": ManagerTermBaseCfg(func=mdp.joint_pos)},
-       history_length=5,
-   )
+   @configclass
+   class PolicyCfg(ObservationGroupCfg):
+       joint_pos = ObservationTermCfg(func=mdp.joint_pos, history_length=5)
+       postprocess = "isaaclab_newton.envs.mdp:zero_observation_on_solver_fault"
 
 Detection includes Newton body, joint and particle state. MuJoCo additionally checks its private
 persistent buffers. MJWarp checks and resets these buffers per world. CPU MuJoCo uses global solver

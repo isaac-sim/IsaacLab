@@ -287,6 +287,14 @@ class ObservationTermCfg(ManagerTermBaseCfg):
 class ObservationGroupCfg:
     """Configuration for an observation group."""
 
+    postprocess: Callable[..., torch.Tensor | dict[str, torch.Tensor]] | str | None = None
+    """Optional callback applied after history assembly and concatenation.
+
+    Called with ``(env, observations)`` and must return observations with the same structure and shapes.
+    It may modify the supplied tensors in place; they own their storage independently of source and
+    history buffers. A string uses the ``module:attribute`` format.
+    """
+
     concatenate_terms: bool = True
     """Whether to concatenate the observation terms in the group. Defaults to True.
 
