@@ -144,10 +144,12 @@ def spawn_lidar(prim_path: str, cfg: LidarCfg) -> Usd.Prim:
     prim.CreateAttribute("visibility", Sdf.ValueTypeNames.Token).Set("invisible")
     prim.CreateAttribute("omni:sensor:frameRate", Sdf.ValueTypeNames.Double2).Set(Gf.Vec2d(10.0, 1.0))
 
-    if cfg.model_name == "LidarWpm":
+    if cfg.model_name == "LidarCore":
+        _author_core(prim, cfg)
+    elif cfg.model_name == "LidarWpm":
         _author_wpm(prim, cfg)
     else:
-        _author_core(prim, cfg)
+        raise ValueError(f"Lidar model must be 'LidarCore' or 'LidarWpm', got {cfg.model_name!r}.")
 
     return prim
 
@@ -163,6 +165,7 @@ def _clear_lidar_returns_kernel(
     env_id, ray_id = wp.tid()
     if not env_mask[env_id]:
         return
+
     points[env_id, ray_id] = wp.vec3f(wp.inf, wp.inf, wp.inf)
     intensity[env_id, ray_id] = 0.0
     valid[env_id, ray_id] = False
@@ -328,8 +331,13 @@ class Lidar(SensorBase):
         self._push_renderer_pose()
 
     def _update_buffers_impl(self, env_mask: wp.array):
-        """Capture every tile when any environment is due. A tiled product cannot render one tile."""
-        if self.cfg.update_period > 0.0 and not bool(env_mask.numpy().any()):
+        """Capture every tile when any environment is due. A tiled product cannot render one tile.
+
+        A forced capture still renders when the sampling period has not expired. ``update`` marks
+        the buffers dirty without filling ``_is_outdated``, so the empty mask is not a reason to
+        keep the previous scan.
+        """
+        if self.cfg.update_period > 0.0 and not self._force_capture and not bool(env_mask.numpy().any()):
             return
 
         self._renderer.render_lidars(self._capture_interval(), force=self._force_capture)
