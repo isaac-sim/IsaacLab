@@ -22,6 +22,7 @@ gym.register(
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1FlatPPORunnerCfg",
         "rsl_rl_sac_cfg_entry_point": f"{agents.__name__}.rsl_rl_sac_cfg:G1FlatSACRunnerCfg",
         "rsl_rl_supermimic_cfg_entry_point": f"{agents.__name__}.rsl_rl_supermimic_cfg:G1FlatSuperMimicRunnerCfg",
+        "rsl_rl_blinkmimic_cfg_entry_point": f"{agents.__name__}.rsl_rl_supermimic_cfg:G1FlatBlinkMimicRunnerCfg",
         "default_agent": "rsl_rl",
     },
 )
@@ -35,6 +36,7 @@ gym.register(
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1RoughPPORunnerCfg",
         "rsl_rl_sac_cfg_entry_point": f"{agents.__name__}.rsl_rl_sac_cfg:G1RoughSACRunnerCfg",
         "rsl_rl_supermimic_cfg_entry_point": f"{agents.__name__}.rsl_rl_supermimic_cfg:G1RoughSuperMimicRunnerCfg",
+        "rsl_rl_blinkmimic_cfg_entry_point": f"{agents.__name__}.rsl_rl_supermimic_cfg:G1RoughBlinkMimicRunnerCfg",
         "default_agent": "rsl_rl",
     },
 )

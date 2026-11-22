@@ -12,6 +12,7 @@ from isaaclab_tasks.utils.hydra import collect_presets
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
 TASKS = ("Isaac-Velocity-Flat-G1", "Isaac-Velocity-Rough-G1")
+AGENTS = ("rsl_rl_supermimic_cfg_entry_point", "rsl_rl_blinkmimic_cfg_entry_point")
 
 
 @pytest.mark.parametrize("task", TASKS)
@@ -33,8 +34,9 @@ def test_velocity_observation_preset_preserves_policy_and_mdp(task):
 
 
 @pytest.mark.parametrize("task", TASKS)
-def test_g1_supermimic_max_step_reward_matches_reward_terms(task):
-    env_cfg, agent_cfg = resolve_task_config(task, "rsl_rl_supermimic_cfg_entry_point", overrides=[])
+@pytest.mark.parametrize("agent", AGENTS)
+def test_g1_supermimic_max_step_reward_matches_reward_terms(task, agent):
+    env_cfg, agent_cfg = resolve_task_config(task, agent, overrides=[])
     rewards = env_cfg.rewards
     assert {name for name, term in vars(rewards).items() if term is not None and term.weight > 0} == {
         "track_lin_vel_xy_exp",
@@ -97,7 +99,7 @@ def test_g1_differentiable_velocity_matches_simulation_and_managers(task_name):
 
     from isaaclab.app import launch_simulation
 
-    from isaaclab_tasks.core.velocity.supermimic import VelocityTask
+    from isaaclab_tasks.core.velocity.config.g1.supermimic import G1VelocityTask
 
     cfg, _ = resolve_task_config(
         task_name, None, overrides=["presets=state_obs", "physics=newton_mjwarp", "visualizer=none"]
@@ -113,7 +115,7 @@ def test_g1_differentiable_velocity_matches_simulation_and_managers(task_name):
         try:
             obs, _ = env.reset()
             owner = env.unwrapped
-            task = VelocityTask(env=env, device=owner.device)
+            task = G1VelocityTask(env=env, device=owner.device)
             assert task.dt == pytest.approx(0.02)
             assert len(task.rewards) == 16
             num_scan = 0 if task.scan_points is None else len(task.scan_points)
@@ -132,6 +134,36 @@ def test_g1_differentiable_velocity_matches_simulation_and_managers(task_name):
                 scan_errors.append((frame[..., proprio:] - policy[..., proprio:]).abs().flatten())
                 # Privileged masses and contact clocks cannot enter the actor.
                 torch.testing.assert_close(frame, task.actor_obs(state, goal, 2 * obs["context"], history))
+                if step < 4:
+                    # The mirror is an involution that reflects the feet and the terrain below them.
+                    for mirror, value in (
+                        (task.mirror_state, obs["state"]),
+                        (task.mirror_actions, history),
+                        (task.mirror_context, obs["context"]),
+                        (task.mirror_labels, obs["labels"]),
+                    ):
+                        torch.testing.assert_close(mirror(mirror(value)), value)
+                    reflected = task.representation.unflatten(task.mirror_state(obs["state"]))
+                    feet = task._bodies(state)[0][:, : task.num_feet]
+                    reflected_feet = task._bodies(reflected)[0][:, : task.num_feet]
+                    torch.testing.assert_close(
+                        reflected_feet,
+                        feet[:, task.foot_perm] * task.vector_sign + task.position_offset,
+                        atol=1e-4,
+                        rtol=0,
+                    )
+                    # Each reflected sole point sees the terrain of its counterpart on the other foot.
+                    soles = task.sole_points[0]
+                    corners = (soles[:, None] * task.vector_sign - soles).norm(dim=-1).argmin(-1)
+                    num_soles = task.num_feet * len(soles)
+                    context = task.dynamics_context(state, obs["context"], history)[:, -num_soles - 1 :]
+                    reflected_context = task.dynamics_context(
+                        reflected, task.mirror_context(obs["context"]), task.mirror_actions(history)
+                    )[:, -num_soles - 1 :]
+                    clearance = context[:, 1:].reshape(num_envs, task.num_feet, -1)[:, task.foot_perm][..., corners]
+                    torch.testing.assert_close(
+                        reflected_context, torch.cat((context[:, :1], clearance.flatten(1)), -1), atol=1e-3, rtol=0
+                    )
                 actions = 0.1 * torch.sin(phase + step * 0.3)
                 obs, _, terminated, _, extras = env.step(actions)
                 final = extras["final_obs"]
@@ -192,7 +224,7 @@ def test_g1_differentiable_velocity_matches_simulation_and_managers(task_name):
             # Resolve the real policy noise cfg through the task constructor;
             # corruption must preserve the actor's input gradients and actions.
             cfg.observations.policy.enable_corruption = True
-            noisy_task = VelocityTask(env=env, device=task.device)
+            noisy_task = G1VelocityTask(env=env, device=task.device)
             noise_input = frame.detach().clone().requires_grad_()
             noisy = noisy_task.add_noise(noise_input)
             assert noisy.shape == noise_input.shape and not torch.equal(noisy, noise_input)
@@ -206,5 +238,46 @@ def test_g1_differentiable_velocity_matches_simulation_and_managers(task_name):
             torch.testing.assert_close(
                 noise_input.grad[..., :actions_end], torch.ones_like(noise_input[..., :actions_end])
             )
+        finally:
+            env.close()
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="Requires Newton on CUDA.")
+@pytest.mark.parametrize("task_name", TASKS)
+def test_g1_velocity_supermimic_learns_in_cuda_graphs(task_name):
+    """The BlinkMimic agent captures collection and learner iterations, including mirrored batches, in CUDA graphs."""
+    import gymnasium as gym
+
+    from isaaclab.app import launch_simulation
+
+    from isaaclab_rl.entrypoints.backends.runner_rsl_rl import configure_rsl_rl_env_cfg, create_rsl_rl_runner
+    from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
+
+    cfg, agent = resolve_task_config(
+        task_name,
+        "rsl_rl_blinkmimic_cfg_entry_point",
+        overrides=["presets=state_obs", "physics=newton_mjwarp", "visualizer=none"],
+    )
+    cfg.scene.num_envs = 64
+    configure_rsl_rl_env_cfg(cfg, agent)
+    agent.actor.encoder_hidden_dims = agent.actor.decoder_hidden_dims = (64, 64)
+    agent.world_model.hidden_dims = (64, 64)
+    agent.critic.hidden_dims = [64]
+    algorithm = agent.algorithm
+    algorithm.replay_buffer_capacity = 64 * 64
+    algorithm.num_warmup_steps = 8
+    algorithm.updates_per_step = 1.0
+    algorithm.world_model_batch_size = algorithm.policy_batch_size = 64
+    algorithm.horizon = 4
+    assert algorithm.use_cuda_graph and algorithm.use_mixed_precision and algorithm.world_model_mirror_fraction
+    with launch_simulation(cfg, {"visualizer": ["none"]}):
+        env = RslRlVecEnvWrapper(gym.make(task_name, cfg=cfg), clip_actions=agent.clip_actions)
+        try:
+            runner = create_rsl_rl_runner(env, agent, log_dir=None)
+            runner.learn(num_learning_iterations=16)
+            learner = runner.alg
+            assert learner.iteration >= 8 and learner._graph_updates and learner._act_graphs
+            parameters = (*learner.actor.parameters(), *learner.world_model.parameters(), *learner.critic.parameters())
+            assert all(torch.isfinite(parameter).all() for parameter in parameters)
         finally:
             env.close()

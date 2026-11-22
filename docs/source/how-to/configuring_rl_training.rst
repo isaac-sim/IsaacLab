@@ -186,7 +186,9 @@ Select its agent and the shared ``state_obs`` observation preset together:
       --task Isaac-Velocity-Rough-G1 --agent rsl_rl_supermimic_cfg_entry_point \
       presets=state_obs physics=newton_mjwarp visualizer=none
 
-The agent follows the settings of the official SuperMimic code.
+``rsl_rl_supermimic_cfg_entry_point`` follows the settings of the official SuperMimic code.
+``rsl_rl_blinkmimic_cfg_entry_point`` trains with the BlinkMimic settings instead: Muon, a raised
+actor learning rate, mirrored world-model batches, and a smaller world model and policy batch.
 
 The agent configuration enables ``final_obs_every_step`` before environment creation.
 These observations describe the physical transition before resets, command resampling
