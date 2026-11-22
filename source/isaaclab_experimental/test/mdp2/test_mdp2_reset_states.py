@@ -135,6 +135,7 @@ def test_candidates_fill_each_world_with_valid_states_and_restore_only_reset_wor
     slots = bank.slots.cpu()
     assert torch.equal(joint_pos(scene).cpu(), banked[torch.arange(8), slots])  # each world draws its own bank
 
+    joint_pos(scene).add_(1.0)  # the worlds move on, as a step would move them
     before = joint_pos(scene).clone()
     for _ in range(8):
         reset(task_mdp, state, [True] + [False] * 7)
