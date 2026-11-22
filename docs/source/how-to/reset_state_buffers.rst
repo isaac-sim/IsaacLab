@@ -249,6 +249,10 @@ MDP2 commits. The outputs are the state: any writable scene fields.
 * ``shared`` selects one bank for every world instead of one bank per world. Bind
   ``env_origins`` so poses are stored relative to each world's origin. Share a bank only between
   worlds whose states fit each other, such as worlds that spawn the same object.
+* ``groups`` selects one bank per group of worlds, given a callable that returns each world's group.
+  :func:`~isaaclab_experimental.mdp2.mdp.reset_states.prototype_groups` groups the worlds by the object, or other
+  prototype, that the scene cloned into them, as MDP1's lift bank does: the worlds of a group draw from one bank and
+  share its success statistics. Bind ``env_origins`` here too.
 * ``nominal_probability`` is the fraction of resets that keep what the earlier reset events wrote,
   fresh draws from the nominal distribution. Those episodes are not credited to any state.
 * ``record`` banks states that the worlds visit during training, see below.
@@ -256,7 +260,8 @@ MDP2 commits. The outputs are the state: any writable scene fields.
 Place the event after the other reset events: it overwrites the outputs they wrote. An event whose
 outputs include a command runs after the commands resample, so that a restored goal stands. The
 init hook warms every kernel, so the event is captured with the rest of the step.
-``Isaac-Lift-KukaAllegro-MDP2`` uses a bank per world with the core Lift sampler settings.
+``Isaac-Lift-KukaAllegro-MDP2`` uses a bank of 1024 states per object, grouped with
+:func:`~isaaclab_experimental.mdp2.mdp.reset_states.prototype_groups`, with the core Lift sampler settings.
 
 Record states along the horizon
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -317,8 +322,8 @@ bank:
    ./isaaclab.sh -p scripts/tools/collect_reset_states.py --task Isaac-Lift-KukaAllegro-MDP2 \
        --num_envs 4096 --bank_size 64 --out kuka_lift_bank.pt physics=newton_mjwarp
 
-A bank per world fits only runs with the same number of worlds and object assignment; a shared
-bank fits any.
+A bank per world or per group fits only runs with the same number of worlds and object assignment;
+a shared bank fits any.
 
 Migrating existing reset configurations
 ---------------------------------------

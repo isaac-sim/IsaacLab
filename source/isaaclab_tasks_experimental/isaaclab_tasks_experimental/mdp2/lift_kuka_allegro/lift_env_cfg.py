@@ -453,14 +453,17 @@ TASK = mdp2.TaskCfg(
             outputs={"gravity_w": scene.gravity_w},
             params={"initial_gravity": (0.0, 0.0, 0.0), "final_gravity": (0.0, 0.0, -9.81)},
         ),
-        # Restart from the valid start states that the policy solves about half the time. Each world banks its own
-        # states, so that they fit the object it spawned.
+        # Restart from the valid start states that the policy solves about half the time. As in MDP1, the worlds that
+        # spawned the same object share a bank of 1024 states, harvested twice over and thinned to the most spread,
+        # and share its success statistics.
         "reset": mdp2.Event(
             mdp.reset_from_bank,
-            inputs={"succeeded": mdp2.quantities.success},
+            inputs={"succeeded": mdp2.quantities.success, "env_origins": scene.env_origins},
             outputs={**robot_state, **object_state},
             params={
-                "fill": mdp.FillFromCandidates(CANDIDATES, bank_size=16),
+                # A world per object, as in small test runs, needs a roll per state.
+                "fill": mdp.FillFromCandidates(CANDIDATES, bank_size=1024, max_rolls=20000),
+                "groups": mdp.prototype_groups,
                 "sampler": ResetStateSamplerCfg(
                     history_length=10,
                     scores=[BetaSamplingScoreCfg(target=0.5, kappa=1.0, weight=0.5)],
@@ -489,4 +492,8 @@ class KukaAllegroLiftEnvCfg(MDP2RLEnvCfg):
         super().play_mode()
         adr = self.task.events["adr"]
         params = {**adr.params, "init_difficulty": adr.params["max_difficulty"], "promotion_only": True}
-        self.task = replace(self.task, events={**self.task.events, "adr": replace(adr, params=params)})
+        # As MDP1, a small bank taken as harvested: it only supplies starts to the few worlds that play.
+        bank = self.task.events["reset"]
+        fill = replace(bank.params["fill"], bank_size=32, oversample_factor=1.0)
+        events = {"adr": replace(adr, params=params), "reset": replace(bank, params={**bank.params, "fill": fill})}
+        self.task = replace(self.task, events={**self.task.events, **events})
