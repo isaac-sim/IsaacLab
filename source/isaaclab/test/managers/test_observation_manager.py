@@ -687,6 +687,25 @@ def test_tensor_processor_compute(setup_env, position_term):
     obs_man.reset()
     torch.testing.assert_close(first, expected)
 
+    # Sanitize before history storage, including reads used for terminal observations.
+    cfg.policy.term_3.tensor_processors = [
+        tensor_processors.TensorProcessorCfg(func=tensor_processors.replace_non_finite)
+    ]
+    cfg.policy.term_3.scale = None
+    cfg.policy.term_3.history_length = 2
+    cfg.policy.term_3.flatten_history_dim = False
+    env.data.pos_w[0] = torch.tensor([float("nan"), float("inf"), -float("inf")])
+    obs_man = ObservationManager(cfg, env)
+    first = obs_man.compute(update_history=True)["policy"]
+    torch.testing.assert_close(first[0], torch.zeros(2, 3))
+    assert torch.isnan(env.data.pos_w[0, 0])  # Observation processing must not rewrite solver-backed data.
+    torch.testing.assert_close(first[1, -1], env.data.pos_w[1])
+    terminal = obs_man.compute(update_history=False)["policy"]
+    torch.testing.assert_close(terminal[0], torch.zeros(2, 3))
+    env.data.pos_w[0].fill_(2.0)
+    second = obs_man.compute(update_history=True)["policy"]
+    torch.testing.assert_close(second[0], torch.tensor([[0.0, 0.0, 0.0], [2.0, 2.0, 2.0]]))
+
 
 def test_serialize(setup_env):
     """Test serialize call for ManagerTermBase terms."""

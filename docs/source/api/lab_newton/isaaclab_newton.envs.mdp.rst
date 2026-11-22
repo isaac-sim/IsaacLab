@@ -32,6 +32,11 @@ reward rows before summation and episode accumulation and does not require a nam
        # Declare task reward terms above this final term.
        solver_fault_reward = RewardTermCfg(func=zero_reward_on_solver_fault, weight=1.0)
 
+To replace nonfinite observation values with zero, configure each observation term with
+``tensor_processors=[TensorProcessorCfg(func=replace_non_finite)]``, importing both names from
+:mod:`isaaclab.utils.tensor_processors`. This processes ordinary and terminal observations before
+history storage. It leaves source state untouched so solver fault detection remains effective.
+
 Detection includes Newton body, joint and particle state. MuJoCo additionally checks its private
 persistent buffers. MJWarp checks and resets these buffers per world. CPU MuJoCo uses global solver
 history, so a fault in that history terminates every environment.

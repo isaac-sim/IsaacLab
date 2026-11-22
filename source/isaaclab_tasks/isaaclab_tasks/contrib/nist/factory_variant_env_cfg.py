@@ -12,6 +12,7 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.utils.configclass import configclass
+from isaaclab.utils.tensor_processors import TensorProcessorCfg, replace_non_finite
 
 from . import mdp
 from .assembly_variants import ASSEMBLY_VARIANT_NAMES
@@ -29,6 +30,8 @@ from .factory_variant_scene_cfg import FactoryVariantSceneCfg
 from .utils.variant_sampling import SamplerCfg, UniformSamplingStrategyCfg
 from .variant_reset_env_cfg import VARIANT_ACCUMULATOR_RESET
 
+_FINITE_OBSERVATIONS = [TensorProcessorCfg(func=replace_non_finite)]
+
 
 @configclass
 class FactoryVariantObservationsCfg:
@@ -39,6 +42,7 @@ class FactoryVariantObservationsCfg:
         held_asset_in_fixed_asset_frame = ObsTerm(
             func=mdp.target_asset_pose_in_root_asset_frame,
             history_length=5,
+            tensor_processors=_FINITE_OBSERVATIONS,
             params={
                 "target_asset_cfg": SceneEntityCfg("held_asset"),
                 "root_asset_cfg": SceneEntityCfg("fixed_asset"),
@@ -49,14 +53,15 @@ class FactoryVariantObservationsCfg:
         end_effector_vel_lin_ang_b = ObsTerm(
             func=mdp.asset_link_velocity_in_root_asset_frame,
             history_length=5,
+            tensor_processors=_FINITE_OBSERVATIONS,
             params={
                 "target_asset_cfg": SceneEntityCfg("robot", body_names=EndEffectorBodyCfg()),  # type: ignore
                 "root_asset_cfg": SceneEntityCfg("robot"),
                 "target_asset_offset": GripperGraspOffsetCfg(),
             },
         )
-        joint_pos = ObsTerm(func=mdp.joint_pos, history_length=5)
-        prev_action = ObsTerm(func=mdp.last_action, history_length=5)
+        joint_pos = ObsTerm(func=mdp.joint_pos, history_length=5, tensor_processors=_FINITE_OBSERVATIONS)
+        prev_action = ObsTerm(func=mdp.last_action, history_length=5, tensor_processors=_FINITE_OBSERVATIONS)
 
         def __post_init__(self) -> None:
             self.enable_corruption = False
@@ -66,6 +71,7 @@ class FactoryVariantObservationsCfg:
     class PerceptionCfg(ObsGroup):
         scene_point_cloud = ObsTerm(
             func=mdp.scene_point_cloud_b,
+            tensor_processors=_FINITE_OBSERVATIONS,
             clip=(-2.0, 2.0),
             params={
                 "fixed_asset_cfg": SceneEntityCfg("fixed_asset"),
