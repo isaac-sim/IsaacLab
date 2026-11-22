@@ -16,9 +16,8 @@ and g1_walk.npz are converted derivatives of the Apache-2.0 G1 motion data
 distributed with MimicKit, obtained through Mayankm96/isaac-spinning-up:
 https://github.com/xbpeng/MimicKit
 
-The MIT-licensed CR7 motion originates from LeCAR-Lab/ASAP:
-https://github.com/LeCAR-Lab/ASAP
-The g1_cr7_grounded.npz derivative adjusts root height and leg poses for ground
+The jump_and_turn motion uses the MIT license reproduced below.
+The g1_jump_and_turn.npz derivative adjusts root height and leg poses for ground
 contact.
 The trajectories were resampled to 50 Hz and packaged with joint/body names;
 source-data terms are not replaced by the Isaac Lab source-code license.
@@ -54,8 +53,8 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-LeCAR-Lab/ASAP — MIT
--------------------
+Reference motion data — MIT
+--------------------------
 
 MIT License
 
