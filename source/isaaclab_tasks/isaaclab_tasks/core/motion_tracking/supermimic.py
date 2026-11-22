@@ -107,26 +107,32 @@ class ArticulationKinematics:
                     axes[dof_start[joint]].tolist(),
                 )
             )
-        order, placed = [], {self.root}
+        # group links by depth; slots number bodies in the order they are computed, starting with the root
+        slot, self.levels = {self.root: 0}, []
         while links:
-            ready = [link for link in links if link[1] in placed]
+            ready = [link for link in links if link[1] in slot]
             if not ready:
                 raise ValueError("The articulation is not a tree rooted at its floating base.")
-            order.extend(ready)
-            placed.update(link[0] for link in ready)
-            links = [link for link in links if link[0] not in placed]
-        self.child = [link[0] for link in order]
-        self.parent = [link[1] for link in order]
-        self.joint = [link[2] for link in order]
-        self.offset_pos = torch.tensor([link[3][:3] for link in order], device=device)
-        self.offset_quat = torch.tensor([link[3][3:] for link in order], device=device)
-        self.axis = torch.tensor([link[4] for link in order], device=device)
+            self.levels.append(
+                {
+                    "parent": torch.tensor([slot[link[1]] for link in ready], device=device),
+                    "joint": torch.tensor([link[2] for link in ready], device=device),
+                    "offset_pos": torch.tensor([link[3][:3] for link in ready], device=device),
+                    "offset_quat": torch.tensor([link[3][3:] for link in ready], device=device),
+                    "axis": torch.tensor([link[4] for link in ready], device=device),
+                }
+            )
+            slot.update({link[0]: len(slot) + i for i, link in enumerate(ready)})
+            links = [link for link in links if link[0] not in slot]
+        if len(slot) != self.num_bodies:
+            raise ValueError("Every body of the articulation must be connected to its floating base.")
+        self.slot_of_body = torch.tensor([slot[body] for body in range(self.num_bodies)], device=device)
         self.com = robot.data.body_com_pos_b.torch[0].to(device).clone()
 
     def to(self, device: torch.device | str) -> ArticulationKinematics:
         """Move the tree constants."""
-        for name in ("offset_pos", "offset_quat", "axis", "com"):
-            setattr(self, name, getattr(self, name).to(device))
+        self.levels = [{name: value.to(device) for name, value in level.items()} for level in self.levels]
+        self.slot_of_body, self.com = self.slot_of_body.to(device), self.com.to(device)
         return self
 
     def forward(self, state: State) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -135,15 +141,21 @@ class ArticulationKinematics:
         Shapes are ``[..., num_bodies, 3]`` and ``[..., num_bodies, 4]``; positions share the frame of the root.
         """
         root_pos, root_quat, root_lin, root_ang, q, dq = state
-        pos, quat, lin, ang = ([None] * self.num_bodies for _ in range(4))
-        pos[self.root], quat[self.root], lin[self.root], ang[self.root] = root_pos, root_quat, root_lin, root_ang
-        for i, (body, par, joint) in enumerate(zip(self.child, self.parent, self.joint)):
-            frame = _mul(quat[par], self.offset_quat[i])
-            pos[body] = pos[par] + _apply(quat[par], self.offset_pos[i])
-            quat[body] = _mul(frame, quat_from_angle_axis(q[..., joint], self.axis[i].expand(*q.shape[:-1], 3)))
-            ang[body] = ang[par] + _apply(frame, self.axis[i]) * dq[..., joint : joint + 1]
-            lin[body] = lin[par] + torch.cross(ang[par], pos[body] - pos[par], dim=-1)
-        pos, quat, lin, ang = (torch.stack(values, -2) for values in (pos, quat, lin, ang))
+        pos, quat, lin, ang = (value.unsqueeze(-2) for value in (root_pos, root_quat, root_lin, root_ang))
+        for level in self.levels:
+            parent = level["parent"]
+            par_pos, par_quat, par_lin, par_ang = (value.index_select(-2, parent) for value in (pos, quat, lin, ang))
+            angle, rate = q.index_select(-1, level["joint"]), dq.index_select(-1, level["joint"])
+            frame = _mul(par_quat, level["offset_quat"])
+            child_pos = par_pos + _apply(par_quat, level["offset_pos"])
+            child_quat = _mul(frame, quat_from_angle_axis(angle, level["axis"].expand(*angle.shape, 3)))
+            child_ang = par_ang + _apply(frame, level["axis"]) * rate.unsqueeze(-1)
+            child_lin = par_lin + torch.cross(par_ang, child_pos - par_pos, dim=-1)
+            pos, quat, lin, ang = (
+                torch.cat((value, child), -2)
+                for value, child in ((pos, child_pos), (quat, child_quat), (lin, child_lin), (ang, child_ang))
+            )
+        pos, quat, lin, ang = (value.index_select(-2, self.slot_of_body) for value in (pos, quat, lin, ang))
         return pos, quat, lin + torch.cross(ang, _apply(quat, self.com), dim=-1), ang
 
 
@@ -265,6 +277,17 @@ class MotionTrackingTask(DifferentiableTask):
             owner.action_manager.get_term(owner.action_manager.active_terms[0]), JointPositionAction
         ):
             raise ValueError("MotionTrackingTask requires one joint-position action term.")
+        action = owner.action_manager.get_term(owner.action_manager.active_terms[0])
+        joint_ids = action._joint_ids
+        self.action_joints = torch.as_tensor(
+            range(self.num_joints) if isinstance(joint_ids, slice) else joint_ids, device=device
+        )
+        self.action_scale = torch.as_tensor(action._scale, dtype=torch.float32, device=device).reshape(-1)[
+            : self.num_actions
+        ]
+        self.action_offset = torch.as_tensor(action._offset, dtype=torch.float32, device=device).reshape(-1)[
+            : self.num_actions
+        ]
         policy_cfg = owner.cfg.observations.policy
         terms = (
             ("motion_anchor_ori_b", 6),
@@ -329,6 +352,11 @@ class MotionTrackingTask(DifferentiableTask):
         """Return the reference joint positions and velocities."""
         frame = self._frame(goal)
         return torch.cat((self.ref_joint_pos[frame], self.ref_joint_vel[frame]), dim=-1)
+
+    def reference_action(self, state: State, goal: torch.Tensor) -> torch.Tensor:
+        """Return the reference joint positions of the current frame as joint-position actions."""
+        target = self.ref_joint_pos[self._frame(goal)][..., self.action_joints]
+        return (target - self.action_offset) / self.action_scale
 
     def add_noise(self, obs: torch.Tensor) -> torch.Tensor:
         """Match the default policy's independent uniform observation corruption."""
