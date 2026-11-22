@@ -68,11 +68,22 @@ class ArticulationKinematics:
     """Differentiable forward kinematics of a floating-base articulation with revolute joints.
 
     The tree is read from the Newton model of the simulated asset. Joint frames must coincide with their child link
-    frames. Outputs follow the asset's body order; linear velocities are taken at each body's center of mass, as
-    reported by ``body_lin_vel_w``.
+    frames. Outputs follow the order of the selected bodies; linear velocities are taken at each body's center of mass,
+    as reported by ``body_lin_vel_w``.
     """
 
-    def __init__(self, env: ManagerBasedRLEnv, asset_name: str, device: str) -> None:
+    def __init__(
+        self, env: ManagerBasedRLEnv, asset_name: str, device: str, body_names: list[str] | None = None
+    ) -> None:
+        """Read the kinematic tree of the bodies to compute.
+
+        Args:
+            env: Environment whose Newton model holds the asset.
+            asset_name: Name of the articulation in the scene.
+            device: Device of the tree constants.
+            body_names: Bodies to compute, in output order. Defaults to all bodies in asset order. Only the joints
+                between these bodies and the floating base must be revolute.
+        """
         robot = env.scene[asset_name]
         model = env.sim.backend_manager.backend.model
         articulation = int(robot._root_view.articulation_ids.numpy().flat[0])
@@ -89,19 +100,30 @@ class ArticulationKinematics:
             for index, label in enumerate(model.body_label)
             if label.rsplit("/", 1)[-1] in robot.body_names
         }
-        self.num_bodies = len(robot.body_names)
+        outputs = [robot.body_names.index(name) for name in body_names or robot.body_names]
+        self.num_bodies = len(outputs)
         self.root = None
-        links = []
+        joint_of = {}
         for joint in range(start, end):
-            name = model.joint_label[joint].rsplit("/", 1)[-1]
             if parent[joint] < 0:
                 self.root = body_of[int(child[joint])]
-                continue
+            else:
+                joint_of[body_of[int(child[joint])]] = joint
+        # the selected bodies and their ancestors, whose joints connect them to the floating base
+        required = set()
+        for body in outputs:
+            while body != self.root and body not in required:
+                required.add(body)
+                body = body_of[int(parent[joint_of[body]])]
+        links = []
+        for body in sorted(required):
+            joint = joint_of[body]
+            name = model.joint_label[joint].rsplit("/", 1)[-1]
             if joint_type[joint] != JointType.REVOLUTE or abs(child_frames[joint] - [0, 0, 0, 0, 0, 0, 1]).max() > 1e-6:
                 raise ValueError(f"Joint '{name}' must be revolute with its frame at the child link origin.")
             links.append(
                 (
-                    body_of[int(child[joint])],
+                    body,
                     body_of[int(parent[joint])],
                     robot.joint_names.index(name),
                     offsets[joint].tolist(),
@@ -112,8 +134,6 @@ class ArticulationKinematics:
         slot, self.levels = {self.root: 0}, []
         while links:
             ready = [link for link in links if link[1] in slot]
-            if not ready:
-                raise ValueError("The articulation is not a tree rooted at its floating base.")
             self.levels.append(
                 {
                     "parent": torch.tensor([slot[link[1]] for link in ready], device=device),
@@ -125,10 +145,8 @@ class ArticulationKinematics:
             )
             slot.update({link[0]: len(slot) + i for i, link in enumerate(ready)})
             links = [link for link in links if link[0] not in slot]
-        if len(slot) != self.num_bodies:
-            raise ValueError("Every body of the articulation must be connected to its floating base.")
-        self.slot_of_body = torch.tensor([slot[body] for body in range(self.num_bodies)], device=device)
-        self.com = robot.data.body_com_pos_b.torch[0].to(device).clone()
+        self.slot_of_body = torch.tensor([slot[body] for body in outputs], device=device)
+        self.com = robot.data.body_com_pos_b.torch[0, outputs].to(device).clone()
 
     def to(self, device: torch.device | str) -> ArticulationKinematics:
         """Move the tree constants."""
