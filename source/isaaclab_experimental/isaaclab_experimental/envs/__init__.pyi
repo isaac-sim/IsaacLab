@@ -11,7 +11,7 @@ __all__ = [
     "MDP2EnvCfg",
     "MDP2RLEnv",
     "MDP2RLEnvCfg",
-    "ResetViewer",
+    "ResetStateViewer",
     "Stage",
     "Step",
     "ResetStep",
@@ -25,5 +25,5 @@ from .manager_based_env_warp import ManagerBasedEnvWarp
 from .manager_based_rl_env_warp import ManagerBasedRLEnvWarp
 from .mdp2_env import MDP2Env, MDP2RLEnv
 from .mdp2_env_cfg import MDP2EnvCfg, MDP2RLEnvCfg, ResetStep, Stage, Step
-from .mdp2_reset_viewer import ResetViewer
+from .mdp2_reset_viewer import ResetStateViewer
 from .mdp2_scene_data import InteractiveSceneData

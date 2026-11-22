@@ -287,8 +287,8 @@ class ResetStates:
         }
 
     @property
-    def filled(self) -> int:
-        """Slots that the fill wrote, first in each bank; the others record."""
+    def num_source_states(self) -> int:
+        """Slots that the source wrote, first in each world's reset states; the others record."""
         return self._filled
 
     @property

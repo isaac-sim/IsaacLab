@@ -328,8 +328,8 @@ saves its reset states:
 Reset states per world or per group fit only runs with the same number of worlds and object
 assignment; shared reset states fit any.
 
-View the bank
-^^^^^^^^^^^^^
+View reset states
+^^^^^^^^^^^^^^^^^
 
 ``scripts/tools/view_reset_states.py`` opens a task with a panel in each Viser or Newton viewer:
 
@@ -338,13 +338,13 @@ View the bank
    uv run --extra viser python scripts/tools/view_reset_states.py --task Isaac-Lift-KukaAllegro-MDP2 \
        --num_envs 16 --viz viser physics=newton_mjwarp
 
-The panel restores one slot in every world, draws starts as training does, rolls the candidates task
-to show which proposals its terminations reject, and plays episodes in real time with zero or random
-actions. It shows each world's slot and success rate above the world, and the selected world's bank as
-a table: kind, success rate, episodes, and the probability of the next draw. ``--bank`` shows a saved
-bank. Restoring, drawing, and rolling interrupt episodes, which are not credited. Episodes that end while
-playing are credited, as in training. In your own scripts,
-:class:`~isaaclab_experimental.envs.ResetViewer` is the controller: call ``attach()`` once and
+The panel resets every world to one slot, draws reset states as training does, rolls the generator
+task to show which proposals its terminations reject, and plays episodes in real time with zero or
+random actions. It shows each world's slot and success rate above the world, and the selected world's
+reset states as a table: kind, success rate, episodes, and the probability of the next draw.
+``--states`` shows saved reset states. Showing, drawing, and rolling interrupt episodes, which are not
+credited. Episodes that end while playing are credited, as in training. In your own scripts,
+:class:`~isaaclab_experimental.envs.ResetStateViewer` is the controller: call ``attach()`` once and
 ``update()`` in the loop instead of ``env.step``.
 
 Migrating existing reset configurations
