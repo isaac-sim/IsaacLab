@@ -390,10 +390,19 @@ render setting sets the samples per pixel:
 
 .. code-block:: python
 
-   from isaaclab.utils import replace
+   import isaaclab.sim as sim_utils
+   from isaaclab.sensors import CameraCfg
+   from isaaclab_ov.renderers import OVRTXRendererCfg
 
-   large_batch_camera = replace(
-       camera_cfg, render_settings={"omni:rtx:rtpt:spp": ("Int", 16)}, max_envs_per_render_product=1280
+   large_batch_camera = CameraCfg(
+       prim_path="{ENV_REGEX_NS}/Robot/base/front_camera",
+       height=128,
+       width=128,
+       data_types=["rgb"],
+       spawn=sim_utils.PinholeCameraCfg(),
+       renderer_cfg=OVRTXRendererCfg(),
+       render_settings={"omni:rtx:rtpt:spp": ("Int", 16)},
+       max_envs_per_render_product=1280,
    )
 
 Each extra render product adds a fixed cost to every frame, so use the largest integer that renders.
