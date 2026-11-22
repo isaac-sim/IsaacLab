@@ -169,7 +169,8 @@ class CartpoleCameraEnvCfg(PresetCfg):
     here and, via :attr:`CartpoleCameraSceneCfg.tiled_camera`, the matching camera data type and
     rendering backend. The feature-extractor variants (``resnet18``, ``theia_tiny``) operate on RGB
     images, so they fall back to the default camera. The ``lidar`` variant replaces that camera with a
-    tiled OVRTX lidar pinned to motion BVH, and its scene defaults to 64 environments.
+    lidar captured by the OVRTX renderer and pinned to motion BVH, and its scene defaults to 64
+    environments.
     """
 
     @configclass

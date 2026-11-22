@@ -1,4 +1,4 @@
-* Added :class:`~isaaclab.sensors.Lidar` for tiled OVRTX lidar returns from Lidar generic wpm or
+* Added :class:`~isaaclab.sensors.Lidar` for tiled lidar returns from Lidar generic wpm or
   Lidar generic core, with a solid-state or rotary scan. The default model is Lidar generic core
   and the default scan is rotary, matching an ``OmniLidar`` prim. Each environment keeps one Cartesian point
   slot per fired ray, in meters, in the configured ``WORLD`` or ``SENSOR`` frame. The rendered pose

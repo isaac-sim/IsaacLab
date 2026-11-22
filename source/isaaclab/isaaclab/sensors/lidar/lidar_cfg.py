@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Callable
-from dataclasses import MISSING
+from dataclasses import MISSING, field
 from typing import TYPE_CHECKING, Literal
 
 from isaaclab.renderers.renderer_cfg import RendererCfg
@@ -22,66 +22,56 @@ if TYPE_CHECKING:
 
 @configclass
 class LidarSpawnerCfg(SpawnerCfg):
-    """Marks a lidar for per-environment cloning.
+    """Configuration parameters for spawning a lidar sensor."""
 
-    The sensor authors the ``OmniLidar`` prim. This spawner puts that prim on the clone plan so
-    each environment receives a copy, including in the renderer stage.
-    """
-
-    func: Callable = "{DIR}.lidar:spawn_lidar"
-    """Authoring function. The sensor calls :func:`~isaaclab.sensors.lidar.spawn_lidar` itself."""
+    func: Callable | str = "{DIR}.lidar:spawn_lidar"
 
 
 @configclass
 class LidarCfg(SensorBaseCfg):
-    """Configuration for a tiled OVRTX lidar.
-
-    One :class:`~isaaclab.sensors.lidar.Lidar` prim is spawned in each environment. ``model`` selects
-    Lidar generic wpm or Lidar generic core, and ``scan_type`` selects a solid-state or rotary scan.
-    The renderer places every prim on a single lidar render product and splits the point cloud back
-    into one row per environment. The prim orientation is used as authored.
-    """
+    """Configuration parameters for a lidar sensor."""
 
     @configclass
     class OffsetCfg:
         """Offset of the lidar frame from its parent prim."""
 
         pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
-        """Translation relative to the parent frame, in meters. Defaults to the parent origin."""
+        """Translation relative to the parent frame. Defaults to (0.0, 0.0, 0.0)."""
 
         rot: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
-        """Quaternion rotation ``(x, y, z, w)`` relative to the parent frame. Defaults to identity."""
+        """Quaternion rotation ``(x, y, z, w)`` relative to the parent frame. Defaults to (0.0, 0.0, 0.0, 1.0)."""
 
     class_type: type[Lidar] | str = "{DIR}.lidar:Lidar"
     """Sensor implementation class."""
 
-    spawn: LidarSpawnerCfg | None = LidarSpawnerCfg()
-    """Clone-plan spawner. Defaults to one lidar prim per environment.
-
-    Set this to None only when the prims already exist and are replicated by another prototype.
-    """
-
     offset: OffsetCfg = OffsetCfg()
     """Pose of the lidar frame relative to its parent. Defaults to identity."""
 
-    model: Literal["wpm", "core"] = "core"
-    """Lidar model authored on the prim. Defaults to ``core``.
+    spawn: LidarSpawnerCfg | None = LidarSpawnerCfg()
+    """Spawn configuration for the asset.
 
-    An ``OmniLidar`` prim selects Lidar generic core when ``modelName`` is absent. ``wpm`` applies
-    Lidar generic wpm, which is the model selected by ``modelName`` ``LidarWpm``.
+    If None, then the prim is not spawned by the asset. Instead, it is assumed that the
+    asset is already present in the scene.
     """
 
-    scan_type: Literal["solid_state", "rotary"] = "rotary"
+    model_name: Literal["LidarCore", "LidarWpm"] = "LidarCore"
+    """Lidar model. Defaults to ``LidarCore``.
+
+    ``LidarCore`` applies ``OmniSensorGenericLidarCoreAPI``. ``LidarWpm`` applies
+    ``OmniSensorGenericLidarWpmAPI``.
+    """
+
+    scan_type: Literal["rotary", "solid_state"] = "rotary"
     """How the firing pattern is scheduled. Defaults to ``rotary``.
 
     Both OmniLidar schemas default to a rotary scan. ``solid_state`` fires the pattern once per
     scan. ``rotary`` repeats it at each azimuth step.
     """
 
-    azimuth_resolution_deg: float = 1.0
-    """Azimuth step of a rotary scan, in degrees. Defaults to 1.
+    rot_pattern_firing_res_deg: float = 0.1
+    """Azimuth step of a rotary scan, in degrees. Defaults to 0.1.
 
-    A solid-state scan does not use this value. It is written as ``rotPatternFiringResDeg``.
+    A solid-state scan does not use this value.
     """
 
     valid_start_azimuth_deg: float = 0.0
@@ -96,7 +86,7 @@ class LidarCfg(SensorBaseCfg):
     rotation_direction: Literal["CW", "CCW"] = "CW"
     """Direction of a core rotary sweep. Defaults to ``CW``.
 
-    Lidar generic wpm does not read this value.
+    ``LidarWpm`` does not read this value.
     """
 
     azimuth_deg: list[float] = MISSING
@@ -114,44 +104,41 @@ class LidarCfg(SensorBaseCfg):
     tiled_subsampling: int = 0
     """Number of rays skipped between published returns. ``0`` publishes every ray.
 
-    Lidar generic core does not read this value.
+    ``LidarCore`` does not read this value.
     """
 
-    max_returns: int = 1
-    """Maximum returns stored for each ray. Defaults to 1."""
+    max_returns: int = 2
+    """Maximum returns stored for each ray. Defaults to 2, matching ``maxReturns``."""
 
-    frame_of_reference: Literal["SENSOR", "WORLD", "CUSTOM"] = "WORLD"
-    """Coordinate frame of the returned points. Defaults to world coordinates."""
+    output_frame_of_reference: Literal["SENSOR", "WORLD"] = "SENSOR"
+    """Coordinate frame of the returned points. Defaults to ``SENSOR``."""
 
-    far_range: float | None = None
-    """Maximum return distance, in meters. ``None`` leaves the sensor default of 200 m."""
+    far_range_m: float = 200.0
+    """Maximum return distance, in meters. Defaults to 200."""
 
-    coords_type: Literal["CARTESIAN", "SPHERICAL"] = "CARTESIAN"
-    """Coordinate convention of the returned points. Defaults to Cartesian ``x, y, z``.
+    elements_coords_type: Literal["CARTESIAN", "SPHERICAL"] = "SPHERICAL"
+    """Coordinate convention of the returned points. Defaults to ``SPHERICAL``."""
 
-    ``SPHERICAL`` is rejected. Published points stay Cartesian so each consumer can treat the
-    three components as a position in meters.
+    instant_lidar: bool = False
+    """Whether one render step publishes a complete scan. Defaults to False."""
+
+    include_invalid_points: bool = False
+    """Whether missed rays keep a slot in the point cloud. Defaults to False.
+
+    ``False`` drops misses. ``True`` keeps one slot per ray, with misses non-finite in
+    :attr:`~isaaclab.sensors.lidar.LidarData.points`.
     """
 
-    instant_lidar: bool = True
-    """Whether one render step publishes a complete scan. Defaults to True."""
-
-    include_invalid_points: bool = True
-    """Whether missed rays keep a slot in the point cloud. Defaults to True.
-
-    Keeping those slots makes every environment return ``num_rays`` points. Misses are non-finite
-    in :attr:`~isaaclab.sensors.lidar.LidarData.points`. ``False`` is rejected: a compacted cloud
-    drops the authored ray index, so a return can no longer be placed on its ray.
-    """
-
-    renderer_cfg: RendererCfg = MISSING
-    """OVRTX renderer used to capture the lidar. It must be an ``ovrtx`` renderer configuration.
-
-    Equal configurations share one renderer with the cameras in the scene, so a lidar and a camera
-    that name the same configuration are rendered in one step.
-    """
+    renderer_cfg: RendererCfg = field(default_factory=RendererCfg)
+    """Renderer configuration for the lidar sensor."""
 
     def __post_init__(self):
+        # Lidar capture is implemented only by OVRTX, so the placeholder becomes that renderer.
+        if getattr(self.renderer_cfg, "renderer_type", None) == "default":
+            from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXRendererCfg
+
+            self.renderer_cfg = OVRTXRendererCfg()
+
         lengths = {
             "azimuth_deg": len(self.azimuth_deg),
             "elevation_deg": len(self.elevation_deg),
@@ -167,35 +154,27 @@ class LidarCfg(SensorBaseCfg):
         if self.tiled_subsampling < 0:
             raise ValueError(f"Lidar tiled_subsampling cannot be negative, got {self.tiled_subsampling}.")
 
-        if self.frame_of_reference == "CUSTOM":
-            raise ValueError("Lidar frame_of_reference 'CUSTOM' is not supported. Use 'WORLD' or 'SENSOR'.")
-
-        if self.coords_type != "CARTESIAN":
+        if self.output_frame_of_reference not in ("SENSOR", "WORLD"):
             raise ValueError(
-                f"Lidar coords_type must be 'CARTESIAN' so each return stays a position in meters,"
-                f" got {self.coords_type!r}."
+                f"Lidar output_frame_of_reference must be 'SENSOR' or 'WORLD', got {self.output_frame_of_reference!r}."
             )
 
-        if not self.include_invalid_points:
-            raise ValueError(
-                "Lidar include_invalid_points=False is not supported. Missed rays must keep their"
-                " authored slots until returns can be placed by ray id."
-            )
-
-        if self.model not in ("wpm", "core"):
-            raise ValueError(f"Lidar model must be 'wpm' or 'core', got {self.model!r}.")
+        if self.model_name not in ("LidarCore", "LidarWpm"):
+            raise ValueError(f"Lidar model_name must be 'LidarCore' or 'LidarWpm', got {self.model_name!r}.")
 
         if self.scan_type not in ("solid_state", "rotary"):
             raise ValueError(f"Lidar scan_type must be 'solid_state' or 'rotary', got {self.scan_type!r}.")
 
-        if self.azimuth_resolution_deg <= 0.0:
-            raise ValueError(f"Lidar azimuth_resolution_deg must be positive, got {self.azimuth_resolution_deg}.")
+        if self.rot_pattern_firing_res_deg <= 0.0:
+            raise ValueError(
+                f"Lidar rot_pattern_firing_res_deg must be positive, got {self.rot_pattern_firing_res_deg}."
+            )
 
         if self.rotation_direction not in ("CW", "CCW"):
             raise ValueError(f"Lidar rotation_direction must be 'CW' or 'CCW', got {self.rotation_direction!r}.")
 
-        if self.far_range is not None and self.far_range <= 0.0:
-            raise ValueError(f"Lidar far_range must be positive, got {self.far_range}.")
+        if self.far_range_m <= 0.0:
+            raise ValueError(f"Lidar far_range_m must be positive, got {self.far_range_m}.")
 
         if any(time < 0 for time in self.fire_time_ns):
             raise ValueError("Lidar fire_time_ns values cannot be negative.")
@@ -206,12 +185,11 @@ class LidarCfg(SensorBaseCfg):
         A solid-state scan fires the pattern once. A rotary scan repeats it once per azimuth step
         across the configured window. Each firing keeps :attr:`max_returns` slots.
         """
-        ticks = 1 if self.scan_type == "solid_state" else self._rotary_tick_count()
-        return ticks * len(self.azimuth_deg) * self.max_returns
+        ticks = 1
+        if self.scan_type == "rotary":
+            span = self.valid_end_azimuth_deg - self.valid_start_azimuth_deg
+            if span <= 0.0:
+                span += 360.0
+            ticks = math.ceil(span / self.rot_pattern_firing_res_deg)
 
-    def _rotary_tick_count(self) -> int:
-        """Return how many times a rotary scan applies the firing pattern."""
-        span = self.valid_end_azimuth_deg - self.valid_start_azimuth_deg
-        if span <= 0.0:
-            span += 360.0
-        return math.ceil(span / self.azimuth_resolution_deg)
+        return ticks * len(self.azimuth_deg) * self.max_returns

@@ -28,7 +28,7 @@ def _sensor(points: torch.Tensor, valid: torch.Tensor, frame: str, position=None
     """Build the lidar attributes ``lidar_world_points`` reads."""
     return SimpleNamespace(
         data=SimpleNamespace(points=SimpleNamespace(torch=points), valid=SimpleNamespace(torch=valid)),
-        cfg=SimpleNamespace(frame_of_reference=frame),
+        cfg=SimpleNamespace(output_frame_of_reference=frame),
         _pos_w=None if position is None else SimpleNamespace(torch=position),
         _quat_w=None if rotation is None else SimpleNamespace(torch=rotation),
     )
@@ -67,7 +67,7 @@ def _world_lidar(points: torch.Tensor, valid: torch.Tensor):
     class _Lidar(Lidar):
         def __init__(self):
             self._data = SimpleNamespace(points=SimpleNamespace(torch=points), valid=SimpleNamespace(torch=valid))
-            self.cfg = SimpleNamespace(frame_of_reference="WORLD")
+            self.cfg = SimpleNamespace(output_frame_of_reference="WORLD")
             self._pos_w = None
             self._quat_w = None
 

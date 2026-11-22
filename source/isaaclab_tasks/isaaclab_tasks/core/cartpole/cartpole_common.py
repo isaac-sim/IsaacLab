@@ -165,26 +165,31 @@ def cartpole_lidar_range_image(points: torch.Tensor) -> torch.Tensor:
 
 
 def cartpole_lidar_cfg() -> LidarCfg:
-    """Return one solid-state Lidar generic wpm aimed at the cartpole from the side camera.
+    """Return one solid-state ``LidarWpm`` aimed at the cartpole from the side camera.
 
     The position matches the side camera. The quaternion aims the boresight along world +X, so
-    azimuth 0 and elevation 0 look at the rail center. Points are returned in the sensor frame, out
-    to :data:`CARTPOLE_LIDAR_FAR_RANGE`, so the same cart pose is the same coordinate in every
-    environment and a ray does not hit the next environment.
+    azimuth 0 and elevation 0 look at the rail center. Points are Cartesian positions in the sensor
+    frame, out to :data:`CARTPOLE_LIDAR_FAR_RANGE`, with one return per ray. Missed rays keep their
+    slots, and one render step publishes the whole grid, so the same cart pose is the same coordinate
+    in every environment and a ray does not hit the next environment.
 
     Returns:
         Lidar configuration pinned to OVRTX with motion BVH enabled.
     """
     return LidarCfg(
         prim_path="{ENV_REGEX_NS}/Lidar",
-        model="wpm",
+        model_name="LidarWpm",
         scan_type="solid_state",
         offset=LidarCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(0.5, -0.5, -0.5, 0.5)),
         azimuth_deg=_CARTPOLE_LIDAR_AZIMUTH,
         elevation_deg=_CARTPOLE_LIDAR_ELEVATION,
         fire_time_ns=_CARTPOLE_LIDAR_TIME,
         channel_id=_CARTPOLE_LIDAR_CHANNEL,
-        frame_of_reference="SENSOR",
-        far_range=CARTPOLE_LIDAR_FAR_RANGE,
+        output_frame_of_reference="SENSOR",
+        elements_coords_type="CARTESIAN",
+        far_range_m=CARTPOLE_LIDAR_FAR_RANGE,
+        max_returns=1,
+        instant_lidar=True,
+        include_invalid_points=True,
         renderer_cfg=OVRTXRendererCfg(motion_bvh="auto"),
     )

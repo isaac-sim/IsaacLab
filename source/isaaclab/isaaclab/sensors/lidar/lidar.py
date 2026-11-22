@@ -3,13 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tiled OVRTX lidar sensor.
+"""Lidar sensor.
 
-The host USD runtime cannot load ovrtx's ``omniSensor`` schema plugin, so the prim is authored as
-an ``OmniLidar`` with the Lidar generic wpm or Lidar generic core attributes written explicitly.
-ovrtx reads those attributes from the exported stage. An unregistered ``OmniLidar`` type is not
-Xformable, so the pose written to the renderer is the configured offset composed with the parent
-prim's world pose.
+An ``OmniLidar`` prim carries the scan. ``model_name`` is ``LidarWpm`` or ``LidarCore``, and those
+model attributes are written explicitly because the host USD runtime does not have the
+``omniSensor`` schema registered. An unregistered ``OmniLidar`` type is not Xformable, so the pose
+written to the renderer is the configured offset composed with the parent prim's world pose.
+The OVRTX renderer is the current capture implementation.
 """
 
 from __future__ import annotations
@@ -33,14 +33,6 @@ from .lidar_data import LidarData
 if TYPE_CHECKING:
     from .lidar_cfg import LidarCfg
 
-_WPM_PATTERN = "p001"
-_CORE_STATE = "s001"
-
-
-def _set_attr(prim, name: str, type_name, value) -> None:
-    """Create an attribute and set its value. The schema does not need to be registered."""
-    prim.CreateAttribute(name, type_name).Set(value)
-
 
 def _apply_api_schemas(prim, names: tuple[str, ...]) -> None:
     """Record the lidar API schemas. The host runtime does not have them registered."""
@@ -51,128 +43,113 @@ def _apply_api_schemas(prim, names: tuple[str, ...]) -> None:
 
 def _scan_token(cfg: LidarCfg) -> str:
     """Return the scan-type token for the selected model."""
-    if cfg.model == "wpm":
+    if cfg.model_name == "LidarWpm":
         return "solidState" if cfg.scan_type == "solid_state" else "rotary"
     return "SOLID_STATE" if cfg.scan_type == "solid_state" else "ROTARY"
 
 
-def _author_identity(prim, model_name: str) -> None:
-    """Write the shared sensor identity and a 10 Hz scan rate."""
-    _set_attr(prim, "omni:sensor:modelName", Sdf.ValueTypeNames.String, model_name)
-    _set_attr(prim, "cameraSensorType", Sdf.ValueTypeNames.Token, "lidar")
-    _set_attr(prim, "visibility", Sdf.ValueTypeNames.Token, "invisible")
-    _set_attr(prim, "omni:sensor:frameRate", Sdf.ValueTypeNames.Double2, Gf.Vec2d(10.0, 1.0))
-
-
 def _author_output(prim, prefix: str, cfg: LidarCfg, ray_type: str) -> None:
     """Write the output contract shared by both lidar models."""
-    _set_attr(prim, f"{prefix}:scanType", Sdf.ValueTypeNames.Token, _scan_token(cfg))
-    _set_attr(prim, f"{prefix}:rayType", Sdf.ValueTypeNames.Token, ray_type)
-    _set_attr(prim, f"{prefix}:elementsCoordsType", Sdf.ValueTypeNames.Token, cfg.coords_type)
-    _set_attr(prim, f"{prefix}:outputFrameOfReference", Sdf.ValueTypeNames.Token, cfg.frame_of_reference)
-    _set_attr(prim, f"{prefix}:instantLidar", Sdf.ValueTypeNames.Bool, cfg.instant_lidar)
-    _set_attr(prim, f"{prefix}:includeInvalidPoints", Sdf.ValueTypeNames.Bool, cfg.include_invalid_points)
-    _set_attr(prim, f"{prefix}:maxReturns", Sdf.ValueTypeNames.UInt, int(cfg.max_returns))
-    if cfg.far_range is not None:
-        _set_attr(prim, f"{prefix}:farRangeM", Sdf.ValueTypeNames.Float, float(cfg.far_range))
-    # Each pattern azimuth is an offset from the tick at validStartAzimuthDeg. A start of 0 keeps
-    # azimuth 0 along the sensor's forward axis.
-    _set_attr(prim, f"{prefix}:validStartAzimuthDeg", Sdf.ValueTypeNames.Float, float(cfg.valid_start_azimuth_deg))
-    _set_attr(prim, f"{prefix}:validEndAzimuthDeg", Sdf.ValueTypeNames.Float, float(cfg.valid_end_azimuth_deg))
-    _set_attr(prim, f"{prefix}:rotPatternFiringResDeg", Sdf.ValueTypeNames.Float, float(cfg.azimuth_resolution_deg))
+    prim.CreateAttribute(f"{prefix}:scanType", Sdf.ValueTypeNames.Token).Set(_scan_token(cfg))
+    prim.CreateAttribute(f"{prefix}:rayType", Sdf.ValueTypeNames.Token).Set(ray_type)
+    prim.CreateAttribute(f"{prefix}:elementsCoordsType", Sdf.ValueTypeNames.Token).Set(cfg.elements_coords_type)
+    prim.CreateAttribute(f"{prefix}:outputFrameOfReference", Sdf.ValueTypeNames.Token).Set(
+        cfg.output_frame_of_reference
+    )
+    prim.CreateAttribute(f"{prefix}:instantLidar", Sdf.ValueTypeNames.Bool).Set(cfg.instant_lidar)
+    prim.CreateAttribute(f"{prefix}:includeInvalidPoints", Sdf.ValueTypeNames.Bool).Set(cfg.include_invalid_points)
+    prim.CreateAttribute(f"{prefix}:maxReturns", Sdf.ValueTypeNames.UInt).Set(cfg.max_returns)
+    prim.CreateAttribute(f"{prefix}:farRangeM", Sdf.ValueTypeNames.Float).Set(cfg.far_range_m)
+    prim.CreateAttribute(f"{prefix}:validStartAzimuthDeg", Sdf.ValueTypeNames.Float).Set(cfg.valid_start_azimuth_deg)
+    prim.CreateAttribute(f"{prefix}:validEndAzimuthDeg", Sdf.ValueTypeNames.Float).Set(cfg.valid_end_azimuth_deg)
+    prim.CreateAttribute(f"{prefix}:rotPatternFiringResDeg", Sdf.ValueTypeNames.Float).Set(
+        cfg.rot_pattern_firing_res_deg
+    )
 
 
 def _author_pattern(prim, prefix: str, cfg: LidarCfg) -> None:
     """Write one firing pattern or emitter state from the configured ray arrays."""
-    _set_attr(
-        prim,
-        f"{prefix}:azimuthDeg",
-        Sdf.ValueTypeNames.FloatArray,
-        Vt.FloatArray([float(value) for value in cfg.azimuth_deg]),
+    prim.CreateAttribute(f"{prefix}:azimuthDeg", Sdf.ValueTypeNames.FloatArray).Set(Vt.FloatArray(cfg.azimuth_deg))
+    prim.CreateAttribute(f"{prefix}:elevationDeg", Sdf.ValueTypeNames.FloatArray).Set(Vt.FloatArray(cfg.elevation_deg))
+    prim.CreateAttribute(f"{prefix}:fireTimeNs", Sdf.ValueTypeNames.UIntArray).Set(Vt.UIntArray(cfg.fire_time_ns))
+    prim.CreateAttribute(f"{prefix}:channelId", Sdf.ValueTypeNames.UIntArray).Set(Vt.UIntArray(cfg.channel_id))
+
+
+def _author_core(prim, cfg: LidarCfg) -> None:
+    """Write ``LidarCore`` and its ``s001`` emitter state."""
+    emitter_state = "s001"
+    _apply_api_schemas(
+        prim, ("OmniSensorGenericLidarCoreAPI", f"OmniSensorGenericLidarCoreEmitterStateAPI:{emitter_state}")
     )
-    _set_attr(
-        prim,
-        f"{prefix}:elevationDeg",
-        Sdf.ValueTypeNames.FloatArray,
-        Vt.FloatArray([float(value) for value in cfg.elevation_deg]),
+    prefix = "omni:sensor:Core"
+    emitter_count = len(cfg.azimuth_deg)
+    _author_output(prim, prefix, cfg, "IDEALIZED")
+    prim.CreateAttribute(f"{prefix}:numberOfEmitters", Sdf.ValueTypeNames.UInt).Set(emitter_count)
+    prim.CreateAttribute(f"{prefix}:numberOfChannels", Sdf.ValueTypeNames.UInt).Set(
+        max(emitter_count, max(int(value) for value in cfg.channel_id))
     )
-    _set_attr(
-        prim,
-        f"{prefix}:fireTimeNs",
-        Sdf.ValueTypeNames.UIntArray,
-        Vt.UIntArray([int(value) for value in cfg.fire_time_ns]),
-    )
-    _set_attr(
-        prim,
-        f"{prefix}:channelId",
-        Sdf.ValueTypeNames.UIntArray,
-        Vt.UIntArray([int(value) for value in cfg.channel_id]),
-    )
+    if cfg.scan_type == "solid_state":
+        prim.CreateAttribute(f"{prefix}:numLines", Sdf.ValueTypeNames.UInt).Set(1)
+        prim.CreateAttribute(f"{prefix}:numRaysPerLine", Sdf.ValueTypeNames.UIntArray).Set(
+            Vt.UIntArray([emitter_count])
+        )
+    else:
+        prim.CreateAttribute(f"{prefix}:rotationDirection", Sdf.ValueTypeNames.Token).Set(cfg.rotation_direction)
+    _author_pattern(prim, f"{prefix}:emitterState:{emitter_state}", cfg)
 
 
 def _author_wpm(prim, cfg: LidarCfg) -> None:
-    """Write Lidar generic wpm and its ``p001`` firing pattern."""
+    """Write ``LidarWpm`` and its ``p001`` firing pattern."""
+    firing_pattern = "p001"
     _apply_api_schemas(
-        prim, ("OmniSensorGenericLidarWpmAPI", f"OmniSensorGenericLidarWpmFiringPatternAPI:{_WPM_PATTERN}")
+        prim, ("OmniSensorGenericLidarWpmAPI", f"OmniSensorGenericLidarWpmFiringPatternAPI:{firing_pattern}")
     )
-    _author_identity(prim, "LidarWpm")
     prefix = "omni:sensor:LidarWpm"
     _author_output(prim, prefix, cfg, "idealized")
-    _set_attr(prim, f"{prefix}:tiledSubSampling", Sdf.ValueTypeNames.UInt, int(cfg.tiled_subsampling))
-    _set_attr(prim, f"{prefix}:minDetectableReflectance", Sdf.ValueTypeNames.Float, 0.0)
-    _set_attr(prim, f"{prefix}:detectorNoiseVariance", Sdf.ValueTypeNames.Float, 0.0)
+    prim.CreateAttribute(f"{prefix}:tiledSubSampling", Sdf.ValueTypeNames.UInt).Set(int(cfg.tiled_subsampling))
+    prim.CreateAttribute(f"{prefix}:minDetectableReflectance", Sdf.ValueTypeNames.Float).Set(0.0)
+    prim.CreateAttribute(f"{prefix}:detectorNoiseVariance", Sdf.ValueTypeNames.Float).Set(0.0)
     for name in (
         "jitterAzimuthStdDevDeg",
         "jitterElevationStdDevDeg",
         "offsetAzimuthStdDevDeg",
         "offsetElevationStdDevDeg",
     ):
-        _set_attr(prim, f"{prefix}:{name}", Sdf.ValueTypeNames.Float, 0.0)
-    pattern = f"{prefix}:firingPattern:{_WPM_PATTERN}"
+        prim.CreateAttribute(f"{prefix}:{name}", Sdf.ValueTypeNames.Float).Set(0.0)
+    pattern = f"{prefix}:firingPattern:{firing_pattern}"
     _author_pattern(prim, pattern, cfg)
-    _set_attr(prim, f"{pattern}:rangeId", Sdf.ValueTypeNames.UIntArray, Vt.UIntArray())
+    prim.CreateAttribute(f"{pattern}:rangeId", Sdf.ValueTypeNames.UIntArray).Set(Vt.UIntArray())
 
 
-def _author_core(prim, cfg: LidarCfg) -> None:
-    """Write Lidar generic core and its ``s001`` emitter state."""
-    _apply_api_schemas(
-        prim, ("OmniSensorGenericLidarCoreAPI", f"OmniSensorGenericLidarCoreEmitterStateAPI:{_CORE_STATE}")
-    )
-    _author_identity(prim, "LidarCore")
-    prefix = "omni:sensor:Core"
-    emitter_count = len(cfg.azimuth_deg)
-    _author_output(prim, prefix, cfg, "IDEALIZED")
-    _set_attr(prim, f"{prefix}:numberOfEmitters", Sdf.ValueTypeNames.UInt, emitter_count)
-    _set_attr(
-        prim,
-        f"{prefix}:numberOfChannels",
-        Sdf.ValueTypeNames.UInt,
-        max(emitter_count, max(int(value) for value in cfg.channel_id)),
-    )
-    if cfg.scan_type == "solid_state":
-        _set_attr(prim, f"{prefix}:numLines", Sdf.ValueTypeNames.UInt, 1)
-        _set_attr(prim, f"{prefix}:numRaysPerLine", Sdf.ValueTypeNames.UIntArray, Vt.UIntArray([emitter_count]))
-    else:
-        _set_attr(prim, f"{prefix}:rotationDirection", Sdf.ValueTypeNames.Token, cfg.rotation_direction)
-    _author_pattern(prim, f"{prefix}:emitterState:{_CORE_STATE}", cfg)
+@clone
+def spawn_lidar(prim_path: str, cfg: LidarCfg) -> Usd.Prim:
+    """Spawn one ``OmniLidar`` prim. The clone decorator replicates it across matching parents.
 
+    The prim is authored with explicit model attributes because the host runtime does not have the
+    ``omniSensor`` schema registered. A renderer that supports lidar reads those attributes.
+    """
+    stage = get_current_stage()
+    prim = stage.DefinePrim(prim_path, "OmniLidar")
+    if not prim.IsValid():
+        raise RuntimeError(f"Failed to create an OmniLidar prim at '{prim_path}'.")
 
-def _author_pose(prim, cfg: LidarCfg) -> None:
-    """Write the configured offset onto the prim."""
     xform = UsdGeom.Xformable(prim)
     xform.AddTranslateOp(UsdGeom.XformOp.PrecisionDouble).Set(Gf.Vec3d(*cfg.offset.pos))
     x, y, z, w = cfg.offset.rot
     xform.AddOrientOp(UsdGeom.XformOp.PrecisionFloat).Set(Gf.Quatf(float(w), Gf.Vec3f(float(x), float(y), float(z))))
     xform.AddScaleOp(UsdGeom.XformOp.PrecisionDouble).Set(Gf.Vec3d(1.0, 1.0, 1.0))
 
+    prim.CreateAttribute("omni:sensor:modelName", Sdf.ValueTypeNames.String).Set(cfg.model_name)
+    prim.CreateAttribute("cameraSensorType", Sdf.ValueTypeNames.Token).Set("lidar")
+    prim.CreateAttribute("visibility", Sdf.ValueTypeNames.Token).Set("invisible")
+    prim.CreateAttribute("omni:sensor:frameRate", Sdf.ValueTypeNames.Double2).Set(Gf.Vec2d(10.0, 1.0))
 
-def _author_lidar(prim, cfg: LidarCfg) -> None:
-    """Write the selected lidar model and the configured firing pattern onto ``prim``."""
-    if cfg.model == "core":
-        _author_core(prim, cfg)
-    else:
+    if cfg.model_name == "LidarWpm":
         _author_wpm(prim, cfg)
-    _author_pose(prim, cfg)
+    else:
+        _author_core(prim, cfg)
+
+    return prim
 
 
 @wp.kernel
@@ -191,25 +168,11 @@ def _clear_lidar_returns_kernel(
     valid[env_id, ray_id] = False
 
 
-@clone
-def spawn_lidar(prim_path: str, cfg: LidarCfg) -> Usd.Prim:
-    """Spawn one ``OmniLidar`` prim. The clone decorator replicates it across matching parents.
-
-    The prim is authored with explicit model attributes, which ovrtx reads without a registered schema.
-    """
-    stage = get_current_stage()
-    prim = stage.DefinePrim(prim_path, "OmniLidar")
-    if not prim.IsValid():
-        raise RuntimeError(f"Failed to create an OmniLidar prim at '{prim_path}'.")
-    _author_lidar(prim, cfg)
-    return prim
-
-
 class Lidar(SensorBase):
-    """Tiled OVRTX lidar captured by one renderer.
+    """Lidar sensor captured by one renderer.
 
-    Each environment contributes one prim. ``model`` selects Lidar generic wpm or Lidar generic
-    core, and ``scan_type`` selects a solid-state or rotary scan. A capture submits those prims as
+    Each environment contributes one prim. ``model_name`` selects ``LidarWpm`` or ``LidarCore``,
+    and ``scan_type`` selects a solid-state or rotary scan. A capture submits those prims as
     tiles of one lidar render product, in environment order, and writes the split point cloud into
     :attr:`data`. The buffer length is the full scan: one firing of the pattern for a solid-state
     scan, or one firing at every azimuth step for a rotary scan. When the scene also has cameras on
@@ -222,15 +185,18 @@ class Lidar(SensorBase):
         """Spawn the lidar prims and register the shared renderer.
 
         Args:
-            cfg: Lidar configuration. ``renderer_cfg`` must select the OVRTX renderer.
+            cfg: Lidar configuration. ``renderer_cfg`` selects the renderer that captures the scan.
+                The OVRTX renderer is the current capture implementation.
 
         Raises:
-            ValueError: If ``renderer_cfg`` is not an OVRTX renderer.
+            ValueError: If ``renderer_cfg`` does not support lidar capture. Only OVRTX is supported.
         """
         if getattr(cfg.renderer_cfg, "renderer_type", None) != "ovrtx":
             renderer = getattr(cfg.renderer_cfg, "renderer_type", type(cfg.renderer_cfg).__name__)
-            raise ValueError(f"Lidar requires an OVRTX renderer, got {renderer!r}.")
+            raise ValueError(f"Lidar capture currently supports only the OVRTX renderer, got {renderer!r}.")
+
         super().__init__(cfg)
+
         self._data: LidarData | None = None
         self._render_data = None
         self._pose_update_registered = False
@@ -252,9 +218,11 @@ class Lidar(SensorBase):
         else:
             spawn_target = spawn.spawn_path or self.cfg.prim_path
             if sim_utils.find_first_matching_prim(spawn_target) is None:
-                spawn_lidar(spawn_target, self.cfg)
+                spawn.func(spawn_target, self.cfg)
+
             if not sim_utils.find_matching_prims(spawn_target):
                 raise RuntimeError(f"Could not find a lidar prim at {spawn_target!r}.")
+
         sim_ctx = sim_utils.SimulationContext.instance()
         sim_ctx.require_visual_shapes()
         self._renderer = sim_ctx.get_or_create_backend(self.cfg.renderer_cfg)
@@ -263,11 +231,14 @@ class Lidar(SensorBase):
         """Release the render product. Skipped while the interpreter is shutting down."""
         if _sys.is_finalizing() or _sys.meta_path is None:
             return
+
         super().__del__()
+
         parent_view = getattr(self, "_parent_view", None)
         if parent_view is not None:
             parent_view.close()
             self._parent_view = None
+
         renderer = getattr(self, "_renderer", None)
         if renderer is not None and hasattr(renderer, "cleanup_lidar"):
             renderer.cleanup_lidar(getattr(self, "_render_data", None))
@@ -302,14 +273,17 @@ class Lidar(SensorBase):
         """Clear returns for the reset environments and drop the shared capture cache."""
         reset_mask = self._resolve_indices_and_mask(env_ids, env_mask)
         super().reset(env_mask=reset_mask)
+
         if self._data is None:
             return
+
         wp.launch(
             _clear_lidar_returns_kernel,
             dim=(self._num_envs, self._data.points.warp.shape[1]),
             inputs=[reset_mask, self._data.points.warp, self._data.intensity.warp, self._data.valid.warp],
             device=self._device,
         )
+
         invalidate = getattr(self._renderer, "invalidate_sensor_capture", None)
         if invalidate is not None:
             invalidate()
@@ -317,6 +291,7 @@ class Lidar(SensorBase):
     def _initialize_impl(self):
         """Allocate the return buffers and register the tiled lidar product."""
         super()._initialize_impl()
+
         from isaaclab import sim as sim_utils
 
         num_rays = self.cfg.num_rays()
@@ -333,6 +308,7 @@ class Lidar(SensorBase):
         lidar_paths = [str(prim.GetPath()) for prim in sim_utils.find_matching_prims(self.cfg.prim_path, self.stage)]
         if not lidar_paths:
             raise RuntimeError(f"Lidar prim '{self.cfg.prim_path}' was not found after the scene was cloned.")
+
         self._render_data = self._renderer.create_lidar_render_data(
             prim_path=self.cfg.prim_path,
             lidar_paths=lidar_paths,
@@ -343,22 +319,26 @@ class Lidar(SensorBase):
             valid=self._data.valid,
             sample_dt=self._capture_interval(),
         )
+
         register = getattr(self._renderer, "register_pose_update", None)
         if register is not None and not self._pose_update_registered:
             register(self._push_renderer_pose)
             self._pose_update_registered = True
+
         self._push_renderer_pose()
 
     def _update_buffers_impl(self, env_mask: wp.array):
         """Capture every tile when any environment is due. A tiled product cannot render one tile."""
         if self.cfg.update_period > 0.0 and not bool(env_mask.numpy().any()):
             return
+
         self._renderer.render_lidars(self._capture_interval(), force=self._force_capture)
 
     def _push_renderer_pose(self) -> None:
         """Write the current world pose of every tile. Safe to call more than once per step."""
         if self._render_data is None or self._pos_w is None:
             return
+
         self._write_world_poses()
         self._renderer.update_lidar(self._render_data, self._pos_w, self._quat_w)
 
@@ -370,6 +350,7 @@ class Lidar(SensorBase):
         """
         if self.cfg.update_period > 0.0:
             return float(self.cfg.update_period)
+
         return float(self._sim_physics_dt)
 
     def _write_world_poses(self) -> None:
@@ -393,6 +374,7 @@ class Lidar(SensorBase):
         if self._parent_view is not None:
             position, orientation = self._parent_view.get_world_poses()
             return position.torch, orientation.torch
+
         return self._fallback_origins, self._fallback_quat
 
     def _bind_parent_pose(self) -> None:
@@ -409,6 +391,7 @@ class Lidar(SensorBase):
                     f" '{parent_expr}' resolved {self._parent_view.count} poses."
                 )
             return
+
         self._cache_fallback_origins()
 
     def _cache_fallback_origins(self) -> None:
@@ -426,6 +409,7 @@ class Lidar(SensorBase):
                         f"Lidar '{self.cfg.prim_path}' has {self._num_envs} instances, but the clone plan has"
                         f" origins of shape {tuple(origins.shape)}."
                     )
+
         self._fallback_origins = origins
         self._fallback_quat = torch.zeros((self._num_envs, 4), dtype=torch.float32, device=self._device)
         self._fallback_quat[:, 3] = 1.0

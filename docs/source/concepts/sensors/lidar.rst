@@ -6,25 +6,31 @@
 Lidar
 =====
 
-A :class:`~sensors.Lidar` is a tiled OVRTX lidar. ``model`` selects Lidar generic
-wpm or Lidar generic core and defaults to core, matching an ``OmniLidar`` prim.
-``scan_type`` selects a solid-state or rotary scan and defaults to rotary, matching
-the OmniLidar schemas. Each environment gets one ``OmniLidar`` prim. Those prims
-share one render product, and one renderer step returns a point cloud that is
-split back into per-environment buffers.
+A :class:`~sensors.Lidar` publishes one scan per environment from an ``OmniLidar`` prim.
+``model_name`` selects ``LidarWpm`` or ``LidarCore`` and defaults to ``LidarCore``, matching
+the schema ``omni:sensor:modelName`` values. ``scan_type`` selects a solid-state or rotary
+scan and defaults to rotary, matching the OmniLidar schemas. Those prims share one render
+product, and one renderer step returns a point cloud that is split back into
+per-environment buffers.
 
 ``num_rays`` is the full scan. A solid-state scan fires the pattern once. A
-rotary scan repeats that pattern at every ``azimuth_resolution_deg`` step across
+rotary scan repeats that pattern at every ``rot_pattern_firing_res_deg`` step across
 the configured azimuth window. Each firing keeps ``max_returns`` slots.
 :attr:`~sensors.LidarData.points` has shape ``(num_envs, num_rays, 3)`` in the
-Torch view. The values are Cartesian positions, in meters, in the frame
-selected by ``frame_of_reference`` (``WORLD`` or ``SENSOR``). Misses are
-non-finite, so every environment keeps the same ray slots.
+Torch view. ``elements_coords_type`` defaults to ``SPHERICAL``. ``CARTESIAN``
+elements are positions in meters, in the frame selected by
+``output_frame_of_reference`` (``WORLD`` or ``SENSOR``).
+``include_invalid_points`` defaults to false, matching the schemas, so missed
+rays are dropped. Set it true to keep a non-finite slot for every ray.
+The other scan defaults follow the schemas too: a 0.1° rotary step, two
+returns per ray, the ``SENSOR`` frame, a 200 m far range, and ``instant_lidar``
+disabled.
 :attr:`~sensors.LidarData.intensity` and :attr:`~sensors.LidarData.valid` have
 shape ``(num_envs, num_rays)``. Tile ``i`` is environment ``i``.
 
-The sensor requires :class:`~isaaclab_ov.renderers.OVRTXRendererCfg`. Set
-``motion_bvh`` to ``"auto"`` or ``"enable"`` so a non-visual sensor is rendered.
+The OVRTX renderer is the current capture implementation. Use
+:class:`~isaaclab_ov.renderers.OVRTXRendererCfg` and set ``motion_bvh`` to ``"auto"`` or
+``"enable"`` so a non-visual sensor is rendered.
 Cameras that use the same renderer configuration are submitted in that step.
 Camera-only scenes leave ``motion_bvh`` unset and do not build a lidar product.
 

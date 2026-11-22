@@ -90,7 +90,7 @@ def lidar_env_hits(sensor: Lidar, env_ids: list[int] | None) -> list[tuple[int, 
         index = torch.as_tensor(ids, device=points.device, dtype=torch.long)
         points = points.index_select(0, index)
         valid = valid.index_select(0, index)
-    if sensor.cfg.frame_of_reference == "SENSOR":
+    if sensor.cfg.output_frame_of_reference == "SENSOR":
         position = sensor._pos_w
         rotation = sensor._quat_w
         if position is None or rotation is None:

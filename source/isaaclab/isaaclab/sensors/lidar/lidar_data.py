@@ -25,23 +25,17 @@ class LidarData:
             num_rays: Ray slots in each environment, including misses.
             device: Simulation device that stores the buffers.
         """
-        points = wp.full(
-            (num_envs, num_rays),
-            wp.vec3f(float("inf"), float("inf"), float("inf")),
-            dtype=wp.vec3f,
-            device=device,
-        )
-        self._points = ProxyArray(points)
+        self._points = ProxyArray(wp.full((num_envs, num_rays), wp.vec3f(wp.inf), dtype=wp.vec3f, device=device))
         self._intensity = ProxyArray(wp.zeros((num_envs, num_rays), dtype=wp.float32, device=device))
         self._valid = ProxyArray(wp.zeros((num_envs, num_rays), dtype=wp.bool, device=device))
 
     @property
     def points(self) -> ProxyArray:
-        """Cartesian positions in meters, in the frame selected by ``LidarCfg.frame_of_reference``.
+        """Point elements in the frame selected by ``LidarCfg.output_frame_of_reference``.
 
-        That frame is ``WORLD`` or ``SENSOR``. The Warp array has shape ``(num_envs, num_rays)``
-        and dtype ``vec3f``. The Torch view has shape ``(num_envs, num_rays, 3)``. Misses are
-        non-finite.
+        ``CARTESIAN`` elements are positions in meters. That frame is ``WORLD`` or ``SENSOR``. The
+        Warp array has shape ``(num_envs, num_rays)`` and dtype ``vec3f``. The Torch view has shape
+        ``(num_envs, num_rays, 3)``. Misses are non-finite when invalid points are kept.
         """
         return self._points
 

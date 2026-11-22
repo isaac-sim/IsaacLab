@@ -63,8 +63,12 @@ def test_lidar_preset_uses_one_ovrtx_renderer(cfg_cls):
     assert isinstance(cfg.scene.lidar, LidarCfg)
     assert isinstance(cfg.scene.lidar.renderer_cfg, OVRTXRendererCfg)
     assert cfg.scene.tiled_camera is None
-    assert cfg.scene.lidar.frame_of_reference == "SENSOR"
-    assert cfg.scene.lidar.far_range == 12.0
+    assert cfg.scene.lidar.output_frame_of_reference == "SENSOR"
+    assert cfg.scene.lidar.elements_coords_type == "CARTESIAN"
+    assert cfg.scene.lidar.far_range_m == 12.0
+    assert cfg.scene.lidar.max_returns == 1
+    assert cfg.scene.lidar.instant_lidar is True
+    assert cfg.scene.lidar.include_invalid_points is True
     assert cfg.scene.lidar.renderer_cfg.motion_bvh == "auto"
     assert cfg.scene.num_envs == 64
     if cfg_cls is CartpoleDirectCameraEnvCfg:

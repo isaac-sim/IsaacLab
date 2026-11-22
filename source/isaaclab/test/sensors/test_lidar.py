@@ -20,36 +20,27 @@ from isaaclab.utils.warp import ProxyArray
 
 
 def _lidar_cfg(**overrides) -> LidarCfg:
-    """Build a one-ray lidar config. ``overrides`` replace the valid defaults."""
+    """Build a one-ray lidar config. ``overrides`` replace the valid defaults.
+
+    ``max_returns`` is 1 so a slot-count case measures the firing pattern. The schema default is 2.
+    """
     values = {
         "prim_path": "/World/envs/env_.*/Lidar",
         "azimuth_deg": [0.0],
         "elevation_deg": [0.0],
         "fire_time_ns": [0],
         "channel_id": [0],
+        "max_returns": 1,
         "renderer_cfg": SimpleNamespace(renderer_type="ovrtx"),
     }
     values.update(overrides)
     return LidarCfg(**values)
 
 
-@pytest.mark.parametrize(
-    ("field", "value", "match"),
-    [
-        ("coords_type", "SPHERICAL", "CARTESIAN"),
-        ("include_invalid_points", False, "include_invalid_points"),
-    ],
-)
-def test_lidar_cfg_rejects_returns_that_lose_ray_identity(field, value, match):
-    """Spherical coordinates and compacted misses cannot be published as Cartesian ray slots."""
-    with pytest.raises(ValueError, match=match):
-        _lidar_cfg(**{field: value})
-
-
 def test_lidar_cfg_rejects_a_non_positive_azimuth_step():
     """A rotary step of zero cannot divide the azimuth window."""
-    with pytest.raises(ValueError, match="azimuth_resolution_deg"):
-        _lidar_cfg(azimuth_resolution_deg=0.0)
+    with pytest.raises(ValueError, match="rot_pattern_firing_res_deg"):
+        _lidar_cfg(rot_pattern_firing_res_deg=0.0)
 
 
 @pytest.mark.parametrize(
@@ -67,11 +58,11 @@ def test_lidar_cfg_rejects_a_non_positive_azimuth_step():
             },
             4,
         ),
-        ({"scan_type": "rotary", "azimuth_resolution_deg": 90.0}, 4),
+        ({"scan_type": "rotary", "rot_pattern_firing_res_deg": 90.0}, 4),
         (
             {
                 "scan_type": "rotary",
-                "azimuth_resolution_deg": 10.0,
+                "rot_pattern_firing_res_deg": 10.0,
                 "valid_start_azimuth_deg": 350.0,
                 "valid_end_azimuth_deg": 10.0,
             },

@@ -46,8 +46,8 @@ class CartpoleCameraEnvCfg(PresetCfg):
 
     The selector also picks the matching tiled camera preset and its rendering backend through
     :attr:`CartpoleCameraSceneCfg.tiled_camera`. The ``lidar`` variant replaces that camera with a
-    tiled OVRTX lidar pinned to motion BVH. Its policy observation is a stacked range image of that
-    scan, and the scene defaults to 64 environments. The critic reads the joint state.
+    lidar captured by the OVRTX renderer and pinned to motion BVH. Its policy observation is a stacked
+    range image of that scan, and the scene defaults to 64 environments. The critic reads the joint state.
     """
 
     @configclass
