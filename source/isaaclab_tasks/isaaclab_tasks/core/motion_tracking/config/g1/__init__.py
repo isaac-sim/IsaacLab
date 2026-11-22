@@ -16,6 +16,7 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": f"{__name__}.env_cfg:G1MotionTrackingEnvCfg",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1MotionTrackingPPORunnerCfg",
+        "rsl_rl_supermimic_cfg_entry_point": f"{agents.__name__}.rsl_rl_supermimic_cfg:G1MotionSuperMimicRunnerCfg",
         "default_agent": "rsl_rl",
     },
 )
