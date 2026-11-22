@@ -12,12 +12,13 @@ import math
 from collections.abc import Sequence
 from typing import Any
 
+from isaaclab_cosmos_server.protocol import CANVAS_ASPECT_RATIOS
+
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim import FisheyeCameraCfg
 from isaaclab.utils import replace
 from isaaclab.utils.tensor_processors import TensorProcessorCfg
 
-from .._protocol import CANVAS_ASPECT_RATIOS
 from .cosmos_model_cfg import CosmosModelCfg
 from .cosmos_processor_cfg import CosmosTransferProcessorCfg
 from .image_transfer_cfg import DepthControlProcessorCfg
@@ -63,7 +64,7 @@ def cosmos_camera(
         control: Processors that write the ``control`` buffer from the camera's render outputs: uint8 images of
             shape (N, H, W, 3) at the canvas size, for example a processor reading ``semantic_segmentation`` or
             the rendered ``rgb``. Defaults to None, which uses
-            :class:`~isaaclab_experimental.cosmos.DepthControlProcessorCfg`.
+            :class:`~isaaclab_contrib.sensors.cosmos.DepthControlProcessorCfg`.
         near: Depth rendered white [m] by the default depth control. Defaults to None, which uses 0.1 m.
         far: Depth rendered black [m] by the default depth control. Defaults to None, which uses 2.0 m.
         canvas: Cosmos canvas ``(height, width)`` from the service's supported canvases. Defaults to None, which

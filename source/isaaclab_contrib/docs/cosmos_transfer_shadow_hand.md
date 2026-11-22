@@ -64,7 +64,7 @@ worker into it:
 cd "$COSMOS_FRAMEWORK_ROOT"
 uv sync --locked --all-extras --group=cu130-train
 uv run --no-sync uv pip install -e \
-  "$ISAAC_LAB_ROOT/source/isaaclab_experimental/isaaclab_experimental/cosmos"
+  "$ISAAC_LAB_ROOT/source/isaaclab_cosmos_server"
 ```
 
 Download the complete checkpoint with the Framework environment's Hugging Face CLI:
@@ -95,7 +95,7 @@ Set the path variables to the same absolute paths as in terminal 1, then run:
 
 ```bash
 cd "$ISAAC_LAB_ROOT"
-uv run python -m isaaclab_experimental.cosmos.client.cli status
+uv run python -m isaaclab_contrib.sensors.cosmos.cli status
 ```
 
 Check for `"ready": true` and `"session_active": false`, then start the demo:

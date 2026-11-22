@@ -17,7 +17,7 @@ from contextlib import ExitStack
 from itertools import pairwise
 from typing import TYPE_CHECKING, Any, NamedTuple
 
-from .._protocol import (
+from isaaclab_cosmos_server.protocol import (
     MAX_CHUNK_FRAMES,
     SEED_LIMIT,
     ProtocolError,
@@ -28,6 +28,7 @@ from .._protocol import (
     request,
     send_message,
 )
+
 from .prompt_files import read_prompt_files
 
 if TYPE_CHECKING:

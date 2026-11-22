@@ -10,16 +10,17 @@ from types import SimpleNamespace
 import pytest
 import torch
 import warp as wp
-from isaaclab_experimental.cosmos import (
-    DepthControlProcessorCfg,
-    ImageTransferProcessorCfg,
-    depth_to_control,
-)
-from isaaclab_experimental.cosmos.client import image_transfer as processor_module
 
 from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.warp import ProxyArray
+
+from isaaclab_contrib.sensors.cosmos import (
+    DepthControlProcessorCfg,
+    ImageTransferProcessorCfg,
+    depth_to_control,
+)
+from isaaclab_contrib.sensors.cosmos import image_transfer as processor_module
 
 pytestmark = pytest.mark.unit
 

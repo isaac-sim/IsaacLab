@@ -19,7 +19,7 @@ from typing import Protocol
 
 import numpy as np
 
-from .._protocol import (
+from .protocol import (
     DEFAULT_ENDPOINT,
     MAX_ARRAYS,
     SEED_LIMIT,

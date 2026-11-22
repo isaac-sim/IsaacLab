@@ -26,7 +26,7 @@ def read_prompt_files(paths: Sequence[str]) -> list[str]:
 
     Returns:
         The prompts, one per file. A list cycles per episode with one environment and assigns one prompt per
-        environment with several; see :attr:`~isaaclab_experimental.cosmos.CosmosModelCfg.prompt`.
+        environment with several; see :attr:`~isaaclab_contrib.sensors.cosmos.CosmosModelCfg.prompt`.
 
     Raises:
         ValueError: If no file is given, a pattern matches nothing, or a file is missing, empty, neither ``.txt`` nor

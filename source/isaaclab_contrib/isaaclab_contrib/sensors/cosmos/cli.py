@@ -5,9 +5,9 @@
 
 """Inspect an independently running Cosmos service, or move its weights between host and GPU memory.
 
-python -m isaaclab_experimental.cosmos.client.cli status
-python -m isaaclab_experimental.cosmos.client.cli offload
-python -m isaaclab_experimental.cosmos.client.cli activate
+python -m isaaclab_contrib.sensors.cosmos.cli status
+python -m isaaclab_contrib.sensors.cosmos.cli offload
+python -m isaaclab_contrib.sensors.cosmos.cli activate
 """
 
 from __future__ import annotations
@@ -16,14 +16,14 @@ import argparse
 import json
 import sys
 
-from isaaclab_experimental.cosmos._protocol import DEFAULT_ENDPOINT, DEFAULT_TIMEOUT_S, request
+from isaaclab_cosmos_server.protocol import DEFAULT_ENDPOINT, DEFAULT_TIMEOUT_S, request
 
 
 def main(args: list[str] | None = None) -> int:
     """Run the ``status``, ``offload``, or ``activate`` command."""
     parser = argparse.ArgumentParser(
         description=__doc__,
-        prog="python -m isaaclab_experimental.cosmos.client.cli",
+        prog="python -m isaaclab_contrib.sensors.cosmos.cli",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     commands = parser.add_subparsers(dest="command", required=True)

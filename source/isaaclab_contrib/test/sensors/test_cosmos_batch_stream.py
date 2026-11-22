@@ -25,8 +25,9 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 import torch
-from isaaclab_experimental.cosmos import CosmosModel, CosmosModelCfg, _protocol
-from isaaclab_experimental.cosmos.server import _framework, serve
+from isaaclab_cosmos_server import framework, protocol, serve
+
+from isaaclab_contrib.sensors.cosmos import CosmosModel, CosmosModelCfg
 
 pytestmark = pytest.mark.unit
 
@@ -132,7 +133,7 @@ def batch(monkeypatch):
     def make(views=2, partial=True, budget=13):
         model = Model()
         # Keep the real session admission and lifecycle; replace only the loaded Framework and text conditioning.
-        owner = _framework.CosmosInferenceModel.__new__(_framework.CosmosInferenceModel)
+        owner = framework.CosmosInferenceModel.__new__(framework.CosmosInferenceModel)
         owner._pipeline = SimpleNamespace(model=model)
         owner._device = torch.device("cuda", torch.cuda.current_device())
         owner.capabilities = {"partial_resets": partial}
@@ -170,7 +171,7 @@ def _served(owner):
         deadline = time.monotonic() + 10
         while True:
             try:
-                _protocol.request(endpoint, {"op": "status"}, timeout=0.2)
+                protocol.request(endpoint, {"op": "status"}, timeout=0.2)
                 break
             except OSError:
                 assert thread.is_alive() and time.monotonic() < deadline, "Cosmos service did not start"
@@ -178,7 +179,7 @@ def _served(owner):
         yield endpoint
     finally:
         if thread.is_alive():
-            _protocol.request(endpoint, {"op": "shutdown"}, timeout=10)
+            protocol.request(endpoint, {"op": "shutdown"}, timeout=10)
         thread.join(timeout=10)
         assert not thread.is_alive(), "Cosmos service did not stop"
 
@@ -376,7 +377,7 @@ def test_warmup_fills_the_history_window(window, frames, monkeypatch):
     """
     if not torch.cuda.is_available():
         pytest.skip("The Cosmos server selects a CUDA device")
-    model = _framework.CosmosInferenceModel.__new__(_framework.CosmosInferenceModel)
+    model = framework.CosmosInferenceModel.__new__(framework.CosmosInferenceModel)
     model.capabilities = {"kv_window": window}
     model._device = torch.device("cuda", torch.cuda.current_device())
     opened = {}
@@ -417,18 +418,18 @@ def test_text_conditioning_marks_a_transfer_request_at_the_requested_frame_rate(
         def build_sample(self, model_config):
             return self
 
-    framework = {
+    modules = {
         "cosmos_framework.inference.args": {"OmniSampleOverrides": Overrides},
         "cosmos_framework.inference.inference": {
             "_get_prompt_sample_data": lambda sample, model, **_: {"caption": [sample.prompt], "native_fps": sample.fps}
         },
         "cosmos_framework.model.generator.reasoner.qwen3_vl.utils": {"_SYSTEM_PROMPT_TRANSFER": "transfer"},
     }
-    for name, attributes in framework.items():
+    for name, attributes in modules.items():
         module = types.ModuleType(name)
         vars(module).update(attributes)
         monkeypatch.setitem(sys.modules, name, module)
-    owner = _framework.CosmosInferenceModel.__new__(_framework.CosmosInferenceModel)
+    owner = framework.CosmosInferenceModel.__new__(framework.CosmosInferenceModel)
     owner._pipeline = SimpleNamespace(model=SimpleNamespace(config=None))
     owner._metadata_dir = SimpleNamespace(name="unused")
 
@@ -445,6 +446,6 @@ def test_prompt_rows_merge_into_one_batch_with_a_caption_per_view():
         {"caption": ["A lab."], "neg_caption": [""], "system_prompt": "S", "fps": [12.5]},
         {"caption": ["A kitchen."], "neg_caption": [""], "system_prompt": "S", "fps": [12.5]},
     ]
-    data = _framework._merge_prompt_rows(rows, "caption")
+    data = framework._merge_prompt_rows(rows, "caption")
     assert data["caption"] == ["A lab.", "A kitchen."]
     assert data["neg_caption"] == ["", ""] and data["fps"] == [12.5, 12.5] and data["system_prompt"] == "S"

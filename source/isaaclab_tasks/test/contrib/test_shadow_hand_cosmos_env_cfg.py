@@ -11,7 +11,8 @@ import textwrap
 from types import SimpleNamespace
 
 import pytest
-from isaaclab_experimental.cosmos import CosmosModelCfg, cosmos_camera, episode_frame_budget
+
+from isaaclab_contrib.sensors.cosmos import CosmosModelCfg, cosmos_camera, episode_frame_budget
 
 from isaaclab_tasks.utils import parse_env_cfg, resolve_task_config
 
@@ -37,10 +38,11 @@ def test_registering_the_cosmos_tasks_imports_no_cosmos_code():
 
         for task in ("Isaac-Reorient-Cube-Shadow-Camera-Direct", "Isaac-Reorient-Cube-Shadow-Camera"):
             load_cfg_from_registry(task, "env_cfg_entry_point")
-        assert not [name for name in sys.modules if "cosmos" in name]
+        cosmos = ("isaaclab_contrib.sensors.cosmos", "isaaclab_cosmos_server")
+        assert not [name for name in sys.modules if name.startswith(cosmos)]
 
         load_cfg_from_registry("IsaacContrib-Reorient-Cube-Shadow-Camera-Cosmos-Direct", "env_cfg_entry_point")
-        assert "isaaclab_experimental.cosmos.client" in sys.modules
+        assert "isaaclab_contrib.sensors.cosmos" in sys.modules
     """)
     result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, timeout=300)
 

@@ -9,9 +9,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from isaaclab_cosmos_server.protocol import MAX_CHUNK_FRAMES
+
 from isaaclab.utils import configclass
 
-from .._protocol import MAX_CHUNK_FRAMES
 from .image_transfer_cfg import ImageTransferProcessorCfg
 
 if TYPE_CHECKING:
@@ -39,7 +40,7 @@ class CosmosTransferProcessorCfg(ImageTransferProcessorCfg):
     image_size: tuple[int, int] | None = None
     """Height and width of the published images. Defaults to None, the control's size. Another size publishes the
     center crop of the control's canvas with that aspect ratio, area-resized, as
-    :func:`~isaaclab_experimental.cosmos.cosmos_camera` sets for a camera whose size is not a Cosmos canvas."""
+    :func:`~isaaclab_contrib.sensors.cosmos.cosmos_camera` sets for a camera whose size is not a Cosmos canvas."""
 
     def validate_config(self):
         """Make ``rgb`` an input exactly when single-frame generation can skip captures.

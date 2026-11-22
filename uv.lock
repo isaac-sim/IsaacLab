@@ -1785,16 +1785,16 @@ source = { editable = "source/isaaclab_assets" }
 dependencies = [
     { name = "isaaclab" },
     { name = "isaaclab-contrib" },
-    { name = "isaaclab-newton" },
     { name = "isaaclab-isaacsim" },
+    { name = "isaaclab-newton" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "isaaclab", editable = "source/isaaclab" },
     { name = "isaaclab-contrib", editable = "source/isaaclab_contrib" },
-    { name = "isaaclab-newton", editable = "source/isaaclab_newton" },
     { name = "isaaclab-isaacsim", editable = "source/isaaclab_isaacsim" },
+    { name = "isaaclab-newton", editable = "source/isaaclab_newton" },
 ]
 
 [[package]]
@@ -1803,10 +1803,29 @@ version = "7.0.3"
 source = { editable = "source/isaaclab_contrib" }
 dependencies = [
     { name = "isaaclab" },
+    { name = "isaaclab-cosmos-server" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
+requires-dist = [
+    { name = "isaaclab", editable = "source/isaaclab" },
+    { name = "isaaclab-cosmos-server", editable = "source/isaaclab_cosmos_server" },
+]
+
+[[package]]
+name = "isaaclab-cosmos-server"
+version = "0.1.0"
+source = { editable = "source/isaaclab_cosmos_server" }
+dependencies = [
+    { name = "lazy-loader" },
+    { name = "numpy" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "lazy-loader", specifier = ">=0.4" },
+    { name = "numpy", specifier = ">=2" },
+]
 
 [[package]]
 name = "isaaclab-dev"
@@ -1829,10 +1848,11 @@ dependencies = [
     { name = "isaaclab" },
     { name = "isaaclab-assets" },
     { name = "isaaclab-contrib" },
+    { name = "isaaclab-cosmos-server" },
     { name = "isaaclab-experimental" },
+    { name = "isaaclab-isaacsim" },
     { name = "isaaclab-newton" },
     { name = "isaaclab-ov" },
-    { name = "isaaclab-isaacsim" },
     { name = "isaaclab-ppisp" },
     { name = "isaaclab-rl" },
     { name = "isaaclab-tasks" },
@@ -2050,14 +2070,15 @@ requires-dist = [
     { name = "isaaclab", editable = "source/isaaclab" },
     { name = "isaaclab-assets", editable = "source/isaaclab_assets" },
     { name = "isaaclab-contrib", editable = "source/isaaclab_contrib" },
+    { name = "isaaclab-cosmos-server", editable = "source/isaaclab_cosmos_server" },
     { name = "isaaclab-dev", extras = ["sb3", "skrl", "rl-games", "rsl-rl", "viser", "rerun", "ov"], marker = "extra == 'all'" },
     { name = "isaaclab-dev", extras = ["test"], marker = "extra == 'dev'" },
     { name = "isaaclab-experimental", editable = "source/isaaclab_experimental" },
+    { name = "isaaclab-isaacsim", editable = "source/isaaclab_isaacsim" },
     { name = "isaaclab-mimic", marker = "extra == 'mimic'", editable = "source/isaaclab_mimic" },
     { name = "isaaclab-mimic", marker = "extra == 'teleop'", editable = "source/isaaclab_mimic" },
     { name = "isaaclab-newton", editable = "source/isaaclab_newton" },
     { name = "isaaclab-ov", editable = "source/isaaclab_ov" },
-    { name = "isaaclab-isaacsim", editable = "source/isaaclab_isaacsim" },
     { name = "isaaclab-ppisp", editable = "source/isaaclab_ppisp" },
     { name = "isaaclab-rl", editable = "source/isaaclab_rl" },
     { name = "isaaclab-tasks", editable = "source/isaaclab_tasks" },
@@ -2174,6 +2195,17 @@ requires-dist = [
 ]
 
 [[package]]
+name = "isaaclab-isaacsim"
+version = "13.2.0"
+source = { editable = "source/isaaclab_isaacsim" }
+dependencies = [
+    { name = "isaaclab" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
+
+[[package]]
 name = "isaaclab-mimic"
 version = "2.1.7"
 source = { editable = "source/isaaclab_mimic" }
@@ -2215,17 +2247,6 @@ requires-dist = [
     { name = "isaaclab", editable = "source/isaaclab" },
     { name = "ovstage", specifier = "==0.4.0.1794520352" },
 ]
-
-[[package]]
-name = "isaaclab-isaacsim"
-version = "13.2.0"
-source = { editable = "source/isaaclab_isaacsim" }
-dependencies = [
-    { name = "isaaclab" },
-]
-
-[package.metadata]
-requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-ppisp"

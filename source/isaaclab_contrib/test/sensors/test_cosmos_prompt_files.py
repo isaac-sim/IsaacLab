@@ -8,7 +8,8 @@
 import json
 
 import pytest
-from isaaclab_experimental.cosmos import CosmosModel, CosmosModelCfg, read_prompt_files
+
+from isaaclab_contrib.sensors.cosmos import CosmosModel, CosmosModelCfg, read_prompt_files
 
 pytestmark = pytest.mark.unit
 

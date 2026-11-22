@@ -12,10 +12,10 @@ from typing import TYPE_CHECKING
 
 import torch
 import warp as wp
+from isaaclab_cosmos_server.protocol import MAX_CHUNK_FRAMES
 
 from isaaclab.utils.warp import ProxyArray
 
-from .._protocol import MAX_CHUNK_FRAMES
 from .cosmos_processor_cfg import publishes_rendered_rgb
 from .image_transfer import ImageTransferProcessor
 

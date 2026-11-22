@@ -7,17 +7,18 @@
 
 import pytest
 import torch
-from isaaclab_experimental.cosmos import (
+
+import isaaclab.sim as sim_utils
+from isaaclab.sensors import CameraCfg
+from isaaclab.utils.tensor_processors import TensorProcessor, TensorProcessorCfg
+
+from isaaclab_contrib.sensors.cosmos import (
     CosmosModelCfg,
     CosmosTransferProcessorCfg,
     DepthControlProcessorCfg,
     cosmos_camera,
 )
-from isaaclab_experimental.cosmos.client.cosmos_processor import _center_crop_resize
-
-import isaaclab.sim as sim_utils
-from isaaclab.sensors import CameraCfg
-from isaaclab.utils.tensor_processors import TensorProcessor, TensorProcessorCfg
+from isaaclab_contrib.sensors.cosmos.cosmos_processor import _center_crop_resize
 
 pytestmark = pytest.mark.unit
 

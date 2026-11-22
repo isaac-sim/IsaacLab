@@ -7,14 +7,14 @@
 
 from __future__ import annotations
 
-from isaaclab_experimental.cosmos import (
+from isaaclab.utils import configclass
+
+from isaaclab_contrib.sensors.cosmos import (
     CosmosModelCfg,
     CosmosTransferProcessorCfg,
     cosmos_camera,
     episode_frame_budget,
 )
-
-from isaaclab.utils import configclass
 
 from isaaclab_tasks.core.reorient.config.shadow_hand.feature_extractor import FeatureExtractorCfg
 from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_manager_env_cfg import (

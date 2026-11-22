@@ -1,6 +1,6 @@
 # Cosmos Transfer camera integration
 
-`isaaclab_experimental.cosmos` puts Cosmos3-Nano-Sim-Transfer on Isaac Lab cameras. The camera's tensor processors
+`isaaclab_contrib.sensors.cosmos` puts Cosmos3-Nano-Sim-Transfer on Isaac Lab cameras. The camera's tensor processors
 send a control image, depth by default, to a Cosmos service running in its own environment, and publish the image
 Cosmos generates as the camera's `rgb`. Training uses the existing Isaac Lab environment and commands.
 
@@ -20,9 +20,9 @@ environments, cameras, and GPUs.
 ## Serve Cosmos
 
 The service runs in a Cosmos Framework environment, separate from Isaac Lab's, and keeps the model loaded between
-camera sessions. It uses Cosmos Framework for inference and the standalone `isaaclab-cosmos` package, the Cosmos
-directory of the Isaac Lab checkout, for the camera-session protocol. It does not need the `isaaclab` or
-`isaaclab_experimental` distributions, Isaac Sim, or a running simulation.
+camera sessions. It uses Cosmos Framework for inference and the `isaaclab_cosmos_server` package of the Isaac Lab
+checkout for the camera-session protocol. It does not need the `isaaclab` distribution, Isaac Sim, or a running
+simulation.
 
 ### Install the server
 
@@ -42,14 +42,14 @@ export COSMOS_FRAMEWORK_ROOT=/absolute/path/to/cosmos-framework
 export COSMOS_CHECKPOINT=/absolute/path/to/Cosmos3-Nano-Sim-Transfer
 ```
 
-Create the Framework environment, install **only the Cosmos directory** into it, and download the
+Create the Framework environment, install **only the `isaaclab_cosmos_server` package** into it, and download the
 [Cosmos3-Nano-Sim-Transfer checkpoint](https://huggingface.co/nvidia/Cosmos3-Nano-Sim-Transfer):
 
 ```bash
 cd "$COSMOS_FRAMEWORK_ROOT"
 uv sync --locked --all-extras --group=cu130-train
 uv run --no-sync uv pip install --editable \
-  "$ISAAC_LAB_ROOT/source/isaaclab_experimental/isaaclab_experimental/cosmos"
+  "$ISAAC_LAB_ROOT/source/isaaclab_cosmos_server"
 uv run --no-sync hf download nvidia/Cosmos3-Nano-Sim-Transfer --local-dir "$COSMOS_CHECKPOINT"
 ```
 
@@ -96,17 +96,17 @@ requests after model loading and warmup.
 
 The server sets no episode length or view count: each camera session requests its own frame budget (see
 [Episode frame budget](#episode-frame-budget)) and number of views (see [Several environments](#several-environments)).
-The equivalent module entrypoint is `uv run --no-sync python -m isaaclab_experimental.cosmos.server.worker` with the
+The equivalent module entrypoint is `uv run --no-sync python -m isaaclab_cosmos_server.worker` with the
 same arguments. Press Ctrl+C in the server terminal to stop the service and release the model.
 
 ### Connect Isaac Lab
 
 In a second terminal, use the normal Isaac Lab environment and checkout. The camera client is included in
-`isaaclab_experimental`; it does not need Cosmos Framework or a separate `isaaclab-cosmos` install. Check readiness:
+`isaaclab_contrib`; it does not need Cosmos Framework. Check readiness:
 
 ```bash
 cd /absolute/path/to/IsaacLab
-uv run python -m isaaclab_experimental.cosmos.client.cli status
+uv run python -m isaaclab_contrib.sensors.cosmos.cli status
 ```
 
 A ready service reports `"ready": true` and the model's capabilities. Check that `"session_active": false` before
@@ -124,14 +124,14 @@ The implementation has three boundaries:
 
 | Package or module | Responsibility | Environment |
 | --- | --- | --- |
-| `isaaclab_experimental.cosmos.client` | Camera controls, frame queues, requests, resets, and RGB publication | Isaac Lab |
-| `isaaclab_experimental.cosmos.server` | Checkpoint loading, inference, serving, and process startup | Cosmos Framework |
-| `isaaclab_experimental.cosmos._protocol` | Shared socket message format and endpoints | Both |
+| `isaaclab_contrib.sensors.cosmos` | Camera controls, frame queues, requests, resets, and RGB publication | Isaac Lab |
+| `isaaclab_cosmos_server` | Checkpoint loading, inference, serving, and process startup | Cosmos Framework |
+| `isaaclab_cosmos_server.protocol` | Shared socket message format and endpoints | Both |
 
-The server imports the shared protocol and its inference adapter without the full `isaaclab` or
-`isaaclab_experimental` distributions, and starting it does not import the camera client. The client uses Isaac
+The server imports the shared protocol and its inference adapter without the `isaaclab` distribution, and
+starting it does not import the camera client. Isaac Lab installs `isaaclab_cosmos_server` too, for the protocol. The client uses Isaac
 Lab's Torch and NumPy dependencies without importing Cosmos Framework or loading model weights. The top-level
-`isaaclab_experimental.cosmos` package exports the camera client API.
+`isaaclab_contrib.sensors.cosmos` package exports the camera client API.
 
 ## Put Cosmos on a camera task
 
@@ -147,7 +147,7 @@ capture rate determine the frame budget, which `episode_frame_budget` computes; 
 the service before the task.
 
 ```python
-from isaaclab_experimental.cosmos import CosmosModelCfg, cosmos_camera, episode_frame_budget
+from isaaclab_contrib.sensors.cosmos import CosmosModelCfg, cosmos_camera, episode_frame_budget
 
 from isaaclab_tasks.utils import parse_env_cfg
 
@@ -210,8 +210,8 @@ conditioning:
 import math
 
 from isaaclab.sensors import CameraCfg
-from isaaclab_experimental.cosmos import CosmosModelCfg, CosmosTransferProcessorCfg
-from isaaclab_experimental.cosmos import DepthControlProcessorCfg
+from isaaclab_contrib.sensors.cosmos import CosmosModelCfg, CosmosTransferProcessorCfg
+from isaaclab_contrib.sensors.cosmos import DepthControlProcessorCfg
 
 model = CosmosModelCfg(
     prompt="A robot arm manipulating an object on a workbench.",
@@ -255,7 +255,7 @@ import warp as wp
 from isaaclab.utils import configclass
 from isaaclab.utils.tensor_processors import TensorProcessor, TensorProcessorCfg
 from isaaclab.utils.warp import ProxyArray
-from isaaclab_experimental.cosmos import CosmosModelCfg, cosmos_camera, episode_frame_budget
+from isaaclab_contrib.sensors.cosmos import CosmosModelCfg, cosmos_camera, episode_frame_budget
 
 
 class SegmentationControl(TensorProcessor):
@@ -382,7 +382,7 @@ on a Cosmos task):
 A learner that shares the GPU with Cosmos can free the weights between rollouts. `offload()` on the camera's
 `CosmosModel`, `SimulationContext.instance().get_or_create_backend(env_cfg.cosmos)` in a Cosmos task, moves them to
 host memory, and `activate()` moves them back before the next capture; the single-frame session stays open. For an
-idle service, `python -m isaaclab_experimental.cosmos.client.cli offload` and `activate` do the same. Each change
+idle service, `python -m isaaclab_contrib.sensors.cosmos.cli offload` and `activate` do the same. Each change
 moves the weights between host and GPU memory, and the first generations after `activate()` compile again.
 
 ## Several environments
@@ -470,7 +470,7 @@ the cameras in `CosmosModelCfg.cameras`, and give each camera that model, one ca
 receives its own copy of the settings, and the cameras share a session only while the copies match.
 
 ```python
-from isaaclab_experimental.cosmos import CosmosModelCfg, cosmos_camera, episode_frame_budget
+from isaaclab_contrib.sensors.cosmos import CosmosModelCfg, cosmos_camera, episode_frame_budget
 
 names = ("base_camera", "wrist_camera")
 model = CosmosModelCfg(
@@ -584,7 +584,7 @@ the control:
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
-from isaaclab_experimental.cosmos import DepthControlProcessorCfg, ImageTransferProcessorCfg
+from isaaclab_contrib.sensors.cosmos import DepthControlProcessorCfg, ImageTransferProcessorCfg
 
 
 @configclass
@@ -631,5 +631,5 @@ wrist_camera = CameraCfg(
 The image transfer tests run the processors on CPU with small stand-in models and need no model or service:
 
 ```bash
-uv run python -m pytest source/isaaclab_experimental/test/sensors/test_image_transfer.py
+uv run python -m pytest source/isaaclab_contrib/test/sensors/test_image_transfer.py
 ```

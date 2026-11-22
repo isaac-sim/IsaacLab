@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from .._protocol import CANVAS_ASPECT_RATIOS, MAX_CHUNK_FRAMES, SEED_LIMIT
+from .protocol import CANVAS_ASPECT_RATIOS, MAX_CHUNK_FRAMES, SEED_LIMIT
 
 if TYPE_CHECKING:
     import torch

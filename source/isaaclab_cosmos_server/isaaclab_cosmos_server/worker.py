@@ -11,9 +11,9 @@ import argparse
 import logging
 import os
 
-from isaaclab_experimental.cosmos._protocol import DEFAULT_ENDPOINT
-from isaaclab_experimental.cosmos.server._framework import CosmosInferenceModel
-from isaaclab_experimental.cosmos.server.service import serve
+from isaaclab_cosmos_server.framework import CosmosInferenceModel
+from isaaclab_cosmos_server.protocol import DEFAULT_ENDPOINT
+from isaaclab_cosmos_server.service import serve
 
 
 def main(args: list[str] | None = None) -> None:

@@ -10,7 +10,6 @@ from contextlib import contextmanager
 import pytest
 import torch
 import warp as wp
-from isaaclab_experimental.cosmos import DepthControlProcessorCfg, ImageTransferProcessorCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
@@ -21,6 +20,8 @@ from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import configclass
 from isaaclab.utils.tensor_processors import TensorProcessor, TensorProcessorCfg
 from isaaclab.utils.warp import ProxyArray
+
+from isaaclab_contrib.sensors.cosmos import DepthControlProcessorCfg, ImageTransferProcessorCfg
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 

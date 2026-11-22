@@ -29,17 +29,17 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
-from isaaclab_experimental.cosmos import CosmosModelCfg, CosmosTransferProcessorCfg, _protocol
-from isaaclab_experimental.cosmos.client import CosmosModel
-from isaaclab_experimental.cosmos.client import cosmos_model as cosmos_model_module
-from isaaclab_experimental.cosmos.client import image_transfer as processor_module
-from isaaclab_experimental.cosmos.client.cosmos_model import split_views
-from isaaclab_experimental.cosmos.client.image_transfer_cfg import DepthControlProcessorCfg
-from isaaclab_experimental.cosmos.server import serve
-from isaaclab_experimental.cosmos.server import service as service_module
+from isaaclab_cosmos_server import protocol, serve
+from isaaclab_cosmos_server import service as service_module
 
 from isaaclab.utils.tensor_processors import TensorProcessorCfg
 from isaaclab.utils.warp import ProxyArray
+
+from isaaclab_contrib.sensors.cosmos import CosmosModel, CosmosModelCfg, CosmosTransferProcessorCfg
+from isaaclab_contrib.sensors.cosmos import cosmos_model as cosmos_model_module
+from isaaclab_contrib.sensors.cosmos import image_transfer as processor_module
+from isaaclab_contrib.sensors.cosmos.cosmos_model import split_views
+from isaaclab_contrib.sensors.cosmos.image_transfer_cfg import DepthControlProcessorCfg
 
 pytestmark = pytest.mark.unit
 
@@ -69,7 +69,7 @@ def _wait_until_ready(endpoint: str, timeout: float = 5.0, poll: float = 0.2, st
         if reason := stopped():
             pytest.fail(f"Cosmos service at {endpoint} stopped before it was ready: {reason!r}")
         try:
-            return _protocol.request(endpoint, {"op": "status"}, timeout=poll)[0]
+            return protocol.request(endpoint, {"op": "status"}, timeout=poll)[0]
         except OSError:
             if time.monotonic() >= deadline:
                 pytest.fail(f"Cosmos service at {endpoint} did not become ready")
@@ -189,7 +189,7 @@ def _running_service(kind: str = "tcp"):
         yield SimpleNamespace(resource=resource, endpoint=endpoint)
     finally:
         if thread.is_alive():
-            _protocol.request(endpoint, {"op": "shutdown"}, timeout=2)
+            protocol.request(endpoint, {"op": "shutdown"}, timeout=2)
         thread.join(timeout=5)
         assert not thread.is_alive(), "Cosmos service did not stop"
         assert not failures, failures
@@ -252,7 +252,7 @@ def _receive_packet(metadata, body=b"", *, claimed_body_size=None):
         receiver.settimeout(2)
         sender.sendall(struct.pack("!4sIQ", b"ILCS", len(encoded), body_size) + encoded + body)
         sender.shutdown(socket.SHUT_WR)
-        return _protocol.receive_message(receiver)
+        return protocol.receive_message(receiver)
 
 
 @pytest.mark.parametrize("metadata_size,body_size", [(64 * 1024 + 1, 0), (1, 256 * 1024 * 1024 + 1)])
@@ -261,8 +261,8 @@ def test_wire_rejects_oversized_headers_before_receiving_the_body(metadata_size,
     with sender, receiver:
         sender.sendall(struct.pack("!4sIQ", b"ILCS", metadata_size, body_size))
         sender.shutdown(socket.SHUT_WR)
-        with pytest.raises(_protocol.ProtocolError, match="size limit"):
-            _protocol.receive_message(receiver)
+        with pytest.raises(protocol.ProtocolError, match="size limit"):
+            protocol.receive_message(receiver)
 
 
 @pytest.mark.parametrize(
@@ -273,13 +273,13 @@ def test_wire_rejects_oversized_headers_before_receiving_the_body(metadata_size,
     ],
 )
 def test_wire_rejects_unsafe_or_inconsistent_descriptors(descriptor, body_size, error):
-    with pytest.raises(_protocol.ProtocolError, match=error):
-        _receive_packet({"version": _protocol.PROTOCOL_VERSION, "arrays": [descriptor]}, claimed_body_size=body_size)
+    with pytest.raises(protocol.ProtocolError, match=error):
+        _receive_packet({"version": protocol.PROTOCOL_VERSION, "arrays": [descriptor]}, claimed_body_size=body_size)
 
 
 def test_wire_requires_a_complete_binary_image():
     metadata = {
-        "version": _protocol.PROTOCOL_VERSION,
+        "version": protocol.PROTOCOL_VERSION,
         "arrays": [{"shape": [1, 1, 2, 3], "dtype": "uint8", "nbytes": 6}],
     }
     with pytest.raises(ConnectionError, match="complete message"):
@@ -301,7 +301,7 @@ def test_wire_treats_pickle_bytes_as_pixels_without_execution(tmp_path):
     payload = pickle.dumps(PickleTrap(marker))
     payload += bytes(-len(payload) % 3)
     metadata = {
-        "version": _protocol.PROTOCOL_VERSION,
+        "version": protocol.PROTOCOL_VERSION,
         "arrays": [{"shape": [1, 1, len(payload) // 3, 3], "dtype": "uint8", "nbytes": len(payload)}],
     }
 
@@ -328,7 +328,7 @@ def test_camera_client_closes_sessions_and_keeps_the_model_resident(cosmos_servi
     assert resident_stream.settings["prompt"] == "A camera view"
     assert resident_stream.settings["height"] == 2 and resident_stream.settings["width"] == 3
     assert resident_stream.settings["seeds"] == (7,) and resident_stream.settings["fps"] == 30.0
-    reply, _ = _protocol.request(cosmos_service.endpoint, {"op": "status"}, timeout=0.5)
+    reply, _ = protocol.request(cosmos_service.endpoint, {"op": "status"}, timeout=0.5)
     assert reply["session_active"]
 
     cosmos_service.resource.step_entered.clear()
@@ -337,7 +337,7 @@ def test_camera_client_closes_sessions_and_keeps_the_model_resident(cosmos_servi
         pending_step = requests.submit(stream.step, [controls], reset_rows=(0,), seeds=(19,))
         try:
             assert cosmos_service.resource.step_entered.wait(2)
-            reply, _ = _protocol.request(cosmos_service.endpoint, {"op": "status"}, timeout=0.5)
+            reply, _ = protocol.request(cosmos_service.endpoint, {"op": "status"}, timeout=0.5)
             assert reply["ready"]
             assert not pending_step.done()
         finally:
@@ -349,7 +349,7 @@ def test_camera_client_closes_sessions_and_keeps_the_model_resident(cosmos_servi
     client.close()
     assert resident_stream.closed.wait(2)
     assert not cosmos_service.resource.closed.is_set()
-    reply, _ = _protocol.request(cosmos_service.endpoint, {"op": "status"}, timeout=0.5)
+    reply, _ = protocol.request(cosmos_service.endpoint, {"op": "status"}, timeout=0.5)
     assert not reply["session_active"] and reply["capabilities"] == cosmos_service.resource.capabilities
 
     replacement = _client(cosmos_service.endpoint)
@@ -394,13 +394,13 @@ def test_prompt_lists_must_hold_text_and_the_service_changes_prompts_only_at_res
         CosmosModel(CosmosModelCfg(max_episode_frames=13, prompt=["", "Two"]))
     with pytest.raises(ValueError, match="nonempty"):
         CosmosModel(CosmosModelCfg(max_episode_frames=13, prompt=[]))
-    with _protocol.connect(cosmos_service.endpoint, timeout=2) as connection:
-        _protocol.send_message(connection, _open_request(prompt="A lab."))
-        _protocol.check_reply(_protocol.receive_message(connection)[0])
-        _protocol.send_message(
+    with protocol.connect(cosmos_service.endpoint, timeout=2) as connection:
+        protocol.send_message(connection, _open_request(prompt="A lab."))
+        protocol.check_reply(protocol.receive_message(connection)[0])
+        protocol.send_message(
             connection, {"op": "step", "reset_rows": [], "seeds": [], "prompt": "A kitchen."}, [_controls().numpy()]
         )
-        reply, _ = _protocol.receive_message(connection)
+        reply, _ = protocol.receive_message(connection)
     assert not reply["ok"] and "only with an episode reset" in reply["error"]
 
 
@@ -627,11 +627,11 @@ def test_single_frame_prompts_and_seeds_follow_episodes_that_generated_no_image(
 
 
 def test_offload_and_activate_through_the_session_owner_or_an_idle_service(cosmos_service, monkeypatch):
-    from isaaclab_experimental.cosmos.client import cli
+    from isaaclab_contrib.sensors.cosmos import cli
 
     endpoint = cosmos_service.endpoint
     assert cli.main(["offload", "--endpoint", endpoint]) == 0
-    status, _ = _protocol.request(endpoint, {"op": "status"}, timeout=2)
+    status, _ = protocol.request(endpoint, {"op": "status"}, timeout=2)
     assert not status["model_active"] and not status["session_active"]
     assert cli.main(["activate", "--endpoint", endpoint]) == 0
 
@@ -660,9 +660,9 @@ def test_offload_and_activate_through_the_session_owner_or_an_idle_service(cosmo
 
 def test_only_one_generation_session_is_owned_and_disconnect_releases_it(cosmos_service):
     """Abrupt disconnect releases the reservation; unrelated status connections remain usable."""
-    connection = _protocol.connect(cosmos_service.endpoint, timeout=2)
-    _protocol.send_message(connection, _open_request(seeds=[7], prompt="A camera view", max_episode_frames=13))
-    reply, _ = _protocol.receive_message(connection)
+    connection = protocol.connect(cosmos_service.endpoint, timeout=2)
+    protocol.send_message(connection, _open_request(seeds=[7], prompt="A camera view", max_episode_frames=13))
+    reply, _ = protocol.receive_message(connection)
     assert reply["ok"]
     first_stream = cosmos_service.resource.streams[0]
     contender = _client(cosmos_service.endpoint)
@@ -961,7 +961,7 @@ def test_incompatible_cosmos_cadence_is_rejected_before_opening_a_session(cosmos
 @pytest.mark.parametrize("window,sink", [(0, 0), (3, 3), (30, -1)])
 def test_the_history_window_must_hold_its_attention_sink(window, sink):
     """The window and sink are checked before the model loads, so bad --kv-window settings fail fast."""
-    from isaaclab_experimental.cosmos.server import CosmosInferenceModel
+    from isaaclab_cosmos_server import CosmosInferenceModel
 
     with pytest.raises(ValueError, match="attention sink smaller"):
         CosmosInferenceModel("unused-checkpoint", kv_window=window, attention_sink=sink)
@@ -1026,11 +1026,11 @@ def test_a_failing_service_closes_every_session_of_the_camera(cosmos_services, f
 
 
 def test_the_service_accepts_only_distinct_ordered_resets_of_opened_views(cosmos_service):
-    with _protocol.connect(cosmos_service.endpoint, timeout=2) as connection:
-        _protocol.send_message(connection, _open_request(num_views=2, seeds=[1, 2]))
-        _protocol.check_reply(_protocol.receive_message(connection)[0])
-        _protocol.send_message(connection, {"op": "step", "reset_rows": [2], "seeds": [5]}, [_controls().numpy()] * 2)
-        reply, _ = _protocol.receive_message(connection)
+    with protocol.connect(cosmos_service.endpoint, timeout=2) as connection:
+        protocol.send_message(connection, _open_request(num_views=2, seeds=[1, 2]))
+        protocol.check_reply(protocol.receive_message(connection)[0])
+        protocol.send_message(connection, {"op": "step", "reset_rows": [2], "seeds": [5]}, [_controls().numpy()] * 2)
+        reply, _ = protocol.receive_message(connection)
     assert not reply["ok"] and "distinct opened views" in reply["error"]
 
 
@@ -1045,20 +1045,20 @@ def test_small_messages_leave_in_one_write_and_tcp_sends_them_without_delay(cosm
             self.writes.append(bytes(data))
 
     recording = RecordingSocket()
-    _protocol.send_message(recording, {"op": "step", "frames": 4})
+    protocol.send_message(recording, {"op": "step", "frames": 4})
     assert len(recording.writes) == 1
-    with _protocol.connect(cosmos_service.endpoint, timeout=2) as connection:
+    with protocol.connect(cosmos_service.endpoint, timeout=2) as connection:
         assert connection.getsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY)
 
 
 def test_a_missing_service_is_reported_with_its_endpoint():
     endpoint = _free_tcp_endpoint()
     with pytest.raises(ConnectionError, match=f"No Cosmos service at {endpoint}"):
-        _protocol.connect(endpoint, timeout=1)
+        protocol.connect(endpoint, timeout=1)
 
 
 def test_worker_rejects_an_occupied_endpoint_before_loading_the_model(monkeypatch):
-    from isaaclab_experimental.cosmos.server import worker
+    from isaaclab_cosmos_server import worker
 
     def load(*args, **kwargs):
         pytest.fail("An occupied endpoint must not load the model")
@@ -1081,25 +1081,25 @@ def test_failed_model_loading_releases_the_reserved_endpoint():
     with pytest.raises(ValueError, match="checkpoint unavailable"):
         serve(load, endpoint)
     with socket.socket() as replacement:
-        replacement.bind(_protocol.parse_endpoint(endpoint)[1])
+        replacement.bind(protocol.parse_endpoint(endpoint)[1])
 
 
 def test_endpoints_name_an_absolute_unix_socket_or_a_tcp_host_and_port():
-    assert _protocol.parse_endpoint("tcp://127.0.0.1:5555") == (socket.AF_INET, ("127.0.0.1", 5555))
+    assert protocol.parse_endpoint("tcp://127.0.0.1:5555") == (socket.AF_INET, ("127.0.0.1", 5555))
     for malformed in ("tcp://127.0.0.1", "http://127.0.0.1:5555", "127.0.0.1:5555"):
         with pytest.raises(ValueError, match="unix:///absolute/path or tcp://host:port"):
-            _protocol.parse_endpoint(malformed)
+            protocol.parse_endpoint(malformed)
     if hasattr(socket, "AF_UNIX"):
-        assert _protocol.parse_endpoint("unix:///tmp/a.sock") == (socket.AF_UNIX, "/tmp/a.sock")
-        assert f"unix:///tmp/isaaclab-cosmos-{os.getuid()}.sock" == _protocol.DEFAULT_ENDPOINT
+        assert protocol.parse_endpoint("unix:///tmp/a.sock") == (socket.AF_UNIX, "/tmp/a.sock")
+        assert f"unix:///tmp/isaaclab-cosmos-{os.getuid()}.sock" == protocol.DEFAULT_ENDPOINT
         with pytest.raises(ValueError, match="unix:///absolute/path"):
-            _protocol.parse_endpoint("unix://relative.sock")
+            protocol.parse_endpoint("unix://relative.sock")
         with pytest.raises(ValueError, match="at most 107 bytes"):
-            _protocol.parse_endpoint("unix:///" + "a" * 120)
+            protocol.parse_endpoint("unix:///" + "a" * 120)
     else:
-        assert _protocol.DEFAULT_ENDPOINT == "tcp://127.0.0.1:5555"
+        assert protocol.DEFAULT_ENDPOINT == "tcp://127.0.0.1:5555"
         with pytest.raises(ValueError, match="need Linux"):
-            _protocol.parse_endpoint("unix:///tmp/a.sock")
+            protocol.parse_endpoint("unix:///tmp/a.sock")
 
 
 @_UNIX
@@ -1121,7 +1121,7 @@ def test_a_unix_socket_service_is_private_replaces_a_stale_socket_and_refuses_a_
             serve(TransportResource(), endpoint)
     finally:
         with suppress(OSError):
-            _protocol.request(endpoint, {"op": "shutdown"}, timeout=2)
+            protocol.request(endpoint, {"op": "shutdown"}, timeout=2)
         thread.join(timeout=5)
         shutil.rmtree(directory, ignore_errors=True)
     assert not thread.is_alive() and not os.path.exists(path)
@@ -1140,7 +1140,7 @@ def test_a_stopping_service_removes_its_socket_file_but_not_a_replacement():
         os.rename(path, moved[len("unix://") :])
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as replacement:
             replacement.bind(path)
-            _protocol.request(moved, {"op": "shutdown"}, timeout=2)
+            protocol.request(moved, {"op": "shutdown"}, timeout=2)
             thread.join(timeout=5)
             assert not thread.is_alive() and os.path.exists(path)
     finally:

@@ -10,10 +10,10 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING, Any, Literal
 
+from isaaclab_cosmos_server.protocol import DEFAULT_ENDPOINT, DEFAULT_TIMEOUT_S, MAX_CHUNK_FRAMES
+
 from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
-
-from .._protocol import DEFAULT_ENDPOINT, DEFAULT_TIMEOUT_S, MAX_CHUNK_FRAMES
 
 if TYPE_CHECKING:
     from .cosmos_model import CosmosModel
@@ -45,8 +45,8 @@ def episode_frame_budget(env_cfg: Any, update_period: float) -> tuple[int, int, 
 class CosmosModelCfg(BackendCfg):
     """Settings for a camera's resident Cosmos service connection.
 
-    Use with :class:`~isaaclab_experimental.cosmos.CosmosTransferProcessorCfg` after the processors that write the
-    control image, as :func:`~isaaclab_experimental.cosmos.cosmos_camera` arranges.
+    Use with :class:`~isaaclab_contrib.sensors.cosmos.CosmosTransferProcessorCfg` after the processors that write the
+    control image, as :func:`~isaaclab_contrib.sensors.cosmos.cosmos_camera` arranges.
     """
 
     class_type: type[CosmosModel] | str = "{DIR}.cosmos_model:CosmosModel"
@@ -72,7 +72,7 @@ class CosmosModelCfg(BackendCfg):
 
     prompt_files: str | list[str] | None = None
     """Paths of ``.txt`` or ``.json`` prompt files, or patterns such as ``prompts/*.json``, one prompt per file (see
-    :func:`~isaaclab_experimental.cosmos.read_prompt_files`). When set, the files replace :attr:`prompt` as its
+    :func:`~isaaclab_contrib.sensors.cosmos.read_prompt_files`). When set, the files replace :attr:`prompt` as its
     list; they are read when the camera's Cosmos client is created."""
 
     cameras: tuple[str, ...] = ()
@@ -81,7 +81,7 @@ class CosmosModelCfg(BackendCfg):
     camera ``k``'s environment ``v`` is view ``k * num_envs + v``, which selects its prompt as above; a camera's view
     takes its environment's seed, so all cameras of an environment share it. Views of different cameras are generated
     independently and need not agree with each other. The cameras need the same canvas and capture rate: pass
-    each to :func:`~isaaclab_experimental.cosmos.cosmos_camera` with this model, one ``canvas`` and its scene
+    each to :func:`~isaaclab_contrib.sensors.cosmos.cosmos_camera` with this model, one ``canvas`` and its scene
     name."""
 
     max_episode_frames: int | None = None
