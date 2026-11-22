@@ -44,7 +44,9 @@ def test_viewing_pins_slots_rolls_the_generator_and_credits_nothing(viewer: Rese
     viewer.update()
     assert viewer.snapshot.mode == "slot" and viewer.snapshot.world == 3
     assert (reset_states.started_from == 1).all()
-    torch.testing.assert_close(env.scene["robot"].data.joint_pos.torch, reset_states.states["joint_pos"][reset_states.groups, 1])
+    torch.testing.assert_close(
+        env.scene["robot"].data.joint_pos.torch, reset_states.states["joint_pos"][reset_states.groups, 1]
+    )
 
     viewer.roll()
     accepted = ~viewer._generator.transition.terminated.torch
