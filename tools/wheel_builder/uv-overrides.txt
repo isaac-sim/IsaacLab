@@ -1,3 +1,4 @@
+websockets>=17.3
 numpy>=2
 mujoco~=3.17.0
 mujoco-warp~=3.17.0

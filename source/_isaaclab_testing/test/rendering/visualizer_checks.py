@@ -22,7 +22,7 @@ def press_button(viewer, label: str) -> None:
         Mock(
             button=lambda text: text == label,
             slider_float=lambda _label, value, *_args: (False, value),
-            is_item_hovered=lambda: False,
+            is_item_hovered=lambda *_: False,
         )
     )
 

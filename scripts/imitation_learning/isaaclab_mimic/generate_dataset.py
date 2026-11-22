@@ -66,8 +66,9 @@ if args_cli.external_callback:
     external_callback_function = string_to_callable(args_cli.external_callback, separator=".")
     remaining_args_env_registration = external_callback_function()
 
-# Forward task overrides using the same syntax as annotation and replay.
-hydra_overrides = [arg for arg in remaining_args if "=" in arg and not arg.startswith("-")]
+# Extras of the form "key=value" are Hydra-style task config overrides forwarded to
+# parse_env_cfg(); everything else must be consumed by the external callback or is an error.
+hydra_overrides = [arg for arg in remaining_args if "=" in arg]
 unrecognized_args = list_intersection(
     [arg for arg in remaining_args if arg not in hydra_overrides], remaining_args_env_registration
 )

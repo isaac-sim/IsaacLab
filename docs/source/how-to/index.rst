@@ -266,6 +266,16 @@ How-to Guides
 
       .. container:: guide-entry
 
+         :doc:`Training a G1 motion-tracking policy </source/how-to/train_g1_motion_tracking>`
+
+         Select a reference motion, train the G1 with Newton, and play or record a checkpoint.
+
+         .. container:: guide-metadata
+
+            :guide-tag-newton:`Newton`
+
+      .. container:: guide-entry
+
          :doc:`Training MicroDuck </source/how-to/train_microduck>`
 
          Train flat or rough walking and scale its recipe for distributed training.
@@ -532,6 +542,12 @@ How-to Guides
 
       .. container:: guide-entry
 
+         :doc:`Kitless XR with Isaac Capture </source/how-to/kitless_xr>`
+
+         Install Isaac Capture and OVXR packages for live teleoperation and MCAP replay.
+
+      .. container:: guide-entry
+
          :doc:`Setting up Haply teleoperation </source/how-to/haply_teleoperation>`
 
          Use Haply devices for robot control with directional force feedback.
@@ -576,3 +592,9 @@ How-to Guides
 
       This collection is a work in progress. If a question is not answered here, open an issue on the
       `Isaac Lab GitHub repository <https://github.com/isaac-sim/IsaacLab>`_.
+
+.. toctree::
+   :hidden:
+
+   kitless_xr
+   kitless_xr_source

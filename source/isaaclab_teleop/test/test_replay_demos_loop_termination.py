@@ -88,3 +88,27 @@ def test_replay_loop_does_not_step_after_the_recorded_actions():
     assert len(env.stepped_actions) == len(recorded_actions)
     for stepped, recorded in zip(env.stepped_actions, recorded_actions):
         torch.testing.assert_close(stepped, recorded.unsqueeze(0), atol=1e-6, rtol=0.0)
+
+
+@pytest.mark.parametrize("physics_args", [[], ["--physics", "isaacsim_physx"], ["--physics", "ovphysx"]])
+def test_replay_leaves_the_runtime_to_the_task(monkeypatch, physics_args):
+    """Replay does not force Kit; the task's physics, cameras and visualizers decide whether it runs."""
+    import sys
+
+    from isaaclab_teleop.entrypoints import replay_demos
+
+    monkeypatch.setattr(sys, "argv", list(sys.argv))
+    args = replay_demos._parse_args(["--task", "Test", *physics_args])
+    assert not getattr(args, "require_kit", False)
+
+
+def test_compare_states_accepts_batched_dataset_states():
+    """Episode data returns each recorded state with its batch dimension, as the runtime state has per env."""
+    from isaaclab_teleop.entrypoints.replay_demos import compare_states
+
+    runtime = {"articulation": {"robot": {"root_pose": torch.zeros(2, 7)}}, "rigid_object": {}}
+    recorded = {"articulation": {"robot": {"root_pose": torch.zeros(1, 7)}}, "rigid_object": {}}
+    assert compare_states(recorded, runtime, 1) == (True, "")
+    recorded["articulation"]["robot"]["root_pose"][0, 2] = 1.0
+    matched, log = compare_states(recorded, runtime, 1)
+    assert not matched and '["root_pose"][2]' in log
