@@ -94,6 +94,7 @@ def backend_stub(**fields):
     backend = object.__new__(NewtonBackend)
     backend.contact_sensors = {}
     backend.contact_observables = None
+    backend.solver_observables = None
     backend.__dict__.update(fields)
     return backend
 
