@@ -38,9 +38,8 @@ class ResetStateSnapshot:
     mode: str
     slot: int  # The slot that slot mode restores
     playing: bool
-    size: int  # Slots per world
+    size: int  # Slots per group of worlds
     num_source_states: int  # Slots from the source; the others record
-    shared: bool
     world: int  # The world whose reset states the table shows
     started_from: np.ndarray  # (num_worlds,) the slot each world started from, -1 for a default reset
     episode_length: np.ndarray  # (num_worlds,)
@@ -171,12 +170,14 @@ class ResetStateViewer:
 
     def _snapshot(self) -> ResetStateSnapshot:
         states, world = self.reset_states, self.world
+        # Per-slot values are per group of worlds, a group per world by default, or one row if shared.
+        groups = np.zeros(self.env.num_envs, dtype=int) if states.shared else states.groups.cpu().numpy()
 
         def row(values: torch.Tensor) -> np.ndarray:
-            return (values if states.shared else values[world]).cpu().numpy()
+            return values.view(-1, states.size)[groups[world]].cpu().numpy()
 
         started_from = states.started_from.cpu().numpy()
-        rates = states.success_rate.cpu().numpy()
+        rates = states.success_rate.view(-1, states.size).cpu().numpy()
         accepted = None if self._accepted is None else self._accepted.cpu().numpy()
         labels = []
         for w, slot in enumerate(started_from):
@@ -185,7 +186,7 @@ class ResetStateViewer:
             elif slot < 0:
                 labels.append("default")
             else:
-                rate = rates[slot] if states.shared else rates[w, slot]
+                rate = rates[groups[w], slot]
                 labels.append(f"slot {slot} | {rate:.0%}")
         return ResetStateSnapshot(
             mode=self.mode,
@@ -193,7 +194,6 @@ class ResetStateViewer:
             playing=self.playing,
             size=states.size,
             num_source_states=states.num_source_states,
-            shared=states.shared,
             world=world,
             started_from=started_from,
             episode_length=self.env.episode_length_buf.cpu().numpy(),
@@ -215,7 +215,7 @@ def rows(snapshot: ResetStateSnapshot) -> list[tuple[str, ...]]:
     """Return a row per slot of the shown world's reset states: slot, kind, success, episodes, probability. The slot
     the world started from is marked with ``*``."""
     # Generator proposals start from no slot.
-    current = -1 if snapshot.accepted is not None else snapshot.started_from[0 if snapshot.shared else snapshot.world]
+    current = -1 if snapshot.accepted is not None else snapshot.started_from[snapshot.world]
     return [
         (
             f"{slot}{' *' if slot == current else ''}",
