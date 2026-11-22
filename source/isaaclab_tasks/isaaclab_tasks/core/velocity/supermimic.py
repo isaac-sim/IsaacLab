@@ -226,6 +226,7 @@ class VelocityTask(DifferentiableTask):
             ("base_lin_vel", 3),
             ("base_ang_vel", 3),
             ("projected_gravity", 3),
+            ("velocity_commands", 3),
             ("joint_pos", self.num_joints),
             ("joint_vel", self.num_joints),
             ("actions", self.num_actions),
@@ -364,12 +365,13 @@ class VelocityTask(DifferentiableTask):
     def actor_obs(
         self, state: State, goal: torch.Tensor, context: torch.Tensor, prev_actions: torch.Tensor
     ) -> torch.Tensor:
-        """Return the default policy's deployable inputs other than the command."""
+        """Return the default policy's deployable inputs, including the command."""
         gravity = quat_apply_inverse(state[2], self.gravity.expand_as(state[0]))
         parts = [
             state[0],
             state[1],
             gravity,
+            goal,
             state[4] - self.default_pos,
             state[5] - self.default_vel,
             prev_actions[..., -1, :],
@@ -385,8 +387,12 @@ class VelocityTask(DifferentiableTask):
         )
 
     def actor_goal(self, state: State, goal: torch.Tensor) -> torch.Tensor:
-        """Use the commanded xy velocity and yaw rate directly."""
-        return goal
+        """Return no separate goal: the command is part of each actor frame.
+
+        A separately encoded goal passes the actor's tanh goal encoder, which can saturate early in training and
+        leave the policy blind to the command.
+        """
+        return goal[..., :0]
 
     def add_noise(self, obs: torch.Tensor) -> torch.Tensor:
         """Match the policy's independent uniform observation corruption, clipping noisy terms again.

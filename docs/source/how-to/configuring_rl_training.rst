@@ -196,7 +196,9 @@ and interval pushes. The environment signals this capture explicitly. SuperMimic
 world-model training windows at continuing-state edits and retains the physical successor.
 
 The differentiable velocity task owns the state coordinates, deployable actor features,
-reward terms and contact probabilities. Feet and the height scanner follow from differentiable
+reward terms and contact probabilities. Each frame of the actor history is the default policy
+observation, including the command, so an exported policy reads the same inputs as the PPO
+policy. Feet and the height scanner follow from differentiable
 forward kinematics of the simulated articulation. The actor's height scan samples a heightfield
 of the terrain mesh, ray-cast once at startup, so it matches the ray-cast scan except within
 2.5 cm of vertical steps. The world model sees the terrain through the root and sole heights

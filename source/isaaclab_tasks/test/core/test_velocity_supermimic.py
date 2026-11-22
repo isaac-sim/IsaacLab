@@ -128,10 +128,10 @@ def test_g1_differentiable_velocity_matches_simulation_and_managers(task_name):
                 goal = obs["goal"].clone()
                 history = torch.stack((owner.action_manager.prev_action, owner.action_manager.action), -2)
                 frame = task.actor_obs(state, goal, obs["context"], history)
-                policy = torch.cat((obs["policy"][..., :9], obs["policy"][..., 12:]), -1)
                 proprio = frame.shape[-1] - num_scan
-                torch.testing.assert_close(frame[..., :proprio], policy[..., :proprio])
-                scan_errors.append((frame[..., proprio:] - policy[..., proprio:]).abs().flatten())
+                torch.testing.assert_close(frame[..., :proprio], obs["policy"][..., :proprio])
+                scan_errors.append((frame[..., proprio:] - obs["policy"][..., proprio:]).abs().flatten())
+                assert task.actor_goal(state, goal).shape[-1] == 0
                 # Privileged masses and contact clocks cannot enter the actor.
                 torch.testing.assert_close(frame, task.actor_obs(state, goal, 2 * obs["context"], history))
                 if step < 4:
