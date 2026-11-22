@@ -662,13 +662,24 @@ def _launch(case, *extra_args: str, screenshot_path: Path | None = None) -> None
 @pytest.mark.rendering
 @pytest.mark.smoke
 @pytest.mark.parametrize("case", CASES, ids=lambda case: case.id)
-def test_standalone_script_runs_cleanly(case):
+def test_standalone_script_runs_cleanly(case, monkeypatch):
     """Each supported script launch must initialize, step, and stop without a fatal error."""
     _skip_unsupported(case)
     screenshot_path = None
     if SCREENSHOT_DIR and not case.spec.finite and case.visualizer is not None and gui_is_available():
         screenshot_path = Path(SCREENSHOT_DIR) / f"{case.id}.png"
-    _launch(case, screenshot_path=screenshot_path)
+    extra_args = ()
+    if (
+        RUNTIME_GROUP == "kit"
+        and case.spec.relative_path == "examples/multi_asset.py"
+        and case.physics_backend == "isaacsim_physx"
+        and case.visualizer is None
+        and not gui_is_available()
+    ):
+        # Exercise headless Kit visualization without mixing the default Newton viewer into this Kit launch.
+        monkeypatch.setenv("HEADLESS", "1")
+        extra_args = ("--visualizer", "kit")
+    _launch(case, *extra_args, screenshot_path=screenshot_path)
 
 
 @pytest.mark.integration
