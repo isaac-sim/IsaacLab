@@ -152,7 +152,7 @@ class KukaAllegroLiftPhysicsCfg(PresetCfg):
     default: NewtonCfg = newton_mjwarp
 
 
-CANDIDATES = mdp2.TaskCfg(
+RESET_STATE_GENERATOR = mdp2.TaskCfg(
     observations={
         "descriptor": {
             "grasp_travel_distance": mdp2.Observation(
@@ -222,7 +222,7 @@ CANDIDATES = mdp2.TaskCfg(
                 "velocity_range": ((0.0, 0.0),) * 6,
             },
         ),
-        # A quarter of the candidates start with the object at the palm, whose pose the joint resets changed: the
+        # A quarter of the generated states start with the object at the palm, whose pose the joint resets changed: the
         # scene commits them first, since the palm pose is derived from the joint state.
         "reset_object_to_target": mdp2.Event(
             lift.reset_to_target,
@@ -232,7 +232,7 @@ CANDIDATES = mdp2.TaskCfg(
         ),
     },
 )
-"""Candidate start states of the reset bank: how they are drawn, which are rejected, and what spreads them."""
+"""The task that generates reset states: how they are drawn, which are rejected, and what spreads them."""
 
 TASK = mdp2.TaskCfg(
     actions={
@@ -453,16 +453,16 @@ TASK = mdp2.TaskCfg(
             outputs={"gravity_w": scene.gravity_w},
             params={"initial_gravity": (0.0, 0.0, 0.0), "final_gravity": (0.0, 0.0, -9.81)},
         ),
-        # Restart from the valid start states that the policy solves about half the time. As in MDP1, the worlds that
-        # spawned the same object share a bank of 1024 states, harvested twice over and thinned to the most spread,
-        # and share its success statistics.
+        # Reset to the valid reset states that the policy solves about half the time. As in MDP1, the worlds that
+        # spawned the same object share 1024 reset states, harvested twice over and thinned to the most spread, and
+        # share their success statistics.
         "reset": mdp2.Event(
-            mdp.reset_from_bank,
+            mdp.reset_to_states,
             inputs={"succeeded": mdp2.quantities.success, "env_origins": scene.env_origins},
             outputs={**robot_state, **object_state},
             params={
                 # A world per object, as in small test runs, needs a roll per state.
-                "fill": mdp.FillFromCandidates(CANDIDATES, bank_size=1024, max_rolls=20000),
+                "source": mdp.FromTask(RESET_STATE_GENERATOR, num_states=1024, max_rolls=20000),
                 "groups": mdp.prototype_groups,
                 "sampler": ResetStateSamplerCfg(
                     history_length=10,
@@ -492,8 +492,11 @@ class KukaAllegroLiftEnvCfg(MDP2RLEnvCfg):
         super().play_mode()
         adr = self.task.events["adr"]
         params = {**adr.params, "init_difficulty": adr.params["max_difficulty"], "promotion_only": True}
-        # As MDP1, a small bank taken as harvested: it only supplies starts to the few worlds that play.
-        bank = self.task.events["reset"]
-        fill = replace(bank.params["fill"], bank_size=32, oversample_factor=1.0)
-        events = {"adr": replace(adr, params=params), "reset": replace(bank, params={**bank.params, "fill": fill})}
+        # As MDP1, a few reset states taken as harvested: they only supply the few worlds that play.
+        reset = self.task.events["reset"]
+        source = replace(reset.params["source"], num_states=32, oversample_factor=1.0)
+        events = {
+            "adr": replace(adr, params=params),
+            "reset": replace(reset, params={**reset.params, "source": source}),
+        }
         self.task = replace(self.task, events={**self.task.events, **events})

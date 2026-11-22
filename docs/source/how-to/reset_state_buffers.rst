@@ -132,7 +132,7 @@ To replace stored states while running, such as states recorded during training,
 ``buffer.set_state(indices, values, mask=mask)``, the inverse of ``get_state``, and clear their outcomes
 with ``sampler.forget(indices, mask, success_rate=prior)``. A forgotten entry keeps ``prior`` as its
 success rate until its next outcome. Both can be captured. In ``sampler.reset(..., state_ids=ids)``, a
-request of -1 draws from the scores for that environment, so a captured reset can replay some
+request of -1 draws from the scores for that environment, so a captured reset can pin some
 environments and sample the others.
 
 Configure useful practice
@@ -218,11 +218,11 @@ joints, and controller targets through public mask writers.
 Use the MDP2 reset event
 ------------------------
 
-MDP2 tasks use ``isaaclab_experimental.mdp2.mdp.reset_from_bank``. It composes the same three parts:
-a fill builds a :class:`~isaaclab.envs.reset.ResetStateBuffer` once at startup, a
-:class:`~isaaclab.envs.reset.ResetStateSampler` credits each ended episode and draws the next start
-from the use's random stream, and the event gathers the drawn states into its ``outputs``, which
-MDP2 commits. The outputs are the state: any writable scene fields.
+MDP2 tasks use ``isaaclab_experimental.mdp2.mdp.reset_to_states``. It composes the same three parts:
+a source builds a :class:`~isaaclab.envs.reset.ResetStateBuffer` of reset states once at startup, a
+:class:`~isaaclab.envs.reset.ResetStateSampler` credits each ended episode and draws the next reset
+state from the use's random stream, and the event gathers the drawn states into its ``outputs``,
+which MDP2 commits. The outputs are the state: any writable scene fields.
 
 .. code-block:: python
 
@@ -230,100 +230,103 @@ MDP2 commits. The outputs are the state: any writable scene fields.
    from isaaclab_experimental.mdp2 import mdp
 
    "reset": mdp2.Event(
-       mdp.reset_from_bank,
+       mdp.reset_to_states,
        inputs={"succeeded": mdp2.quantities.success},
        outputs={"joint_pos": robot.joint_pos, "object_pose_w": target.root_link_pose_w},
        params={
-           "fill": mdp.FillFromCandidates(CANDIDATES, bank_size=16),
+           "source": mdp.FromTask(RESET_STATE_GENERATOR, num_states=16),
            "sampler": ResetStateSamplerCfg(scores=[BetaSamplingScoreCfg(target=0.5)]),
        },
    )
 
-* ``fill`` returns the states. :class:`~isaaclab_experimental.mdp2.mdp.reset_states.FillFromCandidates` rolls the reset
-  events of a ``candidates`` task, keeps the states its terminations accept, and, given a ``descriptor``
-  observation group, keeps the most spread of an oversampled harvest.
-  :class:`~isaaclab_experimental.mdp2.mdp.reset_states.FillFromStates` takes given states, such as demonstrations,
-  and :class:`~isaaclab_experimental.mdp2.mdp.reset_states.FillFromFile` loads a saved bank.
+* ``source`` returns the states. :class:`~isaaclab_experimental.mdp2.mdp.reset_states.FromTask` rolls the
+  reset events of a generator task, keeps the states its terminations accept, and, given a
+  ``descriptor`` observation group, keeps the most spread of an oversampled harvest.
+  :class:`~isaaclab_experimental.mdp2.mdp.reset_states.FromTensors` takes given states, such as
+  demonstrations, and :class:`~isaaclab_experimental.mdp2.mdp.reset_states.FromFile` loads saved ones.
 * ``sampler`` weighs states by recent success; ``None`` draws uniformly. Binding ``succeeded``
   credits each ended episode to the state it started from.
-* ``shared`` selects one bank for every world instead of one bank per world. Bind
-  ``env_origins`` so poses are stored relative to each world's origin. Share a bank only between
+* ``shared`` selects one set of states for every world instead of one set per world. Bind
+  ``env_origins`` so poses are stored relative to each world's origin. Share states only between
   worlds whose states fit each other, such as worlds that spawn the same object.
-* ``groups`` selects one bank per group of worlds, given a callable that returns each world's group.
-  :func:`~isaaclab_experimental.mdp2.mdp.reset_states.prototype_groups` groups the worlds by the object, or other
-  prototype, that the scene cloned into them, as MDP1's lift bank does: the worlds of a group draw from one bank and
-  share its success statistics. Bind ``env_origins`` here too.
-* ``nominal_probability`` is the fraction of resets that keep what the earlier reset events wrote,
-  fresh draws from the nominal distribution. Those episodes are not credited to any state.
-* ``record`` banks states that the worlds visit during training, see below.
+* ``groups`` selects one set of states per group of worlds, given a callable that returns each
+  world's group. :func:`~isaaclab_experimental.mdp2.mdp.reset_states.prototype_groups` groups the
+  worlds by the object, or other prototype, that the scene cloned into them, as MDP1's lift reset
+  does: the worlds of a group draw from one set and share its success statistics. Bind
+  ``env_origins`` here too.
+* ``default_reset_probability`` is the fraction of resets that keep what the earlier reset events
+  wrote, the task's default reset. Those episodes are not credited to any state.
+* ``record`` stores states that the worlds visit during training, see below.
 
 Place the event after the other reset events: it overwrites the outputs they wrote. An event whose
 outputs include a command runs after the commands resample, so that a restored goal stands. The
 init hook warms every kernel, so the event is captured with the rest of the step.
-``Isaac-Lift-KukaAllegro-MDP2`` uses a bank of 1024 states per object, grouped with
+``Isaac-Lift-KukaAllegro-MDP2`` uses 1024 reset states per object, grouped with
 :func:`~isaaclab_experimental.mdp2.mdp.reset_states.prototype_groups`, with the core Lift sampler settings.
 
 Record states along the horizon
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-States that the policy reaches on its way to success make useful starts. With ``record``, the
-event's update hook runs once per step after the rewards and records each world's outputs into
-its own bank:
+States that the policy reaches on its way to success make useful reset states. With ``record``,
+the event's update hook runs once per step after the rewards and records each world's outputs into
+its own reset states:
 
 .. code-block:: python
 
    "reset": mdp2.Event(
-       mdp.reset_from_bank,
+       mdp.reset_to_states,
        inputs={
            "succeeded": mdp2.quantities.success,
            "terminated": mdp2.terminated,  # states that end the episode are not recorded
-           "record_when": mdp2.quantities.lifted,  # optional: record only where above 0.5
+           "record_if": mdp2.quantities.lifted,  # optional: record only where above 0.5
        },
        outputs={**robot_state, **object_state},
        params={
-           "fill": mdp.FillFromCandidates(CANDIDATES, bank_size=16),
+           "source": mdp.FromTask(RESET_STATE_GENERATOR, num_states=16),
            "sampler": ResetStateSamplerCfg(scores=[BetaSamplingScoreCfg(target=0.5)]),
-           "record": mdp.RecordStates(slots=16, probability=0.01),
+           "record": mdp.RecordVisited(num_states=16, probability=0.01),
        },
    )
 
 Each step, a world that did not terminate records with ``probability`` into the oldest of its
-``slots`` recorded slots, which start as copies of the filled states. A recorded slot forgets the
-outcomes of the state it replaces and starts at the success rate the first score targets, so new
-states are tried before their outcomes are known. An episode whose start is recorded over is not
-credited. Include velocities, and commands for goal-conditioned tasks, in the outputs, so that a
-restored state continues as it was recorded. Recording needs a bank per world.
+``num_states`` recorded slots, which start as copies of the source's states. A recorded slot
+forgets the outcomes of the state it replaces and starts at the success rate the first score
+targets, so new states are tried before their outcomes are known. An episode whose reset state is
+recorded over is not credited. Include velocities, and commands for goal-conditioned tasks, in the
+outputs, so that a restored state continues as it was recorded. Recording needs reset states per
+world.
 
-Inspect, replay, and save the bank
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Inspect, pin, and save reset states
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-:func:`~isaaclab_experimental.mdp2.mdp.reset_states.reset_bank` returns the
-:class:`~isaaclab_experimental.mdp2.mdp.reset_states.ResetBank` of a use. Slots are numbered within each
-world's bank.
+:func:`~isaaclab_experimental.mdp2.mdp.reset_states.get_reset_states` returns the
+:class:`~isaaclab_experimental.mdp2.mdp.reset_states.ResetStates` of a use. Slots are numbered
+within each world's reset states.
 
 .. code-block:: python
 
-   bank = mdp.reset_bank(env.state)  # the "events.reset" use
-   bank.states["joint_pos"]  # (num_worlds, size, num_joints)
-   bank.success_rate, bank.episode_counts, bank.probabilities  # (num_worlds, size)
-   bank.slots  # the slot each world's episode started from, -1 for a nominal start
+   reset_states = mdp.get_reset_states(env.state)  # the "events.reset" use
+   reset_states.states["joint_pos"]  # (num_worlds, size, num_joints)
+   reset_states.success_rate, reset_states.episode_counts, reset_states.probabilities  # (num_worlds, size)
+   reset_states.started_from  # the slot each world's episode started from, -1 for a default reset
 
-   bank.replay(torch.full((env.num_envs,), 3))  # restart every world from its slot 3 at its next reset
-   bank.replay(None)  # draw again
-   bank.save("bank.pt")  # fill a later run with mdp.FillFromFile("bank.pt")
+   reset_states.pin(torch.full((env.num_envs,), 3))  # reset every world to its slot 3 at its next reset
+   reset_states.unpin()  # draw again
+   reset_states.save("reset_states.pt")  # load in a later run with mdp.FromFile("reset_states.pt")
 
-Replay requests hold until replaced and run inside the captured step, so they can sweep the
-bank during evaluation. To collect states separately from training, for example a larger
-candidates fill, run ``scripts/tools/collect_reset_states.py``, which builds the task and saves its
-bank:
+Pins hold until replaced and run inside the captured step, so they can sweep the reset states
+during evaluation. Call ``reset_states.skip_current_episodes()`` before resetting worlds by hand
+mid-episode, so those episodes are not credited. To generate states separately from training, for
+example many more of them, run ``scripts/tools/generate_reset_states.py``, which builds the task and
+saves its reset states:
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/tools/collect_reset_states.py --task Isaac-Lift-KukaAllegro-MDP2 \
-       --num_envs 4096 --bank_size 64 --out kuka_lift_bank.pt physics=newton_mjwarp
+   ./isaaclab.sh -p scripts/tools/generate_reset_states.py --task Isaac-Lift-KukaAllegro-MDP2 \
+       --num_envs 4096 --num_states 64 --out kuka_lift_reset_states.pt physics=newton_mjwarp
 
-A bank per world or per group fits only runs with the same number of worlds and object assignment;
-a shared bank fits any.
+Reset states per world or per group fit only runs with the same number of worlds and object
+assignment; shared reset states fit any.
 
 Migrating existing reset configurations
 ---------------------------------------
