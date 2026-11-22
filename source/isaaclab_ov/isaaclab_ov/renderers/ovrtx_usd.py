@@ -17,7 +17,7 @@ from pxr import Sdf, Usd
 if TYPE_CHECKING:
     from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 
-    from isaaclab_ov.renderers.ovrtx_renderer import OVRTXCameraRenderData, OVRTXRenderProduct
+    from .ovrtx_renderer import OVRTXCameraRenderData, OVRTXRenderProduct
 
 logger = logging.getLogger(__name__)
 
