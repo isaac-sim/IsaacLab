@@ -8,9 +8,9 @@ This script demonstrates the visualizer tiled camera panel.
 
 .. code-block:: bash
 
-    # Kit visualizer tiled camera panel
+    # Newton visualizer with an RTX viewport and tiled camera panel
     uv run python scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py \
- --task Isaac-Velocity-Rough-AnymalD --num_envs 256 --viz kit
+        --task Isaac-Velocity-Rough-AnymalD --num_envs 256 --viz newton_rtx
 
     # Newton visualizer tiled camera panel
     uv run python scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py \
@@ -48,7 +48,7 @@ NEWTON_DEFAULT_TASK = "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomoto
 
 
 # add argparse arguments
-parser = argparse.ArgumentParser(description="Showcase the Kit/Newton visualizer tiled camera panel.")
+parser = argparse.ArgumentParser(description="Showcase the Newton visualizer tiled camera panel.")
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 # append simulation launcher cli args
@@ -57,7 +57,9 @@ parser.set_defaults(visualizer=["newton"])
 args_cli, hydra_args = setup_preset_cli(parser)
 if args_cli.task is None:
     visualizers = next(arg.split("=", 1)[1].split(",") for arg in hydra_args if arg.startswith("visualizer="))
-    args_cli.task = NEWTON_DEFAULT_TASK if {"newton", "newton_gl"}.intersection(visualizers) else KIT_DEFAULT_TASK
+    args_cli.task = (
+        NEWTON_DEFAULT_TASK if {"newton", "newton_gl", "newton_rtx"}.intersection(visualizers) else KIT_DEFAULT_TASK
+    )
 sys.argv = [sys.argv[0]] + hydra_args
 
 

@@ -15,16 +15,12 @@ other optical channels to RTX renderers.
 
 .. code-block:: bash
 
-    # PhysX physics and Kit visualizer.
+    # Newton physics and RTX rendering in the Newton visualizer.
     uvx --from 'isaaclab[ov]' isaaclab example visual-color-randomization \
-        --physics isaacsim_physx --visualizer kit
+        --physics newton_mjwarp --visualizer newton_rtx
 
     # Newton physics and Newton GL visualizer.
     uvx isaaclab example visual-color-randomization \
-        --physics newton_mjwarp --visualizer newton
-
-    # The same visualizer renders with RTX when the window's Renderer is switched to RTX.
-    uv run --extra ov isaaclab example visual-color-randomization \
         --physics newton_mjwarp --visualizer newton
 
 """
@@ -42,8 +38,6 @@ parser.add_argument(
 )
 parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
 add_launcher_args(parser)
-# a Newton viewer cannot build its model from this PhysX scene, so PhysX defaults to the Kit viewer
-physics_args, _ = parser.parse_known_args()
 parser.set_defaults(visualizer=["newton"])
 args_cli = parser.parse_args()
 if args_cli.max_steps == 0 or args_cli.max_steps < -1:

@@ -12,11 +12,10 @@ This guide shows how to record ``mp4`` clips from a visualizer or a scene sensor
 .. raw:: html
 
    <video autoplay loop muted playsinline controls preload="auto" style="width:100%;">
-     <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/how_to/record_video_shadow_hand_tiled_gt.mp4" type="video/mp4">
+     <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/how_to/record_video_newton_viewport.mp4" type="video/mp4">
    </video>
    <p class="viz-cap" style="text-align:center; font-style:italic;">Recorded clip of the
-   Shadow Hand cube-reorientation task, recording the streaming view of the Rerun
-   visualizer with 4 streaming view envs and 4 GT types</p>
+   Shadow Hand cube-reorientation task from the Newton visualizer</p>
 
 Each ``VideoRecorderCfg`` entry is independent: different sources write different files at their own
 cadence, with no limit on simultaneous recorders.
@@ -32,7 +31,7 @@ Add a ``VideoRecorderCfg`` to ``env_cfg.video_recorders``:
     from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
 
     env_cfg.video_recorders = [
-        VideoRecorderCfg(source="viz:kit", output_dir="videos/")
+        VideoRecorderCfg(source="viz:newton", output_dir="videos/")
     ]
 
 ``source`` also accepts an ``ImageViewCfg``: use ``VideoRecorderCfg(source=view)`` to share an image
@@ -82,7 +81,9 @@ Examples
 
 All three examples use the Shadow Hand cube-reorientation task,
 ``Isaac-Reorient-Cube-Shadow-Camera-Direct``, which ships with a built-in tiled camera
-sensor. Examples 1 and 2 each demonstrate one recording source; Example 3 combines all four.
+sensor. Examples 1 and 2 each demonstrate one recording source; Example 3 combines three sources.
+The scene camera uses OVRTX by default. Install the ``ovrtx`` extra, or ``ov`` for both OvPhysX
+and OVRTX. The Newton viewport can show OpenGL or RTX independently of the scene-camera recording.
 
 .. dropdown:: Code for run_video_recording.py
    :icon: code
@@ -92,26 +93,26 @@ sensor. Examples 1 and 2 each demonstrate one recording source; Example 3 combin
       :linenos:
 
 
-Example 1: Kit viewport
-~~~~~~~~~~~~~~~~~~~~~~~
+Example 1: Newton viewport
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: bash
 
    uv run python scripts/tutorials/07_visualizers/run_video_recording.py \
-       --example 1 --num_envs 4 --viz kit
+       --example 1 --num_envs 4 --viz newton
 
-* Records the Kit interactive viewport (RTX renderer)
+* Records the Newton interactive viewport (OpenGL by default; use ``--viz newton_rtx`` for RTX)
 * Shows 4 parallel environments
-* One clip is written to ``videos/recording_tutorial/example_1/kit_viewport_0000.mp4``
+* One clip is written to ``videos/recording_tutorial/example_1/newton_viewport_0000.mp4``
 
 .. raw:: html
 
    <div class="viz-clip-crop viz-clip-crop-lg">
      <video autoplay loop muted playsinline controls preload="auto">
-       <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/how_to/record_video_kit_viewport.mp4" type="video/mp4">
+       <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/how_to/record_video_newton_viewport.mp4" type="video/mp4">
      </video>
    </div>
-   <p class="viz-cap">Kit visualizer</p>
+   <p class="viz-cap">Newton visualizer (OpenGL)</p>
 
 
 Example 2: Scene sensor, headless
@@ -154,35 +155,19 @@ Example 3: All sources simultaneously
 .. code-block:: bash
 
    uv run python scripts/tutorials/07_visualizers/run_video_recording.py \
-       --example 3 --num_envs 4 --viz kit,newton_gl
+       --example 3 --num_envs 4 --viz newton_rtx
 
-Four independent clips are written to ``videos/recording_tutorial/example_3/``:
+Three independent clips are written to ``videos/recording_tutorial/example_3/``:
 
-* ``kit_viewport_0000.mp4``: Kit interactive viewport (RTX renderer)
-* ``tiled_kit_viewport_0000.mp4``: Kit tiled-camera grid (per-environment views)
-* ``newton_viewport_0000.mp4``: Newton viewer framebuffer
+* ``newton_viewport_0000.mp4``: Newton viewport showing its OVRTX camera
+* ``tiled_camera_view_0000.mp4``: an ``ImageViewCfg`` composing the scene camera's per-environment images
 * ``sensor_0000.mp4``: scene tiled-camera sensor (offline render)
 
-.. raw:: html
-
-   <div class="viz-grid viz-grid-match">
-     <div>
-       <div class="viz-clip-crop">
-         <video autoplay loop muted playsinline controls preload="auto">
-           <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/how_to/record_video_newton_viewport.mp4" type="video/mp4">
-         </video>
-       </div>
-       <p class="viz-cap">Newton visualizer</p>
-     </div>
-     <div>
-       <div class="viz-clip-square">
-         <video autoplay loop muted playsinline controls preload="auto">
-           <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/how_to/record_video_tiled_kit_viewport.mp4" type="video/mp4">
-         </video>
-       </div>
-       <p class="viz-cap">Kit visualizer tiled streaming</p>
-     </div>
-   </div>
+RTX viewport recording uses the OVRTX runtime and works with Newton or OvPhysX physics.
+Set the visualizer's ``headless=True`` to record without opening a window.
+The tiled ``ImageViewCfg`` and scene sensor remain independent recording sources while the
+main viewport shows RTX. Naming the scene camera in the image view fixes the recorded source
+even if the window switches to another camera.
 
 
 Recipes
@@ -204,8 +189,9 @@ Record a short clip at regular intervals while training, without opening a windo
 With no ``--viz``, ``--video`` records from a headless Newton visualizer. This writes a
 200-step clip every 2,000 steps. The ``train`` and ``play`` entrypoints put clips in ``videos/``
 under the run's log directory unless a recorder sets ``output_dir``; a script that builds its own
-recorders writes to ``output_dir`` (default ``videos``). Add ``--viz kit`` to watch the run in a
-window while recording the same view.
+recorders writes to ``output_dir`` (default ``videos``). Add ``--viz newton`` to watch the run in a
+window while recording the same view. Use ``--viz newton_rtx`` for an RTX viewport with Newton
+or OvPhysX physics.
 
 Recording depth or segmentation from a scene sensor
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -241,23 +227,22 @@ visualizer.
 Recording from an independent camera angle
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Configure the recording angle on the visualizer, not the recorder. To record from a headless Newton
-visualizer at a different angle alongside an interactive Kit viewer, run with ``--viz kit`` and
-configure both; the recorder adds the Newton visualizer, headless:
+Configure a separate perspective view for the recording alongside the interactive Newton window.
+The recorder identifies its producer through the shared ``ImageViewCfg``:
 
 .. code-block:: python
 
-    from isaaclab_visualizers.kit import KitBackendCfg
     from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
-    from isaaclab.visualizers import VisualizerCfg
+    from isaaclab.visualizers import ImageViewCfg, PerspectiveCameraCfg, VisualizerCfg
 
+    recording_view = ImageViewCfg(source=PerspectiveCameraCfg(eye=(12.0, 0.0, 6.0)))
     env_cfg.sim.visualizer_cfgs = [
-        VisualizerCfg(eye=(4.0, 4.0, 2.0), backend=KitBackendCfg()),
-        VisualizerCfg(eye=(12.0, 0.0, 6.0), backend=NewtonGLBackendCfg()),
+        VisualizerCfg(eye=(4.0, 4.0, 2.0), backend=NewtonGLBackendCfg()),
+        VisualizerCfg(view=recording_view, headless=True, backend=NewtonGLBackendCfg()),
     ]
     env_cfg.video_recorders = [
-        VideoRecorderCfg(source="viz:newton", output_dir="videos/"),
+        VideoRecorderCfg(source=recording_view, output_dir="videos/"),
     ]
 
 Alternatively, use a :class:`~isaaclab.sensors.CameraCfg` sensor in the scene and record
@@ -283,7 +268,7 @@ The ``source`` string selects what to capture:
    * - ``"viz:kit:streaming_view"``
      - Kit streaming camera panel, requires ``streaming_view=True``
    * - ``"viz:newton"``
-     - Newton visualizer viewport, in whichever renderer the window shows (OpenGL or RTX). A headless Newton has no RTX view
+     - Newton visualizer viewport, in whichever renderer the window shows (OpenGL or RTX)
    * - ``"viz:newton:streaming_view"``
      - Newton streaming camera panel, requires ``streaming_view=True``
    * - ``"sensor:<name>"``
@@ -308,8 +293,9 @@ types are accepted here too, e.g. ``VideoRecorderCfg(source="newton")`` is equiv
 
 .. note::
 
-   The Newton viewport can be recorded with ``"viz:newton"`` while it renders with RTX, but
-   recording its streaming view is not supported.
+   Use ``NewtonGLBackendCfg(initial_renderer="rtx")`` to record the RTX viewport, including
+   headless runs. The recorder source remains ``"viz:newton"``; ``newton_rtx`` selects the
+   renderer when launching the visualizer.
 
 
 Clip control
@@ -345,19 +331,19 @@ Clip control
 
 .. code-block:: python
 
-    VideoRecorderCfg(source="viz:kit", video_length=500, video_interval=0)
+    VideoRecorderCfg(source="viz:newton", video_length=500, video_interval=0)
 
 **Recurring clips every 1,000 env steps:**
 
 .. code-block:: python
 
-    VideoRecorderCfg(source="viz:kit", video_length=200, video_interval=1000)
+    VideoRecorderCfg(source="viz:newton", video_length=200, video_interval=1000)
 
 **Keep only the most recent clip on disk:**
 
 .. code-block:: python
 
-    VideoRecorderCfg(source="viz:kit", video_length=200, video_interval=1000,
+    VideoRecorderCfg(source="viz:newton", video_length=200, video_interval=1000,
                      keep_last_n_clips=1)
 
 

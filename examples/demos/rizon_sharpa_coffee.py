@@ -131,7 +131,7 @@ def _parse_args():
     parser.add_argument("--width", type=int, default=1280)
     parser.add_argument("--height", type=int, default=960)
     add_launcher_args(parser)
-    parser.set_defaults(visualizer=None)
+    parser.set_defaults(visualizer=["newton"])
     args = parser.parse_args()
     if args.physics_hz is None:
         fast_script = (not args.water and args.voxel_size == 0.002) or (args.water and args.voxel_size >= 0.003)

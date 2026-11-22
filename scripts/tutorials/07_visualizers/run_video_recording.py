@@ -26,13 +26,13 @@ Example 2 — scene sensor only, headless
         uv run python scripts/tutorials/07_visualizers/run_video_recording.py \
             --example 2 --num_envs 16
 
-Example 3 — Newton viewport + tiled grid + scene sensor
+Example 3 — Newton RTX viewport + tiled grid + scene sensor
     Three independent clip streams recorded simultaneously.
 
     .. code-block:: bash
 
         uv run python scripts/tutorials/07_visualizers/run_video_recording.py \
-            --example 3 --num_envs 4 --viz newton
+            --example 3 --num_envs 4 --viz newton_rtx
 
 Clips are written to ``videos/recording_tutorial/example_<N>/`` in the working directory.
 Examples 1 and 2 each demonstrate one recording source; Example 3 combines all of them.
@@ -49,7 +49,7 @@ import sys
 import gymnasium as gym
 import torch
 
-from isaaclab.visualizers import VisualizerCfg, WindowCfg
+from isaaclab.visualizers import ImageViewCfg, VisualizerCfg, WindowCfg
 
 import isaaclab_tasks  # noqa: F401
 
@@ -87,7 +87,10 @@ def _output_dir(example: int) -> str:
 
 def _shadow_env_cfg(num_envs: int, env_spacing: float = _SHADOW_ENV_SPACING):
     """Build a base Shadow Hand camera env cfg shared by all examples."""
-    env_cfg, _ = resolve_task_config(_TASK_SHADOW, "", overrides=(*sys.argv[1:], "env.scene.tiled_camera=rgb"))
+    overrides = list(sys.argv[1:])
+    if not any(arg.startswith("renderer=") for arg in overrides):
+        overrides.append("renderer=ovrtx")
+    env_cfg, _ = resolve_task_config(_TASK_SHADOW, "", overrides=(*overrides, "env.scene.tiled_camera=rgb"))
     env_cfg.scene.tiled_camera.height = 256
     env_cfg.scene.tiled_camera.width = 256
     env_cfg.scene.num_envs = num_envs
@@ -139,10 +142,11 @@ def _build_env_cfg_example_2(num_envs: int):
 
 
 def _build_env_cfg_example_3(num_envs: int):
-    """Record the Newton window, its tiled camera panel, and a scene sensor together."""
+    """Record the Newton RTX view, a tiled scene-camera view, and one sensor image together."""
     from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
     env_cfg = _shadow_env_cfg(num_envs)
+    tiled_view = ImageViewCfg(source="tiled_camera", envs=tuple(range(min(num_envs, 16))))
     env_cfg.sim.visualizer_cfgs = [
         VisualizerCfg(
             eye=_SHADOW_EYE,
@@ -151,7 +155,7 @@ def _build_env_cfg_example_3(num_envs: int):
             streaming_envs=min(num_envs, 16),
             window=WindowCfg(size=(1280, 720)),
             focal_length=25.0,
-            backend=NewtonGLBackendCfg(),
+            backend=NewtonGLBackendCfg(initial_renderer="rtx"),
         )
     ]
     out = _output_dir(3)
@@ -165,9 +169,9 @@ def _build_env_cfg_example_3(num_envs: int):
             step_offset=_RENDER_STEP_OFFSET,
         ),
         VideoRecorderCfg(
-            source="viz:newton:streaming_view",
+            source=tiled_view,
             output_dir=out,
-            output_filename_prefix="tiled_newton_viewport",
+            output_filename_prefix="tiled_camera_view",
             video_length=_VIDEO_LENGTH,
             fps=30,
             step_offset=_RENDER_STEP_OFFSET,
@@ -209,12 +213,10 @@ def main():
     env_cfg, task = _BUILDERS[args_cli.example](num_envs)
     env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
 
-    # Examples 1 and 3 record from the Kit viewport via omni.replicator, which requires
-    # camera rendering support.  Force it here for visualizer-only recording.
-    if args_cli.example in (1, 3):
-        args_cli.enable_cameras = True
-
-    with launch_simulation(env_cfg, args_cli):
+    # The builders configure recording views after task resolution. Reapply the requested
+    # visualizer selection, including newton_rtx and none, when launching those views.
+    visualizers = next((arg.split("=", 1)[1].split(",") for arg in hydra_args if arg.startswith("visualizer=")), None)
+    with launch_simulation(env_cfg, {**vars(args_cli), "visualizer": visualizers}):
         env = gym.make(task, cfg=env_cfg)
 
         out = _output_dir(args_cli.example)

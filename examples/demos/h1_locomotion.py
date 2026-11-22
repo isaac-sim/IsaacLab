@@ -30,8 +30,6 @@ parser.add_argument(
     "--physics", default="newton_mjwarp", choices=["isaacsim_physx", "newton_mjwarp"], help="Physics backend."
 )
 add_launcher_args(parser)
-# a Newton viewer cannot build its model from this PhysX scene, so PhysX defaults to the Kit viewer
-physics_args, _ = parser.parse_known_args()
 parser.set_defaults(visualizer=["newton"])
 args_cli = parser.parse_args()
 if args_cli.num_envs < 1:
