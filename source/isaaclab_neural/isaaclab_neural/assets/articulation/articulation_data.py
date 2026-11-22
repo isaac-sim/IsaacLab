@@ -13,7 +13,11 @@ import warp as wp
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
 from isaaclab.utils.warp import ProxyArray
 
-from .unsupported import raise_for_unsupported
+UNSUPPORTED = (
+    "Not available with the world-model backend: it has joint state only, no bodies, root, forces or physical"
+    " properties."
+)
+"""Error message of the articulation members a world model does not have."""
 
 
 class ArticulationData(BaseArticulationData):
@@ -113,5 +117,268 @@ class ArticulationData(BaseArticulationData):
     def _reset_velocity(self, *args, **kwargs) -> None:
         """No-op: there is no velocity."""
 
+    # The world model has joint state only: these parts of the articulation are not available.
 
-raise_for_unsupported(ArticulationData, BaseArticulationData)
+    @property
+    def default_root_pose(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def default_root_vel(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def default_root_state(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def joint_stiffness(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def joint_damping(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def joint_armature(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def joint_friction_coeff(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def joint_vel_limits(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def joint_effort_limits(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def fixed_tendon_stiffness(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def fixed_tendon_damping(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def fixed_tendon_limit_stiffness(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def fixed_tendon_rest_length(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def fixed_tendon_offset(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def fixed_tendon_pos_limits(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def spatial_tendon_stiffness(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def spatial_tendon_damping(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def spatial_tendon_limit_stiffness(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def spatial_tendon_offset(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def root_link_pose_w(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def root_link_vel_w(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def root_com_pose_w(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def root_com_vel_w(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def root_state_w(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def root_link_state_w(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def root_com_state_w(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def body_mass(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def body_inertia(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def body_link_pose_w(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def body_link_vel_w(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def body_com_pose_w(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def body_com_vel_w(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def body_state_w(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def body_link_state_w(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def body_com_state_w(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def body_joint_wrench(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def body_com_acc_w(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def body_com_pose_b(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def joint_vel(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def joint_acc(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def projected_gravity_b(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def heading_w(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def root_link_lin_vel_b(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def root_link_ang_vel_b(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def root_com_lin_vel_b(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def root_com_ang_vel_b(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def root_link_pos_w(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def root_link_quat_w(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def root_link_lin_vel_w(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def root_link_ang_vel_w(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def root_com_pos_w(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def root_com_quat_w(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def root_com_lin_vel_w(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def root_com_ang_vel_w(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def body_link_pos_w(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def body_link_quat_w(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def body_link_lin_vel_w(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def body_link_ang_vel_w(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def body_com_pos_w(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def body_com_quat_w(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def body_com_lin_vel_w(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def body_com_ang_vel_w(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def body_com_lin_acc_w(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def body_com_ang_acc_w(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def body_com_pos_b(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def body_com_quat_b(self) -> ProxyArray:
+        raise NotImplementedError(UNSUPPORTED)

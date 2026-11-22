@@ -41,6 +41,13 @@ Choose a backend
       PhysX simulation without Omniverse Kit, configured through USD. Install
       with the ``ovphysx`` extra.
 
+   .. grid-item-card:: Neural
+      :link: /source/concepts/physics-backends/neural
+      :link-type: doc
+
+      A learned world model in place of a physics engine: it predicts the
+      camera frames from the joint targets.
+
 Follow :ref:`isaaclab-installation-root` for the supported installation paths
 and current optional extras. Do not combine OvPhysX with a Kit runtime in the
 same process.
@@ -96,6 +103,21 @@ See :doc:`the OvPhysX guide <physics-backends/ovphysx>` for installation, suppor
 features, and their configuration limits.
 
 
+.. _physics-backends-neural:
+
+Neural
+------
+
+The neural backend replaces the physics engine with a learned world model that
+predicts camera frames from joint targets, a chunk of frames at a time. Tasks keep
+their articulation, camera, observation and action configurations; joint state is
+virtual, and anything that needs a simulated body raises. Select it with
+``NeuralCfg`` from ``isaaclab_neural.physics``.
+
+See :doc:`the neural backend guide <physics-backends/neural>` for the world-model
+interface, reset records and chunk timing.
+
+
 Find supported tasks and APIs
 -----------------------------
 
@@ -123,3 +145,4 @@ follow the generated API links for :class:`~isaaclab_isaacsim.physics.PhysxCfg`,
    /source/concepts/physics-backends/physx
    /source/concepts/physics-backends/newton
    /source/concepts/physics-backends/ovphysx
+   /source/concepts/physics-backends/neural

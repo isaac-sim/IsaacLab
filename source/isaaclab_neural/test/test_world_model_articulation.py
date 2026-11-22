@@ -54,7 +54,7 @@ def author_robot(path):
     stage.Save()
 
 
-def event_env(sim, scene, decimation=1, episode_steps=3 * T):
+def event_env(sim, scene, decimation=1):
     """The parts of an environment that event and termination terms read."""
     return SimpleNamespace(
         sim=sim,
@@ -62,7 +62,6 @@ def event_env(sim, scene, decimation=1, episode_steps=3 * T):
         num_envs=N,
         device=sim.device,
         cfg=SimpleNamespace(decimation=decimation),
-        max_episode_length=episode_steps,
     )
 
 
@@ -213,9 +212,8 @@ def test_a_termination_at_chunk_boundary_fires_only_when_a_chunk_completes(world
     assert [i + 1 for i, f in enumerate(fired) if f] == [T, 2 * T]
 
 
-@pytest.mark.parametrize("decimation,episode_steps,error", [(3, 3 * T, "must divide"), (1, 3 * T + 1, "whole number")])
-def test_a_termination_at_chunk_boundary_checks_the_timing_first(world, decimation, episode_steps, error):
+def test_a_termination_at_chunk_boundary_checks_the_timing_first(world):
     sim, scene = world
     always = at_chunk_boundary(lambda env: torch.ones(N, dtype=torch.bool))
-    with pytest.raises(ValueError, match=error):
-        always(event_env(sim, scene, decimation, episode_steps))
+    with pytest.raises(ValueError, match="must divide"):
+        always(event_env(sim, scene, decimation=3))

@@ -11,8 +11,8 @@ import numpy as np
 import pytest
 import torch
 
-from isaaclab_neural.frame_buffer import FrameBuffer
 from isaaclab_neural.physics import NeuralCfg, NeuralManager
+from isaaclab_neural.world_model_frame_buffer import WorldModelFrameBuffer
 
 from .conftest import FakeModel, FakeModelCfg, J, N, T, world_model_sim, write_manifest
 
@@ -137,7 +137,7 @@ def test_a_group_shares_a_record_and_other_splits_visit_records_in_order(tmp_pat
 
 
 def test_a_camera_reads_only_the_frames_that_changed():
-    buffer = FrameBuffer(num_envs=3, chunk_length=T, frame_shape=(2, 2, 3), dtype=torch.uint8, device="cpu")
+    buffer = WorldModelFrameBuffer(num_envs=3, chunk_length=T, frame_shape=(2, 2, 3), dtype=torch.uint8, device="cpu")
     reader = buffer.reader()
     history = torch.zeros_like(buffer.frames)
     mask = torch.zeros(3, dtype=torch.bool)
