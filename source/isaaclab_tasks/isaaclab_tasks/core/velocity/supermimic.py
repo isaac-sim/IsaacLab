@@ -75,13 +75,20 @@ class Heightfield:
 
     @classmethod
     def from_model(cls, model, device: str) -> Heightfield:
-        """Ray-cast the static ground of a Newton model once on a grid: a horizontal plane or one terrain mesh."""
-        (shape,) = np.flatnonzero(model.shape_body.numpy() == -1)
-        kind, transform = model.shape_type.numpy()[shape], model.shape_transform.numpy()[shape]
-        if kind == GeoType.PLANE:
-            return cls(torch.full((2, 2), float(transform[2]), device=device), (-1.0, -1.0), 1.0)
-        if kind != GeoType.MESH:
-            raise ValueError("VelocityTask expects a ground plane or a terrain mesh.")
+        """Ray-cast the static ground of a Newton model once on a grid: horizontal planes and at most one terrain mesh.
+
+        Where both exist, the ground is the higher of the two.
+        """
+        static = np.flatnonzero(model.shape_body.numpy() == -1)
+        kinds, transforms = model.shape_type.numpy()[static], model.shape_transform.numpy()[static]
+        planes = [float(t[2]) for k, t in zip(kinds, transforms) if k == GeoType.PLANE]
+        meshes = [i for i, k in zip(static, kinds) if k == GeoType.MESH]
+        if len(planes) + len(meshes) != len(static) or len(meshes) > 1 or not static.size:
+            raise ValueError("VelocityTask expects ground planes and at most one terrain mesh.")
+        if not meshes:
+            return cls(torch.full((2, 2), max(planes), device=device), (-1.0, -1.0), 1.0)
+        (shape,) = meshes
+        transform = model.shape_transform.numpy()[shape]
         source = model.shape_source[shape]
         points = _transform(transform, source.vertices * model.shape_scale.numpy()[shape])
         mesh = convert_to_warp_mesh(points, source.indices, device)
@@ -97,7 +104,10 @@ class Heightfield:
             down = torch.zeros_like(starts)
             down[..., 2] = -1.0
             rows.append(raycast_mesh(starts, down, mesh)[0][..., 2])
-        return cls(torch.cat(rows), (lower[0], lower[1]), HEIGHTFIELD_RESOLUTION)
+        heights = torch.cat(rows)
+        if planes:
+            heights = torch.where(torch.isfinite(heights), heights.clamp(min=max(planes)), max(planes))
+        return cls(heights, (lower[0], lower[1]), HEIGHTFIELD_RESOLUTION)
 
     def to(self, device: torch.device | str) -> Heightfield:
         """Move the heights."""
