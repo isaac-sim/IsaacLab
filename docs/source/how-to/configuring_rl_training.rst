@@ -201,6 +201,19 @@ The preset collects one step before applying fractional learner updates. See the
 `RSL-RL learned dynamics configuration <https://leggedrobotics.github.io/rsl_rl/guide/configuration.html#learned-dynamics-configuration>`__
 for checkpoint and deployment inputs. LEAPP requires an MLPModel policy and rejects this actor representation.
 
+``Isaac-Motion-Tracking-G1`` provides a SuperMimic agent for the same reference-motion MDP as its PPO agent:
+
+.. code-block:: bash
+
+   uv run isaaclab train --rl_library rsl_rl \
+      --task Isaac-Motion-Tracking-G1 --agent rsl_rl_supermimic_cfg_entry_point \
+      presets=state_obs visualizer=none
+
+The world model predicts the root link and joint state. Tracked-body poses and velocities follow from differentiable
+forward kinematics of the simulated articulation, so imagined tracking rewards use the environment's reward
+definitions. The reference frame advances one frame per imagined step. The actor receives the default policy's
+proprioceptive and anchor-orientation terms in its history and the reference joint command as its goal.
+
 .. _Stable-Baselines3: https://stable-baselines3.readthedocs.io/en/master/
 .. _RL-Games: https://github.com/Denys88/rl_games
 .. _RSL-RL: https://github.com/leggedrobotics/rsl_rl
