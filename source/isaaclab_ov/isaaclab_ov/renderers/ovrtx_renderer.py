@@ -439,9 +439,6 @@ class OVRTXRenderer(BaseRenderer):
         self._sensor_capture_key: int | None = None
         self._sensor_capture_products: RenderProductSetOutputs | None = None
         self._published_cameras: set[OVRTXCameraRenderData] = set()
-        # Cameras whose outputs have been filled. A new combined capture refreshes them even when
-        # the caller only asked for the lidar. Cameras that have never been requested stay out.
-        self._prepared_cameras: set[OVRTXCameraRenderData] = set()
         # Cameras whose poses were written by a camera read that participated in the current
         # capture. A camera prepared after that capture renders again so its image matches.
         self._cameras_posed_for_capture: set[OVRTXCameraRenderData] = set()
@@ -1558,9 +1555,11 @@ class OVRTXRenderer(BaseRenderer):
         read in that step publishes cameras whose poses were written before that capture and leaves
         every other camera buffer untouched. A camera prepared after the capture renders again, so
         its image matches the pose it just wrote. ``force``, and a capture dropped by reset, render
-        again and refresh every camera that already has a frame. Camera-only scenes do not call this
-        method, so their time step and asynchronous path stay unchanged. A lidar needs the point cloud
-        immediately, so this submission waits.
+        again and publish only the cameras in this request. A lidar-only read does not replace images
+        for cameras that are not due; those cameras update when their own preparation, clocks,
+        metadata, and image processors run. Camera-only scenes do not call this method, so their time
+        step and asynchronous path stay unchanged. A lidar needs the point cloud immediately, so this
+        submission waits.
         """
         if not self._initialized_scene:
             raise RuntimeError("Scene not initialized. Call initialize() first.")
@@ -1575,13 +1574,6 @@ class OVRTXRenderer(BaseRenderer):
             return
         posed_now = list(requested)
         replace_poses = force or not captured
-        refresh = list(requested)
-        seen = set(requested)
-        for camera in self._prepared_cameras:
-            if camera not in seen:
-                refresh.append(camera)
-                seen.add(camera)
-        requested = refresh
         delta_time = self._agreed_lidar_delta(delta_time)
         if self.cfg.async_rendering and not self._use_ovstage and not self._lidar_sync_warned:
             logger.warning("OVRTX lidar captures run synchronously, including cameras that share this renderer.")
@@ -1647,7 +1639,6 @@ class OVRTXRenderer(BaseRenderer):
             for data in pending:
                 data.sync_frame_ready = True
         self._published_cameras.update(pending)
-        self._prepared_cameras.update(pending)
 
     def _publish_sensor_outputs(
         self, products: RenderProductSetOutputs, cameras: Sequence[OVRTXCameraRenderData]
@@ -1808,7 +1799,6 @@ class OVRTXRenderer(BaseRenderer):
                 if render_data in self._camera_render_data:
                     self._camera_render_data.remove(render_data)
                 self._published_cameras.discard(render_data)
-                self._prepared_cameras.discard(render_data)
                 self._cameras_posed_for_capture.discard(render_data)
 
     def _remove_usd_reference(self, reference: int) -> None:
