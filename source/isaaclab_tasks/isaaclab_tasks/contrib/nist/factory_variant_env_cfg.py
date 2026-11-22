@@ -61,7 +61,6 @@ class FactoryVariantObservationsCfg:
         def __post_init__(self) -> None:
             self.enable_corruption = False
             self.concatenate_terms = True
-            self.postprocess = "isaaclab_newton.envs.mdp:zero_observation_on_solver_fault"
 
     @configclass
     class PerceptionCfg(ObsGroup):
@@ -85,7 +84,6 @@ class FactoryVariantObservationsCfg:
         def __post_init__(self) -> None:
             self.enable_corruption = False
             self.concatenate_terms = True
-            self.postprocess = "isaaclab_newton.envs.mdp:zero_observation_on_solver_fault"
 
     policy: PolicyCfg = PolicyCfg()
     perception: PerceptionCfg = PerceptionCfg()
@@ -95,6 +93,7 @@ class FactoryVariantObservationsCfg:
 class FactoryVariantEventCfg:
     """Add assembly selection to the shared Factory startup events."""
 
+    solver_fault_observations = EventTerm(func="isaaclab_newton.envs.mdp:zero_final_obs_on_solver_fault", mode="reset")
     assembly_variants = EventTerm(
         func=mdp.AssemblyVariantContext,
         mode="startup",

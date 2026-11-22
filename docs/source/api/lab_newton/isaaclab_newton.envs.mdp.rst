@@ -32,21 +32,23 @@ reward rows before summation and episode accumulation and does not require a nam
        # Declare task reward terms above this final term.
        solver_fault_reward = RewardTermCfg(func=zero_reward_on_solver_fault, weight=1.0)
 
-To zero complete observation rows, including history, configure
-:func:`~isaaclab_newton.envs.mdp.zero_observation_on_solver_fault` as each group's ``postprocess`` callback.
-It runs after processing, history assembly and concatenation, including terminal observation reads.
-The lazy fault mask is shared with termination and reward evaluation. Unflagged rows, including unrelated
-nonfinite values, and source and history buffers remain unchanged. Normal reset clears the affected histories.
+To zero faulted terminal observations, configure
+:func:`~isaaclab_newton.envs.mdp.zero_final_obs_on_solver_fault` as the first reset event, before any
+reset event rewrites physics state and refreshes the lazy fault query. It clears complete rows,
+including history, in ``extras["final_obs"]`` when ``compute_final_obs`` is enabled. Unflagged rows,
+including unrelated nonfinite values, remain unchanged. Normal reset clears the affected histories
+and the environment computes fresh observations from the reset state.
 
 .. code-block:: python
 
-   from isaaclab.managers import ObservationGroupCfg, ObservationTermCfg
-   from isaaclab.envs import mdp
+   from isaaclab.managers import EventTermCfg
 
    @configclass
-   class PolicyCfg(ObservationGroupCfg):
-       joint_pos = ObservationTermCfg(func=mdp.joint_pos, history_length=5)
-       postprocess = "isaaclab_newton.envs.mdp:zero_observation_on_solver_fault"
+   class EventsCfg:
+       solver_fault_observations = EventTermCfg(
+           func="isaaclab_newton.envs.mdp:zero_final_obs_on_solver_fault", mode="reset"
+       )
+       # Declare physics reset events below this term.
 
 Detection includes Newton body, joint and particle state. MuJoCo additionally checks its private
 persistent buffers. MJWarp checks and resets these buffers per world. CPU MuJoCo uses global solver
@@ -59,13 +61,6 @@ Rewards
 -------
 
 .. automodule:: isaaclab_newton.envs.mdp.rewards
-    :members:
-
-
-Observations
-------------
-
-.. automodule:: isaaclab_newton.envs.mdp.observations
     :members:
 
 

@@ -49,7 +49,15 @@ from newton import ModelFlags
 from newton.actuators import DrivePID
 from newton.solvers import SolverImplicitMPM, SolverKamino, SolverMuJoCo, SolverVBD
 
-from isaaclab.managers import ObservationGroupCfg, ObservationManager, ObservationTermCfg, RewardManager, RewardTermCfg
+from isaaclab.managers import (
+    EventManager,
+    EventTermCfg,
+    ObservationGroupCfg,
+    ObservationManager,
+    ObservationTermCfg,
+    RewardManager,
+    RewardTermCfg,
+)
 from isaaclab.physics import PhysicsEvent
 from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
 from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context
@@ -1260,6 +1268,7 @@ def test_solver_fault_detects_private_buffers_and_recovers_only_the_failed_world
         device=device,
         sim=SimpleNamespace(backend_manager=manager, is_playing=lambda: False),
         max_episode_length_s=2.0,
+        extras={},
         reward_values=torch.tensor([1.0, float("nan"), 3.0, 4.0], device=device),
         observation_values=torch.tensor([[float("nan"), 1.0], [7.0, 2.0], [3.0, 4.0], [5.0, 6.0]], device=device),
     )
@@ -1276,15 +1285,20 @@ def test_solver_fault_detects_private_buffers_and_recovers_only_the_failed_world
     env.sim.is_playing = lambda: True
     groups = {}
     for name, concatenate in (("policy", True), ("perception", False)):
-        group = ObservationGroupCfg(
-            concatenate_terms=concatenate,
-            postprocess="isaaclab_newton.envs.mdp:zero_observation_on_solver_fault",
-        )
+        group = ObservationGroupCfg(concatenate_terms=concatenate)
         group.values = ObservationTermCfg(
             func=lambda env: env.observation_values, history_length=2, flatten_history_dim=concatenate
         )
         groups[name] = group
     observations = ObservationManager(groups, env)
+    events = EventManager(
+        {
+            "solver_fault_observations": EventTermCfg(
+                func="isaaclab_newton.envs.mdp:zero_final_obs_on_solver_fault", mode="reset"
+            )
+        },
+        env,
+    )
     observations.compute(update_history=True)
     env.observation_values[1, 0] = float("inf")
     art_ids = wp.array(np.arange(4).reshape(4, 1), dtype=wp.int32, device=device)
@@ -1296,6 +1310,7 @@ def test_solver_fault_detects_private_buffers_and_recovers_only_the_failed_world
         "mark_non_finite_worlds",
         lambda state, faults: (scans.append(state), mark_faults(state, faults)),
     )
+    events.apply("reset", env_ids=torch.tensor([1], device=device), global_env_step_count=0)
     assert not scans
     for name in ("qpos", "qvel", "qacc", "qfrc_actuator", "qacc_warmstart", "qfrc_applied", "xfrc_applied"):
         values = wp.to_torch(getattr(backend.solver.mjw_data, name))
@@ -1309,9 +1324,11 @@ def test_solver_fault_detects_private_buffers_and_recovers_only_the_failed_world
         torch.testing.assert_close(
             env.reward_manager.compute(dt=0.1), torch.tensor([0.3, 0.0, 0.5, 0.6], device=device)
         )
-        # Both the current sample and nonzero history must be masked, including terminal reads.
+        # The reset event clears complete terminal rows, including nonzero history.
         for update_history in (True, False):
             result = observations.compute(update_history=update_history)
+            env.extras["final_obs"] = result
+            events.apply("reset", env_ids=torch.tensor([1], device=device), global_env_step_count=0)
             expected = torch.tensor(
                 [[float("nan"), 1.0, float("nan"), 1.0], [0.0] * 4, [3.0, 4.0] * 2, [5.0, 6.0] * 2],
                 device=device,
@@ -1337,6 +1354,8 @@ def test_solver_fault_detects_private_buffers_and_recovers_only_the_failed_world
     assert not solver_fault(env).any()
     # Masking the output must not erase stored history or hide unrelated nonfinite observations.
     result = observations.compute(update_history=False)
+    env.extras["final_obs"] = result
+    events.apply("reset", env_ids=torch.tensor([1], device=device), global_env_step_count=0)
     assert torch.isinf(result["policy"][1, 0])
     assert torch.isnan(result["policy"][0, 0])
     env.reward_values.fill_(1.0)
