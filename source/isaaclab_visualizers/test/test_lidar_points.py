@@ -17,6 +17,7 @@ import warp as wp
 from isaaclab_visualizers.lidar_points import (
     collect_lidar_hits,
     frame_environments,
+    frame_visualizer_closeup,
     lidar_world_points,
     log_lidar_hits,
 )
@@ -124,6 +125,27 @@ def test_frame_environments_fits_every_origin_and_keeps_a_single_cart_closeup():
     single = frame_environments((3.0, -3.0, 2.5), (0.0, 0.0, 1.0), [[0.0, 0.0, 0.0]])
     np.testing.assert_allclose(single[0], (3.0, -3.0, 2.5))
     np.testing.assert_allclose(single[1], (0.0, 0.0, 1.0))
+
+
+def test_frame_visualizer_closeup_keeps_an_explicit_camera_angle():
+    """The default view pulls back. A camera aimed elsewhere keeps that eye and look target."""
+    from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg
+
+    default = PerspectiveCameraCfg(eye=(3.0, -3.0, 2.5), lookat=(0.0, 0.0, 1.0))
+    side = PerspectiveCameraCfg(eye=(8.0, 0.0, 2.0), lookat=(0.0, 1.0, 0.5))
+    origins = torch.tensor([[70.0, -70.0, 0.0], [10.0, -10.0, 0.0]])
+    scene = SimpleNamespace(env_origins=origins)
+    cfg = SimpleNamespace(eye=default.eye, lookat=default.lookat)
+    visualizer = SimpleNamespace(
+        _env_ids=None,
+        cfg=cfg,
+        _image_views=[SimpleNamespace(cfg=SimpleNamespace(source=side))],
+        _sim=SimpleNamespace(get_scene_data_provider=lambda: SimpleNamespace(get_interactive_scene=lambda: scene)),
+    )
+    frame_visualizer_closeup(visualizer, [default, side])
+    assert cfg.lookat == (40.0, -40.0, 1.0)
+    assert default.eye == cfg.eye and default.lookat == cfg.lookat
+    assert side.eye == (8.0, 0.0, 2.0) and side.lookat == (0.0, 1.0, 0.5)
 
 
 class _RecordingViewer:

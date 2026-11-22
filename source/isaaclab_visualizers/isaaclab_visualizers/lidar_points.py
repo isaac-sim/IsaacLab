@@ -165,21 +165,23 @@ def frame_environments(eye, lookat, origins) -> tuple[tuple[float, float, float]
 
 
 def frame_visualizer_closeup(visualizer: BaseVisualizer, cameras) -> None:
-    """Aim one visualizer so every environment origin fits in view.
+    """Aim the default view so every environment origin fits in view.
 
-    Perspective cameras captured before initialization keep the same eye and look target as
-    the visualizer configuration, so both are updated together. A partial environment subset
-    keeps the configured camera.
+    The visualizer configuration is the default view. A perspective camera that still has that
+    pose was captured from it before initialization, so it receives the framed pose too. A camera
+    with its own eye and look target keeps that angle. A partial environment subset keeps the
+    configured camera.
 
     Args:
-        visualizer: Visualizer whose configuration supplies the camera.
+        visualizer: Visualizer whose configuration supplies the default camera.
         cameras: Cameras passed to the visualizer's ``initialize``.
     """
     if visualizer._env_ids is not None:
         return
     scene = visualizer._sim.get_scene_data_provider().get_interactive_scene()
     origins = None if scene is None else getattr(scene, "env_origins", None)
-    eye, lookat = frame_environments(visualizer.cfg.eye, visualizer.cfg.lookat, origins)
+    configured = (_as_vec3(visualizer.cfg.eye), _as_vec3(visualizer.cfg.lookat))
+    eye, lookat = frame_environments(*configured, origins)
     visualizer.cfg.eye = eye
     visualizer.cfg.lookat = lookat
     sources = list(cameras)
@@ -188,7 +190,7 @@ def frame_visualizer_closeup(visualizer: BaseVisualizer, cameras) -> None:
         if source is not None:
             sources.append(source)
     for camera in sources:
-        if isinstance(camera, PerspectiveCameraCfg):
+        if isinstance(camera, PerspectiveCameraCfg) and (_as_vec3(camera.eye), _as_vec3(camera.lookat)) == configured:
             camera.eye = eye
             camera.lookat = lookat
 
