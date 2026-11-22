@@ -80,6 +80,7 @@ def bank_and_scene_state(env: MDP2RLEnv, state: mdp2.MDPState) -> dict[str, tupl
     """Return, per banked field, the banked state that each world plays and the field's value in the scene."""
     bank = mdp2.mdp.reset_bank(state)
     banked = bank.buffer.get_state(bank.sampler.indices)
+    banked["object_pose_w"].torch[:, :3] += env.scene.env_origins  # the bank stores poses relative to the origins
     robot, target = env.scene["robot"].data, env.scene["object"].data
     fields = {
         "joint_pos": robot.joint_pos,
@@ -297,7 +298,8 @@ def test_recorded_states_restore_through_the_simulation(scenario: SimpleNamespac
     task.events["reset"] = dataclasses.replace(
         event,
         inputs={**event.inputs, "terminated": mdp2.terminated},
-        params={**event.params, "record": mdp2.mdp.RecordStates(slots=1, probability=1.0)},
+        # Recording needs a bank per world.
+        params={**event.params, "groups": None, "record": mdp2.mdp.RecordStates(slots=1, probability=1.0)},
     )
     builder = mdp2.MDPBuilder(env.scene_data.schema)
     builder.add_task(task)

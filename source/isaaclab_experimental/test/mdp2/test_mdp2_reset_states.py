@@ -160,6 +160,35 @@ def test_shared_bank_restores_poses_relative_to_each_world_origin():
     torch.testing.assert_close(scene.data("robot", "joint_pos").torch, states["joint_pos"][slot])
 
 
+def test_grouped_banks_fill_from_and_credit_the_worlds_of_each_group():
+    """As MDP1's lift bank per object: the worlds of a group draw from one bank, filled from their candidates, and
+    share its success statistics."""
+    scene = Scene(num_worlds=8)
+    sampler = ResetStateSamplerCfg(history_length=8, scores=[BetaSamplingScoreCfg(target=1.0)])
+    task_mdp, state = build(
+        scene,
+        fill=mdp.FillFromCandidates(CANDIDATES, bank_size=4),
+        groups=lambda ctx: torch.arange(ctx.num_worlds) % 2,
+        sampler=sampler,
+        inputs={"succeeded": mdp2.quantities.success, "env_origins": scene_entity.env_origins},
+    )
+    bank = mdp.reset_bank(state)
+    banked = bank.states["joint_pos"][..., 0]
+    assert banked.shape == (2, 4) and len(banked.unique()) == 8
+
+    transition = task_mdp.transition()
+    for _ in range(4):
+        reset(task_mdp, state, [True] * 8)
+        mdp2.evaluate(task_mdp, state, transition)
+    group, slots = torch.arange(8, device=DEVICE) % 2, bank.slots
+    torch.testing.assert_close(joint_pos(scene), banked[group, slots])
+    origins = scene.data("scene", "env_origins").torch
+    poses = scene.data("object", "root_link_pose_w").torch[:, :3] - origins
+    torch.testing.assert_close(poses, bank.states["object_pose_w"][group, slots, :3])
+    # Each group's four worlds credit its bank: three ended episodes each.
+    assert bank.episode_counts.shape == (2, 4) and bank.episode_counts.sum(dim=1).tolist() == [12, 12]
+
+
 def test_outcomes_are_credited_to_the_state_each_episode_started_from():
     scene = Scene(num_worlds=16)
     states = {

@@ -14,9 +14,11 @@ A :class:`ResetBank` composes three parts that are chosen independently:
 - the restore, which gathers the drawn states into the event's ``outputs``.
 
 The outputs are the state: any writable fields, such as ``robot.joint_pos`` and ``object.root_link_pose_w``, and
-commands, whose restored value then stands over the resample. A fill is a callable ``fill(ctx, shared) -> {output:
-tensor}`` that returns, per output, ``(num_worlds, size, ...)`` states for a bank per world, or ``(size, ...)`` for one
-bank that every world shares. :func:`reset_bank` returns the bank of a use, to inspect, replay, or save it.
+commands, whose restored value then stands over the resample. A fill is a callable ``fill(ctx, groups) -> {output:
+tensor}`` that returns, per output, ``(num_groups, size, ...)`` states for a bank per group of worlds, given the
+group of each world as ``groups``, ``(num_worlds,)``, or ``(size, ...)`` for one bank that every world shares, given
+None. A bank per world is a group per world. :func:`reset_bank` returns the bank of a use, to inspect, replay, or
+save it.
 """
 
 from __future__ import annotations
@@ -59,13 +61,14 @@ class RecordStates:
 class FillFromStates:
     """Fill the bank with given states, such as demonstrations.
 
-    ``states`` maps each output to ``(num_worlds, size, ...)`` states, or ``(size, ...)`` for a shared bank, in the
-    frame the event restores: poses relative to the environment origins when the use binds ``env_origins``.
+    ``states`` maps each output to ``(num_groups, size, ...)`` states, ``(num_worlds, size, ...)`` for a bank per
+    world, or ``(size, ...)`` for a shared bank, in the frame the event restores: poses relative to the environment
+    origins when the use binds ``env_origins``.
     """
 
     states: Mapping[str, torch.Tensor]
 
-    def __call__(self, ctx: TermContext, shared: bool) -> dict[str, torch.Tensor]:
+    def __call__(self, ctx: TermContext, groups: torch.Tensor | None) -> dict[str, torch.Tensor]:
         return {name: value.to(ctx.rng.device) for name, value in self.states.items()}
 
 
@@ -75,13 +78,30 @@ class FillFromFile:
 
     path: str | Path
 
-    def __call__(self, ctx: TermContext, shared: bool) -> dict[str, torch.Tensor]:
+    def __call__(self, ctx: TermContext, groups: torch.Tensor | None) -> dict[str, torch.Tensor]:
         saved = torch.load(self.path, map_location=ctx.rng.device)
-        if saved["shared"] != shared or not shared and saved["num_worlds"] != ctx.num_worlds:
-            kind = "a shared bank" if saved["shared"] else f"banks of {saved['num_worlds']} worlds"
-            wanted = "a shared bank" if shared else f"banks of {ctx.num_worlds} worlds"
-            raise ValueError(f"{self.path} holds {kind}, but the event needs {wanted}.")
+        held = saved["groups"]
+        if (held is None) != (groups is None) or groups is not None and not torch.equal(held, groups):
+            raise ValueError(f"{self.path} holds {_describe(held)}, but the event needs {_describe(groups)}.")
         return saved["states"]
+
+
+def _describe(groups: torch.Tensor | None) -> str:
+    if groups is None:
+        return "a shared bank"
+    num_groups = int(groups.max()) + 1
+    if num_groups == len(groups):
+        return f"banks of {len(groups)} worlds"
+    return f"banks of {num_groups} groups over {len(groups)} worlds"
+
+
+def prototype_groups(ctx: TermContext) -> torch.Tensor:
+    """Group the worlds by the prototype combination that the scene cloned into them, such as the object each world
+    spawned, as MDP1's lift bank does: worlds of a group share their bank and its success statistics."""
+    from isaaclab.sim import SimulationContext
+
+    layout = SimulationContext.instance().get_clone_plan().topology.world_prototype_layout
+    return torch.unique(torch.as_tensor(layout, device=ctx.rng.device), return_inverse=True)[1]
 
 
 class Candidates:
@@ -128,8 +148,10 @@ class FillFromCandidates:
     oversample_factor: float = 2.0
     max_rolls: int = 2000
 
-    def __call__(self, ctx: TermContext, shared: bool) -> dict[str, torch.Tensor]:
+    def __call__(self, ctx: TermContext, groups: torch.Tensor | None) -> dict[str, torch.Tensor]:
         num_worlds, device = ctx.num_worlds, ctx.rng.device
+        group = groups if groups is not None else torch.zeros(num_worlds, dtype=torch.long, device=device)
+        num_groups = int(group.max()) + 1
         candidates = Candidates(self.candidates, ctx.scene_data, str(device), seed=int(ctx.rng[0]))
         descriptor = candidates.transition.observations.get("descriptor")
         size = self.bank_size if descriptor is None else round(self.bank_size * self.oversample_factor)
@@ -146,43 +168,40 @@ class FillFromCandidates:
         origins = ctx.inputs.get("env_origins")
         poses = {name for name in ctx.outputs if origins is not None and _warp_view(ctx, name).dtype == wp.transformf}
 
-        rows = (num_worlds, size) if not shared else (size,)
-        harvest = {name: value.new_zeros(*rows, *value.shape[1:]) for name, value in fields.items()}
-        filled = torch.zeros(num_worlds if not shared else 1, dtype=torch.long, device=device)
+        harvest = {name: value.new_zeros(num_groups, size, *value.shape[1:]) for name, value in fields.items()}
+        filled = torch.zeros(num_groups, dtype=torch.long, device=device)
         worlds = torch.arange(num_worlds, device=device)
         for _ in range(self.max_rolls):
             accepted = candidates.roll()
             values = {name: _minus_origin(value, origins) if name in poses else value for name, value in fields.items()}
-            if shared:
-                take = worlds[accepted][: size - int(filled)]
-                for name, value in values.items():
-                    harvest[name][int(filled) : int(filled) + len(take)] = value[take]
-                filled += len(take)
-            else:
-                take = accepted & (filled < size)
-                slot = filled.clamp(max=size - 1)
-                for name, value in values.items():
-                    harvest[name][worlds, slot] = torch.where(_rows(take, value), value, harvest[name][worlds, slot])
-                filled += take
+            # Each group takes its accepted worlds in order, into its next free slots.
+            take = worlds[accepted]
+            order = torch.argsort(group[take], stable=True)
+            take = take[order]
+            members = group[take]
+            starts = torch.searchsorted(members, members)  # index of the first accepted world of each one's group
+            slot = filled[members] + torch.arange(len(take), device=device) - starts
+            keep = slot < size
+            take, members, slot = take[keep], members[keep], slot[keep]
+            for name, value in values.items():
+                harvest[name][members, slot] = value[take]
+            filled += torch.bincount(members, minlength=num_groups)
             if (filled == size).all():
                 break
         else:
             raise RuntimeError(
                 f"The reset bank harvested fewer than {size} valid start states after {self.max_rolls} rolls of the"
-                f" candidates ({filled.min().item()} in the worst {'bank' if shared else 'world'})."
+                f" candidates ({filled.min().item()} in the worst bank)."
             )
 
         if descriptor is not None:
             # Keep the most spread states, each descriptor axis rescaled to unit span so that all axes count.
             points = harvest.pop("descriptor")
-            points = points if not shared else points[None]
             span = (points.amax(dim=(0, 1)) - points.amin(dim=(0, 1))).clamp(min=1e-6)
             kept = farthest_points(points / span, self.bank_size)
-            if shared:
-                harvest = {name: value[kept[0]] for name, value in harvest.items()}
-            else:
-                harvest = {name: value[worlds[:, None], kept] for name, value in harvest.items()}
-        return harvest
+            banks = torch.arange(num_groups, device=device)
+            harvest = {name: value[banks[:, None], kept] for name, value in harvest.items()}
+        return harvest if groups is not None else {name: value[0] for name, value in harvest.items()}
 
 
 def farthest_points(points: torch.Tensor, count: int) -> torch.Tensor:
@@ -202,8 +221,9 @@ def farthest_points(points: torch.Tensor, count: int) -> torch.Tensor:
 class ResetBank:
     """The start states of a reset event, the sampler that chooses among them, and the worlds' current choices.
 
-    Slots are numbered within a world's bank, or within the shared bank. Get it with :func:`reset_bank`. Reading
-    allocates and synchronizes; :meth:`replay` and the event's hooks do not, and replay inside the step's CUDA graph.
+    Slots are numbered within a group's bank, a world's for a bank per world, or within the shared bank. Get it with
+    :func:`reset_bank`. Reading allocates and synchronizes; :meth:`replay` and the event's hooks do not, and replay
+    inside the step's CUDA graph.
     """
 
     def __init__(
@@ -212,16 +232,22 @@ class ResetBank:
         outputs: Mapping[str, wp.array],
         sampler: ResetStateSamplerCfg,
         *,
-        shared: bool,
+        groups: torch.Tensor | None,
         origins: wp.array | None,
         nominal_probability: float,
         record: RecordStates | None,
     ) -> None:
         first = next(iter(outputs.values()))
         num_worlds, device = first.shape[0], first.device
+        shared = groups is None
         filled = next(iter(states.values())).shape[0 if shared else 1]
         recorded = 0 if record is None else record.slots
         self.num_worlds, self.shared, self.size = num_worlds, shared, filled + recorded
+        self.groups = groups  # The group of each world, None for a shared bank
+        self.num_groups = 1 if shared else int(groups.max()) + 1
+        self._group = torch.zeros(num_worlds, dtype=torch.long, device=wp.device_to_torch(device))
+        if not shared:
+            self._group.copy_(groups)
         self._filled, self._record, self._nominal = filled, record, float(nominal_probability)
 
         # Recorded slots start as copies of the filled ones, so every slot can be drawn from the start.
@@ -233,10 +259,13 @@ class ResetBank:
                 value.reshape(-1, *value.shape[1 if shared else 2 :]).contiguous(), dtype=outputs[name].dtype
             )
         self.buffer = ResetStateBuffer(rows)
-        num_groups = 1 if shared else num_worlds
-        groups = None if shared else wp.array(range(num_worlds), dtype=wp.int32, device=device)
         self.sampler = ResetStateSampler(
-            sampler, num_worlds, self.size * num_groups, device, group_ids=groups, num_groups=num_groups
+            sampler,
+            num_worlds,
+            self.size * self.num_groups,
+            device,
+            group_ids=None if shared else wp.from_torch(self._group.int()),
+            num_groups=self.num_groups,
         )
         scores = [score for score in sampler.scores if isinstance(score, BetaSamplingScoreCfg)]
         self._prior = scores[0].target if scores else 0.0
@@ -259,28 +288,31 @@ class ResetBank:
 
     @property
     def states(self) -> dict[str, torch.Tensor]:
-        """Copies of the stored states, ``(num_worlds, size, ...)`` per output, or ``(size, ...)`` if shared. Poses
-        are relative to the environment origins when the use binds them."""
+        """Copies of the stored states, ``(num_groups, size, ...)`` per output, ``(num_worlds, size, ...)`` for a bank
+        per world, or ``(size, ...)`` if shared. Poses are relative to the environment origins when the use binds
+        them."""
         rows = {name: value.torch for name, value in self.buffer.states.items()}
         return (
             rows
             if self.shared
-            else {name: value.view(self.num_worlds, self.size, *value.shape[1:]) for name, value in rows.items()}
+            else {name: value.view(self.num_groups, self.size, *value.shape[1:]) for name, value in rows.items()}
         )
 
     @property
     def success_rate(self) -> torch.Tensor:
-        """Recent success rate of each slot, ``(num_worlds, size)``, or ``(size,)`` if shared."""
+        """Recent success rate of each slot, ``(num_groups, size)``, or ``(size,)`` if shared."""
         return self._per_slot(self.sampler.success_rate.torch)
 
     @property
     def episode_counts(self) -> torch.Tensor:
-        """Episodes that started from each slot since it was filled, ``(num_worlds, size)`` or ``(size,)``."""
+        """Episodes that started from each slot since it was filled, ``(num_groups, size)`` or ``(size,)``."""
         return self._per_slot(self.sampler.episode_counts.torch)
 
     @property
     def probabilities(self) -> torch.Tensor:
-        """Probability that the next draw picks each slot, ``(num_worlds, size)`` or ``(size,)``."""
+        """Probability that the next draw picks each slot, ``(num_groups, size)`` or ``(size,)``.
+
+        With groups, a slot's probability is that of a draw by a world of its group."""
         return self._per_slot(self.sampler.probabilities.torch)
 
     @property
@@ -288,7 +320,7 @@ class ResetBank:
         """The slot each world's episode started from, ``(num_worlds,)``; -1 for a nominal start or before the first
         reset."""
         indices = self.sampler.indices.torch.long()
-        slots = indices if self.shared else indices - torch.arange(self.num_worlds, device=indices.device) * self.size
+        slots = indices - self._group * self.size
         return torch.where(wp.to_torch(self._restored) & (indices >= 0), slots, -1)
 
     def replay(self, slots: torch.Tensor | None) -> None:
@@ -304,8 +336,8 @@ class ResetBank:
         slots = slots.to(requests.device, torch.int32)
         if not self.shared:
             in_bank = (slots >= 0) & (slots < self.size)
-            rows = torch.arange(self.num_worlds, device=slots.device, dtype=torch.int32) * self.size + slots
-            slots = torch.where(in_bank, rows, torch.where(slots < 0, -1, self.size * self.num_worlds))
+            rows = self._group.int() * self.size + slots
+            slots = torch.where(in_bank, rows, torch.where(slots < 0, -1, self.size * self.num_groups))
         requests.copy_(slots)
 
     def discard_outcomes(self) -> None:
@@ -314,7 +346,7 @@ class ResetBank:
 
     def save(self, path: str | Path) -> None:
         """Save the states, to fill a later run's bank with :class:`FillFromFile`."""
-        torch.save({"states": self.states, "shared": self.shared, "num_worlds": self.num_worlds}, path)
+        torch.save({"states": self.states, "groups": self.groups}, path)
 
     def restore(self, mask: wp.array, rng: wp.array, succeeded: wp.array | None) -> None:
         """Credit the ended episodes, choose the next starts, and write the restored ones to the outputs."""
@@ -362,7 +394,7 @@ class ResetBank:
         self.buffer.set_state(self._record_rows, self._record_values, mask=self._recording)
 
     def _per_slot(self, values: torch.Tensor) -> torch.Tensor:
-        return values.clone() if self.shared else values.view(self.num_worlds, self.size).clone()
+        return values.clone() if self.shared else values.view(self.num_groups, self.size).clone()
 
 
 def reset_bank(state: MDPState, use: str = "events.reset") -> ResetBank:
@@ -376,41 +408,57 @@ def reset_bank(state: MDPState, use: str = "events.reset") -> ResetBank:
 def _init(
     ctx: TermContext,
     *,
-    fill: Callable[[TermContext, bool], dict[str, torch.Tensor]],
+    fill: Callable[[TermContext, torch.Tensor | None], dict[str, torch.Tensor]],
     sampler: ResetStateSamplerCfg | None = None,
     shared: bool = False,
+    groups: Callable[[TermContext], torch.Tensor] | None = None,
     nominal_probability: float = 0.0,
     record: RecordStates | None = None,
 ) -> None:
     """Fill the bank once, then build its sampler and bind the outputs it restores."""
     outputs = {name: _warp_view(ctx, name) for name in ctx.outputs}
     has_poses = any(value.dtype == wp.transformf for value in outputs.values())
-    if shared and "env_origins" not in ctx.inputs and has_poses:
-        raise ValueError("A shared bank of poses needs the env_origins input, so that poses transfer across worlds.")
-    if record is not None and (shared or "terminated" not in ctx.inputs or record.slots < 1):
+    if shared and groups is not None:
+        raise ValueError("A bank is either shared or per group of worlds, not both.")
+    if (shared or groups is not None) and "env_origins" not in ctx.inputs and has_poses:
+        raise ValueError(
+            "A shared or grouped bank of poses needs the env_origins input, so that poses transfer across worlds."
+        )
+    if record is not None and (shared or groups is not None or "terminated" not in ctx.inputs or record.slots < 1):
         raise ValueError(
             "Recording needs a bank per world, at least one slot, and the terminated input (mdp2.terminated), so"
             " that states which end the episode are not recorded."
         )
     if not 0.0 <= nominal_probability <= 1.0:
         raise ValueError(f"nominal_probability must be in [0, 1], got {nominal_probability}.")
-    states = fill(ctx, shared)
+    device = ctx.rng.device
+    if shared:
+        group = None
+    elif groups is not None:
+        # Number the groups 0, 1, ..., so that any labels work.
+        group = torch.unique(torch.as_tensor(groups(ctx), device=device), return_inverse=True)[1]
+        if group.shape != (ctx.num_worlds,):
+            raise ValueError(f"groups must give one group per world, got shape {tuple(group.shape)}.")
+    else:
+        group = torch.arange(ctx.num_worlds, device=device)
+    states = fill(ctx, group)
     if states.keys() != outputs.keys():
         raise ValueError(f"The fill returned states for {sorted(states)}, but the event writes {sorted(outputs)}.")
     leading = 1 if shared else 2
+    num_banks = 0 if shared else int(group.max()) + 1
     if (
         len({value.shape[leading - 1] for value in states.values()}) != 1
         or not shared
-        and any(value.shape[0] != ctx.num_worlds for value in states.values())
+        and any(value.shape[0] != num_banks for value in states.values())
     ):
-        raise ValueError("Every output needs the same number of states, per world unless the bank is shared.")
+        raise ValueError("Every output needs the same number of states, per group of worlds unless the bank is shared.")
 
     origins = ctx.inputs.get("env_origins")
     bank = ResetBank(
         states,
         outputs,
         sampler if sampler is not None else ResetStateSamplerCfg(history_length=1, scores=[]),
-        shared=shared,
+        groups=group,
         origins=None if origins is None else wp.from_torch(origins.contiguous(), dtype=wp.vec3f),
         nominal_probability=nominal_probability,
         record=record,
@@ -448,6 +496,9 @@ Params:
   or None to draw uniformly;
 - ``shared``: whether every world draws from one bank rather than its own. Share a bank only between worlds whose
   states fit each other: a state banked with one object spawned does not fit a world with another;
+- ``groups``: a callable that returns the group of each world, such as :func:`prototype_groups`, for one bank per
+  group: the worlds of a group draw from its states and share their success statistics, as MDP1's lift bank does
+  per object. Without it, each world has its own bank;
 - ``nominal_probability``: the fraction of resets that keep what the earlier reset events wrote. Those episodes are
   not credited to any slot;
 - ``record``: :class:`RecordStates`, to bank states visited during training.
@@ -541,10 +592,6 @@ def _minus_origin(pose: torch.Tensor, origins: torch.Tensor) -> torch.Tensor:
     relative = pose.clone()
     relative[:, :3] -= origins
     return relative
-
-
-def _rows(take: torch.Tensor, value: torch.Tensor) -> torch.Tensor:
-    return take.view(-1, *[1] * (value.ndim - 1))
 
 
 def _as_warp(value: Any) -> wp.array:
