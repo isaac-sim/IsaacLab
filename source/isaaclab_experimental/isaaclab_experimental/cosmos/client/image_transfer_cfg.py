@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Configuration for application-owned image generation applied as camera tensor processors."""
+"""Configuration of the image transfer processors Cosmos builds on."""
 
 from __future__ import annotations
 
@@ -15,14 +15,14 @@ from isaaclab.utils import configclass
 from isaaclab.utils.tensor_processors import TensorProcessorCfg
 
 if TYPE_CHECKING:
-    from .processor import DepthControlProcessor, ImageTransferProcessor
+    from .image_transfer import DepthControlProcessor, ImageTransferProcessor
 
 
 @configclass
 class DepthControlProcessorCfg(TensorProcessorCfg):
     """Turn the camera's metric depth into the controls of an image transfer: near white, far black."""
 
-    func: type[DepthControlProcessor] | str = "{DIR}.processor:DepthControlProcessor"
+    func: type[DepthControlProcessor] | str = "{DIR}.image_transfer:DepthControlProcessor"
     """Depth control processor class."""
 
     inputs: list[str] = ["distance_to_image_plane"]
@@ -59,7 +59,7 @@ class ImageTransferProcessorCfg(TensorProcessorCfg):
     queued controls and episode state.
     """
 
-    func: type[ImageTransferProcessor] | str = "{DIR}.processor:ImageTransferProcessor"
+    func: type[ImageTransferProcessor] | str = "{DIR}.image_transfer:ImageTransferProcessor"
     """Image transfer processor class."""
 
     inputs: list[str] = ["control"]

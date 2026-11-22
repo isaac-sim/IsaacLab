@@ -10,7 +10,7 @@ from contextlib import contextmanager
 import pytest
 import torch
 import warp as wp
-from isaaclab_experimental.image_transfer import DepthControlProcessorCfg, ImageTransferProcessorCfg
+from isaaclab_experimental.cosmos import DepthControlProcessorCfg, ImageTransferProcessorCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg

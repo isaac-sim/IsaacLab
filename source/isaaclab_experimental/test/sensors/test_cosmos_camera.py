@@ -7,9 +7,13 @@
 
 import pytest
 import torch
-from isaaclab_experimental.cosmos import CosmosModelCfg, CosmosTransferProcessorCfg, cosmos_camera
+from isaaclab_experimental.cosmos import (
+    CosmosModelCfg,
+    CosmosTransferProcessorCfg,
+    DepthControlProcessorCfg,
+    cosmos_camera,
+)
 from isaaclab_experimental.cosmos.client.cosmos_processor import _center_crop_resize
-from isaaclab_experimental.image_transfer import DepthControlProcessorCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.sensors import CameraCfg

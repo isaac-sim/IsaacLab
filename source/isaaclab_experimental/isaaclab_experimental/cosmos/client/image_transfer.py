@@ -3,13 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Image generation from per-view control sequences, applied as camera tensor processors."""
+"""Image generation from per-view control sequences, the camera tensor processors Cosmos builds on."""
 
 from __future__ import annotations
 
 import math
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 import torch
 import warp as wp
@@ -20,10 +20,62 @@ from isaaclab.utils.tensor_processors import TensorProcessor
 from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
-    from .backend import ImageTransferModel
-    from .processor_cfg import DepthControlProcessorCfg, ImageTransferProcessorCfg
+    from .image_transfer_cfg import DepthControlProcessorCfg, ImageTransferProcessorCfg
 
 _SEED_MODULUS = 2**31
+
+
+class ImageTransferStream(Protocol):
+    """One batched generation stream with temporal state for each camera view.
+
+    Controls are uint8 THWC three-channel image sequences, one per view, valid until :meth:`step`
+    returns: the processor reuses their storage for later captures, so a stream that keeps a chunk
+    copies it. Returned images must be uint8 THWC sRGB with the same sequence lengths and image
+    size. Calls run on the current Torch stream; returned tensors must be ready on that stream.
+    Reset rows discard all episode state and start again from the given seeds; the first step names the views
+    that reset before it.
+    """
+
+    def step(
+        self,
+        controls: list[torch.Tensor],
+        reset_rows: tuple[int, ...],
+        seeds: tuple[int, ...],
+        episodes: tuple[int, ...] | None = None,
+    ) -> list[torch.Tensor] | None:
+        """Consume one chunk per view and return the corresponding images.
+
+        Args:
+            controls: One control chunk per view.
+            reset_rows: Views starting a new episode, in increasing order.
+            seeds: The seed of each view in ``reset_rows``.
+            episodes: Episode number of each view in ``reset_rows``, counted from the stream's start, for streams
+                that follow episodes ending between two steps. None counts one episode per reset.
+
+        Returns:
+            One image chunk per view, or None when a stream shared with other cameras publishes them later.
+        """
+        ...
+
+    def close(self) -> None:
+        """Release the stream's state. Repeated calls must be safe."""
+        ...
+
+
+class ImageTransferModel(Protocol):
+    """Shared, stateless model resource constructed from a :class:`~isaaclab.sim.BackendCfg`.
+
+    :meth:`~isaaclab.sim.SimulationContext.get_or_create_backend` returns one model for equal
+    configurations, so the model must keep per-camera state in the streams it opens.
+    """
+
+    def open_stream(self, num_views: int, seeds: tuple[int, ...]) -> ImageTransferStream:
+        """Open a stream for ``num_views`` camera views, seeded with one initial seed per view."""
+        ...
+
+    def close(self) -> None:
+        """Release the model. Repeated calls must be safe."""
+        ...
 
 
 class ImageTransferProcessor(TensorProcessor):

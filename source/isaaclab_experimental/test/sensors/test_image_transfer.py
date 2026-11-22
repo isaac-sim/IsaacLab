@@ -10,12 +10,12 @@ from types import SimpleNamespace
 import pytest
 import torch
 import warp as wp
-from isaaclab_experimental.image_transfer import (
+from isaaclab_experimental.cosmos import (
     DepthControlProcessorCfg,
     ImageTransferProcessorCfg,
     depth_to_control,
 )
-from isaaclab_experimental.image_transfer import processor as processor_module
+from isaaclab_experimental.cosmos.client import image_transfer as processor_module
 
 from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass

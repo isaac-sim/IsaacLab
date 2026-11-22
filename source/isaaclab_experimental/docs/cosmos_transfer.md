@@ -211,7 +211,7 @@ import math
 
 from isaaclab.sensors import CameraCfg
 from isaaclab_experimental.cosmos import CosmosModelCfg, CosmosTransferProcessorCfg
-from isaaclab_experimental.image_transfer import DepthControlProcessorCfg
+from isaaclab_experimental.cosmos import DepthControlProcessorCfg
 
 model = CosmosModelCfg(
     prompt="A robot arm manipulating an object on a workbench.",
@@ -575,8 +575,8 @@ recipe. A task whose prompt and settings were calibrated at another rate sets it
 
 ## Image transfer
 
-Cosmos is built on `isaaclab_experimental.image_transfer`, which connects an application-owned image-generation
-model to cameras through tensor processors. It does not load models, download assets, or open network
+The Cosmos processor is built on an image transfer processor in the same package, which connects an image-generation
+model to cameras through tensor processors. Cosmos is its only model for now. It does not load models, download assets, or open network
 connections. `ImageTransferProcessorCfg` takes the model as its `backend`, and `DepthControlProcessorCfg` prepares
 the control:
 
@@ -584,7 +584,7 @@ the control:
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
-from isaaclab_experimental.image_transfer import DepthControlProcessorCfg, ImageTransferProcessorCfg
+from isaaclab_experimental.cosmos import DepthControlProcessorCfg, ImageTransferProcessorCfg
 
 
 @configclass
@@ -606,8 +606,8 @@ wrist_camera = CameraCfg(
   configurations share one model through `SimulationContext.get_or_create_backend`, so the model holds only shared
   resources such as weights; without a simulation context, the processor builds and owns the model. Each processor
   opens its own `ImageTransferStream` with `open_stream(num_views, seeds)`, which holds the temporal state of its
-  views. `ImageTransferStream.step(controls, reset_rows, seeds)` receives one uint8 THWC three-channel control
-  sequence per view and returns uint8 sRGB images with the same sequence lengths and image size, with no implicit
+  views. `ImageTransferStream.step(controls, reset_rows, seeds, episodes=None)` receives one uint8 THWC three-channel
+  control sequence per view and returns uint8 sRGB images with the same sequence lengths and image size, with no implicit
   crop or resize. The controls are valid until `step` returns, since the processor reuses their storage, so a stream
   that keeps a chunk copies it. Calls run on the current Torch stream, and returned tensors must be ready on
   it. `close()` must be

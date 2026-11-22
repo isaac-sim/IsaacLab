@@ -32,11 +32,11 @@ import warp as wp
 from isaaclab_experimental.cosmos import CosmosModelCfg, CosmosTransferProcessorCfg, _protocol
 from isaaclab_experimental.cosmos.client import CosmosModel
 from isaaclab_experimental.cosmos.client import cosmos_model as cosmos_model_module
+from isaaclab_experimental.cosmos.client import image_transfer as processor_module
 from isaaclab_experimental.cosmos.client.cosmos_model import split_views
+from isaaclab_experimental.cosmos.client.image_transfer_cfg import DepthControlProcessorCfg
 from isaaclab_experimental.cosmos.server import serve
 from isaaclab_experimental.cosmos.server import service as service_module
-from isaaclab_experimental.image_transfer import DepthControlProcessorCfg
-from isaaclab_experimental.image_transfer import processor as processor_module
 
 from isaaclab.utils.tensor_processors import TensorProcessorCfg
 from isaaclab.utils.warp import ProxyArray

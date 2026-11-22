@@ -11,8 +11,8 @@ from typing import TYPE_CHECKING
 
 from isaaclab.utils import configclass
 
-from ...image_transfer import ImageTransferProcessorCfg
 from .._protocol import MAX_CHUNK_FRAMES
+from .image_transfer_cfg import ImageTransferProcessorCfg
 
 if TYPE_CHECKING:
     from .cosmos_model_cfg import CosmosModelCfg
