@@ -36,9 +36,9 @@ class FabricXformSelection:
     """Tagged Fabric selections over a set of prims and their parents, shared by the backend views.
 
     Three selections -- child read-only, child read-write, and parent world -- live for the
-    instance's lifetime, keyed on an index attribute named after the selected prims so their size
-    follows the view rather than the stage. Accessors rebuild the view-index to Fabric-slot mapping
-    from live Fabric data, so a bucket reorder can never leave it stale.
+    instance's lifetime, keyed on a path-derived index attribute so their size follows the view
+    rather than the stage. Accessors rebuild the view-index to Fabric-slot mapping from live Fabric
+    data, so a bucket reorder can never leave it stale.
 
     This selection owns matrix initialization. Seed modern Fabric matrices directly; views must not
     add another USD seed pass or use legacy transform compatibility attributes.
@@ -89,8 +89,7 @@ class FabricXformSelection:
 
         usd_stage = get_current_stage()
         usd_xforms = UsdGeom.XformCache()
-        stage_id = get_current_stage_id()
-        self.stage = usdrt.Usd.Stage.Attach(stage_id)
+        self.stage = usdrt.Usd.Stage.Attach(get_current_stage_id())
         fabric_id = self.stage.GetFabricId()
         self.fabric_hierarchy = (
             hierarchy.IFabricHierarchy().get_fabric_hierarchy(fabric_id, self.stage.GetStageIdAsStageId())
@@ -146,7 +145,7 @@ class FabricXformSelection:
                 rt_prim.GetAttribute(index_attr).Set(i)
                 group_prims.append(rt_prim)
             self._tagged_prims.append((index_attr, group_prims))
-        self._tag_key = (stage_id, digest)
+        self._tag_key = (get_current_stage_id(), digest)
         FabricXformSelection._tag_refs[self._tag_key] += 1
 
         matrix = usdrt.Sdf.ValueTypeNames.Matrix4d
@@ -214,27 +213,24 @@ class FabricXformSelection:
             )
 
     def close(self) -> None:
-        """Release the index attributes, removing them unless a live instance shares them.
-
-        Safe to call more than once.
-        """
+        """Remove the index attributes unless a live instance shares them. Safe to call more than once."""
         if self._tag_key is None:
             return
         key, self._tag_key = self._tag_key, None
-        tagged_prims, self._tagged_prims = self._tagged_prims, []
         refs = FabricXformSelection._tag_refs
         refs[key] -= 1
         if refs[key] > 0:
             return
         del refs[key]
         failed = total = 0
-        for attr, prims in tagged_prims:
+        for attr, prims in self._tagged_prims:
             total += len(prims)
             for prim in prims:
                 try:
                     prim.RemoveProperty(attr)
                 except Exception:  # noqa: BLE001 -- one bad handle must not strand the remaining tags
                     failed += 1
+        self._tagged_prims = []
         if failed:
             logger.debug("%s: %d of %d tag removals failed", self._owner, failed, total)
 
