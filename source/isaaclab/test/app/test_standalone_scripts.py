@@ -668,16 +668,7 @@ def test_standalone_script_runs_cleanly(case):
     screenshot_path = None
     if SCREENSHOT_DIR and not case.spec.finite and case.visualizer is not None and gui_is_available():
         screenshot_path = Path(SCREENSHOT_DIR) / f"{case.id}.png"
-    extra_args = ()
-    if (
-        RUNTIME_GROUP == "kit"
-        and case.spec.relative_path == "examples/multi_asset.py"
-        and case.visualizer is None
-        and not gui_is_available()
-    ):
-        # This headless asset smoke case needs physics stepping, not an offscreen Newton viewer alongside Kit.
-        extra_args = ("--visualizer", "none")
-    _launch(case, *extra_args, screenshot_path=screenshot_path)
+    _launch(case, screenshot_path=screenshot_path)
 
 
 @pytest.mark.integration
