@@ -39,6 +39,8 @@ class _RenderData:
     """Device the read places the images on, or ``None`` for the host."""
     resources: contextlib.ExitStack
     """Releases the query and its path list."""
+    rgb: torch.Tensor | None = None
+    """The camera's RGB output."""
 
 
 class OvstageImageRenderer(BaseRenderer):
@@ -49,7 +51,8 @@ class OvstageImageRenderer(BaseRenderer):
     environment's image to that environment's camera prim as :attr:`~.OvstageImageRendererCfg.attribute`, a ``uint8``
     array of ``height * width * 3`` row-major RGB values, at the stage's ordinal, and seals it with
     :meth:`~isaaclab_ov.stage.OvstageBackend.commit` before the cameras update. A camera copies the latest sealed image
-    of each environment; an environment without one keeps its previous image.
+    of each environment; an environment without one keeps its previous image, also across a reset, so the producer
+    writes the first image of a new episode before the cameras update.
     """
 
     cfg: OvstageImageRendererCfg
@@ -61,11 +64,11 @@ class OvstageImageRenderer(BaseRenderer):
         pass
 
     def create_render_data(self, spec: CameraRenderSpec) -> _RenderData:
-        """Bind the camera's prims, one per environment, to their image attribute in the simulation stage.
+        """Bind the camera's prims, one per view, to their image attribute in the simulation stage.
 
         Raises:
             RuntimeError: If no component has created the simulation stage.
-            ValueError: If the camera does not have one prim per environment.
+            ValueError: If the camera does not have one prim per view.
         """
         scene = next((s for s in self._sim.get_backends(OvstageBackendCfg) if s.cfg.scene_key is None), None)
         if scene is None:
@@ -74,30 +77,36 @@ class OvstageImageRenderer(BaseRenderer):
                 " producer of the images creates it with sim.get_or_create_backend(OvstageBackendCfg()) before the"
                 " cameras initialize."
             )
-        if len(spec.camera_prim_paths) != spec.num_instances:
+        if len(spec.camera_prim_paths) != spec.view_count:
             raise ValueError(
-                f"OvstageImageRenderer reads one image per environment, but the camera has {len(spec.camera_prim_paths)}"
-                f" prims for {spec.num_instances} environments."
+                "OvstageImageRenderer reads one image per camera view, but the camera has"
+                f" {len(spec.camera_prim_paths)} prims for {spec.view_count} views."
             )
         device = torch.device(spec.device)
         placement = None
         if device.type == "cuda":
-            placement = ovstage.Placement(device_type=ovstage.DLDeviceType.kDLCUDA, device_id=device.index or 0)
+            index = torch.cuda.current_device() if device.index is None else device.index
+            placement = ovstage.Placement(device_type=ovstage.DLDeviceType.kDLCUDA, device_id=index)
         resources = contextlib.ExitStack()
-        query = resources.enter_context(scene.query(spec.camera_prim_paths))
-        # The stage releases its borrowers before itself; cleanup may come later and finds nothing left to release.
-        scene.resources.callback(resources.close)
-        return _RenderData(
+        render_data = _RenderData(
             scene=scene,
-            query=query,
+            query=resources.enter_context(scene.query(spec.camera_prim_paths)),
             attribute=scene.paths.intern_token(self.cfg.attribute),
             image_shape=(spec.cfg.height, spec.cfg.width, 3),
             placement=placement,
             resources=resources,
         )
+        # The stage releases its borrowers before itself; cleanup may come later and finds nothing left to release.
+        scene.resources.callback(resources.close)
+        return render_data
 
     def set_outputs(self, render_data: _RenderData, output_data: dict[str, Any]) -> None:
-        pass
+        """Keep the camera's RGB output; its alpha, if any, is opaque."""
+        rgba = wp.to_torch(output_data["rgba"].warp) if "rgba" in output_data else None
+        if rgba is not None:
+            # RGB is a view of the RGBA buffer and only RGB is written, so alpha is set once.
+            rgba[..., 3] = 255
+        render_data.rgb = wp.to_torch(output_data["rgb"].warp) if "rgb" in output_data else rgba[..., :3]
 
     def update_transforms(self) -> None:
         pass
@@ -115,36 +124,38 @@ class OvstageImageRenderer(BaseRenderer):
         """Copy the latest sealed image of each environment that has one into the camera's RGB output.
 
         Raises:
-            ValueError: If an image does not have the camera's size.
+            ValueError: If an image does not have the camera's size; the camera then keeps its previous images.
         """
-        stage = render_data.scene.stage
-        rgba = wp.to_torch(camera_data.output["rgba"].warp) if "rgba" in camera_data.output else None
-        rgb = wp.to_torch(camera_data.output["rgb"].warp) if "rgb" in camera_data.output else rgba[..., :3]
+        stage, rgb = render_data.scene.stage, render_data.rgb
         read = stage.read_attributes(
             render_data.query,
             [render_data.attribute],
             ovstage.OrdinalRange.latest(ovstage.ORDINAL_MAX),
             placement=render_data.placement,
         )
+        groups = []
         try:
+            images = []
             for group in read.groups():
-                try:
-                    column = group.columns[0]
-                    for row in range(group.prim_count):
-                        image = torch.from_dlpack(column.dlpack(column.data_row_index(row)))
-                        if image.dtype != torch.uint8 or image.numel() != rgb[0].numel():
-                            raise ValueError(
-                                f"OvstageImageRenderer expects images of {render_data.image_shape} uint8 values in"
-                                f" '{self.cfg.attribute}', but one holds {image.numel()} values of {image.dtype}."
-                            )
-                        env = group.prim_index(row)
-                        rgb[env].copy_(image.view(render_data.image_shape))
-                        if rgba is not None:
-                            # RGB is a view of the RGBA buffer; its alpha is opaque.
-                            rgba[env, ..., 3] = 255
-                finally:
-                    stage.release_group(group)
+                groups.append(group)
+                column = group.columns[0]
+                for row in range(group.prim_count):
+                    image = torch.from_dlpack(column.dlpack(column.data_row_index(row)))
+                    if image.dtype != torch.uint8 or image.numel() != rgb[0].numel():
+                        raise ValueError(
+                            f"OvstageImageRenderer expects images of {render_data.image_shape} uint8 values in"
+                            f" '{self.cfg.attribute}', but one holds {image.numel()} values of {image.dtype}."
+                        )
+                    images.append((group.prim_index(row), image.view(render_data.image_shape)))
+            for env, image in images:
+                rgb[env].copy_(image)
+            if render_data.placement is not None:
+                # A CUDA read may copy the images into storage the group owns, which the stage frees on release
+                # without waiting for the device; the stage also rejects writes while the read is outstanding.
+                torch.cuda.current_stream(rgb.device).synchronize()
         finally:
+            for group in groups:
+                stage.release_group(group)
             read.release().wait()
 
     def cleanup(self, render_data: _RenderData | None) -> None:

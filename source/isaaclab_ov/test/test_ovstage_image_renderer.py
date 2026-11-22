@@ -23,7 +23,7 @@ from isaaclab.utils import configclass
 pytestmark = [pytest.mark.kitless, pytest.mark.ov]
 
 N, H, W = 2, 6, 8
-CAMERAS = [f"/World/envs/env_{env}/Camera" for env in range(N)]
+SIZE = H * W * 3
 
 
 @configclass
@@ -47,6 +47,8 @@ class SceneCfg(InteractiveSceneCfg):
         spawn=PinholeCameraCfg(),
         renderer_cfg=OvstageImageRendererCfg(),
     )
+    # A second camera reads its own prims from the same stage.
+    side_camera = camera.replace(prim_path="{ENV_REGEX_NS}/SideCamera")
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA))
@@ -61,27 +63,40 @@ def test_the_camera_shows_the_latest_image_of_each_environment(device):
         sim.reset()
         attribute = stage.paths.intern_token("sensor:rgb")
 
-        def produce(envs, values, size=H * W * 3):
-            """Write one uniform image per listed environment and seal it, then step and read the camera."""
-            with stage.query([CAMERAS[env] for env in envs]) as query:
-                images = [torch.full((size,), value, dtype=torch.uint8, device=device) for value in values]
-                stage.stage.write_attribute(query, attribute, stage.ordinal, images, is_array=True).wait()
+        def produce(images):
+            """Write uniform images, ``{(camera, env): (value, size)}``, and seal them; then step and read the
+            cameras' RGB. The side camera's images come from the host, so on CUDA its read copies them to the device."""
+            for (camera, env), (value, size) in images.items():
+                with stage.query([f"/World/envs/env_{env}/{camera}"]) as query:
+                    source = device if camera == "Camera" else "cpu"
+                    image = torch.full((size,), value, dtype=torch.uint8, device=source)
+                    stage.stage.write_attribute(query, attribute, stage.ordinal, [image], is_array=True).wait()
             stage.commit()
             sim.step(render=False)
             scene.update(sim.get_physics_dt())
-            output = scene["camera"].data.output
-            return output["rgb"].torch, output["rgba"].torch
+            return scene["camera"].data.output["rgb"].torch, scene["side_camera"].data.output["rgb"].torch
 
         # An environment without an image keeps its previous one; the stage returns only the image it has.
-        rgb, _ = produce([1], [11])
+        rgb, side = produce({("Camera", 1): (11, SIZE)})
         assert rgb[:, 0, 0, 0].tolist() == [0, 11]
+        assert (side == 0).all()
 
-        rgb, rgba = produce([0, 1], [10, 12])
+        rgb, side = produce({("Camera", 0): (10, SIZE), ("Camera", 1): (12, SIZE), ("SideCamera", 0): (20, SIZE)})
         assert rgb.tolist() == [[[[10] * 3] * W] * H, [[[12] * 3] * W] * H]
-        assert (rgba[..., 3] == 255).all()
+        assert side[:, 0, 0, 0].tolist() == [20, 0]
+        assert (scene["camera"].data.output["rgba"].torch[..., 3] == 255).all()
 
+        # A reset of one environment keeps its image until the producer writes the new episode's first one.
+        scene.reset(env_ids=[0])
+        rgb, _ = produce({})
+        assert rgb[:, 0, 0, 0].tolist() == [10, 12]
+        rgb, _ = produce({("Camera", 0): (30, SIZE)})
+        assert rgb[:, 0, 0, 0].tolist() == [30, 12]
+
+        # A wrong-sized image fails the read before any image is copied.
         with pytest.raises(ValueError, match="expects images of"):
-            produce([0], [0], size=H * W)
+            produce({("Camera", 0): (40, SIZE), ("Camera", 1): (41, H * W)})
+        assert rgb[:, 0, 0, 0].tolist() == [30, 12]
 
 
 def test_a_camera_needs_the_simulation_stage():
