@@ -373,7 +373,7 @@ class NewtonBackend:
         """Incremented when native body selection changes shape type or source after initialization."""
         self.model.num_envs = self.model.world_count
         self.device: wp.Device = self.model.device
-        self.state_version = 0
+        self.timestamp = 0
         """Advanced whenever the step or FK changes the state; asset data recomputes derived values cached before it."""
         self.particle_ranges: dict[str, tuple[int, int]] = {}
         """``(start, count)`` particle range per replicated deformable prim path."""
@@ -436,6 +436,7 @@ class NewtonBackend:
         """Body forces [N, N·m] written before the step, re-applied before every substep."""
         self.world_mask = wp.zeros(self.model.world_count + 1, dtype=wp.bool, device=self.device)
         """Worlds to reset; the final slot is Newton's global world, which Isaac Lab never resets."""
+        self._non_finite_worlds = TimestampedBuffer(wp.zeros(self.model.world_count, dtype=wp.bool, device=self.device))
         self.fk_mask = wp.zeros(self.model.articulation_count, dtype=wp.bool, device=self.device)
         """Articulations whose forward kinematics must be evaluated."""
         self.kinematics_dirty = False
@@ -493,7 +494,7 @@ class NewtonBackend:
             self.contact_sensors, self.imu_sensors = {}, []
             self.pre_actuator_callbacks, self.post_actuator_callbacks = [], []
             self.state_force_callbacks, self.post_step_callbacks, self.solver_init_callbacks = [], [], []
-            self.world_mask = self.fk_mask = None
+            self.world_mask = self.fk_mask = self._non_finite_worlds = None
 
     def init_solver(
         self,
@@ -530,7 +531,7 @@ class NewtonBackend:
             )
             solver.notify_model_changed(flags)
             self.geometry_change_version += 1
-            self.state_version += 1
+            self.timestamp += 1
         if not ops.single_state:
             ops.init_state(self.state_1)
         self._allocate_contacts()
@@ -618,7 +619,7 @@ class NewtonBackend:
         self.fk_mask.zero_()
         self.world_mask.zero_()
         self.kinematics_dirty = False
-        self.state_version += 1
+        self.timestamp += 1
 
     def notify_model_changes(self) -> None:
         """Notify the solver of the queued model-property changes once, combining their categories.
@@ -772,11 +773,26 @@ class NewtonBackend:
                     )
                 self._launch("finish_step", self._finish_step)
         # Graph replays skip the per-substep increments.
-        self.state_version += 1
+        self.timestamp += 1
         captured = bool(self.graphs)
         if not self.device.is_capturing:
             self.solver_ops.check_step(captured, self.cfg.debug_mode)
         return captured
+
+    def get_non_finite_worlds(self) -> wp.array:
+        """Return a borrowed per-world mask of nonfinite Newton state and persistent solver buffers.
+
+        Scan lazily once per state timestamp; physics steps and completed FK/reset invalidate the cache.
+        Newton's global world is excluded. Solver integrations own checks of their private state.
+        CPU MuJoCo has global solver history, so a fault in that history flags every world.
+        """
+        cache = self._non_finite_worlds
+        if cache.timestamp != self.timestamp:
+            cache.data.zero_()
+            with wp.ScopedDevice(self.device):
+                self.solver_ops.mark_non_finite_worlds(self.state_0, cache.data)
+            cache.timestamp = self.timestamp
+        return cache.data
 
     def state_pointers(self) -> tuple[int, int]:
         """Addresses of :attr:`state_0`'s body and particle arrays, ``0`` for an absent array.
@@ -946,7 +962,7 @@ class NewtonBackend:
                     self.state_0, self.state_1 = self.state_1, self.state_0
             self.state_0.clear_forces()
             # Derived data read by the next substep's state-force callbacks must see this substep's state.
-            self.state_version += 1
+            self.timestamp += 1
             if collide_mid_loop and (i + 1) % collide_every == 0 and i + 1 < num_substeps:
                 horizon = min(collide_every, num_substeps - i - 1)
                 self.collision_pipeline.collide(self.state_0, contacts, dt=horizon * dt)

@@ -21,6 +21,7 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
+from isaaclab_newton.envs.mdp import solver_fault
 from isaaclab_newton.physics import (
     FeatherstoneSolverCfg,
     KaminoPADMMSolverCfg,
@@ -48,6 +49,15 @@ from newton import ModelFlags
 from newton.actuators import DrivePID
 from newton.solvers import SolverImplicitMPM, SolverKamino, SolverMuJoCo, SolverVBD
 
+from isaaclab.managers import (
+    EventManager,
+    EventTermCfg,
+    ObservationGroupCfg,
+    ObservationManager,
+    ObservationTermCfg,
+    RewardManager,
+    RewardTermCfg,
+)
 from isaaclab.physics import PhysicsEvent
 from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
 from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context
@@ -435,7 +445,7 @@ def _recording_backend(
         fk_mask=wp.zeros(1, dtype=wp.bool, device=device),
         kinematics_dirty=False,
         transforms_may_change_on_graph_replay=False,
-        state_version=0,
+        timestamp=0,
         model_changes=set(),
         warned_model_changes=set(),
         pre_actuator_callbacks=[],
@@ -848,7 +858,7 @@ def test_forward_resolves_flagged_worlds_once_and_not_while_an_outer_graph_recor
         kinematics_dirty=True,
         transforms_may_change_on_graph_replay=False,
         model_changes=set(),
-        state_version=0,
+        timestamp=0,
     )
     scene_data = NewtonSceneDataBackend(manager)
 
@@ -1244,3 +1254,164 @@ def test_handled_actions_run_before_every_physics_step_like_the_environment_loop
     np.testing.assert_allclose(velocities[:2], velocities[2:], rtol=1e-5, atol=1e-6)
     # damping holds the body well below free-fall speed
     assert velocities[0][0, 2] > -0.5 * 9.81 * num_steps * decimation * 0.01
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
+def test_solver_fault_detects_private_buffers_and_recovers_only_the_failed_world(device, monkeypatch):
+    """Poisoned MuJoCo state is detected even with finite body poses, and masked recovery matches a clean solve."""
+    cfg = NewtonCfg(solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=True), num_substeps=1, use_cuda_graph=False)
+    backend, reference = (_pendulums(cfg, 1, device) for _ in range(2))
+    manager = NewtonManager(cfg)
+    manager.backend = backend
+    env = SimpleNamespace(
+        num_envs=4,
+        device=device,
+        sim=SimpleNamespace(backend_manager=manager, is_playing=lambda: False),
+        max_episode_length_s=2.0,
+        extras={},
+        reward_values=torch.tensor([1.0, float("nan"), 3.0, 4.0], device=device),
+        observation_values=torch.tensor([[float("nan"), 1.0], [7.0, 2.0], [3.0, 4.0], [5.0, 6.0]], device=device),
+    )
+    env.reward_manager = RewardManager(
+        {
+            "task": RewardTermCfg(func=lambda env: env.reward_values, weight=1.0),
+            "bonus": RewardTermCfg(func=lambda env: 2.0, weight=1.0),
+            "solver_fault_reward": RewardTermCfg(
+                func="isaaclab_newton.envs.mdp:zero_reward_on_solver_fault", weight=1.0
+            ),
+        },
+        env,
+    )
+    env.sim.is_playing = lambda: True
+    groups = {}
+    for name, concatenate in (("policy", True), ("perception", False)):
+        group = ObservationGroupCfg(concatenate_terms=concatenate)
+        group.values = ObservationTermCfg(
+            func=lambda env: env.observation_values, history_length=2, flatten_history_dim=concatenate
+        )
+        groups[name] = group
+    observations = ObservationManager(groups, env)
+    events = EventManager(
+        {
+            "solver_fault_observations": EventTermCfg(
+                func="isaaclab_newton.envs.mdp:zero_final_obs_on_solver_fault", mode="reset"
+            )
+        },
+        env,
+    )
+    observations.compute(update_history=True)
+    env.observation_values[1, 0] = float("inf")
+    art_ids = wp.array(np.arange(4).reshape(4, 1), dtype=wp.int32, device=device)
+    world_mask = wp.array([False, True, False, False], dtype=wp.bool, device=device)
+    scans = []
+    mark_faults = backend.solver_ops.mark_non_finite_worlds
+    monkeypatch.setattr(
+        backend.solver_ops,
+        "mark_non_finite_worlds",
+        lambda state, faults: (scans.append(state), mark_faults(state, faults)),
+    )
+    events.apply("reset", env_ids=torch.tensor([1], device=device), global_env_step_count=0)
+    assert not scans
+    for name in ("qpos", "qvel", "qacc", "qfrc_actuator", "qacc_warmstart", "qfrc_applied", "xfrc_applied"):
+        values = wp.to_torch(getattr(backend.solver.mjw_data, name))
+        scans_before = len(scans)
+        backend.step()
+        reference.step()
+        assert len(scans) == scans_before
+        values[1].fill_(float("nan"))
+        assert np.isfinite(backend.state_0.body_q.numpy()).all()
+        assert solver_fault(env).tolist() == [False, True, False, False]
+        torch.testing.assert_close(
+            env.reward_manager.compute(dt=0.1), torch.tensor([0.3, 0.0, 0.5, 0.6], device=device)
+        )
+        # The reset event clears complete terminal rows, including nonzero history.
+        for update_history in (True, False):
+            result = observations.compute(update_history=update_history)
+            env.extras["final_obs"] = result
+            events.apply("reset", env_ids=torch.tensor([1], device=device), global_env_step_count=0)
+            expected = torch.tensor(
+                [[float("nan"), 1.0, float("nan"), 1.0], [0.0] * 4, [3.0, 4.0] * 2, [5.0, 6.0] * 2],
+                device=device,
+            )
+            torch.testing.assert_close(result["policy"], expected, equal_nan=True)
+            torch.testing.assert_close(result["perception"]["values"], expected.reshape(4, 2, 2), equal_nan=True)
+        assert torch.isinf(env.observation_values[1, 0])
+        assert len(scans) == scans_before + 1
+        logs = env.reward_manager.reset(torch.tensor([1], device=device))
+        assert all(value.item() == 0.0 for value in logs.values())
+        # Use the same authored-state and FK boundary as the normal scene reset.
+        for target in (backend, reference):
+            wp.to_torch(target.state_0.joint_q)[1] = 0.0
+            wp.to_torch(target.state_0.joint_qd)[1] = 0.0
+            target.invalidate_fk(world_mask, art_ids)
+            target.forward()
+            target.step()
+        assert not backend.get_non_finite_worlds().numpy().any(), name
+    for name in ("joint_q", "joint_qd"):
+        np.testing.assert_allclose(
+            getattr(backend.state_0, name).numpy(), getattr(reference.state_0, name).numpy(), atol=1e-6, rtol=1e-5
+        )
+    assert not solver_fault(env).any()
+    # Masking the output must not erase stored history or hide unrelated nonfinite observations.
+    result = observations.compute(update_history=False)
+    env.extras["final_obs"] = result
+    events.apply("reset", env_ids=torch.tensor([1], device=device), global_env_step_count=0)
+    assert torch.isinf(result["policy"][1, 0])
+    assert torch.isnan(result["policy"][0, 0])
+    env.reward_values.fill_(1.0)
+    torch.testing.assert_close(env.reward_manager.compute(dt=0.1), torch.full((4,), 0.3, device=device))
+
+
+def test_non_finite_newton_state_ignores_global_entities():
+    cfg = NewtonCfg(solver_cfg=XPBDSolverCfg(), use_cuda_graph=False)
+    backend = _pendulums(cfg, 1, "cpu")
+    wp.to_torch(backend.state_0.joint_q)[0] = float("nan")
+    wp.to_torch(backend.state_0.joint_qd)[2] = float("inf")
+    assert np.isfinite(backend.state_0.body_q.numpy()).all()
+    assert backend.get_non_finite_worlds().numpy().tolist() == [True, False, True, False]
+
+    builder = create_builder(cfg)
+    for _ in range(4):
+        builder.begin_world()
+        builder.add_body(mass=1.0, inertia=wp.diag(wp.vec3(0.01)))
+        builder.add_particle(pos=wp.vec3(0.0), vel=wp.vec3(0.0), mass=1.0)
+        builder.end_world()
+    builder.add_body(mass=1.0, inertia=wp.diag(wp.vec3(0.01)))
+    builder.add_particle(pos=wp.vec3(0.0), vel=wp.vec3(0.0), mass=1.0)
+    backend = NewtonBackend(NewtonBackendCfg(physics_cfg=cfg, device="cpu"), builder, dt=0.01)
+    backend.init_solver()
+    poses = wp.to_torch(backend.state_0.body_q)
+    original_poses = poses.clone()
+    poses[1, 0] = poses[2, 3] = float("nan")
+    wp.to_torch(backend.state_0.body_qd)[3, 0] = float("inf")
+    poses[4].fill_(float("nan"))
+    assert backend.get_non_finite_worlds().numpy().tolist() == [False, True, True, True]
+    poses[:4] = original_poses[:4]
+    backend.state_0.body_qd.zero_()
+    backend.invalidate_body_state()
+    backend.forward()
+    wp.to_torch(backend.state_0.particle_q)[1, 0] = float("nan")
+    wp.to_torch(backend.state_0.particle_qd)[2, 2] = float("inf")
+    wp.to_torch(backend.state_0.particle_q)[4].fill_(float("nan"))
+    assert backend.get_non_finite_worlds().numpy().tolist() == [False, True, True, False]
+
+
+def test_cpu_mujoco_solver_history_fault_recovers():
+    """The single-world CPU MuJoCo path detects and resets its native history."""
+    cfg = NewtonCfg(solver_cfg=MJWarpSolverCfg(use_mujoco_cpu=True), num_substeps=1, use_cuda_graph=False)
+    builder = create_builder(cfg)
+    builder.begin_world()
+    link = builder.add_link(mass=1.0, inertia=wp.diag(wp.vec3(0.01)))
+    builder.add_articulation([builder.add_joint_revolute(-1, link)])
+    builder.end_world()
+    backend = NewtonBackend(NewtonBackendCfg(physics_cfg=cfg, device="cpu"), builder, dt=0.01)
+    backend.init_solver()
+    backend.solver.mj_data.qacc_warmstart[0] = float("nan")
+    assert backend.get_non_finite_worlds().numpy().all()
+    backend.invalidate_fk(
+        wp.array([True], dtype=wp.bool, device="cpu"),
+        wp.array(np.arange(1).reshape(1, 1), dtype=wp.int32, device="cpu"),
+    )
+    backend.forward()
+    backend.step()
+    assert not backend.get_non_finite_worlds().numpy().any()
