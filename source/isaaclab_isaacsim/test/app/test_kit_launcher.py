@@ -810,7 +810,7 @@ def test_close_preserves_exit_status_and_restores_sigint(close_raises):
             raise RuntimeError("Kit close failed")
 
     launcher = KitLauncher.__new__(KitLauncher)
-    launcher._app = SimpleNamespace(close=close)
+    launcher._app = SimpleNamespace(update=lambda: None, close=close)
 
     if close_raises:
         with pytest.raises(RuntimeError, match="Kit close failed"):
