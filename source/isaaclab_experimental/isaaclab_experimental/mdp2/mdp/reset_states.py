@@ -248,6 +248,7 @@ class ResetBank:
         zeros = functools.partial(wp.zeros, num_worlds, device=device)
         self._requests = wp.full(num_worlds, -1, dtype=wp.int32, device=device)
         self._restored, self._credit, self._valid = zeros(dtype=wp.bool), zeros(dtype=wp.bool), zeros(dtype=wp.bool)
+        self._writes = zeros(dtype=wp.bool)  # the worlds that this reset restores
         self._recording, self._record_rows = zeros(dtype=wp.bool), zeros(dtype=wp.int32)
         self._cursor = zeros(dtype=wp.int32)
         # Recording stores poses relative to the origins, from copies of the outputs.
@@ -320,13 +321,13 @@ class ResetBank:
         wp.launch(
             _choose_starts,
             mask.shape,
-            [mask, rng, self._requests, self._nominal, self._credit, self._valid, self._restored],
+            [mask, rng, self._requests, self._nominal, self._credit, self._valid, self._restored, self._writes],
             device=mask.device,
         )
         self.sampler.reset(mask, success=succeeded, valid=self._valid, state_ids=self._requests, rng=rng)
-        self.buffer.get_state(self.sampler.indices, out=self._outputs, mask=self._restored)
+        self.buffer.get_state(self.sampler.indices, out=self._outputs, mask=self._writes)
         for pose in self._poses:
-            wp.launch(_shift_poses, mask.shape, [self._restored, self._origins, pose, pose, 1.0], device=mask.device)
+            wp.launch(_shift_poses, mask.shape, [self._writes, self._origins, pose, pose, 1.0], device=mask.device)
 
     def record(self, rng: wp.array, terminated: wp.array, record_when: wp.array | None) -> None:
         """Record the states of the worlds selected this step into their oldest recorded slots."""
@@ -469,14 +470,17 @@ def _choose_starts(
     credit: wp.array(dtype=wp.bool),
     valid: wp.array(dtype=wp.bool),
     restored: wp.array(dtype=wp.bool),
+    writes: wp.array(dtype=wp.bool),
 ):
     world = wp.tid()
+    writes[world] = False
     if not mask[world]:
         return
     # The ended episode counts if it started from a slot that was not recorded over since.
     valid[world] = credit[world]
     restore = requests[world] >= 0 or wp.randf(wp.rand_init(rng[world], 1)) >= nominal_probability
     restored[world] = restore
+    writes[world] = restore
     credit[world] = restore
 
 
