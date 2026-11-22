@@ -14,9 +14,8 @@ __all__ = [
     "bias",
     "clip",
     "scale",
-    "replace_non_finite",
 ]
 
 from .tensor_processor_cfg import TensorProcessorCfg, DigitalFilterCfg, IntegratorCfg
 from .tensor_processor import TensorProcessor, TensorProcessorData
-from .processors import DigitalFilter, Integrator, bias, clip, replace_non_finite, scale
+from .processors import DigitalFilter, Integrator, bias, clip, scale

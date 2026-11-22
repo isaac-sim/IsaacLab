@@ -21,7 +21,7 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
-from isaaclab_newton.envs.mdp import solver_fault
+from isaaclab_newton.envs.mdp import solver_fault, zero_observation_on_solver_fault
 from isaaclab_newton.physics import (
     FeatherstoneSolverCfg,
     KaminoPADMMSolverCfg,
@@ -49,7 +49,7 @@ from newton import ModelFlags
 from newton.actuators import DrivePID
 from newton.solvers import SolverImplicitMPM, SolverKamino, SolverMuJoCo, SolverVBD
 
-from isaaclab.managers import RewardManager, RewardTermCfg
+from isaaclab.managers import ManagerTermBaseCfg, RewardManager, RewardTermCfg
 from isaaclab.physics import PhysicsEvent
 from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
 from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context
@@ -1261,6 +1261,9 @@ def test_solver_fault_detects_private_buffers_and_recovers_only_the_failed_world
         sim=SimpleNamespace(backend_manager=manager, is_playing=lambda: False),
         max_episode_length_s=2.0,
         reward_values=torch.tensor([1.0, float("nan"), 3.0, 4.0], device=device),
+        observation_values=torch.tensor(
+            [[float("nan"), 1.0], [float("inf"), 2.0], [3.0, 4.0], [5.0, 6.0]], device=device
+        ),
     )
     env.reward_manager = RewardManager(
         {
@@ -1272,6 +1275,7 @@ def test_solver_fault_detects_private_buffers_and_recovers_only_the_failed_world
         },
         env,
     )
+    observation = ManagerTermBaseCfg(func=lambda env: env.observation_values)
     art_ids = wp.array(np.arange(4).reshape(4, 1), dtype=wp.int32, device=device)
     world_mask = wp.array([False, True, False, False], dtype=wp.bool, device=device)
     scans = []
@@ -1294,6 +1298,12 @@ def test_solver_fault_detects_private_buffers_and_recovers_only_the_failed_world
         torch.testing.assert_close(
             env.reward_manager.compute(dt=0.1), torch.tensor([0.3, 0.0, 0.5, 0.6], device=device)
         )
+        torch.testing.assert_close(
+            zero_observation_on_solver_fault(env, observation),
+            torch.tensor([[float("nan"), 1.0], [0.0, 0.0], [3.0, 4.0], [5.0, 6.0]], device=device),
+            equal_nan=True,
+        )
+        assert torch.isinf(env.observation_values[1, 0])
         assert len(scans) == scans_before + 1
         logs = env.reward_manager.reset(torch.tensor([1], device=device))
         assert all(value.item() == 0.0 for value in logs.values())
@@ -1310,6 +1320,9 @@ def test_solver_fault_detects_private_buffers_and_recovers_only_the_failed_world
             getattr(backend.state_0, name).numpy(), getattr(reference.state_0, name).numpy(), atol=1e-6, rtol=1e-5
         )
     assert not solver_fault(env).any()
+    torch.testing.assert_close(
+        zero_observation_on_solver_fault(env, observation), env.observation_values, equal_nan=True
+    )
     env.reward_values.fill_(1.0)
     torch.testing.assert_close(env.reward_manager.compute(dt=0.1), torch.full((4,), 0.3, device=device))
 

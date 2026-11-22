@@ -6,13 +6,12 @@
 """Factory composition with reset-selectable assembly variants."""
 
 from isaaclab.managers import EventTermCfg as EventTerm
+from isaaclab.managers import ManagerTermBaseCfg, SceneEntityCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
-from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.utils.configclass import configclass
-from isaaclab.utils.tensor_processors import TensorProcessorCfg, replace_non_finite
 
 from . import mdp
 from .assembly_variants import ASSEMBLY_VARIANT_NAMES
@@ -30,8 +29,6 @@ from .factory_variant_scene_cfg import FactoryVariantSceneCfg
 from .utils.variant_sampling import SamplerCfg, UniformSamplingStrategyCfg
 from .variant_reset_env_cfg import VARIANT_ACCUMULATOR_RESET
 
-_FINITE_OBSERVATIONS = [TensorProcessorCfg(func=replace_non_finite)]
-
 
 @configclass
 class FactoryVariantObservationsCfg:
@@ -40,28 +37,44 @@ class FactoryVariantObservationsCfg:
     @configclass
     class PolicyCfg(ObsGroup):
         held_asset_in_fixed_asset_frame = ObsTerm(
-            func=mdp.target_asset_pose_in_root_asset_frame,
+            func="isaaclab_newton.envs.mdp:zero_observation_on_solver_fault",
             history_length=5,
-            tensor_processors=_FINITE_OBSERVATIONS,
             params={
-                "target_asset_cfg": SceneEntityCfg("held_asset"),
-                "root_asset_cfg": SceneEntityCfg("fixed_asset"),
-                "target_asset_offset": "held_align",
-                "root_asset_offset": "fixed_tip",
+                "observation": ManagerTermBaseCfg(
+                    func=mdp.target_asset_pose_in_root_asset_frame,
+                    params={
+                        "target_asset_cfg": SceneEntityCfg("held_asset"),
+                        "root_asset_cfg": SceneEntityCfg("fixed_asset"),
+                        "target_asset_offset": "held_align",
+                        "root_asset_offset": "fixed_tip",
+                    },
+                ),
             },
         )
         end_effector_vel_lin_ang_b = ObsTerm(
-            func=mdp.asset_link_velocity_in_root_asset_frame,
+            func="isaaclab_newton.envs.mdp:zero_observation_on_solver_fault",
             history_length=5,
-            tensor_processors=_FINITE_OBSERVATIONS,
             params={
-                "target_asset_cfg": SceneEntityCfg("robot", body_names=EndEffectorBodyCfg()),  # type: ignore
-                "root_asset_cfg": SceneEntityCfg("robot"),
-                "target_asset_offset": GripperGraspOffsetCfg(),
+                "observation": ManagerTermBaseCfg(
+                    func=mdp.asset_link_velocity_in_root_asset_frame,
+                    params={
+                        "target_asset_cfg": SceneEntityCfg("robot", body_names=EndEffectorBodyCfg()),  # type: ignore
+                        "root_asset_cfg": SceneEntityCfg("robot"),
+                        "target_asset_offset": GripperGraspOffsetCfg(),
+                    },
+                ),
             },
         )
-        joint_pos = ObsTerm(func=mdp.joint_pos, history_length=5, tensor_processors=_FINITE_OBSERVATIONS)
-        prev_action = ObsTerm(func=mdp.last_action, history_length=5, tensor_processors=_FINITE_OBSERVATIONS)
+        joint_pos = ObsTerm(
+            func="isaaclab_newton.envs.mdp:zero_observation_on_solver_fault",
+            params={"observation": ManagerTermBaseCfg(func=mdp.joint_pos)},
+            history_length=5,
+        )
+        prev_action = ObsTerm(
+            func="isaaclab_newton.envs.mdp:zero_observation_on_solver_fault",
+            params={"observation": ManagerTermBaseCfg(func=mdp.last_action)},
+            history_length=5,
+        )
 
         def __post_init__(self) -> None:
             self.enable_corruption = False
@@ -70,20 +83,24 @@ class FactoryVariantObservationsCfg:
     @configclass
     class PerceptionCfg(ObsGroup):
         scene_point_cloud = ObsTerm(
-            func=mdp.scene_point_cloud_b,
-            tensor_processors=_FINITE_OBSERVATIONS,
+            func="isaaclab_newton.envs.mdp:zero_observation_on_solver_fault",
             clip=(-2.0, 2.0),
             params={
-                "fixed_asset_cfg": SceneEntityCfg("fixed_asset"),
-                "held_asset_cfg": SceneEntityCfg("held_asset"),
-                "robot_asset_cfg": SceneEntityCfg("robot"),
-                "fixed_num_points": 256,
-                "held_num_points": 256,
-                "robot_num_points": 256,
-                "flatten": True,
-                "sampling_variant_order": None,
-                "sampling_seed": 42,
-                "robot_geometry_usd_path": None,
+                "observation": ManagerTermBaseCfg(
+                    func=mdp.scene_point_cloud_b,
+                    params={
+                        "fixed_asset_cfg": SceneEntityCfg("fixed_asset"),
+                        "held_asset_cfg": SceneEntityCfg("held_asset"),
+                        "robot_asset_cfg": SceneEntityCfg("robot"),
+                        "fixed_num_points": 256,
+                        "held_num_points": 256,
+                        "robot_num_points": 256,
+                        "flatten": True,
+                        "sampling_variant_order": None,
+                        "sampling_seed": 42,
+                        "robot_geometry_usd_path": None,
+                    },
+                ),
             },
         )
 

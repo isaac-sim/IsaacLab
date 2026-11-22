@@ -49,11 +49,6 @@ def clip(data: torch.Tensor, bounds: tuple[float | None, float | None]) -> torch
     return data.clip(min=bounds[0], max=bounds[1])
 
 
-def replace_non_finite(data: torch.Tensor, value: float = 0.0) -> torch.Tensor:
-    """Replace NaN and infinities with ``value`` without modifying the input tensor."""
-    return torch.nan_to_num(data, nan=value, posinf=value, neginf=value)
-
-
 def bias(data: torch.Tensor, value: float) -> torch.Tensor:
     """Adds a uniform bias to the data.
 

@@ -16,6 +16,7 @@ __all__ = [
     "randomize_visual_shape",
     "solver_fault",
     "zero_reward_on_solver_fault",
+    "zero_observation_on_solver_fault",
 ]
 
 from .actions import (
@@ -32,5 +33,6 @@ from .events import (
     randomize_rigid_body_material,
     randomize_visual_shape,
 )
+from .observations import zero_observation_on_solver_fault
 from .rewards import zero_reward_on_solver_fault
 from .terminations import solver_fault
