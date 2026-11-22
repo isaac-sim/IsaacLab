@@ -37,8 +37,14 @@ class HeterogeneousTaskManager:
     the task's objects in the slots, where the task changed, and makes their task poses the default root poses,
     which the environment's reset events write.
 
-    The objects are selected as reset-time mesh variants, which need the Newton backend with the XPBD solver, or
-    with the MJWarp solver and ``use_mujoco_contacts=False``.
+    .. note::
+        The objects are selected as reset-time mesh variants, which decides the physics and the camera renderer
+        that the task manager supports:
+
+        * Physics: Newton, with the MJWarp solver and ``use_mujoco_contacts=False`` or with the XPBD solver.
+        * Camera renderer: the Newton Warp renderer, :class:`~isaaclab_newton.renderers.NewtonWarpRendererCfg`.
+          The renderers of the USD stage, Isaac RTX and OVRTX, show the objects of the first task in every
+          environment, and the Newton OptiX renderer rejects mesh variants.
 
     .. code-block:: python
 
