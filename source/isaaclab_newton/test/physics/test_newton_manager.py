@@ -21,7 +21,7 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
-from isaaclab_newton.envs.mdp import solver_fault, zero_final_obs_on_solver_fault
+from isaaclab_newton.envs.mdp import solver_fault
 from isaaclab_newton.physics import (
     FeatherstoneSolverCfg,
     KaminoPADMMSolverCfg,
@@ -1261,7 +1261,6 @@ def test_solver_fault_detects_private_buffers_and_recovers_only_the_failed_world
         sim=SimpleNamespace(backend_manager=manager, is_playing=lambda: False),
         max_episode_length_s=2.0,
         reward_values=torch.tensor([1.0, float("nan"), 3.0, 4.0], device=device),
-        extras={},
     )
     env.reward_manager = RewardManager(
         {
@@ -1295,13 +1294,6 @@ def test_solver_fault_detects_private_buffers_and_recovers_only_the_failed_world
         torch.testing.assert_close(
             env.reward_manager.compute(dt=0.1), torch.tensor([0.3, 0.0, 0.5, 0.6], device=device)
         )
-        env.extras["final_obs"] = {
-            "policy": torch.ones((4, 2), device=device),
-            "critic": {"a": torch.ones(4, device=device)},
-        }
-        zero_final_obs_on_solver_fault(env, torch.tensor([1], device=device))
-        assert env.extras["final_obs"]["policy"].tolist() == [[1.0, 1.0], [0.0, 0.0], [1.0, 1.0], [1.0, 1.0]]
-        assert env.extras["final_obs"]["critic"]["a"].tolist() == [1.0, 0.0, 1.0, 1.0]
         assert len(scans) == scans_before + 1
         logs = env.reward_manager.reset(torch.tensor([1], device=device))
         assert all(value.item() == 0.0 for value in logs.values())
