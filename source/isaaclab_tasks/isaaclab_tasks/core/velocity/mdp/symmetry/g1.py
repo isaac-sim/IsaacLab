@@ -18,7 +18,7 @@ from tensordict import TensorDict
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
-__all__ = ["compute_symmetric_states"]
+__all__ = ["action_mirror_map", "body_mirror_permutation", "compute_symmetric_states", "joint_mirror_map"]
 _SCAN_ROWS, _SCAN_COLS = (11, 17)
 _VECTOR_MIRRORS = {
     "base_lin_vel": (1.0, -1.0, 1.0),
@@ -106,6 +106,21 @@ def _build_map(env: ManagerBasedRLEnv) -> tuple[torch.Tensor, torch.Tensor]:
         raise RuntimeError("the joint permutation is not an involution")
     env._g1_joint_mirror_map = (perm, sign)
     return (perm, sign)
+
+
+def joint_mirror_map(env: ManagerBasedRLEnv) -> tuple[torch.Tensor, torch.Tensor]:
+    """Return the permutation and signs that reflect G1 joint coordinates across the sagittal plane."""
+    return _build_map(env)
+
+
+def action_mirror_map(env: ManagerBasedRLEnv) -> tuple[torch.Tensor, torch.Tensor]:
+    """Return the permutation and signs that reflect the G1 joint-position actions across the sagittal plane."""
+    return _action_joint_map(env)
+
+
+def body_mirror_permutation(body_names: list[str]) -> list[int]:
+    """Return, for each G1 body, the index of its left-right counterpart."""
+    return [body_names.index(_counterpart(name)) for name in body_names]
 
 
 def _mirror_joint_block(block: torch.Tensor, perm: torch.Tensor, sign: torch.Tensor) -> torch.Tensor:

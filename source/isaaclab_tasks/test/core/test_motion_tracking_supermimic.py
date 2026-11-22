@@ -54,7 +54,7 @@ def test_g1_differentiable_motion_tracking_matches_simulation_and_managers() -> 
 
     from isaaclab.app import launch_simulation
 
-    from isaaclab_tasks.core.motion_tracking.supermimic import MotionTrackingTask
+    from isaaclab_tasks.core.motion_tracking.config.g1.supermimic import G1MotionTrackingTask
 
     cfg, _ = resolve_task_config(TASK, None, overrides=["presets=state_obs", "visualizer=none"])
     num_envs = 16
@@ -67,7 +67,9 @@ def test_g1_differentiable_motion_tracking_matches_simulation_and_managers() -> 
         try:
             obs, _ = env.reset()
             owner = env.unwrapped
-            task = MotionTrackingTask(env=env, device=owner.device)
+            task = G1MotionTrackingTask(env=env, device=owner.device)
+            action_term = owner.action_manager.get_term(owner.action_manager.active_terms[0])
+            reflect = torch.tensor([1.0, -1.0, 1.0], device=task.device)
             robot = owner.scene["robot"]
             phase = torch.linspace(0, 2 * torch.pi, num_envs * task.num_actions, device=task.device)
             phase = phase.reshape(num_envs, -1)
@@ -83,6 +85,22 @@ def test_g1_differentiable_motion_tracking_matches_simulation_and_managers() -> 
                 torch.testing.assert_close(lin, data.body_lin_vel_w.torch, atol=1e-3, rtol=1e-4)
                 torch.testing.assert_close(ang, data.body_ang_vel_w.torch, atol=1e-3, rtol=1e-4)
                 frame = task.actor_obs(state, goal, obs["context"], history)
+                if step < 4:
+                    # the reference action commands the reference joint positions
+                    action_term.process_actions(task.reference_action(state, goal))
+                    reference_targets = task.ref_joint_pos[task._frame(goal)][..., task.action_joints]
+                    torch.testing.assert_close(action_term.processed_actions, reference_targets)
+                    # the mirror reflects every body across the sagittal plane and is its own inverse
+                    mirrored = task.mirror_state(obs["state"])
+                    for mirror, value in (
+                        (task.mirror_state, obs["state"]),
+                        (task.mirror_actions, history),
+                        (task.mirror_context, obs["context"]),
+                        (task.mirror_labels, obs["labels"]),
+                    ):
+                        torch.testing.assert_close(mirror(mirror(value)), value)
+                    mirrored_pos = task.kinematics.forward(task.representation.unflatten(mirrored))[0]
+                    torch.testing.assert_close(mirrored_pos[:, task.body_perm], pos * reflect, atol=5e-3, rtol=0)
                 command = 2 * task.num_joints
                 torch.testing.assert_close(task.actor_goal(state, goal), obs["policy"][..., :command])
                 torch.testing.assert_close(frame, obs["policy"][..., command:], atol=1e-4, rtol=1e-4)
