@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import sys
+import warnings
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, Literal, cast
 
@@ -29,8 +30,9 @@ from ...utils.math import (
 from ...utils.warp import ProxyArray
 from ...utils.warp.memory import resolve_1d_indices, resolve_ids
 from ..sensor_base import SensorBase
-from .camera_cfg import _render_data_types
+from .camera_cfg import ExposureCfg, _render_data_types
 from .camera_data import CameraData, RenderBufferKind
+from .camera_exposure import apply_neutral_exposure
 
 if TYPE_CHECKING:
     from ...utils.tensor_processors import TensorProcessor
@@ -259,14 +261,43 @@ class Camera(SensorBase):
             if not sim_utils.find_matching_prims(spawn_target):
                 raise RuntimeError(f"Could not find prim with path {spawn_target!r}.")
 
-        # Complete camera authoring before cloning or importing the scene into a native backend.
         if self.cfg.isp_cfg is not None:
-            from isaaclab_ppisp import apply_rtx_exposure_overrides, resolve_and_normalize
+            from isaaclab_ppisp import PpispProcessorCfg, resolve_and_normalize
 
+            msg = (
+                "CameraCfg.isp_cfg is deprecated and will be removed in a future release. Add"
+                " isaaclab_ppisp.PpispProcessorCfg to tensor_processors instead."
+            )
+            warnings.warn(msg, FutureWarning, stacklevel=2)
+            if any(isinstance(cfg, PpispProcessorCfg) for cfg in self.cfg.tensor_processors):
+                raise ValueError(
+                    "CameraCfg.isp_cfg and a PpispProcessorCfg in tensor_processors both configure PPISP, which"
+                    " would run twice. Remove isp_cfg."
+                )
+            # PPISP applies its own exposure, so where it applies, the renderers that apply the camera's exposure
+            # (Isaac RTX and OVRTX) get neutral exposure.
+            first_prim = sim_utils.find_first_matching_prim(self.cfg.prim_path, self.stage)
+            first_path = str(first_prim.GetPath()) if first_prim else None
+            isp_cfg = resolve_and_normalize(self.cfg.isp_cfg, self.stage, first_path)
+            if isp_cfg is not None:
+                self.cfg.tensor_processors = [PpispProcessorCfg(isp_cfg=isp_cfg), *self.cfg.tensor_processors]
+                if self.cfg.renderer_cfg.renderer_type in ("isaac_rtx", "ovrtx"):
+                    self.cfg.exposure = ExposureCfg(mode="neutral")
+            # The processor now owns the value, so a camera built from this cfg does not forward it again.
+            self.cfg.isp_cfg = None
+        # Complete camera authoring before cloning or importing the scene into a native backend.
+        if self.cfg.exposure.mode == "neutral" or self.cfg.tensor_processors:
             camera_paths = [str(p.GetPath()) for p in sim_utils.find_matching_prims(self.cfg.prim_path, self.stage)]
-            self.cfg.isp_cfg = resolve_and_normalize(self.cfg.isp_cfg, self.stage, camera_paths[0])
-            if self.cfg.isp_cfg is not None and self.cfg.renderer_cfg.renderer_type in ("isaac_rtx", "ovrtx"):
-                apply_rtx_exposure_overrides(self.stage, camera_paths)
+        if self.cfg.exposure.mode == "neutral":
+            apply_neutral_exposure(self.stage, camera_paths)
+        if self.cfg.tensor_processors:
+            prepared = [
+                cfg.func.prepare_camera(cfg, self.stage, camera_paths, self.cfg.renderer_cfg)
+                if hasattr(cfg.func, "prepare_camera")
+                else cfg
+                for cfg in self.cfg.tensor_processors
+            ]
+            self.cfg.tensor_processors = [cfg for cfg in prepared if cfg is not None]
         self._render_data_types = _render_data_types(self.cfg)
 
         # Every renderer backend draws the visual-only geometry, so it must survive cloning even

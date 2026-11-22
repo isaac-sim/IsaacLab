@@ -14,9 +14,10 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import warp as wp
-from newton import Axis, ModelBuilder, ModelFlags, State
+from newton import Axis, Contacts, ModelBuilder, ModelFlags, State
 from newton.selection import ArticulationView
 from newton.sensors import SensorContact, SensorIMU
+from newton.solvers import SolverBase
 
 from pxr import UsdGeom
 
@@ -171,7 +172,7 @@ class NewtonManager(PhysicsManager):
 
     def video_capture_backend(self) -> str:
         """Newton GL headless perspective video capture."""
-        return "newton_gl"
+        return "newton"
 
     def _mark_transforms_changed(self) -> None:
         """Publish authored rigid-body changes and invalidate cable geometry."""
@@ -233,6 +234,7 @@ class NewtonManager(PhysicsManager):
         """Clear all Newton-specific state (callbacks cleared by super().close())."""
         self._close_backend(dispatch_stop=False)
         self._decimation = 1
+        self._requested_solver_observables: dict[object, set[str]] = {}
         self._handled_actions: tuple[ActionManager, InteractiveScene] | None = None
         # Site requests and replication outputs survive hard resets.
         # (body_pattern, per_world, xform floats) -> (label, transform)
@@ -330,6 +332,10 @@ class NewtonManager(PhysicsManager):
         """Return per-source builders retained from replication, keyed by clone-plan source path."""
         clone = self._clone
         return {} if clone is None else clone.source_builders
+
+    def get_non_finite_worlds(self) -> wp.array:
+        """Return faulted worlds; see :meth:`NewtonBackend.get_non_finite_worlds`."""
+        return self.backend.get_non_finite_worlds()
 
     def request_extended_state_attribute(self, attr: str) -> None:
         """Request an extended state attribute (e.g. ``"body_qdd"``) from the builder before finalization.
@@ -514,6 +520,7 @@ class NewtonManager(PhysicsManager):
             backend.init_solver(
                 None if plan is None else plan.env_template,
                 relaxed_capture=self._relaxed_capture,
+                observable_kinds=set().union(*self._requested_solver_observables.values()),
                 initial_body_variants=() if self._clone is None else self._clone.initial_body_variants,
             )
         if self._handled_actions is not None:
@@ -548,6 +555,39 @@ class NewtonManager(PhysicsManager):
             prim_paths = [path for path in model.articulation_label if re.fullmatch(root_expr, path)]
             view = ArticulationView(model, prim_paths, verbose=False)
         return VisualShapeColorWriter(model, view, body_names)
+
+    def request_solver_observables(self, *kinds: str, owner: object) -> None:
+        """Request an owner's solver outputs before initialization; requests survive hard resets.
+
+        Release the request with :meth:`release_solver_observables` when its consumer closes.
+        """
+        if self.backend is not None and self.backend.solver is not None:
+            raise RuntimeError("Request solver observables before the first simulation reset.")
+        self._requested_solver_observables[owner] = set(kinds)
+
+    def release_solver_observables(self, owner: object) -> None:
+        """Remove an owner's requests and invalidate the step graph if the active outputs change.
+
+        Retained outputs keep their allocated arrays.
+        """
+        if self._requested_solver_observables.pop(owner, None) is None:
+            return
+        backend = self.backend
+        if backend is None or backend.solver_observables is None:
+            return
+        kinds = set().union(*self._requested_solver_observables.values())
+        if kinds == backend.solver_observables.kinds:
+            return
+        backend.solver_observables = backend.solver_observables.select(kinds) if kinds else None
+        if backend.contact_observables is not None:
+            backend.contact_observables = backend.contact_observables.select(
+                kinds | SensorContact.solver_observable_kinds
+            )
+        backend.invalidate_graph()
+
+    def get_solver_observables(self) -> SolverBase.Observables | None:
+        """Return the outputs populated by each solver substep, or ``None`` when unrequested."""
+        return self.backend.solver_observables if self.backend is not None else None
 
     def get_scene_data_provider(self) -> SceneDataProvider:
         """Return the active scene data provider."""
@@ -605,6 +645,29 @@ class NewtonManager(PhysicsManager):
         backend = self.backend
         if backend is not None and callback in backend.state_force_callbacks:
             backend.state_force_callbacks.remove(callback)
+            backend.invalidate_graph()
+
+    def register_post_solver_substep_callback(
+        self, callback: Callable[[Contacts | None, SolverBase.Observables | None, State, float], None]
+    ) -> None:
+        """Register a graph-safe hook after each solve, before state swapping and force clearing.
+
+        Hard resets discard these hooks; register them again when the new model is ready.
+
+        Args:
+            callback: Function receiving contacts, observables, output state and substep duration [s].
+        """
+        if callback not in self.backend.post_solver_substep_callbacks:
+            self.backend.post_solver_substep_callbacks.append(callback)
+            self.backend.invalidate_graph()
+
+    def unregister_post_solver_substep_callback(
+        self, callback: Callable[[Contacts | None, SolverBase.Observables | None, State, float], None]
+    ) -> None:
+        """Remove a post-solve callback and invalidate Newton's cached step graphs."""
+        backend = self.backend
+        if backend is not None and callback in backend.post_solver_substep_callbacks:
+            backend.post_solver_substep_callbacks.remove(callback)
             backend.invalidate_graph()
 
     def register_post_step_callback(self, callback: Callable[[], None]) -> None:

@@ -20,6 +20,10 @@ exposes ``.is_success``: a per-env bool tensor read at runtime to update
 the success monitor. Any domain (locomotion, manipulation, …) can satisfy
 this contract by registering a termination term named ``progress_context``
 whose function exposes an ``.is_success`` attribute.
+
+A reset term may also expose a per-env ``.is_valid`` tensor. ChainedResetTerms
+and TermChoice propagate it; reset_accumulator excludes unsuccessful placements
+from its state table.
 """
 
 from __future__ import annotations
@@ -55,7 +59,7 @@ class reset_accumulator(ManagerTermBase):
 
     def __init__(self, cfg, env):
         super().__init__(cfg, env)
-        self.acceptance_conditions = [condition.func for condition in cfg.params["acceptance_conditions"].values()]
+        self.acceptance_conditions = cfg.params["acceptance_conditions"]
 
         # Filter to scene-resident assets: callers may include "optional" assets
         # that only exist for a subset of presets.
@@ -135,8 +139,11 @@ class reset_accumulator(ManagerTermBase):
                 prev_size = state_size
                 reset_term.func(env, all_env_ids, **reset_term.params)
                 valid_mask = torch.ones(len(all_env_ids), dtype=torch.bool, device=env.device)
-                for condition in self.acceptance_conditions:
-                    valid_mask &= condition(env, all_env_ids)
+                reported = getattr(reset_term.func, "is_valid", None)
+                if reported is not None:
+                    valid_mask &= reported[all_env_ids]
+                for condition in self.acceptance_conditions.values():
+                    valid_mask &= condition.func(env, all_env_ids, **condition.params)
 
                 valid_env_ids = all_env_ids[valid_mask]
                 if valid_env_ids.numel() > 0:
@@ -284,6 +291,7 @@ class TermChoice(ManagerTermBase):
             if self._sampler is not None
             else torch.zeros(env.num_envs, dtype=torch.long, device=env.device)
         )
+        self.is_valid = torch.ones(env.num_envs, dtype=torch.bool, device=env.device)
 
     def __call__(
         self,
@@ -311,6 +319,7 @@ class TermChoice(ManagerTermBase):
                 self.term_samples[monitor_ids], success[monitor_ids], valid[monitor_ids]
             )
         self._sampler.reset(env_ids=env_ids)
+        self.is_valid[env_ids] = True
         if report:
             log.update(
                 {
@@ -323,6 +332,9 @@ class TermChoice(ManagerTermBase):
             term_ids = env_ids[self.term_samples[env_ids] == i]
             if term_ids.numel() > 0:
                 term_cfg.func(env, term_ids, **term_cfg.params)
+                reported = getattr(term_cfg.func, "is_valid", None)
+                if reported is not None:
+                    self.is_valid[term_ids] = reported[term_ids]
 
         if report:
             env.extras.setdefault("log", {}).update(log)
@@ -332,6 +344,7 @@ class ChainedResetTerms(ManagerTermBase):
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
         self.terms: dict[str, EventTermCfg] = cfg.params["terms"]  # type: ignore
+        self.is_valid = torch.ones(env.num_envs, dtype=torch.bool, device=env.device)
 
     def __call__(
         self,
@@ -340,10 +353,14 @@ class ChainedResetTerms(ManagerTermBase):
         terms: dict[str, callable],
         probability: float = 1.0,
     ) -> None:
+        env_ids = env.scene._ALL_INDICES[env_ids]
+        self.is_valid[env_ids] = True
         if probability < 1.0:
-            env_ids = env.scene._ALL_INDICES[env_ids]
-            env_ids = env_ids[torch.rand(env_ids.shape[0], device=env.device) < probability]
-            if env_ids.shape[0] == 0:
-                return
+            env_ids = env_ids[torch.rand(env_ids.numel(), device=env.device) < probability]
+        if env_ids.numel() == 0:
+            return
         for _, term in terms.items():
             term.func(env, env_ids, **term.params)  # type: ignore
+            reported = getattr(term.func, "is_valid", None)
+            if reported is not None:
+                self.is_valid[env_ids] &= reported[env_ids]
