@@ -14,6 +14,7 @@ from isaaclab_ov.stage import OvstageBackendCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
+from isaaclab.renderers import CameraRenderSpec
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim.spawners.sensors.sensors_cfg import PinholeCameraCfg
@@ -52,7 +53,7 @@ class SceneCfg(InteractiveSceneCfg):
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA))
-def test_the_camera_shows_the_latest_image_of_each_environment(device):
+def test_the_camera_shows_the_latest_image_of_each_environment(device: str) -> None:
     from isaaclab_newton.physics import NewtonCfg
 
     sim_cfg = sim_utils.SimulationCfg(dt=1.0 / 30, device=device, gravity=(0.0, 0.0, 0.0), physics=NewtonCfg())
@@ -63,7 +64,7 @@ def test_the_camera_shows_the_latest_image_of_each_environment(device):
         sim.reset()
         attribute = stage.paths.intern_token("sensor:rgb")
 
-        def produce(images):
+        def produce(images: dict[tuple[str, int], tuple[int, int]]) -> tuple[torch.Tensor, torch.Tensor]:
             """Write uniform images, ``{(camera, env): (value, size)}``, and seal them; then step and read the
             cameras' RGB. The side camera's images come from the host, so on CUDA its read copies them to the device."""
             for (camera, env), (value, size) in images.items():
@@ -76,7 +77,6 @@ def test_the_camera_shows_the_latest_image_of_each_environment(device):
             scene.update(sim.get_physics_dt())
             return scene["camera"].data.output["rgb"].torch, scene["side_camera"].data.output["rgb"].torch
 
-        # An environment without an image keeps its previous one; the stage returns only the image it has.
         rgb, side = produce({("Camera", 1): (11, SIZE)})
         assert rgb[:, 0, 0, 0].tolist() == [0, 11]
         assert (side == 0).all()
@@ -93,13 +93,14 @@ def test_the_camera_shows_the_latest_image_of_each_environment(device):
         rgb, _ = produce({("Camera", 0): (30, SIZE)})
         assert rgb[:, 0, 0, 0].tolist() == [30, 12]
 
-        # A wrong-sized image fails the read before any image is copied.
         with pytest.raises(ValueError, match="expects images of"):
             produce({("Camera", 0): (40, SIZE), ("Camera", 1): (41, H * W)})
         assert rgb[:, 0, 0, 0].tolist() == [30, 12]
 
 
-def test_a_camera_needs_the_simulation_stage():
+def test_a_camera_needs_the_simulation_stage() -> None:
     renderer = OvstageImageRenderer(OvstageImageRendererCfg(), sim=SimpleNamespace(get_backends=lambda cfg: ()))
+    paths = tuple(f"/World/envs/env_{env}/Camera" for env in range(N))
+    spec = CameraRenderSpec(cfg=SceneCfg().camera, device="cpu", num_instances=N, camera_prim_paths=paths, view_count=N)
     with pytest.raises(RuntimeError, match="nothing has created it"):
-        renderer.create_render_data(SimpleNamespace(cfg=SceneCfg().camera, num_instances=N, camera_prim_paths=()))
+        renderer.create_render_data(spec)

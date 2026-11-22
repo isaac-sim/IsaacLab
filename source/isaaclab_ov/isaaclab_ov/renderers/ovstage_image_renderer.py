@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING, Any
 
 import ovstage
 import torch
-import warp as wp
 
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 
@@ -33,8 +32,6 @@ class _RenderData:
     scene: OvstageBackend
     query: ovstage.Query
     attribute: ovstage.Token
-    image_shape: tuple[int, int, int]
-    """Height, width and channels of one image."""
     placement: ovstage.Placement | None
     """Device the read places the images on, or ``None`` for the host."""
     resources: contextlib.ExitStack
@@ -92,7 +89,6 @@ class OvstageImageRenderer(BaseRenderer):
             scene=scene,
             query=resources.enter_context(scene.query(spec.camera_prim_paths)),
             attribute=scene.paths.intern_token(self.cfg.attribute),
-            image_shape=(spec.cfg.height, spec.cfg.width, 3),
             placement=placement,
             resources=resources,
         )
@@ -101,12 +97,10 @@ class OvstageImageRenderer(BaseRenderer):
         return render_data
 
     def set_outputs(self, render_data: _RenderData, output_data: dict[str, Any]) -> None:
-        """Keep the camera's RGB output; its alpha, if any, is opaque."""
-        rgba = wp.to_torch(output_data["rgba"].warp) if "rgba" in output_data else None
-        if rgba is not None:
-            # RGB is a view of the RGBA buffer and only RGB is written, so alpha is set once.
-            rgba[..., 3] = 255
-        render_data.rgb = wp.to_torch(output_data["rgb"].warp) if "rgb" in output_data else rgba[..., :3]
+        """Keep the camera's RGB output and make its alpha opaque."""
+        # RGB is a view of the RGBA buffer and only RGB is written, so alpha is set once.
+        output_data["rgba"].torch[..., 3] = 255
+        render_data.rgb = output_data["rgb"].torch
 
     def update_transforms(self) -> None:
         pass
@@ -124,7 +118,8 @@ class OvstageImageRenderer(BaseRenderer):
         """Copy the latest sealed image of each environment that has one into the camera's RGB output.
 
         Raises:
-            ValueError: If an image does not have the camera's size; the camera then keeps its previous images.
+            ValueError: If an image is not ``uint8`` or does not have the camera's size; the camera then keeps its
+                previous images.
         """
         stage, rgb = render_data.scene.stage, render_data.rgb
         read = stage.read_attributes(
@@ -143,13 +138,13 @@ class OvstageImageRenderer(BaseRenderer):
                     image = torch.from_dlpack(column.dlpack(column.data_row_index(row)))
                     if image.dtype != torch.uint8 or image.numel() != rgb[0].numel():
                         raise ValueError(
-                            f"OvstageImageRenderer expects images of {render_data.image_shape} uint8 values in"
+                            f"OvstageImageRenderer expects images of {tuple(rgb.shape[1:])} uint8 values in"
                             f" '{self.cfg.attribute}', but one holds {image.numel()} values of {image.dtype}."
                         )
-                    images.append((group.prim_index(row), image.view(render_data.image_shape)))
+                    images.append((group.prim_index(row), image.view(rgb.shape[1:])))
             for env, image in images:
                 rgb[env].copy_(image)
-            if render_data.placement is not None:
+            if render_data.placement is not None and images:
                 # A CUDA read may copy the images into storage the group owns, which the stage frees on release
                 # without waiting for the device; the stage also rejects writes while the read is outstanding.
                 torch.cuda.current_stream(rgb.device).synchronize()
