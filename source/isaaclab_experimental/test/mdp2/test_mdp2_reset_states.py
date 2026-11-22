@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for resetting MDP2 tasks from a bank of start states, on an analytic scene."""
+"""Tests for resetting MDP2 tasks to stored reset states, on an analytic scene."""
 
 from collections.abc import Collection
 
@@ -91,18 +91,18 @@ def _positive(world: int, joint_pos: wp.array2d(dtype=float)) -> float:
 
 positive = mdp2.Term(torch=lambda joint_pos: (joint_pos[:, 0] > 0.0).float(), warp=_positive)
 
-CANDIDATES = mdp2.TaskCfg(
+RESET_STATE_GENERATOR = mdp2.TaskCfg(
     events={"draw": mdp2.Event(draw, outputs=outputs)},
     terminations={"outside": mdp2.Termination(outside, inputs={"joint_pos": robot.joint_pos})},
 )
 
 
 def build(scene: Scene, backend: str = "warp", **params) -> tuple[mdp2.MDP, mdp2.MDPState]:
-    """Build a task whose only reset event restores from a bank, credited by whether the joint ended positive."""
+    """Build a task whose only reset event resets to stored states, credited by whether the joint ended positive."""
     inputs = params.pop("inputs", {"succeeded": mdp2.quantities.success})
     task = mdp2.TaskCfg(
         quantities={"success": mdp2.Quantity(positive, inputs={"joint_pos": robot.joint_pos})},
-        events={"reset": mdp2.Event(mdp.reset_from_bank, inputs=inputs, outputs=outputs, params=params)},
+        events={"reset": mdp2.Event(mdp.reset_to_states, inputs=inputs, outputs=outputs, params=params)},
     )
     builder = mdp2.MDPBuilder(scene.schema)
     builder.add_task(task)
@@ -123,17 +123,17 @@ def joint_pos(scene: Scene) -> torch.Tensor:
 RECORDING = {"succeeded": mdp2.quantities.success, "terminated": mdp2.terminated}
 
 
-def test_candidates_fill_each_world_with_valid_states_and_restore_only_reset_worlds():
+def test_generator_gives_each_world_valid_states_and_restore_only_reset_worlds():
     scene = Scene(num_worlds=8)
-    task_mdp, state = build(scene, fill=mdp.FillFromCandidates(CANDIDATES, bank_size=4))
-    bank = mdp.reset_bank(state)
+    task_mdp, state = build(scene, source=mdp.FromTask(RESET_STATE_GENERATOR, num_states=4))
+    reset_states = mdp.get_reset_states(state)
 
-    banked = bank.states["joint_pos"][..., 0].cpu()
-    assert banked.shape == (8, 4) and (banked.abs() <= 0.5).all() and len(banked.unique()) == 32
+    stored = reset_states.states["joint_pos"][..., 0].cpu()
+    assert stored.shape == (8, 4) and (stored.abs() <= 0.5).all() and len(stored.unique()) == 32
 
     reset(task_mdp, state, [True] * 8)
-    slots = bank.slots.cpu()
-    assert torch.equal(joint_pos(scene).cpu(), banked[torch.arange(8), slots])  # each world draws its own bank
+    slots = reset_states.started_from.cpu()
+    assert torch.equal(joint_pos(scene).cpu(), stored[torch.arange(8), slots])  # each world draws its own reset_states
 
     joint_pos(scene).add_(1.0)  # the worlds move on, as a step would move them
     before = joint_pos(scene).clone()
@@ -142,51 +142,51 @@ def test_candidates_fill_each_world_with_valid_states_and_restore_only_reset_wor
     assert torch.equal(joint_pos(scene)[1:], before[1:])
 
 
-def test_shared_bank_restores_poses_relative_to_each_world_origin():
+def test_shared_states_restore_poses_relative_to_each_world_origin():
     scene = Scene(num_worlds=4)
     poses = torch.tensor([[0.1, 0.2, 0.3, 0, 0, 0, 1], [-0.1, 0.0, 0.5, 0, 0, 0, 1]], device=DEVICE)
     states = {"joint_pos": torch.tensor([[0.25], [-0.25]], device=DEVICE), "object_pose_w": poses}
     task_mdp, state = build(
         scene,
-        fill=mdp.FillFromStates(states),
+        source=mdp.FromTensors(states),
         shared=True,
         inputs={"succeeded": mdp2.quantities.success, "env_origins": scene_entity.env_origins},
     )
     reset(task_mdp, state, [True] * 4)
 
-    slot = mdp.reset_bank(state).slots
+    slot = mdp.get_reset_states(state).started_from
     origins = scene.data("scene", "env_origins").torch
     torch.testing.assert_close(scene.data("object", "root_link_pose_w").torch[:, :3], poses[slot, :3] + origins)
     torch.testing.assert_close(scene.data("robot", "joint_pos").torch, states["joint_pos"][slot])
 
 
-def test_grouped_banks_fill_from_and_credit_the_worlds_of_each_group():
-    """As MDP1's lift bank per object: the worlds of a group draw from one bank, filled from their candidates, and
-    share its success statistics."""
+def test_grouped_states_come_from_and_credit_the_worlds_of_each_group():
+    """As MDP1's lift reset per object: the worlds of a group draw from one set of states, generated in their worlds,
+    and share its success statistics."""
     scene = Scene(num_worlds=8)
     sampler = ResetStateSamplerCfg(history_length=8, scores=[BetaSamplingScoreCfg(target=1.0)])
     task_mdp, state = build(
         scene,
-        fill=mdp.FillFromCandidates(CANDIDATES, bank_size=4),
+        source=mdp.FromTask(RESET_STATE_GENERATOR, num_states=4),
         groups=lambda ctx: torch.arange(ctx.num_worlds) % 2,
         sampler=sampler,
         inputs={"succeeded": mdp2.quantities.success, "env_origins": scene_entity.env_origins},
     )
-    bank = mdp.reset_bank(state)
-    banked = bank.states["joint_pos"][..., 0]
-    assert banked.shape == (2, 4) and len(banked.unique()) == 8
+    reset_states = mdp.get_reset_states(state)
+    stored = reset_states.states["joint_pos"][..., 0]
+    assert stored.shape == (2, 4) and len(stored.unique()) == 8
 
     transition = task_mdp.transition()
     for _ in range(4):
         reset(task_mdp, state, [True] * 8)
         mdp2.evaluate(task_mdp, state, transition)
-    group, slots = torch.arange(8, device=DEVICE) % 2, bank.slots
-    torch.testing.assert_close(joint_pos(scene), banked[group, slots])
+    group, slots = torch.arange(8, device=DEVICE) % 2, reset_states.started_from
+    torch.testing.assert_close(joint_pos(scene), stored[group, slots])
     origins = scene.data("scene", "env_origins").torch
     poses = scene.data("object", "root_link_pose_w").torch[:, :3] - origins
-    torch.testing.assert_close(poses, bank.states["object_pose_w"][group, slots, :3])
-    # Each group's four worlds credit its bank: three ended episodes each.
-    assert bank.episode_counts.shape == (2, 4) and bank.episode_counts.sum(dim=1).tolist() == [12, 12]
+    torch.testing.assert_close(poses, reset_states.states["object_pose_w"][group, slots, :3])
+    # Each group's four worlds credit its reset_states: three ended episodes each.
+    assert reset_states.episode_counts.shape == (2, 4) and reset_states.episode_counts.sum(dim=1).tolist() == [12, 12]
 
 
 def test_outcomes_are_credited_to_the_state_each_episode_started_from():
@@ -197,80 +197,86 @@ def test_outcomes_are_credited_to_the_state_each_episode_started_from():
     }
     sampler = ResetStateSamplerCfg(history_length=8, scores=[BetaSamplingScoreCfg(target=1.0)])
     inputs = {"succeeded": mdp2.quantities.success, "env_origins": scene_entity.env_origins}
-    task_mdp, state = build(scene, fill=mdp.FillFromStates(states), shared=True, sampler=sampler, inputs=inputs)
+    task_mdp, state = build(scene, source=mdp.FromTensors(states), shared=True, sampler=sampler, inputs=inputs)
     transition = task_mdp.transition()
     for _ in range(6):
         reset(task_mdp, state, [True] * 16)
         mdp2.evaluate(task_mdp, state, transition)  # success: the restored joint position is positive
 
-    bank = mdp.reset_bank(state)
-    np.testing.assert_allclose(bank.success_rate.cpu().numpy(), [1.0, 0.0])
-    assert bank.episode_counts.sum() == 5 * 16  # the first reset has no episode to credit
+    reset_states = mdp.get_reset_states(state)
+    np.testing.assert_allclose(reset_states.success_rate.cpu().numpy(), [1.0, 0.0])
+    assert reset_states.episode_counts.sum() == 5 * 16  # the first reset has no episode to credit
 
-    bank.discard_outcomes()  # a reset by hand mid-episode credits nothing
+    reset_states.skip_current_episodes()  # a reset by hand mid-episode credits nothing
     reset(task_mdp, state, [True] * 16)
-    assert bank.episode_counts.sum() == 5 * 16
+    assert reset_states.episode_counts.sum() == 5 * 16
 
 
-def test_recording_banks_visited_states_that_replay_restores():
+def test_recorded_visited_states_restore_when_pinned():
     scene = Scene(num_worlds=2)
     sampler = ResetStateSamplerCfg(history_length=4, scores=[BetaSamplingScoreCfg(target=0.5)])
-    record = mdp.RecordStates(slots=2, probability=1.0)
-    inputs = {**RECORDING, "record_when": mdp2.quantities.success}
-    fill = mdp.FillFromCandidates(CANDIDATES, bank_size=2)
-    task_mdp, state = build(scene, fill=fill, sampler=sampler, record=record, inputs=inputs)
-    bank, transition = mdp.reset_bank(state), task_mdp.transition()
-    filled = bank.states["joint_pos"][:, :2].clone()
-    assert torch.equal(bank.states["joint_pos"][:, 2:], filled)  # recorded slots start as copies
+    record = mdp.RecordVisited(num_states=2, probability=1.0)
+    inputs = {**RECORDING, "record_if": mdp2.quantities.success}
+    source = mdp.FromTask(RESET_STATE_GENERATOR, num_states=2)
+    task_mdp, state = build(scene, source=source, sampler=sampler, record=record, inputs=inputs)
+    reset_states, transition = mdp.get_reset_states(state), task_mdp.transition()
+    filled = reset_states.states["joint_pos"][:, :2].clone()
+    assert torch.equal(reset_states.states["joint_pos"][:, 2:], filled)  # recorded slots start as copies
 
     # Only world 1 visits a successful state, which is recorded into its first recorded slot with a fresh prior.
     joint_pos(scene).copy_(torch.tensor([-0.3, 0.7], device=DEVICE))
     mdp2.evaluate(task_mdp, state, transition)
-    banked = bank.states["joint_pos"][..., 0]
-    assert torch.equal(banked[0], filled[0, :, 0].repeat(2)) and banked[1, 2] == 0.7
-    assert bank.episode_counts[1, 2] == 0 and bank.success_rate[1, 2] == 0.5
+    stored = reset_states.states["joint_pos"][..., 0]
+    assert torch.equal(stored[0], filled[0, :, 0].repeat(2)) and stored[1, 2] == 0.7
+    assert reset_states.episode_counts[1, 2] == 0 and reset_states.success_rate[1, 2] == 0.5
 
-    # Replay restarts world 1 from the recorded state; world 0 draws from its own bank.
-    bank.replay(torch.tensor([-1, 2]))
+    # Pinning resets world 1 to the recorded state; world 0 draws from its own states.
+    reset_states.pin(torch.tensor([-1, 2]))
     joint_pos(scene).fill_(9.0)
     reset(task_mdp, state, [True, True])
     assert joint_pos(scene)[1] == 0.7 and joint_pos(scene)[0] in filled[0]
-    assert bank.slots.tolist()[1] == 2
+    assert reset_states.started_from.tolist()[1] == 2
 
     # Recording over the slot the episode started from drops that episode's credit.
     joint_pos(scene).copy_(torch.tensor([0.1, 0.2], device=DEVICE))
     mdp2.evaluate(task_mdp, state, transition)  # world 1 records into slot 3
     mdp2.evaluate(task_mdp, state, transition)  # then over slot 2
-    bank.replay(None)
+    reset_states.unpin()
     reset(task_mdp, state, [False, True])
-    assert bank.episode_counts[1, 2] == 0 and (bank.states["joint_pos"][1, 2:, 0] == 0.2).all()
+    assert reset_states.episode_counts[1, 2] == 0 and (reset_states.states["joint_pos"][1, 2:, 0] == 0.2).all()
 
 
-def test_nominal_resets_keep_the_earlier_events_and_are_not_credited():
+def test_default_resets_keep_the_earlier_events_and_are_not_credited():
     scene = Scene(num_worlds=4)
-    task_mdp, state = build(scene, fill=mdp.FillFromCandidates(CANDIDATES, bank_size=8), nominal_probability=1.0)
-    bank = mdp.reset_bank(state)
+    task_mdp, state = build(
+        scene, source=mdp.FromTask(RESET_STATE_GENERATOR, num_states=8), default_reset_probability=1.0
+    )
+    reset_states = mdp.get_reset_states(state)
     joint_pos(scene).fill_(9.0)
     for _ in range(2):
         reset(task_mdp, state, [True] * 4)
-    assert (joint_pos(scene) == 9.0).all() and (bank.slots == -1).all() and bank.episode_counts.sum() == 0
+    assert (
+        (joint_pos(scene) == 9.0).all()
+        and (reset_states.started_from == -1).all()
+        and reset_states.episode_counts.sum() == 0
+    )
 
-    bank.replay(torch.tensor([5, -1, -1, -1]))  # a replay request overrides the nominal draw
+    reset_states.pin(torch.tensor([5, -1, -1, -1]))  # a pin overrides the default reset
     reset(task_mdp, state, [True] * 4)
-    assert joint_pos(scene)[0] == bank.states["joint_pos"][0, 5, 0] and (joint_pos(scene)[1:] == 9.0).all()
+    assert joint_pos(scene)[0] == reset_states.states["joint_pos"][0, 5, 0] and (joint_pos(scene)[1:] == 9.0).all()
 
 
-def test_saved_banks_fill_later_runs_with_the_same_worlds(tmp_path):
+def test_saved_states_load_in_later_runs_with_the_same_worlds(tmp_path):
     scene = Scene(num_worlds=4)
-    _, state = build(scene, fill=mdp.FillFromCandidates(CANDIDATES, bank_size=3))
-    path = tmp_path / "bank.pt"
-    mdp.reset_bank(state).save(path)
+    _, state = build(scene, source=mdp.FromTask(RESET_STATE_GENERATOR, num_states=3))
+    path = tmp_path / "reset_states.pt"
+    mdp.get_reset_states(state).save(path)
 
-    _, loaded = build(Scene(num_worlds=4), fill=mdp.FillFromFile(path))
-    for name, value in mdp.reset_bank(state).states.items():
-        assert torch.equal(mdp.reset_bank(loaded).states[name], value)
-    with pytest.raises(ValueError, match="holds banks of 4 worlds"):
-        build(Scene(num_worlds=2), fill=mdp.FillFromFile(path))
+    _, loaded = build(Scene(num_worlds=4), source=mdp.FromFile(path))
+    for name, value in mdp.get_reset_states(state).states.items():
+        assert torch.equal(mdp.get_reset_states(loaded).states[name], value)
+    with pytest.raises(ValueError, match="holds reset states of 4 worlds"):
+        build(Scene(num_worlds=2), source=mdp.FromFile(path))
 
 
 @wp.func
@@ -285,32 +291,32 @@ def _sample_goal_torch(mask, command, rng):
 sample_goal = mdp2.Term(torch=_sample_goal_torch, warp=_sample_goal, random=True)
 
 
-def test_banked_commands_are_sampled_by_the_candidates_and_stand_over_the_resample():
+def test_stored_commands_are_sampled_by_the_generator_and_stand_over_the_resample():
     goal = {"goal": mdp2.commands.goal}
     commands = {"goal": mdp2.Command(sample_goal)}
-    candidates = mdp2.TaskCfg(
+    generator = mdp2.TaskCfg(
         commands=commands,
         events={"draw": mdp2.Event(draw, outputs=outputs)},
-        terminations=CANDIDATES.terminations,
+        terminations=RESET_STATE_GENERATOR.terminations,
     )
     for backend in ("torch", "warp"):
         scene = Scene(num_worlds=4)
         event = mdp2.Event(
-            mdp.reset_from_bank,
+            mdp.reset_to_states,
             outputs={**outputs, **goal},
-            params={"fill": mdp.FillFromCandidates(candidates, bank_size=3)},
+            params={"source": mdp.FromTask(generator, num_states=3)},
         )
         builder = mdp2.MDPBuilder(scene.schema)
         builder.add_task(mdp2.TaskCfg(commands=commands, events={"reset": event}))
         task_mdp = builder.finalize(device=DEVICE, backend=backend)
         state = task_mdp.state(scene, seed=3)
         mdp2.startup(task_mdp, state)
-        bank = mdp.reset_bank(state)
+        reset_states = mdp.get_reset_states(state)
 
-        banked = bank.states["goal"]
-        assert ((banked >= 1.0) & (banked < 2.0)).all() and len(banked.unique()) == 12  # sampled, not the initial 0
+        stored = reset_states.states["goal"]
+        assert ((stored >= 1.0) & (stored < 2.0)).all() and len(stored.unique()) == 12  # sampled, not the initial 0
         reset(task_mdp, state, [True] * 4)
-        restored = bank.states["goal"][torch.arange(4), bank.slots]
+        restored = reset_states.states["goal"][torch.arange(4), reset_states.started_from]
         assert torch.equal(state.arrays[mdp2.commands.goal].torch, restored)
 
 
@@ -323,13 +329,13 @@ def test_backends_and_graph_replay_restore_and_record_the_same_states():
         task_mdp, state = build(
             scene,
             backend,
-            fill=mdp.FillFromCandidates(CANDIDATES, bank_size=8),
+            source=mdp.FromTask(RESET_STATE_GENERATOR, num_states=8),
             sampler=ResetStateSamplerCfg(history_length=4, scores=[BetaSamplingScoreCfg(target=0.5)]),
-            nominal_probability=0.25,
-            record=mdp.RecordStates(slots=4, probability=0.5),
+            default_reset_probability=0.25,
+            record=mdp.RecordVisited(num_states=4, probability=0.5),
             inputs=RECORDING,
         )
-        bank = mdp.reset_bank(state)
+        reset_states = mdp.get_reset_states(state)
         mask = ProxyArray(wp.zeros(32, dtype=wp.bool, device=DEVICE))
         transition = task_mdp.transition()
         actions = ProxyArray(wp.zeros((32, 0), dtype=wp.float32, device=DEVICE))
@@ -338,15 +344,18 @@ def test_backends_and_graph_replay_restore_and_record_the_same_states():
         history = []
         for step in range(12):
             mask.torch.copy_(torch.rand(32, device=DEVICE, generator=generator) < 0.5)
-            joint_pos(scene).add_(0.01)  # the worlds move, so that records differ from the filled states
-            bank.replay(torch.arange(32, device=DEVICE) % 12 - 4 if step == 6 else None)
+            joint_pos(scene).add_(0.01)  # the worlds move, so that records differ from the generated states
+            if step == 6:
+                reset_states.pin(torch.arange(32, device=DEVICE) % 12 - 4)
+            else:
+                reset_states.unpin()
             if captured is None:
                 mdp2.reset(task_mdp, state, mask)
                 mdp2.evaluate(task_mdp, state, transition)
             else:
                 captured.reset()
                 captured.evaluate()
-            history.append(torch.cat([joint_pos(scene), bank.states["joint_pos"].flatten()]))
+            history.append(torch.cat([joint_pos(scene), reset_states.states["joint_pos"].flatten()]))
         runs.append(torch.stack(history))
     assert not torch.equal(runs[0][-1, 32:], runs[0][0, 32:])  # the worlds recorded states
     for run in runs[1:]:
@@ -356,15 +365,15 @@ def test_backends_and_graph_replay_restore_and_record_the_same_states():
 @pytest.mark.parametrize(
     ("params", "message"),
     [
-        ({"fill": mdp.FillFromStates({"joint_pos": torch.zeros(2, 1, 1)})}, "but the event writes"),
-        ({"fill": mdp.FillFromCandidates(CANDIDATES, bank_size=2), "shared": True}, "needs the env_origins input"),
+        ({"source": mdp.FromTensors({"joint_pos": torch.zeros(2, 1, 1)})}, "but the event writes"),
+        ({"source": mdp.FromTask(RESET_STATE_GENERATOR, num_states=2), "shared": True}, "need the env_origins input"),
         (
-            {"fill": mdp.FillFromCandidates(CANDIDATES, bank_size=2), "record": mdp.RecordStates(2, 0.1)},
+            {"source": mdp.FromTask(RESET_STATE_GENERATOR, num_states=2), "record": mdp.RecordVisited(2, 0.1)},
             "the terminated input",
         ),
     ],
     ids=["fill_misses_an_output", "shared_poses_without_origins", "recording_without_terminated"],
 )
-def test_invalid_banks_are_rejected_at_startup(params, message):
+def test_invalid_reset_states_are_rejected_at_startup(params, message):
     with pytest.raises(ValueError, match=message):
         build(Scene(num_worlds=2), **params)
