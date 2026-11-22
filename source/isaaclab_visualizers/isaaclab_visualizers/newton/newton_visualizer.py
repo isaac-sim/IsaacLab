@@ -47,6 +47,7 @@ from pyglet.math import Vec3 as PygletVec3
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sensors.camera import Camera
 from isaaclab.sim import SimulationContext
+from isaaclab.utils.backend_utils import FactoryBase
 from isaaclab.utils.images import display_channels, sensor_key_for_gt_type
 from isaaclab.utils.math import quat_apply, quat_from_matrix, quat_mul
 from isaaclab.visualizers.base_visualizer import _VISUALIZER_MAX_TILES as MAX_TILED_ENVS
