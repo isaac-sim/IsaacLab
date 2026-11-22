@@ -12,15 +12,17 @@ Events
 Terminations
 ------------
 
-Configure ``solver_fault`` as a termination and ``zero_reward_on_solver_fault`` as the last nonzero
-reward term. Both terms query the backend directly. Detection runs lazily once per state
+Configure ``solver_fault`` as a termination, ``zero_reward_on_solver_fault`` as the last nonzero
+reward term and, when the environment computes ``extras["final_obs"]``, ``zero_final_obs_on_solver_fault``
+as the first reset event. All terms query the backend directly. Detection runs lazily once per state
 timestamp and is refreshed after a physics step or completed FK/reset. The reward term clears complete
-reward rows before summation and episode accumulation and does not require a named termination term.
+reward rows before summation and episode accumulation, the reset event clears the faulted rows of the
+terminal observation, and neither requires a named termination term.
 
 .. code-block:: python
 
-   from isaaclab.managers import RewardTermCfg, TerminationTermCfg
-   from isaaclab_newton.envs.mdp import solver_fault, zero_reward_on_solver_fault
+   from isaaclab.managers import EventTermCfg, RewardTermCfg, TerminationTermCfg
+   from isaaclab_newton.envs.mdp import solver_fault, zero_final_obs_on_solver_fault, zero_reward_on_solver_fault
    from isaaclab.utils import configclass
 
    @configclass
@@ -31,6 +33,11 @@ reward rows before summation and episode accumulation and does not require a nam
    class RewardsCfg:
        # Declare task reward terms above this final term.
        solver_fault_reward = RewardTermCfg(func=zero_reward_on_solver_fault, weight=1.0)
+
+   @configclass
+   class EventsCfg:
+       # Declare this reset event above the terms that rewrite the state.
+       solver_fault_final_obs = EventTermCfg(func=zero_final_obs_on_solver_fault, mode="reset")
 
 Detection includes Newton body, joint and particle state. MuJoCo additionally checks its private
 persistent buffers. MJWarp checks and resets these buffers per world. CPU MuJoCo uses global solver
