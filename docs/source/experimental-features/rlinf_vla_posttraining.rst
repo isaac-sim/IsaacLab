@@ -151,11 +151,17 @@ The H2 examples use N1.7. Download the checkpoint for either task and the shared
 Authenticate with ``uv run --no-sync hf auth login`` if required, using an account with access to the
 selected checkpoint repositories.
 
-The recorded evaluations used the task author's
-`Apple checkpoint <https://huggingface.co/LiFanxing/pnp_apple/tree/1f136aee682574518e8fc36e20a091211f10c8b4/checkpoint_1>`__
-and `Pack AGX checkpoint <https://huggingface.co/LiFanxing/pack_agx/tree/40a2c24c04e58a66d1c703dd0cb3027c696eb76c/rl_pack_agx_orin_contR_004pos_10ang-1/global_step_800>`__.
-To use either with the shared Cosmos backbone, download the linked directory and pass its local path
-to ``isaaclab play`` with ``--model_path``. The directory must contain ``config.json``.
+The recorded evaluations used the task author's checkpoints below. Repository access is required;
+anonymous requests return HTTP 401.
+
+* Apple: repository ``LiFanxing/pnp_apple``, revision ``1f136aee682574518e8fc36e20a091211f10c8b4``,
+  directory ``checkpoint_1``.
+* Pack AGX: repository ``LiFanxing/pack_agx``, revision ``40a2c24c04e58a66d1c703dd0cb3027c696eb76c``,
+  directory ``rl_pack_agx_orin_contR_004pos_10ang-1/global_step_800``.
+
+To use either with the shared Cosmos backbone, authenticate and download the indicated directory at
+its revision, then pass its local path to ``isaaclab play`` with ``--model_path``. The directory must
+contain ``config.json``.
 
 The H2 + Sharpa robot, NuRec capture, and scene objects are hosted on the official Isaac asset server
 under :attr:`~isaaclab.utils.assets.ISAACLAB_NUCLEUS_DIR`. To use a local mirror, configure the shared
