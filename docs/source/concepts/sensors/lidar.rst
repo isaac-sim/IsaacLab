@@ -6,11 +6,16 @@
 Lidar
 =====
 
-A :class:`~sensors.Lidar` is a tiled OVRTX solid-state lidar. Each environment
-gets one ``OmniLidar`` prim. Those prims share one render product, and one
-renderer step returns a point cloud that is split back into per-environment
-buffers.
+A :class:`~sensors.Lidar` is a tiled OVRTX lidar. ``model`` selects Lidar generic
+wpm or Lidar generic core and defaults to core, matching an ``OmniLidar`` prim.
+``scan_type`` selects a solid-state or rotary scan and defaults to rotary, matching
+the OmniLidar schemas. Each environment gets one ``OmniLidar`` prim. Those prims
+share one render product, and one renderer step returns a point cloud that is
+split back into per-environment buffers.
 
+``num_rays`` is the full scan. A solid-state scan fires the pattern once. A
+rotary scan repeats that pattern at every ``azimuth_resolution_deg`` step across
+the configured azimuth window. Each firing keeps ``max_returns`` slots.
 :attr:`~sensors.LidarData.points` has shape ``(num_envs, num_rays, 3)`` in the
 Torch view. The values are Cartesian positions, in meters, in the frame
 selected by ``frame_of_reference`` (``WORLD`` or ``SENSOR``). Misses are

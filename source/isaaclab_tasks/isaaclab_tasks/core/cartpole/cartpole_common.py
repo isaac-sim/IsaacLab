@@ -165,7 +165,7 @@ def cartpole_lidar_range_image(points: torch.Tensor) -> torch.Tensor:
 
 
 def cartpole_lidar_cfg() -> LidarCfg:
-    """Return one solid-state lidar aimed at the cartpole from the side camera.
+    """Return one solid-state Lidar generic wpm aimed at the cartpole from the side camera.
 
     The position matches the side camera. The quaternion aims the boresight along world +X, so
     azimuth 0 and elevation 0 look at the rail center. Points are returned in the sensor frame, out
@@ -177,6 +177,8 @@ def cartpole_lidar_cfg() -> LidarCfg:
     """
     return LidarCfg(
         prim_path="{ENV_REGEX_NS}/Lidar",
+        model="wpm",
+        scan_type="solid_state",
         offset=LidarCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(0.5, -0.5, -0.5, 0.5)),
         azimuth_deg=_CARTPOLE_LIDAR_AZIMUTH,
         elevation_deg=_CARTPOLE_LIDAR_ELEVATION,

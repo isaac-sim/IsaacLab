@@ -12,7 +12,6 @@ __all__ = [
     "ExposureCfg",
     "Lidar",
     "LidarCfg",
-    "LidarSpawnerCfg",
     "LidarData",
     "RenderBufferKind",
     "RenderBufferSpec",
@@ -64,7 +63,6 @@ __all__ = [
 
 from .sensor_base import SensorBase
 from .sensor_base_cfg import SensorBaseCfg
-from .lidar import Lidar, LidarCfg, LidarData, LidarSpawnerCfg
 from .camera import (
     Camera,
     CameraCfg,
@@ -102,6 +100,7 @@ from .joint_wrench import (
     JointWrenchSensorCfg,
     JointWrenchSensorData,
 )
+from .lidar import Lidar, LidarCfg, LidarData
 from .pva import BasePva, BasePvaData, Pva, PvaCfg, PvaData
 from .ray_caster import (
     MultiMeshRayCaster,

@@ -6,9 +6,10 @@
 """Tiled OVRTX lidar sensor.
 
 The host USD runtime cannot load ovrtx's ``omniSensor`` schema plugin, so the prim is authored as
-an ``OmniLidar`` with the WPM attributes and schema names written explicitly. ovrtx reads those
-attributes from the exported stage. An unregistered ``OmniLidar`` type is not Xformable, so the
-pose written to the renderer is the configured offset composed with the parent prim's world pose.
+an ``OmniLidar`` with the Lidar generic wpm or Lidar generic core attributes written explicitly.
+ovrtx reads those attributes from the exported stage. An unregistered ``OmniLidar`` type is not
+Xformable, so the pose written to the renderer is the configured offset composed with the parent
+prim's world pose.
 """
 
 from __future__ import annotations
@@ -32,8 +33,8 @@ from .lidar_data import LidarData
 if TYPE_CHECKING:
     from .lidar_cfg import LidarCfg
 
-_PATTERN = "p001"
-_API_SCHEMAS = ("OmniSensorGenericLidarWpmAPI", f"OmniSensorGenericLidarWpmFiringPatternAPI:{_PATTERN}")
+_WPM_PATTERN = "p001"
+_CORE_STATE = "s001"
 
 
 def _set_attr(prim, name: str, type_name, value) -> None:
@@ -41,19 +42,32 @@ def _set_attr(prim, name: str, type_name, value) -> None:
     prim.CreateAttribute(name, type_name).Set(value)
 
 
-def _author_lidar(prim, cfg: LidarCfg) -> None:
-    """Write the WPM lidar schema and the solid-state firing pattern onto ``prim``."""
+def _apply_api_schemas(prim, names: tuple[str, ...]) -> None:
+    """Record the lidar API schemas. The host runtime does not have them registered."""
     schemas = Sdf.TokenListOp()
-    schemas.prependedItems = list(_API_SCHEMAS)
+    schemas.prependedItems = list(names)
     prim.SetMetadata("apiSchemas", schemas)
-    prefix = "omni:sensor:LidarWpm"
-    azimuths = [float(value) for value in cfg.azimuth_deg]
-    _set_attr(prim, "omni:sensor:modelName", Sdf.ValueTypeNames.String, "LidarWpm")
+
+
+def _scan_token(cfg: LidarCfg) -> str:
+    """Return the scan-type token for the selected model."""
+    if cfg.model == "wpm":
+        return "solidState" if cfg.scan_type == "solid_state" else "rotary"
+    return "SOLID_STATE" if cfg.scan_type == "solid_state" else "ROTARY"
+
+
+def _author_identity(prim, model_name: str) -> None:
+    """Write the shared sensor identity and a 10 Hz scan rate."""
+    _set_attr(prim, "omni:sensor:modelName", Sdf.ValueTypeNames.String, model_name)
     _set_attr(prim, "cameraSensorType", Sdf.ValueTypeNames.Token, "lidar")
     _set_attr(prim, "visibility", Sdf.ValueTypeNames.Token, "invisible")
     _set_attr(prim, "omni:sensor:frameRate", Sdf.ValueTypeNames.Double2, Gf.Vec2d(10.0, 1.0))
-    _set_attr(prim, f"{prefix}:scanType", Sdf.ValueTypeNames.Token, "solidState")
-    _set_attr(prim, f"{prefix}:rayType", Sdf.ValueTypeNames.Token, "idealized")
+
+
+def _author_output(prim, prefix: str, cfg: LidarCfg, ray_type: str) -> None:
+    """Write the output contract shared by both lidar models."""
+    _set_attr(prim, f"{prefix}:scanType", Sdf.ValueTypeNames.Token, _scan_token(cfg))
+    _set_attr(prim, f"{prefix}:rayType", Sdf.ValueTypeNames.Token, ray_type)
     _set_attr(prim, f"{prefix}:elementsCoordsType", Sdf.ValueTypeNames.Token, cfg.coords_type)
     _set_attr(prim, f"{prefix}:outputFrameOfReference", Sdf.ValueTypeNames.Token, cfg.frame_of_reference)
     _set_attr(prim, f"{prefix}:instantLidar", Sdf.ValueTypeNames.Bool, cfg.instant_lidar)
@@ -61,13 +75,50 @@ def _author_lidar(prim, cfg: LidarCfg) -> None:
     _set_attr(prim, f"{prefix}:maxReturns", Sdf.ValueTypeNames.UInt, int(cfg.max_returns))
     if cfg.far_range is not None:
         _set_attr(prim, f"{prefix}:farRangeM", Sdf.ValueTypeNames.Float, float(cfg.far_range))
+    # Each pattern azimuth is an offset from the tick at validStartAzimuthDeg. A start of 0 keeps
+    # azimuth 0 along the sensor's forward axis.
+    _set_attr(prim, f"{prefix}:validStartAzimuthDeg", Sdf.ValueTypeNames.Float, float(cfg.valid_start_azimuth_deg))
+    _set_attr(prim, f"{prefix}:validEndAzimuthDeg", Sdf.ValueTypeNames.Float, float(cfg.valid_end_azimuth_deg))
+    _set_attr(prim, f"{prefix}:rotPatternFiringResDeg", Sdf.ValueTypeNames.Float, float(cfg.azimuth_resolution_deg))
+
+
+def _author_pattern(prim, prefix: str, cfg: LidarCfg) -> None:
+    """Write one firing pattern or emitter state from the configured ray arrays."""
+    _set_attr(
+        prim,
+        f"{prefix}:azimuthDeg",
+        Sdf.ValueTypeNames.FloatArray,
+        Vt.FloatArray([float(value) for value in cfg.azimuth_deg]),
+    )
+    _set_attr(
+        prim,
+        f"{prefix}:elevationDeg",
+        Sdf.ValueTypeNames.FloatArray,
+        Vt.FloatArray([float(value) for value in cfg.elevation_deg]),
+    )
+    _set_attr(
+        prim,
+        f"{prefix}:fireTimeNs",
+        Sdf.ValueTypeNames.UIntArray,
+        Vt.UIntArray([int(value) for value in cfg.fire_time_ns]),
+    )
+    _set_attr(
+        prim,
+        f"{prefix}:channelId",
+        Sdf.ValueTypeNames.UIntArray,
+        Vt.UIntArray([int(value) for value in cfg.channel_id]),
+    )
+
+
+def _author_wpm(prim, cfg: LidarCfg) -> None:
+    """Write Lidar generic wpm and its ``p001`` firing pattern."""
+    _apply_api_schemas(
+        prim, ("OmniSensorGenericLidarWpmAPI", f"OmniSensorGenericLidarWpmFiringPatternAPI:{_WPM_PATTERN}")
+    )
+    _author_identity(prim, "LidarWpm")
+    prefix = "omni:sensor:LidarWpm"
+    _author_output(prim, prefix, cfg, "idealized")
     _set_attr(prim, f"{prefix}:tiledSubSampling", Sdf.ValueTypeNames.UInt, int(cfg.tiled_subsampling))
-    # The solid-state tick is placed at validStartAzimuthDeg, and each pattern azimuth is an offset
-    # from that tick. Keep the tick on the boresight so a configured azimuth of 0 looks along the
-    # sensor's forward axis.
-    _set_attr(prim, f"{prefix}:validStartAzimuthDeg", Sdf.ValueTypeNames.Float, 0.0)
-    _set_attr(prim, f"{prefix}:validEndAzimuthDeg", Sdf.ValueTypeNames.Float, 360.0)
-    _set_attr(prim, f"{prefix}:rotPatternFiringResDeg", Sdf.ValueTypeNames.Float, 1.0)
     _set_attr(prim, f"{prefix}:minDetectableReflectance", Sdf.ValueTypeNames.Float, 0.0)
     _set_attr(prim, f"{prefix}:detectorNoiseVariance", Sdf.ValueTypeNames.Float, 0.0)
     for name in (
@@ -77,32 +128,51 @@ def _author_lidar(prim, cfg: LidarCfg) -> None:
         "offsetElevationStdDevDeg",
     ):
         _set_attr(prim, f"{prefix}:{name}", Sdf.ValueTypeNames.Float, 0.0)
-    pattern = f"{prefix}:firingPattern:{_PATTERN}"
-    _set_attr(prim, f"{pattern}:azimuthDeg", Sdf.ValueTypeNames.FloatArray, Vt.FloatArray(azimuths))
-    _set_attr(
-        prim,
-        f"{pattern}:elevationDeg",
-        Sdf.ValueTypeNames.FloatArray,
-        Vt.FloatArray([float(value) for value in cfg.elevation_deg]),
-    )
-    _set_attr(
-        prim,
-        f"{pattern}:fireTimeNs",
-        Sdf.ValueTypeNames.UIntArray,
-        Vt.UIntArray([int(value) for value in cfg.fire_time_ns]),
-    )
-    _set_attr(
-        prim,
-        f"{pattern}:channelId",
-        Sdf.ValueTypeNames.UIntArray,
-        Vt.UIntArray([int(value) for value in cfg.channel_id]),
-    )
+    pattern = f"{prefix}:firingPattern:{_WPM_PATTERN}"
+    _author_pattern(prim, pattern, cfg)
     _set_attr(prim, f"{pattern}:rangeId", Sdf.ValueTypeNames.UIntArray, Vt.UIntArray())
+
+
+def _author_core(prim, cfg: LidarCfg) -> None:
+    """Write Lidar generic core and its ``s001`` emitter state."""
+    _apply_api_schemas(
+        prim, ("OmniSensorGenericLidarCoreAPI", f"OmniSensorGenericLidarCoreEmitterStateAPI:{_CORE_STATE}")
+    )
+    _author_identity(prim, "LidarCore")
+    prefix = "omni:sensor:Core"
+    emitter_count = len(cfg.azimuth_deg)
+    _author_output(prim, prefix, cfg, "IDEALIZED")
+    _set_attr(prim, f"{prefix}:numberOfEmitters", Sdf.ValueTypeNames.UInt, emitter_count)
+    _set_attr(
+        prim,
+        f"{prefix}:numberOfChannels",
+        Sdf.ValueTypeNames.UInt,
+        max(emitter_count, max(int(value) for value in cfg.channel_id)),
+    )
+    if cfg.scan_type == "solid_state":
+        _set_attr(prim, f"{prefix}:numLines", Sdf.ValueTypeNames.UInt, 1)
+        _set_attr(prim, f"{prefix}:numRaysPerLine", Sdf.ValueTypeNames.UIntArray, Vt.UIntArray([emitter_count]))
+    else:
+        _set_attr(prim, f"{prefix}:rotationDirection", Sdf.ValueTypeNames.Token, cfg.rotation_direction)
+    _author_pattern(prim, f"{prefix}:emitterState:{_CORE_STATE}", cfg)
+
+
+def _author_pose(prim, cfg: LidarCfg) -> None:
+    """Write the configured offset onto the prim."""
     xform = UsdGeom.Xformable(prim)
     xform.AddTranslateOp(UsdGeom.XformOp.PrecisionDouble).Set(Gf.Vec3d(*cfg.offset.pos))
     x, y, z, w = cfg.offset.rot
     xform.AddOrientOp(UsdGeom.XformOp.PrecisionFloat).Set(Gf.Quatf(float(w), Gf.Vec3f(float(x), float(y), float(z))))
     xform.AddScaleOp(UsdGeom.XformOp.PrecisionDouble).Set(Gf.Vec3d(1.0, 1.0, 1.0))
+
+
+def _author_lidar(prim, cfg: LidarCfg) -> None:
+    """Write the selected lidar model and the configured firing pattern onto ``prim``."""
+    if cfg.model == "core":
+        _author_core(prim, cfg)
+    else:
+        _author_wpm(prim, cfg)
+    _author_pose(prim, cfg)
 
 
 @wp.kernel
@@ -125,7 +195,7 @@ def _clear_lidar_returns_kernel(
 def spawn_lidar(prim_path: str, cfg: LidarCfg) -> Usd.Prim:
     """Spawn one ``OmniLidar`` prim. The clone decorator replicates it across matching parents.
 
-    The prim is authored with explicit WPM attributes, which ovrtx reads without a registered schema.
+    The prim is authored with explicit model attributes, which ovrtx reads without a registered schema.
     """
     stage = get_current_stage()
     prim = stage.DefinePrim(prim_path, "OmniLidar")
@@ -136,11 +206,14 @@ def spawn_lidar(prim_path: str, cfg: LidarCfg) -> Usd.Prim:
 
 
 class Lidar(SensorBase):
-    """Tiled solid-state lidar captured by an OVRTX renderer.
+    """Tiled OVRTX lidar captured by one renderer.
 
-    Each environment contributes one prim. A capture submits those prims as tiles of one lidar
-    render product, in environment order, and writes the split point cloud into :attr:`data`.
-    When the scene also has cameras on the same renderer, one renderer step produces both.
+    Each environment contributes one prim. ``model`` selects Lidar generic wpm or Lidar generic
+    core, and ``scan_type`` selects a solid-state or rotary scan. A capture submits those prims as
+    tiles of one lidar render product, in environment order, and writes the split point cloud into
+    :attr:`data`. The buffer length is the full scan: one firing of the pattern for a solid-state
+    scan, or one firing at every azimuth step for a rotary scan. When the scene also has cameras on
+    the same renderer, one renderer step produces both.
     """
 
     cfg: LidarCfg
@@ -246,7 +319,7 @@ class Lidar(SensorBase):
         super()._initialize_impl()
         from isaaclab import sim as sim_utils
 
-        num_rays = len(self.cfg.azimuth_deg) * self.cfg.max_returns
+        num_rays = self.cfg.num_rays()
         self._data = LidarData(self._num_envs, num_rays, self._device)
         self._local_pos = torch.tensor(self.cfg.offset.pos, dtype=torch.float32, device=self._device)
         self._local_quat = torch.tensor(self.cfg.offset.rot, dtype=torch.float32, device=self._device)

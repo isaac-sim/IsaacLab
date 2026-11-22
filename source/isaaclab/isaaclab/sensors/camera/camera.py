@@ -320,7 +320,6 @@ class Camera(SensorBase):
         self._tensor_processors: list[TensorProcessor] = []
         # Frame view — assigned in _initialize_impl.
         self._view: FrameView | None = None
-        self._pose_update_registered = False
 
     def __del__(self, _sys=sys):
         """Unsubscribes from callbacks and cleans up renderer resources.
@@ -764,22 +763,6 @@ class Camera(SensorBase):
         # Create internal buffers (includes intrinsic matrix and pose init)
         self._create_buffers()
         self._invalidate_buffers(self._ALL_ENV_MASK)
-        # A lidar sharing this renderer steps before the camera reads itself. The callback keeps
-        # the camera pose current for that shared step without advancing the camera frame counter.
-        register_pose_update = getattr(self._renderer, "register_pose_update", None)
-        if register_pose_update is not None and not getattr(self, "_pose_update_registered", False):
-            register_pose_update(self._push_renderer_pose)
-            self._pose_update_registered = True
-
-    def _push_renderer_pose(self) -> None:
-        """Write the current camera pose. ``frame_op=0`` does not count a new capture.
-
-        A frozen pose (``update_latest_camera_pose`` is false) stays as last written. The
-        camera's own capture still advances its frame through :meth:`_prepare_camera`.
-        """
-        if self._render_data is None or self._view is None or not self.cfg.update_latest_camera_pose:
-            return
-        self._update_poses(frame_op=0)
 
     def _prepare_camera(self, env_mask: wp.array) -> None:
         """Advance capture frames and refresh requested poses before rendering."""

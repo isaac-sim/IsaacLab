@@ -46,6 +46,44 @@ def test_lidar_cfg_rejects_returns_that_lose_ray_identity(field, value, match):
         _lidar_cfg(**{field: value})
 
 
+def test_lidar_cfg_rejects_a_non_positive_azimuth_step():
+    """A rotary step of zero cannot divide the azimuth window."""
+    with pytest.raises(ValueError, match="azimuth_resolution_deg"):
+        _lidar_cfg(azimuth_resolution_deg=0.0)
+
+
+@pytest.mark.parametrize(
+    ("overrides", "expected"),
+    [
+        ({"scan_type": "solid_state"}, 1),
+        (
+            {
+                "scan_type": "solid_state",
+                "azimuth_deg": [0.0, 1.0],
+                "elevation_deg": [0.0, 0.0],
+                "fire_time_ns": [0, 0],
+                "channel_id": [0, 1],
+                "max_returns": 2,
+            },
+            4,
+        ),
+        ({"scan_type": "rotary", "azimuth_resolution_deg": 90.0}, 4),
+        (
+            {
+                "scan_type": "rotary",
+                "azimuth_resolution_deg": 10.0,
+                "valid_start_azimuth_deg": 350.0,
+                "valid_end_azimuth_deg": 10.0,
+            },
+            2,
+        ),
+    ],
+)
+def test_lidar_scan_slot_count(overrides, expected):
+    """A solid-state scan keeps one slot per pattern ray, and a rotary scan repeats that pattern."""
+    assert _lidar_cfg(**overrides).num_rays() == expected
+
+
 def test_lidar_world_pose_composes_a_rotated_parent():
     """A parent yaw moves the offset off the world X axis instead of adding it to the origin."""
     lidar = Lidar.__new__(Lidar)

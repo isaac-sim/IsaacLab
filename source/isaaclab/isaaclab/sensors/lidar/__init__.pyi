@@ -7,9 +7,8 @@ __all__ = [
     "Lidar",
     "LidarCfg",
     "LidarData",
-    "LidarSpawnerCfg",
 ]
 
 from .lidar import Lidar
-from .lidar_cfg import LidarCfg, LidarSpawnerCfg
+from .lidar_cfg import LidarCfg
 from .lidar_data import LidarData

@@ -24,6 +24,8 @@ interpretation of the prim paths for different sensor types:
 +=====================+===========================+===============================================================+
 | Camera              | /World/robot/base/camera  | Leaf is available, and it will spawn a USD camera             |
 +---------------------+---------------------------+---------------------------------------------------------------+
+| Lidar               | /World/robot/base/lidar   | Leaf is available, and it will spawn an OmniLidar prim        |
++---------------------+---------------------------+---------------------------------------------------------------+
 | Contact Sensor      | /World/robot/feet_*       | Leaf is available and checks if the schema exists             |
 +---------------------+---------------------------+---------------------------------------------------------------+
 | Ray Caster          | /World/robot/base/raycast | ``spawn`` creates an Xform leaf; else the leaf must exist     |
@@ -35,8 +37,6 @@ interpretation of the prim paths for different sensor types:
 | Pva                 | /World/robot/base         | Leaf is a rigid body or (PhysX) has a rigid-body ancestor     |
 +---------------------+---------------------------+---------------------------------------------------------------+
 | Joint Wrench Sensor | /World/robot              | Leaf exists and is an articulation                            |
-+---------------------+---------------------------+---------------------------------------------------------------+
-| Lidar               | /World/envs/env_0/Lidar   | Leaf is available, and it will spawn an OmniLidar prim        |
 +---------------------+---------------------------+---------------------------------------------------------------+
 
 """

@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tiled OVRTX lidar sensors."""
+"""Sub-module for lidar sensors."""
 
 from isaaclab.utils.module import lazy_export
 

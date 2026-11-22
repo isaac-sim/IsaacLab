@@ -22,7 +22,6 @@
     Lidar
     LidarData
     LidarCfg
-    LidarSpawnerCfg
     ContactSensor
     ContactSensorData
     ContactSensorCfg
@@ -162,12 +161,6 @@ Lidar
     :exclude-members: __init__
 
 .. autoclass:: LidarCfg
-    :members:
-    :inherited-members:
-    :show-inheritance:
-    :exclude-members: __init__, class_type
-
-.. autoclass:: LidarSpawnerCfg
     :members:
     :inherited-members:
     :show-inheritance:
