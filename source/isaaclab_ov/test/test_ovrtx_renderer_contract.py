@@ -387,7 +387,7 @@ def test_shared_lidar_capture_steps_once_and_publishes_prepared_cameras(monkeypa
     renderer.backend.render_products.update(camera.render_product_path for camera in cameras)
     lidar = types.SimpleNamespace(render_product_path="/Render/Lidar")
     renderer._lidar_render_data = [lidar]
-    renderer.backend.lidar_render_products = {"/Render/Lidar"}
+    renderer.backend.render_products.add("/Render/Lidar")
     products["/Render/Lidar"] = types.SimpleNamespace(frames=[object()])
     submissions = []
     processed = []

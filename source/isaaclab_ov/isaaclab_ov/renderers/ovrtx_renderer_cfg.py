@@ -39,10 +39,10 @@ class OVRTXBackendCfg(BackendCfg):
     """Whether the engine borrows a simulation-owned OVStage instead of using its internal stage."""
     read_gpu_transforms: bool = MISSING
     """Whether OVRTX reads its GPU transform cache, resolved before native construction."""
+    motion_bvh: Literal["disable", "enable", "auto"] | None = None
+    """Motion BVH mode for sensor pipelines."""
     device: str = MISSING
     """Normalized simulation device: ``cpu`` or ``cuda:<index>``."""
-    motion_bvh: Literal["disable", "enable", "auto"] | None = None
-    """Motion BVH mode passed to the native renderer. ``None`` leaves the native setting unset."""
 
 
 @configclass
@@ -68,14 +68,6 @@ class OVRTXRendererCfg(RendererCfg):
     cloning_contexts: tuple[type | str, ...] = ("isaaclab_ov.cloner:OvrtxReplicateContext",)
     """Request native OVRTX copies; clone preparation may select a shared OVStage instead."""
 
-    motion_bvh: Literal["disable", "enable", "auto"] | None = None
-    """Motion BVH mode for lidar and other non-visual sensors. ``None`` leaves the native setting unset.
-
-    ``"auto"`` enables motion BVH when a non-visual sensor is rendered. ``"enable"`` and
-    ``"disable"`` force the mode. The value is copied onto the backend and read when the native
-    renderer is created.
-    """
-
     async_rendering: bool = False
     """Trade one capture of camera latency for pipelined rendering. Defaults to False (synchronous).
 
@@ -100,6 +92,15 @@ class OVRTXRendererCfg(RendererCfg):
 
     log_file_path: str = os.path.join(tempfile.gettempdir(), "ovrtx_renderer.log")
     """Path for OVRTX log file. Defaults to ``<system temp>/ovrtx_renderer.log``."""
+
+    motion_bvh: Literal["disable", "enable", "auto"] | None = None
+    """Motion BVH mode for sensor pipelines.
+
+    ``None`` disables motion BVH and sends no native config entry. ``"disable"`` turns motion BVH
+    off. ``"enable"`` turns it on from renderer creation. ``"auto"`` turns it on when a non-visual
+    sensor is rendered. The value is copied onto the backend and read when the native renderer is
+    created.
+    """
 
     enable_shadows: bool = False
     """Whether lights cast shadows in RTX Minimal mode. Defaults to False.
