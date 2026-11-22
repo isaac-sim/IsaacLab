@@ -19,11 +19,11 @@ from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 from isaaclab.utils.warp import ProxyArray
 
-from .articulation_data import ArticulationData
-from .unsupported import raise_for_unsupported
+from .articulation_data import UNSUPPORTED, ArticulationData
 
 if TYPE_CHECKING:
     from isaaclab.assets import ArticulationCfg
+    from isaaclab.utils.wrench_composer import WrenchComposer
 
     from ...physics import NeuralManager
 
@@ -125,10 +125,11 @@ class Articulation(BaseArticulation):
         manager: NeuralManager = self._backend_manager
         prims = sim_utils.find_matching_prims(self.cfg.prim_path)
         self._num_instances = len(prims)
-        names, limits = _usd_joints(prims[0])
-        if self.cfg.joint_ordering is not None:
-            order = [names.index(name) for name in self.cfg.joint_ordering]
-            names, limits = [names[i] for i in order], [limits[i] for i in order]
+        usd_names, usd_limits = _usd_joints(prims[0])
+        # The joints are virtual, so they are stored directly in the configured public order.
+        self._joint_names = usd_names
+        names, _ = self._resolve_axis_ordering("joint")
+        limits = [usd_limits[usd_names.index(name)] for name in names]
         self._joint_names = names
         manager.bind(self._num_instances, len(names))
         self._reset_mask = torch.zeros(self._num_instances, dtype=torch.bool, device=self._device)
@@ -280,5 +281,588 @@ class Articulation(BaseArticulation):
     def _validate_cfg(self) -> None:
         pass
 
+    # The world model has joint state only: these parts of the articulation are not available.
 
-raise_for_unsupported(Articulation, BaseArticulation)
+    @property
+    def root_view(self):
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def instantaneous_wrench_composer(self) -> WrenchComposer:
+        raise NotImplementedError(UNSUPPORTED)
+
+    @property
+    def permanent_wrench_composer(self) -> WrenchComposer:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def find_bodies(
+        self,
+        name_keys: str | Sequence[str],
+        preserve_order: bool = False,
+        *,
+        as_proxy: bool = False,
+    ) -> tuple[list[int] | ProxyArray, list[str]]:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def find_fixed_tendons(
+        self,
+        name_keys: str | Sequence[str],
+        tendon_subsets: list[str] | None = None,
+        preserve_order: bool = False,
+        *,
+        as_proxy: bool = False,
+    ) -> tuple[list[int] | ProxyArray, list[str]]:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def find_spatial_tendons(
+        self,
+        name_keys: str | Sequence[str],
+        tendon_subsets: list[str] | None = None,
+        preserve_order: bool = False,
+        *,
+        as_proxy: bool = False,
+    ) -> tuple[list[int] | ProxyArray, list[str]]:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def write_root_pose_to_sim_index(
+        self,
+        *,
+        root_pose: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        skip_forward: bool = False,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def write_root_pose_to_sim_mask(
+        self,
+        *,
+        root_pose: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+        skip_forward: bool = False,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def write_root_link_pose_to_sim_index(
+        self,
+        *,
+        root_pose: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        skip_forward: bool = False,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def write_root_link_pose_to_sim_mask(
+        self,
+        *,
+        root_pose: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+        skip_forward: bool = False,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def write_root_com_pose_to_sim_index(
+        self,
+        *,
+        root_pose: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        skip_forward: bool = False,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def write_root_com_pose_to_sim_mask(
+        self,
+        *,
+        root_pose: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+        skip_forward: bool = False,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def write_root_velocity_to_sim_index(
+        self,
+        *,
+        root_velocity: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        skip_forward: bool = False,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def write_root_velocity_to_sim_mask(
+        self,
+        *,
+        root_velocity: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+        skip_forward: bool = False,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def write_root_com_velocity_to_sim_index(
+        self,
+        *,
+        root_velocity: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        skip_forward: bool = False,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def write_root_com_velocity_to_sim_mask(
+        self,
+        *,
+        root_velocity: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+        skip_forward: bool = False,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def write_root_link_velocity_to_sim_index(
+        self,
+        *,
+        root_velocity: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        skip_forward: bool = False,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def write_root_link_velocity_to_sim_mask(
+        self,
+        *,
+        root_velocity: torch.Tensor | wp.array,
+        env_mask: wp.array | None = None,
+        skip_forward: bool = False,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def write_joint_stiffness_to_sim_index(
+        self,
+        *,
+        stiffness: torch.Tensor | float | wp.array,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def write_joint_stiffness_to_sim_mask(
+        self,
+        *,
+        stiffness: torch.Tensor | float | wp.array,
+        joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def write_joint_damping_to_sim_index(
+        self,
+        *,
+        damping: torch.Tensor | float | wp.array,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def write_joint_damping_to_sim_mask(
+        self,
+        *,
+        damping: torch.Tensor | float | wp.array,
+        joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def write_joint_position_limit_to_sim_index(
+        self,
+        *,
+        limits: torch.Tensor | float | wp.array,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        warn_limit_violation: bool = True,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def write_joint_position_limit_to_sim_mask(
+        self,
+        *,
+        limits: torch.Tensor | float | wp.array,
+        joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+        warn_limit_violation: bool = True,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def write_joint_velocity_limit_to_sim_index(
+        self,
+        *,
+        limits: torch.Tensor | float | wp.array,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def write_joint_velocity_limit_to_sim_mask(
+        self,
+        *,
+        limits: torch.Tensor | float | wp.array,
+        joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def write_joint_effort_limit_to_sim_index(
+        self,
+        *,
+        limits: torch.Tensor | float | wp.array,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def write_joint_effort_limit_to_sim_mask(
+        self,
+        *,
+        limits: torch.Tensor | float | wp.array,
+        joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def write_joint_armature_to_sim_index(
+        self,
+        *,
+        armature: torch.Tensor | float | wp.array,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def write_joint_armature_to_sim_mask(
+        self,
+        *,
+        armature: torch.Tensor | float | wp.array,
+        joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def write_joint_friction_coefficient_to_sim_index(
+        self,
+        *,
+        joint_friction_coeff: torch.Tensor | float | wp.array,
+        joint_dynamic_friction_coeff: torch.Tensor | float | wp.array | None = None,
+        joint_viscous_friction_coeff: torch.Tensor | float | wp.array | None = None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def write_joint_friction_coefficient_to_sim_mask(
+        self,
+        *,
+        joint_friction_coeff: torch.Tensor | float | wp.array,
+        joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def set_masses_index(
+        self,
+        *,
+        masses: torch.Tensor | wp.array,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def set_masses_mask(
+        self,
+        *,
+        masses: torch.Tensor | wp.array,
+        body_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def set_coms_index(
+        self,
+        *,
+        coms: torch.Tensor | wp.array,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def set_coms_mask(
+        self,
+        *,
+        coms: torch.Tensor | wp.array,
+        body_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def set_inertias_index(
+        self,
+        *,
+        inertias: torch.Tensor | wp.array,
+        body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def set_inertias_mask(
+        self,
+        *,
+        inertias: torch.Tensor | wp.array,
+        body_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def set_fixed_tendon_stiffness_index(
+        self,
+        *,
+        stiffness: float | torch.Tensor | wp.array,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def set_fixed_tendon_stiffness_mask(
+        self,
+        *,
+        stiffness: float | torch.Tensor | wp.array,
+        fixed_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def set_fixed_tendon_damping_index(
+        self,
+        *,
+        damping: float | torch.Tensor | wp.array,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def set_fixed_tendon_damping_mask(
+        self,
+        *,
+        damping: float | torch.Tensor | wp.array,
+        fixed_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def set_fixed_tendon_limit_stiffness_index(
+        self,
+        *,
+        limit_stiffness: float | torch.Tensor | wp.array,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def set_fixed_tendon_limit_stiffness_mask(
+        self,
+        *,
+        limit_stiffness: float | torch.Tensor | wp.array,
+        fixed_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def set_fixed_tendon_position_limit_index(
+        self,
+        *,
+        limit: float | torch.Tensor | wp.array,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def set_fixed_tendon_position_limit_mask(
+        self,
+        *,
+        limit: float | torch.Tensor | wp.array,
+        fixed_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def set_fixed_tendon_rest_length_index(
+        self,
+        *,
+        rest_length: float | torch.Tensor | wp.array,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def set_fixed_tendon_rest_length_mask(
+        self,
+        *,
+        rest_length: float | torch.Tensor | wp.array,
+        fixed_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def set_fixed_tendon_position_target_index(
+        self,
+        *,
+        target: torch.Tensor | wp.array,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def set_fixed_tendon_position_target_mask(
+        self,
+        *,
+        target: torch.Tensor | wp.array,
+        fixed_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def set_fixed_tendon_offset_index(
+        self,
+        *,
+        offset: float | torch.Tensor | wp.array,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def set_fixed_tendon_offset_mask(
+        self,
+        *,
+        offset: float | torch.Tensor | wp.array,
+        fixed_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def write_fixed_tendon_properties_to_sim_index(
+        self,
+        *,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def write_fixed_tendon_properties_to_sim_mask(
+        self,
+        *,
+        fixed_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def set_spatial_tendon_stiffness_index(
+        self,
+        *,
+        stiffness: float | torch.Tensor | wp.array,
+        spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def set_spatial_tendon_stiffness_mask(
+        self,
+        *,
+        stiffness: float | torch.Tensor | wp.array,
+        spatial_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def set_spatial_tendon_damping_index(
+        self,
+        *,
+        damping: float | torch.Tensor | wp.array,
+        spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def set_spatial_tendon_damping_mask(
+        self,
+        *,
+        damping: float | torch.Tensor | wp.array,
+        spatial_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def set_spatial_tendon_limit_stiffness_index(
+        self,
+        *,
+        limit_stiffness: float | torch.Tensor | wp.array,
+        spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def set_spatial_tendon_limit_stiffness_mask(
+        self,
+        *,
+        limit_stiffness: float | torch.Tensor | wp.array,
+        spatial_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def set_spatial_tendon_offset_index(
+        self,
+        *,
+        offset: float | torch.Tensor | wp.array,
+        spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def set_spatial_tendon_offset_mask(
+        self,
+        *,
+        offset: float | torch.Tensor | wp.array,
+        spatial_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def write_spatial_tendon_properties_to_sim_index(
+        self,
+        *,
+        spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def write_spatial_tendon_properties_to_sim_mask(
+        self,
+        *,
+        spatial_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def write_root_state_to_sim(
+        self,
+        root_state: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def write_root_com_state_to_sim(
+        self,
+        root_state: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
+
+    def write_root_link_state_to_sim(
+        self,
+        root_state: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        raise NotImplementedError(UNSUPPORTED)
