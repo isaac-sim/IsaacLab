@@ -29,7 +29,7 @@ from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.modifiers import ModifierCfg
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
-from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
+from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values, string_to_callable
 
 from isaaclab_tasks.utils.hydra import preset
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
@@ -206,7 +206,10 @@ def get_action_parameters(robot_cfg: ArticulationCfg) -> tuple[dict[str, float],
     from pxr import Usd, UsdGeom, UsdPhysics
 
     usd_path = robot_cfg.spawn.usd_path
-    if robot_cfg.spawn.func is spawn_g1_oem_minimal:
+    spawn_func = robot_cfg.spawn.func
+    if isinstance(spawn_func, str):
+        spawn_func = string_to_callable(spawn_func)
+    if spawn_func is spawn_g1_oem_minimal:
         usd_path = get_oem_locomotion_usd(usd_path, "minimal")
     stage = Usd.Stage.Open(retrieve_file_path(usd_path))
     if stage.GetCompositionErrors():
