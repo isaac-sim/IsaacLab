@@ -5,7 +5,10 @@
 
 """SuperMimic settings for G1 velocity tracking with the state_obs observation preset.
 
-The settings follow the official SuperMimic code: no world-model-only warm-up and no collection noise.
+The SuperMimic agents follow the official SuperMimic code: no world-model-only warm-up and no collection noise. The
+BlinkMimic agents follow BlinkMimic (arXiv 2611.16422): Muon on the actor and world model, a four times higher actor
+learning rate that decays after 1400 learner iterations, mirrored world-model batches, a smaller world model and policy
+batch, and a deployment actor average.
 """
 
 from isaaclab.utils import configclass, replace
@@ -25,7 +28,20 @@ SUPERMIMIC_ALGORITHM_CFG = RslRlSuperMimicAlgorithmCfg(
     action_noise=0.0,
     use_mixed_precision=True,
     use_cuda_graph=True,
-    task_cfg=RslRlSuperMimicTaskCfg(class_name="isaaclab_tasks.core.velocity.supermimic:VelocityTask"),
+    task_cfg=RslRlSuperMimicTaskCfg(class_name="isaaclab_tasks.core.velocity.config.g1.supermimic:G1VelocityTask"),
+)
+
+BLINKMIMIC_ALGORITHM_CFG = replace(
+    SUPERMIMIC_ALGORITHM_CFG,
+    num_world_model_updates=5,
+    world_model_mirror_fraction=0.5,
+    policy_batch_size=2048,
+    learning_rate=4e-4,
+    muon_models=("actor", "world_model"),
+    actor_learning_rate_multiplier=4.0,
+    actor_learning_rate_decay_start=1400,
+    # an exponential moving average with decay 0.995 per actor update
+    actor_ema_halflife=138,
 )
 
 # dt 0.02 * (track_lin 1 + track_ang 1 + feet_air_time 0.75 * 0.4).
@@ -60,6 +76,15 @@ class G1FlatSuperMimicRunnerCfg(RslRlSuperMimicRunnerCfg):
 
 
 @configclass
+class G1FlatBlinkMimicRunnerCfg(G1FlatSuperMimicRunnerCfg):
+    """Train flat G1 velocity tracking with the BlinkMimic settings."""
+
+    experiment_name = "g1_flat_blinkmimic"
+    world_model = RslRlWorldModelCfg(hidden_dims=(1024, 1024, 1024))
+    algorithm = replace(BLINKMIMIC_ALGORITHM_CFG, max_step_reward=FLAT_MAX_STEP_REWARD)
+
+
+@configclass
 class G1RoughSuperMimicRunnerCfg(G1FlatSuperMimicRunnerCfg):
     """Give the critic the rough PPO critic's widths for its additional height scan."""
 
@@ -70,3 +95,12 @@ class G1RoughSuperMimicRunnerCfg(G1FlatSuperMimicRunnerCfg):
         obs_normalization=True,
     )
     algorithm = replace(SUPERMIMIC_ALGORITHM_CFG, max_step_reward=ROUGH_MAX_STEP_REWARD)
+
+
+@configclass
+class G1RoughBlinkMimicRunnerCfg(G1RoughSuperMimicRunnerCfg):
+    """Train rough G1 velocity tracking with the BlinkMimic settings."""
+
+    experiment_name = "g1_rough_blinkmimic"
+    world_model = RslRlWorldModelCfg(hidden_dims=(1024, 1024, 1024))
+    algorithm = replace(BLINKMIMIC_ALGORITHM_CFG, max_step_reward=ROUGH_MAX_STEP_REWARD)

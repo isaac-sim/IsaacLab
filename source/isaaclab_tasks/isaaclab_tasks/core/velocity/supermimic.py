@@ -63,13 +63,15 @@ def _transform(transform: np.ndarray, points: np.ndarray) -> np.ndarray:
 class Heightfield:
     """Terrain heights on a regular grid with a bilinear lookup that is differentiable in ``x`` and ``y``.
 
-    Lookups clamp to the grid.
+    Lookups clamp to the grid and reflect ``y`` about :attr:`mirror_y`, the upper ``y`` edge of the grid, so a world
+    mirrored about that line sees the mirrored terrain.
     """
 
     def __init__(self, heights: torch.Tensor, lower: tuple[float, float], resolution: float) -> None:
         self.shape = tuple(heights.shape)
         self.heights = heights.flatten()
         self.lower, self.resolution = lower, resolution
+        self.mirror_y = lower[1] + (self.shape[1] - 1) * resolution
 
     @classmethod
     def from_model(cls, model, device: str) -> Heightfield:
@@ -105,6 +107,7 @@ class Heightfield:
     def __call__(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         """Return the terrain height [m] at world coordinates of any shared shape."""
         rows, cols = self.shape
+        y = torch.minimum(y, 2 * self.mirror_y - y)
         u = ((x - self.lower[0]) / self.resolution).clamp(0, rows - 1)
         v = ((y - self.lower[1]) / self.resolution).clamp(0, cols - 1)
         i, j = u.detach().floor().clamp(max=rows - 2), v.detach().floor().clamp(max=cols - 2)
