@@ -13,6 +13,7 @@ Start with a demo to see Cosmos Transfer run from setup to result. Each demo ins
 | Demo | What it shows |
 | --- | --- |
 | [Shadow Hand](cosmos_transfer_shadow_hand.md) | Training an RL policy on Cosmos images, with the Direct and Manager-based Shadow Hand camera tasks |
+| [Assemble-trocar](cosmos_transfer_assemble_trocar.md) | Online depth-conditioned augmentation on a G1 front camera and both wrists, with one decision per policy action chunk |
 
 The rest of this page is for your own camera task: serving Cosmos, configuring the camera, and running with several
 environments, cameras, and GPUs.
@@ -378,7 +379,9 @@ on a Cosmos task):
   environments.
 - Each image is a one-frame episode, so the frame budget does not apply. When a capture can skip generation, the
   camera also renders `rgb`; validating the environment configuration adds it to the Cosmos processor's inputs.
-- Cameras sharing a session need autoregressive generation.
+- A single-frame camera uses the default empty `cameras` list. The [assemble-trocar demo](cosmos_transfer_assemble_trocar.md)
+  combines three synchronized controls in a task camera processor and submits one canvas per environment.
+  The native shared-camera session uses autoregressive generation.
 
 A learner that shares the GPU with Cosmos can free the weights between rollouts. `offload()` on the camera's
 `CosmosModel`, `SimulationContext.instance().get_or_create_backend(env_cfg.cosmos)` in a Cosmos task, moves them to
@@ -465,8 +468,8 @@ does not end the episode. Training also starts environments at random points of 
 
 ## Several cameras
 
-Several cameras, such as a base and a wrist camera, can share one session: each capture generates all their
-environments as one batch. This is set up in a task's configuration code; no registered task provides it yet. Name
+In autoregressive mode, several cameras can share one session. Each capture generates all
+their environments as one batch. Name
 the cameras in `CosmosModelCfg.cameras`, and give each camera that model, one canvas and its scene name: each camera
 receives its own copy of the settings, and the cameras share a session only while the copies match.
 

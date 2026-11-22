@@ -46,12 +46,15 @@ class AbsoluteJointPositionEnv(gym.Wrapper):
         return self.env.step((action - self._joint._offset) / self._joint._scale)
 
     def reset(self, *, seed=None, options=None, env_ids=None):
-        obs, info = self.env.reset(seed=seed, options=options, env_ids=env_ids)
         # A full reset needs one physics step to refresh the tiled cameras. Partial resets must preserve peer episodes.
         count = self.env.unwrapped.num_envs
-        if isinstance(env_ids, slice):
-            env_ids = range(*env_ids.indices(count))
-        if env_ids is None or len(env_ids) == count:
+        ids = range(*env_ids.indices(count)) if isinstance(env_ids, slice) else env_ids
+        full_reset = ids is None or len(ids) == count
+        if full_reset:
+            # The hold below returns the first observation consumed by the policy.
+            options = {**(options or {}), "steps_before_first_action": 1}
+        obs, info = self.env.reset(seed=seed, options=options, env_ids=env_ids)
+        if full_reset:
             hold = self._robot.data.joint_pos.torch[:, self._joint._joint_ids]
             obs, _, _, _, info = self.step(hold)
         return obs, info

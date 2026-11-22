@@ -70,6 +70,9 @@ class CosmosModelCfg(BackendCfg):
     resets; in :attr:`generation_mode` ``"single_frame"``, view ``v`` instead uses ``prompt[(v + k) % len(prompt)]``
     in its episode ``k``. None omits an appearance description."""
 
+    single_frame_prompt_by_seed: bool = False
+    """Select a prompt from the bank by image seed on each single-frame generation instead of by episode."""
+
     prompt_files: str | list[str] | None = None
     """Paths of ``.txt`` or ``.json`` prompt files, or patterns such as ``prompts/*.json``, one prompt per file (see
     :func:`~isaaclab_experimental.cosmos.read_prompt_files`). When set, the files replace :attr:`prompt` as its

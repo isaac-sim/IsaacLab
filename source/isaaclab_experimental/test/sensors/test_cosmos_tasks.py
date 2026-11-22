@@ -51,6 +51,9 @@ def test_core_tasks_do_not_import_cosmos_and_registration_imports_no_task_code()
         assert not [name for name in added if "shadow_hand" in name or ".client" in name or ".server" in name], added
         load_cfg_from_registry("Isaac-Reorient-Cube-Shadow-Camera-Cosmos-Direct", "env_cfg_entry_point")
         assert "isaaclab_experimental.cosmos.client" in sys.modules
+        load_cfg_from_registry("IsaacContrib-Assemble-Trocar-G129-Dex3-Cosmos-Eval", "env_cfg_entry_point")
+        assert "isaaclab_experimental.cosmos.tasks.assemble_trocar_env" not in sys.modules
+        assert "isaaclab.envs.manager_based_rl_env" not in sys.modules
     """)
     result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, timeout=300)
 
@@ -239,3 +242,128 @@ def test_cosmos_task_rejects_overrides_exceeding_service_limits_before_simulatio
 
     with pytest.raises(ValueError, match=error):
         env_cfg.validate()
+
+
+def test_trocar_cosmos_overrides_reach_every_policy_camera_and_keep_eval_resets():
+    """All three policy views must join the same session with the final CLI settings."""
+    from isaaclab_experimental.cosmos import CosmosTransferProcessorCfg
+
+    cfg = parse_env_cfg(
+        "IsaacContrib-Assemble-Trocar-G129-Dex3-Cosmos-Eval",
+        overrides=(
+            "env.cosmos.generation_mode=autoregressive",
+            "env.cosmos.decision_interval=1",
+            "env.cosmos.augmentation_probability=1",
+            "env.cosmos.prompt=Robot hands assembling a trocar.",
+            "env.cosmos.endpoint=tcp://127.0.0.1:5556",
+            "env.cosmos_seed=[101,202]",
+            "env.cosmos_depth_quantiles=[0.1,0.9]",
+            "env.scene.num_envs=2",
+            "env.episode_length_s=30.0",
+        ),
+    )
+    cfg.validate()
+    original = parse_env_cfg("IsaacContrib-Assemble-Trocar-G129-Dex3-Eval", overrides=())
+    assert cfg.events.reset_tray_random_rotation.params == original.events.reset_tray_random_rotation.params
+    assert cfg.sim.dt * cfg.decimation == pytest.approx(1 / 30)
+    assert cfg.cosmos.max_episode_frames == 901  # initial capture + 30 s at 30 Hz
+    for name in ("front_camera", "left_wrist_camera", "right_wrist_camera"):
+        camera = getattr(cfg.scene, name)
+        transfer = next(p for p in camera.tensor_processors if isinstance(p, CosmosTransferProcessorCfg))
+        assert transfer.camera == name
+        assert transfer.backend.endpoint == "tcp://127.0.0.1:5556"
+        assert transfer.backend.prompt == "Robot hands assembling a trocar."
+        assert transfer.backend.max_episode_frames == 901
+        assert transfer.backend.prompt_files is None
+        assert tuple(transfer.backend.cameras) == ("front_camera", "left_wrist_camera", "right_wrist_camera")
+        assert list(transfer.seed) == [101, 202]
+        rendered = getattr(original.scene, name)
+        assert camera.update_period == pytest.approx(1 / 30)
+        assert list(camera.tensor_processors[0].quantiles) == [0.1, 0.9]
+        assert transfer.image_size == (rendered.height, rendered.width)
+        assert not rendered.tensor_processors
+
+
+def test_trocar_cosmos_defaults_cover_the_rl2real_horizon_and_allow_metric_depth():
+    cfg = parse_env_cfg("IsaacContrib-Assemble-Trocar-G129-Dex3-Cosmos", overrides=())
+    cfg.validate()
+    assert cfg.episode_length_s == 25.0
+    assert cfg.cosmos.max_episode_frames is None
+    assert (cfg.cosmos.generation_mode, cfg.cosmos.decision_interval, cfg.cosmos.augmentation_probability) == (
+        "single_frame",
+        16,
+        0.5,
+    )
+    assert len(set(cfg.cosmos.prompt)) == 24 and all("2x2" in prompt for prompt in cfg.cosmos.prompt)
+    metric = parse_env_cfg(
+        "IsaacContrib-Assemble-Trocar-G129-Dex3-Cosmos",
+        overrides=(
+            "env.cosmos_depth_quantiles=null",
+            "env.cosmos.generation_mode=autoregressive",
+            "env.cosmos.decision_interval=1",
+            "env.cosmos.augmentation_probability=1",
+        ),
+    )
+    metric.validate()
+    assert len(set(metric.cosmos.prompt)) == 24
+    assert all("robot-mounted camera" in prompt for prompt in metric.cosmos.prompt)
+    for name in ("front_camera", "left_wrist_camera", "right_wrist_camera"):
+        assert getattr(metric.scene, name).tensor_processors[0].quantiles is None
+
+
+def test_trocar_quantile_controls_ignore_invalid_pixels_and_normalize_each_view():
+    import torch
+    from isaaclab_experimental.cosmos.tasks.assemble_trocar_cosmos_env_cfg import _trocar_depth_to_control
+
+    pixels = torch.tensor([0.0, 1.0, 2.0, 3.0, 4.0, 100.0, float("inf"), float("nan")]).reshape(1, 2, 4, 1)
+    # Different views need independent statistics, even beside an empty or constant depth image.
+    batch = torch.cat((pixels, torch.zeros_like(pixels), torch.full_like(pixels, 3.0)))
+    result = _trocar_depth_to_control(batch, quantiles=(0.25, 0.75))
+    expected = torch.tensor([0, 255, 255, 128, 0, 0, 0, 0], dtype=torch.uint8).reshape(2, 4, 1).expand(2, 4, 3)
+    assert result.dtype == torch.uint8 and result.shape == (3, 2, 4, 3)
+    torch.testing.assert_close(result[0], expected)
+    assert result[1].count_nonzero() == 0
+    assert (result[2] == 255).all()
+
+
+def test_trocar_grid_keeps_the_policy_crop_and_the_original_rgb_even_when_every_capture_generates():
+    cfg = parse_env_cfg(
+        "IsaacContrib-Assemble-Trocar-G129-Dex3-Cosmos",
+        overrides=("renderer=isaacsim_rtx", "env.cosmos.decision_interval=1", "env.cosmos.augmentation_probability=1"),
+    )
+    cfg.validate()
+    assert not cfg.cosmos.cameras
+    for name in ("front_camera", "left_wrist_camera", "right_wrist_camera"):
+        camera = getattr(cfg.scene, name)
+        assert (camera.width, camera.height) == (320, 320)
+        transfer = camera.tensor_processors[-1]
+        assert transfer.image_size == (240, 320)
+        assert "rgb" in transfer.inputs and "semantic_segmentation" in transfer.inputs
+        assert camera.renderer_cfg.semantic_segmentation_mapping["class:trocar"][:3] == transfer.foreground_color
+
+
+def test_trocar_tasks_share_the_calibrated_scene():
+    from isaaclab_tasks.contrib.assemble_trocar.g129_dex3_env_cfg import AssembleTrocarSceneCfg
+
+    cfg = parse_env_cfg("IsaacContrib-Assemble-Trocar-G129-Dex3", overrides=())
+    cosmos = parse_env_cfg("IsaacContrib-Assemble-Trocar-G129-Dex3-Cosmos", overrides=()).scene
+    raw = cfg.scene
+    assert type(raw) is type(cosmos) is AssembleTrocarSceneCfg
+    assert cfg.episode_length_s == 25 and cfg.decimation * cfg.sim.dt == pytest.approx(1 / 30)
+    assert (
+        cfg.rewards.update_stage.params["lift_threshold"] == cfg.rewards.lift_trocars.params["lift_threshold"] == 0.08
+    )
+    assert raw.scene.spawn.usd_path.endswith("/Props/LightWheel/scene03cell.usd")
+    assert raw.robot.spawn.usd_path.endswith("/Robots/g1_29dof_with_dex3_base_fix02.usd")
+    assert raw.trocar_1.spawn.usd_path.endswith("/Trocar004_test_nodeform.usd")
+    assert raw.trocar_2.spawn.usd_path.endswith("/DisposableLaparoscopicPunctureDevice006_test.usd")
+    assert raw.tray.spawn.usd_path.endswith("/SurgicalTray001_FixedBoxProp.usd")
+    assert raw.tray.spawn.mass_props["/[^/]+"][0].mass == 1000
+    assert raw.work_light.spawn.intensity == 0
+    assert raw.robot.init_state.pos == (-1.86719, 1.94, 0.81168)
+    assert raw.robot.init_state.joint_pos["left_elbow_joint"] == -0.186277
+    for name in ("front_camera", "left_wrist_camera", "right_wrist_camera"):
+        cam, wrapped = getattr(raw, name), getattr(cosmos, name)
+        assert (cam.height, cam.width) == wrapped.tensor_processors[-1].image_size == (240, 320)
+        assert wrapped.offset == cam.offset
+        assert cam.spawn.focal_length == (8.7 if name == "front_camera" else 11.4)

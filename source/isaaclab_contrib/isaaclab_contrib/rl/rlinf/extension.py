@@ -30,8 +30,8 @@ Configuration is read from the Hydra YAML config under `env.train.isaaclab`:
       eval:
         isaaclab: *isaaclab_config  # Reuse via YAML anchor
 
-Task IDs are read automatically from ``env.train.init_params.id`` and
-``env.eval.init_params.id`` in the YAML config.
+The CLI's ``--task`` selects the task ID for all workers. Otherwise the extension uses
+``env.train.init_params.id`` and ``env.eval.init_params.id`` from the YAML config.
 
 Usage:
     export RLINF_EXT_MODULE=isaaclab_contrib.rl.rlinf.extension
@@ -403,17 +403,16 @@ def _convert_gr00t_to_isaaclab_action(action_chunk: dict, chunk_size: int = 1) -
 def _register_isaaclab_envs() -> None:
     """Register IsaacLab tasks into RLinf's REGISTER_ISAACLAB_ENVS map.
 
-    Task IDs are read from ``env.train.init_params.id`` and
-    ``env.eval.init_params.id`` in the YAML config.
+    Register the task selected by the launcher or the train and eval IDs from the YAML config.
     """
     from rlinf.envs.isaaclab import REGISTER_ISAACLAB_ENVS
 
-    # Collect unique task IDs from the YAML config (train + eval)
     full_cfg = _load_full_cfg()
     env_cfg = full_cfg.get("env", {})
+    task_override = os.environ.get("ISAACLAB_RLINF_TASK")
     task_ids: list[str] = []
     for section in ("train", "eval"):
-        tid = env_cfg.get(section, {}).get("init_params", {}).get("id", "")
+        tid = task_override or env_cfg.get(section, {}).get("init_params", {}).get("id", "")
         if tid and tid not in task_ids:
             task_ids.append(tid)
 
@@ -535,7 +534,11 @@ def _create_generic_env_wrapper(task_id: str) -> type:
         def step(self, actions=None, auto_reset=True):
             """Hold reset joints until the next chunk supplies actions for the new episode."""
             if self._chunk_done is not None and self._hold_actions is not None:
-                actions = torch.where(self._chunk_done[:, None], self._hold_actions.to(actions), actions)
+                hold = self._hold_actions.to(actions)
+                if hold.shape[-1] != actions.shape[-1]:
+                    mapping = _get_isaaclab_cfg().get("action_mapping", {})
+                    hold = torch.nn.functional.pad(hold, (mapping.get("prefix_pad", 0), mapping.get("suffix_pad", 0)))
+                actions = torch.where(self._chunk_done[:, None].to(actions.device), hold, actions)
             obs, reward, terminated, truncated, info = super().step(actions, auto_reset)
             if self._chunk_done is not None:
                 self._chunk_done |= truncated
@@ -564,9 +567,12 @@ def _create_generic_env_wrapper(task_id: str) -> type:
                 import gymnasium as gym
 
                 from isaaclab.app import launch_simulation
+                from isaaclab.cli import load_external_tasks
 
                 from isaaclab_tasks.utils import parse_env_cfg
 
+                # The spawned simulator has its own Gym registry, separate from the CLI's.
+                load_external_tasks()
                 isaac_env_cfg = parse_env_cfg(
                     self.isaaclab_env_id,
                     num_envs=self.cfg.init_params.num_envs,

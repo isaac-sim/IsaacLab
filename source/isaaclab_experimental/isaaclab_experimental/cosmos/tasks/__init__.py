@@ -37,3 +37,22 @@ gym.register(
         "default_agent": "rsl_rl",
     },
 )
+
+
+gym.register(
+    id="IsaacContrib-Assemble-Trocar-G129-Dex3-Cosmos",
+    entry_point=f"{__name__}.assemble_trocar_env:TrocarCosmosEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.assemble_trocar_cosmos_env_cfg:G1AssembleTrocarCosmosEnvCfg",
+    },
+)
+
+gym.register(
+    id="IsaacContrib-Assemble-Trocar-G129-Dex3-Cosmos-Eval",
+    entry_point=f"{__name__}.assemble_trocar_env:TrocarCosmosEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.assemble_trocar_cosmos_env_cfg:G1AssembleTrocarCosmosEvalEnvCfg",
+    },
+)

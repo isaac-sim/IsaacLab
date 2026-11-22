@@ -536,7 +536,10 @@ class _CosmosStream:
             "reset_rows": tuple(range(len(frames))),
             "seeds": tuple(_image_seed(seed, count) for seed, count in zip(self._view_seeds, self._view_frames)),
         }
-        if new_prompt:
+        if self._cfg.single_frame_prompt_by_seed and isinstance(prompt, (list, tuple)):
+            prompts = [prompt[seed % len(prompt)] for seed in fields["seeds"]]
+            fields["prompt"] = prompts if len(prompts) > 1 else prompts[0]
+        elif new_prompt:
             prompts = [
                 prompt[(view + episode) % len(prompt)] for view, episode in zip(self._views, self._view_episodes)
             ]

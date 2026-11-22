@@ -60,7 +60,7 @@ def run(argv: list[str]) -> None:
         return
 
     config_name = args_cli.config_name
-    config_dir = cli_args.configure_rlinf_environment(config_name, args_cli.config_path)
+    config_dir = cli_args.configure_rlinf_environment(config_name, args_cli.config_path, args_cli.task)
 
     # rlinf reads RLINF_EXT_MODULE and RLINF_CONFIG_FILE at import time, so it is imported after the setup above
     import rlinf  # noqa: F401
@@ -83,7 +83,7 @@ def run(argv: list[str]) -> None:
     initialize_config_dir(config_dir=config_dir)
     cfg = compose(config_name=config_name)
 
-    task_id = cfg.env.train.init_params.id
+    task_id = args_cli.task or cfg.env.train.init_params.id
     logger.info(f"Task: {task_id}")
     # hyphens instead of colons in the time stamp; colons are invalid in Windows paths
     timestamp = datetime.now().strftime("%Y%m%d-%H-%M-%S")
@@ -114,7 +114,7 @@ def run(argv: list[str]) -> None:
             checkpoint_path = cli_args.resolve_rlinf_checkpoint(
                 args_cli.checkpoint,
                 log_root_path=str(Path("logs") / "rlinf"),
-                task=args_cli.task or task_id,
+                task=task_id,
                 config_name=config_name,
             )
             for directory in Path(checkpoint_path).parents:
@@ -128,9 +128,7 @@ def run(argv: list[str]) -> None:
         for model in (cfg.actor.model, cfg.rollout.model):
             model.model_path = str(Path(model.model_path).expanduser().resolve())
 
-    write_run_manifest(
-        str(log_dir), library="rlinf", task=args_cli.task or task_id, metadata={"config_name": config_name}
-    )
+    write_run_manifest(str(log_dir), library="rlinf", task=task_id, metadata={"config_name": config_name})
     cfg = validate_cfg(cfg)
     cli_args.print_rlinf_banner(
         "RLinf Training Configuration",

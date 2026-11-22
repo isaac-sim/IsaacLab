@@ -780,6 +780,11 @@ class LazyCamera:
     def process(self):
         self.due = False
         buffers = {"control": _proxy(torch.full((2, 2, 3, 3), self.value, dtype=torch.uint8))}
+        if "semantic_segmentation" in self.processor_cfg.inputs:
+            buffers["rgb"] = _proxy(torch.full((2, 2, 3, 3), self.value + 100, dtype=torch.uint8))
+            seg = torch.zeros_like(buffers["rgb"].torch)
+            seg[:, 0, 0] = 255
+            buffers["semantic_segmentation"] = _proxy(seg)
         # A camera constructs its processors at its first capture.
         if self.processor is None:
             self.processor = self.processor_cfg.func(self.processor_cfg, buffers)
@@ -804,6 +809,97 @@ def _camera_group(cosmos_service, monkeypatch, image_size=None):
     # The service echoes each view's control, so every camera can be checked for its own views.
     monkeypatch.setattr(TransportStream, "echo", True)
     return model, cameras
+
+
+def test_single_frame_grid_sends_one_canvas_per_environment_and_preserves_foreground(cosmos_service, monkeypatch):
+    from isaaclab_experimental.cosmos.tasks import assemble_trocar_grid as grid
+
+    from isaaclab.sim import SimulationContext
+
+    names = grid.TROCAR_COSMOS_CAMERAS
+    cfg = CosmosModelCfg(
+        endpoint=cosmos_service.endpoint,
+        generation_mode="single_frame",
+        single_frame_prompt_by_seed=True,
+        decision_interval=2,
+        prompt=["one", "two"],
+        timeout=3,
+    )
+    sim = SimpleNamespace(_backend_registry=[])
+    sim.get_or_create_backend = SimulationContext.get_or_create_backend.__get__(sim)
+    monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
+    model = sim.get_or_create_backend(cfg)
+    monkeypatch.setattr(TransportStream, "echo", True)
+    cameras = {name: LazyCamera(cfg, name, 10 * i) for i, name in enumerate(names, 1)}
+    monkeypatch.setattr(cosmos_model_module, "_scene_cameras", lambda: cameras)
+    try:
+        for name, camera in cameras.items():
+            camera.processor_cfg = grid.TrocarGridProcessorCfg(backend=cfg, camera=name)
+            camera.cfg.tensor_processors = [camera.processor_cfg]
+            camera.processor_cfg.validate()
+            camera.due = True
+        cameras[names[-1]].data  # First read must also render both siblings.
+        session = cosmos_service.resource.streams[0]
+        assert session.settings["num_views"] == 2
+        for grid in session.steps[0][0]:
+            assert grid.shape == (1, 4, 6, 3)
+            assert grid[0, ::2, ::3, 0].tolist() == [[10, 20], [30, 0]]
+        for camera in cameras.values():
+            assert camera.output[0, 0, 0, 0] == camera.value + 100
+            assert camera.output[0, 1, 0, 0] == camera.value
+            camera.value += 1
+            camera.processor.reset([1])
+            camera.due = True
+        cameras[names[1]].data
+        for camera in cameras.values():
+            assert (camera.output == camera.value + 100).all()
+            camera.due = True
+        cameras[names[0]].data
+        assert len(session.steps) == 2
+        assert session.steps[1][0][0][0, ::2, ::3, 0].tolist() == [[11, 21], [31, 0]]
+        assert session.episode_prompts[-1] == [cfg.prompt[seed % len(cfg.prompt)] for seed in session.steps[1][2]]
+    finally:
+        model.close()
+
+
+@pytest.mark.parametrize("delay", [0, 1])
+def test_trocar_grid_uses_policy_steps_after_warmup_and_partial_resets(cosmos_service, monkeypatch, delay):
+    from isaaclab_experimental.cosmos.tasks import assemble_trocar_env as task
+    from isaaclab_experimental.cosmos.tasks import assemble_trocar_grid as grid
+
+    from isaaclab.sim import SimulationContext
+
+    cfg = CosmosModelCfg(endpoint=cosmos_service.endpoint, generation_mode="single_frame", decision_interval=16)
+    sim = SimpleNamespace(_backend_registry=[])
+    sim.get_or_create_backend = SimulationContext.get_or_create_backend.__get__(sim)
+    monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
+    monkeypatch.setattr(TransportStream, "echo", True)
+    monkeypatch.setattr(task.ManagerBasedRLEnv, "reset", lambda self, **kwargs: ({}, {}))
+    env = object.__new__(task.TrocarCosmosEnv)
+    env._is_closed = True
+    env.cfg, env.sim, env.scene = SimpleNamespace(cosmos=cfg), sim, SimpleNamespace(num_envs=2)
+    cameras = {name: LazyCamera(cfg, name, 10) for name in grid.TROCAR_COSMOS_CAMERAS}
+    monkeypatch.setattr(cosmos_model_module, "_scene_cameras", lambda: cameras)
+    for name, camera in cameras.items():
+        camera.processor_cfg = grid.TrocarGridProcessorCfg(backend=cfg, camera=name)
+        camera.cfg.tensor_processors = [camera.processor_cfg]
+        camera.processor_cfg.validate()
+    model = sim.get_or_create_backend(cfg)
+    try:
+        for start in (40, 81):
+            env.common_step_counter = start
+            env.reset(options={"steps_before_first_action": delay})
+            for offset in range(18):
+                env.common_step_counter = start + offset
+                if offset == 5:
+                    env.reset(env_ids=torch.tensor([1]))
+                for camera in cameras.values():
+                    camera.due = True
+                next(iter(cameras.values())).data
+                expected = 10 if offset in (delay, delay + 16) else 110
+                assert all(camera.output[0, 1, 0, 0].item() == expected for camera in cameras.values())
+    finally:
+        model.close()
 
 
 def test_cameras_sharing_a_session_generate_all_their_views_in_one_batch(cosmos_service, monkeypatch):

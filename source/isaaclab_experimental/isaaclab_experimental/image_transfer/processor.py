@@ -20,7 +20,7 @@ from isaaclab.utils.tensor_processors import TensorProcessor
 from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
-    from .backend import ImageTransferModel
+    from .backend import ImageTransferModel, ImageTransferStream
     from .processor_cfg import DepthControlProcessorCfg, ImageTransferProcessorCfg
 
 _SEED_MODULUS = 2**31
@@ -74,7 +74,7 @@ class ImageTransferProcessor(TensorProcessor):
             model = self._owned_model = instantiate(cfg.backend)
         seeds = cfg.seed if isinstance(cfg.seed, (list, tuple)) else [cfg.seed + row for row in range(num_views)]
         self._seeds = tuple(seed % _SEED_MODULUS for seed in seeds)
-        self._stream = model.open_stream(num_views, self._seeds)
+        self._stream = self._open_stream(model, num_views, self._seeds)
         output = wp.zeros(data_dim, dtype=wp.uint8, device=controls.device)
         self._outputs = {cfg.outputs[0]: ProxyArray(output)}
         self._output = self._outputs[cfg.outputs[0]].torch
@@ -94,6 +94,10 @@ class ImageTransferProcessor(TensorProcessor):
         self._waits = [cfg.initial_frames] * num_views
         self._failed = False
         self._closed = False
+
+    def _open_stream(self, model: ImageTransferModel, num_views: int, seeds: tuple[int, ...]) -> ImageTransferStream:
+        """Open the stream for this processor's camera views."""
+        return model.open_stream(num_views, seeds)
 
     def __call__(self, data: dict[str, ProxyArray], env_mask: wp.array | None = None) -> dict[str, ProxyArray]:
         """Queue one control per captured view and generate a chunk when every view has one.

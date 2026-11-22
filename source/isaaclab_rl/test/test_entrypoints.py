@@ -532,7 +532,13 @@ def test_rlinf_launch_passes_checkpoint_and_model_config_to_workers(tmp_path: Pa
         monkeypatch.setitem(sys.modules, name, module)
     monkeypatch.setattr(torch.multiprocessing, "set_start_method", lambda *args, **kwargs: None)
     monkeypatch.chdir(tmp_path)
-    for variable in ("PYTHONPATH", "RLINF_CONFIG_FILE", "RLINF_EXT_MODULE", "RAY_ENABLE_UV_RUN_RUNTIME_ENV"):
+    for variable in (
+        "PYTHONPATH",
+        "RLINF_CONFIG_FILE",
+        "RLINF_EXT_MODULE",
+        "RAY_ENABLE_UV_RUN_RUNTIME_ENV",
+        "ISAACLAB_RLINF_TASK",
+    ):
         monkeypatch.delenv(variable, raising=False)
     step_dir = tmp_path / "checkpoints" / "global_step_400"
     weights = step_dir / "actor" / "model_state_dict" / "full_weights.pt"
@@ -550,13 +556,19 @@ def test_rlinf_launch_passes_checkpoint_and_model_config_to_workers(tmp_path: Pa
     )
     OmegaConf.save(cfg, tmp_path / "ppo.yaml")
     checkpoint = step_dir if backend is train_rlinf else weights
-    args = ["--config_path", str(tmp_path), "--config_name", "ppo"]
+    args = ["--config_path", str(tmp_path), "--config_name", "ppo", "--task", "Test-Cosmos"]
     args += ["--checkpoint", str(checkpoint.relative_to(tmp_path))]
     with pytest.raises(RuntimeError, match="worker boundary"):
         backend.run(args)
     GlobalHydra.instance().clear()
     assert os.environ["RAY_ENABLE_UV_RUN_RUNTIME_ENV"] == "0"
     resolved = validate.call_args.args[0]
+    assert (
+        resolved.env.train.init_params.id
+        == resolved.env.eval.init_params.id
+        == os.environ["ISAACLAB_RLINF_TASK"]
+        == "Test-Cosmos"
+    )
     assert resolved.runner["resume_dir" if backend is train_rlinf else "ckpt_path"] == str(checkpoint)
     assert resolved.actor.model.model_path == str(tmp_path / "base")
     assert resolved.rollout.model.model_path == str(tmp_path / "rollout")

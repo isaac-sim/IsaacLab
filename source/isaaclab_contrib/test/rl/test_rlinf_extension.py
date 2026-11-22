@@ -162,10 +162,11 @@ _SAMPLE_YAML = {
 
 
 @pytest.fixture(autouse=True)
-def _reset_extension_state():
+def _reset_extension_state(monkeypatch):
     """Reset extension module-level caches before each test."""
     ext._registered = False
     ext._full_cfg_cache = None
+    monkeypatch.delenv("ISAACLAB_RLINF_TASK", raising=False)
     # Reset mock registries
     sim_io = _rlinf_mocks["rlinf.models.embodiment.gr00t.simulation_io"]
     sim_io.OBS_CONVERSION.clear()
@@ -269,6 +270,24 @@ class TestObsConversion:
         torch.testing.assert_close(obs["main_images"], head[:, 1:3, 1:4])
         torch.testing.assert_close(obs["extra_view_images"], wrist[:, None, 1:3, 1:4])
 
+    def test_midchunk_hold_pads_only_the_reset_environments_action(self) -> None:
+        mapping = {"hold_pose_on_midchunk_reset": True, "action_mapping": {"prefix_pad": 2, "suffix_pad": 1}}
+        base = _rlinf_mocks["rlinf.envs.isaaclab.isaaclab_env"].IsaaclabBaseEnv
+        states = torch.tensor([[1.0, 2.0], [3.0, 4.0]])
+        actions = torch.arange(10, dtype=torch.float32).reshape(2, 5)
+        done = torch.tensor([True, False])
+        result = ({"states": states}, torch.zeros(2), done, torch.zeros_like(done), {})
+        with (
+            mock.patch.object(ext, "_get_isaaclab_cfg", return_value=mapping),
+            mock.patch.object(base, "step", return_value=result, create=True) as step,
+        ):
+            env = ext._create_generic_env_wrapper("test")({}, 2, 0, 1, None)
+            env._chunk_done, env._hold_actions = done.clone(), states
+            env.step(actions)
+        forwarded, _ = step.call_args.args
+        torch.testing.assert_close(forwarded[0], torch.tensor([0.0, 0.0, 1.0, 2.0, 0.0]))
+        torch.testing.assert_close(forwarded[1], actions[1])
+
     def test_extra_view_images_conversion(self, set_config_env) -> None:
         """Extra view images should be split into separate GR00T video keys."""
         ext._load_full_cfg()
@@ -362,10 +381,12 @@ class TestActionConversion:
         env.reset.return_value = ("reset frame", {})
         env.step.return_value = ("new camera frame", None, None, None, {})
         wrapper = AbsoluteJointPositionEnv(env, prefix_pad=1, warmup_steps=0)
-        assert wrapper.reset()[0] == "new camera frame"
+        assert wrapper.reset(options={"tag": "test"})[0] == "new camera frame"
+        assert env.reset.call_args.kwargs["options"] == {"tag": "test", "steps_before_first_action": 1}
         torch.testing.assert_close(env.step.call_args.args[0], torch.tensor([[0.5, 2.0], [1.0, 3.0]]))
         env.step.reset_mock()
         assert wrapper.reset(env_ids=torch.tensor([1]))[0] == "reset frame"
+        assert env.reset.call_args.kwargs["options"] is None
         env.step.assert_not_called()
         targets = torch.tensor([[0.0, 7.0], [0.0, 9.0]])
         wrapper.step(targets)
@@ -453,14 +474,16 @@ class TestEmbodimentTagPatching:
 class TestTaskRegistration:
     """Tests for ``_register_isaaclab_envs``."""
 
-    def test_tasks_registered_from_yaml(self, set_config_env) -> None:
-        """Task IDs from train and eval sections should be registered."""
+    @pytest.mark.parametrize("override", [None, "Isaac-Test-Cosmos-v0"])
+    def test_tasks_registered_for_worker(self, set_config_env, monkeypatch, override) -> None:
+        """The worker can select the CLI task or the distinct train and eval tasks in the recipe."""
+        if override:
+            monkeypatch.setenv("ISAACLAB_RLINF_TASK", override)
         ext._load_full_cfg()
         ext._register_isaaclab_envs()
 
         registry = _rlinf_mocks["rlinf.envs.isaaclab"].REGISTER_ISAACLAB_ENVS
-        assert "Isaac-Test-Task-v0" in registry
-        assert "Isaac-Test-Task-Eval-v0" in registry
+        assert set(registry) == ({override} if override else {"Isaac-Test-Task-v0", "Isaac-Test-Task-Eval-v0"})
         base = _rlinf_mocks["rlinf.envs.isaaclab.isaaclab_env"].IsaaclabBaseEnv
         for env_cls in registry.values():
             assert issubclass(env_cls, base)
