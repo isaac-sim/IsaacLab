@@ -16,10 +16,6 @@
 * Added the standalone ``isaaclab-cosmos`` package with the ``isaaclab-cosmos-server`` command. It serves the
   public Cosmos Framework from its own environment, keeps the model loaded between sessions, and generates all of a
   session's views as one batch. Images move over a Unix socket or TCP.
-* Added the ``Isaac-Reorient-Cube-Shadow-Camera-Cosmos-Direct`` and ``Isaac-Reorient-Cube-Shadow-Camera-Cosmos``
-  tasks: the Shadow Hand camera tasks with a camera image that Cosmos generates from depth, one prompt per
-  environment. ``env.cosmos`` holds the camera's Cosmos settings, so overrides such as ``env.cosmos.prompt=...``
-  set them. The package registers them through the ``isaaclab.tasks`` entry point.
 * Added single-frame Cosmos generation, ``CosmosModelCfg.generation_mode="single_frame"``, which generates each
   image from the current capture alone, with no history. ``decision_interval`` and ``augmentation_probability``
   generate once per action chunk or for a share of the captures and publish the rendered ``rgb`` otherwise, and

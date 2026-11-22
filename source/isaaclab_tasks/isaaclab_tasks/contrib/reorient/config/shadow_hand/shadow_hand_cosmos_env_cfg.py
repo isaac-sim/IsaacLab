@@ -7,6 +7,13 @@
 
 from __future__ import annotations
 
+from isaaclab_experimental.cosmos import (
+    CosmosModelCfg,
+    CosmosTransferProcessorCfg,
+    cosmos_camera,
+    episode_frame_budget,
+)
+
 from isaaclab.utils import configclass
 
 from isaaclab_tasks.core.reorient.config.shadow_hand.feature_extractor import FeatureExtractorCfg
@@ -19,8 +26,6 @@ from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_e
     ShadowHandCameraSceneCfg,
     ShadowHandTiledCameraCfg,
 )
-
-from .. import CosmosModelCfg, CosmosTransferProcessorCfg, cosmos_camera, episode_frame_budget
 
 _COSMOS_MODEL_CFG = CosmosModelCfg(
     prompt=(
@@ -122,7 +127,7 @@ class _ShadowHandCosmosTaskCfg:
 class ShadowHandCameraCosmosEnvCfg(_ShadowHandCosmosTaskCfg, ShadowHandCameraEnvCfg):
     """Direct Shadow Hand task with depth-guided Cosmos RGB observations.
 
-    Registered as ``Isaac-Reorient-Cube-Shadow-Camera-Cosmos-Direct``. Start the Cosmos service separately. The
+    Registered as ``IsaacContrib-Reorient-Cube-Shadow-Camera-Cosmos-Direct``. Start the Cosmos service separately. The
     task uses one environment unless ``--num_envs`` sets more. The camera captures every environment step, and
     Cosmos publishes an initial frame followed by four-frame chunks. The feature extractor trains on the generated
     RGB; playback requires its checkpoint from a Cosmos run.
@@ -146,7 +151,7 @@ class ShadowHandCameraCosmosEnvCfg(_ShadowHandCosmosTaskCfg, ShadowHandCameraEnv
 class ShadowHandCameraManagerCosmosEnvCfg(_ShadowHandCosmosTaskCfg, ShadowHandCameraManagerEnvCfg):
     """Manager-based Shadow Hand task with depth-guided Cosmos RGB observations.
 
-    Registered as ``Isaac-Reorient-Cube-Shadow-Camera-Cosmos``. The camera runs the same Cosmos processors as the
+    Registered as ``IsaacContrib-Reorient-Cube-Shadow-Camera-Cosmos``. The camera runs the same Cosmos processors as the
     Direct task, and the policy's camera observation term reads the generated ``rgb``. Start the Cosmos service
     first.
     """

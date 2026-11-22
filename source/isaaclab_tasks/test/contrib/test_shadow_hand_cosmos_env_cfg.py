@@ -11,12 +11,7 @@ import textwrap
 from types import SimpleNamespace
 
 import pytest
-from isaaclab_experimental.cosmos import (
-    CosmosModelCfg,
-    cosmos_camera,
-    episode_frame_budget,
-    tasks,  # noqa: F401  (registers the Cosmos tasks)
-)
+from isaaclab_experimental.cosmos import CosmosModelCfg, cosmos_camera, episode_frame_budget
 
 from isaaclab_tasks.utils import parse_env_cfg, resolve_task_config
 
@@ -24,15 +19,15 @@ pytestmark = pytest.mark.unit
 
 KUKA_TASK = "Isaac-Reorient-KukaAllegro-Camera"
 KUKA_PRESETS = "presets=cube,single_camera,newton_mjwarp,newton_warp,rgb64"
-SHADOW_HAND_TASK = "Isaac-Reorient-Cube-Shadow-Camera-Cosmos-Direct"
-SHADOW_HAND_MANAGER_TASK = "Isaac-Reorient-Cube-Shadow-Camera-Cosmos"
+SHADOW_HAND_TASK = "IsaacContrib-Reorient-Cube-Shadow-Camera-Cosmos-Direct"
+SHADOW_HAND_MANAGER_TASK = "IsaacContrib-Reorient-Cube-Shadow-Camera-Cosmos"
 KUKA_DUO_PRESETS = "presets=cube,duo_camera,newton_mjwarp,newton_warp,rgb64"
 
 
-def test_core_tasks_do_not_import_cosmos_and_registration_imports_no_task_code():
-    """The core Shadow Hand camera tasks load without experimental code, and naming the Cosmos tasks is cheap.
+def test_registering_the_cosmos_tasks_imports_no_cosmos_code():
+    """Importing the tasks registers the Cosmos tasks by name only; selecting one imports the Cosmos client.
 
-    Run in a new process, because this test session has already imported both packages.
+    Run in a new process, because this test session has already imported the client.
     """
     script = textwrap.dedent("""
         import sys
@@ -42,14 +37,9 @@ def test_core_tasks_do_not_import_cosmos_and_registration_imports_no_task_code()
 
         for task in ("Isaac-Reorient-Cube-Shadow-Camera-Direct", "Isaac-Reorient-Cube-Shadow-Camera"):
             load_cfg_from_registry(task, "env_cfg_entry_point")
-        assert not [name for name in sys.modules if name.startswith("isaaclab_experimental")]
+        assert not [name for name in sys.modules if "cosmos" in name]
 
-        before = set(sys.modules)
-        import isaaclab_experimental.cosmos.tasks  # noqa: F401
-
-        added = set(sys.modules) - before
-        assert not [name for name in added if "shadow_hand" in name or ".client" in name or ".server" in name], added
-        load_cfg_from_registry("Isaac-Reorient-Cube-Shadow-Camera-Cosmos-Direct", "env_cfg_entry_point")
+        load_cfg_from_registry("IsaacContrib-Reorient-Cube-Shadow-Camera-Cosmos-Direct", "env_cfg_entry_point")
         assert "isaaclab_experimental.cosmos.client" in sys.modules
     """)
     result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, timeout=300)
@@ -168,9 +158,11 @@ def test_separate_shadow_hand_configs_do_not_share_cosmos_settings():
 
 def test_a_subclass_of_the_shadow_hand_task_keeps_env_cosmos_on_its_camera():
     """Deriving a configuration from the task copies its fields; ``env.cosmos`` still names the camera's settings."""
-    from isaaclab_experimental.cosmos.tasks.shadow_hand_cosmos_env_cfg import ShadowHandCameraCosmosEnvCfg
-
     from isaaclab.utils import configclass
+
+    from isaaclab_tasks.contrib.reorient.config.shadow_hand.shadow_hand_cosmos_env_cfg import (
+        ShadowHandCameraCosmosEnvCfg,
+    )
 
     @configclass
     class ShorterEpisodeCfg(ShadowHandCameraCosmosEnvCfg):

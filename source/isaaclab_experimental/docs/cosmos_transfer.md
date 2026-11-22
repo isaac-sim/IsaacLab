@@ -311,7 +311,7 @@ prompt's first use can trigger compilation, so prefer a short list of prompts (s
 [Several environments](#several-environments)).
 
 ```bash
-uv run isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Cosmos-Direct --rl_library rsl_rl \
+uv run isaaclab train --task IsaacContrib-Reorient-Cube-Shadow-Camera-Cosmos-Direct --rl_library rsl_rl \
   env.cosmos.prompt="['A robotic Shadow Hand turning a red cube in a bright warehouse with metal shelves.', 'A robotic Shadow Hand turning a wooden cube on a kitchen counter in warm evening light.', 'A robotic Shadow Hand turning a blue cube in a dim laboratory with fluorescent lights.']"
 ```
 
@@ -320,7 +320,7 @@ A prompt can change only at an episode reset.
 Prompts can also come from files. `prompt` is always text; file paths go in `prompt_files`:
 
 ```bash
-uv run isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Cosmos-Direct --rl_library rsl_rl --num_envs 2 \
+uv run isaaclab train --task IsaacContrib-Reorient-Cube-Shadow-Camera-Cosmos-Direct --rl_library rsl_rl --num_envs 2 \
   env.cosmos.prompt_files="['prompts/*.json']"
 ```
 
@@ -413,7 +413,7 @@ not establish that a full episode fits.
 Ask for the environments with `--num_envs`, and give one prompt per environment as a list:
 
 ```bash
-uv run isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Cosmos-Direct --rl_library rsl_rl --num_envs 2 \
+uv run isaaclab train --task IsaacContrib-Reorient-Cube-Shadow-Camera-Cosmos-Direct --rl_library rsl_rl --num_envs 2 \
   env.cosmos.prompt="['A close-up overhead view of a robotic Shadow Hand turning a red cube on a wooden workbench.', 'A close-up overhead view of a robotic Shadow Hand turning a blue cube in a bright white lab.']"
 ```
 
@@ -445,7 +445,7 @@ For a task without a Cosmos version, set `env_cfg.scene.num_envs = 2` and give `
 output, the generated images, across environments; record it to see every environment side by side:
 
 ```bash
-uv run --extra video isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Cosmos-Direct --rl_library rsl_rl --num_envs 2 \
+uv run --extra video isaaclab train --task IsaacContrib-Reorient-Cube-Shadow-Camera-Cosmos-Direct --rl_library rsl_rl --num_envs 2 \
   --max_iterations 20 \
   --viz newton_gl --video viz:newton_gl:streaming_view --video_length 600 \
   env.cosmos.prompt="['A close-up overhead view of a robotic Shadow Hand turning a red cube on a wooden workbench.', 'A close-up overhead view of a robotic Shadow Hand turning a blue cube in a bright white lab.']"
@@ -545,7 +545,7 @@ Start the second with `--device cuda:2 --endpoint unix:///tmp/isaaclab-cosmos-gp
 endpoint with the list of both:
 
 ```bash
-uv run isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Cosmos-Direct --rl_library rsl_rl --num_envs 4 \
+uv run isaaclab train --task IsaacContrib-Reorient-Cube-Shadow-Camera-Cosmos-Direct --rl_library rsl_rl --num_envs 4 \
   env.cosmos.endpoint="['unix:///tmp/isaaclab-cosmos-gpu1.sock', 'unix:///tmp/isaaclab-cosmos-gpu2.sock']"
 ```
 

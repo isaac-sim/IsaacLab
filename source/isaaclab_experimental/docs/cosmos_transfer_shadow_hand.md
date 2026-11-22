@@ -102,7 +102,7 @@ Check for `"ready": true` and `"session_active": false`, then start the demo:
 
 ```bash
 uv run isaaclab train \
-  --task Isaac-Reorient-Cube-Shadow-Camera-Cosmos-Direct \
+  --task IsaacContrib-Reorient-Cube-Shadow-Camera-Cosmos-Direct \
   --rl_library rsl_rl \
   --max_iterations 20 \
   --num_envs 1
@@ -122,7 +122,7 @@ checkpoint kept in the run's log directory:
 
 ```bash
 uv run isaaclab play \
-  --task Isaac-Reorient-Cube-Shadow-Camera-Cosmos-Direct \
+  --task IsaacContrib-Reorient-Cube-Shadow-Camera-Cosmos-Direct \
   --rl_library rsl_rl \
   --checkpoint /path/to/cosmos-run/model_19.pt \
   --num_envs 1
@@ -136,7 +136,7 @@ recording 300 steps of the Newton GL streaming view:
 ```bash
 cd "$ISAAC_LAB_ROOT"
 uv run --extra video isaaclab train \
-  --task Isaac-Reorient-Cube-Shadow-Camera-Cosmos-Direct \
+  --task IsaacContrib-Reorient-Cube-Shadow-Camera-Cosmos-Direct \
   --rl_library rsl_rl \
   --max_iterations 20 \
   --num_envs 1 \
@@ -154,12 +154,12 @@ Press Ctrl+C in terminal 1 when finished to stop the Cosmos service and release 
 
 ## The task
 
-`Isaac-Reorient-Cube-Shadow-Camera-Cosmos-Direct` and `Isaac-Reorient-Cube-Shadow-Camera-Cosmos` are the Direct
+`IsaacContrib-Reorient-Cube-Shadow-Camera-Cosmos-Direct` and `IsaacContrib-Reorient-Cube-Shadow-Camera-Cosmos` are the Direct
 task `Isaac-Reorient-Cube-Shadow-Camera-Direct` and the Manager-based task `Isaac-Reorient-Cube-Shadow-Camera`
-with the same Cosmos camera. They live in `isaaclab_experimental.cosmos.tasks` and reuse the core tasks, which do
-not import Cosmos and keep their existing camera. The package registers them through the `isaaclab.tasks` entry
-point, so `isaaclab train` and `isaaclab play` find them by name; reinstall the environment (`uv sync`) once if the
-names are not found. Both use one environment unless `--num_envs` sets more.
+with the same Cosmos camera. They are contrib tasks in `isaaclab_tasks.contrib.reorient.config.shadow_hand` and reuse
+the core tasks, which do not import Cosmos and keep their existing camera. Registering them only names their
+configurations, so the Cosmos client is imported only when one is selected. Both use one environment unless
+`--num_envs` sets more.
 
 - **Camera:** a `640 x 640` RGB camera with depth controls covering `0.1` to `1.5` meters, a prompt describing a
   Shadow Hand manipulating a cube, and the default endpoint.
@@ -188,7 +188,7 @@ overrides:
 | Prompt files | `env.cosmos.prompt_files="['prompts/*.json']"` |
 | Service endpoint | `env.cosmos.endpoint=<url>` |
 
-For example, `isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Cosmos-Direct
+For example, `isaaclab train --task IsaacContrib-Reorient-Cube-Shadow-Camera-Cosmos-Direct
 env.cosmos.prompt="A Shadow Hand turning a red cube."`. Omitted options keep the task's values, and the overrides
 keep its image size, tensor processors, and feature-extractor supervision. For prompt lists and files, see
 [A different prompt per episode](cosmos_transfer.md#a-different-prompt-per-episode); for endpoints,
