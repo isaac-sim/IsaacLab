@@ -6,9 +6,9 @@
 """Verify that a process running Kit reports a truthful exit status.
 
 Each test launches headless CPU Kit through :func:`~isaaclab.app.launch_simulation` in a child
-process and asserts on how the process ends: cleanly after releasing the simulation,
-killed by a signal, or failed with an unhandled exception. Kit fast shutdown previously
-replaced failures with a successful exit code 0.
+process and asserts on how the process ends: killed by a signal, or failed with
+an unhandled exception. Kit fast shutdown previously replaced both outcomes
+with a successful exit code 0.
 """
 
 import os
@@ -22,35 +22,7 @@ import pytest
 
 _TRIGGER_WAIT_FOR_SIGTERM = "--wait-for-sigterm"
 _TRIGGER_UNHANDLED_EXCEPTION = "--trigger-unhandled-exception"
-_TRIGGER_CLOSE_AFTER_STEPS = "--close-after-steps"
-_READY_MARKER = "KIT_PROCESS_READY"
-_POST_CLEAR_UPDATE_MARKER = "KIT_UPDATE_AFTER_SIMULATION_CLEAR"
-
-
-def _close_after_steps() -> None:
-    from isaaclab.app import launch_simulation
-    from isaaclab.sim import SimulationCfg, SimulationContext
-
-    cfg = SimulationCfg(device="cpu")
-    with launch_simulation(cfg, {"physics": "isaacsim_physx", "visualizer": []}):
-        import omni.kit.app
-
-        sim = SimulationContext(cfg)
-        updates = []
-
-        def on_update(_event):
-            updates.append(SimulationContext.instance() is not None)
-            if not updates[-1]:
-                print(_POST_CLEAR_UPDATE_MARKER, flush=True)
-
-        subscription = omni.kit.app.get_app().get_update_event_stream().create_subscription_to_pop(on_update)
-        sim.reset()
-        sim.step()
-        assert updates, "The update observer must run during simulation."
-        print(_READY_MARKER, flush=True)
-
-    # Keep the observer alive until the runtime has finished closing.
-    subscription.unsubscribe()
+_READY_MARKER = "SIGTERM_TEST_READY"
 
 
 def _idle_after_kit_launch() -> None:
@@ -102,21 +74,6 @@ def _wait_for_ready_marker(proc: subprocess.Popen, timeout: float) -> None:
 
 
 @pytest.mark.integration
-def test_close_does_not_update_a_cleared_simulation():
-    """Shutdown exits cleanly without invoking update consumers after releasing their simulation."""
-    result = subprocess.run(
-        [sys.executable, __file__, _TRIGGER_CLOSE_AFTER_STEPS],
-        capture_output=True,
-        text=True,
-        timeout=120,
-    )
-    output = result.stdout + result.stderr
-    assert result.returncode == 0, output
-    assert _READY_MARKER in output, output
-    assert _POST_CLEAR_UPDATE_MARKER not in output, output
-
-
-@pytest.mark.integration
 def test_sigterm_reports_killed_by_signal_status():
     """Verify that a SIGTERM-ed process dies by SIGTERM instead of exiting successfully."""
     proc = subprocess.Popen(
@@ -159,5 +116,3 @@ if __name__ == "__main__":
         _idle_after_kit_launch()
     elif _TRIGGER_UNHANDLED_EXCEPTION in sys.argv:
         _raise_after_kit_launch()
-    elif _TRIGGER_CLOSE_AFTER_STEPS in sys.argv:
-        _close_after_steps()

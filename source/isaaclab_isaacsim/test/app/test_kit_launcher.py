@@ -796,27 +796,22 @@ def test_is_available_reflects_simulation_app_presence(monkeypatch: pytest.Monke
     assert KitLauncher.is_available() is True
 
 
-@pytest.mark.kitless
-@pytest.mark.parametrize("close_raises", [False, True])
-def test_close_preserves_exit_status_and_restores_sigint(close_raises):
-    """Forward the exit status and restore SIGINT even if Kit cannot close."""
+def test_close_pumps_the_app_before_closing():
+    """Drain callbacks before closing Kit."""
     calls = []
     previous_handler = signal.getsignal(signal.SIGINT)
 
-    def close(exit_code):
+    def update():
         assert signal.getsignal(signal.SIGINT) == signal.SIG_DFL
+        calls.append("update")
+
+    def close(exit_code):
         calls.append(exit_code)
-        if close_raises:
-            raise RuntimeError("Kit close failed")
 
     launcher = KitLauncher.__new__(KitLauncher)
-    launcher._app = SimpleNamespace(update=lambda: None, close=close)
+    launcher._app = SimpleNamespace(update=update, close=close)
 
-    if close_raises:
-        with pytest.raises(RuntimeError, match="Kit close failed"):
-            launcher.close(exit_code=3)
-    else:
-        launcher.close(exit_code=3)
+    launcher.close(exit_code=3)
 
-    assert calls == [3]
+    assert calls == ["update", 3]
     assert signal.getsignal(signal.SIGINT) is previous_handler

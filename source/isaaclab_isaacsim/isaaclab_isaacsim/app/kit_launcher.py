@@ -228,8 +228,8 @@ class KitLauncher(SimulationLauncher):
         if self._app is not None:
             previous_handler = signal.signal(signal.SIGINT, signal.SIG_DFL)
             try:
-                # launch_simulation has already released the scene and its consumers. Advancing
-                # Kit here can dispatch callbacks against those destroyed resources and hang.
+                # let callbacks queued by the closing simulation run before shutdown
+                self._app.update()
                 self._app.close(exit_code=exit_code)
             finally:
                 signal.signal(signal.SIGINT, previous_handler)
