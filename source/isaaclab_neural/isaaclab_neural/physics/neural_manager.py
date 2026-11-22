@@ -273,9 +273,8 @@ class NeuralManager(PhysicsManager):
             self._mid_chunk.zero_()
             raise RuntimeError(
                 f"Environments {[env for env, late in enumerate(mid_chunk) if late]} reset inside a chunk, but"
-                " environments can only reset on chunk boundaries. Make episode_length_s a multiple of the chunk"
-                f" duration ({self.spec.chunk_length / self.spec.fps} s), use a decimation that divides"
-                f" {self.spec.chunk_length}, and wrap terminations with at_chunk_boundary."
+                " environments can only reset on chunk boundaries. Use a decimation that divides"
+                f" {self.spec.chunk_length}, and wrap every termination, the time-out too, with at_chunk_boundary."
             )
         env_ids = [env for env, flag in enumerate(restart) if flag]
         if not env_ids:

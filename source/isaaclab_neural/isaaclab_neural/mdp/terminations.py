@@ -29,20 +29,15 @@ def is_chunk_boundary(env: ManagerBasedRLEnv) -> torch.Tensor:
 
 
 def check_chunk_timing(env: ManagerBasedRLEnv) -> None:
-    """Check that environment steps and time-outs fall on chunk boundaries.
+    """Check that environment steps fall on chunk boundaries.
 
     Raises:
-        ValueError: If the decimation does not divide the chunk length, or an episode is not a whole number of chunks.
+        ValueError: If the decimation does not divide the chunk length.
     """
     chunk = env.sim.backend_manager.spec.chunk_length
     decimation = env.cfg.decimation
     if chunk % decimation:
         raise ValueError(f"decimation={decimation} must divide the world model's chunk of {chunk} frames.")
-    if env.max_episode_length * decimation % chunk:
-        raise ValueError(
-            f"An episode of {env.max_episode_length} steps is not a whole number of {chunk // decimation}-step chunks,"
-            " so its time-out would fall inside a chunk; adjust episode_length_s."
-        )
 
 
 def at_chunk_boundary(term: Callable[..., torch.Tensor]) -> Callable[..., torch.Tensor]:
@@ -54,6 +49,10 @@ def at_chunk_boundary(term: Callable[..., torch.Tensor]) -> Callable[..., torch.
     chunk is missed. Use it on the function of a :class:`~isaaclab.managers.TerminationTermCfg`::
 
         done = DoneTerm(func=at_chunk_boundary(my_condition), params={...})
+        time_out = DoneTerm(func=at_chunk_boundary(mdp.time_out), time_out=True)
+
+    Wrapping the time-out lets episodes have any length, including the random first episode lengths some trainers
+    use (rsl_rl's ``init_at_random_ep_len``): an episode ends at the first boundary after its time limit.
 
     The first call checks the environment's timing with :func:`check_chunk_timing`.
 
