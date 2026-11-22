@@ -40,24 +40,32 @@ def solver_kwargs(solver_cls: type, cfg: Any, mode: wp.DeterministicMode) -> dic
 
 
 @wp.kernel(enable_backward=False)
-def _flag_non_finite_values(
-    values: wp.array(dtype=Any), worlds: wp.array(dtype=wp.int32), faults: wp.array(dtype=wp.bool)
+def _flag_non_finite_particles(
+    positions: wp.array(dtype=wp.vec3),
+    velocities: wp.array(dtype=wp.vec3),
+    worlds: wp.array(dtype=wp.int32),
+    faults: wp.array(dtype=wp.bool),
 ):
     index = wp.tid()
     world = worlds[index]
-    if world >= 0 and not wp.isfinite(values[index]):
+    if world >= 0 and not (wp.isfinite(positions[index]) and wp.isfinite(velocities[index])):
         faults[world] = True
 
 
 @wp.kernel(enable_backward=False)
 def _flag_non_finite_bodies(
-    poses: wp.array(dtype=wp.transform), worlds: wp.array(dtype=wp.int32), faults: wp.array(dtype=wp.bool)
+    poses: wp.array(dtype=wp.transform),
+    velocities: wp.array(dtype=wp.spatial_vector),
+    worlds: wp.array(dtype=wp.int32),
+    faults: wp.array(dtype=wp.bool),
 ):
     index = wp.tid()
     world = worlds[index]
     pose = poses[index]
     if world >= 0 and not (
-        wp.isfinite(wp.transform_get_translation(pose)) and wp.isfinite(wp.transform_get_rotation(pose))
+        wp.isfinite(wp.transform_get_translation(pose))
+        and wp.isfinite(wp.transform_get_rotation(pose))
+        and wp.isfinite(velocities[index])
     ):
         faults[world] = True
 
@@ -223,8 +231,9 @@ class NewtonSolver:
         """
         model = self.native.model
         if model.body_count:
-            wp.launch(_flag_non_finite_bodies, model.body_count, [state.body_q, model.body_world, faults])
-            wp.launch(_flag_non_finite_values, model.body_count, [state.body_qd, model.body_world, faults])
+            wp.launch(
+                _flag_non_finite_bodies, model.body_count, [state.body_q, state.body_qd, model.body_world, faults]
+            )
         if model.joint_count:
             wp.launch(
                 _flag_non_finite_joints,
@@ -232,8 +241,11 @@ class NewtonSolver:
                 [state.joint_q, state.joint_qd, model.joint_q_start, model.joint_qd_start, model.joint_world, faults],
             )
         if model.particle_count:
-            wp.launch(_flag_non_finite_values, model.particle_count, [state.particle_q, model.particle_world, faults])
-            wp.launch(_flag_non_finite_values, model.particle_count, [state.particle_qd, model.particle_world, faults])
+            wp.launch(
+                _flag_non_finite_particles,
+                model.particle_count,
+                [state.particle_q, state.particle_qd, model.particle_world, faults],
+            )
 
     def reset(self, state: State, world_mask: wp.array) -> None:
         """Clear solver-owned history for the worlds of a ``(world_count + 1,)`` mask, keeping authored joint state."""

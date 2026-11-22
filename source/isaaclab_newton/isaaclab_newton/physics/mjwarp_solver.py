@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import warp as wp
@@ -27,7 +27,7 @@ _SENSORS_BY_STATE_ATTRIBUTE = {"body_qdd": "the IMU or PVA sensor", "body_parent
 
 
 @wp.func
-def _nonfinite(values: wp.array2d(dtype=wp.float32), world: int, column: int) -> bool:
+def _nonfinite(values: wp.array2d(dtype=Any), world: int, column: int) -> bool:
     return column < values.shape[1] and not wp.isfinite(values[world, column])
 
 
@@ -45,7 +45,7 @@ def _find_nonfinite_solver_worlds(
     invalid_worlds: wp.array(dtype=wp.bool),
 ):
     world, column = wp.tid()
-    invalid = (
+    if (
         _nonfinite(qpos, world, column)
         or _nonfinite(qvel, world, column)
         or _nonfinite(qacc, world, column)
@@ -54,13 +54,8 @@ def _find_nonfinite_solver_worlds(
         or _nonfinite(qfrc_applied, world, column)
         or _nonfinite(ctrl, world, column)
         or _nonfinite(act, world, column)
-    )
-    if column < xfrc_applied.shape[1]:
-        force = xfrc_applied[world, column]
-        for component in range(6):
-            if not wp.isfinite(force[component]):
-                invalid = True
-    if invalid:
+        or _nonfinite(xfrc_applied, world, column)
+    ):
         invalid_worlds[world] = True
 
 
@@ -138,21 +133,17 @@ class MJWarpSolver(NewtonSolver):
         its private buffers invalidates every environment. MJWarp checks each world's buffers separately.
         """
         super().mark_non_finite_worlds(state, faults)
-        solver = self.native
-        data = solver.mj_data if self.cfg.use_mujoco_cpu else solver.mjw_data
-        arrays = tuple(
-            getattr(data, name)
-            for name in (
-                "qpos",
-                "qvel",
-                "qacc",
-                "qfrc_actuator",
-                "qacc_warmstart",
-                "qfrc_applied",
-                "ctrl",
-                "act",
-                "xfrc_applied",
-            )
+        data = self.native.mj_data if self.cfg.use_mujoco_cpu else self.native.mjw_data
+        arrays = (
+            data.qpos,
+            data.qvel,
+            data.qacc,
+            data.qfrc_actuator,
+            data.qacc_warmstart,
+            data.qfrc_applied,
+            data.ctrl,
+            data.act,
+            data.xfrc_applied,
         )
         if self.cfg.use_mujoco_cpu:
             if any(not np.isfinite(array).all() for array in arrays):
