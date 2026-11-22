@@ -42,7 +42,7 @@ class OVRTXBackendCfg(BackendCfg):
     device: str = MISSING
     """Normalized simulation device: ``cpu`` or ``cuda:<index>``."""
     motion_bvh: Literal["disable", "enable", "auto"] | None = None
-    """Motion BVH mode passed to the native renderer. ``None`` leaves it disabled."""
+    """Motion BVH mode passed to the native renderer. ``None`` leaves the native setting unset."""
 
 
 @configclass
@@ -69,11 +69,11 @@ class OVRTXRendererCfg(RendererCfg):
     """Request native OVRTX copies; clone preparation may select a shared OVStage instead."""
 
     motion_bvh: Literal["disable", "enable", "auto"] | None = None
-    """Motion BVH mode for lidar and other non-visual sensors. Defaults to disabled.
+    """Motion BVH mode for lidar and other non-visual sensors. ``None`` leaves the native setting unset.
 
-    ``None`` leaves the renderer setting unset, which is the existing camera behavior.
     ``"auto"`` enables motion BVH when a non-visual sensor is rendered. ``"enable"`` and
-    ``"disable"`` force the mode. The value is read when the native renderer is created.
+    ``"disable"`` force the mode. The value is copied onto the backend and read when the native
+    renderer is created.
     """
 
     async_rendering: bool = False

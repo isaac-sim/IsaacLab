@@ -112,6 +112,10 @@ def copy_tiled_point_cloud(mapped, points: torch.Tensor, intensity: torch.Tensor
             "OVRTX returned a compacted lidar cloud. Missed rays must keep their authored slots"
             " until each return can be placed by ray id."
         )
+    if stride == num_rays and coordinates.shape[0] != tile_count * stride:
+        raise RuntimeError(
+            f"OVRTX lidar returned {coordinates.shape[0]} points for {tile_count} tiles of {stride} rays."
+        )
     if on_device and stride == num_rays:
         _copy_dense_on_device(coordinates, signal, flags, points, intensity, valid, tile_count, stride)
         return

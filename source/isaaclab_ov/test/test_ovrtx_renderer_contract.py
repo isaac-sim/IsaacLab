@@ -368,7 +368,7 @@ def test_ovrtx_render_submits_every_product_and_routes_requested_outputs(
 
 
 def test_shared_lidar_capture_steps_once_and_publishes_prepared_cameras(monkeypatch):
-    """A camera and a lidar share one step, and a camera that was not requested keeps its output."""
+    """A camera and a lidar share one step. A pose written after the capture renders again."""
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._initialized_scene = True
     renderer._use_ovstage = False
@@ -412,7 +412,15 @@ def test_shared_lidar_capture_steps_once_and_publishes_prepared_cameras(monkeypa
 
     assert len(submissions) == 2
     assert submissions[1]["delta_time"] == pytest.approx(0.1)
-    assert processed == [cameras[0]]
+    assert processed == [cameras[0], cameras[0]]
+
+    renderer._sim.get_physics_step_count = lambda: 5
+    renderer.render_lidars(0.1)
+    renderer.render_batch((cameras[0],))
+
+    assert len(submissions) == 4
+    assert processed[-1] is cameras[0]
+    assert cameras[1] not in processed
 
 
 def test_ovrtx_render_batch_empty_sequence_does_not_require_initialized_backend():

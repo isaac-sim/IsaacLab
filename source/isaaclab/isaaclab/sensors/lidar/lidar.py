@@ -330,6 +330,20 @@ class Lidar(SensorBase):
 
         self._push_renderer_pose()
 
+    def _invalidate_initialize_callback(self, event):
+        """Release the lidar product so the next initialization does not leave the previous one.
+
+        A hard reset runs initialization again on this sensor. ``__del__`` is too late: replacing
+        ``_render_data`` would leave the previous product and its output buffers registered.
+        """
+        if self._render_data is not None:
+            self._renderer.cleanup_lidar(self._render_data)
+        self._render_data = None
+        super()._invalidate_initialize_callback(event)
+        if self._parent_view is not None:
+            self._parent_view.close()
+            self._parent_view = None
+
     def _update_buffers_impl(self, env_mask: wp.array):
         """Capture every tile when any environment is due. A tiled product cannot render one tile.
 
