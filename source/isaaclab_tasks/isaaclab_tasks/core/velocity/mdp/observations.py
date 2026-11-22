@@ -24,13 +24,13 @@ def _feet(env) -> tuple[list[int], list[int]]:
 class VelocityState(ManagerTermBase):
     """Read physical state without modifying observation history or contact timers.
 
-    Order: body linear/angular velocity, root XYZW quaternion, height, joint
-    position/velocity, foot world velocity, current air/contact and last air time.
+    Order: body linear/angular velocity, root XYZW quaternion, world root
+    position, joint position/velocity, current air/contact and last air time.
     """
 
     def __init__(self, cfg, env):
         super().__init__(cfg, env)
-        self._feet, self._sensor_feet = _feet(env)
+        _, self._sensor_feet = _feet(env)
 
     def __call__(self, env) -> torch.Tensor:
         data = env.scene["robot"].data
@@ -40,10 +40,9 @@ class VelocityState(ManagerTermBase):
                 data.root_lin_vel_b.torch,
                 data.root_ang_vel_b.torch,
                 data.root_quat_w.torch,
-                data.root_pos_w.torch[:, 2:3] - env.scene.env_origins[:, 2:3],
+                data.root_pos_w.torch,
                 data.joint_pos.torch,
                 data.joint_vel.torch,
-                data.body_lin_vel_w.torch[:, self._feet].flatten(1),
                 contact.current_air_time.torch[:, self._sensor_feet],
                 contact.current_contact_time.torch[:, self._sensor_feet],
                 contact.last_air_time.torch[:, self._sensor_feet],

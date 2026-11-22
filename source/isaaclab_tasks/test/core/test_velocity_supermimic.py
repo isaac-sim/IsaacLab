@@ -11,16 +11,18 @@ from isaaclab_tasks.utils import resolve_task_config
 from isaaclab_tasks.utils.hydra import collect_presets
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
+TASKS = ("Isaac-Velocity-Flat-G1", "Isaac-Velocity-Rough-G1")
 
-def test_flat_velocity_observation_preset_preserves_policy_and_mdp():
+
+@pytest.mark.parametrize("task", TASKS)
+def test_velocity_observation_preset_preserves_policy_and_mdp(task):
     """Optional physical groups leave policy and downstream observation customizations intact."""
-    task = "Isaac-Velocity-Flat-G1"
     raw = load_cfg_from_registry(task, "env_cfg_entry_point")
     assert "state_obs" in collect_presets(raw)["observations.state"]
     default, _ = resolve_task_config(task, None, overrides=[])
     model_based, _ = resolve_task_config(task, None, overrides=["presets=state_obs"])
     assert model_based.observations.policy.to_dict() == default.observations.policy.to_dict()
-    assert default.observations.policy.height_scan is None
+    assert (default.observations.policy.height_scan is None) == (task == "Isaac-Velocity-Flat-G1")
     for name in ("rewards", "terminations", "events", "commands", "actions", "scene"):
         assert getattr(default, name).to_dict() == getattr(model_based, name).to_dict()
     for group in ("state", "goal", "context", "labels"):
@@ -30,10 +32,9 @@ def test_flat_velocity_observation_preset_preserves_policy_and_mdp():
     assert navigation.actions.pre_trained_policy_action.low_level_observations.height_scan is None
 
 
-def test_g1_supermimic_max_step_reward_matches_reward_terms():
-    env_cfg, agent_cfg = resolve_task_config(
-        "Isaac-Velocity-Flat-G1", "rsl_rl_supermimic_cfg_entry_point", overrides=[]
-    )
+@pytest.mark.parametrize("task", TASKS)
+def test_g1_supermimic_max_step_reward_matches_reward_terms(task):
+    env_cfg, agent_cfg = resolve_task_config(task, "rsl_rl_supermimic_cfg_entry_point", overrides=[])
     rewards = env_cfg.rewards
     assert {name for name, term in vars(rewards).items() if term is not None and term.weight > 0} == {
         "track_lin_vel_xy_exp",
@@ -58,17 +59,19 @@ def test_velocity_state_representation_manifold_and_analytic_clocks():
     from isaaclab_tasks.core.velocity.supermimic import VelocityStateRepresentation
 
     representation = VelocityStateRepresentation(num_joints=3, num_feet=2)
-    flat = torch.randn(2, 4, 29, requires_grad=True)
+    flat = torch.randn(2, 4, 25, requires_grad=True)
     state = list(representation.unflatten(flat))
     state[2] = torch.nn.functional.normalize(state[2], dim=-1)
     state = tuple(state)
     increment = torch.randn(2, 4, representation.increment_dim) * 0.05
     prediction = representation.integrate(state, increment)
     torch.testing.assert_close(representation.increments(state, prediction), increment)
-    for actual, expected in zip(prediction[7:], state[7:]):
+    for actual, expected in zip(prediction[6:], state[6:]):
         torch.testing.assert_close(actual, expected)
     representation.features(prediction).square().sum().backward()
     assert torch.isfinite(flat.grad).all()
+    # the world position stays out of the dynamics features
+    assert flat.grad[..., 10:13].abs().sum() == 0
     zero = representation.integrate(state, torch.zeros_like(increment))
     for actual, expected in zip(zero, state):
         torch.testing.assert_close(actual, expected)
@@ -79,13 +82,16 @@ def test_velocity_state_representation_manifold_and_analytic_clocks():
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="Requires Newton on CUDA.")
-def test_g1_differentiable_velocity_matches_reward_and_termination_managers():
-    """Compare all 16 terms against the actual physical managers on transitions.
+@pytest.mark.parametrize("task_name", TASKS)
+def test_g1_differentiable_velocity_matches_simulation_and_managers(task_name):
+    """Compare actor inputs, all 16 reward terms and terminations against the physical managers on transitions.
 
     PD torque and policy-rate qacc are approximations, with explicit absolute
     tolerances in weighted, dt-scaled reward units for this bounded-action probe.
     Contact rewards use observed labels/timers here; imagined contact probabilities
     and policy-resolution clock advancement are separate model approximations.
+    The heightfield scan matches the ray-cast scan except within one heightfield
+    cell of vertical steps.
     """
     import gymnasium as gym
 
@@ -94,43 +100,46 @@ def test_g1_differentiable_velocity_matches_reward_and_termination_managers():
     from isaaclab_tasks.core.velocity.supermimic import VelocityTask
 
     cfg, _ = resolve_task_config(
-        "Isaac-Velocity-Flat-G1",
-        None,
-        overrides=["presets=state_obs", "physics=newton_mjwarp", "visualizer=none"],
+        task_name, None, overrides=["presets=state_obs", "physics=newton_mjwarp", "visualizer=none"]
     )
-    cfg.scene.num_envs = 16
+    num_envs = 32
+    cfg.scene.num_envs = num_envs
     cfg.seed = 42
     cfg.final_obs_every_step = True
     cfg.observations.policy.enable_corruption = False
     approximation_tolerances = {"dof_torques_l2": 0.0001, "dof_acc_l2": 0.005}
     with launch_simulation(cfg, {"visualizer": ["none"]}):
-        env = gym.make("Isaac-Velocity-Flat-G1", cfg=cfg)
+        env = gym.make(task_name, cfg=cfg)
         try:
             obs, _ = env.reset()
-            task = VelocityTask(env=env, device=env.unwrapped.device)
+            owner = env.unwrapped
+            task = VelocityTask(env=env, device=owner.device)
             assert task.dt == pytest.approx(0.02)
             assert len(task.rewards) == 16
-            phase = torch.linspace(0, 2 * torch.pi, 16 * task.num_actions, device=task.device).reshape(16, -1)
+            num_scan = 0 if task.scan_points is None else len(task.scan_points)
+            assert num_scan == (187 if task_name == "Isaac-Velocity-Rough-G1" else 0)
+            phase = torch.linspace(0, 2 * torch.pi, num_envs * task.num_actions, device=task.device)
+            phase = phase.reshape(num_envs, -1)
+            scan_errors = []
             for step in range(32):
                 state = task.representation.unflatten(obs["state"].clone())
                 goal = obs["goal"].clone()
-                history = torch.stack(
-                    (env.unwrapped.action_manager.prev_action, env.unwrapped.action_manager.action), -2
-                )
-                inputs = task.actor_obs(state, goal, obs["context"], history)
-                frame = inputs["policy"]
-                torch.testing.assert_close(inputs["goal"], goal)
-                torch.testing.assert_close(frame, torch.cat((obs["policy"][..., :9], obs["policy"][..., 12:]), -1))
+                history = torch.stack((owner.action_manager.prev_action, owner.action_manager.action), -2)
+                frame = task.actor_obs(state, goal, obs["context"], history)
+                policy = torch.cat((obs["policy"][..., :9], obs["policy"][..., 12:]), -1)
+                proprio = frame.shape[-1] - num_scan
+                torch.testing.assert_close(frame[..., :proprio], policy[..., :proprio])
+                scan_errors.append((frame[..., proprio:] - policy[..., proprio:]).abs().flatten())
                 # Privileged masses and contact clocks cannot enter the actor.
-                torch.testing.assert_close(frame, task.actor_obs(state, goal, 2 * obs["context"], history)["policy"])
+                torch.testing.assert_close(frame, task.actor_obs(state, goal, 2 * obs["context"], history))
                 actions = 0.1 * torch.sin(phase + step * 0.3)
                 obs, _, terminated, _, extras = env.step(actions)
                 final = extras["final_obs"]
                 successor = task.representation.unflatten(final["state"])
                 terms = task.reward_terms(state, actions, successor, goal, history, final["labels"])
                 actual = {name: [] for name in terms}
-                for index in range(16):
-                    for name, values in env.unwrapped.reward_manager.get_active_iterable_terms(index):
+                for index in range(num_envs):
+                    for name, values in owner.reward_manager.get_active_iterable_terms(index):
                         actual[name].append(values[0] * task.dt)
                 for name, predicted in terms.items():
                     reference = torch.tensor(actual[name], device=task.device)
@@ -138,11 +147,15 @@ def test_g1_differentiable_velocity_matches_reward_and_termination_managers():
                         predicted, reference, atol=approximation_tolerances.get(name, 1e-6), rtol=1e-5
                     )
                 torch.testing.assert_close(task.termination_prob(successor, goal, final["labels"]), terminated.float())
+            if num_scan:
+                scan_errors = torch.cat(scan_errors)
+                assert scan_errors.median() < 1e-3
+                assert (scan_errors > 0.01).float().mean() < 0.03
             # A positive physical contact prevents an always-zero termination
             # head from passing the otherwise mostly upright transition sample.
-            robot = env.unwrapped.scene["robot"]
+            robot = owner.scene["robot"]
             fallen_pose = robot.data.root_link_pose_w.torch[:1].clone()
-            fallen_pose[..., 2] = env.unwrapped.scene.env_origins[0, 2] + 0.05
+            fallen_pose[..., 2] = owner.scene.env_origins[0, 2] + 0.05
             fallen_pose[..., 3:] = torch.tensor([0.0, 2**-0.5, 0.0, 2**-0.5], device=task.device)
             robot.write_root_pose_to_sim_index(root_pose=fallen_pose, env_ids=[0])
             for _ in range(4):
@@ -157,18 +170,25 @@ def test_g1_differentiable_velocity_matches_reward_and_termination_managers():
             # the world-model increment loss. These gradients must survive rollout.
             labels = final["labels"].detach().clone().requires_grad_()
             clock_state = list(successor)
-            clock_state[7] = torch.full_like(clock_state[7], 0.2)
-            clock_state[8] = torch.full_like(clock_state[8], 0.1)
-            clock_state[9] = torch.full_like(clock_state[9], 0.15)
-            advanced = task.post_dynamics(tuple(clock_state), successor, labels, actions, obs["context"])
-            sum(value.sum() for value in advanced[7:]).backward()
+            clock_state[6] = torch.full_like(clock_state[6], 0.2)
+            clock_state[7] = torch.full_like(clock_state[7], 0.1)
+            clock_state[8] = torch.full_like(clock_state[8], 0.15)
+            advanced = task.post_dynamics(tuple(clock_state), successor, labels)
+            sum(value.sum() for value in advanced[6:]).backward()
             assert torch.isfinite(labels.grad).all() and labels.grad.abs().sum() > 0
-            # Imagined rewards must differentiate with respect to actions and state.
+            # Imagined rewards, actor inputs and terrain heights must differentiate with respect to actions and state.
             differentiable = tuple(value.detach().clone().requires_grad_() for value in successor)
             action = actions.detach().clone().requires_grad_()
-            task.reward(state, action, differentiable, goal, history, final["labels"]).sum().backward()
+            (
+                task.reward(state, action, differentiable, goal, history, final["labels"]).sum()
+                + task.actor_obs(differentiable, goal, obs["context"], history).sum()
+                + task.dynamics_context(differentiable, obs["context"], history).sum()
+            ).backward()
             assert torch.isfinite(action.grad).all() and action.grad.abs().sum() > 0
             assert all(value.grad is None or torch.isfinite(value.grad).all() for value in differentiable)
+            assert differentiable[3].grad[:, 2].abs().sum() > 0
+            if num_scan:
+                assert differentiable[3].grad[:, :2].abs().sum() > 0
             # Resolve the real policy noise cfg through the task constructor;
             # corruption must preserve the actor's input gradients and actions.
             cfg.observations.policy.enable_corruption = True
@@ -176,8 +196,15 @@ def test_g1_differentiable_velocity_matches_reward_and_termination_managers():
             noise_input = frame.detach().clone().requires_grad_()
             noisy = noisy_task.add_noise(noise_input)
             assert noisy.shape == noise_input.shape and not torch.equal(noisy, noise_input)
-            torch.testing.assert_close(noisy[..., -task.num_actions :], noise_input[..., -task.num_actions :])
+            actions_end = noisy.shape[-1] - num_scan
+            torch.testing.assert_close(
+                noisy[..., actions_end - task.num_actions : actions_end],
+                noise_input[..., actions_end - task.num_actions : actions_end],
+            )
             noisy.sum().backward()
-            torch.testing.assert_close(noise_input.grad, torch.ones_like(noise_input))
+            assert torch.isfinite(noise_input.grad).all()
+            torch.testing.assert_close(
+                noise_input.grad[..., :actions_end], torch.ones_like(noise_input[..., :actions_end])
+            )
         finally:
             env.close()

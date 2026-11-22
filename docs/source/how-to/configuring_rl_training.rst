@@ -174,17 +174,19 @@ environment. ``clip_actions=None`` preserves that range.
 Use the same agent entry point with the playback and export commands. Published
 ``pretrained`` checkpoints are PPO policies and cannot be loaded by ``OffPolicyRunner`` agents.
 
-Training the G1 velocity task with SuperMimic
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Training the G1 velocity tasks with SuperMimic
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-SuperMimic uses the same G1 velocity MDP with noise-free physical observation groups.
+SuperMimic uses the same flat and rough G1 velocity MDPs with noise-free physical observation groups.
 Select its agent and the shared ``state_obs`` observation preset together:
 
 .. code-block:: bash
 
    uv run isaaclab train --rl_library rsl_rl \
-      --task Isaac-Velocity-Flat-G1 --agent rsl_rl_supermimic_cfg_entry_point \
+      --task Isaac-Velocity-Rough-G1 --agent rsl_rl_supermimic_cfg_entry_point \
       presets=state_obs physics=newton_mjwarp visualizer=none
+
+The agent follows the settings of the official SuperMimic code.
 
 The agent configuration enables ``final_obs_every_step`` before environment creation.
 These observations describe the physical transition before resets, command resampling
@@ -192,7 +194,11 @@ and interval pushes. The environment signals this capture explicitly. SuperMimic
 world-model training windows at continuing-state edits and retains the physical successor.
 
 The differentiable velocity task owns the state coordinates, deployable actor features,
-reward terms and contact probabilities. Joint torque rewards use a PD approximation.
+reward terms and contact probabilities. Feet and the height scanner follow from differentiable
+forward kinematics of the simulated articulation. The actor's height scan samples a heightfield
+of the terrain mesh, ray-cast once at startup, so it matches the ray-cast scan except within
+2.5 cm of vertical steps. The world model sees the terrain through the root and sole heights
+above it. Joint torque rewards use a PD approximation.
 Acceleration rewards use policy-rate differences. Contact timers advance analytically
 at the policy timestep using predicted event labels.
 
