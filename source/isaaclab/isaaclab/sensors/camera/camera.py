@@ -169,9 +169,9 @@ def _camera_update_state_kernel(
 def _check_render_product_split(cfg: CameraCfg, renderer_cfg: RendererCfg) -> None:
     """Reject a render product split when the renderer of the camera cannot split a camera sensor.
 
-    The camera calls this before it gets its renderer and before the scene is cloned. The configuration check
-    cannot do this, because a launcher can replace a placeholder renderer configuration after it, for example the
-    ``"auto_rtx"`` preset.
+    The camera calls this at the start of its construction, before it changes the scene or gets its renderer. The
+    configuration check cannot do this, because a launcher can replace a placeholder renderer configuration after
+    it, for example the ``"auto_rtx"`` preset. The launcher does this before it constructs the scene.
 
     Raises:
         ValueError: If ``cfg.max_envs_per_render_product`` is an integer and the renderer cannot split.
@@ -253,6 +253,8 @@ class Camera(SensorBase):
         self._check_supported_data_types(cfg)
         # initialize base class
         super().__init__(cfg)
+        # A rejected camera must not change the scene, so this check runs before the camera spawns or authors prims.
+        _check_render_product_split(self.cfg, self.cfg.renderer_cfg)
 
         # Compute camera orientation (convention conversion) and spawn.
         rot = torch.tensor(self.cfg.offset.rot, dtype=torch.float32, device="cpu").unsqueeze(0)
@@ -330,7 +332,6 @@ class Camera(SensorBase):
         self._sensor_prims: list[UsdGeom.Camera] = []
         # Allocated in :meth:`_create_buffers` once the renderer's output contract is known.
         self._data: CameraData | None = None
-        _check_render_product_split(self.cfg, self.cfg.renderer_cfg)
         # Register before clone dispatch; sensor initialization runs only after physics is ready.
         self._renderer: BaseRenderer = sim_ctx.get_or_create_backend(self.cfg.renderer_cfg)
         with force_log_level(logging.INFO):

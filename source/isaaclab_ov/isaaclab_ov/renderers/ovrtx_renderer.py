@@ -193,9 +193,22 @@ def _decode_segmentation_map(render_var: RenderVarOutput, decoder: Callable[[Ide
         return decoder({name: np.from_dlpack(mapping[name]) for name in mapping.keys()})
 
 
-def _label_map_bytes(id_map: IdentifierMap) -> dict[str, tuple[np.dtype, tuple[int, ...], bytes]]:
-    """Return a host copy of the raw tensors of a label map. Equal copies give equal decoded maps."""
-    return {name: (tensor.dtype, tensor.shape, tensor.tobytes()) for name, tensor in id_map.items()}
+def _copy_label_map(id_map: IdentifierMap) -> dict[str, np.ndarray]:
+    """Return a host copy of the tensors of a label map. The copy stays valid after the mapping is released."""
+    return {name: tensor.copy() for name, tensor in id_map.items()}
+
+
+def _label_map_matches(
+    id_map: IdentifierMap, first: IdentifierMap, decoder: Callable[[IdentifierMap], Any], expected: Any
+) -> bool:
+    """Return whether ``id_map`` decodes to ``expected``, the decoded map of the tensors ``first``.
+
+    Equal tensors give equal decoded maps. Decoding is slow, so the function decodes only a map with other tensors.
+    """
+    same_tensors = id_map.keys() == first.keys() and all(
+        tensor.dtype == first[name].dtype and np.array_equal(tensor, first[name]) for name, tensor in id_map.items()
+    )
+    return same_tensors or decoder(id_map) == expected
 
 
 def _write_combined_stage(output_dir: Path, render_product_usd: str) -> None:
@@ -364,6 +377,28 @@ class OVRTXCameraRenderData:
         # "instance_segmentation" (with "idToLabels" and "idToSemantics" mappings).
         self.renderer_info: dict[str, Any] = {}
 
+    @property
+    def render_product_paths(self) -> tuple[str, ...]:
+        """Paths of every render product of this sensor, in environment order."""
+        return tuple(product.path for product in self.products)
+
+    def cleanup(self) -> None:
+        """Release this camera's native resources and buffers. Safe to call repeatedly.
+
+        Resources are released in reverse acquisition order, before the shared renderer or stage
+        is closed. The render product paths remain as identifiers for renderer bookkeeping.
+        """
+        try:
+            with self.resources:
+                self.camera_writes.close()
+        finally:
+            self.pending = self.ready = None
+            self.capture = {}
+            self.camera_xform_binding = None
+            self.intrinsic_bindings.clear()
+            self.warp_buffers.clear()
+            self.renderer_info.clear()
+
     def _set_layout(self, max_envs: int) -> None:
         """Divide the environments over render products of at most ``max_envs`` environments each.
 
@@ -398,28 +433,6 @@ class OVRTXCameraRenderData:
                     num_rows=math.ceil(envs / cols),
                 )
             )
-
-    @property
-    def render_product_paths(self) -> tuple[str, ...]:
-        """Paths of every render product of this sensor, in environment order."""
-        return tuple(product.path for product in self.products)
-
-    def cleanup(self) -> None:
-        """Release this camera's native resources and buffers. Safe to call repeatedly.
-
-        Resources are released in reverse acquisition order, before the shared renderer or stage
-        is closed. The render product paths remain as identifiers for renderer bookkeeping.
-        """
-        try:
-            with self.resources:
-                self.camera_writes.close()
-        finally:
-            self.pending = self.ready = None
-            self.capture = {}
-            self.camera_xform_binding = None
-            self.intrinsic_bindings.clear()
-            self.warp_buffers.clear()
-            self.renderer_info.clear()
 
 
 class OVRTXRenderer(BaseRenderer):
@@ -880,7 +893,7 @@ class OVRTXRenderer(BaseRenderer):
 
         Raises:
             RuntimeError: If ``instance_segmentation`` is requested and a map is missing from a frame, or if
-                two render products of the sensor return different label maps.
+                two render products of the sensor return different label maps, or only one of them returns a map.
         """
         semantic, instance = "semantic_segmentation", "instance_segmentation"
         if semantic not in output_buffers and instance not in output_buffers:
@@ -899,14 +912,13 @@ class OVRTXRenderer(BaseRenderer):
                     )
         frame = frames[0]
         maps = {key: frame.render_vars.get(render_data.render_var_keys[key]) for key in _INSTANCE_SEGMENTATION_MAP_VARS}
-        # A split sensor compares the label maps of its other render products with a host copy of the first maps.
-        first_tensors: dict[str, dict[str, tuple[np.dtype, tuple[int, ...], bytes]]] = {}
+        first_tensors: dict[str, dict[str, np.ndarray]] = {}
 
         def decode(key: str, decoder: Callable[[IdentifierMap], Any]) -> Any:
             if len(frames) == 1:
                 return _decode_segmentation_map(maps[key], decoder)
             first_tensors[key], decoded = _decode_segmentation_map(
-                maps[key], lambda id_map: (_label_map_bytes(id_map), decoder(id_map))
+                maps[key], lambda id_map: (_copy_label_map(id_map), decoder(id_map))
             )
             return decoded
 
@@ -928,20 +940,24 @@ class OVRTXRenderer(BaseRenderer):
             render_data.renderer_info[instance] = {"idToLabels": id_to_labels, "idToSemantics": id_to_semantics}
         if len(frames) == 1:
             return
-        used = [(_SEMANTIC_ID_MAP_VAR, decode_semantic_id_map, labels)] if labels is not None else []
+        used = [(_SEMANTIC_ID_MAP_VAR, decode_semantic_id_map, labels)]
         if instance in output_buffers:
             used += [
                 (_STABLE_ID_SEMANTIC_ID_MAP_VAR, decode_stable_id_semantic_id_map, instances),
                 (_STABLE_ID_MAP_VAR, decode_stable_id_map, paths),
             ]
         for key, decoder, expected in used:
-            # Decoding is slow, so only a map whose raw tensors differ from the first product is decoded.
+            first = first_tensors.get(key)
             for product, other in zip(render_data.products[1:], frames[1:], strict=True):
                 render_var = other.render_vars.get(render_data.render_var_keys[key])
-                if render_var is None or (
-                    _decode_segmentation_map(render_var, _label_map_bytes) != first_tensors[key]
-                    and _decode_segmentation_map(render_var, decoder) != expected
-                ):
+                if first is None or render_var is None:
+                    # A map that only some render products return is a mismatch too.
+                    same = first is None and render_var is None
+                else:
+                    same = _decode_segmentation_map(
+                        render_var, lambda id_map: _label_map_matches(id_map, first, decoder, expected)
+                    )
+                if not same:
                     raise RuntimeError(
                         f"OVRTX returned a different {key} for render product {product.path!r} than for"
                         f" {render_data.products[0].path!r}. The segmentation labels of a split camera sensor"

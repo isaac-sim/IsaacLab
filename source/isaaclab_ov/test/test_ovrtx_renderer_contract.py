@@ -63,6 +63,22 @@ _SPAWN = PinholeCameraCfg(
     horizontal_aperture=20.955,
     clipping_range=(0.1, 1.0e5),
 )
+_SPLIT_IMAGE_SIZE = 64
+_SPLIT_CUBE_SIZE = 1.0
+_SPLIT_FAR_CUBE_X = 10.0
+_SPLIT_CUBES = (
+    ("near", 0.0, "near_cube", (0.8, 0.1, 0.1)),
+    ("far", _SPLIT_FAR_CUBE_X, "far_cube", (0.1, 0.8, 0.1)),
+)
+_SPLIT_CAMERA_POSITIONS = (
+    (0.0, 0.0, 5.0),
+    (0.45, 0.45, 6.0),
+    (0.3, -0.1, 7.0),
+    (0.45, 0.2, 8.0),
+    (_SPLIT_FAR_CUBE_X, 0.0, 9.0),
+)
+# Tolerances (atol, rtol) of the color means. HDR color scales with the camera exposure, so its tolerance is relative.
+_SPLIT_COLOR_MEAN_TOLERANCES = {"rgb": (8.0, 0.0), "rgba": (8.0, 0.0), "rgb_hdr": (0.0, 0.05)}
 
 
 def _make_camera_cfg(data_types: list[str]) -> CameraCfg:
@@ -686,24 +702,6 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, capfd, use
     assert "has no valid data" not in capfd.readouterr().out
 
 
-_SPLIT_IMAGE_SIZE = 64
-_SPLIT_CUBE_SIZE = 1.0
-_SPLIT_FAR_CUBE_X = 10.0
-_SPLIT_CUBES = (
-    ("near", 0.0, "near_cube", (0.8, 0.1, 0.1)),
-    ("far", _SPLIT_FAR_CUBE_X, "far_cube", (0.1, 0.8, 0.1)),
-)
-_SPLIT_CAMERA_POSITIONS = (
-    (0.0, 0.0, 5.0),
-    (0.45, 0.45, 6.0),
-    (0.3, -0.1, 7.0),
-    (0.45, 0.2, 8.0),
-    (_SPLIT_FAR_CUBE_X, 0.0, 9.0),
-)
-# Tolerances (atol, rtol) of the color means. HDR color scales with the camera exposure, so its tolerance is relative.
-_SPLIT_COLOR_MEAN_TOLERANCES = {"rgb": (8.0, 0.0), "rgba": (8.0, 0.0), "rgb_hdr": (0.0, 0.05)}
-
-
 def _assert_split_outputs_match(
     reference: dict[str, ProxyArray], outputs: dict[str, ProxyArray], names: list[str]
 ) -> None:
@@ -753,13 +751,11 @@ def test_ovrtx_split_sensor_outputs_match_single_product(
     simple shading types over their camera kinds.
     """
     import ovrtx
-    from isaaclab_ppisp import PpispCfg, PpispProcessorCfg, normalize_ppisp_cfg
 
     from pxr import Gf, Usd, UsdGeom, UsdLux
 
     from isaaclab.cloner import make_clone_plan, replicate
     from isaaclab.scene_data import SceneDataProvider
-    from isaaclab.sensors.camera.camera_exposure import apply_neutral_exposure
     from isaaclab.sim import add_labels
     from isaaclab.utils.math import convert_camera_frame_orientation_convention
 
@@ -776,29 +772,21 @@ def test_ovrtx_split_sensor_outputs_match_single_product(
     for index in range(1 if use_ovstage else num_envs):
         UsdGeom.Xform.Define(stage, env_template.format(index))
     # A render product has at most one simple shading type, and simple shading excludes rgb. So each simple shading
-    # type needs a camera kind of its own. PPISP is a camera tensor processor that makes rgb from rgb_hdr, and it needs
-    # neutral exposure. So PPISP has a camera kind of its own too. Like a camera with PPISP, it asks the renderer only
-    # for rgb_hdr.
+    # type needs a camera kind of its own.
     camera_kinds = [
-        (
-            [
-                "rgb",
-                "rgb_hdr",
-                "albedo",
-                "normals",
-                "motion_vectors",
-                "distance_to_image_plane",
-                "depth",
-                "distance_to_camera",
-                "semantic_segmentation",
-                "instance_segmentation",
-            ],
-            [],
-        ),
-        *(([data_type], []) for data_type in simple_shading_types),
-        # With neutral exposure, the dome light gives an HDR color of several hundred. An exposure offset of -10 EV
-        # brings it into the range of the camera response, so PPISP does not saturate every pixel.
-        (["rgb_hdr"], [PpispProcessorCfg(isp_cfg=normalize_ppisp_cfg(PpispCfg(inputs={"exposureOffset": -10.0})))]),
+        [
+            "rgb",
+            "rgb_hdr",
+            "albedo",
+            "normals",
+            "motion_vectors",
+            "distance_to_image_plane",
+            "depth",
+            "distance_to_camera",
+            "semantic_segmentation",
+            "instance_segmentation",
+        ],
+        *([data_type] for data_type in simple_shading_types),
     ]
     # One camera prim per sensor, so each sensor owns the pose binding of the prims it renders. Each kind has two
     # sensors.
@@ -808,9 +796,6 @@ def test_ovrtx_split_sensor_outputs_match_single_product(
         camera.CreateHorizontalApertureAttr(12.0)
         camera.CreateVerticalApertureAttr(12.0)
         camera.AddTranslateOp().Set(Gf.Vec3d(*_SPLIT_CAMERA_POSITIONS[0]))
-        if camera_kinds[index // 2][1]:
-            # PPISP applies its own exposure. So, as in camera construction, its cameras get neutral exposure.
-            apply_neutral_exposure(stage, [str(camera.GetPath())])
     for name, x, label, color in _SPLIT_CUBES:
         cube = UsdGeom.Cube.Define(stage, env_template.format(0) + f"/{name}")
         cube.CreateSizeAttr(_SPLIT_CUBE_SIZE)
@@ -855,13 +840,11 @@ def test_ovrtx_split_sensor_outputs_match_single_product(
     center = _SPLIT_IMAGE_SIZE // 2
     expected_depth = positions[:, 2] - _SPLIT_CUBE_SIZE / 2
     cameras = []
-    processors = {}
 
-    def add_camera(data_types, max_envs, tensor_processors):
+    def add_camera(data_types, max_envs):
         camera_cfg = _make_camera_cfg(data_types)
         camera_cfg.height = camera_cfg.width = _SPLIT_IMAGE_SIZE
         camera_cfg.max_envs_per_render_product = max_envs
-        camera_cfg.tensor_processors = tensor_processors
         spec = CameraRenderSpec(
             cfg=camera_cfg,
             device="cuda:0",
@@ -887,7 +870,6 @@ def test_ovrtx_split_sensor_outputs_match_single_product(
             ProxyArray(wp.from_torch(quats, dtype=wp.quatf)),
             None,
         )
-        processors[rd] = [(cfg, cfg.func(cfg, data.output)) for cfg in tensor_processors]
         cameras.append((rd, data))
         return rd, data
 
@@ -919,13 +901,8 @@ def test_ovrtx_split_sensor_outputs_match_single_product(
             assert all(text in label for text, label in zip(expected, labels)), (output, labels)
 
     def check_outputs(pairs):
-        for (reference_rd, reference), (split_rd, split) in pairs:
+        for (_, reference), (split_rd, split) in pairs:
             _assert_split_outputs_match(reference.output, split.output, split_rd.data_types)
-            # A camera runs its tensor processors on the outputs of all its render products.
-            for (_, reference_processor), (cfg, processor) in zip(
-                processors[reference_rd], processors[split_rd], strict=True
-            ):
-                _assert_split_outputs_match(reference_processor(reference.output), processor(split.output), cfg.outputs)
         (_, reference), (_, split) = pairs[0]
         check_depth(reference)
         check_depth(split)
@@ -933,10 +910,7 @@ def test_ovrtx_split_sensor_outputs_match_single_product(
 
     try:
         renderer.prepare_stage(stage, num_envs)
-        pairs = [
-            tuple(add_camera(data_types, max_envs, tensor_processors) for max_envs in ("all", 2))
-            for data_types, tensor_processors in camera_kinds
-        ]
+        pairs = [tuple(add_camera(data_types, max_envs) for max_envs in ("all", 2)) for data_types in camera_kinds]
         for (single, _), (split, _) in pairs:
             assert single.render_product_paths == (f"/{single.render_scope_name}/RenderProduct",)
             assert [product.num_envs for product in split.products] == [2, 2, 1]
@@ -1298,6 +1272,17 @@ def test_ovrtx_process_frame_stitches_split_frames_in_env_order(monkeypatch, use
     ) as error:
         renderer._process_render_frames(render_data, frames, buffers)
     assert 'max_envs_per_render_product to "all"' in str(error.value)
+    # A map that only a later product returns would leave the IDs of the sensor without labels, so the sensor raises.
+    del frames[0].render_vars[id_map_key]
+    with pytest.raises(
+        RuntimeError, match="different SemanticIdMap for render product '/RenderCamera_0/RenderProduct_1'"
+    ):
+        renderer._process_render_frames(render_data, frames, buffers)
+    # No product returns a map, so the sensor gives no labels, as one render product does.
+    for frame in frames[1:]:
+        del frame.render_vars[id_map_key]
+    renderer._process_render_frames(render_data, frames, buffers)
+    assert "semantic_segmentation" not in render_data.renderer_info
     render_data.cleanup()
     assert renderer.backend.render_products == set()
 

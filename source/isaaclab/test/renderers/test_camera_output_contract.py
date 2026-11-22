@@ -466,10 +466,12 @@ def test_camera_construction_rejects_render_product_split_without_renderer_suppo
     from isaaclab_newton.renderers import NewtonWarpRendererCfg
 
     sim_cfg = sim_utils.SimulationCfg(device="cpu", physics=NewtonCfg())
-    with sim_utils.build_simulation_context(sim_cfg=sim_cfg):
+    with sim_utils.build_simulation_context(sim_cfg=sim_cfg) as sim:
         cfg = replace(_make_camera_cfg(["rgb"]), renderer_cfg=NewtonWarpRendererCfg(), max_envs_per_render_product=2)
         with pytest.raises(ValueError, match="NewtonWarpRendererCfg renders every environment through one render"):
             instantiate(cfg)
+        # The camera rejects the split before it spawns its prim, so the rejected camera leaves the scene unchanged.
+        assert not sim.stage.GetPrimAtPath(cfg.prim_path).IsValid()
 
 
 def test_camera_cfg_accepts_render_product_split_for_a_placeholder_renderer():
