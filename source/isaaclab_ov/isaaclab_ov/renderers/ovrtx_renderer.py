@@ -844,8 +844,7 @@ class OVRTXRenderer(BaseRenderer):
             ]
         if len(lidar_paths) != num_envs:
             raise RuntimeError(
-                f"OVRTX lidar '{prim_path}' expected {num_envs} prims in environment order,"
-                f" found {len(lidar_paths)}."
+                f"OVRTX lidar '{prim_path}' expected {num_envs} prims in environment order, found {len(lidar_paths)}."
             )
         scope = f"RenderLidar_{self._next_lidar_id}"
         render_data = OVRTXLidarRenderData(scope, lidar_paths, num_envs, num_rays)
