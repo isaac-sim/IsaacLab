@@ -19,8 +19,8 @@ from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
 from isaaclab.sim.views import FrameView, UsdFrameView
 from isaaclab.utils.configclass import instantiate
 
-from ..frame_buffer import FrameBuffer
 from ..world_model import WorldModelAttribute, load_reset_records
+from ..world_model_frame_buffer import WorldModelFrameBuffer
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -60,7 +60,7 @@ class NeuralManager(PhysicsManager):
         """Joint positions [m or rad, depending on joint type], shape ``(N, J)``."""
         self.joint_target: torch.Tensor
         """Joint position targets applied by the next :meth:`step`, shape ``(N, J)``."""
-        self._frames: dict[tuple[str, str], FrameBuffer] = {}
+        self._frames: dict[tuple[str, str], WorldModelFrameBuffer] = {}
         self.new_frames = False
         """Whether the last :meth:`step` completed a chunk."""
         self.chunk_boundary: torch.Tensor
@@ -140,7 +140,7 @@ class NeuralManager(PhysicsManager):
             for output in self.spec.outputs
         }
         self._frames = {
-            key: FrameBuffer(num_envs, self.spec.chunk_length, images.shape[1:], images.dtype, device)
+            key: WorldModelFrameBuffer(num_envs, self.spec.chunk_length, images.shape[1:], images.dtype, device)
             for key, images in self._record_images.items()
         }
         self._targets = torch.zeros((num_envs, self.spec.chunk_length, num_joints), device=device)
@@ -164,9 +164,9 @@ class NeuralManager(PhysicsManager):
         # World-model frames are not rigid-body poses, so there is no scene data to publish.
         self._scene_data = _EmptySceneData(self._device)
 
-    def frames(self, view: str | None = None, output: str = "rgb") -> FrameBuffer:
+    def frames(self, view: str | None = None, output: str = "rgb") -> WorldModelFrameBuffer:
         """Return the predicted frames of one output of one view; a camera reads them through
-        :meth:`FrameBuffer.reader`.
+        :meth:`WorldModelFrameBuffer.reader`.
 
         Args:
             view: One of the model's :attr:`~isaaclab_neural.world_model.WorldModelSpec.views`, or ``None`` if the
