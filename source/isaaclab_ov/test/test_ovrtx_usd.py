@@ -198,22 +198,18 @@ def test_render_products_author_one_atlas_per_environment_range(camera_spec):
 
     One render product has all 5 environments in an atlas of 3 x 2 tiles.
     """
-    from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderProduct
-
     paths = [f"/World/envs/env_{i}/Robot/head_cam" for i in range(5)]
     camera_spec = CameraRenderSpec(camera_spec.cfg, "cpu", 5, tuple(paths), 5)
     camera_spec.cfg.render_settings = {"omni:rtx:quality": ("Int", 0)}
-    render_data = _make_render_data(camera_spec)
-    assert render_data.products == [OVRTXRenderProduct("/RenderCamera_0/RenderProduct", paths, 0, 5, 3, 2)]
-    stage = _open_layer(build_render_product_as_string(camera_spec, render_data, device_id=0))
-    products = [prim for prim in stage.Traverse() if prim.GetTypeName() == "RenderProduct"]
-    assert [str(prim.GetPath()) for prim in products] == [product.path for product in render_data.products]
-    for prim, product in zip(products, render_data.products, strict=True):
-        assert prim.GetRelationship("camera").GetTargets() == [Sdf.Path(product.camera_paths[0])]
-        # Each tile of the atlas has the 16 x 8 pixels of the camera.
-        assert prim.GetAttribute("resolution").Get() == Gf.Vec2i(16 * product.num_cols, 8 * product.num_rows)
-        assert prim.GetRelationship("orderedVars").GetTargets() == [Sdf.Path("/RenderCamera_0/Vars/LdrColor")]
-        assert prim.GetAttribute("omni:rtx:quality").Get() == 0
+    stage = _open_layer(build_render_product_as_string(camera_spec, _make_render_data(camera_spec), device_id=0))
+    (product,) = [prim for prim in stage.Traverse() if prim.GetTypeName() == "RenderProduct"]
+    assert product.GetPath() == Sdf.Path("/RenderCamera_0/RenderProduct")
+    # The camera relationship is a placeholder at the first camera of the range.
+    assert product.GetRelationship("camera").GetTargets() == [Sdf.Path(paths[0])]
+    # Each of the 3 x 2 tiles of the atlas has the 16 x 8 pixels of the camera.
+    assert product.GetAttribute("resolution").Get() == Gf.Vec2i(3 * 16, 2 * 8)
+    assert product.GetRelationship("orderedVars").GetTargets() == [Sdf.Path("/RenderCamera_0/Vars/LdrColor")]
+    assert product.GetAttribute("omni:rtx:quality").Get() == 0
     assert len([prim for prim in stage.Traverse() if prim.GetTypeName() == "RenderVar"]) == 1
 
 

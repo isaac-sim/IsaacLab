@@ -45,6 +45,7 @@ if not _MISSING_MODULES:
         OVRTXBackend,
         OVRTXCameraRenderData,
         OVRTXRenderer,
+        OVRTXRenderProduct,
         _AsyncWriteBuffers,
         _gpu_side_render_var_sync_enabled,
     )
@@ -936,6 +937,65 @@ def test_launch_extract_all_tiles_rejects_wider_output_channels():
         renderer._launch_extract_all_tiles(
             render_data, types.SimpleNamespace(shape=(8, 16, 3)), types.SimpleNamespace(shape=(2, 8, 16, 4))
         )
+
+
+def test_ovrtx_process_frame_writes_each_render_product_into_its_environment_range(monkeypatch):
+    """Each render product writes its frame only into the outputs of its own environment range.
+
+    5 environments over render products of 3 and 2 environments give atlases of 2 x 2 and 2 x 1 tiles. Each tile
+    has the value of its environment, so a tile in a wrong environment gives a wrong value. A missing frame or
+    label map of the second render product raises before the first render product writes its outputs.
+    """
+    num_envs, untouched = 5, 255
+    camera_paths = [f"/World/envs/env_{i}/Camera" for i in range(num_envs)]
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._device = "cpu"
+    monkeypatch.setattr(renderer, "_map_render_var_to_dlpack", contextlib.nullcontext)
+    spec = CameraRenderSpec(_make_camera_cfg(["rgba"]), "cpu", num_envs, tuple(camera_paths), num_envs)
+    render_data = OVRTXCameraRenderData(spec, "RenderCamera_0", camera_paths)
+    render_data.products = [
+        OVRTXRenderProduct("/RenderCamera_0/RenderProduct_0", camera_paths[:3], 0, 3, 2, 2),
+        OVRTXRenderProduct("/RenderCamera_0/RenderProduct_1", camera_paths[3:], 3, 2, 2, 1),
+    ]
+    frames = []
+    for product in render_data.products:
+        atlas = np.zeros((product.num_rows * 8, product.num_cols * 16, 4), dtype=np.uint8)
+        for index in range(product.num_envs):
+            row, col = divmod(index, product.num_cols)
+            atlas[row * 8 : (row + 1) * 8, col * 16 : (col + 1) * 16] = 10 + product.env_offset + index
+        color = wp.array(atlas, dtype=wp.uint8, device="cpu")
+        frames.append(types.SimpleNamespace(render_vars={render_data.render_var_keys["LdrColor"]: color}))
+    render_data.warp_buffers = {"rgba": wp.full((num_envs, 8, 16, 4), untouched, dtype=wp.uint8, device="cpu")}
+
+    def process(product_frames):
+        renderer._process_render_products(
+            (render_data,),
+            {
+                path: types.SimpleNamespace(frames=found)
+                for path, found in zip(render_data.render_product_paths, product_frames, strict=True)
+            },
+        )
+
+    with pytest.raises(RuntimeError, match="RenderProduct_1"):
+        process([[frames[0]], []])
+    np.testing.assert_array_equal(render_data.warp_buffers["rgba"].numpy(), untouched)
+
+    # The label maps are only checked here, so placeholders stand in for them.
+    for key in ("SemanticIdMap", "StableIdMap", "StableIdSemanticIdMap"):
+        for frame in frames:
+            frame.render_vars[render_data.render_var_keys[key]] = object()
+    del frames[1].render_vars[render_data.render_var_keys["StableIdMap"]]
+    render_data.warp_buffers["instance_segmentation"] = wp.zeros((num_envs, 8, 16, 1), dtype=wp.int32, device="cpu")
+    with pytest.raises(RuntimeError, match="StableIdMap"):
+        process([[frame] for frame in frames])
+    np.testing.assert_array_equal(render_data.warp_buffers["rgba"].numpy(), untouched)
+
+    del render_data.warp_buffers["instance_segmentation"]
+    process([[frame] for frame in frames])
+    expected = np.arange(10, 10 + num_envs, dtype=np.uint8).reshape(num_envs, 1, 1, 1)
+    np.testing.assert_array_equal(
+        render_data.warp_buffers["rgba"].numpy(), np.broadcast_to(expected, (num_envs, 8, 16, 4))
+    )
 
 
 @pytest.mark.parametrize("colorized", [False, True])
