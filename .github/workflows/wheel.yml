@@ -19,6 +19,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
+  actions: read
   contents: read
   pull-requests: read
 
@@ -205,6 +206,7 @@ jobs:
         if: steps.changes.outputs.run_build == 'true'
         uses: actions/download-artifact@v7
         with:
+          github-token: ${{ github.token }}
           name: ${{ steps.meta.outputs.artifact_name }}
           path: /tmp/isaaclab-wheel-artifact
 
