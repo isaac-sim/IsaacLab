@@ -4,6 +4,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "ActionInput",
+    "ActionInputCfg",
     "ActionManager",
     "ActionTerm",
     "CommandManager",
@@ -18,6 +20,7 @@ __all__ = [
     "EventTermCfg",
     "ManagerTermBaseCfg",
     "ObservationGroupCfg",
+    "ObservationPresentationCfg",
     "ObservationTermCfg",
     "RecorderTermCfg",
     "RewardTermCfg",
@@ -32,18 +35,20 @@ __all__ = [
     "TerminationManager",
 ]
 
-from .action_manager import ActionManager, ActionTerm
+from .action_manager import ActionInput, ActionManager, ActionTerm
 from .command_manager import CommandManager, CommandTerm
 from .curriculum_manager import CurriculumManager
 from .event_manager import EventManager
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import (
+    ActionInputCfg,
     ActionTermCfg,
     CommandTermCfg,
     CurriculumTermCfg,
     EventTermCfg,
     ManagerTermBaseCfg,
     ObservationGroupCfg,
+    ObservationPresentationCfg,
     ObservationTermCfg,
     RecorderTermCfg,
     RewardTermCfg,

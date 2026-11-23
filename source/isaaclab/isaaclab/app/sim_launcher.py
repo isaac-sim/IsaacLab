@@ -31,6 +31,7 @@ from isaaclab_visualizers.rerun import RerunBackendCfg
 from isaaclab_visualizers.viser import ViserBackendCfg
 
 from ..envs.utils.video_recorder_cfg import CAPTURE_VISUALIZER_TYPES, VideoRecorderCfg, parse_video_source
+from ..managers.manager_term_cfg import ObservationPresentationCfg
 from ..physics.physics_manager_cfg import PhysicsCfg, PhysxAutoCfg, _resolve_physx_auto_cfg
 from ..renderers.renderer_cfg import RendererCfg
 from ..scene.interactive_scene_cfg import InteractiveSceneCfg
@@ -131,7 +132,7 @@ def _walk_runtime_configs(cfg: Any, replacements: dict[int, Any] | None = None) 
             visited[id(node)] = visit(replacements[id(node)])
             return visited[id(node)]
         visited[id(node)] = node
-        if callable(node):
+        if callable(node) or isinstance(node, ObservationPresentationCfg):
             return node
         if isinstance(node, (PhysicsCfg, RendererCfg, VisualizerBackendCfg)):
             configs.append(node)
@@ -441,6 +442,8 @@ def validate_launch(  # noqa: C901
 def launch_simulation(
     cfg,
     launcher_args: argparse.Namespace | dict | None = None,
+    *,
+    cleanup_context: bool = True,
 ) -> Generator[PhysicsCfg | None, None, None]:
     """Context manager that launches the appropriate simulation runtime for *cfg*.
 
@@ -466,6 +469,9 @@ def launch_simulation(
               a tool that reaches a Kit-only extension API. This is additive -- it can only turn a
               kitless launch into a Kit one, never the reverse, so a config that already needs Kit
               still launches it when the key is absent or ``False``.
+        cleanup_context: Whether to clear a simulation context created inside this scope on exit.
+            Set to ``False`` when the caller owns context cleanup, including partial startup and
+            retaining borrowed resources after a failed drain. Runtime launchers still close on exit.
     """
     launcher_args = {} if launcher_args is None else launcher_args
     launcher_args = vars(launcher_args) if isinstance(launcher_args, argparse.Namespace) else launcher_args
@@ -549,7 +555,7 @@ def launch_simulation(
     finally:
         # Release runtime consumers before a launcher can terminate the process.
         context = SimulationContext.instance()
-        if context is not None and context is not previous_context:
+        if cleanup_context and context is not None and context is not previous_context:
             SimulationContext.clear_instance()
         for launcher in reversed(launchers):
             launcher.close(exit_code)

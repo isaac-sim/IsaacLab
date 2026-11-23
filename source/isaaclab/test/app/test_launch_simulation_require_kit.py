@@ -20,6 +20,7 @@ import signal
 import sys
 import types
 import warnings
+from typing import ClassVar
 
 import isaaclab_isaacsim.app as physx_app
 import pytest
@@ -282,3 +283,47 @@ def test_the_launcher_physics_selector_warns_for_isaac_sim_and_still_selects_it(
     with pytest.warns(FutureWarning, match="'isaacsim_physx' runs on Isaac Sim"):
         sim_launcher.validate_launch(cfg, {"physics": "isaacsim_physx"})
     assert isinstance(cfg.physics, PhysxCfg)
+
+
+@pytest.mark.kitless
+def test_dormant_presentation_does_not_launch_its_renderer(kit_branch_taken):
+    """Training and direct Gym construction cannot activate an interactive renderer declaration."""
+    from isaaclab.managers import ObservationPresentationCfg
+    from isaaclab.utils import configclass
+
+    @configclass
+    class RuntimeRendererCfg(RendererCfg):
+        launcher_type: ClassVar[str] = "isaaclab_isaacsim.app:KitLauncher"
+
+    @configclass
+    class PresentationCfg(ObservationPresentationCfg):
+        renderer: RendererCfg = RuntimeRendererCfg()
+
+    with launch_simulation({"sim": SimulationCfg(device="cpu", physics=PhysicsCfg()), "operator": PresentationCfg()}):
+        assert not kit_branch_taken
+    assert not kit_branch_taken
+
+
+@pytest.mark.kitless
+@pytest.mark.parametrize("caller_owns_cleanup", [False, True])
+def test_context_cleanup_respects_caller_ownership_after_drain_failure(monkeypatch, caller_owns_cleanup):
+    """Fallback cleanup must not destroy a context its caller retained after an unproved input drain."""
+    from isaaclab.sim import SimulationContext
+
+    context = object()
+    released = []
+    monkeypatch.setattr(SimulationContext, "_instance", None)
+
+    def clear():
+        released.append(SimulationContext.instance())
+        SimulationContext._instance = None
+
+    monkeypatch.setattr(SimulationContext, "clear_instance", clear)
+    options = {"cleanup_context": False} if caller_owns_cleanup else {}
+    with pytest.raises(RuntimeError, match="input drain failed"):
+        with launch_simulation(SimulationCfg(device="cpu", physics=PhysicsCfg()), **options):
+            SimulationContext._instance = context
+            raise RuntimeError("input drain failed")
+
+    assert released == ([] if caller_owns_cleanup else [context])
+    assert SimulationContext.instance() is (context if caller_owns_cleanup else None)

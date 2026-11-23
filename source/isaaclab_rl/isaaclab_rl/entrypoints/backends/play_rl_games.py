@@ -16,7 +16,7 @@ import re
 from rl_games.common.player import BasePlayer
 from rl_games.torch_runner import Runner
 
-from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.app import add_launcher_args
 from isaaclab.envs import DirectMARLEnvCfg
 from isaaclab.utils import index_fill_
 from isaaclab.utils.assets import retrieve_file_path
@@ -34,6 +34,7 @@ from ..common import (
     close_env,
     create_isaaclab_env,
     enable_cameras_for_video,
+    launch_playback,
     normalize_task_name,
     pre_launch_video_config,
     resolve_checkpoint_selector,
@@ -109,10 +110,10 @@ def run(argv: list[str]) -> None:
                 " --agent rl_games_cfg_entry_point, or use --rl_library rsl_rl for RSL-RL runner configurations."
             )
         pre_launch_video_config(env_cfg, args_cli)
+        apply_env_overrides(args_cli, env_cfg)
         screen.stage("Launching simulation")
-        with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
+        with launch_playback(env_cfg, args_cli) as configure_inputs, contextlib.ExitStack() as cleanup:
             show_run_summary(screen, args_cli, env_cfg, library="rl_games", action="play")
-            apply_env_overrides(args_cli, env_cfg)
             agent_cfg = cli_args.update_rl_games_cfg(agent_cfg, args_cli)
             params = agent_cfg["params"]
             env_cfg.seed = params["seed"]
@@ -132,6 +133,7 @@ def run(argv: list[str]) -> None:
                 env_cfg,
                 args_cli,
                 convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
+                configure_inputs=configure_inputs,
             )
             cleanup.callback(lambda: close_env(env))
 
@@ -169,4 +171,4 @@ def run(argv: list[str]) -> None:
                         index_fill_(state, dones, 0.0, dim=1)
 
             screen.close()
-            run_playback(step, dt=env.unwrapped.step_dt, args_cli=args_cli, env_cfg=env_cfg)
+            run_playback(step, dt=env.unwrapped.step_dt, args_cli=args_cli, env_cfg=env_cfg, env=env)

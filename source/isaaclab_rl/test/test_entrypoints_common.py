@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import nullcontext
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -20,6 +21,7 @@ from isaaclab_newton.physics import NewtonCfg
 from PIL import Image
 
 from isaaclab.envs import ManagerBasedRLEnvCfg
+from isaaclab.managers import ActionInputCfg, ActionTermCfg
 from isaaclab.physics import PhysicsCfg
 from isaaclab.sim import SimulationCfg
 
@@ -187,6 +189,31 @@ def test_common_train_args_register_frontend_with_torch_default() -> None:
         parser.parse_args(["--frontend", "tensorflow"])
 
 
+@pytest.mark.kitless
+def test_playback_rejects_explicit_blank_dataset_before_launch(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A blank shell-expanded output path must not silently disable requested collection."""
+    parser = argparse.ArgumentParser()
+    rl_common.add_common_play_args(parser, agent_default=None, agent_help="")
+    env_cfg = ManagerBasedRLEnvCfg(actions={})
+    launches = []
+
+    def launch(*args, **kwargs):
+        launches.append(args)
+        return nullcontext()
+
+    monkeypatch.setattr(rl_common, "launch_simulation", launch)
+    with rl_common.launch_playback(env_cfg, parser.parse_args(["--no-teleop"])):
+        pass
+    assert len(launches) == 1
+    launches.clear()
+    for value in ("", " \t "):
+        args_cli = parser.parse_args(["--no-teleop", "--dataset_file", value])
+        with pytest.raises(ValueError, match="--dataset_file must be a non-empty path"):
+            with rl_common.launch_playback(env_cfg, args_cli):
+                pass
+    assert launches == []
+
+
 @pytest.mark.parametrize(
     ("task", "expected"),
     [
@@ -224,11 +251,11 @@ def test_create_isaaclab_env_uses_registered_torch_env_by_default(monkeypatch: p
 
 
 def test_create_isaaclab_env_uses_selected_warp_frontend(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The shared factory delegates Warp selection to the experimental frontend."""
+    """The factory delegates Warp selection without activating declared action input."""
     import isaaclab_experimental.envs.frontend as frontend_module
 
     expected_env = object()
-    env_cfg = object()
+    env_cfg = ManagerBasedRLEnvCfg(actions={"robot": ActionTermCfg(input=ActionInputCfg(class_type=object))})
     calls: list[tuple[Any, ...]] = []
 
     def fake_build_env(cfg: Any, task: str, **kwargs: Any) -> Any:

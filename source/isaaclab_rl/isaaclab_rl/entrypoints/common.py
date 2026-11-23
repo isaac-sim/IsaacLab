@@ -20,6 +20,7 @@ import time
 from collections.abc import Callable, Iterator
 from contextlib import ExitStack, contextmanager
 from datetime import datetime, timezone
+from importlib.util import find_spec
 from pathlib import Path
 from typing import Any
 
@@ -28,9 +29,10 @@ import torch
 import warp as wp
 from PIL import Image
 
-from isaaclab.app import LoadingScreen
+from isaaclab.app import LoadingScreen, launch_simulation
 from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg, parse_video_source
+from isaaclab.managers import ActionInputCfg, ActionTermCfg
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.dict import print_dict
@@ -270,6 +272,14 @@ def add_common_train_args(
     )
 
 
+def parse_step_limit(value: str) -> int:
+    """Parse a playback step limit, accepting zero for environment setup without stepping."""
+    steps = int(value)
+    if steps < 0:
+        raise argparse.ArgumentTypeError("--max_steps must be non-negative")
+    return steps
+
+
 def add_common_play_args(parser: argparse.ArgumentParser, *, agent_default: str | None, agent_help: str) -> None:
     """Add the playback arguments shared by all reinforcement learning backends.
 
@@ -281,6 +291,7 @@ def add_common_play_args(parser: argparse.ArgumentParser, *, agent_default: str 
         agent_help: Help text for the ``--agent`` argument.
     """
     add_video_args(parser, action="play")
+    add_demo_recording_args(parser)
     parser.add_argument(
         "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
     )
@@ -291,10 +302,34 @@ def add_common_play_args(parser: argparse.ArgumentParser, *, agent_default: str 
     parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment.")
     parser.add_argument("--real-time", action="store_true", default=False, help="Run in real-time, if possible.")
     parser.add_argument(
+        "--teleop",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Activate the task's TeleopInputCfg declarations (enabled when configured).",
+    )
+    parser.add_argument(
+        "--max_steps", type=parse_step_limit, default=None, help="Stop playback after this many environment steps."
+    )
+    parser.add_argument(
         "--train_env_cfg",
         action="store_true",
         default=False,
         help="Play with the training environment configuration as-is, skipping play-mode overrides.",
+    )
+
+
+def add_demo_recording_args(parser: argparse.ArgumentParser) -> None:
+    """Add demonstration collection options without importing the optional Capture package."""
+    group = parser.add_argument_group("demonstration collection")
+    group.add_argument("--dataset_file", default=None, help="Export playback episodes to a new HDF5 dataset.")
+    group.add_argument(
+        "--num_demos", type=parse_step_limit, default=0, help="Stop after this many exported demos; 0 is unlimited."
+    )
+    group.add_argument(
+        "--demo_export_mode",
+        choices=("succeeded", "all"),
+        default="succeeded",
+        help="Export successful task episodes, or every completed episode. Requires --dataset_file.",
     )
 
 
@@ -514,12 +549,98 @@ Environment creation.
 """
 
 
+def has_play_teleop(env_cfg: Any) -> bool:
+    """Whether task actions declare Capture input, without loading absent optional packages."""
+    if not isinstance(env_cfg, ManagerBasedRLEnvCfg):
+        return False
+    actions = env_cfg.actions if isinstance(env_cfg.actions, dict) else vars(env_cfg.actions)
+    inputs = [
+        cfg.input
+        for cfg in actions.values()
+        if isinstance(cfg, ActionTermCfg) and isinstance(cfg.input, ActionInputCfg)
+    ]
+    if not inputs or find_spec("isaaclab_teleop") is None:
+        return False
+    from isaaclab_teleop import TeleopInputCfg
+
+    return any(isinstance(cfg, TeleopInputCfg) for cfg in inputs)
+
+
+@contextmanager
+def launch_playback(
+    env_cfg: Any, args_cli: argparse.Namespace, *, enable_teleop: bool = True
+) -> Iterator[Callable[[gym.Env], None] | None]:
+    """Launch playback and yield optional task input activation after construction.
+
+    Training uses :func:`launch_simulation` directly. Playback installs resources
+    on the existing action manager; environment stepping and resets stay in Lab.
+    """
+    dataset_file = getattr(args_cli, "dataset_file", None)
+    if dataset_file is not None and not dataset_file.strip():
+        raise ValueError("--dataset_file must be a non-empty path.")
+    if dataset_file is None and (
+        getattr(args_cli, "num_demos", 0) or getattr(args_cli, "demo_export_mode", "succeeded") != "succeeded"
+    ):
+        raise ValueError("Demonstration collection options require --dataset_file.")
+    use_capture = enable_teleop and args_cli.teleop is not False and has_play_teleop(env_cfg)
+    if dataset_file is not None and not use_capture:
+        raise ValueError("--dataset_file requires playback with task-configured Capture input enabled.")
+    if enable_teleop and args_cli.teleop is True and not use_capture:
+        raise ValueError("--teleop requires a TeleopInputCfg on a task action's input field.")
+    launch_cfg = env_cfg
+    if use_capture:
+        if args_cli.frontend != "torch":
+            raise ValueError("Active TeleopInputCfg requires --frontend torch; use --no-teleop for Warp playback.")
+        from isaaclab_teleop.playback import (
+            activate_capture,
+            capture_input_config,
+            prepare_playback_config,
+            validate_playback,
+        )
+        from isaaclab_teleop.source import PlaybackStopped
+
+        launch_cfg = prepare_playback_config(env_cfg)
+        if dataset_file is not None:
+            from isaaclab_teleop.recording import DemoRecordingCfg, prepare_demo_recording
+
+            _, input_cfg = capture_input_config(env_cfg)
+            prepare_demo_recording(
+                env_cfg,
+                DemoRecordingCfg(
+                    dataset_file=dataset_file,
+                    num_demos=getattr(args_cli, "num_demos", 0),
+                    export_mode=getattr(args_cli, "demo_export_mode", "succeeded"),
+                ),
+                args_cli.task,
+                input_cfg.env_ids,
+            )
+        from isaaclab.app.sim_launcher import validate_launch
+
+        _, kit_sources = validate_launch(launch_cfg, args_cli)
+        if kit_sources:
+            raise ValueError(
+                "Task teleoperation requires a kitless runtime. "
+                f"This configuration requires Kit for: {', '.join(kit_sources)}. "
+                "Use --no-teleop for policy playback."
+            )
+        validate_playback(env_cfg)
+    with launch_simulation(launch_cfg, args_cli, cleanup_context=not use_capture):
+        if use_capture:
+            # Suppress only operator exit; the outer scope's drain failures
+            # must propagate before any dependent environment resources close.
+            with activate_capture(env_cfg) as configure_inputs, contextlib.suppress(PlaybackStopped):
+                yield configure_inputs
+        else:
+            yield None
+
+
 def create_isaaclab_env(
     task: str,
     env_cfg: Any,
     args_cli: argparse.Namespace,
     *,
     convert_marl_to_single_agent: bool,
+    configure_inputs: Callable[[gym.Env], None] | None = None,
 ) -> gym.Env:
     """Create the Isaac Lab Gymnasium environment.
 
@@ -528,6 +649,7 @@ def create_isaaclab_env(
         env_cfg: Isaac Lab environment config.
         args_cli: Parsed command-line arguments.
         convert_marl_to_single_agent: Whether to convert direct MARL environments to single-agent environments.
+        configure_inputs: Optional resource activation after constructing the environment.
 
     Returns:
         The created Gymnasium environment.
@@ -547,11 +669,23 @@ def create_isaaclab_env(
         from isaaclab_experimental.envs.frontend import WarpFrontend
 
         env = WarpFrontend.build_env(env_cfg, task)
-    if convert_marl_to_single_agent and isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):
-        # Import the environment runtime only after simulation launch.
-        from isaaclab.envs import multi_agent_to_single_agent
+    try:
+        if configure_inputs is not None:
+            configure_inputs(env)
+        if convert_marl_to_single_agent and isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):
+            # Import the environment runtime only after simulation launch.
+            from isaaclab.envs import multi_agent_to_single_agent
 
-        env = multi_agent_to_single_agent(env)
+            env = multi_agent_to_single_agent(env)
+    except BaseException:
+        # Input setup may already hold a renderer lease before its source owns
+        # it. Let that construction scope retire resources before closing Lab.
+        if configure_inputs is None:
+            try:
+                env.close()
+            except BaseException:
+                logger.exception("Failed to close the environment after wrapper setup failed.")
+        raise
     return env
 
 
@@ -1041,21 +1175,33 @@ Playback.
 """
 
 
-def run_playback(step: Callable[[], None], *, dt: float, args_cli: argparse.Namespace, env_cfg: Any) -> None:
+def run_playback(
+    step: Callable[[], None],
+    *,
+    dt: float,
+    args_cli: argparse.Namespace,
+    env_cfg: Any,
+    env: gym.Env | None = None,
+) -> None:
     """Step a policy until interrupted, or until the requested video clip is complete.
 
     Args:
         step: Callable that infers one action and steps the environment. Runs under
             :func:`torch.inference_mode`.
         dt: Environment step duration [s], used to pace real-time playback.
-        args_cli: Parsed command-line arguments providing ``video``, ``video_length`` and ``real_time``.
+        args_cli: Parsed command-line arguments providing ``video``, ``video_length``, ``real_time``
+            and the optional ``max_steps`` limit.
         env_cfg: Environment config whose video recorders bound a ``--video`` run until each finishes its first clip.
+        env: Environment whose recorder counts can bound demonstration collection.
     """
-    max_steps = video_playback_steps(args_cli, env_cfg)
+    budgets = [n for n in (args_cli.max_steps, video_playback_steps(args_cli, env_cfg)) if n is not None]
+    max_steps = min(budgets, default=None)
     logger.info("Policy playback is running, press Ctrl+C to exit...")
     step_count = 0
     with contextlib.suppress(KeyboardInterrupt):
         while max_steps is None or step_count < max_steps:
+            if env is not None and demo_collection_complete(env, args_cli):
+                break
             start_time = time.time()
             with torch.inference_mode():
                 step()
@@ -1063,6 +1209,18 @@ def run_playback(step: Callable[[], None], *, dt: float, args_cli: argparse.Name
             sleep_time = dt - (time.time() - start_time)
             if args_cli.real_time and sleep_time > 0:
                 time.sleep(sleep_time)
+
+
+def demo_collection_complete(env: gym.Env, args_cli: argparse.Namespace) -> bool:
+    """Read the recorder's exported episode count without owning recording state."""
+    limit = getattr(args_cli, "num_demos", 0)
+    if not limit:
+        return False
+    recorder = env.unwrapped.recorder_manager
+    count = recorder.exported_successful_episode_count
+    if getattr(args_cli, "demo_export_mode", "succeeded") == "all":
+        count += recorder.exported_failed_episode_count
+    return count >= limit
 
 
 def video_playback_steps(args_cli: argparse.Namespace, env_cfg: Any) -> int | None:

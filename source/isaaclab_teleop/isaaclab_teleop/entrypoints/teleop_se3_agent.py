@@ -52,6 +52,7 @@ from .. import (
 )
 from ..action_policy import initial_hand_tracking_issue, prepare_teleop_action
 from ..device_selection import create_teleop_device, select_teleop_cfg
+from ..ovxr_presentation import OvxrPresentation, admit_reset_publication, update_idle_presentation
 from ._ovxr_launch import (
     add_ovxr_presentation_args,
     cuda_index_list,
@@ -61,7 +62,6 @@ from ._ovxr_launch import (
     resolve_ovxr_camera_feeds,
     validate_ovxr_presentation_args,
 )
-from ._ovxr_presentation import OvxrPresentation, admit_reset_publication, update_idle_presentation
 from ._ovxr_runtime import (
     RENDERER_ATTACH_TIMEOUT_S,
     OvxrShutdownSignals,

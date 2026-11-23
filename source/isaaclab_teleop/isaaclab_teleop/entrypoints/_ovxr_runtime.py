@@ -16,7 +16,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ._ovxr_presentation import OvxrPresentation
+    from ..ovxr_presentation import OvxrPresentation
 
 logger = logging.getLogger(__name__)
 

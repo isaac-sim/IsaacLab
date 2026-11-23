@@ -21,6 +21,7 @@ from isaaclab.managers import (
     ManagerTermBase,
     ObservationGroupCfg,
     ObservationManager,
+    ObservationPresentationCfg,
     ObservationTermCfg,
     RewardTermCfg,
 )
@@ -1094,3 +1095,19 @@ def test_dictionary_term_rejected(setup_env):
     cfg.sensors = ObservationTermCfg(func=lambda env: {"position": env.data.pos_w})
     with pytest.raises(TypeError, match=r"torch\.Tensor"):
         ObservationManager({"policy": cfg}, setup_env)
+
+
+@pytest.mark.kitless
+def test_presentation_declarations_never_enter_tensor_observations(setup_env):
+    """Operator views leave policy dimensions, groups, and recorded observation values unchanged."""
+
+    @configclass
+    class PolicyCfg(ObservationGroupCfg):
+        position = ObservationTermCfg(func=pos_w_data)
+
+    manager = ObservationManager({"policy": PolicyCfg(), "operator": ObservationPresentationCfg()}, setup_env)
+
+    assert manager.active_terms == {"policy": ["position"]}
+    assert manager.group_obs_dim == {"policy": (3,)}
+    assert set(manager.compute()) == {"policy"}
+    torch.testing.assert_close(manager.compute()["policy"], setup_env.data.pos_w)

@@ -22,7 +22,7 @@ from .scene_entity_cfg import SceneEntityCfg
 if TYPE_CHECKING:
     from leapp import Axis
 
-    from .action_manager import ActionTerm
+    from .action_manager import ActionInput, ActionTerm
     from .command_manager import CommandTerm
     from .manager_base import ManagerTermBase
     from .recorder_manager import RecorderTerm
@@ -82,6 +82,18 @@ class RecorderTermCfg:
 
 
 @configclass
+class ActionInputCfg:
+    """Optional input selection activated separately from an action controller.
+
+    Declaring an input does not instantiate it. Interactive runners activate it
+    through :meth:`ActionManager.activate_input` after environment construction.
+    """
+
+    class_type: type[ActionInput] | str = MISSING
+    """The associated :class:`~isaaclab.managers.action_manager.ActionInput` class."""
+
+
+@configclass
 class ActionTermCfg:
     """Configuration for an action term."""
 
@@ -106,6 +118,13 @@ class ActionTermCfg:
 
     The keys are matched against the joint names for joint action terms and against the action names
     (:attr:`action_names`) for task-space and non-holonomic action terms.
+    """
+
+    input: ActionInputCfg | None = None
+    """Optional input selection for interactive playback. Defaults to None.
+
+    The controller, its configuration, and its action dimensions remain unchanged.
+    Until explicitly activated, the controller receives ordinary policy actions.
     """
 
 
@@ -161,6 +180,17 @@ class CurriculumTermCfg(ManagerTermBaseCfg):
 ##
 # Observation manager.
 ##
+
+
+@configclass
+class ObservationPresentationCfg:
+    """Task declaration for an external observer, excluded from tensor observations.
+
+    Presentation consumers (for example an operator headset) have an independent
+    lifecycle owned by an interactive runner. Merely declaring one must not start
+    that consumer. The observation manager ignores these declarations when building
+    groups, spaces, histories, and recorder-visible observation dictionaries.
+    """
 
 
 @configclass

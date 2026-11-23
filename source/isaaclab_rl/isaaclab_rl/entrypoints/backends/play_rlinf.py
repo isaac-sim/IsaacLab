@@ -40,6 +40,9 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Evaluate a trained RLinf agent.")
     cli_args.add_rlinf_args(parser)
     parser.add_argument(
+        "--teleop", action=argparse.BooleanOptionalAction, default=None, help="Enable task-configured teleoperation."
+    )
+    parser.add_argument(
         "--num_episodes", type=int, default=None, help="Number of evaluation episodes (overrides the config if set)."
     )
     parser.add_argument(
@@ -50,6 +53,8 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     )
     args_cli, env_overrides = setup_preset_cli(parser, argv)
     args_cli.env_overrides = env_overrides
+    if args_cli.teleop is True:
+        parser.error("RLinf runs environments in remote workers and cannot use local teleoperation; use --no-teleop")
     if not args_cli.config_name:
         parser.error("--config_name is required (e.g. --config_name isaaclab_ppo_gr00t_assemble_trocar)")
     return args_cli
@@ -83,6 +88,23 @@ def run(argv: list[str]) -> None:
     cfg = compose(config_name=config_name)
 
     task_id = cfg.env.eval.init_params.id
+    if args_cli.teleop is not False:
+        import gymnasium as gym
+
+        import isaaclab_tasks  # noqa: F401
+        from isaaclab_tasks.utils import resolve_task_config
+
+        selected_task = args_cli.task or task_id
+        task_spec = gym.registry.get(selected_task.split(":")[-1])
+        if task_spec is not None and "env_cfg_entry_point" in task_spec.kwargs:
+            env_cfg, _ = resolve_task_config(selected_task, "", play_mode=True, overrides=[])
+            from ..common import has_play_teleop
+
+            if has_play_teleop(env_cfg):
+                raise ValueError(
+                    "RLinf runs environments in remote workers and cannot activate task teleop action terms; "
+                    "use --no-teleop"
+                )
     logger.info(f"Task: {task_id}")
     # hyphens instead of colons in the time stamp; colons are invalid in Windows paths
     timestamp = datetime.now().strftime("%Y%m%d-%H-%M-%S")

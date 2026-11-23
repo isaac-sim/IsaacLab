@@ -1,0 +1,22 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+[build-system]
+requires = ["setuptools>=70.0,<82.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "isaaclab-teleop-franka-example"
+version = "0.1.0"
+description = "Capture keyboard and Quest controller configuration examples for the Franka Reach RL task."
+requires-python = ">=3.12"
+dependencies = ["isaaclab-tasks", "isaaclab-teleop"]
+
+[project.entry-points."isaaclab.tasks"]
+teleop_franka = "isaaclab_teleop_franka"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["isaaclab_teleop_franka", "isaaclab_teleop_franka.*"]

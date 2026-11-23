@@ -16,7 +16,7 @@ from pathlib import Path
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import VecNormalize
 
-from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.app import add_launcher_args
 from isaaclab.envs import DirectMARLEnvCfg
 from isaaclab.utils.seed import configure_seed
 
@@ -32,6 +32,7 @@ from ..common import (
     close_env,
     create_isaaclab_env,
     enable_cameras_for_video,
+    launch_playback,
     normalize_task_name,
     pre_launch_video_config,
     resolve_checkpoint_selector,
@@ -101,10 +102,10 @@ def run(argv: list[str]) -> None:
     with startup_screen(args_cli, num_stages=3) as screen:
         env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent, play_mode=not args_cli.train_env_cfg)
         pre_launch_video_config(env_cfg, args_cli)
+        apply_env_overrides(args_cli, env_cfg)
         screen.stage("Launching simulation")
-        with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
+        with launch_playback(env_cfg, args_cli) as configure_inputs, contextlib.ExitStack() as cleanup:
             show_run_summary(screen, args_cli, env_cfg, library="sb3", action="play")
-            apply_env_overrides(args_cli, env_cfg)
             agent_cfg = cli_args.update_sb3_cfg(agent_cfg, args_cli)
             env_cfg.seed = agent_cfg["seed"]
 
@@ -123,6 +124,7 @@ def run(argv: list[str]) -> None:
                 env_cfg,
                 args_cli,
                 convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
+                configure_inputs=configure_inputs,
             )
             cleanup.callback(lambda: close_env(env))
             agent_cfg = process_sb3_cfg(agent_cfg, env.unwrapped.num_envs)
@@ -158,4 +160,4 @@ def run(argv: list[str]) -> None:
                 obs, _, _, _ = env.step(actions)
 
             screen.close()
-            run_playback(step, dt=env.unwrapped.step_dt, args_cli=args_cli, env_cfg=env_cfg)
+            run_playback(step, dt=env.unwrapped.step_dt, args_cli=args_cli, env_cfg=env_cfg, env=env)
