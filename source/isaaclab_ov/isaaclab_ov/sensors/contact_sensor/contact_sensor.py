@@ -99,6 +99,9 @@ class ContactSensor(BaseContactSensor):
         self._friction_force_matrix_flat_buf: wp.array | None = None
         self._poses_flat_buf: wp.array | None = None
         self._contact_data_buffers: tuple[wp.array, ...] | None = None
+        # Reuse the eager read when lazy processing follows on the same physics step and stream.
+        self._force_buffers_fresh = False
+        self._force_buffers_stream: wp.Stream | None = None
         # Body names (resolved during init).
         self._body_names: list[str] = []
         # Default backend tunables matching the PhysX backend.
@@ -186,6 +189,7 @@ class ContactSensor(BaseContactSensor):
 
     def _initialize_impl(self) -> None:
         super()._initialize_impl()
+        self._force_buffers_fresh = False
 
         physx_instance = self._backend_manager.get_physx_instance()
         if physx_instance is None:
@@ -366,7 +370,7 @@ class ContactSensor(BaseContactSensor):
         """Read the contact (and optionally pose) data from ovphysx into the flat buffers.
 
         The ovphysx bindings write into the tensors allocated once in :meth:`_create_buffers`,
-        so the buffers are refreshed in place on every call.
+        so force reads can be reused until the next sensor update, reset, or stream change.
 
         Args:
             include_pose: Whether to also read the body poses when ``track_pose`` is enabled.
@@ -375,11 +379,15 @@ class ContactSensor(BaseContactSensor):
         """
         # Pull aggregate forces into the pre-allocated flat buffer:
         # shape [num_envs * num_sensors, 3] float32.
-        self._contact_binding.read_net_normal_forces(self._net_normal_forces_flat_buf)
-        self._contact_binding.read_net_friction_forces(self._net_friction_forces_flat_buf)
-        if self._normal_force_matrix_flat_buf is not None:
-            self._contact_binding.read_normal_force_matrix(self._normal_force_matrix_flat_buf)
-            self._contact_binding.read_friction_force_matrix(self._friction_force_matrix_flat_buf)
+        stream = wp.get_stream(self._device) if wp.get_device(self._device).is_cuda else None
+        if not self._force_buffers_fresh or stream is not self._force_buffers_stream:
+            self._contact_binding.read_net_normal_forces(self._net_normal_forces_flat_buf)
+            self._contact_binding.read_net_friction_forces(self._net_friction_forces_flat_buf)
+            if self._normal_force_matrix_flat_buf is not None:
+                self._contact_binding.read_normal_force_matrix(self._normal_force_matrix_flat_buf)
+                self._contact_binding.read_friction_force_matrix(self._friction_force_matrix_flat_buf)
+            self._force_buffers_fresh = True
+            self._force_buffers_stream = stream
         if self.cfg.track_pose and include_pose:
             self._backend_manager.update_kinematics()
             # Read pose into [num_envs * num_sensors, 7] float32.
@@ -483,14 +491,16 @@ class ContactSensor(BaseContactSensor):
         is lost. A sensor that is refreshed lazily (on data access) would skip that step and keep
         reporting the last in-contact force until the next touchdown, so the ovphysx bindings are
         read on every physics step. The warp kernels that turn those buffers into sensor data
-        remain lazy and only run when :attr:`data` is accessed. The body poses have no such
-        transient and are only read on data access.
+        remain lazy and only run when :attr:`data` is accessed, reusing forces already read on
+        that step and stream. The body poses have no such transient and are only read on data
+        access.
 
         Args:
             dt: Time elapsed since the previous sensor update [s].
             force_recompute: Whether to recompute the sensor buffers regardless of their
                 configured update period. Defaults to False.
         """
+        self._force_buffers_fresh = False
         super().update(dt, force_recompute=force_recompute)
         # Skip the read if the base class already refreshed the buffers on this step, which it
         # does when the sensor carries a history buffer.
@@ -499,6 +509,7 @@ class ContactSensor(BaseContactSensor):
 
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
+        self._force_buffers_fresh = False
         super().reset(None, env_mask)
 
         wp.launch(
