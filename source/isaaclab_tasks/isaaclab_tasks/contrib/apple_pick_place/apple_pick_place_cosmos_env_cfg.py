@@ -9,8 +9,8 @@ import os
 
 from isaaclab.utils import configclass
 
-from isaaclab_contrib.sensors.cosmos import (
-    CosmosClientCfg,
+from isaaclab_contrib.sensors.cosmos_transfer import (
+    CosmosTransferClientCfg,
     CosmosTransferProcessorCfg,
     cosmos_camera,
     episode_frame_budget,
@@ -23,7 +23,11 @@ APPLE_COSMOS_PROMPT_FILE = os.path.join(os.path.dirname(__file__), "prompts", "a
 
 # The hands, apple and plate lie between 0.15 m and 0.9 m from the head camera.
 APPLE_COSMOS_HEAD_CAMERA_CFG = cosmos_camera(
-    HEAD_CAMERA_CFG, CosmosClientCfg(prompt_files=APPLE_COSMOS_PROMPT_FILE), near=0.15, far=0.9, name="head_camera"
+    HEAD_CAMERA_CFG,
+    CosmosTransferClientCfg(prompt_files=APPLE_COSMOS_PROMPT_FILE),
+    near=0.15,
+    far=0.9,
+    name="head_camera",
 )
 
 
@@ -39,12 +43,12 @@ class G1ApplePickPlaceCosmosEnvCfg(G1ApplePickPlaceEnvCfg):
     )
 
     @property
-    def cosmos(self) -> CosmosClientCfg:
+    def cosmos(self) -> CosmosTransferClientCfg:
         """The head camera's Cosmos settings; overrides such as ``env.cosmos.prompt_files=...`` set them."""
         return self._cosmos_transfer().backend
 
     @cosmos.setter
-    def cosmos(self, settings: CosmosClientCfg):
+    def cosmos(self, settings: CosmosTransferClientCfg):
         # configclass copies properties like fields when it copies a configuration, which needs a setter.
         self._cosmos_transfer().backend = settings
 

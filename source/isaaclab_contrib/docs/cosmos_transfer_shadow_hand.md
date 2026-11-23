@@ -97,7 +97,7 @@ Set the path variables to the same absolute paths as in terminal 1, then run:
 
 ```bash
 cd "$ISAAC_LAB_ROOT"
-uv run python -m isaaclab_contrib.sensors.cosmos.cli status
+uv run python -m isaaclab_contrib.sensors.cosmos_transfer.cli status
 ```
 
 Check for `"ready": true` and `"session_active": false`, then start the demo:
@@ -180,7 +180,7 @@ configurations, so the Cosmos client is imported only when one is selected. Both
   is the cube pose of the step its image appeared, kept until that image changes. An environment showing black
   after a reset is left out of the loss until its next image.
 
-The task's Cosmos settings are `env.cosmos`, the camera's own `CosmosClientCfg`, set with ordinary Isaac Lab
+The task's Cosmos settings are `env.cosmos`, the camera's own `CosmosTransferClientCfg`, set with ordinary Isaac Lab
 overrides:
 
 | Option | Override |

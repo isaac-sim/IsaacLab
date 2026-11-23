@@ -4,8 +4,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
-    "CosmosClient",
-    "CosmosClientCfg",
+    "CosmosTransferClient",
+    "CosmosTransferClientCfg",
     "CosmosTransferProcessor",
     "CosmosTransferProcessorCfg",
     "cosmos_camera",
@@ -14,8 +14,8 @@ __all__ = [
 ]
 
 from .camera import cosmos_camera
-from .cosmos_client import CosmosClient
-from .cosmos_client_cfg import CosmosClientCfg, episode_frame_budget
-from .cosmos_processor import CosmosTransferProcessor
-from .cosmos_processor_cfg import CosmosTransferProcessorCfg
+from .cosmos_transfer_client import CosmosTransferClient
+from .cosmos_transfer_client_cfg import CosmosTransferClientCfg, episode_frame_budget
+from .cosmos_transfer_processor import CosmosTransferProcessor
+from .cosmos_transfer_processor_cfg import CosmosTransferProcessorCfg
 from .prompt_files import read_prompt_files

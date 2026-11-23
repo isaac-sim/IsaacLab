@@ -181,7 +181,7 @@ Cosmos task:
 
 ```bash
 cd "$ISAAC_LAB_ROOT"
-uv run python -m isaaclab_contrib.sensors.cosmos.cli status
+uv run python -m isaaclab_contrib.sensors.cosmos_transfer.cli status
 uv run --with msgpack==1.2.3 --with pyzmq==27.2.0 \
   python scripts/imitation_learning/gr00t/play_apple_pick_place.py \
   --task IsaacContrib-PickPlace-Apple-G1-Dex3-Cosmos \

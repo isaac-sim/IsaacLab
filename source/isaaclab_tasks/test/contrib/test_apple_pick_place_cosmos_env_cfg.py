@@ -12,7 +12,7 @@ import textwrap
 
 import pytest
 
-from isaaclab_contrib.sensors.cosmos import CosmosTransferProcessorCfg, read_prompt_files
+from isaaclab_contrib.sensors.cosmos_transfer import CosmosTransferProcessorCfg, read_prompt_files
 
 from isaaclab_tasks.contrib.apple_pick_place.apple_pick_place_cosmos_env_cfg import G1ApplePickPlaceCosmosEnvCfg
 from isaaclab_tasks.utils import parse_env_cfg
@@ -39,11 +39,11 @@ def test_loading_the_apple_task_imports_no_cosmos_code():
         from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
         load_cfg_from_registry("{APPLE_TASK}", "env_cfg_entry_point")
-        cosmos = ("isaaclab_contrib.sensors.cosmos", "isaaclab_cosmos_server", "isaaclab_neural_bridge")
+        cosmos = ("isaaclab_contrib.sensors.cosmos_transfer", "isaaclab_cosmos_server", "isaaclab_neural_bridge")
         assert not [name for name in sys.modules if name.startswith(cosmos)]
 
         load_cfg_from_registry("{APPLE_COSMOS_TASK}", "env_cfg_entry_point")
-        assert "isaaclab_contrib.sensors.cosmos" in sys.modules
+        assert "isaaclab_contrib.sensors.cosmos_transfer" in sys.modules
     """)
     result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, timeout=300)
 

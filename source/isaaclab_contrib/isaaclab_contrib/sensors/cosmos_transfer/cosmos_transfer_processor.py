@@ -16,11 +16,11 @@ import warp as wp
 from isaaclab.utils.warp import ProxyArray
 
 from ..image_transfer import ImageTransferProcessor
-from .cosmos_client_cfg import MAX_CHUNK_FRAMES
-from .cosmos_processor_cfg import publishes_rendered_rgb
+from .cosmos_transfer_client_cfg import MAX_CHUNK_FRAMES
+from .cosmos_transfer_processor_cfg import publishes_rendered_rgb
 
 if TYPE_CHECKING:
-    from .cosmos_processor_cfg import CosmosTransferProcessorCfg
+    from .cosmos_transfer_processor_cfg import CosmosTransferProcessorCfg
 
 
 class CosmosTransferProcessor(ImageTransferProcessor):
@@ -30,8 +30,8 @@ class CosmosTransferProcessor(ImageTransferProcessor):
     latest generated image. This specialization validates the Cosmos frame cadence before opening
     the camera's generation stream, and joins its camera's views to a session shared with other cameras.
 
-    With :attr:`CosmosClientCfg.generation_mode` ``"single_frame"``, each generation instead makes one image per view
-    from the current capture's control, at every ``decision_interval``-th capture of the camera and with
+    With :attr:`CosmosTransferClientCfg.generation_mode` ``"single_frame"``, each generation instead makes one image
+    per view from the current capture's control, at every ``decision_interval``-th capture of the camera and with
     probability ``augmentation_probability``; the other captures publish the camera's rendered ``rgb``. Resets do
     not move this schedule, and only the views a capture selects publish a new image.
 

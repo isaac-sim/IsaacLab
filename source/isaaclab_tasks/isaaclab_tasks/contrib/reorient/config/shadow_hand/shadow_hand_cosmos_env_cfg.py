@@ -9,8 +9,8 @@ from __future__ import annotations
 
 from isaaclab.utils import configclass
 
-from isaaclab_contrib.sensors.cosmos import (
-    CosmosClientCfg,
+from isaaclab_contrib.sensors.cosmos_transfer import (
+    CosmosTransferClientCfg,
     CosmosTransferProcessorCfg,
     cosmos_camera,
     episode_frame_budget,
@@ -27,7 +27,7 @@ from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_e
     ShadowHandTiledCameraCfg,
 )
 
-_COSMOS_CLIENT_CFG = CosmosClientCfg(
+_COSMOS_CLIENT_CFG = CosmosTransferClientCfg(
     prompt=(
         "A close-up overhead view of a robotic Shadow Hand reorienting a small colored cube, "
         "with realistic metallic fingers, natural lighting, and a dark background."
@@ -103,12 +103,12 @@ class _ShadowHandCosmosTaskCfg:
     """The Cosmos settings, validation and playback scene shared by the Direct and Manager-based tasks."""
 
     @property
-    def cosmos(self) -> CosmosClientCfg:
+    def cosmos(self) -> CosmosTransferClientCfg:
         """The camera's Cosmos settings; overrides such as ``env.cosmos.prompt=...`` set them on the camera."""
         return _cosmos_transfer(self).backend
 
     @cosmos.setter
-    def cosmos(self, settings: CosmosClientCfg):
+    def cosmos(self, settings: CosmosTransferClientCfg):
         # configclass copies properties like fields when it copies a configuration, which needs a setter.
         _cosmos_transfer(self).backend = settings
 
