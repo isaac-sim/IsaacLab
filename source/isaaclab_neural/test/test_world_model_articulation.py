@@ -141,6 +141,17 @@ def test_joint_names_and_limits_come_from_the_usd_asset(world):
     assert torch.allclose(soft[0, 0], torch.tensor([-0.25, 1.25]))  # factor 0.5 around the middle
     assert soft[0, 1, 1] == float("inf")
 
+    # A joint with several axes has no single joint position.
+    from pxr import Usd, UsdPhysics
+
+    from isaaclab_neural.assets.articulation.articulation import _movable_joints_from_usd
+
+    for joint_type in (UsdPhysics.Joint, UsdPhysics.SphericalJoint):  # D6 and spherical
+        stage = Usd.Stage.CreateInMemory()
+        joint_type.Define(stage, "/Robot/joint")
+        with pytest.raises(ValueError, match="revolute, prismatic and fixed joints only"):
+            _movable_joints_from_usd(stage.GetPrimAtPath("/Robot"))
+
 
 def test_joint_ordering_orders_the_joints_and_their_limits_like_a_physics_backend(tmp_path):
     with robot_world(tmp_path, joint_ordering=JOINTS[::-1]) as (sim, scene):

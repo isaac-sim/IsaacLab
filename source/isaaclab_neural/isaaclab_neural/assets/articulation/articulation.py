@@ -28,16 +28,22 @@ if TYPE_CHECKING:
     from ...physics import NeuralManager
 
 
-def _usd_joints(prim) -> tuple[list[str], list[tuple[float, float]]]:
-    """Names and position limits of the movable joints below ``prim``, in stage traversal order.
+def _movable_joints_from_usd(prim) -> tuple[list[str], list[tuple[float, float]]]:
+    """Names and position limits of the revolute and prismatic joints below ``prim``, in stage traversal order.
 
     Revolute limits are authored in degrees and returned in radians; prismatic limits are in meters. A limit that is
-    not authored is unbounded, as in USD.
+    not authored is unbounded, as in USD. Fixed joints are skipped.
+
+    Raises:
+        ValueError: If a joint is of another type, such as a spherical or D6 joint: the world model's joint state has
+            one position per joint.
     """
     from pxr import Usd, UsdPhysics
 
     names, limits = [], []
     for p in Usd.PrimRange(prim):
+        if not p.IsA(UsdPhysics.Joint) or p.IsA(UsdPhysics.FixedJoint):
+            continue
         for joint_type, scale in ((UsdPhysics.RevoluteJoint, math.pi / 180.0), (UsdPhysics.PrismaticJoint, 1.0)):
             if p.IsA(joint_type):
                 joint = joint_type(p)
@@ -49,6 +55,12 @@ def _usd_joints(prim) -> tuple[list[str], list[tuple[float, float]]]:
                         math.inf if upper is None or not math.isfinite(upper) else upper * scale,
                     )
                 )
+                break
+        else:
+            raise ValueError(
+                f"Joint '{p.GetPath()}' is a {p.GetTypeName()}: the world-model backend supports revolute, prismatic"
+                " and fixed joints only."
+            )
     return names, limits
 
 
@@ -121,7 +133,7 @@ class Articulation(BaseArticulation):
         manager: NeuralManager = self._backend_manager
         prims = sim_utils.find_matching_prims(self.cfg.prim_path)
         self._num_instances = len(prims)
-        usd_names, usd_limits = _usd_joints(prims[0])
+        usd_names, usd_limits = _movable_joints_from_usd(prims[0])
         # The joints are virtual, so they are stored directly in the configured public order.
         self._joint_names = usd_names
         names, _ = self._resolve_axis_ordering("joint")

@@ -62,7 +62,8 @@ model with ``NeuralCfg(model_cfg=..., reset_manifest=...)`` and ``NeuralRenderer
   ``RenderBufferKind.DEPTH: RenderBufferSpec(1, wp.float32)``.
 * **Joints and limits** come from the spawned USD asset (a URDF spawner converts to USD): the movable joints in
   traversal order, or in the order of ``ArticulationCfg.joint_ordering``, which must match the reset records. Joint
-  limits are read from the USD, and ``soft_joint_pos_limit_factor`` applies as usual.
+  limits are read from the USD, and ``soft_joint_pos_limit_factor`` applies as usual. Movable joints are revolute or
+  prismatic; a joint with several axes, such as a spherical or D6 joint, raises.
 * **Observations and actions**: ``joint_pos`` terms read the joint state and ``JointPositionAction`` writes the target.
   Velocity and effort targets, poses, forces and physical properties raise ``NotImplementedError``.
 * **Resets**: ``Articulation.reset``, which the scene calls before the reset events, samples a reset record
