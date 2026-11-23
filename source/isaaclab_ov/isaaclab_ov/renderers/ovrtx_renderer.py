@@ -1546,13 +1546,13 @@ class OVRTXRenderer(BaseRenderer):
                 self._copy_mapped_lidar_point_cloud(point_cloud, render_data, Device.CPU)
             except Exception as cpu_exc:
                 message = str(cpu_exc).lower()
-                if "failed to map" in message or "unpublish" in message:
-                    logger.warning("OVRTX lidar point cloud was not ready: %s", cpu_exc)
-                    render_data.points.torch.fill_(float("inf"))
-                    render_data.intensity.torch.fill_(0)
-                    render_data.valid.torch.fill_(False)
-                    return
-                raise
+                if not ("failed to map" in message or "unpublish" in message):
+                    raise
+
+                logger.warning("OVRTX lidar point cloud was not ready: %s", cpu_exc)
+                render_data.points.torch.fill_(float("inf"))
+                render_data.intensity.torch.fill_(0)
+                render_data.valid.torch.fill_(False)
 
     def _copy_mapped_lidar_point_cloud(self, point_cloud, render_data, device: Device) -> None:
         """Map one point cloud and copy it into the lidar buffers.
@@ -1569,26 +1569,22 @@ class OVRTXRenderer(BaseRenderer):
                 shape = mapped["Coordinates"].shape
             except (TypeError, KeyError, RuntimeError, AttributeError):
                 return 0
+
             count = 1
             for dim in shape:
                 count *= int(dim)
             return count
 
-        mapped = point_cloud.map(device=device, sync_stream=0)
-
-        try:
+        with point_cloud.map(device=device, sync_stream=0) as mapped:
             if mapped.wait_event is not None:
                 mapped.wait()
+
             if device is Device.CUDA and mapped_point_count(mapped) == 0:
                 raise RuntimeError("OVRTX lidar CUDA point cloud was empty")
+
             copy_tiled_point_cloud(
                 mapped, render_data.points.torch, render_data.intensity.torch, render_data.valid.torch
             )
-        finally:
-            if device is Device.CUDA:
-                mapped.unmap(stream=self._warp_device.stream.cuda_stream or 1)
-            else:
-                mapped.unmap()
 
         if device is Device.CUDA:
             logger.info("OVRTX lidar point cloud is mapped on CUDA.")
