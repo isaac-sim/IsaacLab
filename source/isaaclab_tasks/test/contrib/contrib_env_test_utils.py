@@ -39,6 +39,7 @@ _SKIPPED_TASK_SUBSTRINGS = {
     "RmpFlow": "Uses SingleArticulation, which requires an update.",
     "Skillgen": "Requires cuRobo-specific coverage.",
     "Suction": "Requires CPU simulation.",
+    "Cosmos": "Requires a running Cosmos service.",
 }
 _COVERED_TASKS = [
     "IsaacContrib-Lift-Cube-Franka",  # Already covered by test_environment_determinism.py
@@ -107,6 +108,8 @@ def contrib_environment_params(runtime: Runtime) -> list:
 
 def num_envs(task_name: str) -> int:
     """Return how many environments the smoke test steps for a task."""
+    if task_name == "IsaacContrib-Factory-Variant-Franka":
+        return 64
     if task_name in ("IsaacContrib-Franka-Pour", "IsaacContrib-G1-Terrain", "IsaacContrib-UR10-Particle-Push"):
         return 1
     return 3 if task_name == "IsaacContrib-Multitask-Manipulation" else 2

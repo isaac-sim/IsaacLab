@@ -143,7 +143,7 @@ def test_native_publication_reuses_clean_fk_and_refreshes_writes_and_swaps(monke
         solver_ops=None,
         world_mask=wp.zeros(2, dtype=wp.bool, device="cpu"),
         fk_mask=wp.zeros(1, dtype=wp.bool, device="cpu"),
-        state_version=0,
+        timestamp=0,
         kinematics_dirty=False,
         transforms_may_change_on_graph_replay=False,
         device=wp.get_device("cpu"),

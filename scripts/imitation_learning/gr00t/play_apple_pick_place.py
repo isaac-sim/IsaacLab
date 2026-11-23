@@ -62,12 +62,7 @@ import numpy as np
 import torch
 from PIL import Image
 
-from isaaclab.cli import load_external_tasks
-
 import isaaclab_tasks  # noqa: F401
-
-# the Cosmos version of the task is registered by isaaclab_experimental
-load_external_tasks()
 
 # the GR00T client from the locomanipulation example, which does not import GR00T
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "locomanipulation_sdg", "gr00t"))
