@@ -13,7 +13,14 @@ import pytest
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.cloner import CloneCfg, InclusionSet
-from isaaclab.managers import EventTermCfg, HeterogeneousTaskManager, SceneEntityCfg, TerminationTermCfg
+from isaaclab.managers import (
+    EventTermCfg,
+    HeterogeneousTaskManager,
+    ManagerTermBase,
+    SceneEntityCfg,
+    TerminationTermCfg,
+)
+from isaaclab.managers.heterogeneous_task_manager import task_term
 
 pytestmark = pytest.mark.unit
 
@@ -24,6 +31,20 @@ def _holds(env, **params):
 
 def _lifted(env, asset_cfg: SceneEntityCfg = SceneEntityCfg("cube")):
     raise NotImplementedError
+
+
+class _Stateful(ManagerTermBase):
+    """A class-based term that records the environments it is reset for."""
+
+    def __init__(self, cfg: TerminationTermCfg, env):
+        super().__init__(cfg, env)
+        self.reset_ids = None
+
+    def reset(self, env_ids=None):
+        self.reset_ids = env_ids
+
+    def __call__(self, env):
+        raise NotImplementedError
 
 
 def _object(name: str, kinematic: bool = False) -> RigidObjectCfg:
@@ -105,6 +126,38 @@ def test_compose_tasks_renames_default_entities():
     HeterogeneousTaskManager.compose_tasks(cfg, {"a": task})
     assert cfg.terminations["a_done"].params["term"].params["asset_cfg"].name == "object_0"
     assert _lifted.__defaults__[0].name == "cube"
+    # The task's own term keeps neither the populated default nor the renamed entity.
+    assert task.terminations["done"].params == {}
+
+
+def test_compose_tasks_renames_entities_in_lists_and_of_string_functions():
+    """Scene entities listed in a parameter are renamed, as is the default of a function given as a string."""
+    terminations = {
+        "listed": TerminationTermCfg(func=_holds, params={"objects": [SceneEntityCfg("cube"), SceneEntityCfg("ball")]}),
+        "named": TerminationTermCfg(func=f"{__name__}:_lifted"),
+    }
+    task = SimpleNamespace(
+        scene=SimpleNamespace(cube=_object("cube"), ball=_object("ball")),
+        terminations=terminations,
+        episode_length_s=5.0,
+    )
+    cfg = _env_cfg()
+    HeterogeneousTaskManager.compose_tasks(cfg, {"a": task})
+    listed = cfg.terminations["a_listed"].params["term"].params["objects"]
+    assert [entity.name for entity in listed] == ["object_0", "object_1"]
+    assert cfg.terminations["a_named"].params["term"].params["asset_cfg"].name == "object_0"
+
+
+def test_task_terms_reset_their_nested_class_terms():
+    """Resetting a task's term resets its class-based nested term, which the termination manager does not see."""
+    env = SimpleNamespace(num_envs=2, device="cpu")
+    nested = TerminationTermCfg(func=_Stateful)
+    # The termination manager instantiates class-based terms, nested ones included, when the simulation plays.
+    nested.func = _Stateful(nested, env)
+    term = task_term(TerminationTermCfg(func=task_term, params={"task": 0, "term": nested}), env)
+    term.reset([1])
+    # The term configuration copies its parameters, so the nested term is read back from the term.
+    assert term.cfg.params["term"].func.reset_ids == [1]
 
 
 def test_compose_tasks_rejects_slots_that_mix_kinematic_objects():

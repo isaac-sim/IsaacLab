@@ -14,7 +14,7 @@ from collections.abc import Iterator
 
 import pytest
 import torch
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
@@ -90,7 +90,6 @@ class _EnvCfg(ManagerBasedRLEnvCfg):
         dt=0.01,
         physics=NewtonCfg(
             solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=False),
-            collision_cfg=NewtonCollisionPipelineCfg(broad_phase="sap"),
             use_cuda_graph=False,
         ),
     )
