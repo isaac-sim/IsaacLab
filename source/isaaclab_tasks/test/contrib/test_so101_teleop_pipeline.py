@@ -7,6 +7,7 @@
 
 import numpy as np
 import pytest
+from scipy.spatial.transform import Rotation
 
 pytest.importorskip("isaacteleop")
 
@@ -37,11 +38,15 @@ def test_so101_pipeline_tracks_engage_relative_pose_and_gripper():
         assert action.shape == (8,) and action.dtype == np.float32
         return action.copy()
 
-    home = [0.01918, -0.18852, 0.18887, 0.0, 0.0, 0.0, 1.0, 1.0]
+    # Accepted seated calibration, independent of the pipeline's configured transform.
+    home = [0.02061444, -0.18883384, 0.19226513, -0.26582206, -0.26582464, -0.65523561, 0.65524208, 1.0]
+    home_rotation = Rotation.from_quat(home[3:7])
     # The first squeeze emits the configured home even with a rotated controller.
     np.testing.assert_allclose(step((0.2, 0.3, 0.4), (0.0, 0.0, 2**-0.5, 2**-0.5)), home, atol=1e-6)
     # Relative to the initial Z quarter-turn, this controller quaternion gives [1, 2, 3, 4] / sqrt(30).
-    moved = [0.11918, 0.01148, 0.48887, *np.array([1, 2, 3, 4]) / np.sqrt(30), 1.0]
+    # The clutch applies that world-frame rotation and the controller displacement to the full home pose.
+    delta = Rotation.from_quat(np.array([1, 2, 3, 4]) / np.sqrt(30))
+    moved = [*np.add(home[:3], (0.1, 0.2, 0.3)), *(delta * home_rotation).as_quat(), 1.0]
     np.testing.assert_allclose(step((0.3, 0.5, 0.7), np.array([3, 1, 7, 1]) / np.sqrt(60)), moved, atol=1e-6)
     # Release at another pose, then re-engage there: the commanded arm pose stays held.
     held = [*moved[:7], 0.0]
