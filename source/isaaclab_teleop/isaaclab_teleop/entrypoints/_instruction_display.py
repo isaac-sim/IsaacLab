@@ -10,11 +10,14 @@
 
 """Module for handling instruction displays in Isaac Lab environments."""
 
+import logging
 from typing import Any
 
 from pxr import Gf
 
 from isaaclab.envs.mimic_env_cfg import MimicEnvCfg
+
+logger = logging.getLogger(__name__)
 
 
 class InstructionDisplay:
@@ -33,16 +36,20 @@ class InstructionDisplay:
                 text, "/_xr/stage/xrCamera", Gf.Vec3f(-1.25, 0.3, -2), target_prim_path="/demo_complete"
             )
         else:
-            # without labels (no Kit window) the messages are not shown
+            # without labels (no Kit window) each new message is logged instead
             self.subtask_label = None
             self.demo_label = None
-            self._display_subtask = lambda text: self._set_text(self.subtask_label, text)
-            self._display_demo = lambda text: self._set_text(self.demo_label, text)
+            self._logged_text = {}
+            self._display_subtask = lambda text: self._set_text("subtask", self.subtask_label, text)
+            self._display_demo = lambda text: self._set_text("demo", self.demo_label, text)
 
-    @staticmethod
-    def _set_text(label, text: str) -> None:
+    def _set_text(self, slot: str, label, text: str) -> None:
         if label is not None:
             label.text = text
+        elif self._logged_text.get(slot) != text:
+            # Subtask instructions repeat every step; log each message once when it changes.
+            self._logged_text[slot] = text
+            logger.info(text)
 
     def set_labels(self, subtask_label, demo_label):
         """Set the instruction labels for non-handtracking displays."""

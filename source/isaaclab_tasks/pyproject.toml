@@ -47,3 +47,4 @@ include = ["isaaclab_tasks", "isaaclab_tasks.*"]
     "assets/*.png",
     "assets/resources/*.urdf",
 ]
+"isaaclab_tasks.contrib.pick_place" = ["assets/*.urdf"]

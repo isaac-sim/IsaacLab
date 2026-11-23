@@ -44,6 +44,7 @@ This file has been modified from the original robomimic version to integrate wit
 """
 
 import argparse
+import contextlib
 import importlib
 import json
 import os
@@ -443,6 +444,9 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # run training inside a headless Isaac Sim runtime, which validation rollouts in Isaac Lab environments need
-    with launch_simulation(None):
+    # run training inside a headless Isaac Sim runtime, which validation rollouts in Isaac Lab environments need;
+    # without an Isaac Sim installation there is no runtime to launch, and training itself reads only the dataset
+    from isaaclab_isaacsim.app import KitLauncher
+
+    with launch_simulation(None) if KitLauncher.is_available() else contextlib.nullcontext():
         main(args)

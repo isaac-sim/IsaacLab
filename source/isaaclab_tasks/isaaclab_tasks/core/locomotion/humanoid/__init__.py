@@ -43,6 +43,7 @@ gym.register(
         "env_cfg_entry_point": f"{__name__}.humanoid_manager_env_cfg:HumanoidEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_manager_ppo_cfg.yaml",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:HumanoidPPORunnerCfg",
+        "rsl_rl_sac_cfg_entry_point": f"{agents.__name__}.rsl_rl_sac_cfg:HumanoidSACRunnerCfg",
         "default_agent": "rsl_rl",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_manager_ppo_cfg.yaml",
         "sb3_cfg_entry_point": f"{agents.__name__}:sb3_manager_ppo_cfg.yaml",

@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import MISSING, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from isaaclab.utils import configclass
 
@@ -37,6 +37,8 @@ no client connected, working around ``XR_ERROR_FORM_FACTOR_UNAVAILABLE`` (``-35`
 if TYPE_CHECKING:
     from isaacteleop.retargeting_engine.interface import BaseRetargeter, OutputCombiner
     from isaacteleop.teleop_session_manager import PluginConfig, RetargetingExecutionConfig
+
+    from isaaclab.envs import ManagerBasedRLEnvCfg
 
 
 @configclass
@@ -234,7 +236,9 @@ class IsaacTeleopCfg:
     it is not installed). When ``None``, Isaac Lab resolves it at session start to
     Isaac Capture's pipelined, deadline-paced default
     (``RetargetingExecutionConfig(mode="pipelined", pacing=DeadlinePacingConfig(safety_margin_s=0.025))``),
-    where ``isaacteleop`` is guaranteed to be available. Set this explicitly to
+    where ``isaacteleop`` is guaranteed to be available. An MCAP replay without Kit resolves it to
+    ``RetargetingExecutionConfig(mode="sync")`` instead, so that every step consumes exactly the next
+    recorded frame. Set this explicitly to
     ``RetargetingExecutionConfig(mode="sync")`` for exact current-frame
     retargeting while debugging or comparing behavior.
     """
@@ -306,3 +310,48 @@ class IsaacTeleopCfg:
 
     app_name: str = "IsaacLabTeleop"
     """Application name for the Isaac Capture session."""
+
+    require_initial_bimanual_hand_tracking: bool = False
+    """Wait for both hands to be present before the first environment step.
+
+    An environment or device reset clears the initialization latch. Later
+    tracking loss follows the configured retargeting pipeline's behavior.
+    """
+    prepare_environment: Callable[[ManagerBasedRLEnvCfg], None] | None = None
+    """Optional task-owned preparation of the resolved environment configuration.
+
+    The teleoperation launchers (live, replay and recording) call this once, after launcher
+    validation and before creating any simulation resources, including the OVXR bootstrap. The hook may rely
+    on resolved presets and on the validated runtime selections, such as the physics
+    and renderer backends, and must not change them. A task's environment entry point
+    may apply the same preparation again, so it must be idempotent. Keep this
+    callable's imports safe before simulator startup.
+
+    .. note::
+
+        This hook is experimental and may change or be removed in a future release, for example once
+        tasks declare their backend-specific settings through presets.
+    """
+    action_conditioner: Callable[[Any, Any, dict[str, Any]], Any] | None = None
+    """Optional task-owned pre-step action conditioner.
+
+    The callable receives ``(env, action, state)``. The launcher retains the
+    state dictionary across active frames and clears it on pause or reset.
+    State updates from a frame that fails validation after conditioning are discarded.
+
+    .. note::
+
+        This hook is experimental and may change or be removed in a future release, for example once
+        the task's action term conditions its own targets.
+    """
+    action_validator: Callable[[Any], str | None] | None = None
+    """Optional task-owned fail-closed action validator.
+
+    Return ``None`` for a valid action or a concise reason to render without a
+    physics step. Validation runs both before and after conditioning.
+
+    .. note::
+
+        This hook is experimental and may change or be removed in a future release, for example once
+        the task's action term validates its own targets.
+    """
