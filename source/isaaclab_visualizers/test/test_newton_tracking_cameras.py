@@ -14,7 +14,7 @@ import torch
 import warp as wp
 
 pytest.importorskip("newton")
-from isaaclab_visualizers.newton.newton_visualizer import NewtonVisualizerBase
+from isaaclab_visualizers.newton.newton_visualizer import NewtonGLVisualizer, NewtonVisualizerBase
 from pyglet.math import Vec3
 
 from isaaclab.visualizers import PerspectiveCameraCfg, TrackingCameraCfg
@@ -37,6 +37,7 @@ class _Camera:
 class _Scene:
     num_envs = 2
     env_origins = torch.tensor([[0.0, 0.0, 0.0], [10.0, 0.0, 0.0]])
+    articulations, rigid_objects = {"robot": None}, {}
 
     def __getitem__(self, name):
         return SimpleNamespace(is_initialized=False)
@@ -140,7 +141,8 @@ def test_the_selector_names_each_camera_with_a_short_descriptor():
 def test_resetting_the_tracking_camera_restores_what_the_task_declared():
     task = _view(TrackingCameraCfg(env_index=0, eye=(1.0, 0.0, 0.0), track_path="robot", follow_heading=True))
     viz = _visualizer([task])
-    cfg, follower = task.cfg.source, viz._followers[task]
+    follower = viz._followers[task]
+    cfg = follower.cfg  # the follower edits its own copy, not the task's camera
     viz._remember_tracking_defaults(task, follower)
     cfg.eye, cfg.follow_heading = (5.0, 5.0, 5.0), False
     follower.set_env(1)
@@ -158,8 +160,6 @@ def test_an_unknown_asset_is_reported_and_the_camera_keeps_following_its_target(
 
     class _Scene2(_Scene):
         def __getitem__(self, name):
-            if name != "robot":
-                raise KeyError(name)
             return super().__getitem__(name)
 
     follower._scene = _Scene2()
@@ -200,3 +200,24 @@ def test_a_tracking_camera_ignores_the_world_offset_while_the_window_shows_rtx()
     viz.rtx_rendering = True  # OVRTX draws the environments where the scene has them
     assert viz._apply_view_pose(task)
     assert viz._viewer.camera.pos.x == 11.0
+
+
+def test_the_tracking_cameras_environment_is_drawn_even_beyond_the_visible_count():
+    task = _view(TrackingCameraCfg(env_index=0))
+    viz = _visualizer([task])
+    follower = viz._followers[task]
+    follower._scene = SimpleNamespace(num_envs=8, env_origins=torch.zeros(8, 3))
+    follower.set_env(3)
+    glviz = NewtonGLVisualizer.__new__(NewtonGLVisualizer)
+    glviz.__dict__.update(viz.__dict__)
+    glviz._cfg_visible_env_ids, glviz._num_envs, glviz._track_env_only = None, 8, False
+
+    glviz._visible_env_count = 2
+    assert glviz._select_visible_env_ids() == [0, 3]  # the camera's environment takes the last counted place
+    glviz._visible_env_count = 4
+    assert glviz._select_visible_env_ids() == [0, 1, 2, 3]  # already among the first ones: nothing changes
+    follower.set_env(7)
+    glviz._visible_env_count = 1
+    assert glviz._select_visible_env_ids() == [7]
+    glviz._followers.clear()  # no Tracking Camera shown: the plain first environments
+    assert glviz._select_visible_env_ids() == [0]

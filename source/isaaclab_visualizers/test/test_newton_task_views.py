@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 import torch
 
@@ -36,6 +37,7 @@ class _Camera:
 class _Scene:
     num_envs = 2
     env_origins = torch.tensor([[0.0, 0.0, 0.0], [10.0, 0.0, 0.0]])
+    articulations, rigid_objects = {"robot": None}, {}
 
     def __getitem__(self, name):
         return SimpleNamespace(is_initialized=False)
@@ -149,10 +151,11 @@ def test_resetting_the_tracking_camera_works_while_the_rtx_view_is_current():
     )  # RTX is showing the Tracking Camera.
     viz._tracking_error = ""
 
-    cfg.eye = (9.0, 9.0, 9.0)
-    assert viz._reset_tracking_camera(viz._followers[view])
+    follower = viz._followers[view]
+    follower.cfg.eye = (9.0, 9.0, 9.0)  # an edit in the window, made on the follower's own copy
+    assert viz._reset_tracking_camera(follower)
 
-    assert cfg.eye == (2.0, 0.0, 1.0)
+    assert follower.cfg.eye == (2.0, 0.0, 1.0) and cfg.eye == (2.0, 0.0, 1.0)
 
 
 def test_a_perspective_that_was_never_left_has_no_pose_to_restore():
@@ -208,6 +211,25 @@ def test_choosing_the_perspective_while_rtx_is_shown_keeps_the_rtx_view():
     viz._choose_camera_source(0)  # the OVRTX camera already follows the Perspective
 
     assert viz.current_image_view is rtx and viz.rtx_rendering
+
+
+def test_picking_a_sensor_while_rtx_is_on_returns_the_rtx_camera_to_rendering_on_demand():
+    rtx = _rtx_view()
+    sensor = _View("/World/sensor", camera=SimpleNamespace(cfg=SimpleNamespace(prim_path="/World/sensor")))
+    sensor.invalidate = lambda: None
+    viz = _switchable([_view(PerspectiveCameraCfg()), rtx, sensor])
+    viz._viewer.picking = None
+    viz._viewer.camera.get_view_matrix = lambda: np.eye(4)
+    viz._release_rtx_scene = lambda: None
+    viz._place_scene_camera_at_viewer = lambda camera: None
+    viz._pose_started = False
+    viz.current_image_view = rtx
+    rtx.camera.cfg.render_on_demand = False  # the shared render while RTX is shown
+
+    NewtonGLVisualizer._select_camera(viz, 2, keep_pose=True)
+
+    assert rtx.camera.cfg.render_on_demand is True
+    assert viz.current_image_view is sensor
 
 
 def test_the_rtx_switch_waits_a_frame_so_the_message_is_shown_first():
@@ -390,7 +412,8 @@ def test_a_window_with_only_the_rtx_camera_draws_its_camera_controls():
     viz = _switchable([_rtx_view()])
     viz.current_image_view = viz._image_views[0]
     viz._capturing_another_view = False
-    viz._draw_appearance = viz._draw_navigation_controls = viz._draw_camera_info = lambda imgui: None
+    viz._draw_appearance = viz._draw_navigation_controls = lambda imgui: None
+    viz._draw_camera_info = viz._draw_window_options = lambda imgui: None
     imgui = Mock()
     imgui.is_item_hovered.return_value = False
     imgui.radio_button.return_value = False  # disabled radio buttons are never clicked
@@ -415,6 +438,8 @@ def test_camera_view_controls_are_grouped_under_headers_in_order():
     imgui.combo.side_effect = lambda *args: order.append("camera source") or (False, 0)
     imgui.radio_button.side_effect = lambda *args: order.append("renderer") or False
     imgui.separator_text.side_effect = lambda text: order.append(text)
+    imgui.checkbox.side_effect = lambda label, value: (False, value)
+    viz._viewer.vsync = False
     camera = viz._viewer.camera
     camera.pos, camera.pitch, camera.yaw, camera.fov = (1.0, 2.0, 3.0), 0.0, 0.0, 40.0
 
@@ -431,6 +456,7 @@ def test_camera_view_controls_are_grouped_under_headers_in_order():
         "focal length",
         "camera speed",
         "Camera Data",
+        "Window",
     ]
     imgui.text_disabled.assert_not_called()  # the camera data is plain text, not greyed out
     assert [call.args[0].split(":")[0] for call in imgui.text.call_args_list] == [
@@ -439,3 +465,30 @@ def test_camera_view_controls_are_grouped_under_headers_in_order():
         "Rotation",
         "FOV",
     ]
+
+
+def test_the_vsync_checkbox_sets_the_window_vsync():
+    from unittest.mock import Mock
+
+    viz = _switchable([_view(PerspectiveCameraCfg()), _rtx_view()])
+    viz._viewer.vsync = False
+    imgui = Mock()
+    imgui.checkbox.return_value = (True, True)
+
+    viz._draw_window_options(imgui)
+
+    assert viz._viewer.vsync is True
+
+
+def test_the_docs_link_does_not_block_the_render_thread(monkeypatch):
+    import threading
+
+    from isaaclab_visualizers.newton import newton_visualizer
+
+    release, started = threading.Event(), threading.Event()
+    monkeypatch.setattr(newton_visualizer.webbrowser, "open", lambda url: (started.set(), release.wait(5)))
+
+    newton_visualizer._open_in_browser("https://example.com")  # returns while the browser call is still blocked
+
+    assert started.wait(5)
+    release.set()
