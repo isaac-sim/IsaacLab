@@ -747,9 +747,11 @@ class OvPhysxManager(PhysicsManager):
         self._gravity_stage = None
         plan = sim.get_clone_plan()
         entries = None
+        prototypes = []
         if plan is not None:
             env_ids = np.arange(len(plan.topology.world_prototype_layout))
-            entries = expand_deformable_entries(deformable_prototypes(sim.stage, plan), plan, env_ids, plan.positions)
+            prototypes = deformable_prototypes(sim.stage, plan)
+            entries = expand_deformable_entries(prototypes, plan, env_ids, plan.positions)
 
         ovphysx_device = "gpu" if "cuda" in self._device else "cpu"
         full_stage = self._requires_full_stage or ovphysx_device == "cpu"
@@ -764,6 +766,15 @@ class OvPhysxManager(PhysicsManager):
             friction_replacements=self._cfg.legacy_joint_friction_replacements,
             filter_render_only=shared_scene is not None,
             preserve_physics_ancestors=shared_scene is not None,
+            mixed_surface_roots=(
+                tuple(entry.root_path for entry in prototypes)
+                if self._cfg.mixed_deformable_cloning
+                and full_stage
+                and ovphysx_device == "gpu"
+                and all(entry.deformable_type == "surface" for entry in prototypes)
+                else ()
+            ),
+            physics_prim_path=sim.cfg.physics_prim_path,
         )
         self._stage_usda = stage_usda
 

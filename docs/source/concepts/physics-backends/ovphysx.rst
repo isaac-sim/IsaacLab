@@ -249,11 +249,16 @@ OvPhysX deformables currently require every body matched by one
 nodes. Initialization raises an error for mixed node counts instead of exposing
 padded state that would produce incorrect reductions.
 
-Deformable scenes also require full-stage materialization. Startup cost therefore
-grows with the number of authored environments. Use this path for small validation
-scenes; training-scale workloads with thousands of environments are not currently
-supported. Deformable bodies are not supported by the heterogeneous fast-path
-cloner.
+Deformable scenes use full-stage import by default. For homogeneous CUDA
+scenes with surface deformables, set
+``OvPhysxCfg(mixed_deformable_cloning=True)`` to try the experimental mixed path.
+It imports cloth through USD and clones rigid assets natively. It requires the
+standard per-environment USD collision groups from
+``InteractiveSceneCfg.filter_collisions`` and the default OvPhysX clone context
+for the assets. The backend assigns copied rigid colliders to the destination
+collision groups explicitly so each can contact its own cloth. Custom groups,
+attachments, heterogeneous layouts, and volume deformables retain full-stage import.
+Shared OVStage cloning is unavailable for deformable scenes.
 
 .. _ovphysx-native-access:
 

@@ -20,6 +20,7 @@ import numpy as np
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab import cloner
+from isaaclab.sim.utils.queries import has_deformable_body_api
 
 from isaaclab_ov._clone import CloneRecipe
 from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg, OVRTXRendererCfg
@@ -503,6 +504,167 @@ def _classify_physics(stage: Usd.Stage, source: str) -> tuple[bool, bool]:
     return has_physics, False
 
 
+def _has_incompatible_mixed_clone_opinions(
+    stage: Usd.Stage, scene: Usd.Prim, known_groups: set[Sdf.Path], native_targets: set[Sdf.Path]
+) -> bool:
+    """Reject custom filtering and relationships that require native targets to exist in USD."""
+    for prim in stage.Traverse(Usd.TraverseInstanceProxies()):
+        if prim.IsA(UsdPhysics.CollisionGroup):
+            if prim.GetPath() not in known_groups:
+                return True
+            continue
+        if prim.IsA(UsdPhysics.Scene) and prim != scene:
+            return True
+        # Attachment and pair-filter metadata can be resolved at attach time, before native targets
+        # exist. Keep the full import for scenes with any of these extra collision constraints.
+        schema_names = (*prim.GetPrimTypeInfo().GetAppliedAPISchemas(), prim.GetTypeName())
+        if any(
+            "Attachment" in name or "ElementCollisionFilter" in name or "FilteredPairs" in name for name in schema_names
+        ):
+            return True
+        for rel in prim.GetRelationships():
+            if not rel.HasAuthoredTargets():
+                continue
+            for target in rel.GetTargets():
+                path = target.GetPrimPath()
+                while path and path != Sdf.Path.absoluteRootPath:
+                    if path in native_targets:
+                        return True
+                    path = path.GetParentPath()
+    return False
+
+
+def _mixed_clone_groups(
+    stage: Usd.Stage,
+    recipes: Sequence[CloneRecipe],
+    plan: ClonePlan,
+    surface_roots: Sequence[str],
+    physics_prim_path: str,
+) -> tuple[set[str], dict[Sdf.Path, list[Sdf.Path]]] | None:
+    """Map every collider in a homogeneous clone plan to its destination USD collision group."""
+    num_worlds = len(plan.topology.world_prototype_layout)
+    if num_worlds < 2 or np.unique(plan.topology.world_prototype_layout).size != 1:
+        return None
+    scene = stage.GetPrimAtPath(physics_prim_path)
+    if not scene or not scene.GetAttribute("physxScene:invertCollisionGroupFilter").Get():
+        return None
+
+    worlds = [Sdf.Path(plan.env_template.format(i)) for i in range(num_worlds)]
+    group_paths = [Sdf.Path(f"/World/collisions/group{i}") for i in range(num_worlds)]
+    global_group = Sdf.Path("/World/collisions/global_group")
+    known_groups = {*group_paths, global_group}
+    global_group_prim = UsdPhysics.CollisionGroup.Get(stage, global_group)
+    if global_group_prim:
+        global_members = global_group_prim.GetCollidersCollectionAPI()
+        if (
+            global_members.GetIncludeRootAttr().Get()
+            or global_members.GetExcludesRel().GetTargets()
+            or global_members.GetExpansionRuleAttr().Get() != "expandPrims"
+            or global_group_prim.GetMergeGroupNameAttr().Get()
+            or set(global_group_prim.GetFilteredGroupsRel().GetTargets()) != known_groups
+        ):
+            return None
+        # A global group is allowed to include colliders outside the copied environment namespace.
+        if any(
+            member.HasPrefix(world) or world.HasPrefix(member)
+            for member in global_members.GetIncludesRel().GetTargets()
+            for world in worlds
+        ):
+            return None
+    for world, group_path in zip(worlds, group_paths, strict=True):
+        group = UsdPhysics.CollisionGroup.Get(stage, group_path)
+        if not group:
+            return None
+        collection = group.GetCollidersCollectionAPI()
+        if (
+            collection.GetIncludesRel().GetTargets() != [world]
+            or collection.GetExcludesRel().GetTargets()
+            or collection.GetIncludeRootAttr().Get()
+            or collection.GetExpansionRuleAttr().Get() != "expandPrims"
+            or set(group.GetFilteredGroupsRel().GetTargets())
+            != ({group_path, global_group} if global_group_prim else {group_path})
+            or group.GetMergeGroupNameAttr().Get()
+        ):
+            return None
+
+    sources = [Sdf.Path(recipe[0]) for recipe in recipes]
+    if len(set(sources)) != len(sources) or len(Sdf.Path.RemoveDescendentPaths(sources)) != len(sources):
+        return None
+    # All supported fixtures have one source environment. In particular, do not reinterpret
+    # heterogeneous recipes or late USD opinions as clones of the first world.
+    first = stage.GetPrimAtPath(worlds[0])
+    if not first:
+        return None
+    for prim in Usd.PrimRange(first, Usd.TraverseInstanceProxies()):
+        path = prim.GetPath()
+        if (
+            prim.HasAPI(UsdPhysics.CollisionAPI)
+            or has_deformable_body_api(prim)
+            or prim.HasAPI(UsdPhysics.RigidBodyAPI)
+            or prim.IsA(UsdPhysics.Joint)
+        ) and not any(path.HasPrefix(source) for source in sources):
+            return None
+    for world in worlds[1:]:
+        existing = stage.GetPrimAtPath(world)
+        if existing and any(
+            prim.HasAPI(UsdPhysics.CollisionAPI)
+            or prim.HasAPI(UsdPhysics.RigidBodyAPI)
+            or has_deformable_body_api(prim)
+            or prim.IsA(UsdPhysics.Joint)
+            for prim in Usd.PrimRange(existing, Usd.TraverseInstanceProxies())
+        ):
+            return None
+
+    groups: dict[Sdf.Path, list[Sdf.Path]] = {group: [] for group in group_paths}
+    usd_only = set()
+    recognized = set()
+    surface_paths = set(map(Sdf.Path, surface_roots))
+    for source, targets, _, ids, source_world in recipes:
+        src = Sdf.Path(source)
+        if (
+            source_world != 0
+            or not src.HasPrefix(worlds[0])
+            or src == worlds[0]
+            or ids is None
+            or len(ids) != num_worlds
+            or set(ids) != set(range(num_worlds))
+        ):
+            return None
+        root = stage.GetPrimAtPath(src)
+        if not root:
+            return None
+        colliders = []
+        for prim in Usd.PrimRange(root, Usd.TraverseInstanceProxies()):
+            if prim.HasAPI(UsdPhysics.CollisionAPI) or has_deformable_body_api(prim):
+                colliders.append(prim.GetPath())
+            if has_deformable_body_api(prim):
+                if prim.GetPath() not in surface_paths:
+                    return None
+                recognized.add(prim.GetPath())
+                usd_only.add(source)
+        if source not in usd_only and not colliders:
+            return None
+        for target, world in zip(targets, ids, strict=True):
+            dst = Sdf.Path(target)
+            if dst != src.ReplacePrefix(worlds[0], worlds[world]) or (dst != src and stage.GetPrimAtPath(dst)):
+                return None
+            groups[group_paths[world]].extend(path.ReplacePrefix(src, dst) for path in colliders)
+
+    if recognized != surface_paths or not usd_only or len(usd_only) == len(recipes):
+        return None
+
+    native_targets = {
+        Sdf.Path(target)
+        for source, targets, _, _, _ in recipes
+        if source not in usd_only
+        for target in targets
+        if target != source
+    }
+    if _has_incompatible_mixed_clone_opinions(stage, scene, known_groups, native_targets):
+        return None
+    return usd_only, groups
+
+
 def _serialize_stage(
     stage: Usd.Stage,
     recipes: Sequence[CloneRecipe],
@@ -512,6 +674,8 @@ def _serialize_stage(
     friction_replacements: dict[str, tuple[float, float, float]] | None = None,
     filter_render_only: bool = False,
     preserve_physics_ancestors: bool = False,
+    mixed_surface_roots: Sequence[str] = (),
+    physics_prim_path: str = "",
 ) -> tuple[str, list[CloneRecipe]]:
     """Export complete original worlds once and compile copies from those originals.
 
@@ -522,12 +686,24 @@ def _serialize_stage(
     When ``preserve_physics_ancestors`` is enabled, retain empty ancestors with authored
     physics properties even when no API schema is applied.
 
+    An opt-in surface-deformable plan can import the deformables separately when native
+    rigid copies can be assigned to the same USD collision groups by collider path.
+
     Physics-only roots without bodies or colliders cannot use native replication. Route them
     through USD replication so their destinations exist at attachment; standalone joint cloning is unsafe.
 
     ``filter_render_only`` omits render-only recipes when sharing a stage. Physics classification
     is cached per source for this export only, including original-world selection and native validation.
     """
+
+    usd_only: set[str] = set()
+    mixed_groups: dict[Sdf.Path, list[Sdf.Path]] = {}
+    if full_stage and mixed_surface_roots and plan is not None:
+        if mixed := _mixed_clone_groups(stage, recipes, plan, mixed_surface_roots, physics_prim_path):
+            usd_only, mixed_groups = mixed
+            full_stage = False
+        else:
+            logger.info("OvPhysX mixed deformable cloning unavailable for this layout; importing the full stage.")
 
     physics_content = cache(partial(_classify_physics, stage))
     if filter_render_only:
@@ -578,9 +754,13 @@ def _serialize_stage(
         source, targets, transforms, world_ids, source_world = recipe
         target_by_world = dict(zip(world_ids, targets, strict=True)) if world_ids is not None else {}
         source_prim = stage.GetPrimAtPath(source)
-        if not full_stage and any(
-            target != source and (world_ids is None or world_ids[index] not in originals)
-            for index, target in enumerate(targets)
+        if (
+            not full_stage
+            and source not in usd_only
+            and any(
+                target != source and (world_ids is None or world_ids[index] not in originals)
+                for index, target in enumerate(targets)
+            )
         ):
             # Physics authoring is not itself proof that native replication supports this root.
             has_physics, has_bodies_or_colliders = physics_content(source)
@@ -595,11 +775,12 @@ def _serialize_stage(
             if target != source and any(path.HasPrefix(target_path) for path in sources):
                 raise ValueError(f"OvPhysX clone target {target!r} overlaps a clone source.")
             world = world_ids[index] if world_ids is not None else None
-            if full_stage or world in originals or target == source:
+            if full_stage or source in usd_only or world in originals or target == source:
                 # References preserve joint relationships and any authored target opinions.
                 prim = exported.GetPrimAtPath(target)
                 authored = bool(prim)
-                prim = prim or exported.DefinePrim(target, "Xform")
+                # An untyped target inherits the source type, including for a root surface mesh.
+                prim = prim or exported.DefinePrim(target, "" if source in usd_only else "Xform")
                 if target != source:
                     prim.GetReferences().AddInternalReference(source)
                 # Originals also need plan placement; the authoring stage contains only prototypes.
@@ -642,5 +823,11 @@ def _serialize_stage(
                     parent = spec.nameParent
                     del (parent.nameChildren if parent else layer.rootPrims)[spec.name]
                     spec = parent
+
+    for group_path, members in mixed_groups.items():
+        # OVPhysX resolves exact collider paths for native clones. An ancestor collection instead
+        # expands against the imported stage, where the cloned rigid colliders do not yet exist.
+        group = UsdPhysics.CollisionGroup.Get(exported, group_path)
+        group.GetCollidersCollectionAPI().GetIncludesRel().SetTargets(members)
 
     return layer.ExportToString(), list(native.values())

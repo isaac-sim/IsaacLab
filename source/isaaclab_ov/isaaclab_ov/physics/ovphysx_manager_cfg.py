@@ -75,6 +75,13 @@ class OvPhysxCfg(PhysicsCfg):
     purged between boots.
     """
 
+    mixed_deformable_cloning: bool = False
+    """Experimental: import surface deformables through USD and clone rigid assets natively.
+
+    Requires a homogeneous CUDA clone plan with the standard per-environment collision groups.
+    Incompatible scenes retain full-stage import.
+    """
+
     enable_enhanced_determinism: bool = False
     """Enable/disable improved determinism at the expense of performance. Defaults to False.
 

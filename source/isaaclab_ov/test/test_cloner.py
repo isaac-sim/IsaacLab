@@ -18,7 +18,7 @@ from isaaclab_ov.physics.ovphysx_manager import OvPhysxManager
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab.assets import AssetBaseCfg
-from isaaclab.cloner import make_clone_plan
+from isaaclab.cloner import filter_collisions, make_clone_plan
 from isaaclab.sim import SimulationContext
 
 pytestmark = pytest.mark.ov
@@ -515,3 +515,49 @@ def test_export_rejects_unrepresentable_legacy_joint_properties(
     with pytest.raises(ValueError, match=f"{message}.*(/Robot/Joint)|(/Robot/Joint).*{message}"):
         _serialize_stage(stage, [], full_stage=True, friction_replacements=replacements)
     assert stage.GetRootLayer().ExportToString() == before
+
+
+@pytest.mark.parametrize("relation", ["attachment", "material"])
+def test_mixed_deformable_export_falls_back_for_relationship_to_clone_target(relation):
+    """Attach-time relationships must retain a rigid body that would otherwise be a native copy."""
+    stage = Usd.Stage.CreateInMemory()
+    UsdPhysics.Scene.Define(stage, "/Physics")
+    worlds = ["/World/envs/env_0", "/World/envs/env_1"]
+    filter_collisions(stage, "/Physics", "/World/collisions", worlds)
+    robot = UsdGeom.Cube.Define(stage, worlds[0] + "/Robot").GetPrim()
+    UsdPhysics.RigidBodyAPI.Apply(robot)
+    UsdPhysics.CollisionAPI.Apply(robot)
+    cloth = stage.DefinePrim(worlds[0] + "/Cloth", "Xform")
+    cloth.AddAppliedSchema("OmniPhysicsDeformableBodyAPI")
+    plan = make_clone_plan(
+        tuple(AssetBaseCfg(prim_path="{ENV_REGEX_NS}/" + name) for name in ("Robot", "Cloth")),
+        ((0, 1),),
+        2,
+    )
+    recipes = [
+        (worlds[0] + "/" + name, [world + "/" + name for world in worlds], [], [0, 1], 0) for name in ("Robot", "Cloth")
+    ]
+
+    _, clones = _serialize_stage(
+        stage, recipes, True, plan, mixed_surface_roots=[str(cloth.GetPath())], physics_prim_path="/Physics"
+    )
+    assert clones
+
+    if relation == "attachment":
+        attachment = stage.DefinePrim("/World/Attachment", "OmniPhysicsVtxXformAttachment")
+        attachment.CreateRelationship("omniphysics:src0").SetTargets([worlds[1] + "/Cloth"])
+        attachment.CreateRelationship("omniphysics:src1").SetTargets([worlds[1] + "/Robot"])
+    else:
+        stage.DefinePrim(worlds[0] + "/Robot/PhysicsMaterial", "Material")
+        floor = UsdGeom.Cube.Define(stage, "/World/Floor").GetPrim()
+        UsdPhysics.CollisionAPI.Apply(floor)
+        floor.CreateRelationship("material:binding:physics").SetTargets([worlds[1] + "/Robot/PhysicsMaterial"])
+    serialized, clones = _serialize_stage(
+        stage, recipes, True, plan, mixed_surface_roots=[str(cloth.GetPath())], physics_prim_path="/Physics"
+    )
+    assert not clones
+    layer = Sdf.Layer.CreateAnonymous()
+    assert layer.ImportFromString(serialized)
+    exported = Usd.Stage.Open(layer)
+    assert exported.GetPrimAtPath(worlds[1] + "/Robot")
+    assert exported.GetPrimAtPath(worlds[1] + "/Cloth")

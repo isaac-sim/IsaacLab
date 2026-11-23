@@ -988,3 +988,112 @@ def test_heterogeneous_mixed_deformable_rigid_scene_materializes_missing_targets
         scene.update(sim.cfg.dt)
         _assert_finite_deformable_state(deformable)
         assert torch.isfinite(shape.data.root_pos_w.torch).all()
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
+@pytest.mark.parametrize("filter_collisions", [True, False], ids=["mixed", "fallback"])
+def test_mixed_deformable_cloning_keeps_articulation_contacts_in_each_world(tmp_path, filter_collisions):
+    """Coincident worlds must land each cloth on its own articulated platform."""
+    from isaaclab_isaacsim.sim.spawners.materials import PhysxSurfaceDeformableBodyMaterialCfg
+
+    from pxr import UsdPhysics
+
+    from isaaclab.actuators import ImplicitActuatorCfg
+    from isaaclab.assets import ArticulationCfg
+    from isaaclab.sim.schemas import OmniPhysicsDeformableBodyCfg
+
+    device = "cuda:0"
+    sim_cfg = SimulationCfg(physics=OvPhysxCfg(mixed_deformable_cloning=True), device=device, dt=1.0 / 240.0)
+    with build_simulation_context(device=device, sim_cfg=sim_cfg) as sim:
+        stage = Usd.Stage.CreateInMemory()
+        robot_prim = UsdGeom.Xform.Define(stage, "/Robot").GetPrim()
+        stage.SetDefaultPrim(robot_prim)
+        UsdPhysics.ArticulationRootAPI.Apply(robot_prim)
+        for name, height in (("Base", 0.0), ("Platform", 0.15)):
+            link = UsdGeom.Xform.Define(stage, f"/Robot/{name}")
+            link.AddTranslateOp().Set((0.0, 0.0, height))
+            UsdPhysics.RigidBodyAPI.Apply(link.GetPrim())
+            UsdPhysics.MassAPI.Apply(link.GetPrim()).CreateMassAttr(100.0)
+        box = UsdGeom.Cube.Define(stage, "/Robot/Platform/Collider")
+        box.CreateSizeAttr(1.0)
+        box.AddScaleOp().Set((0.75, 0.75, 0.1))
+        UsdPhysics.CollisionAPI.Apply(box.GetPrim())
+        UsdPhysics.FixedJoint.Define(stage, "/Robot/Fixed").CreateBody1Rel().SetTargets(["/Robot/Base"])
+        joint = UsdPhysics.PrismaticJoint.Define(stage, "/Robot/Joint")
+        joint.CreateAxisAttr("Z")
+        joint.CreateBody0Rel().SetTargets(["/Robot/Base"])
+        joint.CreateBody1Rel().SetTargets(["/Robot/Platform"])
+        joint.CreateLocalPos0Attr((0.0, 0.0, 0.15))
+        usd_path = str(tmp_path / "platform.usda")
+        assert stage.Export(usd_path)
+
+        cfg = InteractiveSceneCfg(
+            num_envs=2,
+            env_spacing=0.0 if filter_collisions else 1.0,
+            filter_collisions=filter_collisions,
+        )
+        cfg.robot = ArticulationCfg(
+            prim_path="{ENV_REGEX_NS}/Robot",
+            spawn=sim_utils.UsdFileCfg(usd_path=usd_path, rigid_props=PhysxRigidBodyCfg(disable_gravity=True)),
+            actuators={"joint": ImplicitActuatorCfg(joint_names_expr=["Joint"], stiffness=0.0, damping=0.0)},
+        )
+        cfg.cloth = DeformableObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Cloth",
+            init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.65)),
+            spawn=sim_utils.MeshRectangleCfg(
+                size=(0.2, 0.2),
+                edge_refinement=1,
+                surface_deformable_props=OmniPhysicsDeformableBodyCfg(mass=0.10),
+                physics_material=PhysxSurfaceDeformableBodyMaterialCfg(
+                    youngs_modulus=2000.0,
+                    surface_thickness=0.02,
+                    surface_bend_stiffness=0.6,
+                ),
+            ),
+        )
+        cfg.floor = RigidObjectCfg(
+            prim_path="/World/Floor",
+            collision_group=-1,
+            spawn=sim_utils.CuboidCfg(
+                size=(1.0, 1.0, 0.10),
+                rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
+                collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, -0.05)),
+        )
+        scene = InteractiveScene(cfg)
+        sim.reset()
+        robot, cloth = scene["robot"], scene["cloth"]
+        assert robot.num_instances == cloth.num_instances == 2
+
+        layer = Sdf.Layer.CreateAnonymous()
+        assert layer.ImportFromString(sim.backend_manager._stage_usda)
+        imported = Usd.Stage.Open(layer)
+        assert imported.GetPrimAtPath("/World/envs/env_1/Cloth")
+        if not filter_collisions:
+            assert imported.GetPrimAtPath("/World/envs/env_1/Robot")
+            return
+        assert not imported.GetPrimAtPath("/World/envs/env_1/Robot")
+
+        positions = torch.tensor([[0.0], [0.2]], device=device)
+        robot.write_joint_position_to_sim_index(position=positions)
+
+        def settle_cloths():
+            for _ in range(160):
+                scene.write_data_to_sim()
+                sim.step(render=False)
+                scene.update(sim.cfg.dt)
+            heights = cloth.data.nodal_pos_w.torch[..., 2]
+            assert torch.isfinite(heights).all()
+            return heights.mean(dim=1)
+
+        torch.testing.assert_close(settle_cloths(), torch.tensor([0.20, 0.40], device=device), atol=0.035, rtol=0)
+
+        # Reattach the physics stage and confirm the original and cloned assets rebind in task order.
+        sim.backend_manager._warmup_done = False
+        sim.reset()
+        assert robot.num_instances == cloth.num_instances == 2
+        # Move both platforms below the shared floor after reattach. Both cloths must now
+        # land on the shared collider, which remains reachable from either environment.
+        robot.write_joint_position_to_sim_index(position=torch.full_like(positions, -0.4))
+        torch.testing.assert_close(settle_cloths(), torch.zeros(2, device=device), atol=0.035, rtol=0)
