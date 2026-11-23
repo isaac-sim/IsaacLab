@@ -151,7 +151,7 @@ def cartpole_lidar_range_image(points: torch.Tensor) -> torch.Tensor:
         distance = torch.linalg.vector_norm(grid, dim=-1)
     else:
         samples = torch.linalg.vector_norm(points, dim=-1)
-        distance = samples.new_zeros(samples.shape[0], height, width)
+        distance = samples.new_zeros((samples.shape[0], height, width))
         ray = torch.arange(published, device=points.device) * stride
         distance[:, torch.div(ray, width, rounding_mode="floor"), ray % width] = samples
     distance = torch.nan_to_num(distance, nan=0.0, posinf=0.0, neginf=0.0)
