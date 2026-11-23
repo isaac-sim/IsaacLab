@@ -15,6 +15,14 @@ from isaaclab_rl.rsl_rl import (
     RslRlSymmetryCfg,
 )
 
+# left/right symmetry augmentation shared by the G1 PPO and SAC agents
+G1_SYMMETRY_CFG = RslRlSymmetryCfg(
+    use_data_augmentation=True,
+    use_mirror_loss=False,
+    data_augmentation_func="isaaclab_tasks.core.velocity.mdp.symmetry.g1:compute_symmetric_states",
+    mirror_loss_coeff=0.0,
+)
+
 
 @configclass
 class G1FlatPPORunnerCfg(RslRlOnPolicyRunnerCfg):
@@ -93,12 +101,7 @@ class G1RoughTeacherPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         lam=0.95,
         desired_kl=0.01,
         max_grad_norm=1.0,
-        symmetry_cfg=RslRlSymmetryCfg(
-            use_data_augmentation=True,
-            use_mirror_loss=False,
-            data_augmentation_func="isaaclab_tasks.core.velocity.mdp.symmetry.g1:compute_symmetric_states",
-            mirror_loss_coeff=0.0,
-        ),
+        symmetry_cfg=G1_SYMMETRY_CFG,
     )
 
 

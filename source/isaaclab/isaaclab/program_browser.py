@@ -49,7 +49,7 @@ class ProgramBrowser:
             sim: Simulation whose visualizers receive the list. Windows that already show it are skipped.
         """
         for visualizer in sim.visualizers:
-            if visualizer.cfg.backend.visualizer_type == "newton_gl" and id(visualizer) not in self._attached:
+            if visualizer.cfg.backend.visualizer_type == "newton" and id(visualizer) not in self._attached:
                 self._attached.add(id(visualizer))
                 visualizer.register_ui_callback(self._render_callback(sim), position="panel")
                 visualizer.register_ui_callback(self._restart_callback(sim, visualizer), position="free")

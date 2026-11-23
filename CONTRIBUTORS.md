@@ -96,9 +96,11 @@ Guidelines for modifications:
 * Dongxuan Fan
 * Dorsa Rohani
 * Ege Sekkin
+* Elle Miller
 * Emily Sturman
 * Emmanuel Ferdman
 * Fabian Jenelten
+* Fanxing Li
 * Fatima Anes
 * Felipe Mohr
 * Felix Yu

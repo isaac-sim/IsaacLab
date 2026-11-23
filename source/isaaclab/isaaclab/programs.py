@@ -353,7 +353,7 @@ def run_program(command: str, program: ProgramSpec, args: list[str] | None = Non
                         screen.close()
                         if window_session is None:
                             for visualizer in sim.visualizers:
-                                if visualizer.cfg.backend.visualizer_type == "newton_gl":
+                                if visualizer.cfg.backend.visualizer_type == "newton":
                                     window_session = cleanup.enter_context(visualizer.window_session())
                                     break
                         browser.attach(sim)
@@ -375,7 +375,7 @@ def run_program(command: str, program: ProgramSpec, args: list[str] | None = Non
                 if browser.selected is None:
                     return
                 command, program = browser.selected
-                forwarded_args = [*(program.newton_gl_args or ()), "--viz", "newton_gl"]
+                forwarded_args = [*(program.newton_gl_args or ()), "--viz", "newton"]
         finally:
             sys.argv = original_argv
 

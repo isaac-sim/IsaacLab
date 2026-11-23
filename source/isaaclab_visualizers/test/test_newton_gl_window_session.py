@@ -82,6 +82,7 @@ def test_window_session_reuses_native_context_and_releases_scene(monkeypatch, fa
             assert viewer.model is None
             assert not viewer.objects
             assert program_panel not in viewer.gui._ui_callbacks["panel"]
+            assert viewer._view_controls is None
             assert window.context is context
 
             second = NewtonGLVisualizer(cfg)
@@ -118,7 +119,7 @@ def test_window_session_reuses_native_context_and_releases_scene(monkeypatch, fa
                 assert not second.key_event_source.closed
                 assert second._viewer.renderer.window is window
                 assert window.context is context
-                assert second._draw_streaming_view_controls in viewer.gui._ui_callbacks["side"]
+                assert viewer._view_controls == second._draw_streaming_view_controls
                 assert first._draw_streaming_view_controls not in viewer.gui._ui_callbacks["side"]
                 # Exercise real model rebinding: window controls survive exactly once.
                 provider.create_mapping = lambda _labels: None
@@ -128,7 +129,11 @@ def test_window_session_reuses_native_context_and_releases_scene(monkeypatch, fa
                 second.reset()
                 second.reset()
                 assert viewer.gui._ui_callbacks["side"].count(viewer._render_training_controls) == 1
-                assert viewer.gui._ui_callbacks["side"].count(second._draw_streaming_view_controls) == 1
+                expected_panel_count = int(viewer._workspace_enabled)
+                assert (
+                    viewer.gui._ui_callbacks["side"].count(second._draw_streaming_view_controls) == expected_panel_count
+                )
+                assert viewer._view_controls == second._draw_streaming_view_controls
                 assert tuple(viewer.gui._ui_callbacks.get("free", [])) == branding_callbacks
             finally:
                 second.close()

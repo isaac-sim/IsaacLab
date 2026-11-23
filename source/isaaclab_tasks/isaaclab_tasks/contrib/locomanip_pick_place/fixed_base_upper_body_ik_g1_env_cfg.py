@@ -12,7 +12,8 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import ContactSensorCfg
+from isaaclab.sensors import CameraCfg, ContactSensorCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
@@ -20,9 +21,16 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab_tasks.contrib import ISAACLAB_TELEOP_AVAILABLE
 from isaaclab_tasks.contrib.locomanip_pick_place import mdp as locomanip_mdp
 from isaaclab_tasks.contrib.pick_place import mdp as manip_mdp
-from isaaclab_tasks.contrib.robot_pov_camera_cfg import g1_robot_pov_camera_cfg
+from isaaclab_tasks.contrib.robot_pov_camera_cfg import g1_robot_pov_camera_cfg, robot_pov_camera_cfg
+from isaaclab_tasks.utils import preset
 
 from isaaclab_assets.robots.unitree import G1_29DOF_CFG
+
+from ..teleop_physics_cfg import (
+    TeleopPhysicsCfg,
+    check_backend_preparation,
+    prepare_humanoid_teleop_environment,
+)
 
 from isaaclab_tasks.contrib.locomanip_pick_place.configs.pink_controller_cfg import (  # isort: skip
     G1_UPPER_BODY_IK_ACTION_CFG,
@@ -229,6 +237,22 @@ def _build_g1_upper_body_pipeline():
 ##
 # Scene definition
 ##
+
+# Mount above each hand, looking along wrist-local +X with +Z up.
+_LEFT_WRIST_CAM = robot_pov_camera_cfg(
+    parent_prim_path="{ENV_REGEX_NS}/Robot/left_wrist_yaw_link",
+    offset_pos=(0.06, 0.0, 0.06),
+    offset_rot=(-0.5, 0.5, -0.5, 0.5),
+).replace(
+    prim_path="{ENV_REGEX_NS}/Robot/left_wrist_yaw_link/LeftWristCam",
+    update_period=1.0 / 10.0,
+    height=480,
+    width=640,
+    spawn=sim_utils.PinholeCameraCfg(focal_length=15.0, horizontal_aperture=20.955, clipping_range=(0.01, 5.0)),
+)
+_RIGHT_WRIST_CAM = _LEFT_WRIST_CAM.replace(prim_path="{ENV_REGEX_NS}/Robot/right_wrist_yaw_link/RightWristCam")
+
+
 @configclass
 class FixedBaseUpperBodyIKG1SceneCfg(InteractiveSceneCfg):
     """Scene configuration for fixed base upper body IK environment with G1 robot.
@@ -261,18 +285,23 @@ class FixedBaseUpperBodyIKG1SceneCfg(InteractiveSceneCfg):
     # Unitree G1 Humanoid robot - fixed base configuration
     robot: ArticulationCfg = replace(G1_29DOF_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
+    # Share the calibrated head view with the locomanipulation G1 task.
     robot_pov_cam = g1_robot_pov_camera_cfg()
+
+    # Wrist cameras exist only with ``presets=rgb``, so the state-only default renders none.
+    left_wrist_cam: CameraCfg | None = preset(default=None, rgb=_LEFT_WRIST_CAM)
+    right_wrist_cam: CameraCfg | None = preset(default=None, rgb=_RIGHT_WRIST_CAM)
 
     # Per-hand contact sensors over all finger links, used to drive controller
     # haptics (see HapticFeedbackCfg below). Requires activate_contact_sensors
     # on the robot spawn, enabled in the env __post_init__.
     left_hand_contact = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/left_hand_[^/]*_link",
+        prim_path="{ENV_REGEX_NS}/Robot/left_hand/left_hand_[^/]*_link",
         update_period=0.0,
         history_length=3,
     )
     right_hand_contact = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/right_hand_[^/]*_link",
+        prim_path="{ENV_REGEX_NS}/Robot/right_hand/right_hand_[^/]*_link",
         update_period=0.0,
         history_length=3,
     )
@@ -340,8 +369,34 @@ class ObservationsCfg:
             self.enable_corruption = False
             self.concatenate_terms = False
 
+    @configclass
+    class RgbPolicyCfg(PolicyCfg):
+        """Policy observations with state values and head/wrist RGB images [uint8, H x W x 3]."""
+
+        robot_pov_cam = ObsTerm(
+            func=base_mdp.image_rgb,
+            params={
+                "sensor_cfg": SceneEntityCfg("robot_pov_cam"),
+                "normalize": False,
+            },
+        )
+        left_wrist_cam = ObsTerm(
+            func=base_mdp.image_rgb,
+            params={
+                "sensor_cfg": SceneEntityCfg("left_wrist_cam"),
+                "normalize": False,
+            },
+        )
+        right_wrist_cam = ObsTerm(
+            func=base_mdp.image_rgb,
+            params={
+                "sensor_cfg": SceneEntityCfg("right_wrist_cam"),
+                "normalize": False,
+            },
+        )
+
     # observation groups
-    policy: PolicyCfg = PolicyCfg()
+    policy: PolicyCfg = preset(default=PolicyCfg(), rgb=RgbPolicyCfg())
 
 
 @configclass
@@ -374,11 +429,28 @@ class FixedBaseUpperBodyIKG1EnvCfg(ManagerBasedRLEnvCfg):
     controlled using upper body IK.
     """
 
+    class_type: type | str = "isaaclab_tasks.contrib.teleop_env:make_humanoid_teleop_env"
+    _prepared_physics_backend: str | None = None
+    backend_preparation: dict[str, str] = {
+        "ovphysx": (
+            "isaaclab_tasks.contrib.locomanip_pick_place.fixed_base_upper_body_ik_g1_env_cfg"
+            ":prepare_fixed_base_g1_for_ovphysx"
+        ),
+        "newton_mjwarp": (
+            "isaaclab_tasks.contrib.locomanip_pick_place.fixed_base_upper_body_ik_g1_env_cfg"
+            ":prepare_fixed_base_g1_for_newton_mjwarp"
+        ),
+    }
+    """Preparation function, as a ``"module:function"`` reference, for each supported standalone backend."""
+    haptic_feedback: object | None = None
+    sim: SimulationCfg = SimulationCfg(physics=TeleopPhysicsCfg())
+
     # Scene settings
     scene: FixedBaseUpperBodyIKG1SceneCfg = FixedBaseUpperBodyIKG1SceneCfg(num_envs=1, env_spacing=2.5)
     # MDP settings
     terminations: TerminationsCfg = TerminationsCfg()
     observations: ObservationsCfg = ObservationsCfg()
+    image_obs_list: list[str] = ["robot_pov_cam", "left_wrist_cam", "right_wrist_cam"]
     actions: ActionsCfg = ActionsCfg()
 
     # Unused managers
@@ -388,12 +460,16 @@ class FixedBaseUpperBodyIKG1EnvCfg(ManagerBasedRLEnvCfg):
 
     def __post_init__(self):
         """Post initialization."""
+        if self._prepared_physics_backend is not None:
+            return
         # general settings
         self.decimation = 4
         self.episode_length_s = 20.0
         # simulation settings
         self.sim.dt = 1 / 200  # 200Hz
         self.sim.render_interval = 2
+        # Only the image observations of ``presets=rgb`` need fresh renders after a reset.
+        self.num_rerenders_on_reset = preset(default=0, rgb=3)
 
         # Set the URDF and mesh paths for the IK controller
         urdf_omniverse_path = f"{ISAACLAB_NUCLEUS_DIR}/Controllers/LocomanipulationAssets/unitree_g1_kinematics_asset/g1_29dof_with_hand_only_kinematics.urdf"  # noqa: E501
@@ -418,23 +494,42 @@ class FixedBaseUpperBodyIKG1EnvCfg(ManagerBasedRLEnvCfg):
             self.xr = XrCfg(
                 anchor_pos=(0.0, 0.0, -0.30),
                 anchor_rot=(0.0, 0.0, 0.0, 1.0),
+                excluded_visual_meshes=["{ENV_REGEX_NS}/Robot/torso_link/visuals/head_link/mesh"],
             )
 
+            head_feed = XrCameraFeedCfg(
+                camera_name="robot_pov_cam",
+                label="Head",
+                enable_dlss_ray_reconstruction=True,
+                dlss_exec_mode="quality",
+                offset_m=(0.0, -0.15),
+                max_update_hz=20.0,
+            )
+            wrist_feeds = [
+                XrCameraFeedCfg(
+                    camera_name="left_wrist_cam",
+                    label="Left wrist",
+                    panel_width_m=0.30,
+                    offset_m=(-0.43, -0.15),
+                    max_update_hz=10.0,
+                ),
+                XrCameraFeedCfg(
+                    camera_name="right_wrist_cam",
+                    label="Right wrist",
+                    panel_width_m=0.30,
+                    offset_m=(0.43, -0.15),
+                    max_update_hz=10.0,
+                ),
+            ]
             self.isaac_teleop = IsaacTeleopCfg(
+                prepare_environment=prepare_humanoid_teleop_environment,
                 pipeline_builder=lambda: _build_g1_upper_body_pipeline()[0],
                 # retargeters_to_tune=lambda: _build_g1_upper_body_pipeline()[1],
                 sim_device=self.sim.device,
                 xr_cfg=self.xr,
                 xr_camera_feed_layout=XrCameraFeedLayoutCfg(placement="head_locked", use_scene_partition=True),
-                xr_camera_feeds=[
-                    XrCameraFeedCfg(
-                        camera_name="robot_pov_cam",
-                        enable_dlss_ray_reconstruction=True,
-                        dlss_exec_mode="quality",
-                        offset_m=(0.0, -0.15),
-                        max_update_hz=0.0,
-                    )
-                ],
+                # Wrist panels follow the wrist cameras, which exist only with ``presets=rgb``.
+                xr_camera_feeds=preset(default=[head_feed], rgb=[head_feed, *wrist_feeds]),
             )
 
             # Drive controller haptics from the per-hand contact sensors.
@@ -442,3 +537,37 @@ class FixedBaseUpperBodyIKG1EnvCfg(ManagerBasedRLEnvCfg):
                 left_sensor_name="left_hand_contact",
                 right_sensor_name="right_hand_contact",
             )
+
+
+def prepare_fixed_base_g1_for_ovphysx(env_cfg: FixedBaseUpperBodyIKG1EnvCfg) -> None:
+    """Prepare the table collision authoring for OVPhysX; OVPhysX cooks the wheel meshes.
+
+    Args:
+        env_cfg: Fixed-base G1 task configuration.
+
+    Raises:
+        ValueError: If ``env_cfg`` was already prepared for a different backend.
+    """
+    if check_backend_preparation(env_cfg, "ovphysx"):
+        return
+    from isaaclab_tasks.contrib.packing_table import configure_packing_table_collisions
+
+    configure_packing_table_collisions(env_cfg.scene.packing_table, physx_offsets=True)
+    env_cfg._prepared_physics_backend = "ovphysx"
+
+
+def prepare_fixed_base_g1_for_newton_mjwarp(env_cfg: FixedBaseUpperBodyIKG1EnvCfg) -> None:
+    """Configure G1 actions, assets and contacts for Newton.
+
+    Args:
+        env_cfg: Fixed-base G1 task configuration.
+
+    Raises:
+        ValueError: If ``env_cfg`` was already prepared for a different backend.
+    """
+    if check_backend_preparation(env_cfg, "newton_mjwarp"):
+        return
+    from .g1_newton_actions import configure_g1_for_newton
+
+    configure_g1_for_newton(env_cfg)
+    env_cfg._prepared_physics_backend = "newton_mjwarp"

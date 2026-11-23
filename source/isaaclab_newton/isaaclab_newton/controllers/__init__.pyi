@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "Conveyor",
     "NewtonDifferentialIKController",
     "NewtonDifferentialIKControllerCfg",
     "NewtonJointImpedanceController",
@@ -12,6 +13,7 @@ __all__ = [
     "NewtonOperationalSpaceControllerCfg",
 ]
 
+from .conveyor import Conveyor
 from .differential_ik import NewtonDifferentialIKController
 from .differential_ik_cfg import NewtonDifferentialIKControllerCfg
 from .joint_impedance import NewtonJointImpedanceController

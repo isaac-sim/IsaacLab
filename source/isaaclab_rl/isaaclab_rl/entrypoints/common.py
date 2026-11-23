@@ -147,7 +147,7 @@ def add_video_args(parser: argparse.ArgumentParser, *, action: str) -> None:
         metavar="SOURCE",
         help=(
             f"Record videos during {action}. SOURCE defaults to 'viz': the first capture-capable visualizer --viz"
-            " selects, else a headless newton_gl. 'viz:<type>' (kit, newton_gl, newton_rtx) records from that"
+            " selects, else a headless newton. 'viz:<type>' (kit, newton) records from that"
             " visualizer (a bare type is shorthand for 'viz:<type>'), added headless when --viz does not select it;"
             " 'sensor:<name>[:<channel>]' records from a scene camera. Recorders declared in the environment config"
             " take precedence."

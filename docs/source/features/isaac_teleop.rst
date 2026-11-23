@@ -12,7 +12,7 @@ shared device interfaces and configurable retargeting pipelines.
 .. note::
 
    **Name transition.** Isaac Teleop was rebranded as **Isaac Capture**. Isaac Lab installs
-   ``isaaccapture==1.7.68a1`` through the ``teleop`` extra. This release retains the ``isaacteleop``
+   ``isaaccapture==1.7.118rc1`` through the ``teleop`` extra. This release retains the ``isaacteleop``
    compatibility import used in this documentation; new integrations should use ``isaaccapture``.
    See the `Isaac Capture migration guide
    <https://nvidia.github.io/IsaacCapture/main/references/migration.html>`_ for details.
@@ -346,7 +346,7 @@ Prerequisites
      sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache patchelf
 
   Then clone, check out the release branch matching the ``isaaccapture`` version Isaac Lab is
-  pinned to (``isaaccapture==1.7.68a1`` in the ``teleop`` extra of the root ``pyproject.toml``, so the
+  pinned to (``isaaccapture==1.7.118rc1`` in the ``teleop`` extra of the root ``pyproject.toml``, so the
   plugin's wire format matches the ``isaaccapture`` package Isaac Lab installs), configure, build,
   and install. To target a specific Python version, pass
   ``-DISAAC_TELEOP_PYTHON_VERSION=3.12`` (or ``3.11``, ``3.13``) on the configure line; each
@@ -797,8 +797,8 @@ For direct use of :func:`~isaaclab_teleop.create_isaac_teleop_device` or
 window input explicitly. The session keeps this live sequence so later windows can join;
 omitting it creates a session without window input. ``teleop_se3_agent.py`` and
 ``record_demos.py`` start Kit only when ``--xr`` or the task needs it, so
-``--viz newton_rtx`` works with a Newton-physics task, e.g.
-``--task Isaac-Reach-Franka --viz newton_rtx physics=newton_mjwarp presets=diffik``.
+``--viz newton`` works with a Newton-physics task, e.g.
+``--task Isaac-Reach-Franka --viz newton physics=newton_mjwarp presets=diffik``.
 
 .. list-table::
    :header-rows: 1
@@ -808,7 +808,7 @@ omitting it creates a session without window input. ``teleop_se3_agent.py`` and
      - Keyboard input
    * - ``--viz kit``
      - Keys typed into the Kit window, including keys typed into Kit's own UI (e.g. a text field).
-   * - ``--viz newton_gl`` / ``--viz newton_rtx``
+   * - ``--viz newton``
      - Keys typed into the Newton viewer window, except keys typed into its UI. While a keyboard
        pipeline runs, the viewer's WASD/QE and arrow-key camera movement is turned off; the mouse
        still moves the camera.
@@ -1345,6 +1345,34 @@ through this variable -- later runs no longer prompt. The variable applies to ev
 that launches the runtime, including the process-scoped launcher in
 ``teleop_replay_agent.py``.
 
+Replay MCAP with a Kitless OVXR Viewer
+--------------------------------------
+
+The MCAP replay entrypoint can present recorded input through an independent
+OVXR viewer. Follow the :ref:`kitless XR guide <kitless-xr>` to install Isaac
+Capture with its OVXR extra and select the compatible rendering dependencies.
+
+.. code-block:: bash
+
+   uv run --extra ovxr python \
+       scripts/environments/teleoperation/teleop_replay_agent.py \
+       --task IsaacContrib-PickPlace-GR1T2-Abs --physics ovphysx \
+       --device cpu --num_envs 1 --ovxr \
+       --replay_file /absolute/path/to/session.mcap
+
+Use ``--physics newton_mjwarp`` for Newton. MCAP supplies tracker and control
+input; the connected client supplies the view. A recorded STOP, task success
+or failure, or the replay duration limit ends the run. The separate
+``isaaclab teleop replay`` command replays HDF5 demonstrations; the task's
+``--physics`` and ``--renderer`` selections decide whether it starts Kit.
+
+Add ``--ovxr_camera_feed robot_pov_cam`` for a camera panel. OVXR shows camera
+feeds head-locked, using the size, gap and distance of the task's
+``xr_camera_feed_layout``. OVXR live and MCAP replay run without a local window by default; add
+``--ovxr_desktop_mirror`` to show completed images locally. XR and PiP rendering
+are independent of the desktop mirror.
+See the kitless XR guide for installation, camera selection and display requirements.
+
 .. _isaac-teleop-xr-anchor:
 
 Configure the XR Anchor
@@ -1420,8 +1448,10 @@ vertical, and grid layouts. The following registered tasks enable PiP by default
 * ``IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs``
 
 Both G1 tasks present the calibrated head camera in a ``head_locked`` panel that follows headset
-position and orientation. Locomanipulation retains the camera as a recorded policy observation;
-fixed-base G1 uses it only for PiP and keeps its policy observation schema unchanged.
+position and orientation. Locomanipulation retains the head camera as a recorded policy
+observation. Fixed-base G1 keeps a state-only policy observation schema by default; add
+``presets=rgb`` to add its left and right wrist cameras, shown in panels 0.43 m to either side of
+the head panel, and to record its head and wrist images as policy observations.
 
 To run fixed-base G1 upper-body teleoperation with its default head-locked PiP:
 
@@ -1438,9 +1468,9 @@ use the GPU.
 
 ``teleop_se3_agent.py`` and ``record_demos.py`` show every enabled feed when an Isaac Capture-enabled
 environment runs with ``--xr``. PiP is absent unless the task explicitly selects an existing
-``CameraCfg`` through ``xr_camera_feeds``. Except for fixed-base G1, the selected
-``robot_pov_cam`` is also a policy image observation, so the normal demonstration recorder stores
-the same view shown to the operator. Each camera is parented to a physical robot body link, so the
+``CameraCfg`` through ``xr_camera_feeds``. Except for fixed-base G1 without ``presets=rgb``, the
+selected cameras are also policy image observations, so the normal demonstration recorder stores
+the same views shown to the operator. Each camera is parented to a physical robot body link, so the
 camera view follows robot motion:
 
 .. figure:: ../_static/teleop/xr-camera-pip.jpg
@@ -1486,7 +1516,7 @@ unchanged. For either G1 task, set ``env.isaac_teleop.xr_camera_feeds=[]`` to di
 the camera sensor and any configured camera observations.
 
 The reference feeds request render-product-local DLSS Ray Reconstruction and ``quality`` execution
-mode through :class:`~isaaclab_teleop.XrCameraFeedCfg`. The private PiP adapter authors those two
+mode through :class:`~isaaclab_teleop.XrCameraFeedCfg`. The Kit Scene UI presenter authors those two
 attributes only on the selected camera render product. Ray Reconstruction also requires the
 process-global responsive-denoising setting, which the teleoperation and recording scripts
 enable before environment construction when a selected feed requests Ray Reconstruction.
@@ -1597,7 +1627,7 @@ Kit Scene UI presentation
 PiP presentation uses Kit Scene UI and ``SpatialSource`` placement. Kit imports are deferred until
 an enabled feed is requested. If the Scene UI modules cannot be imported, the scripts log a warning
 and continue without PiP; task-owned cameras and recording observations remain unchanged. This keeps
-the camera selection configuration usable when a future kitless entry point no longer provides
+the camera selection configuration usable by the :ref:`kitless XR path <kitless-xr>`, whose OpenXR quad layers need no
 Scene UI. Render-product tuning is also best-effort: backends without a compatible render product
 keep the Camera-buffer path, and schema-authoring failures warn while PiP continues. Other
 configuration, camera-buffer, and panel-initialization errors still fail during startup.
@@ -2034,6 +2064,8 @@ Optimize XR Performance
 
       The ``--headless`` CLI flag was removed in Isaac Lab 3.0. Headless is now the **default**
       (omit ``--visualizer``), or set ``HEADLESS=1`` in the environment.
+      The kitless ``--ovxr`` desktop mirror defaults off. Enable it with
+      ``--ovxr_desktop_mirror`` or disable it explicitly with ``--no-ovxr_desktop_mirror``.
 
 .. dropdown:: Configure retargeting execution
    :open:

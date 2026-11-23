@@ -176,7 +176,7 @@ def _visualizer(visualizer_type: str) -> mock.Mock:
 
 def test_newton_gl_selector_omits_incompatible_programs():
     """The selector must feature GL-compatible showcases and omit Kit-only programs."""
-    gl_visualizer = _visualizer("newton_gl")
+    gl_visualizer = _visualizer("newton")
     kit_visualizer = _visualizer("kit")
     sim = mock.Mock(visualizers=[gl_visualizer, kit_visualizer])
     imgui = mock.Mock()
@@ -221,7 +221,7 @@ def test_programs_run_without_warp_backward_kernels(monkeypatch):
 
 def test_newton_gl_selector_switches_programs_after_script_returns(monkeypatch):
     """Repeated selections run in-process after cleanup and keep native windows open."""
-    visualizers = [_visualizer("newton_gl") for _ in range(3)]
+    visualizers = [_visualizer("newton") for _ in range(3)]
     imgui = mock.Mock()
     imgui.collapsing_header.return_value = True
     imgui.tree_node.return_value = True
@@ -249,7 +249,7 @@ def test_newton_gl_selector_switches_programs_after_script_returns(monkeypatch):
 
     monkeypatch.setattr(programs, "_run_script", run_script)
     with mock.patch("os.execv", side_effect=AssertionError("Program selection must preserve the Python process.")):
-        cli.demo(["zoo", "--viz", "newton_gl"])
+        cli.demo(["zoo", "--viz", "newton"])
 
     assert events == [
         ("run", "zoo.py"),
@@ -260,9 +260,9 @@ def test_newton_gl_selector_switches_programs_after_script_returns(monkeypatch):
         ("cleanup", "g1_terrain.py"),
     ]
     assert launch_args == [
-        ("isaaclab demo zoo", "--viz", "newton_gl"),
-        ("isaaclab example cables", "--viz", "newton_gl"),
-        ("isaaclab example g1-terrain", "--task", "platforms", "--viz", "newton_gl"),
+        ("isaaclab demo zoo", "--viz", "newton"),
+        ("isaaclab example cables", "--viz", "newton"),
+        ("isaaclab example g1-terrain", "--task", "platforms", "--viz", "newton"),
     ]
     for visualizer in visualizers:
         visualizer.request_close.assert_not_called()
@@ -272,8 +272,8 @@ def test_newton_gl_selector_switches_programs_after_script_returns(monkeypatch):
 
 def test_newton_gl_reset_restarts_current_program_after_cleanup(monkeypatch):
     """Toolbar reset reruns the program in-process with its arguments after cleanup."""
-    visualizer = _visualizer("newton_gl")
-    other_visualizer = _visualizer("newton_gl")
+    visualizer = _visualizer("newton")
+    other_visualizer = _visualizer("newton")
     kit_visualizer = _visualizer("kit")
     imgui = mock.Mock()
     imgui.collapsing_header.return_value = False
@@ -292,7 +292,7 @@ def test_newton_gl_reset_restarts_current_program_after_cleanup(monkeypatch):
             call.args[0](imgui)
         events.append("cleanup")
 
-    forwarded_args = ["--viz", "newton_gl", "--device", "cuda:1", "--max_steps", "23", "physics=newton_xpbd"]
+    forwarded_args = ["--viz", "newton", "--device", "cuda:1", "--max_steps", "23", "physics=newton_xpbd"]
     monkeypatch.setattr(programs, "_run_script", run_script)
     with mock.patch("os.execv", side_effect=AssertionError("Toolbar reset must preserve the Python process.")):
         cli.demo(["zoo", *forwarded_args])
