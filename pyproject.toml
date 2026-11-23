@@ -230,7 +230,7 @@ leapp = [
 # Foveated camera sensors. OpenEXR writes the RTX lens lookup textures.
 fovi = [
     "isaaclab-fovi",
-    "fovi>=2.6",
+    "fovi>=2.7",
     "OpenEXR>=3",
 ]
 all = [
