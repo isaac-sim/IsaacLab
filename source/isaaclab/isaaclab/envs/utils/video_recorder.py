@@ -74,7 +74,7 @@ class VideoRecorder:
                 if not viz.has_tracking_view:
                     raise RuntimeError(
                         f"The {viz.cfg.backend.visualizer_type!r} visualizer has no tracking camera to record. Add a "
-                        "TrackingCameraCfg to the cameras of a visualizer that supports tracking cameras."
+                        "TrackingCameraCfg to its cameras, on a visualizer that supports tracking cameras."
                     )
                 self._capture = viz.render_tracking_rgb_array
             else:
