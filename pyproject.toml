@@ -227,11 +227,10 @@ rlinf = [
 leapp = [
     "leapp==0.8.1",
 ]
-# Foveated camera sensors. OpenEXR writes the RTX lens lookup textures.
+# Foveated camera sensors.
 fovi = [
     "isaaclab-fovi",
     "fovi>=2.7",
-    "OpenEXR>=3",
 ]
 all = [
     "isaaclab-dev[sb3,skrl,rl-games,rsl-rl,viser,rerun,ov]",

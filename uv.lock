@@ -1952,7 +1952,6 @@ dev = [
 fovi = [
     { name = "fovi" },
     { name = "isaaclab-fovi" },
-    { name = "openexr" },
 ]
 importers = [
     { name = "isaacsim-asset-isolated" },
@@ -2136,7 +2135,6 @@ requires-dist = [
     { name = "numpydantic", marker = "extra == 'rlinf'", specifier = ">=1.7.0" },
     { name = "onnx", specifier = ">=1.18.0" },
     { name = "open3d", marker = "python_full_version < '3.13' and (platform_machine != 'aarch64' or sys_platform != 'linux')", specifier = ">=0.19.0" },
-    { name = "openexr", marker = "extra == 'fovi'", specifier = ">=3" },
     { name = "ovphysx", marker = "extra == 'ov'", specifier = "==0.8.0.43443703471", index = "https://pypi.org/simple" },
     { name = "ovphysx", marker = "extra == 'ovphysx'", specifier = "==0.8.0.43443703471", index = "https://pypi.org/simple" },
     { name = "ovrtx", marker = "extra == 'ov'", specifier = "==0.7.0.1794596436", index = "https://pypi.org/simple" },
@@ -3976,22 +3974,6 @@ wheels = [
     { url = "https://pypi.nvidia.com/opencv-python-headless-noffmpeg/opencv_python_headless_noffmpeg-4.14.0.94rc3-cp312-cp312-manylinux_2_35_aarch64.whl", hash = "sha256:385747c0b0ea256e7dacbf46ac9b7d80db877958616db6869e92c318a371bac4" },
     { url = "https://pypi.nvidia.com/opencv-python-headless-noffmpeg/opencv_python_headless_noffmpeg-4.14.0.94rc3-cp312-cp312-manylinux_2_35_x86_64.whl", hash = "sha256:d6a4f1f50224a2d8fd64f17e92494222d126899905422226c83047eb676f7555" },
     { url = "https://pypi.nvidia.com/opencv-python-headless-noffmpeg/opencv_python_headless_noffmpeg-4.14.0.94rc3-cp312-cp312-win_amd64.whl", hash = "sha256:a158d4182618fd1d2029647b65435757d6a01468c3ea6618f6caceaa139de4c7" },
-]
-
-[[package]]
-name = "openexr"
-version = "3.5.4"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "numpy" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/5f/c0/422dd868e5f94f7885bd9c12f2dc6fabbeb4a8cd0b002bc097024dae861d/openexr-3.5.4.tar.gz", hash = "sha256:8b5b06f08b05d512fe52fa18c5c2f27c2141938149da23d056094bc392f15db8", size = 26300935, upload-time = "2026-11-12T16:45:00.975Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/7f/b9/c9e228497d81cb810c277116ab4cbeb3d3d1826b1b21fcc2f8aafa771ec6/openexr-3.5.4-cp312-cp312-manylinux_2_28_aarch64.whl", hash = "sha256:116adcc66a9601048d0ffa7387990bb9d510d1dd0e8cb0ab999b825c1e717277", size = 1593447, upload-time = "2026-11-12T16:44:02.944Z" },
-    { url = "https://files.pythonhosted.org/packages/3c/3e/4b08275770fffcb57202762e2f023bfac39754290ba4727198b02d76bf74/openexr-3.5.4-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:6f9644dd8b96eb314498c9849684f57adf67bde72f8b0193929bf29adff03b70", size = 1786567, upload-time = "2026-11-12T16:44:05.014Z" },
-    { url = "https://files.pythonhosted.org/packages/17/b3/4a25166ed8bc29aee9d01f2d9f007ef15f9d3ea4075b19667879c149e30b/openexr-3.5.4-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:b1c2658516cc199fb31baf0565e422dfa6df8077ba2336c3acc170c45e251a08", size = 2607932, upload-time = "2026-11-12T16:44:06.641Z" },
-    { url = "https://files.pythonhosted.org/packages/76/37/a0e9a6a8a1cf7ec7efcb2cb7fbdaf55cd2a4349a26343a75fb7ac83e3e54/openexr-3.5.4-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:a586a32ebb01fd87a54286ec9f29f5583a5176c019ebbbe6fd832a7188cefcd1", size = 2825749, upload-time = "2026-11-12T16:44:08.373Z" },
-    { url = "https://files.pythonhosted.org/packages/68/15/7ff3e6a17444d70669085e21487e546fd6fe298b2eb653eccbd4e0c3b6a1/openexr-3.5.4-cp312-cp312-win_amd64.whl", hash = "sha256:d55fe6b60e923917bc5104808df2d515a82b0fb053b0e038788626f0fd2b780f", size = 1186933, upload-time = "2026-11-12T16:44:10.017Z" },
 ]
 
 [[package]]

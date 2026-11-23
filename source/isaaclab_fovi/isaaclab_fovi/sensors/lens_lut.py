@@ -29,6 +29,8 @@ from __future__ import annotations
 
 import math
 import os
+import struct
+import zlib
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -41,24 +43,65 @@ if TYPE_CHECKING:
     from pxr import Usd
 
 
-def save_exr(path: str, data: torch.Tensor) -> None:
-    """Save a ``(H, W, C)`` float32 tensor to an EXR file  (C ∈ {2, 3}) with OpenEXR, which the ``fovi`` extra
-    installs."""
-    import Imath
-    import OpenEXR
+EXR_ZIP_LINES = 16
+"""Scanlines per chunk of a ZIP-compressed EXR file."""
 
-    arr = np.ascontiguousarray(data.detach().cpu().numpy(), dtype=np.float32)
-    h, w, c = arr.shape
-    if c not in (2, 3):
-        raise ValueError(f"save_exr: expected 2 or 3 channels, got {c}")
-    names = ("R", "G") if c == 2 else ("R", "G", "B")
-    ch_t = Imath.Channel(Imath.PixelType(Imath.PixelType.FLOAT))
-    hdr = OpenEXR.Header(w, h)
-    hdr["Compression"] = Imath.Compression.ZIP_COMPRESSION
-    hdr["channels"] = {n: ch_t for n in names}
-    exr = OpenEXR.OutputFile(path, hdr)
-    exr.writePixels({n: arr[:, :, i].tobytes() for i, n in enumerate(names)})
-    exr.close()
+
+def _exr_attribute(name: str, kind: str, value: bytes) -> bytes:
+    """One EXR header attribute: its name, type, size and value."""
+    return name.encode() + b"\0" + kind.encode() + b"\0" + struct.pack("<i", len(value)) + value
+
+
+def _exr_zip(raw: bytes) -> bytes:
+    """EXR ZIP compression of one chunk: its even bytes then its odd bytes, delta-encoded, then deflated."""
+    data = np.frombuffer(raw, np.uint8)
+    reordered = np.concatenate((data[0::2], data[1::2]))
+    predicted = reordered.copy()
+    predicted[1:] = (reordered[1:].astype(np.int16) - reordered[:-1] + 128).astype(np.uint8)
+    return zlib.compress(predicted.tobytes())
+
+
+def save_exr(path: str, data: torch.Tensor) -> None:
+    """Save a ``(H, W, C)`` float32 tensor, ``C`` in {2, 3}, as a ZIP-compressed scanline EXR file.
+
+    The channels are named ``R``, ``G`` and ``B``. The file follows the OpenEXR format for single-part scanline
+    images, written with NumPy and zlib.
+    """
+    image = np.ascontiguousarray(data.detach().cpu().numpy(), dtype="<f4")
+    height, width, channels = image.shape
+    if channels not in (2, 3):
+        raise ValueError(f"save_exr: expected 2 or 3 channels, got {channels}")
+    # EXR files list their channels in alphabetical order (B, G, R), each with its name, pixel type (2 = FLOAT),
+    # linearity and x/y sampling.
+    names = sorted("RGB"[:channels])
+    chlist = b"".join(name.encode() + b"\0" + struct.pack("<iB3xii", 2, 0, 1, 1) for name in names)
+    window = struct.pack("<iiii", 0, 0, width - 1, height - 1)
+    header = b"".join(
+        (
+            struct.pack("<ii", 20000630, 2),  # Magic number, then version 2 of a single-part scanline file.
+            _exr_attribute("channels", "chlist", chlist + b"\0"),
+            _exr_attribute("compression", "compression", bytes([3])),  # ZIP
+            _exr_attribute("dataWindow", "box2i", window),
+            _exr_attribute("displayWindow", "box2i", window),
+            _exr_attribute("lineOrder", "lineOrder", bytes([0])),  # Increasing y
+            _exr_attribute("pixelAspectRatio", "float", struct.pack("<f", 1.0)),
+            _exr_attribute("screenWindowCenter", "v2f", struct.pack("<ff", 0.0, 0.0)),
+            _exr_attribute("screenWindowWidth", "float", struct.pack("<f", 1.0)),
+            b"\0",
+        )
+    )
+    # A scanline stores each channel's row in turn, in the channel list's order.
+    rows = image[:, :, ["RGB".index(name) for name in names]].transpose(0, 2, 1)
+    chunks = []
+    for y in range(0, height, EXR_ZIP_LINES):
+        raw = rows[y : y + EXR_ZIP_LINES].tobytes()
+        packed = _exr_zip(raw)
+        if len(packed) >= len(raw):
+            packed = raw  # A chunk that does not shrink is stored uncompressed.
+        chunks.append(struct.pack("<ii", y, len(packed)) + packed)
+    offsets = len(header) + 8 * len(chunks) + np.cumsum([0] + [len(chunk) for chunk in chunks[:-1]])
+    with open(path, "wb") as file:
+        file.write(header + offsets.astype("<u8").tobytes() + b"".join(chunks))
 
 
 def build_native_grid_textures(

@@ -6,10 +6,13 @@
 """RTX camera contracts that need no renderer: construction, lens textures and their USD schema, and capture."""
 
 import math
+import struct
 import tempfile
+import zlib
 from pathlib import Path
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 import torch
 import warp as wp
@@ -146,6 +149,68 @@ def test_construction_authors_the_lens_and_unlocks_cameras_without_changing_the_
     assert len(sampling_models) == 1 and camera.camera_model is sampling_models[0]
     assert camera.camera_model.image_size == (1024, 1024)
     assert cfg.spawn.lock_camera and cfg.spawn.vertical_aperture is None and (cfg.height, cfg.width) == (1, 1)
+
+
+def _c_string(data: bytes, at: int) -> tuple[str, int]:
+    """The NUL-terminated string at ``at``, and the offset after it."""
+    end = data.index(b"\0", at)
+    return data[at:end].decode(), end + 1
+
+
+def read_exr(path: Path) -> tuple[dict[str, bytes], dict[str, int], np.ndarray]:
+    """Decode a single-part scanline EXR of FLOAT channels, uncompressed or ZIP, following the OpenEXR file layout.
+
+    Returns the header attributes by name, each channel's pixel type by name in file order, and each channel's
+    ``(H, W)`` image by name.
+    """
+    data = path.read_bytes()
+    assert struct.unpack_from("<ii", data) == (20000630, 2)
+    attributes, at = {}, 8
+    while data[at] != 0:
+        name, at = _c_string(data, at)
+        _, at = _c_string(data, at)
+        (size,) = struct.unpack_from("<i", data, at)
+        attributes[name] = data[at + 4 : at + 4 + size]
+        at += 4 + size
+    chlist, types, cursor = attributes["channels"], {}, 0
+    while chlist[cursor] != 0:
+        name, cursor = _c_string(chlist, cursor)
+        types[name] = struct.unpack_from("<i", chlist, cursor)[0]
+        cursor += 16
+    names = list(types)
+    x0, y0, x1, y1 = struct.unpack("<iiii", attributes["dataWindow"])
+    width, height = x1 - x0 + 1, y1 - y0 + 1
+    lines = {0: 1, 3: 16}[attributes["compression"][0]]
+    offsets = struct.unpack_from(f"<{-(-height // lines)}Q", data, at + 1)
+    rows = []
+    for offset in offsets:
+        y, size = struct.unpack_from("<ii", data, offset)
+        chunk = np.frombuffer(data, np.uint8, size, offset + 8)
+        expected = min(lines, height - y) * len(names) * width * 4
+        if size < expected:
+            deltas = np.frombuffer(zlib.decompress(chunk.tobytes()), np.uint8).astype(np.int64)
+            deltas[1:] -= 128
+            predicted = (np.cumsum(deltas) % 256).astype(np.uint8)
+            chunk = np.empty_like(predicted)
+            half = (len(predicted) + 1) // 2
+            chunk[0::2], chunk[1::2] = predicted[:half], predicted[half:]
+        rows.append(np.frombuffer(chunk.tobytes(), "<f4").reshape(-1, len(names), width))
+    planes = np.concatenate(rows)
+    return attributes, types, {name: planes[:, i] for i, name in enumerate(names)}
+
+
+@pytest.mark.parametrize("shape", [(37, 21, 3), (16, 5, 2), (1, 1, 3)])
+def test_lens_textures_are_float_exr_files_that_read_back_exactly(tmp_path, shape) -> None:
+    # Smooth rows compress and noisy rows are stored raw; heights off a multiple of 16 end in a partial chunk.
+    image = torch.randn(shape, generator=torch.Generator().manual_seed(0))
+    image[: shape[0] // 2] = torch.linspace(-1, 1, shape[1])[:, None]
+    lens_lut.save_exr(str(tmp_path / "texture.exr"), image)
+    attributes, types, planes = read_exr(tmp_path / "texture.exr")
+    # The format requires the channel list in alphabetical order, so R, G, B are stored as B, G, R.
+    assert list(types) == sorted("RGB"[: shape[2]]) and set(types.values()) == {2}  # FLOAT
+    window = struct.pack("<iiii", 0, 0, shape[1] - 1, shape[0] - 1)
+    assert attributes["dataWindow"] == attributes["displayWindow"] == window
+    np.testing.assert_array_equal(np.stack([planes[name] for name in "RGB"[: shape[2]]], axis=-1), image.numpy())
 
 
 def test_lens_lut_survives_usd_export_without_schema_registration() -> None:
