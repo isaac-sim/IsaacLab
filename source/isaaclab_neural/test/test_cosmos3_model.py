@@ -17,9 +17,9 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 import torch
-from isaaclab_experimental.cosmos import _cuda_ipc, _protocol
-from isaaclab_experimental.cosmos.server.service import serve
-from isaaclab_experimental.cosmos.server.world_model import NUM_CONTROLS, Cosmos3Session, handle_world_model_connection
+from isaaclab_cosmos_server import ipc, protocol
+from isaaclab_cosmos_server.service import serve
+from isaaclab_cosmos_server.world_model import NUM_CONTROLS, Cosmos3Session, handle_world_model_connection
 
 from isaaclab.utils import configclass
 
@@ -91,12 +91,12 @@ def service():
     thread.start()
     for _ in range(100):
         try:
-            _protocol.request(endpoint, {"op": "status"}, timeout=1)
+            protocol.request(endpoint, {"op": "status"}, timeout=1)
             break
         except ConnectionError:
             time.sleep(0.05)
     yield model, endpoint
-    _protocol.request(endpoint, {"op": "shutdown"}, timeout=2)
+    protocol.request(endpoint, {"op": "shutdown"}, timeout=2)
     thread.join(timeout=5)
 
 
@@ -197,7 +197,7 @@ def test_a_failed_step_ends_the_session_and_frees_the_service(service):
     # The service closes the failed session, so a new client can open one.
     fake.fail = False
     for _ in range(100):
-        if not _protocol.request(endpoint, {"op": "status"}, timeout=1)[0]["session_active"]:
+        if not protocol.request(endpoint, {"op": "status"}, timeout=1)[0]["session_active"]:
             break
         time.sleep(0.05)
     other = Cosmos3Model(Cosmos3Cfg(endpoint=endpoint, timeout=5), 1, "cpu")
@@ -218,8 +218,8 @@ import sys
 
 import torch
 
-from isaaclab_experimental.cosmos.server.service import serve
-from isaaclab_experimental.cosmos.server.world_model import handle_world_model_connection
+from isaaclab_cosmos_server.service import serve
+from isaaclab_cosmos_server.world_model import handle_world_model_connection
 
 T, H, W = 4, 6, 8
 
@@ -257,7 +257,7 @@ serve(Model(), sys.argv[1], handler=handle_world_model_connection)
 """
 
 
-@pytest.mark.skipif(not (torch.cuda.is_available() and _cuda_ipc.available()), reason="needs CUDA IPC (Linux)")
+@pytest.mark.skipif(not (torch.cuda.is_available() and ipc.available()), reason="needs CUDA IPC (Linux)")
 def test_chunks_reach_the_simulation_device_through_cuda_ipc():
     # CUDA opens an IPC handle only in another process than the one that exported it, so the service runs in its own.
     with socket.socket() as probe:
@@ -267,7 +267,7 @@ def test_chunks_reach_the_simulation_device_through_cuda_ipc():
     try:
         for _ in range(600):
             try:
-                _protocol.request(endpoint, {"op": "status"}, timeout=1)
+                protocol.request(endpoint, {"op": "status"}, timeout=1)
                 break
             except ConnectionError:
                 assert service.poll() is None, "the world-model service exited"
@@ -292,8 +292,8 @@ def test_chunks_reach_the_simulation_device_through_cuda_ipc():
         model.close()
         assert (third == 3).all(), "Closing must finish the copy before releasing the service's buffer."
         # The client released the buffer before closing, so the service freed it and serves the next session.
-        assert not _protocol.request(endpoint, {"op": "status"}, timeout=2)[0]["session_active"]
+        assert not protocol.request(endpoint, {"op": "status"}, timeout=2)[0]["session_active"]
     finally:
         with suppress(OSError):
-            _protocol.request(endpoint, {"op": "shutdown"}, timeout=2)
+            protocol.request(endpoint, {"op": "shutdown"}, timeout=2)
         service.wait(timeout=30)
