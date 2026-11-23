@@ -970,8 +970,17 @@ class OVRTXRenderer(BaseRenderer):
         camera_data: CameraData | None = None,
     ) -> None:
         """Publish this product's pixels, and copy matching metadata when a sensor requests it."""
-        if self.cfg.async_rendering and not self._use_ovstage and render_data.ready is None:
+        # An asynchronous camera waits until ready names a completed capture. A camera published by a
+        # shared synchronous capture already has this frame's pixels and renderer_info, so its labels
+        # are copied even though that capture does not set ready.
+        if (
+            self.cfg.async_rendering
+            and not self._use_ovstage
+            and render_data.ready is None
+            and render_data not in self._published_cameras
+        ):
             return
+
         capture = {}
         if render_data.ready is not None:
             operation, capture = render_data.ready
