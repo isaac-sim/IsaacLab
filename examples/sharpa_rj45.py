@@ -23,6 +23,7 @@ import argparse
 import json
 import logging
 import math
+import warnings
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -83,6 +84,11 @@ def main() -> int:
     add_launcher_args(parser)
     parser.set_defaults(visualizer=["newton"])
     args = parser.parse_args()
+    warnings.warn(
+        "The bundled Sharpa RJ45 example is deprecated. Use an Isaac Lab release that still includes it.",
+        FutureWarning,
+        stacklevel=2,
+    )
     if args.num_steps <= 0:
         parser.error("--num_steps must be positive")
     for name in ("settle_duration_s", "failure_tail_s"):

@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import math
 import os
+import warnings
 from contextlib import ExitStack
 from pathlib import Path
 
@@ -28,6 +29,11 @@ wp.config.enable_backward = False
 
 def main() -> None:
     args, parser = _parse_args()
+    warnings.warn(
+        "The bundled Sharpa coffee demo is deprecated. Use an Isaac Lab release that still includes it.",
+        FutureWarning,
+        stacklevel=2,
+    )
     video_stride = args.control_hz // args.video_fps
     cfg = _make_env_cfg(args, video_stride)
     if args.headless:

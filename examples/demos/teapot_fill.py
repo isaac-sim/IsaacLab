@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import math
 import sys
+import warnings
 from collections.abc import Callable
 from dataclasses import MISSING
 from pathlib import Path
@@ -788,6 +789,12 @@ def run_simulator(sim, scene, surface_renderer: ParticleSurfaceRenderer | None, 
 
 def main() -> None:
     """Set up and run the Isaac Lab Newton MPM teapot-fill demo."""
+    if ROBOT_ENABLED:
+        warnings.warn(
+            "The bundled Sharpa water-pouring variant is deprecated. Use an Isaac Lab release that still includes it.",
+            FutureWarning,
+            stacklevel=2,
+        )
     sim_cfg = create_sim_cfg()
     with launch_simulation(sim_cfg, args_cli):
         if ROBOT_ENABLED:
