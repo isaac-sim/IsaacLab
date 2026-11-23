@@ -1,5 +1,5 @@
-Model-based motion tracking
-===========================
+SuperMimic-style Motion Tracking
+========================================
 
 The ``model_based`` backend learns a world model from simulation and trains a
 policy through predicted motion rollouts. It is based on
@@ -8,6 +8,42 @@ motion-tracking tasks and standard train/play commands.
 
 Start with :doc:`/source/how-to/train_model_based` for data downloads, input
 formats, training, and playback.
+
+How it works
+------------
+
+Training repeats three steps:
+
+1. Run the current policy in simulation and store state transitions in a replay buffer.
+2. Fit the world model to short sequences sampled from that buffer.
+3. Predict short motion rollouts with the world model and improve the policy by
+   backpropagating the tracking return through those predictions. A critic estimates
+   the return beyond each rollout.
+
+The world model stays fixed during each policy update and continues learning in
+later iterations. Gradients pass through the learned model, not the simulator.
+Tracking rewards and termination are computed from predicted states and the reference.
+
+.. list-table:: Model inputs and outputs
+   :header-rows: 1
+   :widths: 20 50 30
+
+   * - Model
+     - Inputs
+     - Output
+   * - World model
+     - Robot state, joint command, and simulation context (friction, body
+       center of mass, and joint encoder bias).
+     - Predicted next robot state.
+   * - Policy (actor)
+     - Robot observations or observation history, and future reference-motion frames.
+     - 29 normalized joint-position commands, scaled to joint targets.
+   * - Critic
+     - Full robot state, reference-motion goal, and simulation context.
+     - Expected discounted return as a scalar.
+
+The selected task and preset determine the state representation and observation
+history. Playback uses only the policy; the world model and critic are needed for training.
 
 Tasks and configuration
 -----------------------

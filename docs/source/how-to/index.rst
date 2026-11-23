@@ -602,7 +602,7 @@ How-to Guides
 
       .. container:: guide-entry
 
-         :doc:`Training a model-based motion tracker </source/how-to/train_model_based>`
+         :doc:`SuperMimic-style Motion Tracking </source/how-to/train_model_based>`
 
          Download reference data and train or play the standalone SuperMimic backend.
 

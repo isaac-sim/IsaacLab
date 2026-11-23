@@ -196,7 +196,7 @@
         requiredExtras: splitValues(requiredExtras),
         warpPresets,
         launchableRuns: launchableRuns && new Set(launchableRuns),
-    }));
+    })).filter(({ task }) => !/^Isaac(?:Contrib)?-Motion-Tracking-MaxCoord-G1$/.test(task));
 
     const builder = document.querySelector("[data-environment-browser]");
     const preview = document.querySelector("[data-environment-preview]");

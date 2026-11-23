@@ -1,11 +1,17 @@
 :orphan:
 
-Training model-based motion tracking
-====================================
+SuperMimic-style Motion Tracking
+========================================
 
 Train a G1 motion-tracking policy with the ``model_based`` backend, then play or
 record its checkpoint. Install Isaac Lab and its training dependencies first.
 See :doc:`/source/experimental-features/model_based` for training options.
+
+.. raw:: html
+
+   <video controls playsinline preload="metadata" style="width: 100%; height: auto;" aria-label="SuperMimic reference and real G1">
+     <source src="https://github.com/Double7sBurger/IsaacLab/releases/download/g1-visual-locomotion-media/G1_Reference_vs_Real_3motions.mp4" type="video/mp4">
+   </video>
 
 Inputs
 ------
