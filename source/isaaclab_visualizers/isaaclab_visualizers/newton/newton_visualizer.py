@@ -1147,7 +1147,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         hover_tooltip(
             imgui, "RTX adds an OVRTX camera, which costs some startup time and a little speed, so it is opt-in"
         )
-        hud_note(imgui, "Launch with --viz newton_rtx to enable the RTX toggle.")
+        hud_note(imgui, "Use --viz newton_rtx to enable RTX.")
 
     def _draw_streaming_view_controls(self, imgui) -> None:
         """Choose one declared display source without reading the other sensors."""
