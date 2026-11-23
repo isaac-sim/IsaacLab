@@ -95,6 +95,18 @@ For USD assets, assign :class:`~sim.spawners.wrappers.MultiUsdFileCfg` to the
    :end-before: ##
    :dedent: 4
 
+To spawn SimReady props found by a search, assign :class:`~sim.spawners.wrappers.SimReadyUsdFileCfg`, a
+:class:`~sim.spawners.wrappers.MultiUsdFileCfg` whose USD paths come from
+:func:`~utils.assets.search_simready_usd_paths`. The search result is cached in a JSON file, and each prop's
+rigid body is moved onto the spawned prim so that all props share one rigid-body layout. The ``simready``
+object preset of the lift environments uses it, for example in the Kuka-Allegro lift environment:
+
+.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/lift/lift_env_cfg.py
+   :language: python
+   :start-at: simready = sim_utils.SimReadyUsdFileCfg(
+   :end-before: default = shapes
+   :dedent: 4
+
 Variant compatibility
 ~~~~~~~~~~~~~~~~~~~~~
 
@@ -171,7 +183,7 @@ The physics backend and visualizer are selected independently. Run one of these 
          uv run --extra isaacsim isaaclab example multi-asset \
              --physics newton_mjwarp --visualizer kit --num_envs 2048
 
-   .. tab-item:: Newton MJWarp with Newton GL
+   .. tab-item:: Newton MJWarp with Newton
 
       .. code-block:: bash
 

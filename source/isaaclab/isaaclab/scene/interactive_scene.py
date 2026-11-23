@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 if TYPE_CHECKING:
-    from isaaclab_physx.assets import SurfaceGripper
+    from isaaclab_isaacsim.assets import SurfaceGripper
 
     from ..terrains.terrain_importer import TerrainImporter
 
@@ -540,7 +540,9 @@ class InteractiveScene:
         force_recompute = not self.cfg.lazy_sensor_update
         batched_sensors: list[SensorBase] = []
         for sensor in self._sensors.values():
-            if force_recompute and sensor.supports_batch_update:
+            if force_recompute and getattr(sensor.cfg, "render_on_demand", False) is True:
+                sensor.update(dt, force_recompute=False)  # rendered when its data is read, not on every update
+            elif force_recompute and sensor.supports_batch_update:
                 # Defer buffer refresh until all sensors have advanced.
                 sensor.update(dt, force_recompute=False)
                 batched_sensors.append(sensor)
@@ -795,7 +797,7 @@ class InteractiveScene:
 
     def _add_entities_from_cfg(self):  # noqa: C901
         """Add scene entities from the config."""
-        from isaaclab_physx.assets import SurfaceGripperCfg  # noqa: PLC0415
+        from isaaclab_isaacsim.assets import SurfaceGripperCfg  # noqa: PLC0415
 
         from ..terrains.terrain_importer_cfg import TerrainImporterCfg  # noqa: PLC0415
 

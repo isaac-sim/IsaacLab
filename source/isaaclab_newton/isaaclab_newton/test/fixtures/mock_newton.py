@@ -80,7 +80,7 @@ def create_mock_newton_manager(
         solver=None,
         actuators=None,
         dt=0.01,
-        state_version=0,
+        timestamp=0,
         device=wp.get_device("cpu"),
         transforms_may_change_on_graph_replay=False,
     )
@@ -94,6 +94,7 @@ def backend_stub(**fields):
     backend = object.__new__(NewtonBackend)
     backend.contact_sensors = {}
     backend.contact_observables = None
+    backend.solver_observables = None
     backend.__dict__.update(fields)
     return backend
 

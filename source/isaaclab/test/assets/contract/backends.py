@@ -70,7 +70,7 @@ def _unavailable_reason(*modules: str, cuda: bool = False) -> str | None:
 UNAVAILABLE = {
     name: reason
     for name, reason in {
-        "physx": _unavailable_reason("isaaclab_physx"),
+        "physx": _unavailable_reason("isaaclab_isaacsim"),
         "newton": _unavailable_reason("isaaclab_newton"),
         "ovphysx": _unavailable_reason("ovphysx", "isaaclab_ov", cuda=True),
     }.items()
@@ -107,8 +107,8 @@ def requires(name: str) -> pytest.MarkDecorator:
 
 def physx_manager():
     """Return a PhysX manager with gravity and a scene-data backend, without creating a physics scene."""
-    from isaaclab_physx.physics import PhysxCfg, PhysxManager
-    from isaaclab_physx.physics.physx_manager import PhysxSceneDataBackend
+    from isaaclab_isaacsim.physics import PhysxCfg, PhysxManager
+    from isaaclab_isaacsim.physics.physx_manager import PhysxSceneDataBackend
 
     manager = PhysxManager(PhysxCfg())
     physics_sim_view = MagicMock()
@@ -200,7 +200,7 @@ def newton_manager(num_instances: int, device: str) -> MagicMock:
     model.gravity = wp.array(np.tile([[0.0, 0.0, -9.81]], (num_instances + 1, 1)), dtype=wp.vec3f, device=device)
     manager = MagicMock()
     manager.backend.solver = None
-    manager.backend.state_version = 0
+    manager.backend.timestamp = 0
     manager.backend.device = wp.get_device(device)
     manager.backend.model = model
     manager.backend.state_0 = manager.backend.state_1 = MagicMock()

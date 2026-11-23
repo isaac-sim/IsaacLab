@@ -15,7 +15,7 @@ Kamino is a Newton solver selected through a task-exposed
 ``newton_kamino`` preset. This guide isolates and measures a reproducible
 problem before changing its solver settings. The generated API documentation
 for :class:`~isaaclab_newton.physics.KaminoPADMMSolverCfg` and
-:class:`~isaaclab_newton.physics.KaminoDVISolverCfg` remains authoritative for
+:class:`~isaaclab_newton.physics.KaminoSCCSolverCfg` remains authoritative for
 current fields and defaults.
 
 Prerequisites
@@ -35,21 +35,33 @@ Run one small visual smoke test before training or benchmarking:
 
 .. code-block:: bash
 
-    uv run python scripts/environments/zero_agent.py --task Isaac-Cartpole-Direct --num_envs 4 --viz newton_gl physics=newton_kamino
+    uv run python scripts/environments/zero_agent.py --task Isaac-Cartpole-Direct --num_envs 4 --viz newton physics=newton_kamino
 
 Then fix the initial state, seed, action sequence, and reset distribution. For
 that reproduction, record penetration, slip, energy, a task metric, a
 convergence diagnostic, and runtime. Change one decision at a time so every
 candidate can be compared with the same baseline.
 
-Choose PADMM or DVI
+Choose PADMM or SCC
 -------------------
 
-Choose PADMM first for contact-heavy tasks. DVI is a candidate for mechanisms
-with relatively few active contacts. If a DVI task needs an explicit
-:class:`~isaaclab_newton.physics.KaminoDynamicsCfg` override, disable
-preconditioning; otherwise leave the dynamics override unset so Newton selects
-the compatible defaults.
+Choose PADMM first for contact-heavy tasks. Split Constraint Coupling (SCC) is
+a candidate for mechanisms with relatively few active contacts. If an SCC task
+needs an explicit :class:`~isaaclab_newton.physics.KaminoDynamicsCfg` override,
+disable preconditioning. Leave the dynamics override unset to use Newton's
+compatible defaults.
+
+Migrate from the DVI configuration names
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The deprecated :class:`~isaaclab_newton.physics.KaminoDVISolverCfg` will be removed in a future
+release. Replace it with
+:class:`~isaaclab_newton.physics.KaminoSCCSolverCfg` in imports and constructors,
+using the same field values. For an explicit ``dynamics_solver_cfg``, use
+:class:`~isaaclab_newton.physics.KaminoSCCCfg`.
+:class:`~isaaclab_newton.physics.KaminoDVICfg` is a compatibility alias for that
+nested configuration. Existing task preset selectors such as ``newton_kamino``
+and the pretrained checkpoint backend ID ``newtonkaminodvi`` still work.
 
 Validate reset and state consistency
 ------------------------------------
@@ -86,8 +98,8 @@ Tune convergence and stabilization
 ----------------------------------
 
 Tune :class:`~isaaclab_newton.physics.KaminoPADMMCfg` iteration and residual
-controls only for a reproducible PADMM convergence failure. For DVI, tune
-:class:`~isaaclab_newton.physics.KaminoDVICfg` alternating iterations and
+controls only for a reproducible PADMM convergence failure. For SCC, tune
+:class:`~isaaclab_newton.physics.KaminoSCCCfg` alternating iterations and
 tolerance only for the same kind of evidence. Change
 :class:`~isaaclab_newton.physics.KaminoConstraintsCfg` stabilization controls
 only after collision and reset validation. More solver work cannot repair

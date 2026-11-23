@@ -350,6 +350,7 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
             source_builders=retained_sources,
             particle_ranges=particle_ranges,
             cable_bindings=cable_bindings,
+            cable_scales={index: builder.shape_scale[index] for shapes in cable_bindings.values() for index in shapes},
             geometry_batches=batches,
             initial_body_variants=initial_body_variants,
         )

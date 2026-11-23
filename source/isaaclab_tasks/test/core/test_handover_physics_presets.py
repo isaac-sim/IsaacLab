@@ -5,7 +5,7 @@
 
 """Tests for the Shadow Hand handover physics presets."""
 
-from isaaclab_physx.physics import PhysxCfg
+from isaaclab_isaacsim.physics import PhysxCfg
 
 from isaaclab_tasks.core.handover.handover_env_cfg import BALL_CFG, HandoverEnvCfg
 from isaaclab_tasks.utils.hydra import resolve_presets

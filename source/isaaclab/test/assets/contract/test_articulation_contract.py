@@ -1742,8 +1742,8 @@ def test_ovphysx_actuator_commands_are_written_in_backend_order(monkeypatch):
     backend_to_user = _backend_to_user(tuple(art.joint_names), _names("joint", 3))
     position = np.arange(6, dtype=np.float32).reshape(2, 3)
     # Seed the actuator collection's submitted command buffers (no actuator groups recompute them).
-    art.actuators._joint_pos_target.assign(wp.array(position, dtype=wp.float32))
-    art.actuators._joint_vel_target.assign(wp.array(position + 100.0, dtype=wp.float32))
+    art.actuators._joint_pos_target_sim.assign(wp.array(position, dtype=wp.float32))
+    art.actuators._joint_vel_target_sim.assign(wp.array(position + 100.0, dtype=wp.float32))
     art.actuators._joint_effort_target_sim.assign(wp.array(position + 200.0, dtype=wp.float32))
     object.__setattr__(art, "_has_implicit_actuators", True)
     object.__setattr__(art, "_can_write_effort", True)

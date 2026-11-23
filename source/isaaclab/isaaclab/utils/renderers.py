@@ -16,7 +16,7 @@ _SCENE_PARTITION_ENV_VAR = "ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION"
 def isaac_rtx_per_env_scene_partition_enabled() -> bool:
     """Return the legacy environment-derived default for Isaac RTX scene partitioning.
 
-    :class:`~isaaclab_physx.renderers.IsaacRtxRendererCfg` uses this helper as
+    :class:`~isaaclab_isaacsim.renderers.IsaacRtxRendererCfg` uses this helper as
     the construction default for ``enable_scene_partitioning``. Partitioning
     is enabled when the environment variable is absent. Set
     ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION=0`` to disable authoring of

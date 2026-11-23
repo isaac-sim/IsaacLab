@@ -35,16 +35,16 @@ parser.add_argument(
     "--max_steps", type=int, default=-1, help="Number of render frames; -1 runs until the viewer closes."
 )
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["newton_gl"])
+parser.set_defaults(visualizer=["newton"])
 args_cli, overrides = setup_preset_cli(parser)
 if args_cli.max_steps == 0 or args_cli.max_steps < -1:
     parser.error("--max_steps must be positive or -1.")
 
+from isaaclab_isaacsim.physics import PhysxCfg
+from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg, IsaacRtxRendererGlobalSettingsCfg
 from isaaclab_newton.physics import NewtonCfg, XPBDSolverCfg
-from isaaclab_newton.renderers import NewtonWarpRendererCfg
+from isaaclab_newton.renderers import NewtonOptixRendererCfg, NewtonWarpRendererCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
-from isaaclab_physx.physics import PhysxCfg
-from isaaclab_physx.renderers import IsaacRtxRendererCfg, IsaacRtxRendererGlobalSettingsCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
@@ -86,6 +86,7 @@ class WarehouseSceneCfg(InteractiveSceneCfg):
             default=OVRTXRendererCfg(enable_shadows=True),
             ovrtx=OVRTXRendererCfg(enable_shadows=True),
             newton_warp=NewtonWarpRendererCfg(enable_textures=True, enable_shadows=True),
+            newton_optix=NewtonOptixRendererCfg(enable_textures=True, enable_shadows=True),
             isaacsim_rtx=IsaacRtxRendererCfg(
                 global_settings=preset(
                     default=IsaacRtxRendererGlobalSettingsCfg(carb_settings={"/rtx/rendermode": "RealTimePathTracing"}),
@@ -115,7 +116,7 @@ class WarehouseDemoCfg(ManagerBasedEnvCfg):
         ),
         visualizer_cfgs=VisualizerCfg(cameras=[SceneCameraCfg(prim_path="{ENV_REGEX_NS}/Camera")]),
     )
-    camera_exposure_iso = preset(default=3200.0, isaacsim_rtx=None, newton_warp=None)
+    camera_exposure_iso = preset(default=3200.0, isaacsim_rtx=None, newton_warp=None, newton_optix=None)
     camera_path = preset(
         default="/RoofReview/Cameras/duck_showcase_animation",
         poster="/RoofReview/Cameras/duck_showcase_animation",

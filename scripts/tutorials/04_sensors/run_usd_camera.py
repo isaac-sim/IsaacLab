@@ -63,7 +63,7 @@ import random
 
 import numpy as np
 import torch
-from isaaclab_physx.renderers import IsaacRtxRendererCfg
+from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg

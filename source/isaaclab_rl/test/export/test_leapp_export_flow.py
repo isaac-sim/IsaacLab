@@ -32,6 +32,8 @@ from isaaclab.managers import ActionManager, ObservationManager
 
 from isaaclab_tasks.utils import load_cfg_from_registry
 
+pytestmark = pytest.mark.kitless
+
 _UR10_TASK = "Isaac-Reach-UR10"
 _DIRECT_TASK = "Isaac-Leapp-Direct-Tensor"
 _CREATORS = {
@@ -253,6 +255,10 @@ def test_leapp_export_flow(
         model = description["models"][task]
         connections = {item["isaaclab_connection"] for item in model["inputs"] if "isaaclab_connection" in item}
         assert {"state:robot:joint_pos", "state:robot:joint_vel"} <= connections
+        for port in model["inputs"] + model["outputs"]:
+            if "isaaclab_connection" in port:
+                assert port["axes"][0] == {"kind": "system"}
+                assert len(port["axes"]) == len(port["shape"])
         action_output = next(item for item in model["outputs"] if item["name"] == "actions")
         assert action_output["isaaclab_connection"] == "write:robot:set_joint_position_target_index"
         if backend != "sb3":
@@ -270,7 +276,10 @@ def test_leapp_export_flow(
             (item["name"], item["isaaclab_connection"]) for item in model["outputs"] if "isaaclab_connection" in item
         ] == [("actions", "write:robot:set_joint_position_target_index")]
         action_output = next(item for item in model["outputs"] if item["name"] == "actions")
-        assert action_output["element_names"] == [[f"joint_{index}" for index in range(10)]]
+        assert action_output["axes"] == [
+            {"kind": "system"},
+            {"kind": "element", "names": [f"joint_{index}" for index in range(10)]},
+        ]
         deployment = object.__new__(LeappDeploymentEnv)
         deployment.scene = env.scene
         deployment._leapp_desc = description
@@ -321,7 +330,7 @@ def test_fast_export_has_no_simulator_dependency():
     export_dir = Path(__file__).parent
     for obsolete_file in ("test_leapp_export_simulation.py", "leapp_synthetic_env.py", "leapp_synthetic_env_cfg.py"):
         assert not (export_dir / obsolete_file).exists()
-    forbidden_modules = {"isaaclab.sim", "isaaclab_newton", "isaaclab_physx"}
+    forbidden_modules = {"isaaclab.sim", "isaaclab_newton", "isaaclab_isaacsim"}
     forbidden_calls = {"launch_simulation", "SimulationContext"}
     for filename in ("test_leapp_export_flow.py", "leapp_tensor_env.py"):
         for node in ast.walk(ast.parse((export_dir / filename).read_text())):

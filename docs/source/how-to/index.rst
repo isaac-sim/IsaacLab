@@ -120,6 +120,16 @@ How-to Guides
 
       .. container:: guide-entry
 
+         :doc:`Controlling conveyors </source/how-to/conveyors>`
+
+         Configure batched conveyor speeds and directions with the Isaac Lab controller.
+
+         .. container:: guide-metadata
+
+            :guide-tag-newton:`Newton`
+
+      .. container:: guide-entry
+
          :doc:`Importing a new asset </source/how-to/import_new_asset>`
 
          Convert URDF, MJCF, or mesh assets into USD for use in Isaac Lab.
@@ -266,6 +276,16 @@ How-to Guides
 
       .. container:: guide-entry
 
+         :doc:`Training a G1 motion-tracking policy </source/how-to/train_g1_motion_tracking>`
+
+         Select a reference motion, train the G1 with Newton, and play or record a checkpoint.
+
+         .. container:: guide-metadata
+
+            :guide-tag-newton:`Newton`
+
+      .. container:: guide-entry
+
          :doc:`Training MicroDuck </source/how-to/train_microduck>`
 
          Train flat or rough walking and scale its recipe for distributed training.
@@ -370,7 +390,7 @@ How-to Guides
 
          :doc:`Select and configure a Renderer </source/how-to/configure_rendering>`
 
-         Choose Newton Warp, OVRTX, or legacy Isaac RTX and tune the selected renderer.
+         Choose Newton Warp, Newton OptiX, OVRTX, or legacy Isaac RTX and tune the selected renderer.
 
          .. container:: guide-metadata
 
@@ -490,7 +510,7 @@ How-to Guides
 
          :doc:`Tuning the Kamino solver </source/how-to/solver_tuning_kamino>`
 
-         Tune Newton Kamino PADMM or DVI convergence, stabilization, timestep, and substeps.
+         Tune Newton Kamino PADMM or SCC convergence, stabilization, timestep, and substeps.
 
          .. container:: guide-metadata
 
@@ -529,6 +549,12 @@ How-to Guides
          .. container:: guide-metadata
 
             :guide-tag:`PhysX` :guide-tag:`Isaac Sim`
+
+      .. container:: guide-entry
+
+         :doc:`Kitless XR with Isaac Capture </source/how-to/kitless_xr>`
+
+         Install Isaac Capture and OVXR packages for live teleoperation and MCAP replay.
 
       .. container:: guide-entry
 
@@ -576,3 +602,9 @@ How-to Guides
 
       This collection is a work in progress. If a question is not answered here, open an issue on the
       `Isaac Lab GitHub repository <https://github.com/isaac-sim/IsaacLab>`_.
+
+.. toctree::
+   :hidden:
+
+   kitless_xr
+   kitless_xr_source

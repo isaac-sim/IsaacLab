@@ -252,6 +252,7 @@ def test_rgb_manager_destination(frame_stack, channel_first, normalize, dtype):
     if channel_first:
         expected = expected.permute(0, 3, 1, 2)
     result = manager.compute()["policy"]
+    assert manager.group_obs_dim["policy"] == expected.shape[1:]
     torch.testing.assert_close(result, expected, atol=1e-5, rtol=1e-5)
     camera.zero_()
     manager.compute()

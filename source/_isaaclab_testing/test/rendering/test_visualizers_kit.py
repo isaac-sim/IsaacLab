@@ -25,7 +25,7 @@ import pytest
 import torch
 from golden_image import compare_to_golden
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
-from isaaclab_physx.renderers import IsaacRtxRendererCfg
+from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
 from isaaclab_visualizers.kit import KitBackendCfg
 from isaaclab_visualizers.newton import NewtonGLBackendCfg
 from isaaclab_visualizers.rerun import RerunBackendCfg

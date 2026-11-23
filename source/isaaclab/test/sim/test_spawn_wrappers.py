@@ -8,8 +8,8 @@ from isaaclab.test.utils import launch_test_simulation
 launch_test_simulation()
 
 import pytest
+from isaaclab_isaacsim.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 from isaaclab_newton.sim.schemas import NewtonArticulationCfg
-from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 
 from pxr import Usd, UsdPhysics
 

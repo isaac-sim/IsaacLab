@@ -120,15 +120,15 @@ The following modules are available in the ``isaaclab_teleop`` extension:
 
    lab_teleop/isaaclab_teleop
 
-isaaclab_physx extension
-------------------------
+isaaclab_isaacsim extension
+---------------------------
 
-The following modules are available in the ``isaaclab_physx`` extension:
+The following modules are available in the ``isaaclab_isaacsim`` extension:
 
-.. currentmodule:: isaaclab_physx
+.. currentmodule:: isaaclab_isaacsim
 
 .. autosummary::
-   :toctree: lab_physx
+   :toctree: lab_isaacsim
 
    app
    assets
@@ -140,8 +140,8 @@ The following modules are available in the ``isaaclab_physx`` extension:
 .. toctree::
    :hidden:
 
-   lab_physx/isaaclab_physx.sim.schemas
-   lab_physx/isaaclab_physx.sim.spawners
+   lab_isaacsim/isaaclab_isaacsim.sim.schemas
+   lab_isaacsim/isaaclab_isaacsim.sim.spawners
 
 isaaclab_newton extension
 -------------------------
@@ -259,6 +259,6 @@ The following public modules provide additional specialized APIs:
    lab_ov/isaaclab_ov.envs.mdp
    lab_ov/isaaclab_ov.sensors
    lab_ov/isaaclab_ov.sensors.ray_caster
-   lab_physx/isaaclab_physx.envs.mdp
-   lab_physx/isaaclab_physx.sim.views
+   lab_isaacsim/isaaclab_isaacsim.envs.mdp
+   lab_isaacsim/isaaclab_isaacsim.sim.views
    lab_ppisp/isaaclab_ppisp
