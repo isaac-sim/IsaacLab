@@ -10,6 +10,7 @@ from __future__ import annotations
 import math
 import re
 from collections.abc import Sequence
+from functools import cache
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -63,111 +64,123 @@ def _box_seal_fits(seal: wp.transform, box: wp.transform, half_extents: wp.vec3,
     return fits
 
 
-@wp.kernel
-def _reset_pads(
-    mask: wp.array[wp.bool],
-    enabled: wp.array[wp.bool],
-    targets: wp.array[wp.int32],
-    command: wp.array[wp.float32],
-    state: wp.array[wp.float32],
-    previous: wp.array[wp.vec2i],
-    current: wp.array[wp.vec2i],
-    vacuum: wp.array[wp.float32],
-    load: wp.array[wp.vec4],
-    unclamped_load: wp.array[wp.vec4],
-):
-    world = wp.tid()
-    if not mask[world]:
-        return
-    enabled[world] = False
-    targets[world] = -1
-    command[world] = 0.0
-    state[world] = -1.0
-    for offset in range(4):
-        pad = world * 4 + offset
-        previous[pad] = wp.vec2i(-1, -1)
-        current[pad] = wp.vec2i(-1, -1)
-        vacuum[pad] = 0.0
-        load[pad] = wp.vec4(0.0)
-        unclamped_load[pad] = wp.vec4(0.0)
-
-
-@wp.kernel
-def _apply_commands(mask: wp.array[wp.bool], command: wp.array[wp.float32], enabled: wp.array[wp.bool]):
-    world = wp.tid()
-    if not mask[world]:
-        return
-    if command[world] > 0.3:
-        enabled[world] = True
-    elif command[world] < -0.3:
+@cache
+def make_reset_pads() -> wp.Kernel:
+    @wp.kernel(module="unique")
+    def reset_pads(
+        mask: wp.array[wp.bool],
+        enabled: wp.array[wp.bool],
+        targets: wp.array[wp.int32],
+        command: wp.array[wp.float32],
+        state: wp.array[wp.float32],
+        previous: wp.array[wp.vec2i],
+        current: wp.array[wp.vec2i],
+        vacuum: wp.array[wp.float32],
+        load: wp.array[wp.vec4],
+        unclamped_load: wp.array[wp.vec4],
+    ):
+        world = wp.tid()
+        if not mask[world]:
+            return
         enabled[world] = False
+        targets[world] = -1
+        command[world] = 0.0
+        state[world] = -1.0
+        for offset in range(4):
+            pad = world * 4 + offset
+            previous[pad] = wp.vec2i(-1, -1)
+            current[pad] = wp.vec2i(-1, -1)
+            vacuum[pad] = 0.0
+            load[pad] = wp.vec4(0.0)
+            unclamped_load[pad] = wp.vec4(0.0)
+
+    return reset_pads
 
 
-@wp.kernel
-def _update_engagement(
-    mask: wp.array[wp.bool],
-    enabled: wp.array[wp.bool],
-    target_ids: wp.array[wp.int32],
-    target_body: wp.array2d[wp.int32],
-    target_shape: wp.array2d[wp.int32],
-    tool_body: wp.array[wp.int32],
-    tool_transform: wp.array[wp.transform],
-    pad_transform: wp.array[wp.transform],
-    body_q: wp.array[wp.transform],
-    shape_transform: wp.array[wp.transform],
-    shape_scale: wp.array[wp.vec3],
-    anchor: wp.array[wp.transform],
-    previous: wp.array[wp.vec2i],
-    radius: wp.float32,
-    gap: wp.float32,
-    break_distance: wp.float32,
-    current: wp.array[wp.vec2i],
-    vacuum: wp.array[wp.float32],
-    gripper_state: wp.array[wp.float32],
-):
-    world = wp.tid()
-    if mask and not mask[world]:
-        return
-    first = world * 4
-    body = previous[first][0]
-    shape = previous[first][1]
-    active = enabled[world]
-    error = float(0.0)
-    tool = body_q[tool_body[world]] * tool_transform[world]
-    if body >= 0:
+@cache
+def make_apply_commands() -> wp.Kernel:
+    @wp.kernel(module="unique")
+    def apply_commands(mask: wp.array[wp.bool], command: wp.array[wp.float32], enabled: wp.array[wp.bool]):
+        world = wp.tid()
+        if not mask[world]:
+            return
+        if command[world] > 0.3:
+            enabled[world] = True
+        elif command[world] < -0.3:
+            enabled[world] = False
+
+    return apply_commands
+
+
+@cache
+def make_update_engagement() -> wp.Kernel:
+    @wp.kernel(module="unique")
+    def update_engagement(
+        mask: wp.array[wp.bool],
+        enabled: wp.array[wp.bool],
+        target_ids: wp.array[wp.int32],
+        target_body: wp.array2d[wp.int32],
+        target_shape: wp.array2d[wp.int32],
+        tool_body: wp.array[wp.int32],
+        tool_transform: wp.array[wp.transform],
+        pad_transform: wp.array[wp.transform],
+        body_q: wp.array[wp.transform],
+        shape_transform: wp.array[wp.transform],
+        shape_scale: wp.array[wp.vec3],
+        anchor: wp.array[wp.transform],
+        previous: wp.array[wp.vec2i],
+        radius: wp.float32,
+        gap: wp.float32,
+        break_distance: wp.float32,
+        current: wp.array[wp.vec2i],
+        vacuum: wp.array[wp.float32],
+        gripper_state: wp.array[wp.float32],
+    ):
+        world = wp.tid()
+        if mask and not mask[world]:
+            return
+        first = world * 4
+        body = previous[first][0]
+        shape = previous[first][1]
+        active = enabled[world]
+        error = float(0.0)
+        tool = body_q[tool_body[world]] * tool_transform[world]
+        if body >= 0:
+            for offset in range(4):
+                pad = first + offset
+                expected = body_q[body] * anchor[pad]
+                actual = tool * pad_transform[pad]
+                error = wp.max(
+                    error, wp.length(wp.transform_get_translation(expected) - wp.transform_get_translation(actual))
+                )
+            active = active and error <= break_distance
+        else:
+            requested = target_ids[world]
+            for target in range(target_body.shape[1]):
+                if active and (requested == -1 or requested == target):
+                    candidate_body = target_body[world, target]
+                    candidate_shape = target_shape[world, target]
+                    box = body_q[candidate_body] * shape_transform[candidate_shape]
+                    fits = True
+                    for offset in range(4):
+                        fits = fits and _box_seal_fits(
+                            tool * pad_transform[first + offset], box, shape_scale[candidate_shape], radius, gap
+                        )
+                    if fits:
+                        body = candidate_body
+                        shape = candidate_shape
+                        break
+            active = active and body >= 0
+        gripper_state[world] = wp.where(active, 1.0, wp.where(enabled[world], 0.0, -1.0))
         for offset in range(4):
             pad = first + offset
-            expected = body_q[body] * anchor[pad]
-            actual = tool * pad_transform[pad]
-            error = wp.max(
-                error, wp.length(wp.transform_get_translation(expected) - wp.transform_get_translation(actual))
-            )
-        active = active and error <= break_distance
-    else:
-        requested = target_ids[world]
-        for target in range(target_body.shape[1]):
-            if active and (requested == -1 or requested == target):
-                candidate_body = target_body[world, target]
-                candidate_shape = target_shape[world, target]
-                box = body_q[candidate_body] * shape_transform[candidate_shape]
-                fits = True
-                for offset in range(4):
-                    fits = fits and _box_seal_fits(
-                        tool * pad_transform[first + offset], box, shape_scale[candidate_shape], radius, gap
-                    )
-                if fits:
-                    body = candidate_body
-                    shape = candidate_shape
-                    break
-        active = active and body >= 0
-    gripper_state[world] = wp.where(active, 1.0, wp.where(enabled[world], 0.0, -1.0))
-    for offset in range(4):
-        pad = first + offset
-        pair = wp.vec2i(-1, -1)
-        if active:
-            pair = wp.vec2i(body, shape)
-        current[pad] = pair
-        vacuum[pad] = float(active)
+            pair = wp.vec2i(-1, -1)
+            if active:
+                pair = wp.vec2i(body, shape)
+            current[pad] = pair
+            vacuum[pad] = float(active)
+
+    return update_engagement
 
 
 class SurfaceGripper(BaseSurfaceGripper):
@@ -306,7 +319,7 @@ class SurfaceGripper(BaseSurfaceGripper):
         """Release selected tools without changing physical poses or unselected worlds."""
         mask = resolve_1d_mask(ids=env_ids, mask=env_mask, all_mask=self._all_mask, scratch_mask=self._selection_mask)
         wp.launch(
-            _reset_pads,
+            make_reset_pads(),
             dim=self._num_envs,
             inputs=[mask],
             outputs=[
@@ -326,7 +339,7 @@ class SurfaceGripper(BaseSurfaceGripper):
     def write_data_to_sim(self) -> None:
         """Apply staged close/open commands; values inside [-0.3, 0.3] retain the current vacuum."""
         wp.launch(
-            _apply_commands,
+            make_apply_commands(),
             dim=self._num_envs,
             inputs=[self._all_mask, self._command.warp],
             outputs=[self._enabled.warp],
@@ -347,7 +360,7 @@ class SurfaceGripper(BaseSurfaceGripper):
         self._manager.forward()
         mask = resolve_1d_mask(ids=env_ids, all_mask=self._all_mask, scratch_mask=self._selection_mask)
         wp.launch(
-            _apply_commands,
+            make_apply_commands(),
             dim=self._num_envs,
             inputs=[mask, self._command.warp],
             outputs=[self._enabled.warp],
@@ -453,12 +466,15 @@ class SurfaceGripper(BaseSurfaceGripper):
         self._target_ids = ProxyArray(wp.full(self._num_envs, -1, dtype=wp.int32, device=model.device))
         self._command = ProxyArray(wp.zeros(self._num_envs, dtype=wp.float32, device=model.device))
         self._state = ProxyArray(wp.full(self._num_envs, -1.0, dtype=wp.float32, device=model.device))
+        # Solver and environment captures may first encounter different operations.
+        for kernel in (make_reset_pads(), make_apply_commands(), make_update_engagement()):
+            wp.load_module(module=kernel.module, device=model.device)
         self._manager.register_state_force_callback(self._apply)
 
     def _update_seals(self, state: State, mask: wp.array | None = None) -> None:
         gripper = self._gripper
         wp.launch(
-            _update_engagement,
+            make_update_engagement(),
             dim=self._num_envs,
             inputs=[
                 mask,

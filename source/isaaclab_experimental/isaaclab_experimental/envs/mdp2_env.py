@@ -174,8 +174,8 @@ class MDP2Env:
         if not self._is_closed:
             # The captured steps reference scene buffers and solver hooks.
             self._runs = None
-            self.scene.close()
             self.sim.stop()
+            self.scene.close()
             del self.state, self.transition, self.scene_data, self.scene
             self.sim.clear_instance()
             self._is_closed = True
