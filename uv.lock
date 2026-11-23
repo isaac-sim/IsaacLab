@@ -1813,13 +1813,13 @@ version = "7.0.3"
 source = { editable = "source/isaaclab_contrib" }
 dependencies = [
     { name = "isaaclab" },
-    { name = "isaaclab-cosmos-server" },
+    { name = "isaaclab-model-bridge" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "isaaclab", editable = "source/isaaclab" },
-    { name = "isaaclab-cosmos-server", editable = "source/isaaclab_cosmos_server" },
+    { name = "isaaclab-model-bridge", editable = "source/isaaclab_model_bridge" },
 ]
 
 [[package]]
@@ -1827,16 +1827,16 @@ name = "isaaclab-cosmos-server"
 version = "0.1.0"
 source = { editable = "source/isaaclab_cosmos_server" }
 dependencies = [
+    { name = "isaaclab-model-bridge" },
     { name = "lazy-loader" },
     { name = "numpy" },
-    { name = "warp-lang" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "isaaclab-model-bridge", editable = "source/isaaclab_model_bridge" },
     { name = "lazy-loader", specifier = ">=0.4" },
     { name = "numpy", specifier = ">=2" },
-    { name = "warp-lang", specifier = ">=1.17.0" },
 ]
 
 [[package]]
@@ -1863,6 +1863,7 @@ dependencies = [
     { name = "isaaclab-cosmos-server" },
     { name = "isaaclab-experimental" },
     { name = "isaaclab-isaacsim" },
+    { name = "isaaclab-model-bridge" },
     { name = "isaaclab-newton" },
     { name = "isaaclab-ov" },
     { name = "isaaclab-ppisp" },
@@ -2101,6 +2102,7 @@ requires-dist = [
     { name = "isaaclab-isaacsim", editable = "source/isaaclab_isaacsim" },
     { name = "isaaclab-mimic", marker = "extra == 'mimic'", editable = "source/isaaclab_mimic" },
     { name = "isaaclab-mimic", marker = "extra == 'teleop'", editable = "source/isaaclab_mimic" },
+    { name = "isaaclab-model-bridge", editable = "source/isaaclab_model_bridge" },
     { name = "isaaclab-newton", editable = "source/isaaclab_newton" },
     { name = "isaaclab-ov", editable = "source/isaaclab_ov" },
     { name = "isaaclab-ppisp", editable = "source/isaaclab_ppisp" },
@@ -2244,6 +2246,23 @@ requires-dist = [
     { name = "isaaclab", editable = "source/isaaclab" },
     { name = "isaaclab-assets", editable = "source/isaaclab_assets" },
     { name = "isaaclab-tasks", editable = "source/isaaclab_tasks" },
+]
+
+[[package]]
+name = "isaaclab-model-bridge"
+version = "0.1.0"
+source = { editable = "source/isaaclab_model_bridge" }
+dependencies = [
+    { name = "lazy-loader" },
+    { name = "numpy" },
+    { name = "warp-lang" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "lazy-loader", specifier = ">=0.4" },
+    { name = "numpy", specifier = ">=2" },
+    { name = "warp-lang", specifier = ">=1.17.0" },
 ]
 
 [[package]]

@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""GPU memory and events shared between the camera and the Cosmos service on one machine, through Warp's CUDA IPC.
+"""GPU memory and events shared between the camera and a model service on one machine, through Warp's CUDA IPC.
 
 The two processes use different PyTorch builds, so they share GPU memory through Warp, which works beside either:
 each process allocates the buffer it writes and the interprocess event it records on its own GPU and exports their

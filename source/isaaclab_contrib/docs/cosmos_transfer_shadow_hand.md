@@ -57,14 +57,15 @@ git -C "$COSMOS_FRAMEWORK_ROOT" checkout 001fe1835d3b9a987bd29c521a4bd2fa6b45406
 
 ## 3. Install dependencies and download the checkpoint
 
-From the Framework checkout, create its environment and install Isaac Lab's Cosmos
-worker into it:
+From the Framework checkout, create its environment and install Isaac Lab's model bridge
+and Cosmos server into it:
 
 ```bash
 cd "$COSMOS_FRAMEWORK_ROOT"
 uv sync --locked --all-extras --group=cu130-train
-uv run --no-sync uv pip install -e \
-  "$ISAAC_LAB_ROOT/source/isaaclab_cosmos_server"
+uv run --no-sync uv pip install \
+  -e "$ISAAC_LAB_ROOT/source/isaaclab_model_bridge" \
+  -e "$ISAAC_LAB_ROOT/source/isaaclab_cosmos_server"
 ```
 
 Download the complete checkpoint with the Framework environment's Hugging Face CLI:

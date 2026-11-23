@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Optional Cosmos model service running independently of the camera client."""
+"""Cosmos Transfer model served through the Isaac Lab model bridge, independently of the camera client."""
 
 import lazy_loader as lazy
 

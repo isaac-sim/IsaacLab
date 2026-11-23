@@ -16,7 +16,9 @@ import argparse
 import json
 import sys
 
-from isaaclab_cosmos_server.protocol import DEFAULT_ENDPOINT, DEFAULT_TIMEOUT_S, request
+from isaaclab_model_bridge.protocol import DEFAULT_TIMEOUT_S, request
+
+from .cosmos_client_cfg import DEFAULT_ENDPOINT
 
 
 def main(args: list[str] | None = None) -> int:

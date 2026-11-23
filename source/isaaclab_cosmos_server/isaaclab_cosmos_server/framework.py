@@ -17,13 +17,25 @@ from contextlib import ExitStack, contextmanager
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-
-from .protocol import CANVAS_ASPECT_RATIOS, MAX_CHUNK_FRAMES, SEED_LIMIT
+from isaaclab_model_bridge.protocol import SEED_LIMIT
 
 if TYPE_CHECKING:
     import torch
 
 logger = logging.getLogger(__name__)
+
+CANVAS_ASPECT_RATIOS = {
+    (480, 832): "16,9",
+    (544, 736): "4,3",
+    (640, 640): "1,1",
+    (736, 544): "3,4",
+    (832, 480): "9,16",
+}
+"""Image sizes ``(height, width)`` Cosmos Sim-Transfer accepts, with their aspect-ratio names."""
+
+MAX_CHUNK_FRAMES = 4
+"""Most frames one control chunk carries. The model's video tokenizer encodes the first frame alone and then this
+many frames per latent frame, so a chunk carries one frame initially and four per update."""
 
 _MAX_BATCH_LATENT_FRAMES = 1 << 30
 """Maximum latent frames in a batched session.
@@ -160,6 +172,8 @@ class CosmosInferenceModel:
             "max_concurrent_streams": 1,
             "initial_frames": 1,
             "update_frames": MAX_CHUNK_FRAMES,
+            # The model bridge sizes its shared GPU buffers for this many frames per view.
+            "max_chunk_frames": MAX_CHUNK_FRAMES,
             "canvases": [list(canvas) for canvas in CANVAS_ASPECT_RATIOS],
             # The Framework restarts single rows of a batch only on its compiled CUDA-graph path.
             "partial_resets": use_compile and _vae_cache_owner(model.tokenizer_vision_gen) is not None,

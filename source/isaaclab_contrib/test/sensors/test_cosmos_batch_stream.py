@@ -25,7 +25,8 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 import torch
-from isaaclab_cosmos_server import framework, protocol, serve
+from isaaclab_cosmos_server import framework
+from isaaclab_model_bridge import protocol, serve
 
 from isaaclab_contrib.sensors.cosmos import CosmosClient, CosmosClientCfg
 
@@ -209,6 +210,13 @@ def test_a_single_frame_client_generates_through_the_service_on_the_server_strea
     seen = [seed for started in model.iterator_seeds for seed in started]
     seen += [seed for _, restarted in model.steps for seed in restarted or ()]
     assert seen[:views] == list(seeds) and len(set(seen)) == len(seen) == 2 * views
+
+
+def test_a_prompt_changes_only_with_an_episode_reset(batch):
+    """The model bridge passes a step's episode settings through; Cosmos takes a new prompt only with a reset."""
+    stream, _ = batch(views=1)
+    with pytest.raises(ValueError, match="only with an episode reset"):
+        stream.step(_controls((1, 1)), (), (), prompt="A kitchen.")
 
 
 def test_new_sessions_change_view_count_without_reloading_the_model(batch):

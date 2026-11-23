@@ -12,8 +12,6 @@ import math
 from collections.abc import Sequence
 from typing import Any
 
-from isaaclab_cosmos_server.protocol import CANVAS_ASPECT_RATIOS
-
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim import FisheyeCameraCfg
 from isaaclab.utils import replace
@@ -25,8 +23,8 @@ from .cosmos_processor_cfg import CosmosTransferProcessorCfg
 
 logger = logging.getLogger(__name__)
 
-COSMOS_CANVASES = tuple(CANVAS_ASPECT_RATIOS)
-"""Image sizes ``(height, width)`` the Cosmos service accepts."""
+COSMOS_CANVASES = ((480, 832), (544, 736), (640, 640), (736, 544), (832, 480))
+"""Image sizes ``(height, width)`` the Cosmos service accepts; it announces them as ``canvases``."""
 
 # A tabletop workspace in front of a robot's camera lies within 0.1 m to 2 m. Set the range to match the scene:
 # depth outside it clips to white or black, and a wider range leaves less contrast for the objects.

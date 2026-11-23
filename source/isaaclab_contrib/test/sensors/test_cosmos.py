@@ -30,8 +30,8 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
-from isaaclab_cosmos_server import protocol, serve
-from isaaclab_cosmos_server import service as service_module
+from isaaclab_model_bridge import protocol, serve
+from isaaclab_model_bridge import server as service_module
 
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils.tensor_processors import TensorProcessorCfg
@@ -81,7 +81,8 @@ def _wait_until_ready(endpoint: str, timeout: float = 5.0, poll: float = 0.2, st
 class TransportResource:
     """Already-loaded resource whose ownership is observable across a real socket."""
 
-    capabilities = {}
+    # Like Cosmos: one frame per view to start, then four.
+    capabilities = {"max_chunk_frames": 4}
 
     def __init__(self):
         self.streams = []
@@ -231,18 +232,14 @@ def _single_frame_processor(endpoint, num_views=1, *, seed=0, image_size=None, *
 
 
 def _open_request(**fields) -> dict:
-    """Return an ``open`` request for one 2 x 3 view, with ``fields`` replacing or adding to its settings."""
-    request = {
-        "op": "open",
-        "num_views": 1,
-        "seeds": [1],
-        "prompt": None,
-        "height": 2,
-        "width": 3,
-        "max_episode_frames": 9,
-        "fps": 30.0,
-    }
-    return {**request, **fields}
+    """Return an ``open`` request for one 2 x 3 view, with ``fields`` replacing or adding to its fields or, for
+    fields the model bridge does not define, to its Cosmos settings."""
+    request = {"op": "open", "num_views": 1, "seeds": [1], "height": 2, "width": 3, "transport": None, "ipc": None}
+    settings = {"prompt": None, "max_episode_frames": 9, "fps": 30.0}
+    for name, value in fields.items():
+        (request if name in request else settings)[name] = value
+    request = {name: value for name, value in request.items() if value is not None}
+    return {**request, "settings": settings}
 
 
 def _receive_packet(metadata, body=b"", *, claimed_body_size=None):
@@ -391,7 +388,8 @@ def test_a_prompt_list_cycles_per_episode_over_one_session(cosmos_service):
     assert len(cosmos_service.resource.streams) == 1
 
 
-def test_prompt_lists_must_hold_text_and_the_service_changes_prompts_only_at_resets(cosmos_service):
+def test_prompt_lists_must_hold_text_and_the_service_passes_settings_to_the_model(cosmos_service):
+    """The model bridge checks no model settings; the model receives them as sent (Cosmos checks its own)."""
     with pytest.raises(ValueError, match="nonempty"):
         CosmosClient(CosmosClientCfg(max_episode_frames=13, prompt=["", "Two"]))
     with pytest.raises(ValueError, match="nonempty"):
@@ -399,11 +397,11 @@ def test_prompt_lists_must_hold_text_and_the_service_changes_prompts_only_at_res
     with protocol.connect(cosmos_service.endpoint, timeout=2) as connection:
         protocol.send_message(connection, _open_request(prompt="A lab."))
         protocol.check_reply(protocol.receive_message(connection)[0])
-        protocol.send_message(
-            connection, {"op": "step", "reset_rows": [], "seeds": [], "prompt": "A kitchen."}, [_controls().numpy()]
-        )
-        reply, _ = protocol.receive_message(connection)
-    assert not reply["ok"] and "only with an episode reset" in reply["error"]
+        step = {"op": "step", "reset_rows": [], "seeds": [], "episode": {"prompt": "A kitchen."}}
+        protocol.send_message(connection, step, [_controls().numpy()])
+        protocol.check_reply(protocol.receive_message(connection)[0])
+    stream = cosmos_service.resource.streams[0]
+    assert stream.settings["prompt"] == "A lab." and stream.episode_prompts == ["A kitchen."]
 
 
 def test_single_frame_sessions_restart_every_view_with_new_seeds_and_per_view_prompts(cosmos_service):
@@ -1000,7 +998,7 @@ def test_transport_keeps_images_on_gpus_that_can_access_each_other(
     transport, device, capabilities, available, service_gpu, peer, expected, monkeypatch, caplog
 ):
     """Auto uses CUDA IPC for a service on this machine and this or a peer GPU; the socket is the fallback."""
-    from isaaclab_cosmos_server import ipc
+    from isaaclab_model_bridge import ipc
 
     monkeypatch.setattr(ipc, "available", lambda: available)
     monkeypatch.setattr(ipc, "gpu_uuid", lambda index: _CAMERA_GPU)
@@ -1027,7 +1025,7 @@ def test_transport_keeps_images_on_gpus_that_can_access_each_other(
 @pytest.mark.parametrize("case", [None, "created", "opened", "unconfirmed"])
 def test_cuda_ipc_channel_releases_the_other_process_buffer_first_and_its_own_only_once_released(monkeypatch, case):
     """Freeing memory another process still has open is undefined in CUDA, so each side releases the other's first."""
-    from isaaclab_cosmos_server import ipc
+    from isaaclab_model_bridge import ipc
 
     acquired, released = [], []
 
@@ -1083,7 +1081,8 @@ def test_cuda_ipc_channel_releases_the_other_process_buffer_first_and_its_own_on
 )
 def test_a_service_rejects_a_camera_gpu_it_cannot_reach_directly(monkeypatch, camera_gpu, peer, message):
     """The service refuses a camera GPU it cannot see or access directly instead of copying through host memory."""
-    from isaaclab_cosmos_server import ipc, service
+    from isaaclab_model_bridge import ipc
+    from isaaclab_model_bridge import server as service
 
     monkeypatch.setattr(ipc, "device_by_uuid", lambda uuid: camera_gpu)
     monkeypatch.setattr(ipc, "can_access_peer", lambda index, peer_index: peer)
@@ -1137,7 +1136,7 @@ def test_a_rejected_open_frees_the_control_buffer_and_a_dropped_one_keeps_it(
     cosmos_service, monkeypatch, dropped, error, message, released
 ):
     """A service that rejects the session holds no buffer; one that stops answering may still read the controls."""
-    from isaaclab_cosmos_server import ipc
+    from isaaclab_model_bridge import ipc
 
     closed = []
 
@@ -1176,7 +1175,7 @@ def test_after_a_failure_the_service_frees_its_output_buffer_only_once_the_camer
     """The camera may have the output buffer open until it handles the error and disconnects. An idle timeout or the
     service's own shutdown ends the connection without that confirmation, so the buffer stays until the service exits.
     """
-    from isaaclab_cosmos_server import service
+    from isaaclab_model_bridge import server as service
 
     released = []
 
@@ -1235,7 +1234,7 @@ def test_after_a_failure_the_service_frees_its_output_buffer_only_once_the_camer
 
 def test_cuda_ipc_handles_keep_all_64_bytes_including_zero_bytes():
     """Driver handles are raw bytes; zero bytes must survive the trip to the other process."""
-    from isaaclab_cosmos_server import ipc
+    from isaaclab_model_bridge import ipc
 
     raw = bytes([7, 0]) + bytes(range(62))
     assert ipc._decode(ipc._encode(raw)) == raw
@@ -1253,7 +1252,7 @@ def test_a_service_without_cuda_ipc_rejects_shared_gpu_sessions(cosmos_service):
 _GPU_SERVICE = r"""
 import sys
 import torch
-from isaaclab_cosmos_server.service import serve
+from isaaclab_model_bridge import serve
 
 DEVICE = torch.device(sys.argv[2])
 
@@ -1269,7 +1268,7 @@ class Stream:
 
 
 class Model:
-    capabilities = {"device": str(DEVICE)}
+    capabilities = {"device": str(DEVICE), "max_chunk_frames": 4}
 
     def warmup(self):
         pass
@@ -1417,7 +1416,7 @@ def test_small_messages_leave_in_one_write_and_tcp_sends_them_without_delay(cosm
 
 def test_a_missing_service_is_reported_with_its_endpoint():
     endpoint = _free_tcp_endpoint()
-    with pytest.raises(ConnectionError, match=f"No Cosmos service at {endpoint}"):
+    with pytest.raises(ConnectionError, match=f"No model service at {endpoint}"):
         protocol.connect(endpoint, timeout=1)
 
 
@@ -1455,13 +1454,13 @@ def test_endpoints_name_an_absolute_unix_socket_or_a_tcp_host_and_port():
             protocol.parse_endpoint(malformed)
     if hasattr(socket, "AF_UNIX"):
         assert protocol.parse_endpoint("unix:///tmp/a.sock") == (socket.AF_UNIX, "/tmp/a.sock")
-        assert f"unix:///tmp/isaaclab-cosmos-{os.getuid()}.sock" == protocol.DEFAULT_ENDPOINT
+        assert f"unix:///tmp/isaaclab-cosmos-{os.getuid()}.sock" == protocol.default_endpoint("cosmos")
         with pytest.raises(ValueError, match="unix:///absolute/path"):
             protocol.parse_endpoint("unix://relative.sock")
         with pytest.raises(ValueError, match="at most 107 bytes"):
             protocol.parse_endpoint("unix:///" + "a" * 120)
     else:
-        assert protocol.DEFAULT_ENDPOINT == "tcp://127.0.0.1:5555"
+        assert protocol.default_endpoint("cosmos") == "tcp://127.0.0.1:5555"
         with pytest.raises(ValueError, match="need Linux"):
             protocol.parse_endpoint("unix:///tmp/a.sock")
 

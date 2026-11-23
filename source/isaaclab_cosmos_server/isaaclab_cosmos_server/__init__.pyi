@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-__all__ = ["CosmosInferenceModel", "serve"]
+__all__ = ["CosmosInferenceModel"]
 
 from .framework import CosmosInferenceModel
-from .service import serve

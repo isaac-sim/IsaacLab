@@ -9,11 +9,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from isaaclab_cosmos_server.protocol import MAX_CHUNK_FRAMES
-
 from isaaclab.utils import configclass
 
 from ..image_transfer import ImageTransferProcessorCfg
+from .cosmos_client_cfg import MAX_CHUNK_FRAMES
 
 if TYPE_CHECKING:
     from .cosmos_client_cfg import CosmosClientCfg

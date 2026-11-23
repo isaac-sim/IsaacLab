@@ -11,9 +11,13 @@ import argparse
 import logging
 import os
 
+from isaaclab_model_bridge import serve
+from isaaclab_model_bridge.protocol import default_endpoint
+
 from isaaclab_cosmos_server.framework import CosmosInferenceModel
-from isaaclab_cosmos_server.protocol import DEFAULT_ENDPOINT
-from isaaclab_cosmos_server.service import serve
+
+DEFAULT_ENDPOINT = default_endpoint("cosmos")
+"""Default Cosmos endpoint; the Isaac Lab camera client uses the same one."""
 
 
 def main(args: list[str] | None = None) -> None:
@@ -52,6 +56,7 @@ def main(args: list[str] | None = None) -> None:
         ),
         options.endpoint,
         warmup=options.warmup,
+        name="Cosmos",
     )
 
 

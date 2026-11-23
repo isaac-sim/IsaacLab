@@ -10,13 +10,21 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING, Any, Literal
 
-from isaaclab_cosmos_server.protocol import DEFAULT_ENDPOINT, DEFAULT_TIMEOUT_S, MAX_CHUNK_FRAMES
+from isaaclab_model_bridge.protocol import DEFAULT_TIMEOUT_S, default_endpoint
 
 from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from .cosmos_client import CosmosClient
+
+DEFAULT_ENDPOINT = default_endpoint("cosmos")
+"""Default endpoint of the Cosmos service, the same as the ``isaaclab-cosmos-server`` command's."""
+
+MAX_CHUNK_FRAMES = 4
+"""Most frames one Cosmos control chunk carries: the model's video tokenizer encodes the first frame alone and then
+four frames per latent frame, so a chunk carries one frame initially and four per update. The service announces the
+same limit as ``max_chunk_frames``."""
 
 
 def episode_frame_budget(env_cfg: Any, update_period: float) -> tuple[int, int, int]:

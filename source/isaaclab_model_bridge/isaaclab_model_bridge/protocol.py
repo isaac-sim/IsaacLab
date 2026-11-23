@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Bounded messages for the optional Cosmos service.
+"""Bounded messages between Isaac Lab and a model served by its own process.
 
 Messages consist of a fixed network-order header, UTF-8 JSON metadata, and contiguous uint8
 THWC arrays. Array descriptors carry their shape and byte count; no executable serialization
@@ -22,25 +22,8 @@ from urllib.parse import urlsplit
 
 import numpy as np
 
-PROTOCOL_VERSION = 4
+PROTOCOL_VERSION = 5
 """Message format version. A client and a service reject each other's messages when their versions differ."""
-CANVAS_ASPECT_RATIOS = {
-    (480, 832): "16,9",
-    (544, 736): "4,3",
-    (640, 640): "1,1",
-    (736, 544): "3,4",
-    (832, 480): "9,16",
-}
-"""Image sizes ``(height, width)`` the Cosmos service accepts, with their aspect-ratio names."""
-MAX_CHUNK_FRAMES = 4
-"""Most frames one control chunk carries. The model's video tokenizer encodes the first frame alone and then this
-many frames per latent frame, so a chunk carries one frame initially and four per update."""
-DEFAULT_ENDPOINT = (
-    f"unix:///tmp/isaaclab-cosmos-{os.getuid()}.sock"
-    if hasattr(socket, "AF_UNIX") and hasattr(os, "getuid")
-    else "tcp://127.0.0.1:5555"
-)
-"""Default service endpoint: a Unix socket only this user can open on Linux, local TCP elsewhere (Windows)."""
 _ENDPOINT_FORMS = "unix:///absolute/path or tcp://host:port"
 _MAX_UNIX_PATH_BYTES = 107
 """Longest Unix socket path [bytes]: Linux ``sun_path`` holds 108 bytes, including the terminating null."""
@@ -49,22 +32,34 @@ SEED_LIMIT = 2**31
 DEFAULT_TIMEOUT_S = 600.0
 """Default wait per network operation [s]. The first generation of a session compiles, which can take minutes."""
 MAX_METADATA_BYTES = 64 * 1024
-"""Largest JSON metadata of one message [bytes]. Prompts are the only long field; a longer message is rejected."""
+"""Largest JSON metadata of one message [bytes]. Model settings such as text prompts are its longest fields; a longer
+message is rejected."""
 MAX_ARRAYS = 16
 """Most image arrays in one message. A step sends one array per view, so the socket transport carries at most
 this many views; larger batches need CUDA IPC, which sends no arrays."""
 MAX_ARRAY_BYTES = 256 * 1024 * 1024
 """Largest image payload of one message [bytes], checked before any buffer is allocated. :data:`MAX_ARRAYS` views
-of :data:`MAX_CHUNK_FRAMES` frames at the largest canvas need 79 MB."""
+of four 832 x 480 frames need 79 MB."""
 _HEADER = struct.Struct("!4sIQ")
 _MAGIC = b"ILCS"
+
+
+def default_endpoint(name: str) -> str:
+    """Return a model's default endpoint: a Unix socket only this user can open on Linux, local TCP elsewhere.
+
+    Args:
+        name: Short model name in the socket path, for example ``"cosmos"``.
+    """
+    if hasattr(socket, "AF_UNIX") and hasattr(os, "getuid"):
+        return f"unix:///tmp/isaaclab-{name}-{os.getuid()}.sock"
+    return "tcp://127.0.0.1:5555"
 
 
 def connect(endpoint: str, timeout: float = DEFAULT_TIMEOUT_S) -> socket.socket:
     """Connect to a ``unix:///path`` or ``tcp://host:port`` service with a finite timeout [s]."""
     family, address = parse_endpoint(endpoint)
     if not math.isfinite(timeout) or timeout <= 0:
-        raise ValueError("Cosmos timeout must be finite and positive.")
+        raise ValueError("The timeout must be finite and positive.")
     try:
         if family == socket.AF_INET:
             connection = socket.create_connection(address, timeout=timeout)
@@ -80,8 +75,8 @@ def connect(endpoint: str, timeout: float = DEFAULT_TIMEOUT_S) -> socket.socket:
         return connection
     except OSError as error:
         raise ConnectionError(
-            f"No Cosmos service at {endpoint} ({error.strerror or error}); start isaaclab-cosmos-server, or pass "
-            "the endpoint it serves."
+            f"No model service at {endpoint} ({error.strerror or error}); start the service, or pass the endpoint "
+            "it serves."
         ) from error
 
 
@@ -107,7 +102,7 @@ def parse_endpoint(endpoint: str) -> tuple[socket.AddressFamily, str | tuple[str
             raise ValueError("Unix socket endpoints need Linux; use tcp://host:port on this platform.")
         if not path.startswith("/") or "\0" in path or len(path.encode()) > _MAX_UNIX_PATH_BYTES:
             raise ValueError(
-                f"Cosmos endpoint must have the form {_ENDPOINT_FORMS}, with a socket path of at most "
+                f"An endpoint must have the form {_ENDPOINT_FORMS}, with a socket path of at most "
                 f"{_MAX_UNIX_PATH_BYTES} bytes."
             )
         return socket.AF_UNIX, path
@@ -115,7 +110,7 @@ def parse_endpoint(endpoint: str) -> tuple[socket.AddressFamily, str | tuple[str
         parts = urlsplit(endpoint)
         host, port = parts.hostname, parts.port
     except (TypeError, ValueError) as exc:
-        raise ValueError(f"Cosmos endpoint must have the form {_ENDPOINT_FORMS}.") from exc
+        raise ValueError(f"An endpoint must have the form {_ENDPOINT_FORMS}.") from exc
     if (
         parts.scheme != "tcp"
         or not host
@@ -127,7 +122,7 @@ def parse_endpoint(endpoint: str) -> tuple[socket.AddressFamily, str | tuple[str
         or parts.query
         or parts.fragment
     ):
-        raise ValueError(f"Cosmos endpoint must have the form {_ENDPOINT_FORMS}.")
+        raise ValueError(f"An endpoint must have the form {_ENDPOINT_FORMS}.")
     return socket.AF_INET, (host, port)
 
 
@@ -136,9 +131,9 @@ def send_message(sock: socket.socket, metadata: dict, arrays: Sequence[np.ndarra
     if not isinstance(metadata, dict) or "arrays" in metadata:
         raise ProtocolError("Message metadata must be a dictionary without an 'arrays' field.")
     if metadata.get("version", PROTOCOL_VERSION) != PROTOCOL_VERSION:
-        raise ProtocolError("Unsupported Cosmos protocol version.")
+        raise ProtocolError("Unsupported model bridge protocol version.")
     if len(arrays) > MAX_ARRAYS:
-        raise ProtocolError("Too many arrays in one Cosmos message.")
+        raise ProtocolError("Too many arrays in one message.")
     descriptors = []
     body_size = 0
     for array in arrays:
@@ -149,18 +144,18 @@ def send_message(sock: socket.socket, metadata: dict, arrays: Sequence[np.ndarra
             or array.shape[-1] != 3
             or any(size <= 0 for size in array.shape)
         ):
-            raise ProtocolError("Cosmos arrays must be nonempty uint8 THWC images with three channels.")
+            raise ProtocolError("Arrays must be nonempty uint8 THWC images with three channels.")
         body_size += array.nbytes
         if body_size > MAX_ARRAY_BYTES:
-            raise ProtocolError("Cosmos array payload exceeds the message size limit.")
+            raise ProtocolError("The array payload exceeds the message size limit.")
         descriptors.append({"shape": list(array.shape), "dtype": "uint8", "nbytes": array.nbytes})
     envelope = {**metadata, "version": PROTOCOL_VERSION, "arrays": descriptors}
     try:
         encoded = json.dumps(envelope, separators=(",", ":"), allow_nan=False).encode("utf-8")
     except (TypeError, ValueError) as exc:
-        raise ProtocolError("Cosmos metadata must be JSON serializable and finite.") from exc
+        raise ProtocolError("Message metadata must be JSON serializable and finite.") from exc
     if not 0 < len(encoded) <= MAX_METADATA_BYTES:
-        raise ProtocolError("Cosmos metadata exceeds the message size limit.")
+        raise ProtocolError("Message metadata exceeds the message size limit.")
     # One write for the header and metadata, so a small message leaves as one piece.
     sock.sendall(_HEADER.pack(_MAGIC, len(encoded), body_size) + encoded)
     for array in arrays:
@@ -171,25 +166,25 @@ def receive_message(sock: socket.socket) -> tuple[dict, list[np.ndarray]]:
     """Receive a bounded message, validating all descriptors before allocating image buffers."""
     magic, metadata_size, body_size = _HEADER.unpack(_receive_exact(sock, _HEADER.size))
     if magic != _MAGIC:
-        raise ProtocolError("Invalid Cosmos protocol header.")
+        raise ProtocolError("Invalid model bridge message header.")
     if not 0 < metadata_size <= MAX_METADATA_BYTES or body_size > MAX_ARRAY_BYTES:
-        raise ProtocolError("Cosmos message exceeds the metadata or array size limit.")
+        raise ProtocolError("The message exceeds the metadata or array size limit.")
     try:
         metadata = json.loads(_receive_exact(sock, metadata_size), parse_constant=_reject_constant)
     except (UnicodeDecodeError, ValueError, RecursionError) as exc:
-        raise ProtocolError("Invalid JSON in Cosmos metadata.") from exc
+        raise ProtocolError("Invalid JSON in message metadata.") from exc
     if not isinstance(metadata, dict) or type(metadata.get("version")) is not int:
-        raise ProtocolError("Cosmos metadata must include an integer protocol version.")
+        raise ProtocolError("Message metadata must include an integer protocol version.")
     if metadata["version"] != PROTOCOL_VERSION:
-        raise ProtocolError("Unsupported Cosmos protocol version.")
+        raise ProtocolError("Unsupported model bridge protocol version.")
     descriptors = metadata.pop("arrays", None)
     if not isinstance(descriptors, list) or len(descriptors) > MAX_ARRAYS:
-        raise ProtocolError("Invalid Cosmos array descriptor list.")
+        raise ProtocolError("Invalid array descriptor list.")
     sizes = []
     shapes = []
     for descriptor in descriptors:
         if not isinstance(descriptor, dict) or set(descriptor) != {"shape", "dtype", "nbytes"}:
-            raise ProtocolError("Invalid Cosmos array descriptor.")
+            raise ProtocolError("Invalid array descriptor.")
         shape = descriptor["shape"]
         size = descriptor["nbytes"]
         if (
@@ -202,11 +197,11 @@ def receive_message(sock: socket.socket) -> tuple[dict, list[np.ndarray]]:
             or size != math.prod(shape)
             or size > MAX_ARRAY_BYTES
         ):
-            raise ProtocolError("Cosmos arrays must be bounded nonempty uint8 THWC images.")
+            raise ProtocolError("Arrays must be bounded nonempty uint8 THWC images.")
         sizes.append(size)
         shapes.append(tuple(shape))
     if sum(sizes) != body_size:
-        raise ProtocolError("Cosmos array descriptors do not match the payload size.")
+        raise ProtocolError("Array descriptors do not match the payload size.")
     arrays = [
         np.frombuffer(_receive_exact(sock, size), dtype=np.uint8).reshape(shape) for size, shape in zip(sizes, shapes)
     ]
@@ -225,16 +220,16 @@ def request(endpoint: str, metadata: dict, timeout: float = DEFAULT_TIMEOUT_S) -
 def check_reply(reply: dict) -> None:
     """Validate a service result, preserving its diagnostic when an operation failed."""
     if type(reply.get("ok")) is not bool:
-        raise ProtocolError("Cosmos reply must include a boolean 'ok' field.")
+        raise ProtocolError("A reply must include a boolean 'ok' field.")
     if not reply["ok"]:
         error = reply.get("error")
         if not isinstance(error, str):
-            raise ProtocolError("Failed Cosmos reply must include an error message.")
-        raise RuntimeError(f"Cosmos service rejected the request: {error}")
+            raise ProtocolError("A failed reply must include an error message.")
+        raise RuntimeError(f"The model service rejected the request: {error}")
 
 
 class ProtocolError(ValueError):
-    """Invalid or oversized Cosmos protocol data."""
+    """Invalid or oversized model bridge message data."""
 
 
 def _receive_exact(sock: socket.socket, size: int) -> bytearray:
@@ -244,7 +239,7 @@ def _receive_exact(sock: socket.socket, size: int) -> bytearray:
     while offset < size:
         count = sock.recv_into(view[offset:])
         if count == 0:
-            raise ConnectionError("Cosmos connection closed before a complete message was received.")
+            raise ConnectionError("The connection closed before a complete message was received.")
         offset += count
     return buffer
 

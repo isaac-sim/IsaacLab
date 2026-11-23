@@ -17,8 +17,7 @@ from contextlib import ExitStack
 from itertools import pairwise
 from typing import TYPE_CHECKING, Any, NamedTuple
 
-from isaaclab_cosmos_server.protocol import (
-    MAX_CHUNK_FRAMES,
+from isaaclab_model_bridge.protocol import (
     SEED_LIMIT,
     ProtocolError,
     check_reply,
@@ -29,6 +28,7 @@ from isaaclab_cosmos_server.protocol import (
     send_message,
 )
 
+from .cosmos_client_cfg import MAX_CHUNK_FRAMES
 from .prompt_files import read_prompt_files
 
 if TYPE_CHECKING:
@@ -385,7 +385,7 @@ class _CosmosStream:
                 # A reset starts the next prompt's episode, unless the ending episode never got past its
                 # first frame, such as the capture taken before the environment's initial reset.
                 episode += 1 if self._episode_frames > 1 else 0
-                message["prompt"] = self._episode_prompt(episode)
+                message["episode"] = {"prompt": self._episode_prompt(episode)}
             if self._socket is None:
                 self._open(control.device, image_shape, message)
             arrays = []
@@ -413,11 +413,11 @@ class _CosmosStream:
         Args:
             device: Device of the controls.
             image_shape: Control image shape ``(height, width, 3)``.
-            step: The first step's message; its ``reset_rows``, ``seeds`` and ``prompt`` are consumed.
+            step: The first step's message; its ``reset_rows``, ``seeds`` and episode ``prompt`` are consumed.
         """
         num_views = len(self._seeds)
         seeds = list(self._seeds)
-        prompt = step.pop("prompt", self._session_prompt())
+        prompt = step.pop("episode", {}).get("prompt", self._session_prompt())
         for row, seed in zip(step["reset_rows"], step["seeds"]):
             seeds[row] = seed
         step.update(reset_rows=(), seeds=())
@@ -426,16 +426,19 @@ class _CosmosStream:
             "op": "open",
             "num_views": num_views,
             "seeds": tuple(seeds),
-            "prompt": prompt,
             "height": image_shape[0],
             "width": image_shape[1],
-            # A single-frame image is a one-frame episode.
-            "max_episode_frames": 1 if self._single_frame else self._cfg.max_episode_frames,
-            "fps": self._cfg.fps,
+            # The service passes the model settings to Cosmos, which checks them.
+            "settings": {
+                "prompt": prompt,
+                # A single-frame image is a one-frame episode.
+                "max_episode_frames": 1 if self._single_frame else self._cfg.max_episode_frames,
+                "fps": self._cfg.fps,
+            },
         }
         self.transport = self._select_transport(device)
         if self.transport == "cuda_ipc":
-            from isaaclab_cosmos_server import ipc
+            from isaaclab_model_bridge import ipc
 
             self._channel = ipc.SharedChannel(device, (num_views, MAX_CHUNK_FRAMES, *image_shape), writes="control")
             # The service opens the controls on this GPU, which it finds by its UUID.
@@ -540,7 +543,7 @@ class _CosmosStream:
                 prompt[(view + episode) % len(prompt)] for view, episode in zip(self._views, self._view_episodes)
             ]
             # The service takes one text for a one-view session, also for one view of a split camera.
-            fields["prompt"] = prompts if len(self._views) > 1 else prompts[0]
+            fields["episode"] = {"prompt": prompts if len(self._views) > 1 else prompts[0]}
         self._view_frames = [count + 1 for count in self._view_frames]
         return fields
 
@@ -571,7 +574,7 @@ class _CosmosStream:
         if device.type != "cuda":
             reason = "the camera images are not on a CUDA device"
         else:
-            from isaaclab_cosmos_server import ipc
+            from isaaclab_model_bridge import ipc
 
             capabilities = self._exchange({"op": "status"})[0].get("capabilities", {})
             if not ipc.available():
