@@ -213,9 +213,9 @@ def test_render_products_author_one_atlas_per_environment_range(camera_spec, max
     )
     products = [prim for prim in stage.Traverse() if prim.GetTypeName() == "RenderProduct"]
     assert [str(prim.GetPath()) for prim in products] == [f"/RenderCamera_0/{name}" for name, *_ in layout]
-    for prim, (_, start, cols, rows) in zip(products, layout, strict=True):
-        # The camera relationship is a placeholder at the first camera of the range.
-        assert prim.GetRelationship("camera").GetTargets() == [Sdf.Path(paths[start])]
+    for prim, (_, _, cols, rows) in zip(products, layout, strict=True):
+        # Every render product starts with the camera of environment zero as a placeholder.
+        assert prim.GetRelationship("camera").GetTargets() == [Sdf.Path(paths[0])]
         # Each tile of the atlas has the 16 x 8 pixels of the camera.
         assert prim.GetAttribute("resolution").Get() == Gf.Vec2i(cols * 16, rows * 8)
         assert prim.GetRelationship("orderedVars").GetTargets() == [Sdf.Path("/RenderCamera_0/Vars/LdrColor")]
