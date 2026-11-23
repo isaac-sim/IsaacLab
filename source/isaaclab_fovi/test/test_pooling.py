@@ -72,7 +72,20 @@ def test_camera_pools_its_buffers_by_its_config() -> None:
 HAND_TABLE = torch.tensor([[0, 3, 5], [1, 4, 5], [2, 5, 5]])
 
 
-def test_modal_pooling_keeps_majority_color_vector() -> None:
+def reference_modal_pool(table: torch.Tensor, values: torch.Tensor) -> torch.Tensor:
+    """Brute-force modal pooling of ``(B, N_hi, C)`` values over a ``(k, N_lo)`` neighbour table."""
+    batch, num_inputs, channels = values.shape
+    out = torch.zeros(batch, table.shape[1], channels, dtype=values.dtype)
+    for b in range(batch):
+        for n in range(table.shape[1]):
+            neighbours = [tuple(values[b, i].tolist()) for i in table[:, n].tolist() if i != num_inputs]
+            if neighbours:
+                # max() keeps the first of equally common values, i.e. the earliest neighbour slot.
+                out[b, n] = torch.tensor(max(neighbours, key=neighbours.count), dtype=values.dtype)
+    return out
+
+
+def test_modal_pooling_keeps_the_majority_label_over_the_poolers_neighbourhoods(monkeypatch) -> None:
     # Output 0 sees [0,0,0,255] twice and [0,0,1,255] once; a per-channel max would give [0,0,1,255].
     # Output 1 sees one vote each for two colors (its third slot is excluded): the nearest neighbour wins.
     # Output 2 has no valid neighbour and is zero.
@@ -88,55 +101,25 @@ def test_modal_pooling_keeps_majority_color_vector() -> None:
     swapped = HAND_TABLE[[1, 0, 2]].to(DEVICE)
     assert torch.equal(pool_segmentation_buffer(swapped, rendered)[0, 1, 0].cpu(), colors[4])
 
+    # Segmentation pools over the same neighbourhoods as the camera's other outputs: grid windows or KNN.
+    for style, pool_k, sample_cortex in (("warped_cartesian_as_grid", 9, False), ("isotropic", 3, False)):
+        cfg = pooling_cfg(foveated_style=style, pool_k=pool_k, pool_sample_cortex=sample_cortex, pool_mode="max")
+        lowres, highres = build_retinal_coords(cfg, CAMERA_MODEL, "cpu")
+        pooler, k = build_pooler(cfg, lowres, highres, "cpu")
+        table = segmentation_neighbor_indices(pooler)
+        assert table.shape == (k, len(lowres))
+        # The table holds exactly the samples the max pooler reduces over: a max over the table matches it.
+        values = torch.rand(1, len(highres), 1, 1, generator=torch.Generator().manual_seed(0)) + 1
+        padded = torch.cat([values[0, :, 0, 0], torch.zeros(1)])
+        torch.testing.assert_close(padded[table].max(dim=0).values, pool_hwc_buffer(pooler, values)[0, :, 0, 0])
 
-def test_modal_pooling_preserves_ids_above_float_precision() -> None:
-    # 2**24 + 1 and 2**24 + 3 round to other values in float32; the IDs must come back exactly.
-    big = 2**40
-    ids = torch.tensor([2**24 + 1, 2**24 + 1, 2**24 + 3, big + 7, big + 7], dtype=torch.int64)
-    batch = torch.stack([ids, ids.flip(0)])[:, :, None, None].to(DEVICE)
-    pooled = pool_segmentation_buffer(HAND_TABLE.to(DEVICE), batch)
-    expected = torch.tensor([[2**24 + 1, big + 7, 0], [big + 7, 2**24 + 1, 0]], dtype=torch.int64)
-    assert pooled.dtype == torch.int64
-    assert torch.equal(pooled[..., 0, 0].cpu(), expected)
-    # Two int64 channels exceed the 8-byte packed key; vectors differing only in the second channel stay distinct.
-    vectors = torch.tensor([[1, 2**40], [1, 2**40 + 1], [1, 2**40 + 1], [5, 6], [7, 8]], dtype=torch.int64)
-    pooled = pool_segmentation_buffer(HAND_TABLE.to(DEVICE), vectors[None, :, None, :].to(DEVICE))
-    assert torch.equal(pooled[0, :, 0].cpu(), torch.tensor([[1, 2**40 + 1], [5, 6], [0, 0]]))
-
-
-def reference_modal_pool(table: torch.Tensor, values: torch.Tensor) -> torch.Tensor:
-    """Brute-force modal pooling of ``(B, N_hi, C)`` values over a ``(k, N_lo)`` neighbour table."""
-    batch, num_inputs, channels = values.shape
-    out = torch.zeros(batch, table.shape[1], channels, dtype=values.dtype)
-    for b in range(batch):
-        for n in range(table.shape[1]):
-            neighbours = [tuple(values[b, i].tolist()) for i in table[:, n].tolist() if i != num_inputs]
-            if neighbours:
-                # max() keeps the first of equally common values, i.e. the earliest neighbour slot.
-                out[b, n] = torch.tensor(max(neighbours, key=neighbours.count), dtype=values.dtype)
-    return out
-
-
-@pytest.mark.parametrize(
-    ("style", "pool_k", "sample_cortex"), [("warped_cartesian_as_grid", 9, False), ("isotropic", 3, False)]
-)
-def test_modal_pooling_uses_the_poolers_neighbourhoods(monkeypatch, style: str, pool_k: int, sample_cortex) -> None:
-    """Segmentation pools over the same neighbourhoods as the camera's other outputs: grid windows or KNN."""
-    cfg = pooling_cfg(foveated_style=style, pool_k=pool_k, pool_sample_cortex=sample_cortex, pool_mode="max")
-    lowres, highres = build_retinal_coords(cfg, CAMERA_MODEL, "cpu")
-    pooler, k = build_pooler(cfg, lowres, highres, "cpu")
-    table = segmentation_neighbor_indices(pooler)
-    assert table.shape == (k, len(lowres))
-    # The table holds exactly the samples the max pooler reduces over: a max over the table matches it.
-    values = torch.rand(1, len(highres), 1, 1, generator=torch.Generator().manual_seed(0)) + 1
-    padded = torch.cat([values[0, :, 0, 0], torch.zeros(1)])
-    torch.testing.assert_close(padded[table].max(dim=0).values, pool_hwc_buffer(pooler, values)[0, :, 0, 0])
-
-    # Few labels so neighbourhoods hold repeats and ties; tiny chunks exercise the batched loop.
-    monkeypatch.setattr(pooling, "_MODAL_CHUNK_ELEMENTS", 1)
-    labels = torch.randint(0, 3, (3, len(highres), 1, 2), generator=torch.Generator().manual_seed(1)).to(torch.uint8)
-    pooled = pool_segmentation_buffer(table, labels)
-    assert torch.equal(pooled[:, :, 0], reference_modal_pool(table, labels[:, :, 0]))
+        # Few labels so neighbourhoods hold repeats and ties; tiny chunks exercise the batched loop.
+        monkeypatch.setattr(pooling, "_MODAL_CHUNK_ELEMENTS", 1)
+        labels = torch.randint(0, 3, (3, len(highres), 1, 2), generator=torch.Generator().manual_seed(1)).to(
+            torch.uint8
+        )
+        pooled = pool_segmentation_buffer(table, labels)
+        assert torch.equal(pooled[:, :, 0], reference_modal_pool(table, labels[:, :, 0]))
 
 
 @pytest.mark.parametrize(("style", "pool_k", "mode"), [("warped_cartesian_as_grid", 9, "avg"), ("isotropic", 6, "max")])

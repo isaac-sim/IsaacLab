@@ -30,13 +30,20 @@ if not _MISSING_MODULES:
     BACKEND = (NewtonCfg(solver_cfg=MJWarpSolverCfg()), OVRTXRendererCfg, FoveatedRTXCamera)
 
 
-def test_foveated_camera_follows_gaze():
-    cases.foveated_camera_follows_gaze(BACKEND)
+@pytest.fixture(scope="module")
+def ground():
+    """One ground scene, which every case below renders in turn."""
+    with cases.ground_scene(BACKEND) as scene:
+        yield scene
 
 
-def test_gaze_stays_relative_to_moved_mounts():
-    cases.gaze_stays_relative_to_moved_mounts(BACKEND)
+def test_foveated_camera_follows_gaze(ground):
+    cases.foveated_camera_follows_gaze(ground)
 
 
-def test_foveated_camera_samples_densest_at_the_fixation():
-    cases.foveated_camera_samples_densest_at_the_fixation(BACKEND)
+def test_gaze_stays_relative_to_moved_mounts(ground):
+    cases.gaze_stays_relative_to_moved_mounts(ground)
+
+
+def test_foveated_camera_samples_densest_at_the_fixation(ground):
+    cases.foveated_camera_samples_densest_at_the_fixation(ground)

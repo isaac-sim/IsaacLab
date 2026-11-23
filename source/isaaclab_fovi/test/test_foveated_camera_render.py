@@ -46,16 +46,20 @@ def backend_cfg(name: str):
     return BACKENDS[name]
 
 
-@pytest.mark.parametrize("backend", BACKENDS)
-def test_foveated_camera_follows_gaze(backend):
-    cases.foveated_camera_follows_gaze(backend_cfg(backend))
+@pytest.fixture(scope="module", params=list(BACKENDS))
+def ground(request):
+    """One ground scene per backend, which every case below renders in turn."""
+    with cases.ground_scene(backend_cfg(request.param)) as scene:
+        yield scene
 
 
-@pytest.mark.parametrize("backend", BACKENDS)
-def test_gaze_stays_relative_to_moved_mounts(backend):
-    cases.gaze_stays_relative_to_moved_mounts(backend_cfg(backend))
+def test_foveated_camera_follows_gaze(ground):
+    cases.foveated_camera_follows_gaze(ground)
 
 
-@pytest.mark.parametrize("backend", BACKENDS)
-def test_foveated_camera_samples_densest_at_the_fixation(backend):
-    cases.foveated_camera_samples_densest_at_the_fixation(backend_cfg(backend))
+def test_gaze_stays_relative_to_moved_mounts(ground):
+    cases.gaze_stays_relative_to_moved_mounts(ground)
+
+
+def test_foveated_camera_samples_densest_at_the_fixation(ground):
+    cases.foveated_camera_samples_densest_at_the_fixation(ground)

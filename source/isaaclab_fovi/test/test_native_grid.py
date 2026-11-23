@@ -149,7 +149,7 @@ def test_textures_match_independent_geometry(coverage: str, rotation: float) -> 
     assert torch.isfinite(inverse).all()
 
 
-def test_upright_grid_masks_and_channel_aliases() -> None:
+def test_upright_grid_masks_aliases_and_graph_capture() -> None:
     coords = make_coords(16)
     # Coordinate channels make rotation/transposition failures observable.
     values = torch.cat((coords.cartesian, torch.ones(len(coords), 2)), -1)[None, :, None]
@@ -164,21 +164,23 @@ def test_upright_grid_masks_and_channel_aliases() -> None:
     assert target["rgba"][0, :, :, 0][8, 4] < target["rgba"][0, :, :, 0][8, 11]
     assert target["rgba"][0, :, :, 1][4, 8] > target["rgba"][0, :, :, 1][11, 8]
     assert (target["rgba"][0][~coords.as_grid(coords.valid_mask)] == 0).all()
-
-
-@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
-def test_published_grid_copy_is_graph_capturable(device: str) -> None:
-    coords = make_coords(16).to(device=device)
-    source = {"value": torch.arange(3 * len(coords) * 4, device=device).to(torch.uint8).reshape(3, len(coords), 1, 4)}
-    target = allocate_outputs(source, *grid_output_shape(coords))
-    indices = grid_sample_indices(coords)
-    copy_grid_outputs(source, target, indices)
-    torch.testing.assert_close(target["value"], coords.as_grid(source["value"][:, :, 0], sample_dim=1), atol=0, rtol=0)
-    torch.cuda.synchronize()
-    graph = torch.cuda.CUDAGraph()
-    with torch.cuda.graph(graph):
+    # The publication copy is graph-capturable on CUDA.
+    for device in test_devices(DeviceScope.DEFAULT_CUDA):
+        coords = make_coords(16).to(device=device)
+        source = {
+            "value": torch.arange(3 * len(coords) * 4, device=device).to(torch.uint8).reshape(3, len(coords), 1, 4)
+        }
+        target = allocate_outputs(source, *grid_output_shape(coords))
+        indices = grid_sample_indices(coords)
         copy_grid_outputs(source, target, indices)
-    source["value"].zero_()
-    graph.replay()
-    torch.cuda.synchronize()
-    assert torch.count_nonzero(target["value"]) == 0
+        torch.testing.assert_close(
+            target["value"], coords.as_grid(source["value"][:, :, 0], sample_dim=1), atol=0, rtol=0
+        )
+        torch.cuda.synchronize()
+        graph = torch.cuda.CUDAGraph()
+        with torch.cuda.graph(graph):
+            copy_grid_outputs(source, target, indices)
+        source["value"].zero_()
+        graph.replay()
+        torch.cuda.synchronize()
+        assert torch.count_nonzero(target["value"]) == 0

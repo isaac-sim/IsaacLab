@@ -49,36 +49,6 @@ def clamp_gaze(gaze: torch.Tensor, limit: float) -> torch.Tensor:
     return gaze * (limit / gaze.norm(dim=-1, keepdim=True).clamp_min(limit))
 
 
-def test_gaze_step_kernel_matches_the_torch_update():
-    generator = torch.Generator().manual_seed(4)
-    count, step, limit, dt, radius = 2048, 0.1, 1.0, 1 / 60, 23.6
-    actions = torch.randn(count, 2, generator=generator) * 1.5
-    gaze = (torch.rand(count, 2, generator=generator) * 2 - 1) * 0.75
-    expected = clamp_gaze(gaze + actions.clamp(-1, 1) * step, limit)
-    expected_velocity = (expected - gaze) / dt
-
-    # The step starts from the camera's stored angles, not from the state it records.
-    state = torch.randn(count, 4, generator=generator)
-    angles = gaze * radius
-    with torch_stream("cpu"):
-        wp.launch(
-            gaze_step_kernel,
-            dim=count,
-            inputs=[
-                wp.from_torch(actions, dtype=wp.vec2f),
-                wp.from_torch(state, dtype=wp.vec4f),
-                wp.from_torch(angles, dtype=wp.vec2f),
-                step,
-                limit,
-                dt,
-                radius,
-            ],
-        )
-    torch.testing.assert_close(state[:, :2], expected, atol=1e-6, rtol=1e-6)
-    torch.testing.assert_close(state[:, 2:], expected_velocity, atol=2e-3, rtol=1e-5)
-    torch.testing.assert_close(angles, expected * radius, atol=1e-5, rtol=1e-6)
-
-
 @pytest.mark.parametrize(("device", "body_id"), [("cpu", None), (DEVICES[-1] if DEVICES else "cpu", 1)])
 def test_teacher_labels_and_diagnostics_match_the_torch_reference(device, body_id):
     # The root case checks fixation from rest through a roll over 90 degrees. The body case exercises clamping
@@ -186,7 +156,8 @@ def test_gaze_config_rejects_bounds_that_divide_by_zero_and_unknown_mounts():
 
 
 def test_process_actions_moves_the_gaze_by_the_supplied_actions():
-    """The term reads whatever actions it is handed: the manager's slice in place, or another tensor."""
+    """The term reads whatever actions it is handed: the manager's slice in place, or another tensor; and its step
+    kernel matches the torch update."""
     num_envs = 4
     angles = ProxyArray(wp.zeros(num_envs, dtype=wp.vec2f, device="cpu"))
     set_angles = []
@@ -222,6 +193,35 @@ def test_process_actions_moves_the_gaze_by_the_supplied_actions():
     angles.torch.copy_(torch.tensor([[10.0, 0.0]]).repeat(num_envs, 1))
     term.process_actions(torch.zeros(num_envs, 2))
     torch.testing.assert_close(term.gaze, torch.tensor([[0.5, 0.0]]).repeat(num_envs, 1))
+
+    # The step kernel against the torch update, over many gazes.
+    generator = torch.Generator().manual_seed(4)
+    count, step, limit, dt, radius = 2048, 0.1, 1.0, 1 / 60, 23.6
+    actions = torch.randn(count, 2, generator=generator) * 1.5
+    gaze = (torch.rand(count, 2, generator=generator) * 2 - 1) * 0.75
+    expected = clamp_gaze(gaze + actions.clamp(-1, 1) * step, limit)
+    expected_velocity = (expected - gaze) / dt
+
+    # The step starts from the camera's stored angles, not from the state it records.
+    state = torch.randn(count, 4, generator=generator)
+    angles = gaze * radius
+    with torch_stream("cpu"):
+        wp.launch(
+            gaze_step_kernel,
+            dim=count,
+            inputs=[
+                wp.from_torch(actions, dtype=wp.vec2f),
+                wp.from_torch(state, dtype=wp.vec4f),
+                wp.from_torch(angles, dtype=wp.vec2f),
+                step,
+                limit,
+                dt,
+                radius,
+            ],
+        )
+    torch.testing.assert_close(state[:, :2], expected, atol=1e-6, rtol=1e-6)
+    torch.testing.assert_close(state[:, 2:], expected_velocity, atol=2e-3, rtol=1e-5)
+    torch.testing.assert_close(angles, expected * radius, atol=1e-5, rtol=1e-6)
 
 
 @pytest.mark.parametrize(("ids", "random_start"), [(None, False), ([3, 0, 7], True)])

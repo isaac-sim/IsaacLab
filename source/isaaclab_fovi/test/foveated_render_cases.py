@@ -8,11 +8,14 @@
 A camera looks down at the ground plane and renders distance. The ground distance along any camera
 ray is known in closed form, so the images check the sampling geometry without reference images.
 
-Each case takes a backend: the physics configuration, the renderer configuration class, and the camera class the
-renderer selects. Import this module after the test has launched its simulation app, if it needs one.
+:func:`ground_scene` builds one scene per backend (the physics configuration, the renderer configuration class, and
+the camera class the renderer selects), which every case renders in turn; each case sets the gaze and mounts it
+needs. Import this module after the test has launched its simulation app, if it needs one.
 """
 
 import math
+from collections.abc import Iterator
+from contextlib import contextmanager
 
 import numpy as np
 import pytest
@@ -112,69 +115,86 @@ def _cell_angles(field: torch.Tensor, fov: float) -> torch.Tensor:
     return torch.stack((-torch.atan2(y, torch.sqrt(x.square() + z.square())), -torch.atan2(x, z)), -1).rad2deg().float()
 
 
-def _render(
-    backend: tuple,
-    gaze: torch.Tensor,
-    moved_mounts: dict[int, tuple] | None = None,
-    later_gaze: torch.Tensor | None = None,
-    **camera_overrides,
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, float]:
-    """Render ground distance for one environment per row of gaze angles (tilt, pan) [deg].
+NUM_ENVS = 3
+"""Environments of the shared scene: the moved-mounts case turns one camera and shifts another."""
 
-    With ``moved_mounts``, each listed environment's camera moves to its (eye, target) after its gaze is set; a target
-    of None moves only its position.
-    With ``later_gaze``, the gaze changes to it after the first frames, and the camera renders one more frame.
 
-    Returns:
-        The distance images [m], shape (num_envs, H, W), the visual-field position of each grid cell, shape
-        (H, W, 2), the angles (tilt, pan) [deg] of each grid cell's ray from the gaze, shape (H, W, 2), and the
-        retina's field of view [deg].
-    """
-    physics_cfg, renderer_cfg, camera_class = backend
-    sim_cfg = SimulationCfg(physics=physics_cfg, device=DEVICE)
-    with build_simulation_context(device=DEVICE, sim_cfg=sim_cfg) as sim:
-        sim._app_control_on_stop_handle = None
-        scene_cfg = _GroundSceneCfg(num_envs=len(gaze), env_spacing=20.0)
-        scene_cfg.camera.renderer_cfg = renderer_cfg()
-        rot = _look_at(CAM_EYE, CAM_TARGET)
-        scene_cfg.camera.offset = FoveatedCameraCfg.OffsetCfg(pos=CAM_EYE, rot=rot, convention="opengl")
-        for name, value in camera_overrides.items():
-            setattr(scene_cfg.camera, name, value)
-        scene = InteractiveScene(scene_cfg)
-        camera: FoveatedCamera = scene["camera"]
-        assert isinstance(camera, camera_class)
-        sim.reset()
-        camera.set_gaze_angles(gaze.to(sim.device))
-        for env, (eye, target) in (moved_mounts or {}).items():
-            position = scene.env_origins[env : env + 1] + torch.tensor([eye], device=sim.device)
-            # Without a target, only the position moves and the mount keeps its orientation.
-            orientation = None if target is None else torch.tensor([_look_at(eye, target)], device=sim.device)
-            camera.set_world_poses(position, orientation, env_ids=[env], convention="opengl")
-        for _ in range(WARMUP_STEPS):
-            sim.step()
-            camera.update(sim.get_physics_dt(), force_recompute=True)
-        if later_gaze is not None:
-            # The first frame rendered after the command must already show the new gaze.
-            camera.set_gaze_angles(later_gaze.to(sim.device))
-            sim.step()
-            camera.update(sim.get_physics_dt(), force_recompute=True)
+class GroundScene:
+    """A ground scene shared by the render cases of one backend: per environment, a camera with an explicit camera model
+    and one derived from the spawned camera's OpenCV model, at the same mount."""
+
+    def __init__(self, sim, scene: InteractiveScene):
+        self.sim = sim
+        self.scene = scene
+        self.calibrated: FoveatedCamera = scene["camera"]
+        self.spawned: FoveatedCamera = scene["spawned"]
+
+    def reset_mounts(self, camera: FoveatedCamera) -> None:
+        """Put every environment's camera back at the shared mount."""
+        positions = self.scene.env_origins + torch.tensor([CAM_EYE], device=self.sim.device)
+        orientations = torch.tensor([_look_at(CAM_EYE, CAM_TARGET)], device=self.sim.device).repeat(NUM_ENVS, 1)
+        camera.set_world_poses(positions, orientations, convention="opengl")
+
+    def move_mount(self, camera: FoveatedCamera, env: int, eye, target) -> None:
+        """Move one environment's camera to ``eye`` looking at ``target``; a target of None moves only its position."""
+        position = self.scene.env_origins[env : env + 1] + torch.tensor([eye], device=self.sim.device)
+        orientation = None if target is None else torch.tensor([_look_at(eye, target)], device=self.sim.device)
+        camera.set_world_poses(position, orientation, env_ids=[env], convention="opengl")
+
+    def render(
+        self, camera: FoveatedCamera, frames: int = WARMUP_STEPS
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, float]:
+        """Render ``frames`` frames and return the camera's ground distance.
+
+        Returns:
+            The distance images [m], shape (num_envs, H, W), the visual-field position of each grid cell, shape
+            (H, W, 2), the angles (tilt, pan) [deg] of each grid cell's ray from the gaze, shape (H, W, 2), and the
+            retina's field of view [deg].
+        """
+        for _ in range(frames):
+            self.sim.step()
+            camera.update(self.sim.get_physics_dt(), force_recompute=True)
         distance = camera.data.output["distance_to_camera"].torch[..., 0].detach().cpu().float().clone()
         coords = camera.sampling_coords
         field = coords.as_grid(coords.cartesian, sample_dim=0).detach().cpu().float().clone()
         return distance, field, _cell_angles(field, coords.fov), float(coords.fov)
 
 
-def foveated_camera_follows_gaze(backend: tuple):
+@contextmanager
+def ground_scene(backend: tuple) -> Iterator[GroundScene]:
+    """Build the ground scene once for ``backend``, so its render cases share it instead of rebuilding it."""
+    physics_cfg, renderer_cfg, camera_class = backend
+    sim_cfg = SimulationCfg(physics=physics_cfg, device=DEVICE)
+    with build_simulation_context(device=DEVICE, sim_cfg=sim_cfg) as sim:
+        sim._app_control_on_stop_handle = None
+        scene_cfg = _GroundSceneCfg(num_envs=NUM_ENVS, env_spacing=20.0)
+        scene_cfg.camera.renderer_cfg = renderer_cfg()
+        rot = _look_at(CAM_EYE, CAM_TARGET)
+        scene_cfg.camera.offset = FoveatedCameraCfg.OffsetCfg(pos=CAM_EYE, rot=rot, convention="opengl")
+        scene_cfg.spawned = scene_cfg.camera.replace(prim_path="{ENV_REGEX_NS}/Spawned", **SPAWNED_CAMERA)
+        scene = InteractiveScene(scene_cfg)
+        for name in ("camera", "spawned"):
+            assert isinstance(scene[name], camera_class)
+        sim.reset()
+        yield GroundScene(sim, scene)
+
+
+def foveated_camera_follows_gaze(ground: GroundScene):
     """The retina's centre sees the ground along the gaze, from the first frame after the gaze changes.
 
-    Both environments render along the optical axis, then one turns 16 degrees to the right, as a gaze action does
+    The environments render along the optical axis, then one turns 16 degrees to the right, as a gaze action does
     every step. The camera is the spawned camera's OpenCV model. The reference is the analytic ground distance along
     each gaze direction.
     """
-    later = torch.tensor([[0.0, 0.0], [0.0, -16.0]])
-    distance, field, _, _ = _render(backend, torch.zeros(2, 2), later_gaze=later, **SPAWNED_CAMERA)
+    camera = ground.spawned
+    camera.set_gaze_angles(torch.zeros(NUM_ENVS, 2, device=ground.sim.device))
+    ground.render(camera)
+    # The first frame rendered after the command must already show the new gaze.
+    later = torch.tensor([[0.0, 0.0], [0.0, -16.0], [0.0, 0.0]])
+    camera.set_gaze_angles(later.to(ground.sim.device))
+    distance, field, _, _ = ground.render(camera, frames=1)
 
-    assert distance.shape == (2, RESOLUTION, RESOLUTION)
+    assert distance.shape == (NUM_ENVS, RESOLUTION, RESOLUTION)
     assert torch.isfinite(distance).all()
 
     # The grid cell closest to the centre of the visual field.
@@ -197,16 +217,18 @@ def foveated_camera_follows_gaze(backend: tuple):
     assert (distance[1] == 0).sum() > (distance[0] == 0).sum()
 
 
-def gaze_stays_relative_to_moved_mounts(backend: tuple):
+def gaze_stays_relative_to_moved_mounts(ground: GroundScene):
     """Moving a camera keeps its gaze relative to the new mount; moving only its position keeps its orientation, so the
     gaze is not applied a second time; and the camera that did not move is left alone."""
-    gaze = torch.tensor([[0.0, -10.0]]).repeat(3, 1)
+    camera = ground.calibrated
+    ground.reset_mounts(camera)
+    camera.set_gaze_angles(torch.tensor([[0.0, -10.0]], device=ground.sim.device).repeat(NUM_ENVS, 1))
     turned_eye, turned_target = (0.3, -0.4, 3.2), (2.0, 0.3, 0.0)
     shifted_eye = (0.4, -0.3, 3.0)
     shifted_target = tuple(e + t - c for e, t, c in zip(shifted_eye, CAM_TARGET, CAM_EYE))
-    distance, field, _, _ = _render(
-        backend, gaze, moved_mounts={1: (turned_eye, turned_target), 2: (shifted_eye, None)}
-    )
+    ground.move_mount(camera, 1, turned_eye, turned_target)
+    ground.move_mount(camera, 2, shifted_eye, None)
+    distance, field, _, _ = ground.render(camera)
 
     row, column = np.unravel_index(int(field.norm(dim=-1).argmin()), field.shape[:2])
     for env, (eye, target) in enumerate(
@@ -234,13 +256,16 @@ def _relative_errors(distance: torch.Tensor, angles: torch.Tensor) -> tuple[torc
     return ((distance - expected).abs() / expected)[seen], eccentricity[seen]
 
 
-def foveated_camera_samples_densest_at_the_fixation(backend: tuple):
+def foveated_camera_samples_densest_at_the_fixation(ground: GroundScene):
     """Samples are densest at the fixation and each renders along its own ray.
 
     The rendered distances match the ground along each sample's ray well off the centre, and not along the rays of an
     even grid with the same resolution and field of view, so a renderer that traced an even grid instead fails.
     """
-    distance, field, angles, fov = _render(backend, torch.zeros(1, 2))
+    camera = ground.calibrated
+    ground.reset_mounts(camera)
+    camera.set_gaze_angles(torch.zeros(NUM_ENVS, 2, device=ground.sim.device))
+    distance, field, angles, fov = ground.render(camera)
     steps = field[RESOLUTION // 2, :, 0].diff()
     assert float(steps[len(steps) // 2] / steps[-1]) < 0.2
 
