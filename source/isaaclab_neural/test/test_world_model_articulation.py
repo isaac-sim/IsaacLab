@@ -200,6 +200,8 @@ def test_what_needs_a_simulated_body_raises(world):
         robot.data.root_link_pose_w
     with pytest.raises(NotImplementedError, match="world-model backend"):
         robot.write_root_pose_to_sim_index(root_pose=torch.zeros(N, 7))
+    with pytest.raises(NotImplementedError, match="world-model backend"):
+        robot.is_fixed_base
 
 
 def test_a_termination_at_chunk_boundary_fires_only_when_a_chunk_completes(world):
