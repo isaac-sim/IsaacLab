@@ -26,15 +26,13 @@ _CALLABLE_STR_WITH_DIR_RE = re.compile(r"^\{DIR\}(?:\.[A-Za-z_][A-Za-z0-9_]*)*:[
 _CONFIGCLASS_METHODS = ["to_dict", "from_dict", "replace", "copy", "validate"]
 """List of class methods added at runtime to dataclass."""
 
-_T = TypeVar("_T")
-
 """
 Wrapper around dataclass.
 """
 
 
 @dataclass_transform(field_specifiers=(field, Field))
-def configclass(cls: type[_T], **kwargs: Any) -> type[_T]:
+def configclass(cls: type[_ConfigT], **kwargs: Any) -> type[_ConfigT]:
     """Wrapper around `dataclass` functionality to add extra checks and utilities.
 
     As of Python 3.7, the standard dataclasses have two main issues which makes them non-generic for
