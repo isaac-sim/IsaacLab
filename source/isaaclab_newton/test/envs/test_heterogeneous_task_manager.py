@@ -189,8 +189,9 @@ def test_environments_run_their_tasks(env: ManagerBasedRLEnv):
         env.scene["object_0"].data.root_pos_w.torch[:, 2], torch.full((4,), 0.05, device=env.device)
     )
 
-    # cube_left shares the cube task's candidate, the first of the second slot, and places the cube at its own pose.
-    env.task_manager.set_task([0], [2])
+    # cube_left shares the cube task's candidate, the first of the second slot, and places the cube at its own pose;
+    # the task ids may be tensors of any integer dtype.
+    env.task_manager.set_task(torch.tensor([0], dtype=torch.int32), torch.tensor([2], dtype=torch.int32))
     env.reset()
     assert env.task_manager.candidate_ids("object_1")[:2].tolist() == [0, 1]
     cube = env.scene["object_1"]
