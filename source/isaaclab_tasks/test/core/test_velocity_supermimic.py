@@ -98,7 +98,9 @@ def test_g1_differentiable_velocity_matches_simulation_and_managers(task_name):
     import gymnasium as gym
 
     from isaaclab.app import launch_simulation
+    from isaaclab.utils.math import matrix_from_quat, quat_apply
 
+    from isaaclab_tasks.core.motion_tracking.supermimic import ArticulationKinematics
     from isaaclab_tasks.core.velocity.config.g1.supermimic import G1VelocityTask
 
     cfg, _ = resolve_task_config(
@@ -122,6 +124,17 @@ def test_g1_differentiable_velocity_matches_simulation_and_managers(task_name):
             assert num_scan == (187 if task_name == "Isaac-Velocity-Rough-G1" else 0)
             phase = torch.linspace(0, 2 * torch.pi, num_envs * task.num_actions, device=task.device)
             phase = phase.reshape(num_envs, -1)
+            arms = ArticulationKinematics(
+                owner, "robot", task.device, body_names=["left_elbow_roll_link", "right_elbow_roll_link"]
+            )
+
+            def arm_rotations(state):
+                """Return the world orientations and angular velocities of the left and right elbow roll links."""
+                _, ang, orientation, position, q, dq = state[:6]
+                world_ang = quat_apply(orientation, ang)
+                _, quat, _, ang = arms.forward((position, orientation, torch.zeros_like(position), world_ang, q, dq))
+                return quat, ang
+
             scan_errors = []
             for step in range(32):
                 state = task.representation.unflatten(obs["state"].clone())
@@ -144,6 +157,16 @@ def test_g1_differentiable_velocity_matches_simulation_and_managers(task_name):
                     ):
                         torch.testing.assert_close(mirror(mirror(value)), value)
                     reflected = task.representation.unflatten(task.mirror_state(obs["state"]))
+                    # Reflected elbow roll links take the reflected rotation and angular velocity of their counterparts.
+                    arm_quat, arm_ang = arm_rotations(state)
+                    reflected_quat, reflected_ang = arm_rotations(reflected)
+                    torch.testing.assert_close(
+                        matrix_from_quat(reflected_quat),
+                        matrix_from_quat(arm_quat[:, [1, 0]] * task.quat_sign),
+                        atol=1e-4,
+                        rtol=0,
+                    )
+                    torch.testing.assert_close(reflected_ang, arm_ang[:, [1, 0]] * task.axial_sign, atol=1e-4, rtol=0)
                     feet = task._bodies(state)[0][:, : task.num_feet]
                     reflected_feet = task._bodies(reflected)[0][:, : task.num_feet]
                     torch.testing.assert_close(
