@@ -118,6 +118,12 @@ from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 
 _RENDER_VAR_PRIM_NAMES = render_var_prim_names_by_source()
 _RENDER_DELTA_TIME = 1.0 / 60.0
+_FAILED_FRAME_TEXT = "failed to produce a frame"
+_FAILED_FRAME_NOTE = (
+    "A tiled atlas above a renderer buffer limit is one cause of a failed frame."
+    " Set CameraCfg.max_envs_per_render_product to an integer to split a camera sensor"
+    " over several render products with smaller atlases."
+)
 _GPU_CAMERA_TRANSFORMS_ATTRIBUTE = "omni:rtx:scene:hydra:readGPUCameraTransformsFromFabricInRenderDelegate"
 _LDR_COLOR_VAR = "LdrColor"
 # TODO: Remove with the below-the-scene hiding workaround in OVRTXRenderer.set_environment_visibility.
@@ -805,7 +811,12 @@ class OVRTXRenderer(BaseRenderer):
             if capture is None:
                 render_data.ready = None
                 return
-            self._process_render_products((render_data,), operation.wait().fetch())
+            try:
+                result = operation.wait().fetch()
+            except Exception as error:
+                self._note_failed_frame(error)
+                raise
+            self._process_render_products((render_data,), result)
             if render_data.ready is render_data.pending:
                 # Retain the native operation, but do not publish this priming image twice.
                 render_data.pending = (operation, None)
@@ -1103,8 +1114,29 @@ class OVRTXRenderer(BaseRenderer):
             try:
                 operation.wait().fetch()
             except Exception as error:
+                self._note_failed_frame(error)
                 errors.append(error)
         return errors
+
+    def _note_failed_frame(self, error: Exception) -> None:
+        """Add a note about render product splits to an error about a failed frame.
+
+        The renderer error about a failed frame does not name the camera setting that can fix a tiled atlas above a
+        buffer limit. The note names it and lists the camera sensors of this renderer with several environments in one
+        render product. Other errors and errors that already have the note do not change.
+        """
+        notes = getattr(error, "__notes__", ())
+        if _FAILED_FRAME_TEXT not in str(error) or any(note.startswith(_FAILED_FRAME_NOTE) for note in notes):
+            return
+        cameras = [
+            f"{data.camera_paths[0]!r} ({data.num_envs} environments)"
+            for data in self._camera_render_data
+            if len(data.products) == 1 and data.num_envs > 1
+        ]
+        note = _FAILED_FRAME_NOTE
+        if cameras:
+            note += f" Camera sensors with several environments in one render product: {', '.join(cameras)}."
+        error.add_note(note)
 
     def reset(self, render_data: OVRTXCameraRenderData, env_ids: Sequence[int] | None = None) -> None:
         """Retire pre-reset frames. The next capture primes every tiled render product of this sensor.
@@ -1410,6 +1442,9 @@ class OVRTXRenderer(BaseRenderer):
             else:
                 result = self.backend.renderer.step(render_products=products, delta_time=_RENDER_DELTA_TIME)
                 self._process_render_products(render_data, result)
+        except Exception as error:
+            self._note_failed_frame(error)
+            raise
         finally:
             if material_writer is not None:
                 # When another exception is already propagating, log the drain failure instead of
@@ -1425,9 +1460,13 @@ class OVRTXRenderer(BaseRenderer):
         if self._use_ovstage:
             # Stage writes and material reads finish before rendering. Consume only after advancing
             # the ordinal so a failed readback cannot leave later writes at the sealed floor.
-            result = self.backend.renderer.step(
-                render_products=products, delta_time=_RENDER_DELTA_TIME, ordinal=ordinal
-            )
+            try:
+                result = self.backend.renderer.step(
+                    render_products=products, delta_time=_RENDER_DELTA_TIME, ordinal=ordinal
+                )
+            except Exception as error:
+                self._note_failed_frame(error)
+                raise
             self._process_render_products(render_data, result)
 
     def cleanup(self, render_data: OVRTXCameraRenderData | None) -> None:

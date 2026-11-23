@@ -428,6 +428,51 @@ def test_ovrtx_render_batch_empty_sequence_does_not_require_initialized_backend(
     renderer.render_batch([])
 
 
+@pytest.mark.parametrize("mode", ["sync", "ovstage", "async"])
+@pytest.mark.parametrize("failed_frame", [True, False], ids=["failed-frame", "other-error"])
+def test_ovrtx_failed_frame_error_names_the_render_product_split(mode, failed_frame):
+    """A failed frame gets one note about the render product split. Other step errors stay unchanged."""
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._initialized_scene = True
+    renderer._visual_material_writer_ref = None
+    renderer._use_ovstage = mode == "ovstage"
+    renderer.cfg.async_rendering = mode == "async"
+    renderer.scene.ordinal = 1
+    renderer.scene.stage = types.SimpleNamespace(advance_write_floor=lambda *, ordinal: MagicMock())
+    unsplit = _make_ovrtx_camera_render_data()
+    cfg = _make_camera_cfg(["rgb"])
+    cfg.max_envs_per_render_product = 1
+    wrist_paths = [f"/World/envs/env_{i}/Wrist" for i in range(2)]
+    split = OVRTXCameraRenderData(CameraRenderSpec(cfg, "cpu", 2, tuple(wrist_paths), 2), "RenderCamera_1", wrist_paths)
+    renderer._camera_render_data = [unsplit, split]
+    for camera in renderer._camera_render_data:
+        renderer.backend.render_products.update(camera.render_product_paths)
+    reason = "The renderer failed to produce a frame (render_products='...')." if failed_frame else "device lost"
+    error = RuntimeError(f"Operation 'step' failed:\n  {reason}")
+    operation = MagicMock()
+    operation.wait.side_effect = error
+    renderer.backend.renderer = types.SimpleNamespace(
+        step=MagicMock(side_effect=error), step_async=lambda **kwargs: operation
+    )
+
+    # Under asynchronous rendering, the step failure surfaces when read_output waits for the frame.
+    with pytest.raises(RuntimeError) as raised:
+        renderer.render(unsplit)
+        renderer.read_output(unsplit)
+    assert raised.value is error
+    if mode == "async":
+        # The drain gets the same error object again. The note must not repeat.
+        assert renderer.drain_pending_renders() == [error]
+    notes = getattr(error, "__notes__", [])
+    if failed_frame:
+        assert len(notes) == 1
+        assert "CameraCfg.max_envs_per_render_product" in notes[0]
+        assert "'/World/envs/env_0/Camera' (2 environments)" in notes[0]
+        assert "Wrist" not in notes[0]
+    else:
+        assert notes == []
+
+
 @pytest.mark.integration
 @pytest.mark.rendering
 @pytest.mark.parametrize(
