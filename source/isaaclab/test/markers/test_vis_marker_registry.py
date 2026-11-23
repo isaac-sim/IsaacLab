@@ -66,3 +66,17 @@ def test_dispatch_drops_callbacks_whose_owner_was_collected():
     # the stale entry is gone, so later dispatches keep working
     registry.dispatch_callbacks()
     assert live.calls == 2
+
+
+def test_consumer_retirement_preserves_other_marker_consumers():
+    """Closing one independent renderer must not disable another renderer's marker state."""
+    registry = VisMarkerRegistry()
+    assert not registry.has_consumers
+    first = registry.register_consumer()
+    second = registry.register_consumer()
+    registry.unregister_consumer(first)
+    assert registry.has_consumers
+    registry.unregister_consumer(first)
+    assert registry.has_consumers
+    registry.unregister_consumer(second)
+    assert not registry.has_consumers

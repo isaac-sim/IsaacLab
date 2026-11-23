@@ -60,6 +60,10 @@ class XrCfg:
     :func:`~isaaclab_teleop.create_isaac_teleop_device` expands ``{ENV_REGEX_NS}`` when
     given an ``env_prim_path``; direct device construction requires a concrete path.
 
+    Kit sessions use XRCore to follow the reference. Application-owned OVXR presentation
+    uses committed physics references for the same rotation and height policies. Input cannot
+    consume an unseeded or failed publication epoch; no static pose is substituted.
+
     If None, the anchor will use the static :attr:`anchor_pos` and :attr:`anchor_rot` values.
     """
 
@@ -79,8 +83,9 @@ class XrCfg:
     anchor_rotation_smoothing_time: float = 1.0
     """Time constant [s] for rotation smoothing in FOLLOW_PRIM_SMOOTHED mode.
 
-    Smoothing uses :meth:`isaaclab.sim.SimulationContext.get_rendering_dt`, which returns
-    the configured rendering timestep or a visualizer override. The interpolation factor is
+    Kit smoothing uses :meth:`isaaclab.sim.SimulationContext.get_rendering_dt`, which returns
+    the configured rendering timestep or a visualizer override. OVXR uses elapsed XR-frame time.
+    The interpolation factor is
     clamped to [0.05, 1.0] per update.
     Smaller values (e.g., 0.1) result in faster/snappier response but less smoothing.
     Larger values (e.g., 0.75–2.0) result in slower/smoother response but more lag.
@@ -114,11 +119,19 @@ class XrCfg:
     If True, the anchor height will be fixed to the initial height of the anchor prim.
     """
 
+    excluded_visual_meshes: list[str] = []
+    """Mesh-path regexes hidden from the OVXR render, including the eye cameras and camera panels.
+
+    Only matching visual meshes in the single-environment render export become
+    invisible; the source scene is unchanged. Collisions and link/camera
+    transforms must not be matched.
+    """
+
 
 from typing import Any
 
 
-def remove_camera_configs(env_cfg: Any) -> Any:
+def remove_camera_configs(env_cfg: Any, *, keep: tuple[str, ...] = ()) -> Any:
     """Removes cameras from environments when using XR devices.
 
     Having additional cameras cause operation performance issues. This function scans the environment
@@ -127,6 +140,9 @@ def remove_camera_configs(env_cfg: Any) -> Any:
 
     Args:
         env_cfg: The environment configuration to modify.
+        keep: Camera attribute names to retain for the OVXR renderer.
+            Observation terms are removed for retained cameras as well, so the
+            application loop never requests a second camera render.
 
     Returns:
         The modified environment configuration with cameras removed.
@@ -143,8 +159,9 @@ def remove_camera_configs(env_cfg: Any) -> Any:
     for attr_name in dir(env_cfg.scene):
         attr = getattr(env_cfg.scene, attr_name)
         if isinstance(attr, CameraCfg):
-            delattr(env_cfg.scene, attr_name)
-            logger.info(f"Removed camera config: {attr_name}")
+            if attr_name not in keep:
+                delattr(env_cfg.scene, attr_name)
+                logger.info(f"Removed camera config: {attr_name}")
 
             # Remove any ObsTerms for the camera
             if hasattr(env_cfg.observations, "policy"):

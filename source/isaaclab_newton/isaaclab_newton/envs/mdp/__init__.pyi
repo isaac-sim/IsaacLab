@@ -14,6 +14,9 @@ __all__ = [
     "NewtonOperationalSpaceControllerAction",
     "NewtonOperationalSpaceControllerActionCfg",
     "randomize_visual_shape",
+    "solver_fault",
+    "zero_reward_on_solver_fault",
+    "zero_final_obs_on_solver_fault",
 ]
 
 from .actions import (
@@ -29,4 +32,7 @@ from .events import (
     randomize_rigid_body_collider_offsets,
     randomize_rigid_body_material,
     randomize_visual_shape,
+    zero_final_obs_on_solver_fault,
 )
+from .rewards import zero_reward_on_solver_fault
+from .terminations import solver_fault

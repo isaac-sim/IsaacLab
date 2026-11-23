@@ -220,7 +220,7 @@ rollout:
   pipeline_stage_num: 1
 
   model:
-    model_path: "/mnt/ckpt/g1_install_trocar_sim_box_v3_60_train_bs32_1_gpus_cos_30k_tune_visual/"
+    model_path: ".pretrained_checkpoints/rlinf/Assemble_Trocar"
     precision: ${actor.model.precision}
     obs_converter_type: ${env.train.isaaclab.obs_converter_type}
     embodiment_tag: ${env.train.isaaclab.embodiment_tag}
@@ -242,7 +242,7 @@ actor:
 
   model:
     model_type: "gr00t"
-    model_path: "/mnt/ckpt/g1_install_trocar_sim_box_v3_60_train_bs32_1_gpus_cos_30k_tune_visual/"
+    model_path: ".pretrained_checkpoints/rlinf/Assemble_Trocar"
     precision: "bf16"
     trust_remote_code: True
     is_lora: false

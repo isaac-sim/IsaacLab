@@ -21,6 +21,7 @@ import warp as wp
 
 from ..utils import validate
 from ..utils.backend_utils import FactoryBase
+from ..utils.images import resolve_display_channels
 from .image_view import ImageView
 from .key_event_source import KeyEventSource
 from .visualizer_cfg import (
@@ -122,19 +123,25 @@ class BaseVisualizer(ABC):
                 pool = self._env_ids if self._env_ids is not None else range(num_envs)
                 num_tiles = min(int(self.cfg.streaming_envs), _VISUALIZER_MAX_TILES, len(pool))
                 env_ids = sorted(random.sample(pool, num_tiles))
+        automatic_sources = self.cfg.cameras is None and self.cfg.streaming_sensor_prim_path is None
+        rtx_path = getattr(self.cfg.backend, "rtx_camera_path", None)
         for camera in cameras:
             if isinstance(camera, PerspectiveCameraCfg):
-                if self.cfg.backend.visualizer_type not in ("newton_gl", "newton_rtx"):
+                if self.cfg.backend.visualizer_type != "newton":
                     continue
                 view = sim.get_or_create_backend(ImageViewCfg(source=camera))
             else:
+                channels = tuple(self.cfg.streaming_gt_types)
+                # Explicitly named sensors must provide what was requested; the window's own RTX camera is RGB only.
+                if automatic_sources or camera.cfg.prim_path == rtx_path:
+                    channels = resolve_display_channels(channels, camera.cfg.data_types)
                 view_cfg = ImageViewCfg(
                     source=camera.cfg.prim_path, envs=(0,) if camera.num_instances == 1 else tuple(map(int, env_ids)),
-                    channels=tuple(self.cfg.streaming_gt_types),
+                    channels=channels,
                     depth_range=(self.cfg.streaming_depth_min, self.cfg.streaming_depth_max),
                 )  # fmt: skip
                 view = sim.get_or_create_backend(view_cfg, camera=camera)
-            if self.cfg.backend.visualizer_type in ("newton_gl", "newton_rtx", "kit"):
+            if self.cfg.backend.visualizer_type in ("newton", "kit"):
                 view.aspect = self.cfg.window.size[0] / self.cfg.window.size[1]
             self._image_views.append(view)
         self.current_image_view = next((view for view in self._image_views if view.camera is not None), None)
@@ -366,9 +373,9 @@ class BaseVisualizer(ABC):
         """
         pass
 
-    def _focal_length_to_vertical_fov_degrees(self) -> float:
-        """Convert cfg focal length to vertical FOV using USD's default aperture."""
-        focal_length = float(self.cfg.focal_length)
+    def _focal_length_to_vertical_fov_degrees(self, focal_length: float | None = None) -> float:
+        """Convert a focal length, by default the config's, to vertical FOV using USD's default aperture."""
+        focal_length = float(self.cfg.focal_length if focal_length is None else focal_length)
         if focal_length <= 0.0:
             raise ValueError("VisualizerCfg.focal_length must be positive.")
         return math.degrees(2.0 * math.atan(_USD_DEFAULT_VERTICAL_APERTURE_MM / (2.0 * focal_length)))
