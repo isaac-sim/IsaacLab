@@ -3,12 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Draw Newton's line and arrow overlays in the OVRTX view as thin meshes.
+"""Draw Newton's line and arrow calls in the OVRTX view as thin meshes.
 
-Newton's viewer builds its debug overlays (joints, contacts, springs, centers of mass, inertia boxes) from
-:meth:`log_lines` and :meth:`log_arrows` calls that only the OpenGL viewer draws. :class:`OverlayMeshPublisher`
-records those calls and republishes each batch as world-space meshes through
-:meth:`~isaaclab_ov.renderers.OVRTXRenderer.log_mesh`, so the OVRTX view shows the same overlays.
+Newton's viewer builds the drag arrow from :meth:`log_lines` and :meth:`log_arrows` calls that only the OpenGL viewer
+draws. :class:`OverlayMeshPublisher` records those calls and republishes each batch as world-space meshes through
+:meth:`~isaaclab_ov.renderers.OVRTXRenderer.log_mesh`, so the OVRTX view shows the arrow too.
 """
 
 from __future__ import annotations
