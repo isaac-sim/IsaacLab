@@ -35,3 +35,7 @@ class SensorRenderSpec:
     num_instances: int
     prim_paths: tuple[str, ...]
     view_count: int
+
+    def is_lidar(self) -> bool:
+        """Return whether this spec describes a lidar."""
+        return isinstance(self.cfg, LidarCfg)

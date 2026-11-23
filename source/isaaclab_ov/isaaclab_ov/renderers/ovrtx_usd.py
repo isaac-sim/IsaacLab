@@ -140,7 +140,7 @@ def render_var_prim_paths_by_source(render_scope_name: str) -> Mapping[str, str]
     )
 
 
-def build_render_product_as_string(
+def build_camera_render_product_as_string(
     spec: SensorRenderSpec,
     render_data: OVRTXCameraRenderData,
     *,

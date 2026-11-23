@@ -24,7 +24,6 @@ from pxr import Sdf, Usd, UsdGeom, UsdLux
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.renderers.sensor_render_spec import SensorRenderSpec
-from isaaclab.sensors.lidar.lidar_cfg import LidarCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import enable_extension
 from isaaclab.utils.version import get_isaac_sim_version
@@ -258,7 +257,7 @@ class IsaacRtxRenderer(BaseRenderer):
     def create_render_data(self, spec: SensorRenderSpec) -> IsaacRtxRenderData:
         """Create render product and annotators for the tiled camera.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.create_render_data`."""
-        if isinstance(spec.cfg, LidarCfg):
+        if spec.is_lidar():
             raise NotImplementedError(f"{type(self).__name__} does not support lidar capture.")
         import omni.replicator.core as rep
         from omni.syntheticdata import SyntheticData

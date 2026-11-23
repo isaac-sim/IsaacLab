@@ -68,6 +68,7 @@ from pxr import Gf, Sdf, Usd, UsdGeom, UsdLux, UsdShade
 
 from isaaclab.markers.visualization_markers_cfg import VisualizationMarkersCfg
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
+from isaaclab.renderers.sensor_render_spec import SensorRenderSpec
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sensors.camera.camera_data import CameraData
 from isaaclab.sim import PreviewSurfaceCfg, SimulationContext, use_stage
@@ -96,8 +97,8 @@ from isaaclab_ov.renderers.ovrtx_renderer_kernels import (
 from isaaclab_ov.renderers.ovrtx_shader_cache import redirect_shader_cache
 from isaaclab_ov.renderers.ovrtx_usd import (
     _RTX_MINIMAL_MODES,
+    build_camera_render_product_as_string,
     build_lidar_render_product_as_string,
-    build_render_product_as_string,
     render_var_prim_names_by_source,
 )
 from isaaclab_ov.renderers.visual_materials import OVRTXVisualMaterialWriter
@@ -114,9 +115,6 @@ if TYPE_CHECKING:
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
 
     from isaaclab_ov.stage import OvstageBackend
-
-from isaaclab.renderers.sensor_render_spec import SensorRenderSpec
-from isaaclab.sensors.lidar.lidar_cfg import LidarCfg
 
 _RENDER_VAR_PRIM_NAMES = render_var_prim_names_by_source()
 _RENDER_DELTA_TIME = 1.0 / 60.0
@@ -674,8 +672,20 @@ class OVRTXRenderer(BaseRenderer):
 
     def create_render_data(self, spec: SensorRenderSpec) -> OVRTXCameraRenderData | OVRTXLidarRenderData:
         """Register a camera or lidar product and its bindings in the prepared scene."""
-        if isinstance(spec.cfg, LidarCfg):
+        if spec.is_lidar():
             return self._create_lidar_render_data(spec)
+
+        return self._create_camera_render_data(spec)
+
+    def _create_camera_render_data(self, spec: SensorRenderSpec) -> OVRTXCameraRenderData:
+        """Register one tiled camera product and its bindings.
+
+        Args:
+            spec: Camera paths and configuration.
+
+        Returns:
+            The camera's render data. The caller retains it and passes it to :meth:`render`.
+        """
         if str(wp.get_device(spec.device)) != self._device:
             raise ValueError("Cameras sharing an OVRTX renderer must use the simulation device.")
 
@@ -684,7 +694,7 @@ class OVRTXRenderer(BaseRenderer):
         )
         render_data = OVRTXCameraRenderData(spec, f"RenderCamera_{self.scene.next_camera_id}", camera_paths)
         scope, product_path = render_data.render_scope_name, render_data.render_product_path
-        usd = build_render_product_as_string(
+        usd = build_camera_render_product_as_string(
             spec, render_data, device_id=self._warp_device.ordinal, enable_shadows=self.cfg.enable_shadows
         )
         try:

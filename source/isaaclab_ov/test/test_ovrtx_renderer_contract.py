@@ -892,7 +892,7 @@ def test_ovrtx_process_frame_reads_authored_camera_render_vars(monkeypatch, use_
         monkeypatch.setattr(ovrtx_renderer_module.ovstage.population, name, MagicMock())
 
     stages = {}
-    build_render_product = ovrtx_renderer_module.build_render_product_as_string
+    build_render_product = ovrtx_renderer_module.build_camera_render_product_as_string
 
     def capture_render_product(spec, render_data, **kwargs):
         # USD requires a CUDA ordinal even though this test extracts buffers on the CPU.

@@ -20,7 +20,6 @@ import warp as wp
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.renderers.sensor_render_spec import SensorRenderSpec
 from isaaclab.scene_data import REQUIRES_STAGE_AND_MODEL, SceneDataFormat
-from isaaclab.sensors.lidar.lidar_cfg import LidarCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.version import has_kit
 from isaaclab.utils.warp.warp_math import replace_background_depth_wp
@@ -322,7 +321,7 @@ class NewtonWarpRenderer(BaseRenderer):
     def create_render_data(self, spec: SensorRenderSpec) -> RenderData:
         """Create render data for the Newton tiled camera.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.create_render_data`."""
-        if isinstance(spec.cfg, LidarCfg):
+        if spec.is_lidar():
             raise NotImplementedError(f"{type(self).__name__} does not support lidar capture.")
         if spec.cfg.spawn is None or spec.cfg.spawn.distortion is None:
             for path in spec.prim_paths:
