@@ -47,6 +47,7 @@ dependencies = [
     "transformers==5.10.4",
     "einops",
     "warp-lang==1.17.0",
+    "warp-nn>=0.4.1",
     "matplotlib>=3.10.3",
     # pillow: floor, not exact — an exact pin below Isaac Sim's prebundled version forces a
     # downgrade that deletes the prebundled copy other extensions symlink into (nvbugs 6410989).

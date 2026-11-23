@@ -15,6 +15,22 @@ import warp as wp
 from ..utils.warp.index_kernel import IndexKernelDispatcher
 
 
+@wp.func
+def dc_motor_clip(
+    effort: wp.float32,
+    joint_vel: wp.float32,
+    saturation_effort: wp.float32,
+    vel_at_effort_lim: wp.float32,
+    velocity_limit: wp.float32,
+    effort_limit: wp.float32,
+) -> wp.float32:
+    """Clip an effort to the DC motor's torque-speed limits, as ``DCMotor._clip_effort`` does."""
+    vel = wp.min(wp.max(joint_vel, -vel_at_effort_lim), vel_at_effort_lim)
+    max_effort = wp.min(saturation_effort * (1.0 - vel / velocity_limit), effort_limit)
+    min_effort = wp.max(saturation_effort * (-1.0 - vel / velocity_limit), -effort_limit)
+    return wp.min(wp.max(effort, min_effort), max_effort)
+
+
 @wp.kernel(enable_backward=False)
 def write_2d_float_with_indices(
     source: wp.array2d(dtype=wp.float32),

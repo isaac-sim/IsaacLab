@@ -1014,12 +1014,16 @@ def test_write_command_mask_uses_full_sized_value(command_name):
         setter(value=value, env_mask=wp.array([1, 0], dtype=wp.int32, device="cpu"), joint_mask=joint_mask)
 
 
+@pytest.mark.parametrize("host_mask", [False, True], ids=["device_mask", "host_mask"])
 @pytest.mark.parametrize(
     ("device", "delay"),
     [(device, 2) for device in test_devices()] + [pytest.param("cpu", None, id="cpu-default-delay")],
 )
-def test_masked_reset_leaves_unselected_envs_untouched(device, delay):
-    """A mask reset redraws the masked environments' delays without a device sync and keeps the others."""
+def test_masked_reset_leaves_unselected_envs_untouched(device, delay, host_mask):
+    """A mask reset redraws the masked environments' delays and keeps the others: a mask on the collection's device
+    without a device sync, a mask on the host after one copy to the device."""
+    if host_mask and not device.startswith("cuda"):
+        pytest.skip("on the CPU a host mask is on the collection's device")
     control = FakeActuatorControl(num_envs=4, device=device)
     # The default max_delay of None runs without delay.
     cfg = DelayedPDActuatorCfg(
@@ -1034,13 +1038,16 @@ def test_masked_reset_leaves_unselected_envs_untouched(device, delay):
         collection.compute()
     env_mask = torch.tensor([False, True, False, True], device=device)
 
-    if device.startswith("cuda"):
-        torch.cuda.synchronize(device)
-        torch.cuda.set_sync_debug_mode("error")
-    try:
-        collection.reset(env_mask=wp.from_torch(env_mask, dtype=wp.bool))
-    finally:
-        torch.cuda.set_sync_debug_mode("default")
+    if host_mask:
+        collection.reset(env_mask=wp.from_torch(env_mask.cpu(), dtype=wp.bool))
+    else:
+        if device.startswith("cuda"):
+            torch.cuda.synchronize(device)
+            torch.cuda.set_sync_debug_mode("error")
+        try:
+            collection.reset(env_mask=wp.from_torch(env_mask, dtype=wp.bool))
+        finally:
+            torch.cuda.set_sync_debug_mode("default")
 
     for delay_buffer in buffers:
         torch.testing.assert_close(

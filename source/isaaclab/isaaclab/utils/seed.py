@@ -5,14 +5,28 @@
 
 import os
 import random
+import weakref
+from collections.abc import Callable
 
 import numpy as np
 import torch
 import warp as wp
 
+_seed_listeners: list[weakref.WeakMethod] = []
+
+
+def add_seed_listener(listener: Callable[[int], None]) -> None:
+    """Call a bound method with the seed after every :func:`configure_seed`.
+
+    Args:
+        listener: Bound method that reseeds its object's random state. The object is held weakly, so the listener
+            stops when the object is deleted.
+    """
+    _seed_listeners.append(weakref.WeakMethod(listener))
+
 
 def configure_seed(seed: int | None, torch_deterministic: bool = False) -> int:
-    """Set seed across all random number generators (torch, numpy, random, warp).
+    """Set seed across all random number generators (torch, numpy, random, warp) and pass it to the seed listeners.
 
     Args:
         seed: The random seed value. If None, generates a random seed.
@@ -32,6 +46,11 @@ def configure_seed(seed: int | None, torch_deterministic: bool = False) -> int:
     torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
     wp.rand_init(seed)
+    for listener_ref in list(_seed_listeners):
+        if (listener := listener_ref()) is None:
+            _seed_listeners.remove(listener_ref)
+        else:
+            listener(seed)
 
     if torch_deterministic:
         # refer to https://docs.nvidia.com/cuda/cublas/index.html#cublasApi_reproducibility
