@@ -37,7 +37,8 @@ class ActuatorNetMLPCfg(DCMotorCfg):
     damping = None
 
     network_file: str | None = None
-    """TorchScript checkpoint path. Required unless a USD actuator provides one (``use_newton_actuators`` only)."""
+    """Checkpoint path: an ONNX model (``.onnx``), or a TorchScript module exported to ONNX when the actuator loads.
+    Required unless a USD actuator provides one (``use_newton_actuators`` only)."""
 
     pos_scale: float | None = None
     """Scaling of the joint position errors input to the network."""

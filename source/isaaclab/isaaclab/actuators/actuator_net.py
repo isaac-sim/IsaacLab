@@ -14,7 +14,6 @@ Currently, the following models are supported:
 
 from __future__ import annotations
 
-import io
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -24,6 +23,7 @@ from warp_nn.runtime import OnnxRuntime
 
 from ..utils import index_fill_
 from ..utils.assets import read_file
+from ..utils.io import load_onnx_model
 from ..utils.types import ArticulationActions
 from ..utils.warp.memory import make_masked_fill
 from .actuator_pd import DCMotor
@@ -168,7 +168,7 @@ class ActuatorNetMLP(DCMotor):
     This class implements the learned model as a neural network based on the work from
     :cite:t:`hwangbo2019learning`. The class stores the history of the joint positions errors
     and velocities which are used to provide input to the neural network. The model is loaded
-    as a TorchScript.
+    from an ONNX file, or from a TorchScript file exported to ONNX, and runs with Warp-NN.
 
     Note:
         Only the desired joint positions are used as inputs to the network.
@@ -193,22 +193,19 @@ class ActuatorNetMLP(DCMotor):
         # the history samples the network reads; negative indices count back from the oldest sample
         indices = [index % history_length for index in self.cfg.input_idx]
 
-        # load the model from JIT file
-        file_bytes = read_file(self.cfg.network_file)
-        self.network = torch.jit.load(file_bytes, map_location=self._device).eval()
-        # run it with Warp-NN, through an ONNX export in memory, so that a CUDA graph can record the inference
-        model = io.BytesIO()
-        torch.onnx.export(
-            self.network,
+        # load the network as an ONNX model and run it with Warp-NN, so that a CUDA graph can record the inference
+        model = load_onnx_model(
+            self.cfg.network_file,
             (torch.zeros(1, 2 * len(indices), device=self._device),),
-            model,
+            device=self._device,
             input_names=["input"],
             output_names=["torque"],
             dynamic_axes={"input": {0: "batch"}, "torque": {0: "batch"}},
-            dynamo=False,
         )
-        model.seek(0)
-        self._runtime = OnnxRuntime(model, device=self._device)
+        self.network = OnnxRuntime(model, device=self._device)
+        # an ONNX file keeps the input and output names it was exported with
+        self._network_input_name = self.network.inputs[0].name
+        self._network_output_name = self.network.outputs[0].name
 
         # create buffers for MLP history, newest sample first
         history_shape = (self._num_envs, history_length, self.num_joints)
@@ -218,7 +215,7 @@ class ActuatorNetMLP(DCMotor):
         # the network input, one row per (env, joint), and the network outputs it allocates once
         input_shape = (self._num_envs * self.num_joints, 2 * len(indices))
         self._network_input = wp.zeros(input_shape, dtype=wp.float32, device=self._device)
-        self._runtime.prepare({"input": self._network_input})
+        self.network.prepare({self._network_input_name: self._network_input})
 
     """
     Operations.
@@ -257,7 +254,7 @@ class ActuatorNetMLP(DCMotor):
             device=self._device,
         )
         # run network inference
-        torques = wp.to_torch(self._runtime({"input": self._network_input})["torque"])
+        torques = wp.to_torch(self.network({self._network_input_name: self._network_input})[self._network_output_name])
         self.computed_effort = torques.view(self._num_envs, self.num_joints) * self.cfg.torque_scale
 
         # clip the computed effort based on the motor limits

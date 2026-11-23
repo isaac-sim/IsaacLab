@@ -39,9 +39,22 @@ def _feature_torque_mlp(num_features: int) -> torch.nn.Linear:
     return network
 
 
-def _actuator(cfg_class, network: torch.nn.Module, tmp_path, device: str, **cfg):
-    network_file = tmp_path / "network.pt"
-    torch.jit.script(network).save(str(network_file))
+def _actuator(cfg_class, network: torch.nn.Module, tmp_path, device: str, network_format: str = "pt", **cfg):
+    network_file = tmp_path / f"network.{network_format}"
+    if network_format == "onnx":
+        # names other than the ones the actuator exports TorchScript with
+        num_features = network.in_features
+        torch.onnx.export(
+            network,
+            (torch.zeros(1, num_features),),
+            str(network_file),
+            input_names=["obs"],
+            output_names=["act"],
+            dynamic_axes={"obs": {0: "batch"}, "act": {0: "batch"}},
+            dynamo=False,
+        )
+    else:
+        torch.jit.script(network).save(str(network_file))
     cfg = cfg_class(
         joint_names_expr=["joint_.*"],
         network_file=str(network_file),
@@ -138,15 +151,19 @@ def test_mlp_rejects_invalid_history_before_loading_checkpoint(tmp_path):
 
 
 @pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("input_idx,input_order", [([0, 1, 2], "pos_vel"), ([3, 0, -2, 3], "vel_pos")])
-def test_mlp_history_keeps_its_window(tmp_path, device, input_idx, input_order):
-    """Computed torque follows the selected zero-padded history across wraparound and partial resets."""
+@pytest.mark.parametrize(
+    "input_idx,input_order,network_format", [([0, 1, 2], "pos_vel", "pt"), ([3, 0, -2, 3], "vel_pos", "onnx")]
+)
+def test_mlp_history_keeps_its_window(tmp_path, device, input_idx, input_order, network_format):
+    """Computed torque follows the selected zero-padded history across wraparound and partial resets, with a
+    TorchScript or an ONNX network file."""
     network = _feature_torque_mlp(2 * len(input_idx))
     actuator = _actuator(
         ActuatorNetMLPCfg,
         network,
         tmp_path,
         device,
+        network_format,
         input_idx=input_idx,
         pos_scale=-0.3,
         vel_scale=1.25,
