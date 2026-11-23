@@ -7,9 +7,8 @@
 
 from __future__ import annotations
 
-import functools
 from collections.abc import Callable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import torch
 
@@ -29,44 +28,41 @@ def is_chunk_boundary(env: ManagerBasedRLEnv) -> torch.Tensor:
 
 
 def check_chunk_timing(env: ManagerBasedRLEnv) -> None:
-    """Check that environment steps and time-outs fall on chunk boundaries.
+    """Check that environment steps fall on chunk boundaries.
 
     Raises:
-        ValueError: If the decimation does not divide the chunk length, or an episode is not a whole number of chunks.
+        ValueError: If the decimation does not divide the chunk length.
     """
     chunk = env.sim.backend_manager.spec.chunk_length
     decimation = env.cfg.decimation
     if chunk % decimation:
         raise ValueError(f"decimation={decimation} must divide the world model's chunk of {chunk} frames.")
-    if env.max_episode_length * decimation % chunk:
-        raise ValueError(
-            f"An episode of {env.max_episode_length} steps is not a whole number of {chunk // decimation}-step chunks,"
-            " so its time-out would fall inside a chunk; adjust episode_length_s."
-        )
 
 
-def at_chunk_boundary(term: Callable[..., torch.Tensor]) -> Callable[..., torch.Tensor]:
-    """Make a termination function fire only on chunk boundaries.
+def at_chunk_boundary(
+    env: ManagerBasedRLEnv, term: Callable[..., torch.Tensor], term_params: dict[str, Any] | None = None
+) -> torch.Tensor:
+    """Evaluate a termination function and let it fire only on chunk boundaries.
 
-    A termination in the middle of a chunk would reset the environment where it cannot be reset. The wrapped term is
-    judged on the step that completes a chunk and ignored in between: a condition that stays true (a success or a
-    failure state) is caught at the next boundary, at most one chunk late, and one that holds only briefly inside a
-    chunk is missed. Use it on the function of a :class:`~isaaclab.managers.TerminationTermCfg`::
+    A termination in the middle of a chunk would reset the environment where it cannot be reset. The term is judged on
+    the step that completes a chunk and ignored in between: a condition that stays true (a success, a failure or the
+    time limit) is caught at the next boundary, at most one chunk late, and one that holds only briefly inside a chunk
+    is missed. Use it as the function of a :class:`~isaaclab.managers.TerminationTermCfg`, with the condition as a
+    parameter, so the configuration stays serializable::
 
-        done = DoneTerm(func=at_chunk_boundary(my_condition), params={...})
+        done = DoneTerm(func=at_chunk_boundary, params={"term": my_condition, "term_params": {...}})
+        time_out = DoneTerm(func=at_chunk_boundary, params={"term": mdp.time_out}, time_out=True)
 
-    The first call checks the environment's timing with :func:`check_chunk_timing`.
+    With the time-out on boundaries, episodes can have any length, including the random first episode lengths some
+    trainers use (rsl_rl's ``init_at_random_ep_len``): an episode ends at the first boundary after its time limit.
 
     Args:
-        term: A termination function ``term(env, **params)`` returning a boolean tensor of shape ``(num_envs,)``.
+        env: The environment.
+        term: A termination function ``term(env, **term_params)`` returning a boolean tensor of shape ``(num_envs,)``.
+        term_params: Keyword arguments of ``term``, passed as given. Defaults to none.
+
+    Raises:
+        ValueError: If the environment's timing does not fit the chunks, see :func:`check_chunk_timing`.
     """
-    checked = set()
-
-    @functools.wraps(term)
-    def wrapped(env: ManagerBasedRLEnv, *args, **kwargs) -> torch.Tensor:
-        if id(env) not in checked:
-            check_chunk_timing(env)
-            checked.add(id(env))
-        return term(env, *args, **kwargs) & is_chunk_boundary(env)
-
-    return wrapped
+    check_chunk_timing(env)
+    return term(env, **(term_params or {})) & is_chunk_boundary(env)

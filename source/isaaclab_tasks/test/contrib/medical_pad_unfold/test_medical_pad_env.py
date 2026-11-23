@@ -194,7 +194,9 @@ def test_each_environment_resets_at_its_own_next_boundary(make_env):
         done[0] = True
         return done
 
-    env = make_env(streak_frames=10**6, extra_termination=DoneTerm(func=at_chunk_boundary(first_environment)))
+    env = make_env(
+        streak_frames=10**6, extra_termination=DoneTerm(func=at_chunk_boundary, params={"term": first_environment})
+    )
     env.reset()
     action = torch.zeros(N, JOINTS)
     for step in range(1, CHUNK + 1):

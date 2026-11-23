@@ -28,6 +28,7 @@ from isaaclab.sensors import CameraCfg
 from isaaclab.sim.spawners.sensors.sensors_cfg import PinholeCameraCfg
 from isaaclab.utils import configclass
 
+from isaaclab_neural.mdp import at_chunk_boundary
 from isaaclab_neural.models.cosmos3 import Cosmos3Cfg
 from isaaclab_neural.physics import NeuralCfg
 from isaaclab_neural.renderers import NeuralRendererCfg
@@ -157,7 +158,8 @@ class RewardsCfg:
 
 @configclass
 class TerminationsCfg:
-    time_out = DoneTerm(func=time_out, time_out=True)
+    # Ends at the first chunk boundary after the time limit, so random first episode lengths work too.
+    time_out = DoneTerm(func=at_chunk_boundary, params={"term": time_out}, time_out=True)
     # Judged frame by frame inside a chunk and reported when the chunk completes, where environments can reset.
     success = DoneTerm(func=mdp.classifier_success, params={"classifier": CLASSIFIER})
     failure = DoneTerm(func=mdp.classifier_failure, params={"classifier": CLASSIFIER})
@@ -178,6 +180,6 @@ class MedicalPadUnfoldEnvCfg(ManagerBasedRLEnvCfg):
         # One environment step is one frame and one joint target; the model runs once per chunk of frames.
         self.decimation = 1
         self.sim.dt = 1.0 / FPS
-        # 30 chunks, so episodes end on chunk boundaries where the world model can be reset.
+        # 30 chunks.
         self.episode_length_s = 30 * CHUNK / FPS
         self.sim.physics = MedicalPadPhysicsCfg()
