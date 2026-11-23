@@ -959,6 +959,8 @@ class NewtonVisualizerBase(BaseVisualizer):
     _warned_recording_stopped = False
     _rtx_switch: str | None = None
     """``"requested"`` once the HUD asked for RTX and showed the wait message, ``"loading"`` until its first frame."""
+    _hidden_warned: frozenset = frozenset()
+    """Tracking views already reported as framing an environment the window does not draw."""
     _rtx_appearance: RtxAppearance | None = None
 
     # The OpenGL window overrides these; the standalone RTX window has no OpenGL view to switch to.
@@ -1146,7 +1148,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         hover_tooltip(
             imgui, "RTX adds an OVRTX camera, which costs some startup time and a little speed, so it is opt-in"
         )
-        hud_note(imgui, "Launch with --viz newton_rtx to enable the RTX toggle.")
+        hud_note(imgui, "Use --viz newton_rtx to enable RTX.")
 
     def _draw_streaming_view_controls(self, imgui) -> None:
         """Choose one declared display source without reading the other sensors."""
@@ -1529,8 +1531,8 @@ class NewtonVisualizerBase(BaseVisualizer):
         rtx_view = self._image_views[rtx_index] if rtx_index is not None else None
         if view.camera is not None and view is not rtx_view:
             return
-        task = self._is_tracking_view(view)
-        source = view.cfg.source if task else self.cfg
+        follower = self._followers.get(view)
+        source = follower.cfg if follower is not None else self.cfg  # a Tracking Camera edits the follower's copy
         changed, focal = imgui.slider_float("Focal Length", float(source.focal_length), 5.0, 64.0, "%.0f mm")
         hover_tooltip(imgui, "Lens focal length of the camera; smaller values see a wider area")
         if changed:
@@ -1617,6 +1619,7 @@ class NewtonVisualizerBase(BaseVisualizer):
             imgui.text_wrapped(self._tracking_error)
             imgui.pop_style_color()
         if edited:
+            self._apply_view_pose(self._pose_source_view())  # a paused window does not move the camera by itself
             self.current_image_view.invalidate()
             self._last_render_step = -1
 
@@ -1778,8 +1781,17 @@ class NewtonVisualizerBase(BaseVisualizer):
             Whether the view had a pose yet; a view that follows an asset has none until the asset is ready.
         """
         follower = self._followers.get(view)
-        pose = follower and follower.pose(self._sim.get_physics_step_count() * self._sim.get_physics_dt())
-        if pose is None or follower is None:
+        if follower is None:
+            return False
+        try:
+            pose = follower.pose(self._sim.get_physics_step_count() * self._sim.get_physics_dt())
+        except ValueError as exc:  # a body that only turned out to be ambiguous once the asset was initialized
+            asset_name = (follower.cfg.track_path or "").partition("/")[0]
+            self._set_tracking_path(follower, asset_name or None)
+            self._tracking_error = f"{exc} Following the asset's root instead."
+            logger.warning("[NewtonVisualizer] %s", self._tracking_error)
+            return False
+        if pose is None:
             return False
         eye, target = pose
         offsets = self._viewer.world_offsets
@@ -1791,7 +1803,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         camera.pos = PygletVec3(*eye)
         camera.look_at(target)
         self._viewer.set_camera(camera.pos, camera.pitch, camera.yaw)
-        camera.fov = self._focal_length_to_vertical_fov_degrees(view.cfg.source.focal_length)
+        camera.fov = self._focal_length_to_vertical_fov_degrees(follower.cfg.focal_length)
         return True
 
     def _apply_declared_pose(self, source: PerspectiveCameraCfg) -> None:
@@ -1885,6 +1897,21 @@ class NewtonVisualizerBase(BaseVisualizer):
         camera.set_world_poses(positions + translation, quat_mul(orientations, rotation), convention="opengl")
         self.current_image_view.invalidate()
 
+    def _warn_if_hidden(self, view) -> None:
+        """Warn once when a recorded Tracking Camera frames an environment the window does not draw."""
+        follower = self._followers.get(view)
+        if follower is None or view in self._hidden_warned:
+            return
+        visible = getattr(self, "_env_ids", None)
+        if visible is not None and follower.env not in visible:
+            self._hidden_warned = self._hidden_warned | {view}
+            logger.warning(
+                "[NewtonVisualizer] The recorded Tracking Camera frames environment %d, which the window does not "
+                "draw (visible environments %s or 'Show Only This Env'), so the clip shows an empty scene.",
+                follower.env,
+                list(visible),
+            )
+
     def _capture_view(self, view, output: wp.array | None) -> wp.array:
         """Capture a perspective *view*, borrowing the viewer camera when the window shows another one."""
         current = self.current_image_view
@@ -1899,6 +1926,7 @@ class NewtonVisualizerBase(BaseVisualizer):
             self._capturing_another_view = True  # the HUD recording keeps the frames the window itself shows
             self.current_image_view = view
             if self._is_tracking_view(view):  # rendering may be paused, which leaves the camera where it was
+                self._warn_if_hidden(view)
                 self._apply_view_pose(view)
             else:  # a free view renders from its declared pose and optics
                 source = view.cfg.source
@@ -1962,6 +1990,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         self._pending_mesh_submissions.clear()
         self._followers.clear()
         self._tracking_defaults.clear()
+        self._hidden_warned = frozenset()
         self._perspective_pose = None
         self._sensor_tiles.clear()
         if self._rtx_appearance is not None:

@@ -356,7 +356,10 @@ class VisualizerCfg:
             for backend in backends:
                 if backend.visualizer_type != "newton":
                     raise ValueError("VisualizerCfg.view requires the Newton visualizer.")
-            if self.cameras is not None or self.streaming_sensor_prim_path is not None:
+            # tracking cameras only add views, so a task that declares one still accepts an explicit view, which wins
+            if (self.cameras is not None and not self.tracking_cameras_only()) or (
+                self.streaming_sensor_prim_path is not None
+            ):
                 raise ValueError("Choose view or legacy cameras/streaming_sensor_prim_path, not both.")
 
     def tracking_cameras_only(self) -> bool:

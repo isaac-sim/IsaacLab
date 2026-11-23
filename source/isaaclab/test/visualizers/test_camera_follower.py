@@ -254,3 +254,12 @@ def test_without_an_env_index_the_middle_visible_environment_is_followed():
     assert CameraFollower(TrackingCameraCfg(), _Many()).env == 127
     assert CameraFollower(TrackingCameraCfg(), _Many(), env_ids=[3, 10, 40]).env == 10
     assert CameraFollower(TrackingCameraCfg(env_index=5), _Many()).env == 5
+
+
+def test_an_explicit_view_is_accepted_beside_the_tasks_tracking_cameras():
+    from isaaclab.visualizers import ImageViewCfg
+
+    view = ImageViewCfg(source=PerspectiveCameraCfg())
+    VisualizerCfg(view=view, cameras=[TrackingCameraCfg(env_index=0)]).validate_config()
+    with pytest.raises(ValueError, match="not both"):
+        VisualizerCfg(view=view, cameras=[PerspectiveCameraCfg()]).validate_config()
