@@ -469,7 +469,8 @@ html[data-theme="dark"] .environment-browser {
     text-align: left;
 }
 
-.environment-task-card-select > img {
+.environment-task-card-select > img,
+.environment-task-card-select > video {
     display: block;
     width: 100%;
     aspect-ratio: 16 / 10;
