@@ -132,3 +132,54 @@ def test_env_cfg_arm_action_is_pose_and_ordering_matches_pipeline():
         "arm_action",
         "gripper_action",
     ]
+
+
+def test_teleop_reset_restores_nominal_joints_without_changing_task_randomization():
+    """Only calibrated teleop disables joint noise; ordinary IK and joint control retain it."""
+    pytest.importorskip("isaaclab_teleop")
+    from types import SimpleNamespace
+
+    from isaaclab_tasks.contrib.stack.config.so101.stack_ik_abs_env_cfg import SO101CubeStackEnvCfg
+    from isaaclab_tasks.contrib.stack.config.so101.stack_joint_pos_env_cfg import (
+        _SO101_STACK_INIT_JOINT_POS,
+    )
+    from isaaclab_tasks.contrib.stack.config.so101.stack_joint_pos_env_cfg import (
+        SO101CubeStackEnvCfg as JointPositionCfg,
+    )
+
+    cfg = SO101CubeStackEnvCfg()
+    assert cfg.events.randomize_joint_state.params["std"] == 0.02
+    cfg.isaac_teleop.prepare_environment(cfg)
+    assert JointPositionCfg().events.randomize_joint_state.params["std"] == 0.02
+    defaults = torch.tensor([list(_SO101_STACK_INIT_JOINT_POS.values())])
+    written = {}
+
+    class Robot:
+        data = SimpleNamespace(
+            default_joint_pos=SimpleNamespace(torch=defaults),
+            default_joint_vel=SimpleNamespace(torch=torch.zeros_like(defaults)),
+            soft_joint_pos_limits=SimpleNamespace(torch=torch.tensor([[[-10.0, 10.0]] * defaults.shape[1]])),
+        )
+
+        def find_joints(self, names):
+            return [list(_SO101_STACK_INIT_JOINT_POS).index(name) for name in names], names
+
+        def set_joint_position_target_index(self, target, env_ids):
+            written["target"] = target.clone()
+
+        def set_joint_velocity_target_index(self, target, env_ids):
+            written["velocity_target"] = target.clone()
+
+        def write_joint_position_to_sim_index(self, position, env_ids):
+            written["position"] = position.clone()
+
+        def write_joint_velocity_to_sim_index(self, velocity, env_ids):
+            written["velocity"] = velocity.clone()
+
+    env = SimpleNamespace(cfg=cfg, scene={"robot": Robot()})
+    event = cfg.events.randomize_joint_state
+    event.func(env, torch.tensor([0]), **event.params)
+    torch.testing.assert_close(written["position"], defaults)
+    torch.testing.assert_close(written["target"], defaults)
+    torch.testing.assert_close(written["velocity"], torch.zeros_like(defaults))
+    torch.testing.assert_close(written["velocity_target"], torch.zeros_like(defaults))

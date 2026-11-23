@@ -76,7 +76,7 @@ record_checkpoint() {
         --seed 42 \
         --video \
         --video_length "${CAPTURE_STEPS}" \
-        --viz newton_rtx \
+        --viz newton \
         --external_callback capture_reinforcement_learning.configure_playback \
         physics="${PHYSICS_SELECTOR}"
 }

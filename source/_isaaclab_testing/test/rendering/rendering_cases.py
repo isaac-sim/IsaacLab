@@ -225,15 +225,6 @@ GAUSSIAN_KITLESS_CASES = tuple(
             "ovrtx",
             (RenderBufferKind.RGB, RenderBufferKind.RGB_HDR),
             scene="gaussian_splats_valiant_1env",
-            # A warm derived-data cache can hide this failure (XPASS).
-            # https://nvbugspro.nvidia.com/bug/7032910
-            marks=(
-                pytest.mark.xfail(
-                    reason="NVBUG 7032910: OVRTX can return near-black Valiant captures with a cold derived-data cache.",
-                    raises=AssertionError,
-                    strict=False,
-                ),
-            ),
         ),
         RenderCase(
             "newton",
