@@ -58,6 +58,8 @@ def test_compose_tasks_with_dictionary_terminations_and_nested_terms():
     nested = cfg.terminations["a_done"].params["term"].params["term"]
     assert nested.params["asset_cfg"].name == "object_0"
     assert cfg.episode_length_s == 8.0
+    # The equal cubes of the tasks share one candidate.
+    assert len(cfg.scene.object_0.spawn.assets_cfg) == 1
     # The tasks are selected before the environment's own reset events write the default states.
     assert list(cfg.events) == ["select_task", "reset"]
 

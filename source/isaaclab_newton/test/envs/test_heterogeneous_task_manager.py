@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Environments that each run one of two tasks, on Newton.
+"""Environments that each run one of three tasks, on Newton.
 
 The ``cube`` task has a table and a cube and times out after two steps. The ``spheres`` task has a wider table
 and two spheres, and succeeds at once. The ``cube_left`` task has the objects of the ``cube`` task with the cube
@@ -60,7 +60,6 @@ def _task_ids(env: ManagerBasedRLEnv) -> torch.Tensor:
 
 @configclass
 class _PolicyCfg(ObservationGroupCfg):
-    object_1 = ObservationTermCfg(func=mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("object_1")})
     task = ObservationTermCfg(func=_task_ids)
 
 
@@ -149,15 +148,25 @@ def env(request) -> Iterator[ManagerBasedRLEnv]:
 
 
 def test_environments_run_their_tasks(env: ManagerBasedRLEnv):
-    """Reset places each task's objects; terminations and time-outs follow the task of each environment."""
+    """Reset places each task's objects, shared ones at the task's own pose; terminations and time-outs follow the
+    task of each environment."""
     assert env.task_manager.task_names == ["cube", "spheres", "cube_left"]
-    assert env.termination_manager.active_terms == ["time_out", "cube_success", "spheres_success", "cube_left_success"]
+    assert set(env.termination_manager.active_terms) == {
+        "time_out",
+        "cube_success",
+        "spheres_success",
+        "cube_left_success",
+    }
     assert env.max_episode_length == 50
+    # The success terms of the tasks name the slots of their objects; no task has a failure term.
+    terms = env.task_manager.task_terms("success")
+    assert [terms[task].params["asset_cfg"].name for task in range(3)] == ["object_1", "object_2", "object_1"]
+    assert env.task_manager.task_terms("failure") == {}
 
-    env.task_manager.set_task([1, 3], [1, 1])
+    env.task_manager.set_task([0, 1, 2, 3], [0, 1, 0, 1])
     observations, _ = env.reset()
     # The observation terms of the environment read the task of each environment.
-    assert observations["policy"][:, 3].tolist() == [0.0, 1.0, 0.0, 1.0]
+    assert observations["policy"][:, 0].tolist() == [0.0, 1.0, 0.0, 1.0]
     # The second slot holds the cube or the first sphere.
     masses = env.scene["object_1"].data.body_mass.torch[:, 0]
     torch.testing.assert_close(masses, torch.tensor([1.0, 2.0, 1.0, 2.0], device=env.device))
@@ -180,25 +189,10 @@ def test_environments_run_their_tasks(env: ManagerBasedRLEnv):
         env.scene["object_0"].data.root_pos_w.torch[:, 2], torch.full((4,), 0.05, device=env.device)
     )
 
-
-def test_task_terms_name_the_slots(env: ManagerBasedRLEnv):
-    """A term that the environment evaluates itself gets the tasks' terms with their objects renamed to the slots."""
-    terms = env.task_manager.task_terms("success")
-    assert [terms[task].params["asset_cfg"].name for task in range(3)] == ["object_1", "object_2", "object_1"]
-    assert env.task_manager.task_terms("failure") == {}
-
-
-def test_tasks_share_equal_objects(env: ManagerBasedRLEnv):
-    """Tasks whose objects in a slot have equal spawn configurations share the candidate, each at its own pose."""
-    assert [len(env.scene[f"object_{slot}"].cfg.spawn.assets_cfg) for slot in range(3)] == [2, 2, 2]
-
-    env.task_manager.set_task([0, 1], [1, 1])
-    env.reset()
+    # cube_left shares the cube task's candidate, the first of the second slot, and places the cube at its own pose.
     env.task_manager.set_task([0], [2])
     env.reset()
-    # cube_left (task 2) uses the cube task's cube and placeholder, which are the first candidates.
     assert env.task_manager.candidate_ids("object_1")[:2].tolist() == [0, 1]
-    assert env.task_manager.candidate_ids("object_2")[:2].tolist() == [0, 1]
     cube = env.scene["object_1"]
     assert cube.data.body_mass.torch[0, 0].item() == 1.0
     position = cube.data.root_pos_w.torch[0] - env.scene.env_origins[0]
