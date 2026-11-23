@@ -29,8 +29,14 @@ class G1VelocityTask(VelocityTask):
         owner = env.unwrapped
         robot = owner.scene["robot"]
         sensor = owner.scene.sensors[owner.cfg.rewards.feet_air_time.params["sensor_cfg"].name]
-        self.joint_perm, self.joint_sign = (tensor.to(device) for tensor in joint_mirror_map(owner))
-        self.action_perm, self.action_sign = (tensor.to(device) for tensor in action_mirror_map(owner))
+        joint_perm, joint_sign = joint_mirror_map(owner)
+        action_perm, action_sign = action_mirror_map(owner)
+        self.joint_perm, self.action_perm = joint_perm.to(device), action_perm.to(device)
+        # The shared G1 symmetry gives every elbow joint the sign of a pitch joint, but the elbow roll joints rotate
+        # about the forward axis, so their reflection negates them like the other roll joints
+        elbow_roll = torch.tensor(["elbow_roll" in name for name in robot.joint_names], device=device)
+        self.joint_sign = torch.where(elbow_roll, -1.0, joint_sign.to(device))
+        self.action_sign = torch.where(elbow_roll[self.action_joints], -1.0, action_sign.to(device))
         self.body_perm = torch.tensor(body_mirror_permutation(list(robot.body_names)), device=device)
         self.contact_perm = torch.tensor(body_mirror_permutation(list(sensor.body_names)), device=device)
         feet = [sensor.body_names[index] for index in self.sensor_foot_ids]
