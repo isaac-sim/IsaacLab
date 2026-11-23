@@ -25,6 +25,7 @@ from isaaclab_ov.renderers import OVRTXRendererCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.sensors.camera.camera import Camera
+from isaaclab.sensors.camera.camera_isp import CameraISPMode
 from isaaclab.sim import (
     CuboidCfg,
     FisheyeCameraCfg,
@@ -32,6 +33,7 @@ from isaaclab.sim import (
     OpenCvPinholeDistortionCfg,
     PinholeCameraCfg,
 )
+from isaaclab.utils.tensor_processors.tensor_processor_cfg import TensorProcessorCfg
 
 pytestmark = pytest.mark.kitless
 
@@ -137,6 +139,13 @@ def test_config_validates_pooling_and_shell_settings() -> None:
         dict(radius_norm=math.inf, foveated_style="isotropic"),
     ):
         with pytest.raises(ValueError, match="radius_norm"):
+            make_cfg(**kwargs)
+    # Image processors such as PPISP need a pixel image, which a foveated camera does not publish.
+    for kwargs in (
+        dict(tensor_processors=[TensorProcessorCfg(func="isaaclab_ppisp:PpispProcessor")]),
+        dict(isp_cfg=CameraISPMode.AUTO_CAMERA),
+    ):
+        with pytest.raises(ValueError, match="tensor_processors or isp_cfg"):
             make_cfg(**kwargs)
 
 

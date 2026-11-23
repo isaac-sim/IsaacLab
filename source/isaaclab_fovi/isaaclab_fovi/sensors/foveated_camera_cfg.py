@@ -122,3 +122,9 @@ class FoveatedCameraCfg(CameraCfg):
                 f"pool_int_mode must be one of ('modal',), got {self.pool_int_mode!r}: segmentation"
                 " pools by modal label, since other modes would mix labels into ones no object has."
             )
+        # Tensor processors such as PPISP process a pixel image; the camera renders and publishes retinal samples.
+        if self.tensor_processors or self.isp_cfg is not None:
+            raise ValueError(
+                "FoveatedCameraCfg does not support tensor_processors or isp_cfg (for example PPISP): they"
+                " process pixel images, and a foveated camera publishes retinal samples."
+            )

@@ -90,9 +90,8 @@ class FoveatedNewtonCamera(FoveatedCamera):
             tile_height = renderer.tile_rendering_height
             if tile_width <= 0 or tile_height <= 0:
                 raise ValueError("Newton render tile dimensions must be positive.")
-            if self._native_grid:
-                self._validate_native_render_layout(tile_width, tile_height)
-            else:
+            # A native grid renders at its own size: Newton's tiled kernel skips pixels past a partial tile.
+            if not self._native_grid:
                 # Pack consecutive vector rays into complete tiles. Padding is
                 # private renderer storage and never enters masking or pooling.
                 self.cfg.width = tile_width
@@ -159,16 +158,6 @@ class FoveatedNewtonCamera(FoveatedCamera):
         if self._native_grid and self._pooler is None:
             self._prepare_grid_publish(
                 {name: value.torch.squeeze(2) for name, value in self._flat_render_output.items()}
-            )
-
-    def _validate_native_render_layout(self, tile_width: int, tile_height: int) -> None:
-        """Reject a native grid that Newton's tiles cannot cover, before the parent allocates render buffers."""
-        if self.cfg.width % tile_width or self.cfg.height % tile_height:
-            raise ValueError(
-                f"Native-grid Newton render size {self.cfg.width}x{self.cfg.height} "
-                f"must be divisible by renderer tile size {tile_width}x{tile_height}. "
-                "Choose foveated_res and pool_res_mult so the rendered grid satisfies "
-                "these dimensions, or select a non-tiled Newton render_order."
             )
 
     def _update_buffers_impl(self, env_mask: wp.array):
