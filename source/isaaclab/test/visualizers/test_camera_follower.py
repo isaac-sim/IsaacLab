@@ -37,8 +37,11 @@ class _Scene:
             root_quat_w=SimpleNamespace(torch=torch.tensor([[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0, 1.0]])),
         )
         self.robot = SimpleNamespace(is_initialized=ready, data=data)
+        self.articulations, self.rigid_objects = {"robot": self.robot}, {}
 
     def __getitem__(self, name):
+        if name == "contact_forces":  # a scene entry that is not an asset
+            return SimpleNamespace(is_initialized=True)
         return self.robot
 
 
@@ -62,7 +65,7 @@ def test_a_tracked_view_follows_the_asset_and_rotates_with_its_heading():
     scene.robot.data.root_quat_w.torch[1] = torch.tensor(_quat_z(math.pi / 2))
     torch.testing.assert_close(_eye(follower), torch.tensor([10.0, -3.0, 1.5]), atol=1e-5, rtol=0)
     # without heading the offsets stay aligned with the world axes
-    cfg.follow_heading = False
+    follower.cfg.follow_heading = False
     torch.testing.assert_close(_eye(follower), torch.tensor([7.0, 0.0, 1.5]))
 
 
@@ -148,11 +151,11 @@ def test_the_followed_asset_can_be_switched_and_cleared_while_running():
     assert _eye(follower).tolist() == [11.0, 0.0, 0.0]  # Fixed relative to the environment origin.
 
     follower.set_track_path("robot")
-    assert cfg.track_path == "robot"
+    assert follower.cfg.track_path == "robot"
     assert _eye(follower).tolist() == [11.0, 0.0, 0.5]  # Offset from the robot at (10, 0, 0.5).
 
     follower.set_track_path(None)
-    assert cfg.track_path is None
+    assert follower.cfg.track_path is None
     assert _eye(follower).tolist() == [11.0, 0.0, 0.0]
 
 
@@ -165,9 +168,27 @@ def test_an_unknown_asset_or_ambiguous_body_is_rejected_and_keeps_the_current_ta
     with pytest.raises(ValueError, match="exactly one body"):
         follower.set_track_path("robot/no_such_body")
 
-    assert cfg.track_path == "robot"
+    assert follower.cfg.track_path == "robot"
     follower.set_track_path("robot/LF_FOOT")
-    assert cfg.track_path == "robot/LF_FOOT"
+    assert follower.cfg.track_path == "robot/LF_FOOT"
+
+
+def test_the_follower_leaves_the_task_camera_config_untouched():
+    cfg = TrackingCameraCfg(eye=(1.0, 0.0, 0.0), lookat=(0.0, 0.0, 0.0))
+    follower = CameraFollower(cfg, _NamedScene())  # no env_index: the middle environment is picked
+    follower.set_env(1)
+    follower.set_track_path("robot")
+    follower.cfg.eye = (5.0, 5.0, 5.0)  # a user edit in the window
+
+    assert follower.env == 1 and follower.cfg.track_path == "robot"
+    assert cfg.env_index is None and cfg.track_path is None and cfg.eye == (1.0, 0.0, 0.0)
+
+
+def test_only_articulations_and_rigid_objects_can_be_followed():
+    follower = CameraFollower(TrackingCameraCfg(env_index=0), _Scene())
+
+    with pytest.raises(ValueError, match="Only articulations and rigid objects"):
+        follower.set_track_path("contact_forces")
 
 
 def test_the_followable_assets_and_bodies_are_listed():
@@ -200,6 +221,19 @@ def test_a_camera_lagging_more_than_half_a_turn_keeps_turning_the_same_way():
         yaws.append(follower._filtered_yaw([0.0, 0.0, math.sin(raw / 2), math.cos(raw / 2)], [0.0, 0.0, 0.5], 0.1))
     assert all(later >= earlier for earlier, later in zip(yaws, yaws[1:]))
     assert yaws[-1] > yaws[0]
+
+
+def test_a_turn_between_two_widely_spaced_updates_is_not_mistaken_for_a_reset():
+    cfg = TrackingCameraCfg(env_index=0, track_path="robot", follow_heading=True, heading_smoothing_time_constant=1.0)
+    follower = CameraFollower(cfg, _NamedScene())
+    follower._filtered_yaw(_quat_z(0.0), [0.0, 0.0, 0.5], 0.0)
+    # 2 rad in a second, as seen by a view that renders only now and then: smoothed, not snapped
+    smoothed = follower._filtered_yaw(_quat_z(2.0), [0.0, 0.0, 0.5], 1.0)
+    assert 0.0 < smoothed < 2.0
+    # the same turn between two close updates is a reset, so the camera snaps
+    follower.reset()
+    follower._filtered_yaw(_quat_z(0.0), [0.0, 0.0, 0.5], 0.0)
+    assert follower._filtered_yaw(_quat_z(2.0), [0.0, 0.0, 0.5], 0.01) == pytest.approx(2.0)
 
 
 def test_the_heading_filter_starts_afresh_after_a_reset():

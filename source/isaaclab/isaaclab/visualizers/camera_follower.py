@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import copy
 import math
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
@@ -21,9 +22,13 @@ _RESET_JUMP = 1.0
 """Distance [m] an asset moves between two updates only when its environment resets."""
 
 _RESET_YAW_JUMP = 1.5
-"""Heading change [rad] between two updates that a robot only makes when its environment resets.
+"""Heading change [rad] between two close updates that a robot only makes when its environment resets."""
 
-A fixed angle, unlike a rate, does not misfire when two updates are a few milliseconds apart."""
+_MAX_YAW_RATE = 4.0 * math.pi
+"""Turn rate [rad/s] no robot exceeds, which widens the reset threshold for updates far apart in time.
+
+Updates follow the render cadence, so a view rendered only now and then, or with a large render interval, sees the
+robot turn further between two updates without any reset."""
 
 _CATCH_UP_LAG = math.pi / 2
 """Lag [rad] behind the robot heading beyond which the camera heading catches up faster."""
@@ -35,17 +40,20 @@ class CameraFollower:
     A view that only has :attr:`~isaaclab.visualizers.TrackingCameraCfg.env_index` stays fixed relative to that
     environment's origin. A view with :attr:`~isaaclab.visualizers.TrackingCameraCfg.track_path` follows the
     asset's position, and its yaw when ``follow_heading`` is set, with the heading filtered over time.
+
+    The follower works on a copy of the camera config, so the settings it resolves or a user edits (environment, asset,
+    pose, heading) never write back into the task's own config, which other environments may be built from.
     """
 
     def __init__(self, cfg: TrackingCameraCfg, scene: InteractiveScene, env_ids: Sequence[int] | None = None) -> None:
         """Bind *cfg* to *scene*.
 
         Args:
-            cfg: The tracking camera. Its ``env_index`` None selects the middle environment.
+            cfg: The tracking camera, copied. Its ``env_index`` None selects the middle environment.
             scene: The scene to read environment origins and assets from.
             env_ids: The visible environments, or None when all are; the middle one is picked from these.
         """
-        self.cfg = cfg
+        self.cfg = copy.copy(cfg)
         self._scene = scene
         self._env = 0
         self._yaw: float | None = None
@@ -76,18 +84,21 @@ class CameraFollower:
                 string stops following an asset.
 
         Raises:
-            ValueError: If the asset is unknown, or the body does not match exactly one body of an initialized asset.
+            ValueError: If the asset is not an articulation or rigid object of the scene, or the body does not match
+                exactly one body of an initialized asset.
         """
         asset, body_name = None, ""
         if track_path:
             asset_name, _, body_name = track_path.partition("/")
-            try:
-                asset = self._scene[asset_name]
-            except KeyError as exc:
-                raise ValueError(f"track_path refers to an unknown scene asset: {asset_name!r}.") from exc
+            if asset_name not in self.asset_names():
+                raise ValueError(
+                    f"track_path refers to an unknown scene asset: {asset_name!r}. Only articulations and rigid"
+                    " objects can be followed."
+                )
+            asset = self._scene[asset_name]
             if body_name and asset.is_initialized and len(asset.find_bodies(body_name)[0]) != 1:
                 raise ValueError(f"track_path must match exactly one body: {track_path!r}.")
-        self.cfg.track_path = track_path or None
+        self.cfg.track_path = track_path or None  # the copy's
         self._asset, self._body_name, self._body_index = asset, body_name, None
         self._yaw = self._raw_yaw = self._last_position = self._time = None
 
@@ -116,7 +127,7 @@ class CameraFollower:
         if not 0 <= index < self._scene.num_envs:
             raise ValueError(f"env_index {index} is outside the {self._scene.num_envs} environments of the scene.")
         self._env = int(index)
-        self.cfg.env_index = self._env
+        self.cfg.env_index = self._env  # the copy's, so the task's config keeps its own env_index
         self._yaw = self._raw_yaw = self._last_position = self._time = None
 
     def pose(self, time: float) -> tuple[tuple[float, float, float], tuple[float, float, float]] | None:
@@ -176,7 +187,7 @@ class CameraFollower:
         if not reset:
             # an environment can reset in place with a new heading; the raw heading is compared, since the filtered
             # one lags behind a steady turn
-            reset = abs(step) > _RESET_YAW_JUMP
+            reset = abs(step) > max(_RESET_YAW_JUMP, _MAX_YAW_RATE * dt)
         # signed heading changes add up, so the target keeps the direction of the turn
         self._raw_yaw = yaw if reset else self._raw_yaw + step
         tau = self.cfg.heading_smoothing_time_constant

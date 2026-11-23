@@ -1440,13 +1440,17 @@ class NewtonVisualizerBase(BaseVisualizer):
         """Whether only the selected Tracking Camera's environment is drawn."""
         return self._track_env_only and self._followers.get(self._pose_source_view()) is not None
 
+    def _select_visible_env_ids(self) -> list[int] | None:
+        """Return the environments to draw; the base keeps the ones it has."""
+        return getattr(self, "_env_ids", None)
+
     def _sync_tracked_env(self) -> None:
-        """Redraw the visible environments after the Tracking Camera changed environment."""
-        if self._track_env_only:
+        """Redraw the visible environments when the Tracking Camera or its environment changed what they are."""
+        if self._viewer is not None and self._select_visible_env_ids() != getattr(self, "_env_ids", None):
             self._apply_visible_worlds()
 
     def _view_labels(self, indices: list[int] | None = None) -> list[str]:
-        """Name the listed image views: a task view is the Tracking Camera, a free view is the Perspective."""
+        """Name the listed image views: a tracking view is the Tracking Camera, a free view is the Perspective."""
         views = self._image_views if indices is None else [self._image_views[i] for i in indices]
         tracking = [v for v in views if self._is_tracking_view(v)]
         labels = []
@@ -2023,7 +2027,8 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         """Render one GL frame for the window or an on-demand capture."""
         viewer = self._viewer
         appearance = self._rtx_appearance
-        if self._rtx_switch == "requested":  # the previous frame showed the message
+        # the previous window frame showed the message; a capture borrowing the view must not start the switch
+        if self._rtx_switch == "requested" and not self._borrowing_view:
             self._rtx_switch = "loading"
             try:
                 self.set_rtx_rendering(True)
@@ -2244,7 +2249,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         return self.visible_env_limit
 
     def set_visible_env_count(self, count: int) -> None:
-        """Show only the first ``count`` environments.
+        """Show only the first ``count`` environments; a Tracking Camera's environment takes the last place if missing.
 
         Args:
             count: Number of environments to show, clamped to ``[1, visible_env_limit]``.
@@ -2258,8 +2263,13 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             return [self._followers[self._pose_source_view()].env]
         if self._visible_env_count is None:
             return self._cfg_visible_env_ids
-        ids = self._cfg_visible_env_ids if self._cfg_visible_env_ids is not None else range(self._num_envs)
-        return list(ids)[: self._visible_env_count]
+        allowed = list(self._cfg_visible_env_ids if self._cfg_visible_env_ids is not None else range(self._num_envs))
+        ids = allowed[: self._visible_env_count]
+        follower = self._followers.get(self._pose_source_view())
+        if follower is not None and follower.env in allowed and follower.env not in ids:
+            # the Tracking Camera's own environment is always drawn: it takes the place of the last one counted
+            ids = sorted([*ids[:-1], follower.env])
+        return ids
 
     def _drop_shape_instancers(self) -> None:
         """Free the GL shape instancers so they are re-allocated for the new visible worlds.

@@ -36,6 +36,7 @@ class _Camera:
 class _Scene:
     num_envs = 2
     env_origins = torch.tensor([[0.0, 0.0, 0.0], [10.0, 0.0, 0.0]])
+    articulations, rigid_objects = {"robot": None}, {}
 
     def __getitem__(self, name):
         return SimpleNamespace(is_initialized=False)
@@ -145,10 +146,11 @@ def test_resetting_the_tracking_camera_works_while_the_rtx_view_is_current():
     )  # RTX is showing the Tracking Camera.
     viz._tracking_error = ""
 
-    cfg.eye = (9.0, 9.0, 9.0)
-    assert viz._reset_tracking_camera(viz._followers[view])
+    follower = viz._followers[view]
+    follower.cfg.eye = (9.0, 9.0, 9.0)  # an edit in the window, made on the follower's own copy
+    assert viz._reset_tracking_camera(follower)
 
-    assert cfg.eye == (2.0, 0.0, 1.0)
+    assert follower.cfg.eye == (2.0, 0.0, 1.0) and cfg.eye == (2.0, 0.0, 1.0)
 
 
 def test_a_perspective_that_was_never_left_has_no_pose_to_restore():
