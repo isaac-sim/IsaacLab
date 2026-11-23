@@ -8,11 +8,23 @@ from collections.abc import Sequence
 import torch
 
 import isaaclab.utils.math as PoseUtils
-from isaaclab.envs import ManagerBasedRLMimicEnv
+from isaaclab.envs import ManagerBasedRLEnvCfg, ManagerBasedRLMimicEnv
+
+from isaaclab_tasks.contrib.teleop_physics_cfg import prepare_humanoid_teleop_environment
 
 
 class PickPlaceGR1T2MimicEnv(ManagerBasedRLMimicEnv):
     """GR1T2 Pick Place Mimic environment."""
+
+    def __init__(self, cfg: ManagerBasedRLEnvCfg, render_mode: str | None = None, **kwargs):
+        """Prepare the selected physics backend before constructing the environment.
+
+        Like the teleoperation task's entry point, this prepares the GR1T2 pick-place tasks. The
+        exhaust-pipe and nut-pour tasks that share this environment declare no backend preparation.
+        """
+        if hasattr(cfg, "backend_preparation"):
+            prepare_humanoid_teleop_environment(cfg)
+        super().__init__(cfg, render_mode, **kwargs)
 
     def get_robot_eef_pose(self, eef_name: str, env_ids: Sequence[int] | None = None) -> torch.Tensor:
         """

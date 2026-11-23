@@ -20,6 +20,7 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": f"{__name__}.flat_env_cfg:AnymalDFlatEnvCfg",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:AnymalDFlatPPORunnerCfg",
+        "rsl_rl_sac_cfg_entry_point": f"{agents.__name__}.rsl_rl_sac_cfg:AnymalDFlatSACRunnerCfg",
         "default_agent": "rsl_rl",
         "rsl_rl_recurrent_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:AnymalDFlatPPORunnerRecurrentCfg",
         "rsl_rl_distillation_cfg_entry_point": (
@@ -40,6 +41,7 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": f"{__name__}.rough_env_cfg:AnymalDRoughEnvCfg",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:AnymalDRoughPPORunnerCfg",
+        "rsl_rl_sac_cfg_entry_point": f"{agents.__name__}.rsl_rl_sac_cfg:AnymalDRoughSACRunnerCfg",
         "default_agent": "rsl_rl",
         "rsl_rl_with_symmetry_cfg_entry_point": (
             f"{agents.__name__}.rsl_rl_ppo_cfg:AnymalDRoughPPORunnerWithSymmetryCfg"

@@ -8,11 +8,21 @@ from collections.abc import Sequence
 import torch
 
 import isaaclab.utils.math as PoseUtils
-from isaaclab.envs import ManagerBasedRLMimicEnv
+from isaaclab.envs import ManagerBasedRLEnvCfg, ManagerBasedRLMimicEnv
+
+from isaaclab_tasks.contrib.teleop_physics_cfg import prepare_humanoid_teleop_environment
 
 
 class LocomanipulationG1MimicEnv(ManagerBasedRLMimicEnv):
     """G1 Locomanipulation Mimic environment."""
+
+    def __init__(self, cfg: ManagerBasedRLEnvCfg, render_mode: str | None = None, **kwargs):
+        """Prepare the selected physics backend before constructing the environment.
+
+        This mirrors the teleoperation task's entry point.
+        """
+        prepare_humanoid_teleop_environment(cfg)
+        super().__init__(cfg, render_mode, **kwargs)
 
     def get_robot_eef_pose(self, eef_name: str, env_ids: Sequence[int] | None = None) -> torch.Tensor:
         """

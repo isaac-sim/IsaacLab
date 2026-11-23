@@ -54,7 +54,12 @@ from isaaclab_ov.test.fixtures.views import MockOvPhysxBindingSet  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
 import isaaclab.utils.math as math_utils  # noqa: E402
-from isaaclab.actuators import DelayedPDActuatorCfg, IdealPDActuatorCfg, ImplicitActuatorCfg  # noqa: E402
+from isaaclab.actuators import (  # noqa: E402
+    DelayedImplicitActuatorCfg,
+    DelayedPDActuatorCfg,
+    IdealPDActuatorCfg,
+    ImplicitActuatorCfg,
+)
 from isaaclab.assets import ArticulationCfg, get_articulation_name_ordering  # noqa: E402
 from isaaclab.envs.mdp import randomize_actuator_gains, randomize_rigid_body_material  # noqa: E402
 from isaaclab.managers import EventTermCfg, SceneEntityCfg  # noqa: E402
@@ -115,11 +120,24 @@ class _IslandCfg:
     devices: DeviceScope = DeviceScope.ALL
 
 
+_DELAYED_DRIVE = _IslandCfg(
+    {
+        "joints": DelayedImplicitActuatorCfg(
+            joint_names_expr=[".*"], stiffness=_STIFFNESS, damping=_DAMPING, min_delay=1, max_delay=1
+        )
+    },
+    num_envs=1,
+    devices=DeviceScope.CUDA,
+)
+
+
 _ISLANDS: dict[str, _IslandCfg] = {
     # Nonidentity MJWarp order through cross-backend discovery; shared by the state, property,
     # material, and FK-refresh tests, which each check deltas against their own starting state.
     "ordered": _IslandCfg(_implicit(), joint_ordering="mjwarp", body_ordering="mjwarp", collision_shapes=True),
     "drive": _IslandCfg(_implicit(), joint_ordering=_ROTATED_JOINT_NAMES, devices=DeviceScope.CUDA),
+    "delayed_drive": _DELAYED_DRIVE,
+    "delayed_drive_ordered": replace(_DELAYED_DRIVE, joint_ordering=_ROTATED_JOINT_NAMES),
     "dynamics": _IslandCfg(
         {},
         joint_ordering="mjwarp",
@@ -1012,7 +1030,9 @@ def test_effort_binding_excludes_implicit_pd(scene: _ArticulationScene) -> None:
     feedforward = torch.zeros_like(initial_pos)
     feedforward[:, shoulder_ids] = 1.5
     feedforward[:, elbow_ids] = -0.75
+    velocity_target = torch.full_like(initial_pos, 0.1)
     articulation.actuators.target_command.set_position_index(value=position_target)
+    articulation.actuators.target_command.set_velocity_index(value=velocity_target)
     articulation.actuators.target_command.set_effort_index(value=feedforward)
     articulation.write_data_to_sim()
 
@@ -1035,6 +1055,16 @@ def test_effort_binding_excludes_implicit_pd(scene: _ArticulationScene) -> None:
         expected_stiffness[:, backend_to_user],
     )
     assert articulation._actuator_control.native_actuator_path_active == scene.native_actuators
+    if scene.native_actuators:
+        backend_shoulder_ids = [backend_to_user.index(index) for index in shoulder_ids]
+        torch.testing.assert_close(
+            _read_binding_to_torch(articulation, TT.DOF_POSITION_TARGET, scene.device)[:, backend_shoulder_ids],
+            position_target[:, shoulder_ids],
+        )
+        torch.testing.assert_close(
+            _read_binding_to_torch(articulation, TT.DOF_VELOCITY_TARGET, scene.device)[:, backend_shoulder_ids],
+            velocity_target[:, shoulder_ids],
+        )
 
 
 @pytest.mark.parametrize("scene", _ALL_DEVICES, indirect=True)
@@ -1205,6 +1235,34 @@ def test_implicit_drive_targets_submit_feedforward_effort_and_track(scene: _Arti
     expected_position[1, 0] = drive_target[0, 0]
     scene.step(articulation, count=100)
     torch.testing.assert_close(articulation.data.joint_pos.torch, expected_position, atol=0.1, rtol=0.0)
+
+
+@pytest.mark.parametrize("scene", _CUDA_SCENES, indirect=True)
+@pytest.mark.parametrize("island", ["delayed_drive", "delayed_drive_ordered"], ids=["identity", "reordered"])
+def test_delayed_implicit_drive_targets_reach_solver_one_step_late(scene: _ArticulationScene, island: str) -> None:
+    articulation = scene.islands[island]
+    articulation.reset()
+    backend_to_user = [articulation.joint_names.index(name) for name in articulation.root_view.dof_names]
+    joint_index = torch.arange(articulation.num_joints, dtype=torch.float32, device=scene.device).unsqueeze(0)
+    initial_pos = 0.05 * (joint_index + 1)
+    initial_vel = -0.1 * (joint_index + 1)
+
+    for step in range(3):
+        articulation.actuators.target_command.set_position_index(value=initial_pos + step * 0.2)
+        articulation.actuators.target_command.set_velocity_index(value=initial_vel - step * 0.3)
+        articulation.write_data_to_sim()
+
+        delayed_step = max(0, step - 1)
+        torch.testing.assert_close(
+            _read_binding_to_torch(articulation, TT.DOF_POSITION_TARGET, scene.device),
+            (initial_pos + delayed_step * 0.2)[:, backend_to_user],
+        )
+        torch.testing.assert_close(
+            _read_binding_to_torch(articulation, TT.DOF_VELOCITY_TARGET, scene.device),
+            (initial_vel - delayed_step * 0.3)[:, backend_to_user],
+        )
+        scene.sim.step()
+        articulation.update(scene.sim.cfg.dt)
 
 
 @pytest.mark.parametrize("scene", _CUDA_SCENES, indirect=True)

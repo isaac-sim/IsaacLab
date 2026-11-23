@@ -29,8 +29,6 @@ from .newton_warp_renderer_cfg import NewtonOptixRendererCfg, NewtonWarpRenderer
 from .segmentation import _NEWTON_NO_HIT_SHAPE_ID, NewtonSegmentationMapper, NewtonSegmentationMapping
 
 if TYPE_CHECKING:
-    from isaaclab_ppisp import PpispPipeline
-
     from isaaclab.sensors.camera.camera_data import CameraData
     from isaaclab.utils.warp import ProxyArray
 
@@ -150,15 +148,6 @@ class RenderData:
             self._hdr_background_color = wp.vec3f(*newton.utils.color_srgb_to_linear(clamped))
 
         self._distortion = spawn.distortion if spawn is not None else None
-        self.ppisp_pipeline: PpispPipeline | None = None
-        if spec.cfg.isp_cfg is not None:
-            from isaaclab_ppisp import PpispPipeline
-
-            self.ppisp_pipeline = PpispPipeline(spec.cfg.isp_cfg)
-        # HDR scratch for PPISP when ``rgb_hdr`` is not requested.
-        self._hdr_scratch_wp: wp.array | None = None
-        self._ppisp_hdr_source: wp.array | None = None
-        self._ppisp_rgba_dest: wp.array | None = None
 
     def _view(self, proxy: ProxyArray, dtype: type) -> wp.array:
         """View an output buffer as an ``(N, H, W)`` array of ``dtype``."""
@@ -206,11 +195,6 @@ class RenderData:
         shape = (self.view_count, self.height, self.width)
         if self._seg_dests:
             self.outputs.shape_index_image = wp.zeros(shape, dtype=wp.uint32, device=self.device)
-        if self.ppisp_pipeline is not None and self.outputs.hdr_color_image is None:
-            self._hdr_scratch_wp = wp.zeros((*shape, 3), dtype=wp.float32, device=self.device)
-            self.outputs.hdr_color_image = wp.array(
-                ptr=self._hdr_scratch_wp.ptr, dtype=wp.vec3f, shape=shape, device=self.device, copy=False
-            )
         # Newton clears HDR to black; a hit mask fills only missed rays with the background.
         if (
             self.outputs.hdr_color_image is not None
@@ -218,16 +202,6 @@ class RenderData:
             and self.outputs.shape_index_image is None
         ):
             self.outputs.shape_index_image = wp.zeros(shape, dtype=wp.uint32, device=self.device)
-        if self.ppisp_pipeline is not None:
-            if str(RenderBufferKind.RGBA) not in output_data:
-                raise ValueError(
-                    "Newton renderer ISP requires 'rgba' (or 'rgb', which aliases into rgba) as the"
-                    " LDR output destination, but neither was provided. Add 'rgb' or 'rgba' to"
-                    " Camera.cfg.data_types when isp_cfg is set."
-                )
-            hdr_proxy = output_data.get(str(RenderBufferKind.RGB_HDR))
-            self._ppisp_hdr_source = hdr_proxy.warp if hdr_proxy is not None else self._hdr_scratch_wp
-            self._ppisp_rgba_dest = output_data[str(RenderBufferKind.RGBA)].warp
 
     def get_output(self, output_name: str) -> wp.array:
         if output_name in self._depth_dests:
@@ -455,10 +429,6 @@ class NewtonWarpRenderer(BaseRenderer):
                     )
                     render_data.graph = pointers, graph
                 wp.capture_launch(render_data.graph[1])
-
-        # Post-render PPISP: HDR scene-linear to LDR RGBA.
-        if render_data.ppisp_pipeline is not None:
-            render_data.ppisp_pipeline.apply(render_data._ppisp_hdr_source, render_data._ppisp_rgba_dest)
 
     def _launch_render(self, render_data: RenderData) -> None:
         """Render one camera and derive its depth aliases, HDR background and segmentation."""

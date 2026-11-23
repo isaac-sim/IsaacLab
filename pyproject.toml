@@ -197,14 +197,19 @@ mimic = [
     "robomimic @ git+https://github.com/ARISE-Initiative/robomimic.git@v0.4.0 ; sys_platform == 'linux'",
 ]
 
-# XR teleop needs the Kit XR runtime, but Isaac Sim is a separate extra so environments that
-# already provide Kit (the containers) can take this stack without a second copy of it.
-# Users who need the wheel install ``--extra teleop,isaacsim``.
+# Capture teleop is shared by Kit and standalone OVXR. Isaac Sim remains a separate extra
+# so environments that already provide Kit can use it without a second copy.
+# Kit users who need the wheel install ``--extra teleop --extra isaacsim``.
 teleop = [
     "isaaclab-teleop",
     "isaaclab-mimic",
-    "isaaccapture[retargeters,ui,cloudxr]==1.7.68a1 ; platform_system == 'Linux'",
+    "isaaccapture[retargeters,ui,cloudxr]==1.7.118rc1 ; platform_system == 'Linux'",
     "dex-retargeting==0.5.0 ; platform_system == 'Linux' and platform_machine == 'x86_64'",
+]
+# Standalone OVXR uses Capture's borrowed-renderer owner instead of the Kit runtime.
+ovxr = [
+    "isaaclab-dev[ov,teleop] ; sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "isaaccapture[ovxr,desktop-mirror] ; sys_platform == 'linux' and platform_machine == 'x86_64'",
 ]
 rlinf = [
     "ray[default]>=2.47.0",
@@ -220,7 +225,7 @@ rlinf = [
     "pandas",
 ]
 leapp = [
-    "leapp==0.7.2",
+    "leapp==0.8.1",
 ]
 all = [
     "isaaclab-dev[sb3,skrl,rl-games,rsl-rl,viser,rerun,ov]",
@@ -418,6 +423,8 @@ environments = [
 # ``importers`` extras pin older versions of these packages, so the overrides prevent downgrades.
 # Direct torch-stack pins also apply to published wheels; overrides reconcile Isaac Sim's older pins.
 override-dependencies = [
+    # Capture CloudXR requires >=17.3; override Isaac Sim 6.2's <15 and Viser 1.0's <17 caps.
+    "websockets>=17.3",
     "numpy>=2",
     "mujoco~=3.17.0",
     "mujoco-warp~=3.17.0",
