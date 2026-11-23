@@ -53,7 +53,7 @@ def _channel(mapped, name: str, *, clone: bool = True) -> torch.Tensor | None:
 
 
 def copy_tiled_point_cloud(mapped, points: torch.Tensor, intensity: torch.Tensor, valid: torch.Tensor) -> None:
-    """Copy one mapped WPM point cloud into per-environment buffers.
+    """Copy one mapped point cloud into per-environment buffers.
 
     ``points`` has shape ``(num_envs, num_rays, 3)``. Tile ``i`` is environment ``i``, which is the
     render-product relationship order. Misses stay non-finite. A dense cloud must contain one slot
@@ -77,15 +77,17 @@ def copy_tiled_point_cloud(mapped, points: torch.Tensor, intensity: torch.Tensor
 
     coordinates = _channel(mapped, "Coordinates", clone=False)
     flags = _channel(mapped, "Flags", clone=False)
-    signal = _channel(mapped, "Intensity", clone=False)
+    intensity = _channel(mapped, "Intensity", clone=False)
+
     on_device = (
-        coordinates is not None and flags is not None and signal is not None and coordinates.device.type == "cuda"
+        coordinates is not None and flags is not None and intensity is not None and coordinates.device.type == "cuda"
     )
     if not on_device:
         coordinates = None if coordinates is None else coordinates.detach().clone()
         flags = None if flags is None else flags.detach().clone()
-        signal = None if signal is None else signal.detach().clone()
-    if coordinates is None or flags is None or signal is None:
+        intensity = None if intensity is None else intensity.detach().clone()
+
+    if coordinates is None or flags is None or intensity is None:
         available = list(mapped.keys())
         raise RuntimeError(
             f"OVRTX lidar point cloud is missing Coordinates, Intensity, or Flags. Available: {available}."
@@ -97,38 +99,41 @@ def copy_tiled_point_cloud(mapped, points: torch.Tensor, intensity: torch.Tensor
             raise RuntimeError(f"OVRTX lidar Coordinates have shape {tuple(coordinates.shape)}, expected (*, 3).")
     coordinates = coordinates.reshape(-1, 3)
     flags = flags.reshape(-1)
-    signal = signal.reshape(-1)
-    if coordinates.shape[0] != flags.shape[0] or coordinates.shape[0] != signal.shape[0]:
+    intensity = intensity.reshape(-1)
+    if coordinates.shape[0] != flags.shape[0] or coordinates.shape[0] != intensity.shape[0]:
         raise RuntimeError(
             "OVRTX lidar point-cloud channels disagree:"
-            f" Coordinates {coordinates.shape[0]}, Flags {flags.shape[0]}, Intensity {signal.shape[0]}."
+            f" Coordinates {coordinates.shape[0]}, Flags {flags.shape[0]}, Intensity {intensity.shape[0]}."
         )
 
     device = points.device
     stride = _scalar(mapped, "tileStridePoints") or 0
-    compacted = _scalar(mapped, "compactionType") == _COMPACTED
-    if compacted:
+
+    if _scalar(mapped, "compactionType") == _COMPACTED:
         raise RuntimeError(
             "OVRTX returned a compacted lidar cloud. Missed rays must keep their authored slots"
             " until each return can be placed by ray id."
         )
-    if stride == num_rays and coordinates.shape[0] != tile_count * stride:
+
+    if stride != num_rays:
+        raise RuntimeError(
+            f"OVRTX lidar tile has {stride} point slots, but the sensor authored {num_rays}. "
+            "include_invalid_points keeps one slot per ray."
+        )
+
+    if coordinates.shape[0] != tile_count * stride:
         raise RuntimeError(
             f"OVRTX lidar returned {coordinates.shape[0]} points for {tile_count} tiles of {stride} rays."
         )
-    if on_device and stride == num_rays:
-        _copy_dense_on_device(coordinates, signal, flags, points, intensity, valid, tile_count, stride)
-        return
-    coordinates = coordinates.to(device=device, dtype=points.dtype)
-    signal = signal.to(device=device, dtype=intensity.dtype)
-    hit_source = (flags.to(device=device, dtype=torch.int64) & _VALID_FLAG) != 0
-    if stride == num_rays:
-        _copy_dense(coordinates, signal, hit_source, points, intensity, valid, tile_count, stride)
-        return
-    raise RuntimeError(
-        f"OVRTX lidar tile has {stride} point slots, but the sensor authored {num_rays}. "
-        "include_invalid_points keeps one slot per ray."
-    )
+
+    if on_device:
+        _copy_dense_on_device(coordinates, intensity, flags, points, intensity, valid, tile_count, stride)
+    else:
+        coordinates = coordinates.to(device=device, dtype=points.dtype)
+        intensity = intensity.to(device=device, dtype=intensity.dtype)
+        hit_source = (flags.to(device=device, dtype=torch.int64) & _VALID_FLAG) != 0
+
+        _copy_dense(coordinates, intensity, hit_source, points, intensity, valid, tile_count, stride)
 
 
 def _copy_dense(coordinates, signal, hits, points, intensity, valid, tile_count: int, stride: int) -> None:

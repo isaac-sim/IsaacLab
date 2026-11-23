@@ -250,6 +250,7 @@ class OVRTXBackend:
         self.cfg = cfg
         self.attached = False
         self.render_products: set[str] = set()
+        self.next_sensor_id = 0
         # Resolve the wheel's native dependency here, including callers without a viewer.
         dependency = Path(ovstage.__file__).parent / "bin/plugins/libosdCPU.so.3.6.0"
         if dependency.exists():
@@ -1585,9 +1586,6 @@ class OVRTXRenderer(BaseRenderer):
             copy_tiled_point_cloud(
                 mapped, render_data.points.torch, render_data.intensity.torch, render_data.valid.torch
             )
-
-        if device is Device.CUDA:
-            logger.info("OVRTX lidar point cloud is mapped on CUDA.")
 
     def render_batch(self, render_data: Sequence[OVRTXCameraRenderData]) -> None:
         """Render all requested camera products in one native submission.
