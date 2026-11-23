@@ -38,6 +38,7 @@ gym.register(
         "env_cfg_entry_point": f"{__name__}.joint_pos_env_cfg:FrankaCabinetEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_manager_ppo_cfg.yaml",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:CabinetPPORunnerCfg",
+        "rsl_rl_sac_cfg_entry_point": f"{agents.__name__}.rsl_rl_sac_cfg:CabinetSACRunnerCfg",
         "default_agent": "rsl_rl",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_manager_ppo_cfg.yaml",
     },
