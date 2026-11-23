@@ -15,10 +15,10 @@ from isaaclab.utils.tensor_processors import TensorProcessor, TensorProcessorCfg
 from isaaclab_contrib.sensors.cosmos import (
     CosmosModelCfg,
     CosmosTransferProcessorCfg,
-    DepthControlProcessorCfg,
     cosmos_camera,
 )
 from isaaclab_contrib.sensors.cosmos.cosmos_processor import _center_crop_resize
+from isaaclab_contrib.sensors.image_transfer import DepthControlProcessorCfg
 
 pytestmark = pytest.mark.unit
 

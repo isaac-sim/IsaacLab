@@ -21,7 +21,7 @@ from isaaclab.utils import configclass
 from isaaclab.utils.tensor_processors import TensorProcessor, TensorProcessorCfg
 from isaaclab.utils.warp import ProxyArray
 
-from isaaclab_contrib.sensors.cosmos import DepthControlProcessorCfg, ImageTransferProcessorCfg
+from isaaclab_contrib.sensors.image_transfer import DepthControlProcessorCfg, ImageTransferProcessorCfg
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 

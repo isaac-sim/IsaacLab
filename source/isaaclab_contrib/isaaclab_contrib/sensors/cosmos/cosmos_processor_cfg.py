@@ -13,7 +13,7 @@ from isaaclab_cosmos_server.protocol import MAX_CHUNK_FRAMES
 
 from isaaclab.utils import configclass
 
-from .image_transfer_cfg import ImageTransferProcessorCfg
+from ..image_transfer import ImageTransferProcessorCfg
 
 if TYPE_CHECKING:
     from .cosmos_model_cfg import CosmosModelCfg

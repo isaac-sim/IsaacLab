@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Configuration of the image transfer processors Cosmos builds on."""
+"""Configuration of the image transfer processors."""
 
 from __future__ import annotations
 

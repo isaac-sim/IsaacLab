@@ -16,8 +16,8 @@ from isaaclab_cosmos_server.protocol import MAX_CHUNK_FRAMES
 
 from isaaclab.utils.warp import ProxyArray
 
+from ..image_transfer import ImageTransferProcessor
 from .cosmos_processor_cfg import publishes_rendered_rgb
-from .image_transfer import ImageTransferProcessor
 
 if TYPE_CHECKING:
     from .cosmos_processor_cfg import CosmosTransferProcessorCfg

@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Image generation from per-view control sequences, the camera tensor processors Cosmos builds on."""
+"""Camera tensor processors that generate images from per-view control sequences with an image-generation model."""
 
 from __future__ import annotations
 

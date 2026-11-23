@@ -212,7 +212,7 @@ import math
 
 from isaaclab.sensors import CameraCfg
 from isaaclab_contrib.sensors.cosmos import CosmosModelCfg, CosmosTransferProcessorCfg
-from isaaclab_contrib.sensors.cosmos import DepthControlProcessorCfg
+from isaaclab_contrib.sensors.image_transfer import DepthControlProcessorCfg
 
 model = CosmosModelCfg(
     prompt="A robot arm manipulating an object on a workbench.",
@@ -604,8 +604,8 @@ recipe. A task whose prompt and settings were calibrated at another rate sets it
 
 ## Image transfer
 
-The Cosmos processor is built on an image transfer processor in the same package, which connects an image-generation
-model to cameras through tensor processors. Cosmos is its only model for now. It does not load models, download assets, or select a network
+The Cosmos processor is built on the image transfer processor in `isaaclab_contrib.sensors.image_transfer`, which connects
+any image-generation model to cameras through tensor processors. Cosmos is its only model for now. It does not load models, download assets, or select a network
 transport. `ImageTransferProcessorCfg` takes the model as its `backend`, and `DepthControlProcessorCfg` prepares
 the control:
 
@@ -613,7 +613,7 @@ the control:
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
-from isaaclab_contrib.sensors.cosmos import DepthControlProcessorCfg, ImageTransferProcessorCfg
+from isaaclab_contrib.sensors.image_transfer import DepthControlProcessorCfg, ImageTransferProcessorCfg
 
 
 @configclass

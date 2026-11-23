@@ -3,11 +3,12 @@
   converts a pinhole RGB camera. The ``control`` argument of ``cosmos_camera`` takes other processors that write the
   control image, for the segmentation, edge and blur controls the checkpoint also accepts.
   :func:`~isaaclab_contrib.sensors.cosmos.episode_frame_budget` sizes a session to the episode.
-* Added :class:`~isaaclab_contrib.sensors.cosmos.ImageTransferProcessorCfg`, the camera tensor processor Cosmos builds
-  on: it queues captures per view, following the camera's ``env_mask``, resets each view with its own deterministic
-  seed (from a base seed or a list with one seed per view), and shares one model per configuration through the
-  simulation context. It requires an explicit capture ``env_mask`` and rejects asynchronous camera calls before
-  queuing controls. :class:`~isaaclab_contrib.sensors.cosmos.DepthControlProcessorCfg` prepares depth controls.
+* Added :mod:`isaaclab_contrib.sensors.image_transfer`, camera tensor processors for any image-generation model,
+  which Cosmos builds on. :class:`~isaaclab_contrib.sensors.image_transfer.ImageTransferProcessorCfg` queues
+  captures per view, following the camera's ``env_mask``, resets each view with its own deterministic seed (from a
+  base seed or a list with one seed per view), and shares one model per configuration through the simulation
+  context. It requires an explicit capture ``env_mask`` and rejects asynchronous camera calls before queuing
+  controls. :class:`~isaaclab_contrib.sensors.image_transfer.DepthControlProcessorCfg` prepares depth controls.
 * Added :class:`~isaaclab_contrib.sensors.cosmos.CosmosModelCfg` settings: one prompt per environment, or prompt files
   read with :func:`~isaaclab_contrib.sensors.cosmos.read_prompt_files`; several cameras sharing one session; several
   services, one per GPU, each generating a share of the environments; the transport, CUDA IPC through Warp or the

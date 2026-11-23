@@ -39,9 +39,9 @@ from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_contrib.sensors.cosmos import CosmosModel, CosmosModelCfg, CosmosTransferProcessorCfg
 from isaaclab_contrib.sensors.cosmos import cosmos_model as cosmos_model_module
-from isaaclab_contrib.sensors.cosmos import image_transfer as processor_module
 from isaaclab_contrib.sensors.cosmos.cosmos_model import split_views
-from isaaclab_contrib.sensors.cosmos.image_transfer_cfg import DepthControlProcessorCfg
+from isaaclab_contrib.sensors.image_transfer import DepthControlProcessorCfg
+from isaaclab_contrib.sensors.image_transfer import image_transfer as processor_module
 
 pytestmark = pytest.mark.unit
 

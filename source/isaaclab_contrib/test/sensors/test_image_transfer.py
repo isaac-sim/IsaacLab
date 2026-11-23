@@ -15,12 +15,12 @@ from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.warp import ProxyArray
 
-from isaaclab_contrib.sensors.cosmos import (
+from isaaclab_contrib.sensors.image_transfer import (
     DepthControlProcessorCfg,
     ImageTransferProcessorCfg,
     depth_to_control,
 )
-from isaaclab_contrib.sensors.cosmos import image_transfer as processor_module
+from isaaclab_contrib.sensors.image_transfer import image_transfer as processor_module
 
 pytestmark = pytest.mark.unit
 
