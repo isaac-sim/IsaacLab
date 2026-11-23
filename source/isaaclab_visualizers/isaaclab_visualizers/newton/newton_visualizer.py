@@ -13,6 +13,7 @@ import logging
 import math
 import os
 import sys
+import threading
 import time
 import webbrowser
 from collections.abc import Callable
@@ -161,17 +162,23 @@ DEFAULT_TILED_ENVS = 16
 _BACKEND_DISPLAY_NAMES = {"physx": "PhysX", "ovphysx": "OVPhysX", "newton": "Newton MJWarp"}
 
 
+def _open_in_browser(url: str) -> None:
+    """Open *url* without blocking the render thread, since a console browser can hold ``webbrowser.open``."""
+    threading.Thread(target=webbrowser.open, args=(url,), daemon=True).start()
+
+
 @contextlib.contextmanager
 def _header_tooltips(imgui, tips: dict[str, str], titles: dict[str, str] | None = None):
-    """Add tooltips and titles to the collapsing headers that another panel draws while this context is open.
+    """Add tooltips and titles to the headers and text labels that another panel draws while this context is open.
 
     Args:
         imgui: The ``imgui`` module.
-        tips: Tooltip text by the header's original label.
+        tips: Tooltip text by the header's or text label's original text.
         titles: Displayed title by the header's original label. The original label stays the header's ID, so its
             open state and saved layout carry over.
     """
     draw_header = imgui.collapsing_header
+    draw_text = imgui.text
     titles = titles or {}
 
     def with_tooltip(label, *args, **kwargs):
@@ -181,11 +188,18 @@ def _header_tooltips(imgui, tips: dict[str, str], titles: dict[str, str] | None 
             hover_tooltip(imgui, tips[label])
         return expanded
 
+    def text_with_tooltip(text, *args, **kwargs):
+        draw_text(text, *args, **kwargs)
+        if text in tips:
+            hover_tooltip(imgui, tips[text])
+
     imgui.collapsing_header = with_tooltip
+    imgui.text = text_with_tooltip
     try:
         yield
     finally:
         imgui.collapsing_header = draw_header
+        imgui.text = draw_text
 
 
 def _imgui_optional_checkbox(imgui, label: str, value: bool, available: bool, tip: str, hint: str = "") -> bool:
@@ -356,7 +370,7 @@ class NewtonViewerGL(ViewerGL):
         3. **Scene** (closed) — visible environments, visualization markers (a toggle per marker group, shared with Kit
            and Viser), and visual overlays.
         4. **Live Plots** (closed) — injected when :meth:`~NewtonGLVisualizer.add_live_plots` is called.
-        5. **Articulation Inspector** (closed) — Newton's articulation selection panel.
+        5. **Articulation Selection** (closed) — Newton's Selection API panel.
         6. **Control Bindings** (closed) — the camera, keyboard, and mouse controls and what each one does.
 
         The top-level Newton ``Pause / Step`` row is suppressed; pause/resume is handled by the Isaac Lab controls
@@ -424,11 +438,20 @@ class NewtonViewerGL(ViewerGL):
             if live_plots_cb is not None:
                 live_plots_cb(imgui)
 
-            # --- Articulation Inspector (Newton's Selection API) ------------
+            # --- Articulation Selection (Newton's Selection API) ------------
             with _header_tooltips(
                 imgui,
-                {"Selection API": "Inspect the robot's articulations: filter them by name, joint, and link"},
-                {"Selection API": "Articulation Inspector"},
+                {
+                    "Selection API": (
+                        "Newton's Selection API: select articulations by name pattern and inspect their joints, "
+                        "links, and attributes"
+                    ),
+                    "Articulation Pattern:": "Name pattern selecting articulations, such as /World/envs/env_*/Robot",
+                    "Joint Filters (optional):": "Comma-separated joint names to include or exclude",
+                    "Link Filters (optional):": "Comma-separated link names to include or exclude",
+                    "Select Attribute:": "The attribute of the selected articulations to show",
+                },
+                {"Selection API": "Articulation Selection"},
             ):
                 _g._render_selection_panel()
 
@@ -741,7 +764,7 @@ class NewtonViewerGL(ViewerGL):
                 imgui.same_line()
             imgui.text_colored(imgui.ImVec4(*color), f"[{text}]")
         if imgui.text_link("Visualizer docs"):
-            webbrowser.open(VISUALIZER_DOCS_URL)
+            _open_in_browser(VISUALIZER_DOCS_URL)
         if imgui.is_item_hovered():
             imgui.set_tooltip(VISUALIZER_DOCS_URL)
         imgui.same_line()
@@ -1172,6 +1195,13 @@ class NewtonVisualizerBase(BaseVisualizer):
         self._draw_appearance(imgui)
         self._draw_navigation_controls(imgui)
         self._draw_camera_info(imgui)
+        self._draw_window_options(imgui)
+
+    def _draw_window_options(self, imgui) -> None:
+        """Draw the window options, last in the Camera View because they are rarely changed."""
+        imgui.separator_text("Window")
+        _, self._viewer.vsync = imgui.checkbox("VSync", self._viewer.vsync)
+        hover_tooltip(imgui, "Match the window's frame rate to the display's refresh rate. Off by default")
 
     def _draw_camera_source(self, imgui, indices: list[int], rtx_index: int | None) -> None:
         """Draw the Camera Source selector, and the output controls when a scene sensor is selected."""
