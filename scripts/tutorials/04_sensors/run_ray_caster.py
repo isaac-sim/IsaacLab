@@ -9,13 +9,14 @@ This script demonstrates how to use the ray-caster sensor.
 .. code-block:: bash
 
     # Usage
-    uv run python scripts/tutorials/04_sensors/run_ray_caster.py --viz newton
+    uv run python scripts/tutorials/04_sensors/run_ray_caster.py --viz newton_rtx
 
 """
 
 """Parse the command-line arguments first."""
 
 import argparse
+from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
 from isaaclab_ov.physics import OvPhysxCfg
@@ -35,7 +36,8 @@ args_cli = parser.parse_args()
 import torch
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import RigidObject, RigidObjectCfg
+from isaaclab.assets import AssetBaseCfg, RigidObject, RigidObjectCfg
+from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors.ray_caster import RayCasterCfg, patterns
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.timer import Timer
@@ -143,7 +145,9 @@ def main():
         device=args_cli.device,
     )
     # Launch the simulator runtime that the configuration needs
-    with launch_simulation(sim_cfg, args_cli):
+    scene_cfg = InteractiveSceneCfg(num_envs=1, env_spacing=0.0)
+    scene_cfg.world = AssetBaseCfg(prim_path="/World")
+    with launch_simulation(SimpleNamespace(sim=sim_cfg, scene=scene_cfg), args_cli):
         # Initialize the simulation context
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
@@ -151,11 +155,13 @@ def main():
         # Design scene
         scene_entities = design_scene()
         # Play simulator
+        scene = instantiate(scene_cfg)
         sim.reset()
         # Now we are ready!
         print("[INFO]: Setup complete...")
         # Run simulator
         run_simulator(sim=sim, scene_entities=scene_entities)
+        del scene
 
 
 if __name__ == "__main__":

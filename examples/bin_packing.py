@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import argparse
 from contextlib import closing
+from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
 from isaaclab.app import add_launcher_args, launch_simulation
@@ -46,7 +47,7 @@ parser.add_argument("--num_envs", type=int, default=16, help="Number of environm
 parser.add_argument("--physics", default="ovphysx", choices=["ovphysx"], help="Physics backend.")
 parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["newton"])
+parser.set_defaults(visualizer=["newton_rtx"])
 args_cli = parser.parse_args()
 if args_cli.max_steps == 0 or args_cli.max_steps < -1:
     parser.error("--max_steps must be positive or -1.")
@@ -414,13 +415,13 @@ def main():
         None: The function drives the simulation for its side-effects.
     """
     sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device)
-    with launch_simulation(sim_cfg, args_cli):
+    scene_cfg = BinPackingSceneCfg(num_envs=args_cli.num_envs, env_spacing=1.0)
+    with launch_simulation(SimpleNamespace(sim=sim_cfg, scene=scene_cfg), args_cli):
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
         sim.set_camera_view((4.0, 0.0, 4.0), (0.0, 0.0, 0.0))
 
         # Design scene
-        scene_cfg = BinPackingSceneCfg(num_envs=args_cli.num_envs, env_spacing=1.0)
         layouts = [combination.assets for combination in scene_cfg.clone_cfg.clone_combinations]
         print(f"[INFO] Drawn bin layouts (objects per layout): {[len(layout) for layout in layouts]}")
         with Timer("[INFO] Time to create scene: "):

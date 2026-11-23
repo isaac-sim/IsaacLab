@@ -53,7 +53,7 @@ parser.add_argument("--num_envs", type=int, default=None, help="Number of enviro
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 # append simulation launcher cli args
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["newton"])
+parser.set_defaults(visualizer=["newton_rtx"])
 args_cli, hydra_args = setup_preset_cli(parser)
 if args_cli.task is None:
     visualizers = next(arg.split("=", 1)[1].split(",") for arg in hydra_args if arg.startswith("visualizer="))

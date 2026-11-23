@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from types import SimpleNamespace
 
 import isaaclab.sim as sim_utils
 from isaaclab.app import add_launcher_args, launch_simulation
@@ -52,7 +53,7 @@ parser.add_argument(
 )
 parser.add_argument("--physics", default="ovphysx", choices=["ovphysx"], help="Physics backend.")
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["newton"])
+parser.set_defaults(visualizer=["newton_rtx"])
 args_cli, hydra_args = parser.parse_known_args()
 if args_cli.num_envs < 1:
     parser.error("--num_envs must be at least 1.")
@@ -138,7 +139,7 @@ def main() -> None:
 
     scene_cfg.num_envs = args_cli.num_envs
     sim_cfg = sim_utils.SimulationCfg(dt=args_cli.sim_dt, device=args_cli.device)
-    with launch_simulation(sim_cfg, args_cli):
+    with launch_simulation(SimpleNamespace(sim=sim_cfg, scene=scene_cfg), args_cli):
         sim = sim_utils.SimulationContext(sim_cfg)
         sim.set_camera_view(eye=[6.0, 6.0, 4.0], target=[0.0, 0.0, 0.5])
         scene = instantiate(scene_cfg)

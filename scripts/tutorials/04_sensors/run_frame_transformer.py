@@ -9,13 +9,14 @@ This script demonstrates the FrameTransformer sensor by visualizing the frames t
 .. code-block:: bash
 
     # Usage
-    uv run python scripts/tutorials/04_sensors/run_frame_transformer.py --viz newton
+    uv run python scripts/tutorials/04_sensors/run_frame_transformer.py --viz newton_rtx
 
 """
 
 """Parse the command-line arguments first."""
 
 import argparse
+from types import SimpleNamespace
 
 from isaaclab_ov.physics import OvPhysxCfg
 
@@ -152,13 +153,13 @@ def main():
         device=args_cli.device,
     )
     # Launch the simulator runtime that the configuration needs
-    with launch_simulation(sim_cfg, args_cli):
+    scene_cfg = FrameTransformerSceneCfg(num_envs=1, env_spacing=0.0)
+    with launch_simulation(SimpleNamespace(sim=sim_cfg, scene=scene_cfg), args_cli):
         # Initialize the simulation context
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
         sim.set_camera_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 0.0])
         # Design scene
-        scene_cfg = FrameTransformerSceneCfg(num_envs=1, env_spacing=0.0)
         scene = instantiate(scene_cfg)
         # Play the simulator
         sim.reset()

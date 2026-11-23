@@ -6,6 +6,7 @@
 """Cast a lidar-style ray pattern against rough terrain."""
 
 import argparse
+from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
 import torch
@@ -34,7 +35,7 @@ parser.add_argument(
     help="Physics backend.",
 )
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["newton"])
+parser.set_defaults(visualizer=["newton_rtx"])
 args_cli = parser.parse_args()
 if args_cli.log_interval < 1:
     parser.error("--log_interval must be at least 1.")
@@ -120,10 +121,10 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: "InteractiveScene") -
 def main() -> None:
     """Run the ray-caster example."""
     sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device)
-    with launch_simulation(sim_cfg, args_cli):
+    scene_cfg = RaycasterSensorSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0)
+    with launch_simulation(SimpleNamespace(sim=sim_cfg, scene=scene_cfg), args_cli):
         sim = sim_utils.SimulationContext(sim_cfg)
         sim.set_camera_view(eye=[3.5, 3.5, 3.5], target=[0.0, 0.0, 0.0])
-        scene_cfg = RaycasterSensorSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0)
         scene: InteractiveScene = instantiate(scene_cfg)
         sim.reset()
         print("[INFO]: Setup complete...")

@@ -14,7 +14,7 @@ Usage:
 
 The released planner and tracker are downloaded from nvidia/GEAR-SONIC on Hugging
 Face under their upstream model license. The robot USD is downloaded from the
-public Isaac asset server. Newton runs offscreen and records its viewport by default,
+public Isaac asset server. Newton runs offscreen and records its RTX viewport by default,
 saving logs/sonic/sonic_0000.mp4. The full MPM scene can run much slower than real time.
 Pass ``--viz`` to select a visualizer; recording then requires ``--video``. PhysX opens
 the Newton visualizer by default and also requires ``--video`` to record.
@@ -115,7 +115,7 @@ def main() -> None:
         ]
     if offline_default:
         print(
-            f"Running SONIC offscreen with Newton; recording to {args.output.resolve() / 'sonic_0000.mp4'}.\n"
+            f"Running SONIC offscreen with Newton RTX; recording to {args.output.resolve() / 'sonic_0000.mp4'}.\n"
             "No simulation window will open. MPM can run much slower than real time; watch the terminal for progress.",
             flush=True,
         )
@@ -139,7 +139,10 @@ def main() -> None:
         viewer.eye, viewer.lookat = cfg.camera_eye, cfg.camera_target
         viewer.focal_length = aperture / (2 * math.tan(math.radians(cfg.camera_vfov) / 2))
         viewer.enable_markers = viewer.enable_live_plots = viewer.streaming_view = False
-        if use_default_visualizer and is_physx and not viewer.backend:
+        if offline_default:
+            viewer.headless = True
+            viewer.backend = NewtonGLBackendCfg(initial_renderer="rtx")
+        elif use_default_visualizer and is_physx and not viewer.backend:
             viewer.backend = NewtonGLBackendCfg()
     torch.set_num_threads(1)
     with launch_simulation(cfg, args):

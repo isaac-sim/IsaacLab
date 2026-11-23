@@ -5,7 +5,7 @@
 
 """Scripted IK control of the Rizon–Sharpa coffee scene.
 
-Run ``uv run isaaclab demo rizon-sharpa-coffee --water --visualizer newton``.
+Run ``uv run --extra ovrtx isaaclab demo rizon-sharpa-coffee --water --visualizer newton_rtx``.
 Use ``--visualizer none --headless`` for a physics-only rollout.
 """
 
@@ -131,7 +131,7 @@ def _parse_args():
     parser.add_argument("--width", type=int, default=1280)
     parser.add_argument("--height", type=int, default=960)
     add_launcher_args(parser)
-    parser.set_defaults(visualizer=["newton"])
+    parser.set_defaults(visualizer=["newton_rtx"])
     args = parser.parse_args()
     if args.physics_hz is None:
         fast_script = (not args.water and args.voxel_size == 0.002) or (args.water and args.voxel_size >= 0.003)
@@ -142,12 +142,9 @@ def _parse_args():
     if args.control_hz % args.video_fps:
         parser.error("--video_fps must divide the control rate (60 Hz at 120 Hz physics, otherwise 100 Hz).")
     if args.visualizer is None:
-        args.visualizer = ["newton"]
-    if any(name not in ("newton", "newton_gl", "kit", "none") for name in args.visualizer):
-        parser.error(
-            "This demo's grain/surface presentation supports newton, kit or none"
-            " (newton_rtx was removed; newton renders with RTX)."
-        )
+        args.visualizer = ["newton_rtx"]
+    if any(name not in ("newton", "newton_gl", "newton_rtx", "kit", "none") for name in args.visualizer):
+        parser.error("This demo's grain/surface presentation supports newton, newton_gl, newton_rtx, kit or none.")
     if args.keep_open and args.headless:
         parser.error("--keep_open requires a desktop viewer.")
     if args.render_samples < 1:
@@ -209,7 +206,6 @@ def _make_env_cfg(args, video_stride):
         view.replace(
             backend=CoffeeVisualizerCfg(
                 backdrop=args.backdrop,
-                initial_renderer="rtx" if args.video else "opengl",
                 show_particles=args.grains_per_particle == 0,
                 particle_color=(0.095, 0.029, 0.010) if not args.water else None,
                 enable_picking=False,

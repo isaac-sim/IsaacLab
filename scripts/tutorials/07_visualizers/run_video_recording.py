@@ -15,7 +15,7 @@ Example 1 — Newton viewport (simplest)
     .. code-block:: bash
 
         uv run python scripts/tutorials/07_visualizers/run_video_recording.py \
-            --example 1 --num_envs 4 --viz newton
+            --example 1 --num_envs 4 --viz newton_rtx
 
 Example 2 — scene sensor only, headless
     One clip captured directly from the scene's tiled-camera sensor.
@@ -108,7 +108,9 @@ def _build_env_cfg_example_1(num_envs: int):
     from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
     env_cfg = _shadow_env_cfg(num_envs)
-    env_cfg.sim.visualizer_cfgs = [VisualizerCfg(eye=_SHADOW_EYE, lookat=_SHADOW_LOOKAT, backend=NewtonGLBackendCfg())]
+    env_cfg.sim.visualizer_cfgs = [
+        VisualizerCfg(eye=_SHADOW_EYE, lookat=_SHADOW_LOOKAT, backend=NewtonGLBackendCfg(initial_renderer="rtx"))
+    ]
 
     out = _output_dir(1)
     env_cfg.video_recorders = [

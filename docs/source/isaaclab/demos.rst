@@ -64,10 +64,11 @@ No source checkout is required.
        </button>
        <button type="button" class="demo-card" aria-pressed="false"
                data-demo-name="H1 Locomotion" data-demo-id="h1-locomotion"
-               data-demo-physics="isaacsim_physx,newton_mjwarp"
+               data-demo-physics="newton_mjwarp,isaacsim_physx"
                data-demo-visualizers="kit,newton,rerun,viser"
-               data-demo-visualizers-isaacsim-physx="kit,newton,rerun,viser"
-               data-demo-visualizers-newton-mjwarp="kit,newton,rerun,viser"
+               data-demo-visualizers-isaacsim-physx="newton,kit,rerun,viser"
+               data-demo-visualizers-newton-mjwarp="newton_rtx,newton,kit,rerun,viser"
+               data-demo-extras="ovrtx"
                data-demo-description="Select H1 robots and control a trained rough-terrain policy with the keyboard and follow camera.">
          <img src="../../_static/demos/h1_locomotion.jpg" alt="H1 locomotion in Isaac Lab" loading="lazy">
          <span>H1 Locomotion</span>
@@ -76,8 +77,9 @@ No source checkout is required.
                data-demo-name="SONIC" data-demo-id="sonic"
                data-demo-physics="newton_mjwarp,isaacsim_physx"
                data-demo-visualizers="newton,kit,rerun,viser"
-               data-demo-visualizers-isaacsim-physx="kit,newton,rerun,viser"
-               data-demo-visualizers-newton-mjwarp="newton,kit,rerun,viser"
+               data-demo-visualizers-isaacsim-physx="newton,kit,rerun,viser"
+               data-demo-visualizers-newton-mjwarp="newton_rtx,newton,kit,rerun,viser"
+               data-demo-extras="ovrtx"
                data-demo-description="Record G1 traversing deformable gravel and sand with released SONIC policies.">
          <img src="../../_static/browser_demos/previews/g1.jpg" alt="G1 humanoid robot in Isaac Lab" loading="lazy">
          <span>SONIC</span>
@@ -128,6 +130,8 @@ No source checkout is required.
                data-demo-name="Rizon–Sharpa Coffee" data-demo-id="rizon-sharpa-coffee"
                data-demo-physics="newton_coupler" data-demo-fixed-physics="true"
                data-demo-visualizers="newton,kit"
+               data-demo-visualizers-newton-coupler="newton_rtx,newton,kit"
+               data-demo-extras="ovrtx"
                data-demo-args="--device cuda:0 --water"
                data-demo-description="Scoop coffee with scripted IK, dissolve it into water and stir.">
          <img src="../../_static/environment-previews/rizon_sharpa_coffee.jpg"
@@ -231,7 +235,7 @@ The terminal reports simulation progress. Recording advances
 in simulation time, so the full MPM scene can take substantially longer than the video
 duration. Pass ``--seconds`` to change the simulation duration.
 
-Pass ``--viz newton`` or ``--viz kit`` to choose an interactive visualizer instead.
+Pass ``--viz newton_rtx`` to choose an interactive RTX visualizer instead.
 With an explicit ``--viz`` selection, recording is opt-in via ``--video``.
 
 Append ``env.sim.device=cuda:1`` to select a different CUDA device for physics and SONIC

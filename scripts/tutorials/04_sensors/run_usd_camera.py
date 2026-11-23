@@ -13,7 +13,7 @@ OVRTX supplies semantic and instance segmentation; it does not expose Isaac Sim'
 .. code-block:: bash
 
     # Usage with GUI
-    uv run python scripts/tutorials/04_sensors/run_usd_camera.py --viz newton
+    uv run python scripts/tutorials/04_sensors/run_usd_camera.py --viz newton_rtx
 
     # Usage with no visualizer
     uv run python scripts/tutorials/04_sensors/run_usd_camera.py
@@ -23,6 +23,7 @@ OVRTX supplies semantic and instance segmentation; it does not expose Isaac Sim'
 """Parse the command-line arguments first."""
 
 import argparse
+from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
 from isaaclab_ov.physics import OvPhysxCfg
@@ -265,7 +266,9 @@ def main():
         device=args_cli.device,
     )
     # Launch the simulator runtime that the configuration needs
-    with launch_simulation(sim_cfg, args_cli):
+    scene_cfg = InteractiveSceneCfg(num_envs=1, env_spacing=0.0)
+    scene_cfg.world = AssetBaseCfg(prim_path="/World")
+    with launch_simulation(SimpleNamespace(sim=sim_cfg, scene=scene_cfg), args_cli):
         # Initialize the simulation context
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
@@ -273,8 +276,6 @@ def main():
         # Design scene
         scene_entities = design_scene()
         # Declare the standalone world so scene-data consumers can discover its geometry.
-        scene_cfg = InteractiveSceneCfg(num_envs=1, env_spacing=0.0)
-        scene_cfg.world = AssetBaseCfg(prim_path="/World")
         scene = instantiate(scene_cfg)
         # Play simulator
         sim.reset()

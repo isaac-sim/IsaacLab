@@ -13,6 +13,7 @@
 """
 
 import argparse
+from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
 from isaaclab.app import add_launcher_args, launch_simulation
@@ -25,7 +26,7 @@ parser = argparse.ArgumentParser(
 parser.add_argument("--physics", default="ovphysx", choices=["ovphysx"], help="Physics backend.")
 parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["newton"])
+parser.set_defaults(visualizer=["newton_rtx"])
 args_cli = parser.parse_args()
 if args_cli.max_steps == 0 or args_cli.max_steps < -1:
     parser.error("--max_steps must be positive or -1.")
@@ -33,7 +34,9 @@ if args_cli.max_steps == 0 or args_cli.max_steps < -1:
 import torch
 
 import isaaclab.sim as sim_utils
+from isaaclab.assets import AssetBaseCfg
 from isaaclab.markers.visualization_markers_cfg import VisualizationMarkersCfg
+from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.math import quat_from_angle_axis
 
@@ -95,7 +98,9 @@ def define_markers() -> "VisualizationMarkers":
 def main():
     """Main function."""
     sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device)
-    with launch_simulation(sim_cfg, args_cli):
+    scene_cfg = InteractiveSceneCfg(num_envs=1, env_spacing=0.0)
+    scene_cfg.world = AssetBaseCfg(prim_path="/World")
+    with launch_simulation(SimpleNamespace(sim=sim_cfg, scene=scene_cfg), args_cli):
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
         sim.set_camera_view([0.0, 18.0, 12.0], [0.0, 3.0, 0.0])
@@ -126,6 +131,7 @@ def main():
         marker_locations = torch.stack([x_grid, y_grid, z_grid], dim=1)
         marker_indices = torch.arange(my_visualizer.num_prototypes).repeat(num_markers_per_type)
 
+        scene = instantiate(scene_cfg)
         sim.reset()
         print("[INFO]: Setup complete...")
 
@@ -146,6 +152,7 @@ def main():
             step_count += 1
             # increment yaw
             yaw += 0.01
+        del scene
 
 
 if __name__ == "__main__":

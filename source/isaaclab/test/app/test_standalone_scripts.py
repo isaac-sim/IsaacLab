@@ -331,18 +331,19 @@ def test_g1_terrain_forwards_visualizer_selection(monkeypatch, extra_args, expec
 
 
 @pytest.mark.parametrize(
-    ("extra_args", "expected_visualizers", "expected_overrides", "expected_video_source"),
+    ("extra_args", "expected_visualizers", "expected_overrides", "expected_video_source", "expected_renderers"),
     [
-        ((), [], ["presets=granular"], "viz:newton"),
-        (("--viz", "newton"), ["newton"], ["presets=granular", "visualizer=newton"], None),
-        (("--viz", "none"), [], ["presets=granular", "visualizer=none"], None),
-        (("--viz", "rerun", "--video"), ["rerun"], ["presets=granular", "visualizer=rerun"], "viz"),
-        (("physics=isaacsim_physx",), ["newton"], ["presets=granular", "physics=isaacsim_physx"], None),
+        ((), ["newton"], ["presets=granular"], "viz:newton", ["rtx"]),
+        (("--viz", "newton"), ["newton"], ["presets=granular", "visualizer=newton"], None, ["opengl"]),
+        (("--viz", "none"), [], ["presets=granular", "visualizer=none"], None, []),
+        (("--viz", "rerun", "--video"), ["rerun"], ["presets=granular", "visualizer=rerun"], "viz", [None]),
+        (("physics=isaacsim_physx",), ["newton"], ["presets=granular", "physics=isaacsim_physx"], None, ["opengl"]),
         (
             ("--physics", "isaacsim_physx", "--video"),
             ["newton"],
             ["presets=granular", "physics=isaacsim_physx"],
             "viz:newton",
+            ["opengl"],
         ),
     ],
     ids=(
@@ -355,9 +356,9 @@ def test_g1_terrain_forwards_visualizer_selection(monkeypatch, extra_args, expec
     ),
 )
 def test_sonic_defaults_to_offscreen_recording_and_preserves_explicit_visualizers(
-    monkeypatch, extra_args, expected_visualizers, expected_overrides, expected_video_source
+    monkeypatch, extra_args, expected_visualizers, expected_overrides, expected_video_source, expected_renderers
 ):
-    """Newton records with Kit by default; explicit viewers and PhysX keep recording opt-in."""
+    """Newton records RTX offscreen by default; explicit viewers and PhysX keep recording opt-in."""
     script = script_cases.ROOT / "examples" / "demos" / "sonic.py"
     namespace = runpy.run_path(str(script))
     main = namespace["main"]
@@ -380,6 +381,13 @@ def test_sonic_defaults_to_offscreen_recording_and_preserves_explicit_visualizer
         ]
         captured["launch_physics"] = getattr(launcher_args, "physics", None)
         captured["video_sources"] = [recorder.source for recorder in _cfg.video_recorders]
+        captured["renderers"] = [
+            getattr(backend, "initial_renderer", None)
+            for viewer in _cfg.sim.visualizer_cfgs
+            for backend in (viewer.backend if isinstance(viewer.backend, list) else [viewer.backend])
+        ]
+        if not extra_args:
+            assert all(viewer.headless for viewer in _cfg.sim.visualizer_cfgs)
         raise LaunchReached
         yield
 
@@ -400,6 +408,7 @@ def test_sonic_defaults_to_offscreen_recording_and_preserves_explicit_visualizer
         "visualizers": expected_visualizers,
         "launch_physics": None,
         "video_sources": expected_video_sources,
+        "renderers": expected_renderers,
     }
 
 
