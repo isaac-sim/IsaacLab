@@ -1113,12 +1113,12 @@ def test_ovrtx_cleanup_releases_only_the_given_render_data(monkeypatch, cleanup_
     render_data.warp_buffers = {"rgba": wp.zeros((8, 16, 4), dtype=wp.uint8, device="cpu")}
     render_data.renderer_info = {"semantic_segmentation": {"idToLabels": {}}}
     if use_ovstage:
-        render_data.camera_xform_binding = "to_remove"
+        render_data.xform_binding = "to_remove"
         render_data.resources.callback(renderer.scene.paths.destroy_path_list, "to_remove")
         render_data.resources.enter_context(renderer.scene.stage.query_from_path_list("to_remove"))
     else:
-        render_data.camera_xform_binding = _RecordingBinding(events, "pose")
-        render_data.resources.callback(render_data.camera_xform_binding.unbind)
+        render_data.xform_binding = _RecordingBinding(events, "pose")
+        render_data.resources.callback(render_data.xform_binding.unbind)
         render_data.intrinsic_bindings = [_RecordingBinding(events, "intrinsics")]
         render_data.resources.callback(render_data.intrinsic_bindings[0].unbind)
 
@@ -1127,12 +1127,12 @@ def test_ovrtx_cleanup_releases_only_the_given_render_data(monkeypatch, cleanup_
     if failure == "render":
         render_data.pending = (operations[-1], {})
     elif failure == "write":
-        render_data.camera_writes = _AsyncWriteBuffers((object(), object()))
+        render_data.pose_writes = _AsyncWriteBuffers((object(), object()))
         binding = MagicMock()
         binding.write_async.side_effect = operations
         stream = types.SimpleNamespace(cuda_stream=0)
         for _ in operations:
-            render_data.camera_writes.submit(binding, object(), stream)
+            render_data.pose_writes.submit(binding, object(), stream)
         monkeypatch.setattr(wp, "synchronize_stream", lambda _stream: None)
     if failure:
         with pytest.raises(ExceptionGroup if failure == "render" else RuntimeError):
@@ -1153,7 +1153,7 @@ def test_ovrtx_cleanup_releases_only_the_given_render_data(monkeypatch, cleanup_
     )
     assert events == expected
     assert renderer._sensor_render_data == [other_camera]
-    assert render_data.camera_xform_binding is None
+    assert render_data.xform_binding is None
     assert render_data.intrinsic_bindings == []
     assert render_data.warp_buffers == {}
     assert render_data.renderer_info == {}
@@ -1263,7 +1263,7 @@ def test_pose_and_intrinsic_updates_target_the_given_camera(monkeypatch, stage_m
     matrices = (
         renderer.scene.stage.write_attribute.call_args.kwargs["tensors"]
         if use_ovstage
-        else cameras[1].camera_xform_binding.write_async.call_args.args[0]
+        else cameras[1].xform_binding.write_async.call_args.args[0]
     )
     from pxr import Gf
 
@@ -1277,7 +1277,7 @@ def test_pose_and_intrinsic_updates_target_the_given_camera(monkeypatch, stage_m
     parameters = wp.zeros((5, 2), dtype=wp.float32, device="cpu")
     renderer.update_camera_intrinsics(cameras[1], wp.zeros(2, dtype=wp.mat33f, device="cpu"), parameters)
     if use_ovstage:
-        assert renderer.scene.stage.write_attributes.call_args.args[0] is cameras[1].camera_xform_binding
+        assert renderer.scene.stage.write_attributes.call_args.args[0] is cameras[1].xform_binding
         bound_paths = [call.args[0] for call in renderer.scene.paths.create_path_list_from_strings.call_args_list]
         assert bound_paths == [
             entry
@@ -1351,10 +1351,10 @@ def _make_renderer_with_backend(events: list[str], use_ovstage: bool) -> OVRTXRe
         renderer.scene.resources.callback(events.append, "close_stage")
         renderer.scene.ordinal = 7
         render_data.resources.callback(renderer.scene.paths.destroy_path_list, "camera")
-        render_data.camera_xform_binding = render_data.resources.enter_context(query("camera"))
+        render_data.xform_binding = render_data.resources.enter_context(query("camera"))
     else:
-        render_data.camera_xform_binding = _RecordingBinding(events, "camera")
-        render_data.resources.callback(render_data.camera_xform_binding.unbind)
+        render_data.xform_binding = _RecordingBinding(events, "camera")
+        render_data.resources.callback(render_data.xform_binding.unbind)
     renderer.scene.clone_copies = []
     renderer._setup_xform_bindings(SimulationContext.instance().stage)
     renderer._setup_geometry_bindings()
