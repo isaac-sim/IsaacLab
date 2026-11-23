@@ -432,6 +432,7 @@ class ContactSensor(BaseContactSensor):
         self._history_length = max(self.cfg.history_length, 1)
 
         # prepare data buffers
+        self._data._body_names = self.body_names
         self._data.create_buffers(
             num_envs=self._num_envs,
             num_sensors=self._num_sensors,

@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import warp as wp
@@ -24,6 +24,39 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _SENSORS_BY_STATE_ATTRIBUTE = {"body_qdd": "the IMU or PVA sensor", "body_parent_f": "the joint-wrench sensor"}
+
+
+@wp.func
+def _nonfinite(values: wp.array2d(dtype=Any), world: int, column: int) -> bool:
+    return column < values.shape[1] and not wp.isfinite(values[world, column])
+
+
+@wp.kernel(enable_backward=False)
+def _find_nonfinite_solver_worlds(
+    qpos: wp.array2d(dtype=wp.float32),
+    qvel: wp.array2d(dtype=wp.float32),
+    qacc: wp.array2d(dtype=wp.float32),
+    qfrc_actuator: wp.array2d(dtype=wp.float32),
+    qacc_warmstart: wp.array2d(dtype=wp.float32),
+    qfrc_applied: wp.array2d(dtype=wp.float32),
+    ctrl: wp.array2d(dtype=wp.float32),
+    act: wp.array2d(dtype=wp.float32),
+    xfrc_applied: wp.array2d(dtype=wp.spatial_vector),
+    invalid_worlds: wp.array(dtype=wp.bool),
+):
+    world, column = wp.tid()
+    if (
+        _nonfinite(qpos, world, column)
+        or _nonfinite(qvel, world, column)
+        or _nonfinite(qacc, world, column)
+        or _nonfinite(qfrc_actuator, world, column)
+        or _nonfinite(qacc_warmstart, world, column)
+        or _nonfinite(qfrc_applied, world, column)
+        or _nonfinite(ctrl, world, column)
+        or _nonfinite(act, world, column)
+        or _nonfinite(xfrc_applied, world, column)
+    ):
+        invalid_worlds[world] = True
 
 
 class MJWarpSolver(NewtonSolver):
@@ -92,6 +125,37 @@ class MJWarpSolver(NewtonSolver):
             device=model.device,
             requested_attributes=model.get_requested_contact_attributes(),
         )
+
+    def mark_non_finite_worlds(self, state: State, faults: wp.array) -> None:
+        """Include MuJoCo's persistent solver buffers.
+
+        CPU MuJoCo uses one global simulation and clears its history globally on reset, so a fault in
+        its private buffers invalidates every environment. MJWarp checks each world's buffers separately.
+        """
+        super().mark_non_finite_worlds(state, faults)
+        data = self.native.mj_data if self.cfg.use_mujoco_cpu else self.native.mjw_data
+        arrays = (
+            data.qpos,
+            data.qvel,
+            data.qacc,
+            data.qfrc_actuator,
+            data.qacc_warmstart,
+            data.qfrc_applied,
+            data.ctrl,
+            data.act,
+            data.xfrc_applied,
+        )
+        if self.cfg.use_mujoco_cpu:
+            if any(not np.isfinite(array).all() for array in arrays):
+                faults.fill_(True)
+        else:
+            wp.launch(
+                _find_nonfinite_solver_worlds,
+                dim=(data.qpos.shape[0], max(array.shape[1] for array in arrays)),
+                inputs=arrays,
+                outputs=[faults],
+                device=faults.device,
+            )
 
     def reset(self, state: State, world_mask: wp.array) -> None:
         """Clear solver history and synchronize authored joint state for masked worlds.

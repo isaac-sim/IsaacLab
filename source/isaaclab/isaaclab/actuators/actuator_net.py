@@ -45,6 +45,8 @@ class ActuatorNetLSTM(DCMotor):
     """The configuration of the actuator model."""
 
     def __init__(self, cfg: ActuatorNetLSTMCfg, *args, **kwargs):
+        if cfg.network_file is None:
+            raise ValueError("network_file must be provided for the Isaac Lab neural actuator model.")
         super().__init__(cfg, *args, **kwargs)
 
         # load the model from JIT file
@@ -123,6 +125,8 @@ class ActuatorNetMLP(DCMotor):
     """The configuration of the actuator model."""
 
     def __init__(self, cfg: ActuatorNetMLPCfg, *args, **kwargs):
+        if cfg.network_file is None:
+            raise ValueError("network_file must be provided for the Isaac Lab neural actuator model.")
         super().__init__(cfg, *args, **kwargs)
 
         # load the model from JIT file

@@ -12,9 +12,15 @@ https://arxiv.org/abs/2601.18336.
 from __future__ import annotations
 
 from dataclasses import field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from isaaclab.utils import configclass
+from isaaclab.utils.tensor_processors import TensorProcessorCfg
+
+if TYPE_CHECKING:
+    from isaaclab.sensors.camera import CameraISPMode
+
+    from .pipeline import PpispProcessor
 
 PPISP_ATTR_NAMESPACE = "ppisp:"
 """Namespace prefix for authoritative PPISP attributes authored on a USD camera."""
@@ -126,6 +132,18 @@ class PpispCfg:
     and the four color latents from the HDR image each frame. Static PPISP
     inputs still provide responsivity, vignetting, and CRF.
     """
+
+
+@configclass
+class PpispProcessorCfg(TensorProcessorCfg):
+    """Camera processor configuration that converts ``rgb_hdr`` to ``rgb`` and ``rgba`` with PPISP."""
+
+    func: type[PpispProcessor] | str = "{DIR}.pipeline:PpispProcessor"
+    inputs: list[str] = ["rgb_hdr"]
+    outputs: list[str] = ["rgb", "rgba"]
+
+    isp_cfg: PpispCfg | CameraISPMode = PpispCfg()
+    """PPISP coefficients, or a mode that discovers them from the camera's ``ppisp:*`` attributes."""
 
 
 def normalize_ppisp_cfg(
