@@ -26,6 +26,7 @@ from ..utils.assets import read_file
 from ..utils.io import load_onnx_model
 from ..utils.types import ArticulationActions
 from ..utils.warp.memory import make_masked_fill
+from .actuator_kernels import dc_motor_clip
 from .actuator_pd import DCMotor
 
 if TYPE_CHECKING:
@@ -156,6 +157,37 @@ def _update_mlp_history(
         network_input[row, vel_column + i] = vel_scale * joint_vel_history[env_id, index, joint]
 
 
+@wp.kernel(enable_backward=False)
+def _scale_and_clip_mlp_torque(
+    # input
+    torque: wp.array(dtype=wp.float32),
+    joint_vel: wp.array2d(dtype=wp.float32),
+    torque_scale: wp.float32,
+    saturation_effort: wp.array2d(dtype=wp.float32),
+    vel_at_effort_lim: wp.array2d(dtype=wp.float32),
+    velocity_limit: wp.array2d(dtype=wp.float32),
+    effort_limit: wp.array2d(dtype=wp.float32),
+    # output
+    computed_effort: wp.array2d(dtype=wp.float32),
+    applied_effort: wp.array2d(dtype=wp.float32),
+):
+    """Scale the network torque of each (env, joint) and clip it to the DC motor limits.
+
+    ``torque`` holds one value per (env, joint), row-major. Launch with ``dim=(num_envs, num_joints)``.
+    """
+    env_id, joint = wp.tid()
+    effort = torque[env_id * computed_effort.shape[1] + joint] * torque_scale
+    computed_effort[env_id, joint] = effort
+    applied_effort[env_id, joint] = dc_motor_clip(
+        effort,
+        joint_vel[env_id, joint],
+        saturation_effort[env_id, joint],
+        vel_at_effort_lim[env_id, joint],
+        velocity_limit[env_id, joint],
+        effort_limit[env_id, joint],
+    )
+
+
 class ActuatorNetMLP(DCMotor):
     """Actuator model based on multi-layer perceptron and joint history.
 
@@ -216,6 +248,12 @@ class ActuatorNetMLP(DCMotor):
         input_shape = (self._num_envs * self.num_joints, 2 * len(indices))
         self._network_input = wp.zeros(input_shape, dtype=wp.float32, device=self._device)
         self.network.prepare({self._network_input_name: self._network_input})
+        # the efforts are written by a Warp kernel; the actuator's effort attributes are Torch views of them
+        effort_shape = (self._num_envs, self.num_joints)
+        self._computed_effort = wp.zeros(effort_shape, dtype=wp.float32, device=self._device)
+        self._applied_effort = wp.zeros(effort_shape, dtype=wp.float32, device=self._device)
+        self.computed_effort = wp.to_torch(self._computed_effort)
+        self.applied_effort = wp.to_torch(self._applied_effort)
 
     """
     Operations.
@@ -254,11 +292,23 @@ class ActuatorNetMLP(DCMotor):
             device=self._device,
         )
         # run network inference
-        torques = wp.to_torch(self.network({self._network_input_name: self._network_input})[self._network_output_name])
-        self.computed_effort = torques.view(self._num_envs, self.num_joints) * self.cfg.torque_scale
-
-        # clip the computed effort based on the motor limits
-        self.applied_effort = self._clip_effort(self.computed_effort, joint_vel)
+        torque = self.network({self._network_input_name: self._network_input})[self._network_output_name]
+        # scale the torque and clip it based on the motor limits
+        wp.launch(
+            _scale_and_clip_mlp_torque,
+            dim=(self._num_envs, self.num_joints),
+            inputs=[
+                torque.reshape((self._num_envs * self.num_joints,)),
+                wp.from_torch(joint_vel),
+                self.cfg.torque_scale,
+                wp.from_torch(self._saturation_effort),
+                wp.from_torch(self._vel_at_effort_lim),
+                wp.from_torch(self.actuator_velocity_limit),
+                wp.from_torch(self.actuator_effort_limit),
+            ],
+            outputs=[self._computed_effort, self._applied_effort],
+            device=self._device,
+        )
 
         # return torques
         control_action.joint_efforts = self.applied_effort

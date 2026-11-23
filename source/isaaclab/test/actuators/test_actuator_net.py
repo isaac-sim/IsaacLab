@@ -9,7 +9,7 @@ import pytest
 import torch
 import warp as wp
 
-from isaaclab.actuators import ActuatorNetLSTMCfg, ActuatorNetMLPCfg
+from isaaclab.actuators import ActuatorNetLSTMCfg, ActuatorNetMLPCfg, DCMotor
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import instantiate
 from isaaclab.utils.types import ArticulationActions
@@ -132,6 +132,31 @@ def test_mlp_masked_reset_replays_from_a_cuda_graph_while_the_history_moves(tmp_
             torch.testing.assert_close(actuator.computed_effort, expected)
 
 
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_mlp_compute_replays_from_a_warp_graph(tmp_path, device):
+    """A Warp graph records the whole torque computation, network and clip included, with no Torch work in it.
+
+    The graph is recorded on Warp's own stream, apart from Torch's, so any Torch operation in ``compute`` would run
+    once at recording time instead of being replayed.
+    """
+    cfg = {"input_idx": [0, 1, 2], "pos_scale": 1.0, "vel_scale": 1.0, "torque_scale": 40.0, "input_order": "pos_vel"}
+    eager = _actuator(ActuatorNetMLPCfg, _feature_torque_mlp(6), tmp_path, device, **cfg)
+    recorded = _actuator(ActuatorNetMLPCfg, _feature_torque_mlp(6), tmp_path, device, **cfg)
+    target, position, velocity = (torch.zeros(3, 2, device=device) for _ in range(3))
+    torch.cuda.synchronize(device)
+    with wp.ScopedCapture(device) as capture:
+        recorded.compute(ArticulationActions(joint_positions=target), position, velocity)
+    for _ in range(4):
+        for tensor in (target, position, velocity):
+            tensor.copy_(torch.randn(3, 2, device=device))
+        eager.compute(ArticulationActions(joint_positions=target.clone()), position, velocity)
+        torch.cuda.synchronize(device)
+        wp.capture_launch(capture.graph)
+        wp.synchronize_device(device)
+        torch.testing.assert_close(recorded.computed_effort, eager.computed_effort)
+        torch.testing.assert_close(recorded.applied_effort, eager.applied_effort)
+
+
 def test_mlp_rejects_invalid_history_before_loading_checkpoint(tmp_path):
     """The configured history error takes precedence over checkpoint I/O."""
     cfg = ActuatorNetMLPCfg(
@@ -156,7 +181,7 @@ def test_mlp_rejects_invalid_history_before_loading_checkpoint(tmp_path):
 )
 def test_mlp_history_keeps_its_window(tmp_path, device, input_idx, input_order, network_format):
     """Computed torque follows the selected zero-padded history across wraparound and partial resets, with a
-    TorchScript or an ONNX network file."""
+    TorchScript or an ONNX network file; the applied torque is clipped as the Torch DC motor clips it."""
     network = _feature_torque_mlp(2 * len(input_idx))
     actuator = _actuator(
         ActuatorNetMLPCfg,
@@ -167,10 +192,11 @@ def test_mlp_history_keeps_its_window(tmp_path, device, input_idx, input_order, 
         input_idx=input_idx,
         pos_scale=-0.3,
         vel_scale=1.25,
-        torque_scale=0.5,
+        torque_scale=20.0,
         input_order=input_order,
     )
     network = network.to(device)
+    clipped = False
     length = max(input_idx) + 1
     position_history = torch.zeros(3, length, 2, device=device)
     velocity_history = torch.zeros_like(position_history)
@@ -201,6 +227,9 @@ def test_mlp_history_keeps_its_window(tmp_path, device, input_idx, input_order, 
             features = torch.cat([pos_features * pos_scale, vel_features * vel_scale], dim=1)
         else:
             features = torch.cat([vel_features * vel_scale, pos_features * pos_scale], dim=1)
-        expected = network(features).detach().reshape(3, 2) * 0.5
+        expected = network(features).detach().reshape(3, 2) * 20.0
         actuator.compute(ArticulationActions(joint_positions=desired), position, velocity)
         torch.testing.assert_close(actuator.computed_effort, expected)
+        torch.testing.assert_close(actuator.applied_effort, DCMotor._clip_effort(actuator, expected, velocity))
+        clipped |= not torch.equal(actuator.applied_effort, actuator.computed_effort)
+    assert clipped

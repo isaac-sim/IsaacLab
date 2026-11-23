@@ -3,8 +3,8 @@
 * Changed :class:`~isaaclab.actuators.ActuatorNetMLP` to run its network with Warp-NN, a new dependency. The network
   file may be an ONNX model, read as it is, or a TorchScript module, exported to ONNX when the actuator loads; the
   network must use operators that Warp-NN supports. ``network`` is now the Warp-NN runtime instead of the TorchScript
-  module. One Warp kernel updates the joint history and writes the network input, so a CUDA graph can record the
-  whole torque computation.
+  module. One Warp kernel updates the joint history and writes the network input, and another scales the torque and
+  clips it to the DC motor limits, so a Warp graph alone can record the whole torque computation.
 * Changed the ray-caster drift resampling on reset to draw from per-environment Warp random states, so a reset
   recorded in a CUDA graph resamples the drift of the selected environments on every replay. The states are seeded
   from the environment seed when the sensor initializes and again by every
