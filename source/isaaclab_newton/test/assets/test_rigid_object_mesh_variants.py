@@ -154,18 +154,6 @@ def test_native_selection_preserves_initial_worlds_and_unused_variant(device: st
 def test_semantic_worlds_choose_initial_variants(device: str) -> None:
     """Semantic rules select the right native variants, including inherited wrapper tags."""
 
-    @configclass
-    class AssemblyWorlds(InclusionSet):
-        assembly: str = ""
-
-        def worlds(self, asset_names, variants):
-            candidates = dict(zip(asset_names, variants, strict=True))
-            for obj in candidates["object"]:
-                for fixture in candidates["fixture"]:
-                    required = {("assembly", self.assembly), ("domain", "mechanical")}
-                    if required.issubset(obj.semantic_tags) and required.issubset(fixture.semantic_tags):
-                        yield {"object": [obj], "fixture": [fixture]}
-
     scene_cfg = _VariantSceneCfg(num_envs=4, env_spacing=2.0)
     third = scene_cfg.object.spawn.assets_cfg[0].copy()
     third.radius, third.mass_props.mass = 0.06, 27.0
@@ -181,8 +169,7 @@ def test_semantic_worlds_choose_initial_variants(device: str) -> None:
     scene_cfg.object.spawn.semantic_tags = [("domain", "mechanical")]
     scene_cfg.fixture.spawn.semantic_tags = [("domain", "mechanical")]
     scene_cfg.clone_cfg.clone_combinations = [
-        AssemblyWorlds(assets=["object", "fixture"], assembly="drive"),
-        AssemblyWorlds(assets=["object", "fixture"], assembly="spare"),
+        InclusionSet(assets=["object", "fixture"], match_tags=["assembly", "domain"]),
     ]
     sim_cfg = SimulationCfg(
         device=device,
@@ -195,9 +182,9 @@ def test_semantic_worlds_choose_initial_variants(device: str) -> None:
         sim.register_interactive_scene(scene)
         sim.reset()
         asset, fixture = scene["object"], scene["fixture"]
-        torch.testing.assert_close(asset.mesh_variant_ids.torch.cpu(), torch.tensor([2, 2, 0, 0], dtype=torch.int32))
-        torch.testing.assert_close(asset.data.body_mass.torch[:, 0].cpu(), torch.tensor([27.0, 27.0, 1.0, 1.0]))
-        torch.testing.assert_close(fixture.data.body_mass.torch[:, 0].cpu(), torch.tensor([8.0, 8.0, 1.0, 8.0]))
+        torch.testing.assert_close(asset.mesh_variant_ids.torch.cpu(), torch.tensor([0, 0, 2, 2], dtype=torch.int32))
+        torch.testing.assert_close(asset.data.body_mass.torch[:, 0].cpu(), torch.tensor([1.0, 1.0, 27.0, 27.0]))
+        torch.testing.assert_close(fixture.data.body_mass.torch[:, 0].cpu(), torch.tensor([1.0, 8.0, 8.0, 8.0]))
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))

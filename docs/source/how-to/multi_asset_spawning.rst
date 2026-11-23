@@ -131,67 +131,61 @@ variant because their batched Newton views currently require a uniform body layo
    :end-at: scene_cfg.robot.spawn.usd_path = scene_cfg.robot.spawn.usd_path[0]
    :dedent: 8
 
-An :class:`~isaaclab.cloner.InclusionSet` defines legal worlds before replication. Its default
-:meth:`~isaaclab.cloner.InclusionSet.worlds` combines variants independently. A task can override that
-method to select compatible configurations using their existing ``semantic_tags``. No separate variant
-labels, positional layout indices, or matching policy are required in core.
-
-For example, tag each part and fixture spawner configuration with its size and assembly. A configuration
-can have several semantic tags:
+An :class:`~isaaclab.cloner.InclusionSet` declares which assets are active and which semantic tag
+values must match. No subclass or callback is needed. For a scene with ``gear`` and ``fixture`` assets:
 
 .. code-block:: python
-
-   small_part_cfg.semantic_tags = [
-       ("class", "gear"), ("size", "small"), ("assembly", "drive"),
-   ]
-   small_fixture_cfg.semantic_tags = [
-       ("class", "fixture"), ("size", "small"), ("assembly", "drive"),
-   ]
-
-Define the matching rule in the task, alongside its scene configuration:
-
-.. code-block:: python
-
-   import re
-
-   class MatchedWorlds(InclusionSet):
-       def worlds(self, asset_names, variants):
-           candidates = dict(zip(asset_names, variants, strict=True))
-           fixtures = {}
-           for fixture in candidates["fixture"]:
-               tags = dict(fixture.semantic_tags or ())
-               key = (tags.get("size"), tags.get("assembly"))
-               if None not in key:
-                   fixtures.setdefault(key, []).append(fixture)
-           for part in candidates["part"]:
-               tags = dict(part.semantic_tags or ())
-               if re.fullmatch(r"gear|shaft", tags.get("class", "")):
-                   key = (tags.get("size"), tags.get("assembly"))
-                   for fixture in fixtures.get(key, ()):
-                       yield {"part": [part], "fixture": [fixture]}
 
    scene_cfg.clone_cfg.clone_combinations = [
-       MatchedWorlds(assets=["part", "fixture"]),
+       InclusionSet(assets=["gear", "fixture"], match_tags=["size", "assembly"]),
    ]
 
-This task-local definition joins parts and fixtures by size and assembly, filtering part classes with a
-regex. It generates compatible pairs directly instead of constructing the independent Cartesian product.
-Variant order does not determine compatibility. Other tasks can use different tag keys, multi-valued tags,
-or configuration properties without adding matching subclasses to core. Untagged variants remain valid
-for the default independent combination policy.
+Tag the individual spawner configurations using the existing semantic API:
 
-The method receives one candidate group per active declaration instance, including unclaimed assets.
-Candidate configurations include semantic tags inherited from ``MultiAssetSpawnerCfg``. For
-``MultiUsdFileCfg``, each candidate has one concrete ``usd_path`` and the wrapper's tags. Treat these
-configurations as read-only and return the supplied objects rather than copies. Each returned world maps
-an asset name to a list of selected configurations. Lists allow repeated asset instances and rigid object
-collection members; their selections follow the corresponding declaration order. The example above is
-for a scene containing one part and one fixture declaration. A task with additional active assets must
-include their selections in each returned world too.
+.. code-block:: python
 
-Scene planning validates the selections and translates them into prototype IDs. ``ReplicateSession``
-consumes those IDs without interpreting semantic tags or inclusion rules. An inclusion set's weight is
-split equally over its generated worlds.
+   small_gear_cfg.semantic_tags = [("size", "small"), ("assembly", "drive")]
+   small_fixture_cfg.semantic_tags = [("size", "small"), ("assembly", "drive")]
+   universal_fixture_cfg.semantic_tags = [
+       ("size", "small"), ("size", "medium"), ("size", "large"),
+       ("assembly", "drive"),
+   ]
+
+Every selected gear and fixture must share a value for each requested tag type. The universal fixture
+can therefore match small, medium, or large gears in the drive assembly. Missing requested tags do not
+match. Tag values are compared exactly; there are no reserved wildcard values or implicit regex rules.
+Tags inherited from ``MultiAssetSpawnerCfg`` also participate. ``MultiUsdFileCfg`` candidates inherit
+the wrapper's tags and retain their individual USD paths.
+
+Repeat an asset name to request multiple instances:
+
+.. code-block:: python
+
+   InclusionSet(assets=["gear", "gear", "fixture"], match_tags=["size", "assembly"])
+
+This requests two gear instances and one fixture, all sharing a size and assembly. It does not express
+separate pairwise constraints. Repeated instances may use the same variant. Assets not referenced by
+any inclusion definition remain active independently and do not participate in tag matching. Collection
+members retain their separate candidate slots even when they share a scene asset name.
+
+Matching definitions remain compact until clone-plan construction. For example, 1,000 candidates across
+five categories and eight asset slots can be represented as five compatible groups, rather than
+expanding every valid concrete world. The scene's ``num_envs`` determines how many worlds to instantiate.
+Its :attr:`~isaaclab.cloner.CloneCfg.clone_strategy` selects compatible groups according to their weights,
+then selects each slot's concrete variant within the chosen group. Identical concrete worlds share a
+prototype. The inclusion weight is divided equally across its compatible groups; this gives equal
+weight to tag-value groups, rather than to every possible concrete combination. Multi-valued tags can
+make groups overlap.
+
+The existing ``sequential`` strategy distributes environments across groups and candidate lists in order.
+The ``random`` strategy draws groups by weight and candidates uniformly, using the existing NumPy random
+state. ``InclusionSet`` does not own an environment count or random seed. Planning cost depends on
+candidate metadata and selected worlds, without expanding the product within each matching group;
+loading and simulating concrete assets still has its own cost.
+
+With ``match_tags=[]`` (the default), the existing independent Cartesian product and assignment behavior
+are preserved. Inclusion interpretation stays in scene planning. ``ReplicateSession`` forwards the
+resolved definitions without applying tag matching or task-specific rules.
 
 For more detail on prototype assignment and replication, see :doc:`cloning`.
 

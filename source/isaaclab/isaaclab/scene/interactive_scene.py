@@ -183,7 +183,9 @@ class InteractiveScene:
             logger.warning(f"USD export is unavailable: reading the engine at startup failed ({error}).")
             self._usd_export_base = error
 
-    def _collect_asset_cfgs(self) -> tuple[list[Any], tuple[tuple[int, ...], ...] | None, np.ndarray | None]:
+    def _collect_asset_cfgs(
+        self,
+    ) -> tuple[list[Any], tuple[tuple[int | tuple[int, ...], ...], ...] | None, np.ndarray | None]:
         """Flatten user-declared cfgs and declare shared prim roots for clone planning.
 
         Expands :class:`~isaaclab.assets.RigidObjectCollectionCfg` into its members,
@@ -256,7 +258,14 @@ class InteractiveScene:
             worlds, weights = cloner.make_valid_clone_combinations(
                 clone_asset_names, variant_cfgs, combinations, all_asset_names=scene_asset_names
             )
-            return cfgs, tuple(tuple(prototype_indices[index] for index in world) for world in worlds), weights
+            worlds = tuple(
+                tuple(
+                    prototype_indices[slot] if isinstance(slot, int) else tuple(prototype_indices[i] for i in slot)
+                    for slot in world
+                )
+                for world in worlds
+            )
+            return cfgs, worlds, weights
         return cfgs, None, None
 
     def filter_collisions(self, global_prim_paths: list[str] | None = None):

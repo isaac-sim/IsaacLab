@@ -1,4 +1,4 @@
-* Added an overridable :meth:`~isaaclab.cloner.InclusionSet.worlds` definition that lets task-local
-  inclusion rules select compatible spawner configurations using their existing semantic tags.
-  Scene planning resolved these selections into prototype IDs before replication, without enumerating
-  excluded Cartesian combinations or adding a separate variant-label system.
+* Added :attr:`~isaaclab.cloner.InclusionSet.match_tags` to declare variant compatibility using
+  existing semantic tags, including multiple acceptable values. Matching groups stayed factorized
+  until the scene's clone strategy selected concrete worlds, avoiding exhaustive combination
+  expansion without inclusion callbacks, separate variant labels, or inclusion-owned sampling settings.

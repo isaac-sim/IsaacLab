@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import itertools
 import warnings
-from collections.abc import Callable, Iterable, Mapping, Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
@@ -52,32 +52,15 @@ class InclusionSet:
     weight: float = 1.0
     """Relative sampling weight for this clone combination."""
 
-    def worlds(
-        self, asset_names: Sequence[str], variants: Sequence[Sequence[SpawnerCfg]]
-    ) -> Iterable[Mapping[str, Sequence[SpawnerCfg]]]:
-        """Select legal worlds from the available spawner configurations.
+    match_tags: list[str] = []
+    """Semantic tag types whose values must overlap across the selected assets.
 
-        Override this method in the task to select compatible variants using their existing
-        ``semantic_tags`` or other configuration properties. No matching policy is built into core.
-        The default independently combines all candidates.
-
-        Args:
-            asset_names: Scene name for each active declaration instance. Repeated instances and
-                rigid object collection members have separate entries, possibly with the same name.
-            variants: Candidate spawner configurations for each entry in ``asset_names``. These
-                include inherited multi-asset semantic tags and must be treated as read-only.
-
-        Yields:
-            Asset names mapped to selected candidate configurations, one per active instance.
-            For repeated names, selections follow the corresponding declaration order. Return
-            the supplied configurations themselves; copies and foreign configurations are invalid.
-            The inclusion weight is divided equally over the generated worlds.
-        """
-        for choices in itertools.product(*variants):
-            world = {}
-            for name, choice in zip(asset_names, choices, strict=True):
-                world.setdefault(name, []).append(choice)
-            yield world
+    Each selected variant must share a value for every listed tag type. Multiple values for a
+    tag express alternatives: a fixture supporting several sizes can match any one of them.
+    Assets not claimed by any inclusion set remain independent and do not participate in matching.
+    Empty keeps the existing independent Cartesian product. Matching groups remain factorized
+    until the scene's clone strategy selects concrete variants for its environments.
+    """
 
 
 @configclass
@@ -98,9 +81,9 @@ class CloneCfg:
     Assets not referenced by any entry are active in every combination. An
     empty list keeps the homogeneous/default behavior.
 
-    Each inclusion set defines its legal world layouts through :meth:`InclusionSet.worlds`.
-    Task-local inclusion subclasses are resolved before replication; replication
-    consumes the resulting world prototypes without interpreting inclusion rules.
+    Inclusion sets declare semantic compatibility through :attr:`InclusionSet.match_tags`.
+    Planning resolves compatible groups before replication. The clone strategy selects groups
+    and concrete variants; inclusion definitions do not own environment counts or random seeds.
     """
 
     clone_template: str = DEFAULT_ENV_TEMPLATE
@@ -124,25 +107,28 @@ def make_valid_clone_combinations(
     clone_combinations: Sequence[InclusionSet] | None = None,
     *,
     all_asset_names: Sequence[str] | None = None,
-) -> tuple[tuple[tuple[int, ...], ...], np.ndarray]:
-    """Resolve inclusion definitions into flat asset-prototype memberships and relative weights.
+) -> tuple[tuple[tuple[int | tuple[int, ...], ...], ...], np.ndarray]:
+    """Resolve inclusion membership and semantic compatibility before replication.
 
-    Repeated names create repeated instances. Unclaimed assets join every world. Each inclusion
-    set selects configurations directly, without enumerating excluded Cartesian combinations.
-    Candidate groups follow replicated scene declaration order, including repeated instances.
+    Repeated names create repeated instances. Unclaimed assets join every world independently.
+    Without matching tags, preserve the existing exhaustive product. With matching tags, return
+    compact compatible groups: each slot lists its candidate prototype IDs, without expanding
+    the Cartesian product within a group. Concrete selection belongs to clone-plan construction.
 
     Args:
         asset_names: Names of the replicated asset declarations.
-        variant_cfgs: Concrete spawner configurations for each replicated declaration.
+        variant_cfgs: Concrete spawner configurations for each replicated declaration, including
+            semantic tags inherited from their multi-asset wrapper.
         clone_combinations: Legal world definitions; None uses the default independent product.
         all_asset_names: Scene names, including shared assets that do not enter world memberships.
 
     Returns:
-        World memberships indexing the flat variant library, and one relative weight per world.
+        World definitions and their relative weights. A definition contains concrete prototype IDs
+        or tuples of alternative IDs per slot. Inclusion weight is split equally across definitions.
 
     Raises:
-        ValueError: Candidate groups are empty or misaligned, selected assets or configurations
-            are invalid, or a definition produces no worlds.
+        ValueError: Candidate groups are empty or misaligned, asset names are unknown, or no
+            compatible world exists.
     """
     if len(asset_names) != len(variant_cfgs) or any(not candidates for candidates in variant_cfgs):
         raise ValueError("Each asset requires a nonempty group of variant configurations.")
@@ -154,30 +140,45 @@ def make_valid_clone_combinations(
     for combination in combinations:
         if unknown := set(combination.assets) - known:
             raise ValueError(f"Unknown assets in clone combination: {sorted(unknown)}.")
-        names, choices, starts = [], [], []
+        names, choices, candidates = [], [], []
         for index, name in enumerate(asset_names):
             count = combination.assets.count(name) if name in claimed else 1
             names.extend([name] * count)
-            choices.extend([variant_cfgs[index]] * count)
-            starts.extend([offsets[index]] * count)
-        candidate_ids = [{id(cfg): index for index, cfg in enumerate(candidates)} for candidates in choices]
-        num_worlds = len(worlds)
-        for world in combination.worlds(names, choices):
-            if set(world) != set(names):
-                raise ValueError(f"World assets must be {sorted(set(names))}, got {sorted(world)}.")
-            if any(len(world[name]) != names.count(name) for name in world):
-                raise ValueError("World selections must provide one configuration per active asset instance.")
-            selections = {name: iter(configs) for name, configs in world.items()}
-            members = []
-            for name, candidates, start in zip(names, candidate_ids, starts, strict=True):
-                selected = next(selections[name])
-                if id(selected) not in candidates:
-                    raise ValueError(f"Selected configuration for {name!r} is not one of its supplied variants.")
-                members.append(int(start + candidates[id(selected)]))
-            worlds.append(tuple(members))
-        count = len(worlds) - num_worlds
+            choices.extend([tuple(range(int(offsets[index]), int(offsets[index + 1])))] * count)
+            candidates.extend([variant_cfgs[index]] * count)
+        start = len(worlds)
+        if not combination.match_tags:
+            worlds.extend(itertools.product(*choices))
+        else:
+            buckets = []
+            common = None
+            for name, ids, configs in zip(names, choices, candidates, strict=True):
+                if name not in combination.assets:
+                    buckets.append(None)
+                    continue
+                groups = {}
+                for prototype, cfg in zip(ids, configs, strict=True):
+                    tags = cfg.semantic_tags or ()
+                    values = [
+                        tuple(dict.fromkeys(value for tag, value in tags if tag == key))
+                        for key in combination.match_tags
+                    ]
+                    for key in itertools.product(*values):
+                        groups.setdefault(key, []).append(prototype)
+                buckets.append(groups)
+                common = list(groups) if common is None else [key for key in common if key in groups]
+            for key in [()] if common is None else common:
+                worlds.append(
+                    tuple(
+                        tuple(group[key]) if group is not None else ids
+                        for group, ids in zip(buckets, choices, strict=True)
+                    )
+                )
+            # Identical groups can arise when all candidates carry several matching values.
+            worlds[start:] = dict.fromkeys(worlds[start:])
+        count = len(worlds) - start
         if not count:
-            raise ValueError("An inclusion set must define at least one world layout.")
+            raise ValueError("An inclusion set must define at least one compatible world.")
         weights.extend([combination.weight / count] * count)
     return tuple(worlds), np.asarray(weights, dtype=np.float64)
 
