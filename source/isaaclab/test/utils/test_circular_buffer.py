@@ -28,6 +28,21 @@ def test_initialization(circular_buffer):
     assert circular_buffer.current_length.tolist() == [0, 0, 0]
 
 
+@pytest.mark.parametrize("stack_dim", [None, 1, -1])
+def test_append_selected_batches(stack_dim):
+    """Partial appends preserve other histories through reset, backfill and a subsequent full append."""
+    buffer = CircularBuffer(3, 3, "cpu", stack_dim=stack_dim)
+    buffer.append(torch.tensor([[20.0], [0.0]]), batch_ids=torch.tensor([2, 0]))
+    buffer.append(torch.tensor([[1.0]]), batch_ids=slice(0, 1))
+    torch.testing.assert_close(buffer.buffer[:, :, 0], torch.tensor([[0.0, 0.0, 1.0], [0.0, 0.0, 0.0], [20.0] * 3]))
+    assert buffer.current_length.tolist() == [2, 0, 1]
+    buffer.reset([2])
+    buffer.append(torch.tensor([[30.0]]), batch_ids=[2])
+    buffer.append(torch.tensor([[2.0], [10.0], [31.0]]))
+    torch.testing.assert_close(buffer.buffer[:, :, 0], torch.tensor([[0.0, 1.0, 2.0], [10.0] * 3, [30.0, 30.0, 31.0]]))
+    assert buffer.current_length.tolist() == [3, 1, 2]
+
+
 def test_reset(circular_buffer):
     """Test resetting the circular buffer."""
     # append some data
