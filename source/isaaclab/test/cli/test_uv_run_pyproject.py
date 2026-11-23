@@ -81,6 +81,7 @@ def test_uv_run_exposes_centralized_feature_extras(source_checkout_root: Path):
         "teleop",
         "importers",
         "rlinf",
+        "ray",
         "tetrahedralization",
         "all",
     }
@@ -99,6 +100,9 @@ def test_uv_run_exposes_centralized_feature_extras(source_checkout_root: Path):
     assert any(dep.startswith("ovphysx") for dep in optional_dependencies["ov"])
     assert any(dep.startswith("ovrtx") for dep in optional_dependencies["ov"])
     assert any(dep.startswith("ovstage") for dep in optional_dependencies["ov"])
+    ray_requirements = {Requirement(dep).name: Requirement(dep) for dep in optional_dependencies["ray"]}
+    assert {"ray", "optuna", "mlflow", "kubernetes", "jinja2", "pyyaml"} <= ray_requirements.keys()
+    assert "tune" in ray_requirements["ray"].extras
 
 
 def test_all_extra_aggregates_curated_ov_rl_and_visualizer_extras(source_checkout_root: Path):
@@ -113,6 +117,7 @@ def test_all_extra_aggregates_curated_ov_rl_and_visualizer_extras(source_checkou
 
     assert set(optional) - reachable - {"all"} == {
         "rlinf",
+        "ray",
         "torchrl",
         "skrl-jax",
         "isaacsim",

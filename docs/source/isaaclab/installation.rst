@@ -414,6 +414,11 @@ environment. Pass the same index strategy when adding or upgrading dependencies 
 Optional extras
 ~~~~~~~~~~~~~~~
 
+The source checkout also provides a community Ray dispatch and tuning extra:
+``uv sync --inexact --extra ray``. See :ref:`ray-workflow` for commands and migration
+from the legacy scripts.
+
+
 Add extras only when your project needs them. Most extras work with
 ``uv pip install "isaaclab[<extra>]"`` in a standalone environment or
 ``uv add "isaaclab[<extra>]"`` in a uv project. The ``importers`` and ``isaacsim`` extras

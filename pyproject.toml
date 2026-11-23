@@ -211,6 +211,15 @@ ovxr = [
     "isaaclab-dev[ov,teleop] ; sys_platform == 'linux' and platform_machine == 'x86_64'",
     "isaaccapture[ovxr,desktop-mirror] ; sys_platform == 'linux' and platform_machine == 'x86_64'",
 ]
+ray = [
+    "ray[default,tune]>=2.47.0",
+    "optuna>=3.0.0,<5",
+    "mlflow",
+    "sqlalchemy<2.1",
+    "kubernetes",
+    "jinja2",
+    "pyyaml",
+]
 rlinf = [
     "ray[default]>=2.47.0",
     "virtualenv>=21.7.13",
