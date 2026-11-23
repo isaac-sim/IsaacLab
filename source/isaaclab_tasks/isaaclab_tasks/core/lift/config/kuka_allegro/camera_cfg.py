@@ -220,6 +220,8 @@ def _image_term_presets(sensor_name: str) -> PresetCfg:
                     "data_type": data_type,
                     "normalize": False,
                     "channel_first": True,
+                    # Same first frame for synchronous and delayed renderers, and for a real camera at start-up.
+                    "blank_first_frame": True,
                 },
             )
     return preset(default=terms["rgb64"], **terms)
