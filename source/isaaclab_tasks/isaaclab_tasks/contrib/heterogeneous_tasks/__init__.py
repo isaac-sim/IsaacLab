@@ -16,7 +16,7 @@ import os
 _ASSETS_REPO = "LiFanxing/HeteroTask"
 """Hugging Face dataset holding the tasks' assets."""
 
-_ASSETS_REVISION = "f7eacb6db16e3cc4479c5f620686337edc4e209e"
+_ASSETS_REVISION = "c22eb388a07e673f766a621080640debe7aa46ca"
 """Commit of :data:`_ASSETS_REPO` the tasks use, so they do not change when the dataset does."""
 
 
