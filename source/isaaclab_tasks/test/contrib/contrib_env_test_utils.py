@@ -39,6 +39,7 @@ _SKIPPED_TASK_SUBSTRINGS = {
     "RmpFlow": "Uses SingleArticulation, which requires an update.",
     "Skillgen": "Requires cuRobo-specific coverage.",
     "Suction": "Requires CPU simulation.",
+    "Cosmos": "Requires a running Cosmos service.",
 }
 _COVERED_TASKS = [
     "IsaacContrib-Lift-Cube-Franka",  # Already covered by test_environment_determinism.py

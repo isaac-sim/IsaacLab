@@ -24,7 +24,9 @@ dependencies = [
     "isaaclab",
     "isaaclab-assets",
     "isaaclab-contrib",
+    "isaaclab-cosmos-server",
     "isaaclab-experimental",
+    "isaaclab-neural-bridge",
     "isaaclab-newton",
     "isaaclab-ov",
     "isaaclab-isaacsim",
@@ -466,8 +468,10 @@ physx-usd-schemas = { index = "pypi-public" }
 isaaclab = { path = "source/isaaclab", editable = true }
 "isaaclab-assets" = { path = "source/isaaclab_assets", editable = true }
 "isaaclab-contrib" = { path = "source/isaaclab_contrib", editable = true }
+"isaaclab-cosmos-server" = { path = "source/isaaclab_cosmos_server", editable = true }
 "isaaclab-experimental" = { path = "source/isaaclab_experimental", editable = true }
 "isaaclab-mimic" = { path = "source/isaaclab_mimic", editable = true }
+"isaaclab-neural-bridge" = { path = "source/isaaclab_neural_bridge", editable = true }
 "isaaclab-newton" = { path = "source/isaaclab_newton", editable = true }
 "isaaclab-ov" = { path = "source/isaaclab_ov", editable = true }
 "isaaclab-isaacsim" = { path = "source/isaaclab_isaacsim", editable = true }
