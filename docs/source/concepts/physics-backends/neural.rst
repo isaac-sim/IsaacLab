@@ -43,7 +43,7 @@ Components
      - Virtual articulation. Shares the manager's joint state and targets, so the task's joint observation and action
        terms work unchanged. Its reset starts an episode from a reset record. Everything that needs a body raises.
    * - ``at_chunk_boundary``
-     - Makes a termination function fire only where environments can reset.
+     - Termination term that lets a condition fire only where environments can reset.
 
 
 Using a task's configuration
@@ -92,13 +92,13 @@ runs on the step that completes a chunk, and the frames of a chunk arrive togeth
 that step.
 
 Isaac Lab resets an environment in any step in which a termination fires, but the model can only restart between
-chunks, so a reset in the middle of a chunk raises when the chunk ends. Wrap every termination function, the time-out
-too, with ``at_chunk_boundary``:
+chunks, so a reset in the middle of a chunk raises when the chunk ends. Run every termination, the time-out too,
+through ``at_chunk_boundary``, with the condition and its parameters as the term's parameters:
 
 .. code-block:: python
 
-    done = DoneTerm(func=at_chunk_boundary(my_condition), params={...})
-    time_out = DoneTerm(func=at_chunk_boundary(mdp.time_out), time_out=True)
+    done = DoneTerm(func=at_chunk_boundary, params={"term": my_condition, "term_params": {...}})
+    time_out = DoneTerm(func=at_chunk_boundary, params={"term": mdp.time_out}, time_out=True)
 
 * The condition is judged on the step that completes a chunk. A condition that stays true, such as a success, a
   failure or the time limit, is caught at the next boundary, at most one chunk late; one that holds only briefly

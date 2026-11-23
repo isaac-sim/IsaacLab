@@ -18,7 +18,9 @@ from isaaclab.envs.mdp import JointPositionActionCfg
 from isaaclab.envs.mdp.actions.joint_actions import JointPositionAction
 from isaaclab.envs.mdp.events import reset_joints_by_offset
 from isaaclab.envs.mdp.observations import joint_pos, joint_pos_rel
+from isaaclab.envs.mdp.terminations import time_out
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim.spawners.sensors.sensors_cfg import PinholeCameraCfg
@@ -202,18 +204,21 @@ def test_what_needs_a_simulated_body_raises(world):
 
 def test_a_termination_at_chunk_boundary_fires_only_when_a_chunk_completes(world):
     sim, scene = world
+    # Episodes past their time limit inside a chunk, as after a random first episode length.
     env = event_env(sim, scene)
-    always = at_chunk_boundary(lambda env: torch.ones(N, dtype=torch.bool))
+    env.episode_length_buf, env.max_episode_length = torch.full((N,), 5), 3
+    # Configured as in a task, through the round trip that command-line overrides take.
+    cfg = DoneTerm(func=at_chunk_boundary, params={"term": time_out}, time_out=True)
+    cfg.from_dict(cfg.to_dict())
     fired = []
     for _ in range(2 * T):
         env_step(sim, scene)
-        fired.append(bool(always(env).all()))
+        fired.append(bool(cfg.func(env, **cfg.params).all()))
         assert fired[-1] == bool(is_chunk_boundary(env).all())
     assert [i + 1 for i, f in enumerate(fired) if f] == [T, 2 * T]
 
 
 def test_a_termination_at_chunk_boundary_checks_the_timing_first(world):
     sim, scene = world
-    always = at_chunk_boundary(lambda env: torch.ones(N, dtype=torch.bool))
     with pytest.raises(ValueError, match="must divide"):
-        always(event_env(sim, scene, decimation=3))
+        at_chunk_boundary(event_env(sim, scene, decimation=3), term=time_out)
