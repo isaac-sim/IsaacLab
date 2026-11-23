@@ -129,11 +129,52 @@ these entries belong under ``env.train.isaaclab``:
      language: annotation.human.task_description
      # Keep the checkpoint's video and state mappings here as well.
    action_mapping:
-     keys: [action.left_arm, action.right_arm, action.left_hand, action.right_hand]
+     keys: [left_arm, right_arm, left_hand, right_hand]
 
 Without these entries, the language key remains ``annotation.human.action.task_description``
 and actions retain the model's dictionary order. When set, ``keys`` must list every action part
 to emit, in environment order. Use ``uv run --no-sync`` to preserve the pins.
+
+H2 + Sharpa checkpoints and assets
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The H2 examples use N1.7. Download the checkpoint for either task and the shared Cosmos backbone:
+
+.. code-block:: bash
+
+   uv run --no-sync hf download nvidia/GR00T-N1.7-3B_Pick_Place_Apple \
+       --local-dir .pretrained_checkpoints/rlinf/GR00T-N1.7-3B_Pick_Place_Apple
+   uv run --no-sync hf download nvidia/GR00T-N1.7-3B_Pack_AGX \
+       --local-dir .pretrained_checkpoints/rlinf/GR00T-N1.7-3B_Pack_AGX
+   uv run --no-sync hf download nvidia/Cosmos-Reason2-2B --local-dir .pretrained_checkpoints/rlinf/Cosmos-Reason2-2B
+
+Authenticate with ``uv run --no-sync hf auth login`` if required, using an account with access to the
+selected checkpoint repositories.
+
+The recorded evaluations used the task author's checkpoints below. Repository access is required;
+anonymous requests return HTTP 401.
+
+* Apple: repository ``LiFanxing/pnp_apple``, revision ``1f136aee682574518e8fc36e20a091211f10c8b4``,
+  directory ``checkpoint_1``.
+* Pack AGX: repository ``LiFanxing/pack_agx``, revision ``40a2c24c04e58a66d1c703dd0cb3027c696eb76c``,
+  directory ``rl_pack_agx_orin_contR_004pos_10ang-1/global_step_800``.
+
+To use either with the shared Cosmos backbone, authenticate and download the indicated directory at
+its revision, then pass its local path to ``isaaclab play`` with ``--model_path``. The directory must
+contain ``config.json``.
+
+The H2 + Sharpa robot, NuRec capture, and scene objects are hosted on the official Isaac asset server
+under :attr:`~isaaclab.utils.assets.ISAACLAB_NUCLEUS_DIR`. To use a local mirror, configure the shared
+Isaac asset root before launching:
+
+.. code-block:: bash
+
+   export ISAACSIM_ASSET_ROOT=/path/to/mirror
+
+The mirror must retain the ``Isaac/IsaacLab`` subtree, including ``Robots/Unitree/H2``,
+``Environments/NuRec``, and ``Objects``. For example, the robot USD must be located at
+``/path/to/mirror/Isaac/IsaacLab/Robots/Unitree/H2/H2_with_sharpa_flat.usd``.
+
 
 .. _rlinf-decord-aarch64:
 
@@ -208,6 +249,21 @@ RLinf requires Ray for worker scheduling in both training and evaluation, includ
 
    The ``--config_path`` flag is optional. When omitted, the scripts automatically
    search the ``isaaclab_tasks`` package for the matching YAML configuration file.
+
+Each H2 task registers its environment from ``<task>_env_cfg.py`` and keeps its RLinf recipe in ``agents/``.
+The recipe names include the task so that RLinf can find each one by name.
+Use ``rlinf_gr00t_pick_and_place_apple_ppo_cfg`` for Apple or ``rlinf_gr00t_pack_agx_ppo_cfg`` for AGX.
+Both recipes use the model download locations above.
+
+.. code-block:: bash
+
+   uv run --no-sync isaaclab train --rl_library rlinf --config_name rlinf_gr00t_pick_and_place_apple_ppo_cfg
+   uv run --no-sync isaaclab play --rl_library rlinf --config_name rlinf_gr00t_pick_and_place_apple_ppo_cfg --video
+
+Changing ``--num_envs`` alone can break RLinf's batch arithmetic:
+``total_num_envs * max_steps_per_rollout_epoch / num_action_chunks`` must remain a multiple of
+``actor.global_batch_size``. For a smaller smoke run, copy the YAML, reduce its batch sizes too,
+and select it with ``--config_path``.
 
 Physics Backend
 ~~~~~~~~~~~~~~~
@@ -337,3 +393,33 @@ Key Files
 
 For detailed configuration options, CLI arguments, and how to add new tasks,
 use the unified ``uv run isaaclab train --rl_library rlinf`` and ``uv run isaaclab play --rl_library rlinf`` commands.
+
+Attribution and Citation
+------------------------
+
+SimReady Assets
+~~~~~~~~~~~~~~~
+
+The SimReady scene assets used by the post-training tasks are powered by
+`Lightwheel <https://lightwheel.ai/>`__.
+
+.. attention::
+
+   These assets are licensed under the `Creative Commons Attribution-NonCommercial 4.0 International
+   License <https://creativecommons.org/licenses/by-nc/4.0/>`__, whose terms are collected in
+   ``docs/licenses/assets/lightwheel-license.txt``. Commercial use is not granted.
+
+RL Training Framework
+~~~~~~~~~~~~~~~~~~~~~
+
+The RL training framework is powered by `RLinf <https://github.com/RLinf/RLinf>`__. If you find the
+RL capabilities helpful, please cite:
+
+.. code-block:: text
+
+   @article{yu2025rlinf,
+     title={RLinf: Flexible and Efficient Large-scale Reinforcement Learning via Macro-to-Micro Flexibility},
+     author={Yu, Chao and Wang, Yuanqing and Guo, Zhen and Lin, Hao and Xu, Si and Zang, Hongzhi},
+     journal={arXiv preprint arXiv:2509.15965},
+     year={2025}
+   }

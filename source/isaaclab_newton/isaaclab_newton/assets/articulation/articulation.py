@@ -1756,7 +1756,7 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
-        self.data._joint_pos_limits.timestamp = self.data._state_version
+        self.data._joint_pos_limits.timestamp = self.data._timestamp
         if report_clamping and self._clamped_default_count.numpy()[0] > 0:
             logger.log(
                 log_level,
@@ -1831,7 +1831,7 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
-        self.data._joint_pos_limits.timestamp = self.data._state_version
+        self.data._joint_pos_limits.timestamp = self.data._timestamp
         if report_clamping and self._clamped_default_count.numpy()[0] > 0:
             logger.log(
                 log_level,

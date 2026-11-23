@@ -172,7 +172,7 @@ class NewtonManager(PhysicsManager):
 
     def video_capture_backend(self) -> str:
         """Newton GL headless perspective video capture."""
-        return "newton_gl"
+        return "newton"
 
     def _mark_transforms_changed(self) -> None:
         """Publish authored rigid-body changes and invalidate cable geometry."""
@@ -332,6 +332,10 @@ class NewtonManager(PhysicsManager):
         """Return per-source builders retained from replication, keyed by clone-plan source path."""
         clone = self._clone
         return {} if clone is None else clone.source_builders
+
+    def get_non_finite_worlds(self) -> wp.array:
+        """Return faulted worlds; see :meth:`NewtonBackend.get_non_finite_worlds`."""
+        return self.backend.get_non_finite_worlds()
 
     def request_extended_state_attribute(self, attr: str) -> None:
         """Request an extended state attribute (e.g. ``"body_qdd"``) from the builder before finalization.

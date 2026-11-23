@@ -52,6 +52,11 @@ simplest model that meets your requirements.
       - Solver runs the PD law from the written gains.
       - ``joint_effort_limit`` clips in the solver.
       - --
+    * - :class:`~isaaclab.actuators.DelayedImplicitActuator`
+        (:class:`~isaaclab.actuators.DelayedImplicitActuatorCfg`)
+      - Solver runs PD on delayed position, velocity, and effort targets.
+      - ``joint_effort_limit`` clips in the solver.
+      - ``min_delay``, ``max_delay``
     * - :class:`~isaaclab.actuators.IdealPDActuator`
         (:class:`~isaaclab.actuators.IdealPDActuatorCfg`)
       - :math:`\tau = k_p (q_{des}-q) + k_d(\dot{q}_{des}-\dot{q}) + \tau_{ff}`
@@ -87,6 +92,10 @@ simplest model that meets your requirements.
 **ImplicitActuator.** The default model. The solver applies the gains and limits. Isaac Lab
 estimates effort telemetry from the current state when the backend does not expose it.
 
+**DelayedImplicitActuator.** Delays position, velocity, and feed-forward effort targets before
+passing them to the solver. Gains and joint-state feedback remain current. Delay is sampled per
+environment from ``[min_delay, max_delay]`` at reset, as with ``DelayedPDActuator``.
+
 **IdealPDActuator.** An explicit PD controller with feed-forward effort and a symmetric model-side
 torque limit at :math:`\pm\,\tau_{max}`.
 
@@ -103,8 +112,8 @@ The delay is sampled uniformly from ``[min_delay, max_delay]`` at reset.
 for linkages whose effective lever arm changes through their range of motion.
 
 **ActuatorNetMLP / ActuatorNetLSTM.** Learned torque models that use joint-position error and
-velocity history and clip output with the DC-motor envelope. They require a TorchScript checkpoint.
-See the :mod:`isaaclab.actuators` API reference for configuration details.
+velocity history and clip output with the DC-motor envelope. ``network_file`` is a TorchScript
+checkpoint. See the :mod:`isaaclab.actuators` API reference for configuration details.
 
 **BamActuatorCfg.** A parameter-identified model of a small voltage-controlled servo, described in
 :ref:`actuators-bam`. Unlike the PD models it takes no stiffness or damping: its position loop is
@@ -282,6 +291,13 @@ Value resolution: USD vs. ActuatorCfg
 Gains and limits can come from the USD joint-drive prim or the actuator config. If a config field is
 ``None``, Isaac Lab uses the USD value. A value set in the config overrides the USD value. The robot
 schema supplies joint and body ordering, not actuator parameters.
+
+For an explicit group with :ref:`native actuators <actuators-native>`, the USD value of a gain,
+actuator limit, or delay is the one on the joint's ``NewtonActuator`` prim. A joint without one, or
+with ones the config cannot keep, gets a new actuator with zero gains, no delay, and, except for
+remotized PD and BAM, the joint's USD drive limit. See
+:ref:`Existing USD actuators <actuators-usd-override>`. The log described below reports joint
+properties only, not a USD actuator's values.
 
 Set :attr:`~isaaclab.assets.ArticulationCfg.actuator_value_resolution_debug_print` to ``True`` to
 log the USD, configuration, and applied values for every joint when the sources differ or the
@@ -495,14 +511,50 @@ requests a solver constraint. Enforcement depends on the backend; see
     :alt: Torque-speed envelope for a velocity-limit sweep.
 
 
+.. _actuators-command-delay:
+
 Command delay
 ^^^^^^^^^^^^^
 
-A :class:`~isaaclab.actuators.DelayedPDActuator` delays every command by a fixed number of physics
+On the Isaac Lab execution path, both :class:`~isaaclab.actuators.DelayedImplicitActuator` and
+:class:`~isaaclab.actuators.DelayedPDActuator` delay every command by a fixed number of physics
 steps sampled from ``[min_delay, max_delay]`` at reset. The clip compares delays of
 :math:`[0, 6, 12, 24, 48]` steps (0--133 ms at :math:`dt = 1/360\text{ s}`) for a square-wave
 position command. Longer delays make the pendulum trail the reference. Randomizing delay between
 resets can model transport delay during sim-to-real training.
+
+For implicit PD control, configure the delay directly on the actuator group:
+
+.. code-block:: python
+
+    from isaaclab.actuators import DelayedImplicitActuatorCfg
+
+    actuator_cfg = DelayedImplicitActuatorCfg(
+        joint_names_expr=[".*"],
+        stiffness=40.0,
+        damping=5.0,
+        min_delay=2,
+        max_delay=4,
+    )
+
+The bounds must satisfy ``0 <= min_delay <= max_delay``. Delays count physics steps, including
+steps within policy decimation. Each environment samples one delay shared by all joints and all
+three command channels in the group and holds it until reset. Reset clears history only for the
+selected environments. Until enough history exists,
+the oldest command since reset is used; ``min_delay=max_delay=0`` passes commands through.
+
+Delayed implicit actuators run through Lab command processing on PhysX, OVPhysX, and Newton,
+including when ``SimulationCfg.use_newton_actuators`` is ``True``. Their solver-side PD gains remain
+active; only the position, velocity, and feed-forward effort commands are delayed. Requested commands
+remain available in ``actuators.target_command``; ``actuators.output_command`` contains the delayed
+commands submitted to the backend. Its effort channel is feed-forward effort, separate from the
+approximate PD torque reported in ``computed_effort`` and ``applied_effort``.
+
+When combining delayed implicit and explicit actuator groups in the same articulation, set
+``SimulationCfg(use_newton_actuators=False)``. Native explicit actuator execution bypasses that
+articulation's Lab command processing and this combination raises an error. Separate articulations
+may mix delayed implicit and native explicit actuators; Newton then keeps command updates in the
+environment's physics loop so delays still count physics steps.
 
 .. figure:: ../_static/actuators/delay-clip.webp
     :align: center
@@ -564,7 +616,8 @@ collection. Each group then follows one of three execution paths:
 For Isaac Lab-managed models, ``actuators.output_command`` contains the processed position,
 velocity, and effort submitted to the backend. Native paths bypass this view, so it is not
 submitted-command telemetry for them. PhysX and OVPhysX process commands during
-``write_data_to_sim()``, while Newton-native controllers process them inside the solver. See
+``write_data_to_sim()``, while Newton-native controllers process them inside the physics step,
+before the solver advances. See
 :ref:`actuators-native` for supported native models and limitations.
 
 .. figure:: ../_static/actuators/pipeline-light.png
@@ -587,8 +640,9 @@ Implicit and explicit groups store gains differently:
 
 * For an **implicit** group, :attr:`~isaaclab.actuators.ActuatorBaseCfg.stiffness` and
   :attr:`~isaaclab.actuators.ActuatorBaseCfg.damping` are written to the solver, which
-  runs the PD law. ``compute()`` passes the desired targets through unchanged while recording an
-  approximate torque for telemetry.
+  runs the PD law. Plain :class:`~isaaclab.actuators.ImplicitActuator` passes the desired targets
+  through unchanged, while :class:`~isaaclab.actuators.DelayedImplicitActuator` delays them first.
+  Both record an approximate torque for telemetry.
 * For an **explicit** group, the same gains are consumed by the model to compute a torque, and the
   solver's own PD gains for those joints are set to zero. Reading ``data.joint_stiffness`` or
   ``data.joint_damping`` on an explicit joint therefore returns **zero** -- the gains live in the
@@ -651,7 +705,8 @@ Native actuators
 ----------------
 
 By default, Isaac Lab uses the native path for supported explicit actuator models. Each explicit
-model runs either inside the solver or through a shared host adapter. To restore the deprecated
+model runs either inside the physics step before the solver or through a shared host adapter.
+To restore the deprecated
 Isaac Lab execution path, set :attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators` to ``False``:
 
 .. code-block:: python
@@ -661,12 +716,14 @@ Isaac Lab execution path, set :attr:`~isaaclab.sim.SimulationCfg.use_newton_actu
     sim_cfg = SimulationCfg(use_newton_actuators=False)
 
 With the default native path enabled, each supported explicit actuator config becomes a
-``NewtonActuator`` USD prim. Newton executes it in the solver. PhysX and OVPhysX execute the same
+``NewtonActuator`` USD prim. Newton executes it before the solver advances. PhysX and OVPhysX execute the same
 model through the shared host adapter during
 :meth:`~isaaclab.assets.Articulation.write_data_to_sim`.
 
-On Newton, native actuators run in the CUDA-graph-captured region. Implicit actuators are unchanged:
-the solver still applies their PD gains. On CUDA, the host adapter captures actuator staging, model
+When CUDA graph capture is enabled, Newton runs supported native actuators in the captured region.
+Implicit groups keep solver-owned PD gains. :class:`~isaaclab.actuators.DelayedImplicitActuator` remains Lab-managed;
+its command delay is applied before the solver drive, as described in :ref:`actuators-command-delay`.
+On CUDA, the host adapter captures actuator staging, model
 execution, and telemetry publication when possible; otherwise it uses eager execution. Stateful
 native actuators cannot run in a caller-owned CUDA graph, so the host adapter manages them.
 
@@ -709,17 +766,52 @@ staging.
     * - :class:`~isaaclab.actuators.DelayedPDActuatorCfg`
       - ideal PD + ``NewtonActuatorDelayAPI``
     * - :class:`~isaaclab.actuators.RemotizedPDActuatorCfg`
-      - delayed PD + ``NewtonPositionBasedClampingAPI``
+      - ``NewtonPDControlAPI`` + ``NewtonPositionBasedClampingAPI`` + ``NewtonActuatorDelayAPI``
     * - :class:`~isaaclab.actuators.ActuatorNetMLPCfg` /
         :class:`~isaaclab.actuators.ActuatorNetLSTMCfg`
-      - ``NewtonNeuralControlAPI`` (+ ``NewtonDCMotorClampingAPI``)
+      - ``NewtonNeuralControlAPI`` + ``NewtonDCMotorClampingAPI``
     * - :class:`~isaaclab.actuators.BamActuatorCfg`
       - ``NewtonBamDriveAPI`` (Newton only; see :ref:`actuators-bam-paths`)
 
-**Existing USD actuators.** For joints covered by an explicit Lab actuator config, the config
-replaces any existing ``NewtonActuator`` prim. Joints not covered by a Lab config keep their
-USD-authored actuators. USD-authored and Lab-configured actuators can therefore coexist on different
-joints.
+.. _actuators-usd-override:
+
+**Existing USD actuators.** An asset can ship its actuators as ``NewtonActuator`` prims, for example
+an identified servo fit. Joints not covered by an explicit Lab actuator config keep them unchanged.
+A prim drives only the first joint of its ``newton:targets`` and is ignored for joints listed later:
+a config treats such a joint as one without that prim, and changes the prim only when it covers the
+first joint. For a covered joint whose actuator prim has the config's drive schema
+(``NewtonPDControlAPI`` for the PD models, ``NewtonNeuralControlAPI`` for neural models,
+``NewtonBamDriveAPI`` for BAM), the config is authored onto that prim:
+
+* Only the values the config sets are written, in the stage's edit target. A value left as ``None``,
+  or a joint that a regex mapping does not match, keeps the asset's value through USD composition.
+  Every pattern of a mapping must still match a joint of the group, and no joint may match two.
+* The config type decides the actuator's components. Clamping and delay schemas that the type does
+  not model are removed together with their values, and a warning is logged. A type that authors
+  another clamp swaps it, and a PD config's ``max_delay=0`` removes a delay. Without a configured
+  ``actuator_effort_limit`` for the joint, a max-effort or DC motor clamp the config adds takes the
+  joint's USD drive limit, or no limit if the joint has none. Unless the config sets
+  ``actuator_velocity_limit``, an added DC motor clamp has no velocity limit, so its torque limit
+  does not decrease with speed.
+* A remotized PD config can leave ``joint_parameter_lookup=None`` to keep the asset's lookup table.
+  Neural configs can leave ``network_file=None`` to keep the asset's checkpoint and its preprocessing
+  metadata. To replace an MLP checkpoint, supply ``network_file`` together with ``input_order``,
+  ``input_idx``, ``pos_scale``, ``vel_scale`` and ``torque_scale``; metadata changes require a checkpoint.
+* A component the config adds needs its required values, such as a DC motor's ``saturation_effort``,
+  lookup tables, or neural checkpoints, from the config. Otherwise authoring raises before it changes
+  that joint's actuators. Newton validates the values of the components the asset's prim keeps.
+
+.. code-block:: python
+
+    # The asset ships delayed PD actuators on the legs: retune the gains, keep its limits and delay.
+    "legs": DelayedPDActuatorCfg(joint_names_expr=[".*_leg_.*"], stiffness=40.0, damping=None)
+
+When the joint has no actuator prim, several, one with another drive, or one with an unrecognized
+API schema, the existing prims are deactivated and a new prim is defined from the config, with
+defaults such as zero gains for unset values. On a new prim, a joint that an
+``actuator_effort_limit`` mapping skips gets a limit of 0, not the joint's USD drive limit, so it
+produces no torque. A warning names the replaced joints. The
+:ref:`migration guide <actuators-usd-override-migration>` lists what changed since 3.0.0.
 
 .. warning::
 
@@ -729,9 +821,11 @@ joints.
 
 .. note::
 
-    Under native execution, delay is fixed. The schema stores only ``max_delay``, so ``min_delay``
-    is ignored. A :class:`~isaaclab.actuators.DelayedPDActuator` does not randomize delay between
-    resets as it does on the Isaac Lab path.
+    Native :class:`~isaaclab.actuators.DelayedPDActuator` and
+    :class:`~isaaclab.actuators.RemotizedPDActuator` use a fixed delay from ``max_delay``;
+    ``min_delay`` is ignored. They do not randomize delay between resets as they do on the Isaac Lab path.
+    :class:`~isaaclab.actuators.DelayedImplicitActuator` always uses Lab command processing and
+    retains its per-environment reset sampling even when native execution is enabled for other groups.
     :class:`~isaaclab.actuators.BamActuatorCfg` is the exception: its drive owns its own
     delay, honors both bounds and resamples one lag per environment, shared by the group's joints.
 
@@ -802,11 +896,29 @@ every physics step:
 
 When the USD models gearbox play as a passive revolute hinge in series with each servo, set
 ``backlash_joint_template`` to the hinge name pattern, e.g. ``"passive_{}_backlash"``. The firmware
-then reads servo angle plus play angle; missing or non-revolute pairs raise before stepping.
+then reads servo angle plus play angle; missing or non-revolute pairs raise before stepping. Leaving
+the template unset keeps the asset's backlash flag, which only the asset can clear: if its BAM
+actuators model backlash, start-up raises until the template is set.
 
-``stiffness`` and ``damping`` are unused; the firmware gain is ``kp_fw``. Like other explicit
-actuators, BAM replaces existing actuator prims on the selected joints, and one motor fit applies to
-every joint in a group. Set the reflected rotor inertia through ``armature`` or on the joint.
+``stiffness`` and ``damping`` are unused; the firmware gain is ``kp_fw``. The ``motor`` values a
+group sets apply to every joint in it. Set the reflected rotor inertia through ``armature`` or on
+the joint.
+
+Like other explicit actuators, BAM is authored onto the joints' existing BAM actuator prims (see
+:ref:`Existing USD actuators <actuators-usd-override>`). A field left as ``None``, here or in
+``motor``, keeps the asset's value, so a task can change one setting of a fitted servo asset:
+
+.. code-block:: python
+
+    "servos": BamActuatorCfg(joint_names_expr=[".*"], kp_fw=150.0, motor=BamMotorCfg(friction_base=0.006))
+
+A joint without a BAM actuator gets a new one, which needs the motor fit (``model``, ``kt``,
+``resistance``, ``error_gain``, ``max_current``, and ``friction_base``), ``kp_fw``, and ``vin``.
+Only a new actuator gets the defaults in the table below. On an existing one, a value that neither
+the asset nor the config sets is left to the Newton drive: a missing ``model`` means ``m1`` friction,
+a missing ``max_current`` no current limit, and the drive raises if any other value it requires is
+missing. Without a ``vin_min`` or delay setting from the asset or the config, the supply has only
+its 0 V floor and commands are not delayed.
 
 .. list-table:: BAM motor coefficients (rotational servo)
    :header-rows: 1
@@ -818,13 +930,17 @@ every joint in a group. Set the reflected rotor inertia through ``armature`` or 
      - ``m1`` (Coulomb), ``m2`` (adds Stribeck), ``m5`` (adds directional load dependence), or
        ``m6`` (adds quadratic load coupling).
    * - ``kt``, ``resistance``
-     - Torque/back-EMF constant [N.m/A or V.s/rad] and winding resistance [Ohm]. Required.
+     - Torque/back-EMF constant [N.m/A or V.s/rad] and winding resistance [Ohm]. Required for a new
+       actuator.
    * - ``error_gain``
-     - Position-error-to-duty-cycle factor per unit of firmware gain [1/rad]. Required.
+     - Position-error-to-duty-cycle factor per unit of firmware gain [1/rad]. Required for a new
+       actuator.
    * - ``max_pwm``, ``max_current``
-     - Maximum duty cycle [-], default 1, and current limit [A], required; 0 disables it.
+     - Maximum duty cycle [-], default 1, and current limit [A], required for a new actuator; 0
+       disables it.
    * - ``friction_base``, ``friction_viscous``
-     - Coulomb friction [N.m] and viscous coefficient [N.m.s/rad]. Required.
+     - Coulomb friction [N.m], required for a new actuator, and viscous coefficient [N.m.s/rad]. None
+       keeps the joint's viscous friction.
    * - ``friction_stribeck``, ``dtheta_stribeck``, ``alpha``
      - Near-rest friction [N.m], decay velocity [rad/s], and exponent [-]. Defaults: 0, 1, and 1.
    * - ``load_friction_motor``, ``load_friction_external``
@@ -835,8 +951,11 @@ every joint in a group. Set the reflected rotor inertia through ``armature`` or 
      - Quadratic load-coupling coefficients [1/(N.m)]. Defaults: 0.
 
 Without an explicit ``actuator_effort_limit``, motor torque is capped at the stall torque
-``max(vin_range) * motor.kt / motor.resistance``. ``joint_effort_limit`` is unchanged; keep it at
-least as large as the actuator cap.
+``max(vin_range) * motor.kt / motor.resistance``, using ``vin`` when ``vin_range`` is unset. If the
+config leaves ``motor.kt``, ``motor.resistance``, or the voltage unset, the asset's authored cap
+applies, or the drive's ``vin * kt / resistance`` default when it has none, which ignores
+``vin_range``. Setting only some of the three logs a warning; set ``actuator_effort_limit`` to choose
+the cap. ``joint_effort_limit`` is unchanged; keep it at least as large as the actuator cap.
 
 .. _actuators-bam-paths:
 
@@ -856,7 +975,10 @@ reference to reduce creep, since MJWarp has no noslip solver.
 
 The drive draws one command lag per environment, shared by its joints, honoring ``min_delay``,
 ``max_delay``, ``delay_hold_prob`` and ``delay_update_period``. Reset redraws the lag only for the
-selected environments, including during CUDA graph replay.
+selected environments, including during CUDA graph replay. The draws are seeded by the USD
+actuator's ``newton:delaySeed``, which has no config field and is 0 on a new actuator. To turn off an
+asset's lag, set ``min_delay=0`` together with ``max_delay=0``: the drive rejects a ``max_delay``
+below ``min_delay``.
 
 Randomization hooks
 ^^^^^^^^^^^^^^^^^^^
@@ -882,13 +1004,14 @@ and :func:`~isaaclab.actuators.newton.write_group_parameter`:
       - -- (defaults to 1)
     * - ``kp_scale``
       - Firmware gain multiplier [-]
-      - --
+      - -- (defaults to 1)
     * - ``kd_scale``
       - Multiplier of the velocity the motor sees [-]
-      - --
+      - -- (defaults to 1)
 
-Start-up ranges are sampled once per environment and kept across resets. To resample friction every
-episode, add a reset event:
+Start-up ranges are sampled once per environment and kept across resets. A field without a range
+starts from the value authored on the joint's USD BAM actuator, or from its default on a new
+actuator. To resample friction every episode, add a reset event:
 
 .. code-block:: python
 
@@ -917,10 +1040,11 @@ Known constraints
 ^^^^^^^^^^^^^^^^^
 
 * **Supply and delay are per drive, not per robot.** Newton builds one drive per set of BAM joints
-  with the same friction ``model``, backlash on or off, ``vin_min``, and delay settings; the other
-  coefficients are per joint. Separate drives sag and delay independently even on one robot. Groups
-  and robots that merge into one drive share its supply and delay within an environment, and must use
-  the same start-up ranges, ``stiff_frictionloss``, and ``backlash_joint_template``.
+  with the same friction ``model``, backlash on or off, ``vin_min``, delay settings, and delay seed;
+  the other coefficients are per joint. Separate drives sag and delay independently even on one
+  robot. Groups and robots that merge into one drive share its supply and delay within an
+  environment, and must use the same start-up ranges, ``stiff_frictionloss``, and
+  ``backlash_joint_template``.
 * **Friction feedback ignores extra clipping.** If a tighter solver joint limit clips the drive
   output, the load-dependent friction does not see it.
 
@@ -952,17 +1076,23 @@ Submission differs by backend, but the collection interface is the same:
     * - PhysX
       - The Isaac Lab-managed path pushes processed position, velocity, and effort staging buffers
         through the PhysX Tensor API. The shared host adapter processes native commands during
-        ``write_data_to_sim()`` and submits raw position and velocity targets plus raw effort.
+        ``write_data_to_sim()`` and submits raw position and velocity targets plus the adapter's
+        effort output, including feed-forward effort.
         ``applied_effort`` remains telemetry. A fused reorder gather runs first when a non-identity
         joint ordering is active.
     * - OVPhysX
-      - The native path uses the shared host adapter during ``write_data_to_sim()``. It writes raw
-        position and velocity targets plus raw effort through ``set_attribute`` tensor bindings.
+      - The Isaac Lab-managed path submits processed position, velocity, and effort buffers,
+        including delayed implicit commands, through ``set_attribute`` tensor bindings. The native
+        path uses the shared host adapter during ``write_data_to_sim()`` and submits raw position
+        and velocity targets plus the adapter's effort output, including feed-forward effort.
         ``applied_effort`` remains telemetry. Raw setter writes are mirrored into the binding
-        immediately. A fused reorder gather runs first when joint ordering is non-identity.
+        immediately. On the Lab-managed path, ``write_data_to_sim()`` publishes the processed
+        commands before stepping.
+        A fused reorder gather runs first when joint ordering is non-identity.
     * - Newton / MJWarp
-      - Newton writes targets to solver-bound control arrays. Effort is feed-forward, and native
-        actuators also use ``joint_act``. The built-in drive applies PD to implicit joints.
+      - Lab-managed groups submit processed targets to solver-bound control arrays. Native
+        actuators read raw position and velocity targets, take feed-forward effort from ``joint_act``,
+        and compute effort before the solver advances. The built-in drive applies PD to implicit joints.
 
 For explicit actuators, solver stiffness and damping are zero on every backend because the actuator
 model owns the gains.
