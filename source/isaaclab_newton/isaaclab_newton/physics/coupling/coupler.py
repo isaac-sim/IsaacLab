@@ -332,6 +332,12 @@ class CouplerSolver(NewtonSolver):
             return SolverCoupled(model=model, entries=entries)
         return _build_proxy_coupled_solver(model, entries, proxies, cfg, mode)
 
+    def mark_non_finite_worlds(self, state: State, faults: wp.array) -> None:
+        """Include each coupled entry's state and private solver buffers."""
+        super().mark_non_finite_worlds(state, faults)
+        for name, entry in self.entries.items():
+            entry.mark_non_finite_worlds(self.native.entry_state(name), faults)
+
     def supports_capture(self) -> bool:
         return all(entry.supports_capture() for entry in self.entries.values())
 

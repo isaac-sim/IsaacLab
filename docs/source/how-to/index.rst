@@ -112,11 +112,21 @@ How-to Guides
 
          :doc:`Interacting with a surface gripper </source/how-to/run_surface_gripper>`
 
-         Attach and release rigid objects with a surface gripper.
+         Configure a scene-owned Newton suction tool or operate an authored PhysX gripper.
 
          .. container:: guide-metadata
 
-            :guide-tag:`PhysX` :guide-tag:`Isaac Sim`
+            :guide-tag-newton:`Newton` :guide-tag:`PhysX` :guide-tag:`Isaac Sim`
+
+      .. container:: guide-entry
+
+         :doc:`Controlling conveyors </source/how-to/conveyors>`
+
+         Configure batched conveyor speeds and directions with the Isaac Lab controller.
+
+         .. container:: guide-metadata
+
+            :guide-tag-newton:`Newton`
 
       .. container:: guide-entry
 

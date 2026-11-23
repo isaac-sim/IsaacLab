@@ -83,11 +83,9 @@
             ["IsaacContrib-DrLegs-HoldPose", "rsl_rl", "isaacsim_physx,newton_kamino", "", "", "environment-previews/dr_legs.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||", "newton_kamino||"]],
             ["IsaacContrib-DrLegs-Walk", "rsl_rl", "isaacsim_physx,newton_kamino", "", "", "environment-previews/dr_legs.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||", "newton_kamino||"]],
             ["IsaacContrib-ExhaustPipe-GR1T2-Pink-IK-Abs", "", "", "", "", "environment-previews/gr1_exhaust_pipe.jpg"],
-            ["IsaacContrib-Factory-Franka", "rsl_rl", "isaacsim_physx,ovphysx", "", "accumulator,bnc,choice,dsub,gear_mesh_large,gear_mesh_medium,gear_mesh_small,nut_thread_m12,nut_thread_m16,nut_thread_m4,nut_thread_m8,peg_insert_12mm,peg_insert_16mm,peg_insert_4mm,peg_insert_8mm,rj45,rod_insert_12mm,rod_insert_16mm,rod_insert_4mm,rod_insert_8mm,usba,waterproof", "environment-previews/factory_franka_nist.jpg", false, {}, {}, "", null, ["||", "||accumulator", "||bnc", "||choice", "||dsub", "||gear_mesh_large", "||gear_mesh_medium", "||gear_mesh_small", "||nut_thread_m12", "||nut_thread_m16", "||nut_thread_m4", "||nut_thread_m8", "||peg_insert_12mm", "||peg_insert_16mm", "||peg_insert_4mm", "||peg_insert_8mm", "||rj45", "||rod_insert_12mm", "||rod_insert_16mm", "||rod_insert_4mm", "||rod_insert_8mm", "||usba", "||waterproof", "isaacsim_physx||", "isaacsim_physx||accumulator", "isaacsim_physx||bnc", "isaacsim_physx||choice", "isaacsim_physx||dsub", "isaacsim_physx||gear_mesh_large", "isaacsim_physx||gear_mesh_medium", "isaacsim_physx||gear_mesh_small", "isaacsim_physx||nut_thread_m12", "isaacsim_physx||nut_thread_m16", "isaacsim_physx||nut_thread_m4", "isaacsim_physx||nut_thread_m8", "isaacsim_physx||peg_insert_12mm", "isaacsim_physx||peg_insert_16mm", "isaacsim_physx||peg_insert_4mm", "isaacsim_physx||peg_insert_8mm", "isaacsim_physx||rj45", "isaacsim_physx||rod_insert_12mm", "isaacsim_physx||rod_insert_16mm", "isaacsim_physx||rod_insert_4mm", "isaacsim_physx||rod_insert_8mm", "isaacsim_physx||usba", "isaacsim_physx||waterproof", "ovphysx||", "ovphysx||accumulator", "ovphysx||bnc", "ovphysx||choice", "ovphysx||dsub", "ovphysx||gear_mesh_large", "ovphysx||gear_mesh_medium", "ovphysx||gear_mesh_small", "ovphysx||nut_thread_m12", "ovphysx||nut_thread_m16", "ovphysx||nut_thread_m4", "ovphysx||nut_thread_m8", "ovphysx||peg_insert_12mm", "ovphysx||peg_insert_16mm", "ovphysx||peg_insert_4mm", "ovphysx||peg_insert_8mm", "ovphysx||rj45", "ovphysx||rod_insert_12mm", "ovphysx||rod_insert_16mm", "ovphysx||rod_insert_4mm", "ovphysx||rod_insert_8mm", "ovphysx||usba", "ovphysx||waterproof"]],
             ["IsaacContrib-Factory-GearMesh-Direct", "rl_games", "", "", "", "environment-previews/gear_mesh.jpg"],
             ["IsaacContrib-Factory-NutThread-Direct", "rl_games", "", "", "", "environment-previews/nut_thread.jpg"],
             ["IsaacContrib-Factory-PegInsert-Direct", "rl_games", "", "", "", "environment-previews/peg_insert.jpg"],
-            ["IsaacContrib-Factory-Variant-Franka", "rsl_rl", "", "", "", "environment-previews/factory_franka_nist.jpg"],
             ["IsaacContrib-Forge-GearMesh-Direct", "rl_games", "", "", "", "environment-previews/gear_mesh.jpg"],
             ["IsaacContrib-Forge-NutThread-Direct", "rl_games", "", "", "", "environment-previews/nut_thread.jpg"],
             ["IsaacContrib-Forge-PegInsert-Direct", "rl_games", "", "", "", "environment-previews/peg_insert.jpg"],
@@ -102,6 +100,7 @@
             ["IsaacContrib-Lift-Cube-Franka-IK-Rel", "", "", "", "", "environment-previews/franka_lift.jpg"],
             ["IsaacContrib-Lift-Cube-OpenArm", "rl_games,rsl_rl", "", "", "", "environment-previews/openarm_uni_lift.jpg"],
             ["IsaacContrib-Multitask-Manipulation", "rsl_rl", "", "", "", "environment-previews/multitask_manipulation.jpg"],
+            ["IsaacContrib-NIST-Franka", "rsl_rl", "", "", "", "environment-previews/nist_franka.jpg"],
             ["IsaacContrib-Navigation-3DObstacles-ARL-Robot-1", "rl_games,rsl_rl,skrl", "", "", "", "environments/previews/drone_arl/arl_robot_1_navigation.jpg"],
             ["IsaacContrib-Navigation-Flat-AnymalC", "rsl_rl,skrl", "", "", "", "environment-previews/anymal_c_nav.jpg"],
             ["IsaacContrib-NutPour-GR1T2-Pink-IK-Abs", "", "", "", "", "environment-previews/gr1_nut_pour.jpg"],
@@ -233,7 +232,7 @@
         if (/Velocity|Navigation|TrackPosition|Locomanip|Humanoid/.test(task)) {
             return "locomotion";
         }
-        if (/Lift|Reach|Reorient|Drawer|Handover|Keyboard|Assemble|Assembly|Factory|Forge|Stack|PickPlace|Place|Particle|Cabinet|Gear|Trocar/.test(task)) {
+        if (/Lift|Reach|Reorient|Drawer|Handover|Keyboard|Assemble|Assembly|Factory|NIST|Forge|Stack|PickPlace|Place|Particle|Cabinet|Gear|Trocar/.test(task)) {
             return "manipulation";
         }
         return "classic";
@@ -411,7 +410,7 @@
     const taskPreviewVideoUrls = {
         "Isaac-Velocity-Flat-H2": "https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/environments/previews/locomotion/h2_flat.mp4",
         "Isaac-Velocity-Rough-H2": "https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/environments/previews/locomotion/h2_rough.mp4",
-        "Isaac-Motion-Tracking-G1": "https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/environments/previews/locomotion/g1_cr7.mp4",
+        "Isaac-Motion-Tracking-G1": "https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/environments/previews/locomotion/g1_jump_and_turn.mp4",
     };
 
     const previewVideoUrl = (task) => {

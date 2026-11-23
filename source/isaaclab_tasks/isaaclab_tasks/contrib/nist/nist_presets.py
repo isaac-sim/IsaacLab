@@ -3,10 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""PresetCfg definitions for Factory task-specific parameters.
+"""PresetCfg definitions for NIST task-specific parameters.
 
 Each preset maps task variant names to the corresponding keypoint-derived values.
-The ``default`` field selects which variant is active when no CLI override is given.
+The preset fields supply per-assembly geometry for the reset-selectable variant task.
 
 Task categories (20 total):
   - ``nut_thread_m{4,8,12,16}`` — nut threading
@@ -22,7 +22,6 @@ import math
 from dataclasses import fields
 
 from isaaclab.assets import ArticulationCfg
-from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils import configclass
 
 from isaaclab_tasks.utils import PresetCfg, preset
@@ -35,7 +34,7 @@ from .assembly_profile_cfg import (
     IncrementalSegmentCfg,
     UniformYawCfg,
 )
-from .factory_assets_cfg import FRANKA_PANDA_NEWTON_CFG, FRANKA_PANDA_PHYSX_CFG
+from .nist_assets_cfg import FRANKA_PANDA_NEWTON_CFG, FRANKA_PANDA_PHYSX_CFG
 
 # ---------------------------------------------------------------------------
 # Robot-specific presets
@@ -95,78 +94,6 @@ class JointEffortNamesCfg(PresetCfg):
 
 
 @configclass
-class FixedAssetMapCfg(PresetCfg):
-    """Mapping from scene entity key to :class:`NistBoardKeyPointsCfg` attribute name."""
-
-    # Nut threading
-    nut_thread_m4: dict = dict(fixed_asset="bolt_m4")
-    nut_thread_m8: dict = dict(fixed_asset="bolt_m8")
-    nut_thread_m12: dict = dict(fixed_asset="bolt_m12")
-    nut_thread_m16: dict = dict(fixed_asset="bolt_m16")
-
-    # Gear mesh — non-held gears are placed on the board as extra scene entities
-    gear_mesh_small: dict = dict(fixed_asset="gear_base", medium_gear="medium_gear", large_gear="large_gear")
-    gear_mesh_medium: dict = dict(fixed_asset="gear_base", small_gear="small_gear", large_gear="large_gear")
-    gear_mesh_large: dict = dict(fixed_asset="gear_base", small_gear="small_gear", medium_gear="medium_gear")
-
-    # Rod insert (round)
-    rod_insert_4mm: dict = dict(fixed_asset="hole_4mm")
-    rod_insert_8mm: dict = dict(fixed_asset="hole_8mm")
-    rod_insert_12mm: dict = dict(fixed_asset="hole_12mm")
-    rod_insert_16mm: dict = dict(fixed_asset="hole_16mm")
-
-    # Peg insert (rectangular)
-    peg_insert_4mm: dict = dict(fixed_asset="rectangular_hole_4mm")
-    peg_insert_8mm: dict = dict(fixed_asset="rectangular_hole_8mm")
-    peg_insert_12mm: dict = dict(fixed_asset="rectangular_hole_12mm")
-    peg_insert_16mm: dict = dict(fixed_asset="rectangular_hole_16mm")
-
-    # Connector insert
-    usba: dict = dict(fixed_asset="usba_socket")
-    waterproof: dict = dict(fixed_asset="waterproof_socket")
-    bnc: dict = dict(fixed_asset="bnc_socket")
-    dsub: dict = dict(fixed_asset="dsub_socket")
-    rj45: dict = dict(fixed_asset="rj45_socket")
-
-    default: dict = nut_thread_m16
-
-
-@configclass
-class AssemblyTipCfg(PresetCfg):
-    # Nut threading — tip of the bolt shaft where the nut enters
-    nut_thread_m4: kpts.Offset = kpts.BOLT_M4.bolt_tip_offset
-    nut_thread_m8: kpts.Offset = kpts.BOLT_M8.bolt_tip_offset
-    nut_thread_m12: kpts.Offset = kpts.BOLT_M12.bolt_tip_offset
-    nut_thread_m16: kpts.Offset = kpts.BOLT_M16.bolt_tip_offset
-
-    # Gear mesh — tip of the gear shaft on the base
-    gear_mesh_small: kpts.Offset = kpts.GEAR_BASE.small_gear_tip_offset
-    gear_mesh_medium: kpts.Offset = kpts.GEAR_BASE.medium_gear_tip_offset
-    gear_mesh_large: kpts.Offset = kpts.GEAR_BASE.large_gear_tip_offset
-
-    # Rod insert (round)
-    rod_insert_4mm: kpts.Offset = kpts.HOLE_4MM.hole_tip_offset
-    rod_insert_8mm: kpts.Offset = kpts.HOLE_8MM.hole_tip_offset
-    rod_insert_12mm: kpts.Offset = kpts.HOLE_12MM.hole_tip_offset
-    rod_insert_16mm: kpts.Offset = kpts.HOLE_16MM.hole_tip_offset
-
-    # Peg insert (rectangular)
-    peg_insert_4mm: kpts.Offset = kpts.RECTANGULAR_HOLE_4MM.hole_tip_offset
-    peg_insert_8mm: kpts.Offset = kpts.RECTANGULAR_HOLE_8MM.hole_tip_offset
-    peg_insert_12mm: kpts.Offset = kpts.RECTANGULAR_HOLE_12MM.hole_tip_offset
-    peg_insert_16mm: kpts.Offset = kpts.RECTANGULAR_HOLE_16MM.hole_tip_offset
-
-    # Connector insert
-    usba: kpts.Offset = kpts.USB_A_SOCKET.entry
-    waterproof: kpts.Offset = kpts.WATERPROOF_SOCKET.entry
-    bnc: kpts.Offset = kpts.BNC_SOCKET.entry
-    dsub: kpts.Offset = kpts.D_SUB_SOCKET.entry
-    rj45: kpts.Offset = kpts.RJ45_SOCKET.entry
-
-    default: kpts.Offset = nut_thread_m16
-
-
-@configclass
 class FixedAssetTipCfg(PresetCfg):
     # Nut threading
     nut_thread_m4: kpts.Offset = kpts.BOLT_M4.bolt_tip_offset
@@ -207,7 +134,7 @@ def _dist(a: kpts.Offset, b: kpts.Offset) -> tuple[float, float, float]:
 
 
 @configclass
-class FactoryAssemblyProfileCfg(PresetCfg):
+class NISTAssemblyProfileCfg(PresetCfg):
     """Assembly profile per task variant.
 
     Each field is an :class:`AssemblyProfileCfg` describing the full assembly
@@ -662,108 +589,3 @@ GRASPED_POSE_RANGE_CENTERED = preset(
     **{name: _end_effector_pose_range(getattr(_GRASP_HEIGHTS, name), **_CENTERED_RANGE) for name in _VARIANTS}
 )
 """Pose range for the ``grasped_near_goal`` reset strategy."""
-
-
-_NUT_GRASPED_RANGE = dict(
-    x=(-0.005, 0.005),
-    y=(-0.005, 0.005),
-    z=(0.00, 0.035),
-    roll=(3.141, 3.141),
-    pitch=(-0.5, 0.5),
-    yaw=(-2.09, 2.09),
-)
-_GEAR_GRASPED_RANGE = dict(
-    x=(-0.02, 0.02),
-    y=(-0.02, 0.02),
-    z=(0.035, 0.045),
-    roll=(3.141, 3.141),
-    pitch=(-0.5, 0.5),
-    yaw=(-2.09, 2.09),
-)
-_INSERT_GRASPED_RANGE = dict(
-    x=(-0.005, 0.005),
-    y=(-0.005, 0.005),
-    z=(0.047, 0.057),
-    roll=(3.141, 3.141),
-    pitch=(-0.5, 0.5),
-    yaw=(-2.09, 2.09),
-)
-
-
-@configclass
-class GraspedPoseRangeCfg(PresetCfg):
-    """Pose range for the ``start_grasped_then_assembled`` reset strategy."""
-
-    nut_thread_m16: dict = _NUT_GRASPED_RANGE
-
-    # Gear mesh
-    gear_mesh_small: dict = _GEAR_GRASPED_RANGE
-    gear_mesh_medium: dict = _GEAR_GRASPED_RANGE
-    gear_mesh_large: dict = _GEAR_GRASPED_RANGE
-
-    # Rod insert (round)
-    rod_insert_4mm: dict = _INSERT_GRASPED_RANGE
-    rod_insert_8mm: dict = _INSERT_GRASPED_RANGE
-    rod_insert_12mm: dict = _INSERT_GRASPED_RANGE
-    rod_insert_16mm: dict = _INSERT_GRASPED_RANGE
-
-    # Peg insert (rectangular)
-    peg_insert_4mm: dict = _INSERT_GRASPED_RANGE
-    peg_insert_8mm: dict = _INSERT_GRASPED_RANGE
-    peg_insert_12mm: dict = _INSERT_GRASPED_RANGE
-    peg_insert_16mm: dict = _INSERT_GRASPED_RANGE
-
-    default: dict = nut_thread_m16
-
-
-@configclass
-class ResetAssetsCfg(PresetCfg):
-    """Scene entities the accumulator banks and restores for each assembly.
-
-    Anything omitted keeps whatever pose the previous episode left it in. The gear variants
-    put two spare gears on the board, and the board itself is re-placed every reset, so they
-    have to ride along or they end up seated against a board that has since moved.
-    """
-
-    default: list = ["nistboard", "fixed_asset", "held_asset", "robot"]
-    gear_mesh_small: list = ["nistboard", "fixed_asset", "held_asset", "robot", "medium_gear", "large_gear"]
-    gear_mesh_medium: list = ["nistboard", "fixed_asset", "held_asset", "robot", "small_gear", "large_gear"]
-    gear_mesh_large: list = ["nistboard", "fixed_asset", "held_asset", "robot", "small_gear", "medium_gear"]
-
-
-@configclass
-class HeldAssetObstaclesCfg(PresetCfg):
-    """Entities the held asset is checked against before a reset state is accepted.
-
-    A state that seats the held asset inside something not listed here is banked as valid.
-    PhysX pushes such a state apart; MuJoCo/Newton diverges to NaN instead, so the spare
-    gears have to be checked as well.
-    """
-
-    default: list = [
-        SceneEntityCfg("fixed_asset"),
-        SceneEntityCfg("robot"),
-        SceneEntityCfg("nistboard"),
-        SceneEntityCfg("table"),
-    ]
-    gear_mesh_small: list = default + [SceneEntityCfg("medium_gear"), SceneEntityCfg("large_gear")]
-    gear_mesh_medium: list = default + [SceneEntityCfg("small_gear"), SceneEntityCfg("large_gear")]
-    gear_mesh_large: list = default + [SceneEntityCfg("small_gear"), SceneEntityCfg("medium_gear")]
-
-
-@configclass
-class RobotObstaclesCfg(PresetCfg):
-    """Entities the robot is checked against before a reset state is accepted.
-
-    Gear presets include the spare gears as obstacles; other assemblies use the
-    table, board, and fixed asset.
-    """
-
-    default: list = [
-        SceneEntityCfg("table"),
-        SceneEntityCfg("nistboard"),
-        SceneEntityCfg("fixed_asset"),
-    ]
-    gear_mesh_small: list = default + [SceneEntityCfg("medium_gear"), SceneEntityCfg("large_gear")]
-    gear_mesh_medium: list = default + [SceneEntityCfg("small_gear"), SceneEntityCfg("large_gear")]
-    gear_mesh_large: list = default + [SceneEntityCfg("small_gear"), SceneEntityCfg("medium_gear")]

@@ -61,9 +61,7 @@ def test_task_balanced_ppo_returns_losses_and_task_statistics() -> None:
         with torch.no_grad():
             for _ in range(4):
                 algorithm.act(obs)
-                obs = TensorDict(
-                    {"policy": torch.cat((task_encoding, torch.randn(6, 5)), dim=-1)}, batch_size=[6]
-                )
+                obs = TensorDict({"policy": torch.cat((task_encoding, torch.randn(6, 5)), dim=-1)}, batch_size=[6])
                 rewards = task_ids.float() + torch.rand(6)
                 algorithm.process_env_step(obs, rewards, torch.zeros(6, dtype=torch.bool), {})
             algorithm.compute_returns(obs)

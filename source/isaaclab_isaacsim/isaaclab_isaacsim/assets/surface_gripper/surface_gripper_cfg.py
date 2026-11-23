@@ -3,10 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING
+"""Compatibility configuration for the native PhysX surface gripper."""
+
 from typing import TYPE_CHECKING
 
-from isaaclab.assets.asset_base_cfg import AssetBaseCfg
+from isaaclab.assets.surface_gripper import SurfaceGripperCfg as BaseSurfaceGripperCfg
 from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
@@ -14,22 +15,8 @@ if TYPE_CHECKING:
 
 
 @configclass
-class SurfaceGripperCfg(AssetBaseCfg):
-    """Configuration parameters for a surface gripper actuator."""
-
-    prim_path: str = MISSING
-    """The expression to find the grippers in the stage."""
-
-    max_grip_distance: float | None = None
-    """The maximum grip distance of the gripper."""
-
-    coaxial_force_limit: float | None = None
-    """The coaxial force limit of the gripper."""
-
-    shear_force_limit: float | None = None
-    """The shear force limit of the gripper."""
-
-    retry_interval: float | None = None
-    """The amount of time the gripper will spend trying to grasp an object."""
+class SurfaceGripperCfg(BaseSurfaceGripperCfg):
+    """Configure an authored Isaac Sim surface-gripper prim using native PhysX."""
 
     class_type: type["SurfaceGripper"] | str = "{DIR}.surface_gripper:SurfaceGripper"
+    cloning_contexts: tuple[type | str, ...] | None = None
