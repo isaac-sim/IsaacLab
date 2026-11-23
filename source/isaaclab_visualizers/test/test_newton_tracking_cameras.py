@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 import torch
@@ -221,3 +222,44 @@ def test_the_tracking_cameras_environment_is_drawn_even_beyond_the_visible_count
     assert glviz._select_visible_env_ids() == [7]
     glviz._followers.clear()  # no Tracking Camera shown: the plain first environments
     assert glviz._select_visible_env_ids() == [0]
+
+
+def test_a_focal_length_edit_stays_on_the_follower_and_reset_restores_it():
+    task = _view(TrackingCameraCfg(env_index=0, focal_length=24.0))
+    viz = _visualizer([task])
+    follower = viz._followers[task]
+    viz._remember_tracking_defaults(task, follower)
+    viz.current_image_view = task
+    viz.rtx_rendering = False
+    task.invalidate = lambda: None
+    imgui = Mock()
+    imgui.slider_float.return_value = (True, 40.0)
+    imgui.is_item_hovered.return_value = False
+    viz._draw_focal_length(imgui)
+
+    assert follower.cfg.focal_length == 40.0 and task.cfg.source.focal_length == 24.0
+    assert viz._reset_tracking_camera(follower) and follower.cfg.focal_length == 24.0
+
+
+def test_a_body_that_turns_out_ambiguous_later_falls_back_to_the_asset_root_instead_of_raising():
+    task = _view(TrackingCameraCfg(env_index=0, track_path="robot/base"))
+    viz = _visualizer([task])
+    follower = viz._followers[task]
+    viz._tracking_error = ""
+
+    def bad_pose(time):
+        raise ValueError("track_path must match exactly one body: 'robot/base'.")
+
+    follower.pose = bad_pose
+    assert viz._apply_view_pose(task) is False
+    assert follower.cfg.track_path == "robot" and "root instead" in viz._tracking_error
+
+
+def test_a_recorded_tracking_camera_in_a_hidden_environment_is_reported_once(caplog):
+    task = _view(TrackingCameraCfg(env_index=1))
+    viz = _visualizer([task])
+    viz._env_ids = [0]
+    with caplog.at_level("WARNING"):
+        viz._warn_if_hidden(task)
+        viz._warn_if_hidden(task)
+    assert sum("empty scene" in r.message for r in caplog.records) == 1
