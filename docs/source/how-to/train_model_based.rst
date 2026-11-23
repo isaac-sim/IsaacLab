@@ -143,5 +143,5 @@ CSV settings.
 Sim-to-real
 -----------
 
-G1 hardware deployment is covered by the follow-up
-`SuperMimic sim-to-real PR <https://github.com/Double7sBurger/IsaacLab/pull/4>`_.
+For G1 hardware deployment, see the
+`G1 LEAPP deployment guide <https://isaac-sim.github.io/IsaacLab/main/source/how-to/train_model_based.html#g1-leapp-deployment-adapter>`_.
