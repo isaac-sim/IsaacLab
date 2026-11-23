@@ -151,8 +151,21 @@ def test_native_selection_preserves_initial_worlds_and_unused_variant(device: st
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
-def test_explicit_world_layouts_choose_initial_variants(device: str) -> None:
-    """Each world starts with its explicitly selected variants, for reset-time and static spawners."""
+def test_semantic_worlds_choose_initial_variants(device: str) -> None:
+    """Semantic rules select the right native variants, including inherited wrapper tags."""
+
+    @configclass
+    class AssemblyWorlds(InclusionSet):
+        assembly: str = ""
+
+        def worlds(self, asset_names, variants):
+            candidates = dict(zip(asset_names, variants, strict=True))
+            for obj in candidates["object"]:
+                for fixture in candidates["fixture"]:
+                    required = {("assembly", self.assembly), ("domain", "mechanical")}
+                    if required.issubset(obj.semantic_tags) and required.issubset(fixture.semantic_tags):
+                        yield {"object": [obj], "fixture": [fixture]}
+
     scene_cfg = _VariantSceneCfg(num_envs=4, env_spacing=2.0)
     third = scene_cfg.object.spawn.assets_cfg[0].copy()
     third.radius, third.mass_props.mass = 0.06, 27.0
@@ -161,10 +174,15 @@ def test_explicit_world_layouts_choose_initial_variants(device: str) -> None:
     scene_cfg.fixture.prim_path = "{ENV_REGEX_NS}/Fixture"
     scene_cfg.fixture.spawn.static = True
     scene_cfg.fixture.init_state.pos = (0.5, 0.0, 0.2)
-    # The second definition explicitly pairs the first object with both fixture variants.
+    for obj, tags in zip(scene_cfg.object.spawn.assets_cfg, ([("assembly", "spare")], [], [("assembly", "drive")])):
+        obj.semantic_tags = tags
+    scene_cfg.fixture.spawn.assets_cfg[0].semantic_tags = [("assembly", "spare")]
+    scene_cfg.fixture.spawn.assets_cfg[1].semantic_tags = [("assembly", "spare"), ("assembly", "drive")]
+    scene_cfg.object.spawn.semantic_tags = [("domain", "mechanical")]
+    scene_cfg.fixture.spawn.semantic_tags = [("domain", "mechanical")]
     scene_cfg.clone_cfg.clone_combinations = [
-        InclusionSet(assets=["object", "fixture"], layouts=[(2, 1)]),
-        InclusionSet(assets=["object", "fixture"], layouts=[(0, 0), (0, 1)]),
+        AssemblyWorlds(assets=["object", "fixture"], assembly="drive"),
+        AssemblyWorlds(assets=["object", "fixture"], assembly="spare"),
     ]
     sim_cfg = SimulationCfg(
         device=device,

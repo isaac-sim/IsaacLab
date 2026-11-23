@@ -219,9 +219,10 @@ class InteractiveScene:
         nested_material_names = {name for name, cfg in flat_items if id(cfg) in nested_visual_material_ids}
         scene_asset_names = [name for name in scene_asset_names if name not in nested_material_names]
 
+        combinations = self.cloner_cfg.clone_combinations
         cfgs: list[Any] = []
         clone_asset_names: list[str] = []
-        variant_counts: list[int] = []
+        variant_cfgs: list[list[sim_utils.SpawnerCfg]] = []
         prototype_indices: list[int] = []
         prototype_count = 0
         for asset_name, child in flat_items:
@@ -233,16 +234,27 @@ class InteractiveScene:
             count = cloner.num_spawn_variants(getattr(child, "spawn", None))
             is_per_env = cloner.path.match(child.prim_path, self._env_fmt) is not None
             is_spawned = isinstance(child, (AssetBaseCfg, CameraCfg)) and child.spawn is not None
-            if is_per_env and is_spawned:
+            if is_per_env and is_spawned and combinations:
                 clone_asset_names.append(asset_name)
-                variant_counts.append(count)
+                spawn = child.spawn
+                if isinstance(spawn, sim_utils.MultiAssetSpawnerCfg):
+                    candidates = [copy.copy(candidate) for candidate in spawn.assets_cfg]
+                    if spawn.semantic_tags:
+                        for candidate in candidates:
+                            candidate.semantic_tags = [*(candidate.semantic_tags or ()), *spawn.semantic_tags]
+                elif isinstance(spawn, sim_utils.MultiUsdFileCfg) and not isinstance(spawn.usd_path, str):
+                    candidates = [copy.copy(spawn) for _ in spawn.usd_path]
+                    for candidate, usd_path in zip(candidates, spawn.usd_path, strict=True):
+                        candidate.usd_path = usd_path
+                else:
+                    candidates = [spawn]
+                variant_cfgs.append(candidates)
                 prototype_indices.extend(range(prototype_count, prototype_count + count))
             prototype_count += count
 
-        combinations = self.cloner_cfg.clone_combinations
         if combinations and clone_asset_names:
             worlds, weights = cloner.make_valid_clone_combinations(
-                clone_asset_names, variant_counts, combinations, all_asset_names=scene_asset_names
+                clone_asset_names, variant_cfgs, combinations, all_asset_names=scene_asset_names
             )
             return cfgs, tuple(tuple(prototype_indices[index] for index in world) for world in worlds), weights
         return cfgs, None, None

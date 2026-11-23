@@ -11,7 +11,7 @@ simulator and no USD, so they live outside ``test/sim/``.
 """
 
 import ast
-import itertools
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -24,6 +24,7 @@ from isaaclab import cloner
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import InclusionSet, make_clone_plan, make_valid_clone_combinations
 from isaaclab.sim import CuboidCfg
+from isaaclab.utils import configclass
 
 ##
 # Path primitives.
@@ -106,7 +107,11 @@ def test_clone_ownership_and_import_boundaries():
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == "False", "generic clone topology and queries imported the USD backend"
 
-    assert "variants" not in InclusionSet.__dataclass_fields__, "InclusionSet owns layouts rather than variant pins"
+    assert not {"variants", "layouts"} & InclusionSet.__dataclass_fields__.keys(), (
+        "Inclusion rules select semantic configurations rather than positional variant pins"
+    )
+
+    assert not hasattr(cloner, "MatchedWorlds"), "Matching policies belong in tasks"
 
     source = Path(__file__).resolve().parents[3]
     for file in source.glob("*/isaaclab*/**/*.py"):
@@ -342,49 +347,104 @@ def test_batched_world_queries(device, worlds, num_worlds, shared, selectors):
             assert starts[-1, -1] == len(expected)
 
 
-class _PairedWorlds(InclusionSet):
+class _SemanticWorlds(InclusionSet):
     def worlds(self, asset_names, variants):
-        return itertools.islice(zip(*variants), 3)
+        groups = []
+        for candidates in variants:
+            matches = {}
+            for candidate in candidates:
+                tags = dict(candidate.semantic_tags)
+                if re.fullmatch("gear|fixture", tags["class"]):
+                    matches[tags["size"], tags["assembly"]] = candidate
+            groups.append(matches)
+        for key in groups[0]:
+            if all(key in group for group in groups):
+                world = {}
+                for name, group in zip(asset_names, groups, strict=True):
+                    world.setdefault(name, []).append(group[key])
+                yield world
 
 
-def test_inclusion_layouts_generate_legal_worlds_before_replication():
-    """Explicit and paired definitions avoid an astronomical product; default products still work."""
+@configclass
+class _ExplicitWorlds(InclusionSet):
+    selections: list = []
+
+    def worlds(self, asset_names, variants):
+        return self.selections
+
+
+def test_inclusion_semantics_generate_legal_worlds_before_replication():
+    """Task-local semantic matching selects three worlds from 64**8 possible combinations."""
     names = [f"object_{index}" for index in range(8)]
-    worlds, weights = make_valid_clone_combinations(names, [1_000_000] * 8, [_PairedWorlds(assets=names)])
+    variants = []
+    for group in range(8):
+        candidates = [
+            CuboidCfg(
+                size=(1.0, 1.0, 1.0),
+                semantic_tags=[
+                    ("size", str(index)),
+                    ("assembly", "drive"),
+                    ("class", "gear" if index < 3 else "decoy"),
+                ],
+            )
+            for index in range(64)
+        ]
+        variants.append(candidates[::-1] if group % 2 else candidates)
+    worlds, weights = make_valid_clone_combinations(names, variants, [_SemanticWorlds(assets=names)])
     assert worlds == (
-        (0, 1000000, 2000000, 3000000, 4000000, 5000000, 6000000, 7000000),
-        (1, 1000001, 2000001, 3000001, 4000001, 5000001, 6000001, 7000001),
-        (2, 1000002, 2000002, 3000002, 4000002, 5000002, 6000002, 7000002),
+        (0, 127, 128, 255, 256, 383, 384, 511),
+        (1, 126, 129, 254, 257, 382, 385, 510),
+        (2, 125, 130, 253, 258, 381, 386, 509),
     )
     np.testing.assert_array_equal(weights, [1 / 3] * 3)
 
     # Repeated declarations, unclaimed assets, and weights retain their membership semantics.
+    robot, parts, tools, lamps = [[CuboidCfg(size=(1.0, 1.0, 1.0)) for _ in range(n)] for n in (1, 3, 2, 2)]
     selections = [
-        InclusionSet(assets=["part", "tool"], layouts=[(0, 2, 0, 0)], weight=3.0),
-        InclusionSet(assets=["part", "part", "tool"], layouts=[(0, 1, 1, 0, 1), (0, 1, 1, 1, 1)]),
+        _ExplicitWorlds(assets=["part", "tool"], weight=3.0),
+        _ExplicitWorlds(assets=["part", "part", "tool"]),
     ]
-    worlds, weights = make_valid_clone_combinations(["robot", "part", "tool", "lamp"], [1, 3, 2, 2], selections)
+    selections[0].selections = [
+        {"robot": robot, "part": [parts[2]], "tool": [tools[0]], "lamp": [lamps[0]]},
+    ]
+    selections[1].selections = [
+        {"robot": robot, "part": [parts[1], parts[1]], "tool": [tools[0]], "lamp": [lamps[1]]},
+        {"robot": robot, "part": [parts[1], parts[1]], "tool": [tools[1]], "lamp": [lamps[1]]},
+    ]
+    worlds, weights = make_valid_clone_combinations(
+        ["robot", "part", "tool", "lamp"], [robot, parts, tools, lamps], selections
+    )
     assert worlds == ((0, 3, 4, 6), (0, 2, 2, 4, 7), (0, 2, 2, 5, 7))
     np.testing.assert_array_equal(weights, [3.0, 0.5, 0.5])
 
-    worlds, weights = make_valid_clone_combinations(["part", "tool"], [2, 3])
+    # Collection members share a scene name but each retains its own candidates.
+    worlds, weights = make_valid_clone_combinations(["collection", "collection"], [parts[:2], tools])
+    assert worlds == ((0, 2), (0, 3), (1, 2), (1, 3))
+    np.testing.assert_array_equal(weights, [0.25] * 4)
+    worlds, weights = make_valid_clone_combinations(["part", "tool"], [parts[:2], tools + lamps[:1]])
     assert worlds == ((0, 2), (0, 3), (0, 4), (1, 2), (1, 3), (1, 4))
     np.testing.assert_array_equal(weights, [1 / 6] * 6)
 
 
-@pytest.mark.parametrize(
-    "layouts, message",
-    [
-        ([(0,)], "requires 2 variant indices"),
-        ([(0, 2)], "Invalid variant index 2"),
-        ([(0, -1)], "Invalid variant index -1"),
-        ([(True, 0)], "Invalid variant index True"),
-        ([(None, 0)], "Invalid variant index None"),
-        ([], "at least one world"),
-    ],
-)
-def test_inclusion_layouts_reject_invalid_definitions(layouts, message):
+@pytest.mark.parametrize("invalid", ["missing", "extra", "count", "foreign", "copied", "empty"])
+def test_inclusion_worlds_reject_invalid_definitions(invalid):
+    part, tool = CuboidCfg(size=(1.0, 1.0, 1.0)), CuboidCfg(size=(2.0, 2.0, 2.0))
+    selections = [{"part": [part], "tool": [tool]}]
+    message = "World assets must be"
+    if invalid == "missing":
+        del selections[0]["tool"]
+    elif invalid == "extra":
+        selections[0]["unknown"] = [part]
+    elif invalid == "count":
+        selections[0]["part"] = [part, part]
+        message = "one configuration per active asset instance"
+    elif invalid in ("foreign", "copied"):
+        selections[0]["part"] = [tool if invalid == "foreign" else part.copy()]
+        message = "not one of its supplied variants"
+    else:
+        selections = []
+        message = "at least one world"
+    inclusion = _ExplicitWorlds(assets=["part", "tool"])
+    inclusion.selections = selections
     with pytest.raises(ValueError, match=message):
-        make_valid_clone_combinations(
-            ["part", "tool"], [2, 2], [InclusionSet(assets=["part", "tool"], layouts=layouts)]
-        )
+        make_valid_clone_combinations(["part", "tool"], [[part], [tool]], [inclusion])

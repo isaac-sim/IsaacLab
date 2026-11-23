@@ -7,13 +7,17 @@ from __future__ import annotations
 
 import itertools
 import warnings
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import MISSING
+from typing import TYPE_CHECKING
 
 import numpy as np
 
 from ..utils import configclass
 from .cloner_strategies import sequential
+
+if TYPE_CHECKING:
+    from ..sim.spawners.spawner_cfg import SpawnerCfg
 
 DEFAULT_ENV_TEMPLATE = "/World/envs/env_{}"
 """Default path template for a replicated env prim; ``{}`` marks the environment index."""
@@ -48,29 +52,32 @@ class InclusionSet:
     weight: float = 1.0
     """Relative sampling weight for this clone combination."""
 
-    layouts: Sequence[Sequence[int]] | None = None
-    """Explicit variant-index rows; None uses the independent product.
+    def worlds(
+        self, asset_names: Sequence[str], variants: Sequence[Sequence[SpawnerCfg]]
+    ) -> Iterable[Mapping[str, Sequence[SpawnerCfg]]]:
+        """Select legal worlds from the available spawner configurations.
 
-    Columns follow active scene declaration order; repeated instances and members of a rigid
-    object collection each have their own column. Unclaimed assets also contribute columns,
-    once per declaration. Indices are local to each declaration's spawner, starting at zero.
-    """
-
-    def worlds(self, asset_names: Sequence[str], variants: Sequence[range]) -> Iterable[Sequence[int]]:
-        """Generate legal layouts without constructing combinations that the definition excludes.
-
-        Override this method to pair or otherwise couple asset choices. The default returns
-        :attr:`layouts` when supplied, otherwise the Cartesian product of the candidate ranges.
-        The inclusion set's weight is divided equally over the generated layouts.
+        Override this method in the task to select compatible variants using their existing
+        ``semantic_tags`` or other configuration properties. No matching policy is built into core.
+        The default independently combines all candidates.
 
         Args:
-            asset_names: Active scene declaration name of each column, including repeated instances.
-            variants: Candidate variant indices for each column, as ``range(variant_count)``.
+            asset_names: Scene name for each active declaration instance. Repeated instances and
+                rigid object collection members have separate entries, possibly with the same name.
+            variants: Candidate spawner configurations for each entry in ``asset_names``. These
+                include inherited multi-asset semantic tags and must be treated as read-only.
 
-        Returns:
-            Rows selecting one local variant index per column, in the supplied order.
+        Yields:
+            Asset names mapped to selected candidate configurations, one per active instance.
+            For repeated names, selections follow the corresponding declaration order. Return
+            the supplied configurations themselves; copies and foreign configurations are invalid.
+            The inclusion weight is divided equally over the generated worlds.
         """
-        return itertools.product(*variants) if self.layouts is None else self.layouts
+        for choices in itertools.product(*variants):
+            world = {}
+            for name, choice in zip(asset_names, choices, strict=True):
+                world.setdefault(name, []).append(choice)
+            yield world
 
 
 @configclass
@@ -92,7 +99,7 @@ class CloneCfg:
     empty list keeps the homogeneous/default behavior.
 
     Each inclusion set defines its legal world layouts through :meth:`InclusionSet.worlds`.
-    Explicit rows and custom inclusion subclasses are resolved before replication; replication
+    Task-local inclusion subclasses are resolved before replication; replication
     consumes the resulting world prototypes without interpreting inclusion rules.
     """
 
@@ -113,7 +120,7 @@ class CloneCfg:
 
 def make_valid_clone_combinations(
     asset_names: Sequence[str],
-    variant_counts: Sequence[int],
+    variant_cfgs: Sequence[Sequence[SpawnerCfg]],
     clone_combinations: Sequence[InclusionSet] | None = None,
     *,
     all_asset_names: Sequence[str] | None = None,
@@ -121,12 +128,12 @@ def make_valid_clone_combinations(
     """Resolve inclusion definitions into flat asset-prototype memberships and relative weights.
 
     Repeated names create repeated instances. Unclaimed assets join every world. Each inclusion
-    set owns the layouts it generates; explicit or coupled layouts never expand into an independent
-    Cartesian product. Columns follow replicated scene declaration order, including repeated instances.
+    set selects configurations directly, without enumerating excluded Cartesian combinations.
+    Candidate groups follow replicated scene declaration order, including repeated instances.
 
     Args:
         asset_names: Names of the replicated asset declarations.
-        variant_counts: Number of concrete prototypes for each declaration.
+        variant_cfgs: Concrete spawner configurations for each replicated declaration.
         clone_combinations: Legal world definitions; None uses the default independent product.
         all_asset_names: Scene names, including shared assets that do not enter world memberships.
 
@@ -134,15 +141,15 @@ def make_valid_clone_combinations(
         World memberships indexing the flat variant library, and one relative weight per world.
 
     Raises:
-        ValueError: A declaration, asset name, layout width, or variant index is invalid, or a
-            definition produces no worlds.
+        ValueError: Candidate groups are empty or misaligned, selected assets or configurations
+            are invalid, or a definition produces no worlds.
     """
-    if len(asset_names) != len(variant_counts) or any(count <= 0 for count in variant_counts):
-        raise ValueError("Each asset requires one positive variant count.")
+    if len(asset_names) != len(variant_cfgs) or any(not candidates for candidates in variant_cfgs):
+        raise ValueError("Each asset requires a nonempty group of variant configurations.")
     known = set(asset_names if all_asset_names is None else all_asset_names)
     combinations = clone_combinations or (InclusionSet(assets=list(dict.fromkeys(asset_names))),)
     claimed = set().union(*(combination.assets for combination in combinations))
-    offsets = np.cumsum([0, *variant_counts])
+    offsets = np.cumsum([0, *(len(candidates) for candidates in variant_cfgs)])
     worlds, weights = [], []
     for combination in combinations:
         if unknown := set(combination.assets) - known:
@@ -151,20 +158,23 @@ def make_valid_clone_combinations(
         for index, name in enumerate(asset_names):
             count = combination.assets.count(name) if name in claimed else 1
             names.extend([name] * count)
-            choices.extend([range(variant_counts[index])] * count)
+            choices.extend([variant_cfgs[index]] * count)
             starts.extend([offsets[index]] * count)
-        layouts = combination.worlds(names, choices)
+        candidate_ids = [{id(cfg): index for index, cfg in enumerate(candidates)} for candidates in choices]
         num_worlds = len(worlds)
-        for layout in layouts:
-            if len(layout) != len(choices):
-                raise ValueError(f"World layout requires {len(choices)} variant indices, got {len(layout)}.")
-            for variant, candidates in zip(layout, choices, strict=True):
-                is_index = isinstance(variant, (int, np.integer)) and not isinstance(variant, bool)
-                if not is_index or not 0 <= variant < len(candidates):
-                    raise ValueError(
-                        f"Invalid variant index {variant!r}: expected an integer in [0, {len(candidates)})."
-                    )
-            worlds.append(tuple(int(start + variant) for start, variant in zip(starts, layout, strict=True)))
+        for world in combination.worlds(names, choices):
+            if set(world) != set(names):
+                raise ValueError(f"World assets must be {sorted(set(names))}, got {sorted(world)}.")
+            if any(len(world[name]) != names.count(name) for name in world):
+                raise ValueError("World selections must provide one configuration per active asset instance.")
+            selections = {name: iter(configs) for name, configs in world.items()}
+            members = []
+            for name, candidates, start in zip(names, candidate_ids, starts, strict=True):
+                selected = next(selections[name])
+                if id(selected) not in candidates:
+                    raise ValueError(f"Selected configuration for {name!r} is not one of its supplied variants.")
+                members.append(int(start + candidates[id(selected)]))
+            worlds.append(tuple(members))
         count = len(worlds) - num_worlds
         if not count:
             raise ValueError("An inclusion set must define at least one world layout.")

@@ -131,32 +131,67 @@ variant because their batched Newton views currently require a uniform body layo
    :end-at: scene_cfg.robot.spawn.usd_path = scene_cfg.robot.spawn.usd_path[0]
    :dedent: 8
 
-An :class:`~isaaclab.cloner.InclusionSet` defines the legal world layouts before replication. By default, its
-active assets choose variants independently. Explicit :attr:`~isaaclab.cloner.InclusionSet.layouts` list only
-legal pairings; each row selects local spawner variant indices in active scene declaration order, including
-unclaimed assets and repeated instances. For a scene declaring ``part`` then ``fixture``:
+An :class:`~isaaclab.cloner.InclusionSet` defines legal worlds before replication. Its default
+:meth:`~isaaclab.cloner.InclusionSet.worlds` combines variants independently. A task can override that
+method to select compatible configurations using their existing ``semantic_tags``. No separate variant
+labels, positional layout indices, or matching policy are required in core.
+
+For example, tag each part and fixture spawner configuration with its size and assembly. A configuration
+can have several semantic tags:
 
 .. code-block:: python
 
-   scene_cfg.clone_cfg.clone_combinations = [
-       InclusionSet(assets=["part", "fixture"], layouts=[(0, 2), (1, 0)]),
+   small_part_cfg.semantic_tags = [
+       ("class", "gear"), ("size", "small"), ("assembly", "drive"),
+   ]
+   small_fixture_cfg.semantic_tags = [
+       ("class", "fixture"), ("size", "small"), ("assembly", "drive"),
    ]
 
-For mathematical pairing rules, override :meth:`~isaaclab.cloner.InclusionSet.worlds`:
+Define the matching rule in the task, alongside its scene configuration:
 
 .. code-block:: python
+
+   import re
 
    class MatchedWorlds(InclusionSet):
        def worlds(self, asset_names, variants):
-           return zip(*variants, strict=True)
+           candidates = dict(zip(asset_names, variants, strict=True))
+           fixtures = {}
+           for fixture in candidates["fixture"]:
+               tags = dict(fixture.semantic_tags or ())
+               key = (tags.get("size"), tags.get("assembly"))
+               if None not in key:
+                   fixtures.setdefault(key, []).append(fixture)
+           for part in candidates["part"]:
+               tags = dict(part.semantic_tags or ())
+               if re.fullmatch(r"gear|shaft", tags.get("class", "")):
+                   key = (tags.get("size"), tags.get("assembly"))
+                   for fixture in fixtures.get(key, ()):
+                       yield {"part": [part], "fixture": [fixture]}
 
-   scene_cfg.clone_cfg.clone_combinations = [MatchedWorlds(assets=["part", "fixture"])]
+   scene_cfg.clone_cfg.clone_combinations = [
+       MatchedWorlds(assets=["part", "fixture"]),
+   ]
 
-Each candidate range indexes one active asset instance's spawner. This definition pairs equal variant indices
-instead of constructing their Cartesian product; the example requires equal candidate counts. More general
-subclasses can express coupled choices directly. Their outputs are validated and translated into prototype IDs
-by scene planning; ``ReplicateSession`` consumes those IDs without interpreting the definition. An inclusion
-set's weight is split equally over its generated layouts.
+This task-local definition joins parts and fixtures by size and assembly, filtering part classes with a
+regex. It generates compatible pairs directly instead of constructing the independent Cartesian product.
+Variant order does not determine compatibility. Other tasks can use different tag keys, multi-valued tags,
+or configuration properties without adding matching subclasses to core. Untagged variants remain valid
+for the default independent combination policy.
+
+The method receives one candidate group per active declaration instance, including unclaimed assets.
+Candidate configurations include semantic tags inherited from ``MultiAssetSpawnerCfg``. For
+``MultiUsdFileCfg``, each candidate has one concrete ``usd_path`` and the wrapper's tags. Treat these
+configurations as read-only and return the supplied objects rather than copies. Each returned world maps
+an asset name to a list of selected configurations. Lists allow repeated asset instances and rigid object
+collection members; their selections follow the corresponding declaration order. The example above is
+for a scene containing one part and one fixture declaration. A task with additional active assets must
+include their selections in each returned world too.
+
+Scene planning validates the selections and translates them into prototype IDs. ``ReplicateSession``
+consumes those IDs without interpreting semantic tags or inclusion rules. An inclusion set's weight is
+split equally over its generated worlds.
 
 For more detail on prototype assignment and replication, see :doc:`cloning`.
 
