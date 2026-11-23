@@ -33,7 +33,7 @@ import ovstage
 import warp as wp
 from isaaclab_ov.cloner import ovstage_replicate
 from isaaclab_ov.renderers import OVRTXBackendCfg, OVRTXRendererCfg
-from isaaclab_ov.renderers.ovrtx_usd import build_render_product_as_string
+from isaaclab_ov.renderers.ovrtx_usd import build_camera_render_product_as_string
 from isaaclab_ov.stage import (
     OvstageBackendCfg,
     export_stage_to_string,
@@ -1410,7 +1410,7 @@ class OvxrRenderer(BaseRenderer):
         frame.
         """
         device_id = self._warp_device.ordinal if self._warp_device.is_cuda else 0
-        usd = build_render_product_as_string(spec, render_data, device_id=device_id)
+        usd = build_camera_render_product_as_string(spec, render_data, device_id=device_id)
         if self._warp_device.is_cuda and not self._excludes_simulation_gpu():
             return usd
         # The device index above is removed with the product's only device pin.

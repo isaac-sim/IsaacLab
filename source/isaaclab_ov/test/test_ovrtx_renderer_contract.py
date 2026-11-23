@@ -904,7 +904,7 @@ def test_ovrtx_process_frame_reads_authored_camera_render_vars(monkeypatch, use_
         stages[str(product.GetPath())] = stage
         return usd
 
-    monkeypatch.setattr(ovrtx_renderer_module, "build_render_product_as_string", capture_render_product)
+    monkeypatch.setattr(ovrtx_renderer_module, "build_camera_render_product_as_string", capture_render_product)
 
     @contextlib.contextmanager
     def fake_map(self, render_var):

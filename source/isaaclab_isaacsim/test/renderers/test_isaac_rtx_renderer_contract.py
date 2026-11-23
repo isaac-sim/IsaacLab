@@ -128,6 +128,7 @@ def test_create_render_data_uses_unique_sdf_safe_render_product_name(monkeypatch
     spec = SimpleNamespace(
         prim_paths=["/World/envs/env_0/Camera"],
         device="cpu",
+        is_lidar=lambda: False,
         cfg=SimpleNamespace(
             data_types=["rgb"],
             width=64,
@@ -243,6 +244,7 @@ def test_simple_shading_configures_its_render_product(
     spec = SimpleNamespace(
         prim_paths=["/World/envs/env_0/Camera"],
         device="cpu",
+        is_lidar=lambda: False,
         cfg=SimpleNamespace(
             data_types=data_types,
             width=64,
@@ -327,6 +329,7 @@ def test_depth_only_camera_color_render_setting(monkeypatch, has_gui, expected_d
     stage.GetPrimAtPath.return_value.IsA.return_value = False
     spec = SimpleNamespace(
         prim_paths=["/World/NotACamera"],
+        is_lidar=lambda: False,
         cfg=SimpleNamespace(data_types=["depth"]),
     )
     renderer = rtx_renderer.IsaacRtxRenderer.__new__(rtx_renderer.IsaacRtxRenderer)

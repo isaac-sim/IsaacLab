@@ -245,7 +245,7 @@ def _resolve_env_light_partitions(
 class _OvxrPanelRenderData:
     """One camera panel's render product, pose binding and pose buffer in the OVXR renderer's OVStage.
 
-    The fields that :func:`~isaaclab_ov.renderers.ovrtx_usd.build_render_product_as_string` reads follow
+    The fields that :func:`~isaaclab_ov.renderers.ovrtx_usd.build_camera_render_product_as_string` reads follow
     the OVRTX renderer's camera render data; a panel is one camera view.
     """
 
