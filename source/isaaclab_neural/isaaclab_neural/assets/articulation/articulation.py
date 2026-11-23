@@ -112,10 +112,6 @@ class Articulation(BaseArticulation):
         return []
 
     @property
-    def is_fixed_base(self) -> bool:
-        return True
-
-    @property
     def backend_joint_names(self) -> list[str]:
         return list(self._joint_names)
 
@@ -282,6 +278,10 @@ class Articulation(BaseArticulation):
         pass
 
     # The world model has joint state only: these parts of the articulation are not available.
+
+    @property
+    def is_fixed_base(self) -> bool:
+        raise NotImplementedError(UNSUPPORTED)
 
     @property
     def root_view(self):
