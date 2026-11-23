@@ -198,13 +198,12 @@ world-model training windows at continuing-state edits and retains the physical 
 The differentiable velocity task owns the state coordinates, deployable actor features,
 reward terms and contact probabilities. Each frame of the actor history is the default policy
 observation, including the command, so an exported policy reads the same inputs as the PPO
-policy. Feet and the height scanner follow from differentiable
-forward kinematics of the simulated articulation. The actor's height scan samples a heightfield
-of the terrain mesh, ray-cast once at startup, so it matches the ray-cast scan except within
-2.5 cm of vertical steps. The world model sees the terrain through the root and sole heights
-above it. Joint torque rewards use a PD approximation.
-Acceleration rewards use policy-rate differences. Contact timers advance analytically
-at the policy timestep using predicted event labels.
+policy. Feet and the height scanner follow from differentiable forward kinematics of the
+simulated articulation. The actor's height scan samples a heightfield of the terrain mesh,
+ray-cast once at startup, so it matches the ray-cast scan except within 2.5 cm of vertical
+steps. The world model sees the terrain through the root and sole heights above it. Joint
+torque rewards use a PD approximation. Acceleration rewards use policy-rate differences.
+Contact timers advance analytically at the policy timestep using predicted event labels.
 
 Pass the same agent and ``presets=state_obs`` to playback, which also writes JIT and ONNX exports.
 The preset collects one step before applying fractional learner updates. See the
