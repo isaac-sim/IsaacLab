@@ -27,7 +27,7 @@ To evaluate the latest compatible checkpoint in the interactive visualizer:
 .. code-block:: bash
 
    uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole \
-       --checkpoint latest --num_envs 32 --viz newton_gl
+       --checkpoint latest --num_envs 32 --viz newton
 
 The ``train`` and ``play`` commands work across the supported RL libraries.
 
@@ -219,6 +219,9 @@ Use ``play`` with one of the following checkpoint selectors:
    * - ``wandb:<entity>/<project>/<run_id>``
      - Downloads the latest checkpoint of a W&B run (RSL-RL only). A run URL also works; append
        ``?checkpoint=<iteration>`` to choose an iteration.
+
+RLinf accepts a checkpoint path, ``latest``, or ``best``. Both selectors choose the newest saved RLinf checkpoint.
+See :ref:`rlinf-post-training` for examples.
 
 For example, play the best local checkpoint and record a short video:
 
