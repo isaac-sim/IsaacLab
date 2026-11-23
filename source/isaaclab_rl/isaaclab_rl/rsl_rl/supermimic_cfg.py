@@ -39,6 +39,28 @@ class RslRlSuperMimicActorCfg:
     decoder_hidden_dims: tuple[int, ...] = (2048, 1024, 512, 256)
     """Hidden widths of the history-conditioned action decoder."""
 
+    use_reference_action: bool = False
+    """Whether the network output corrects the task's reference action, which exports then take as an input."""
+
+    activation: str = "elu"
+    """Activation of the encoder and decoder layers."""
+
+    norm: str = "none"
+    """Normalization of the decoder layers, ``"none"`` or ``"layer"``."""
+
+    encoder_norm: str = "layer"
+    """Normalization of the goal encoder layers, ``"none"`` or ``"layer"``.
+
+    LayerNorm keeps the hidden layers from growing a component shared by all goals, which would saturate the tanh
+    latent so the policy stops seeing its goal.
+    """
+
+    output_gain: float = 0.01
+    """Scale of the initial decoder output weights; values other than 1 also zero the output bias."""
+
+    normalize_before_action: bool = True
+    """Whether to update the observation and goal normalizers before choosing each collection action, not after."""
+
 
 @configclass
 class RslRlWorldModelCfg:
@@ -52,6 +74,18 @@ class RslRlWorldModelCfg:
 
     label_hidden_dims: tuple[int, ...] = (512, 512)
     """Hidden widths of the optional event-label head."""
+
+    activation: str = "swish"
+    """Activation of the dynamics network."""
+
+    normalize_output: bool = True
+    """Whether to predict normalized increments and rescale them with running output statistics."""
+
+    normalize_context: bool = True
+    """Whether to normalize the dynamics context with running statistics; disable for context in a fixed range."""
+
+    zero_initialize_output: bool = True
+    """Whether to start the dynamics output layer at zero."""
 
 
 @configclass
@@ -73,6 +107,10 @@ class RslRlSuperMimicAlgorithmCfg:
     updates_per_step: float = 0.4
     """Learner iterations accrued per collected environment step."""
 
+    update_schedule: str = "after_warmup"
+    """Accrue learner-update credit after warmup (``"after_warmup"``) or from the first collected step
+    (``"from_start"``)."""
+
     num_world_model_updates: int = 10
     """Dynamics optimizer steps per learner iteration."""
 
@@ -85,6 +123,18 @@ class RslRlSuperMimicAlgorithmCfg:
     world_model_batch_size: int = 2048
     """Replay anchors per dynamics optimizer step."""
 
+    world_model_mirror_fraction: float = 0.0
+    """Fraction of each dynamics batch replaced by its left-right mirror image from the task's mirror hooks."""
+
+    world_model_loss_reduction: str = "sum"
+    """Sum the dynamics loss over each replay window (``"sum"``) or average it over all valid positions (``"mean"``)."""
+
+    world_model_full_windows: bool = False
+    """Whether to sample only complete windows inside an episode for dynamics fitting.
+
+    Needs :attr:`num_warmup_steps` greater than :attr:`world_model_window`.
+    """
+
     horizon: int = 32
     """Number of imagined policy steps."""
 
@@ -92,13 +142,38 @@ class RslRlSuperMimicAlgorithmCfg:
     """Starts per actor update."""
 
     learning_rate: float = 2e-4
-    """Initial learning rate of each optimizer."""
+    """Initial learning rate of the world model and critic, and of the actor unless overridden."""
+
+    actor_learning_rate: float | None = None
+    """Initial actor learning rate. None uses :attr:`learning_rate`."""
+
+    actor_learning_rate_multiplier: float = 1.0
+    """Factor on the actor learning rate early in training, decaying linearly to 1 once a decay trigger is reached."""
+
+    actor_learning_rate_decay_iterations: int = 300
+    """Learner iterations over which the actor learning-rate multiplier decays to 1."""
+
+    actor_learning_rate_decay_return: float | None = None
+    """Mean return per maximum-length step of the episodes completed since the previous update that starts the decay.
+
+    Each episode return is divided by the environment's maximum episode length, so short failed episodes count low.
+    """
+
+    actor_learning_rate_decay_start: int | None = None
+    """Learner iteration at which the decay starts at the latest."""
+
+    muon_models: tuple[str, ...] = ()
+    """Models among ``"actor"`` and ``"world_model"`` whose hidden weight matrices are trained with Muon."""
 
     num_schedule_updates: int = 250_000
     """Learner iterations in the shared cosine learning-rate schedule."""
 
     final_learning_rate_ratio: float = 0.03
     """Final learning rate relative to its initial value."""
+
+    learning_rate_schedule_unit: str = "learner_updates"
+    """Measure cosine-schedule progress in learner updates (``"learner_updates"``) or in collected environment steps
+    (``"env_steps"``)."""
 
     gamma: float = 0.99
     """Reward discount."""
@@ -111,6 +186,15 @@ class RslRlSuperMimicAlgorithmCfg:
 
     num_critic_mini_batches: int = 4
     """Minibatches per critic epoch."""
+
+    critic_survival_weighting: bool = True
+    """Whether to weight value regression by imagined survival probabilities."""
+
+    critic_bootstrap_clipping: bool = True
+    """Whether to cap values with :attr:`max_step_reward` before computing critic return targets."""
+
+    critic_shuffle_each_epoch: bool = True
+    """Whether to draw new critic minibatches every epoch instead of reusing one permutation."""
 
     num_warmup_steps: int = 64
     """Stored steps per environment required before learning."""

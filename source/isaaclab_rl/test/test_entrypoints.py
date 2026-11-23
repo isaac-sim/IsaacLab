@@ -1022,7 +1022,18 @@ def test_supermimic_configurations_track_native_constructors() -> None:
         (
             RslRlSuperMimicAlgorithmCfg(),
             SuperMimic,
-            {"self", "actor", "world_model", "critic", "storage", "task", "obs_groups", "device", "multi_gpu_cfg"},
+            {
+                "self",
+                "actor",
+                "world_model",
+                "critic",
+                "storage",
+                "task",
+                "obs_groups",
+                "device",
+                "multi_gpu_cfg",
+                "max_episode_length",
+            },
             {"class_name", "task_cfg", "replay_buffer_capacity", "max_replay_memory_fraction"},
         ),
         (
