@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import fcntl
 import logging
 import os
 import tempfile
@@ -35,6 +34,23 @@ if TYPE_CHECKING:
 
 # import logger
 logger = logging.getLogger(__name__)
+
+
+def _lock_spawn_file(lock_fd, *, unlock: bool = False) -> None:
+    """Exclusive lock around USD spawn. ``fcntl`` is unavailable on Windows."""
+    if os.name == "nt":
+        import msvcrt
+
+        if not unlock:
+            lock_fd.seek(0)
+            lock_fd.write(" ")
+            lock_fd.flush()
+        lock_fd.seek(0)
+        msvcrt.locking(lock_fd.fileno(), msvcrt.LK_UNLCK if unlock else msvcrt.LK_LOCK, 1)
+    else:
+        import fcntl
+
+        fcntl.flock(lock_fd, fcntl.LOCK_UN if unlock else fcntl.LOCK_EX)
 
 
 @clone
@@ -314,7 +330,7 @@ def _spawn_from_usd_file(
     if _world_size > 1:
         lock_path = os.path.join(tempfile.gettempdir(), "isaaclab_usd_spawn.lock")
         lock_fd = open(lock_path, "w")  # noqa: SIM115
-        fcntl.flock(lock_fd, fcntl.LOCK_EX)
+        _lock_spawn_file(lock_fd)
     try:
         if file_status == 2:
             usd_path = retrieve_file_path(usd_path, force_download=False)
@@ -332,7 +348,7 @@ def _spawn_from_usd_file(
             logger.warning(f"A prim already exists at prim path: '{prim_path}'.")
     finally:
         if _world_size > 1:
-            fcntl.flock(lock_fd, fcntl.LOCK_UN)
+            _lock_spawn_file(lock_fd, unlock=True)
             lock_fd.close()
 
     # modify variants
