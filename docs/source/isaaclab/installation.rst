@@ -667,7 +667,11 @@ one set of environment files, and one image name:
      - ``.env.kitless``
      - nothing -- standalone, no Isaac Sim
 
-Every command below takes the profile as its first positional argument and defaults to ``base``.
+Every command below takes the profile as a positional argument and defaults to ``base``. The
+profile can be written before the command, so that stepping a container through its lifecycle only
+changes the last word (``./docker/container.py kitless start``, then
+``./docker/container.py kitless enter``); the command-first order
+(``./docker/container.py start kitless``) is also accepted.
 Only one profile applies at a time, and the resulting image and container are both named
 ``isaac-lab-<profile>``. Pass ``--suffix`` to append a name suffix when you want several variants of
 the same profile side by side. Do not use ``--suffix`` with cluster deployments, whose export
@@ -748,7 +752,7 @@ Run ``./docker/container.py --help`` to list commands and
    * - ``start``
      - Build the image and start the container in the background.
    * - ``enter``
-     - Open a Bash shell in the running container.
+     - Open a Bash shell in the container, starting it first if it is not running.
    * - ``config``
      - Print the merged Compose configuration. Use ``--output-yaml <path>`` to write it to a file instead.
    * - ``copy``
@@ -916,9 +920,9 @@ build the image for a profile from the table above, for example ``kitless``:
 
 .. code:: bash
 
-    ./docker/container.py build kitless
+    ./docker/container.py kitless build
 
-``./docker/container.py start kitless`` also builds the image before starting the container. Without
+``./docker/container.py kitless start`` also builds the image before starting the container. Without
 Compose, build the profile's Dockerfile directly; it uses the same default paths:
 
 .. code:: bash
@@ -940,15 +944,15 @@ container after pulling repository changes, rebuild it and recreate the service:
 
 .. code:: bash
 
-    ./docker/container.py stop base
-    ./docker/container.py build base --pull
-    ./docker/container.py start base
+    ./docker/container.py base stop
+    ./docker/container.py base build --pull
+    ./docker/container.py base start
 
 Stopping now preserves named volumes; older versions deleted them on every stop. Compose
 caches, logs, and data use named volumes, whose existing ownership is unchanged by rebuilding.
 For a one-time upgrade from a root-run image, copy any results you need, stop other profiles
 without ``--remove-volumes`` (use ``docker rm <name>`` for already-stopped containers),
-then run ``./docker/container.py stop base --remove-volumes``
+then run ``./docker/container.py base stop --remove-volumes``
 before rebuilding and starting base. This deletes the project's caches, logs, and data so
 new volumes inherit uid/gid 1000 ownership. Cleanup requires the selected container to still
 exist and refuses to run while another container remains in the Compose project.
