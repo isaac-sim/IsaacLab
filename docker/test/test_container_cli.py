@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Argument-order handling for ``docker/container.py``."""
+"""Command line handling for ``docker/container.py``."""
 
 import argparse
 import importlib.util
@@ -33,40 +33,41 @@ def _container_module():
     return module
 
 
-COMMANDS = ("build", "start", "enter", "config", "copy", "stop")
-"""Expected subcommands. The CLI derives its own set from argparse; this pins the contract."""
-
-
 @pytest.mark.parametrize(
     "argv, expected",
     [
-        # profile first is rewritten to command first
-        (["kitless", "build"], ["build", "kitless"]),
-        (["ros2", "start"], ["start", "ros2"]),
-        (["kitless", "start", "--suffix", "custom"], ["start", "kitless", "--suffix", "custom"]),
-        # command first is already correct and left alone
-        (["build", "kitless"], ["build", "kitless"]),
-        (["start"], ["start"]),
-        (["config", "kitless", "--output-yaml", "out.yaml"], ["config", "kitless", "--output-yaml", "out.yaml"]),
-        # nothing to reorder
-        ([], []),
-        (["build"], ["build"]),
-        # flags are never treated as a profile
-        (["--help"], ["--help"]),
-        (["-h", "build"], ["-h", "build"]),
+        # positional profile, unchanged from before the option existed
+        ("start", ("start", "base", None)),
+        ("start kitless", ("start", "kitless", None)),
+        ("start kitless --suffix custom", ("start", "kitless", "custom")),
+        # option before the command, so only the command changes between calls
+        ("-p kitless build", ("build", "kitless", None)),
+        ("--profile kitless start --suffix custom", ("start", "kitless", "custom")),
+        # option after the command, and agreeing duplicates
+        ("enter -p kitless", ("enter", "kitless", None)),
+        ("stop kitless -p kitless", ("stop", "kitless", None)),
     ],
 )
-def test_reorder_profile_first(argv: list[str], expected: list[str]):
-    assert _container_module().reorder_profile_first(argv, COMMANDS) == expected
-
-
-@pytest.mark.parametrize("argv", [["kitless", "build"], ["build", "kitless"]])
-def test_both_orders_parse_to_the_same_arguments(argv: list[str], monkeypatch: pytest.MonkeyPatch):
-    """End-to-end through the real parser, so the derived command set is exercised."""
-    monkeypatch.setattr("sys.argv", ["container.py", *argv])
+def test_profile_is_accepted_positionally_or_as_an_option(argv: str, expected, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr("sys.argv", ["container.py", *argv.split()])
     args = _container_module().parse_cli_args()
 
-    assert (args.command, args.profile) == ("build", "kitless")
+    assert (args.command, args.profile, args.suffix) == expected
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        "-p kitless start base",  # option and positional disagree
+        "-p kitless start -p base",  # option before and after the command disagree
+        "kitless start",  # a bare profile is never read as the command
+    ],
+)
+def test_ambiguous_profile_is_rejected(argv: str, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr("sys.argv", ["container.py", *argv.split()])
+
+    with pytest.raises(SystemExit):
+        _container_module().parse_cli_args()
 
 
 X11_OVERLAY = (["x11.yaml"], {"DISPLAY": ":1"})
@@ -105,11 +106,3 @@ def test_enter_starts_the_container_only_when_it_is_down(
 
     assert started_with == ([] if overlay_at_start is None else [overlay_at_start])
     assert interface.enter.called
-
-
-def test_profile_names_do_not_collide_with_commands():
-    """The reorder is only unambiguous while the two name sets stay disjoint."""
-    profiles = {path.name.split(".", 1)[1] for path in DOCKER_DIR.glob("Dockerfile.*")}
-
-    assert profiles, "no Dockerfile.<profile> found"
-    assert set(COMMANDS).isdisjoint(profiles)

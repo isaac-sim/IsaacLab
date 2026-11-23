@@ -7,8 +7,6 @@
 
 import argparse
 import shutil
-import sys
-from collections.abc import Container
 from pathlib import Path
 
 # __package__ is empty when this file runs as a script (./docker/container.py), where
@@ -21,26 +19,6 @@ else:
     from utils import ContainerInterface, x11_utils
 
 
-def reorder_profile_first(argv: list[str], commands: Container[str]) -> list[str]:
-    """Accept ``<profile> <command>`` in addition to ``<command> <profile>``.
-
-    Stepping a container through its lifecycle only changes the command, so keeping it last
-    lets the previous line be reused by editing its tail: ``kitless build`` then
-    ``kitless start``. Profile names are never command names, so the leading token
-    identifies the order unambiguously.
-
-    Args:
-        argv: Command line arguments without the program name.
-        commands: The subcommand names this CLI accepts.
-
-    Returns:
-        The arguments with the command first, unchanged if it already is.
-    """
-    if len(argv) >= 2 and not argv[0].startswith("-") and argv[0] not in commands and argv[1] in commands:
-        return [argv[1], argv[0], *argv[2:]]
-    return argv
-
-
 def parse_cli_args() -> argparse.Namespace:
     """Parse command line arguments.
 
@@ -51,14 +29,30 @@ def parse_cli_args() -> argparse.Namespace:
         The parsed command line arguments.
     """
     parser = argparse.ArgumentParser(description="Utility for using Docker with Isaac Lab.")
+    # Written before the command, the profile stays put while stepping through the lifecycle, so
+    # only the last word changes between calls: '-p kitless build', then '-p kitless start'.
+    parser.add_argument(
+        "-p",
+        "--profile",
+        dest="profile_before",
+        default=None,
+        help="Container profile, as an alternative to the positional argument. Examples: 'base' or 'kitless'.",
+    )
 
     # We have to create separate parent parsers for common options to our subparsers
     parent_parser = argparse.ArgumentParser(add_help=False)
     parent_parser.add_argument(
         "profile",
         nargs="?",
-        default="base",
-        help="Optional container profile specification. Examples: 'base' or 'kitless'.",
+        default=None,
+        help="Optional container profile specification. Defaults to 'base'. Examples: 'base' or 'kitless'.",
+    )
+    parent_parser.add_argument(
+        "-p",
+        "--profile",
+        dest="profile_after",
+        default=None,
+        help="Container profile, as an alternative to the positional argument.",
     )
     parent_parser.add_argument(
         "--files",
@@ -133,7 +127,13 @@ def parse_cli_args() -> argparse.Namespace:
     )
 
     # parse the arguments to determine the command
-    args = parser.parse_args(reorder_profile_first(sys.argv[1:], subparsers.choices))
+    args = parser.parse_args()
+
+    # the profile may be given positionally, or with -p before or after the command; all must agree
+    given = {p for p in (args.profile, args.profile_before, args.profile_after) if p is not None}
+    if len(given) > 1:
+        parser.error(f"conflicting profiles: {', '.join(sorted(given))}")
+    args.profile = given.pop() if given else "base"
 
     return args
 
