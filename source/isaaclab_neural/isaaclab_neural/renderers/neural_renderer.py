@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from isaaclab.sensors.camera.camera_data import CameraData
     from isaaclab.utils.warp import ProxyArray
 
-    from ..frame_buffer import FrameReader
+    from ..world_model_frame_buffer import WorldModelFrameReader
     from .neural_renderer_cfg import NeuralRendererCfg
 
 
@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 class _RenderData:
     """Per-camera state."""
 
-    readers: dict[str, FrameReader]
+    readers: dict[str, WorldModelFrameReader]
     """The camera's binding to the world model's frames of each of its outputs, made when its render data is
     created."""
 

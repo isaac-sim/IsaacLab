@@ -10,11 +10,12 @@ from __future__ import annotations
 import torch
 
 
-class FrameBuffer:
+class WorldModelFrameBuffer:
     """The newest chunk of frames of one output of one view, for every environment.
 
     The world-model manager keeps one per view and output and publishes into it after a chunk or a reset. A camera
-    reads it through its own :class:`FrameReader`, which hands over only the environments whose frames changed.
+    reads it through its own :class:`WorldModelFrameReader`, which hands over only the environments whose frames
+    changed.
     """
 
     def __init__(self, num_envs: int, chunk_length: int, frame_shape: tuple[int, ...], dtype: torch.dtype, device: str):
@@ -42,15 +43,15 @@ class FrameBuffer:
             self._serial += env_mask
         self._version += 1
 
-    def reader(self) -> FrameReader:
+    def reader(self) -> WorldModelFrameReader:
         """Return a new reader for a camera that shows these frames."""
-        return FrameReader(self)
+        return WorldModelFrameReader(self)
 
 
-class FrameReader:
-    """A camera's view of a :class:`FrameBuffer`: what changed since the camera last read it."""
+class WorldModelFrameReader:
+    """A camera's view of a :class:`WorldModelFrameBuffer`: what changed since the camera last read it."""
 
-    def __init__(self, buffer: FrameBuffer):
+    def __init__(self, buffer: WorldModelFrameBuffer):
         self._buffer = buffer
         self._seen = torch.full_like(buffer._serial, -1)
         self._version = -1
