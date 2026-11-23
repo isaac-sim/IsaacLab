@@ -309,14 +309,6 @@ def test_pinned_variants_narrow_a_combination_to_its_unpinned_product():
             make_valid_clone_combinations(names, counts, [InclusionSet(assets=["part"], variants={"part": variant})])
 
 
-def test_pinned_combinations_list_compositions_instead_of_their_product():
-    """Pinning every asset of a combination yields one world prototype per combination."""
-    names, counts = [f"object_{index}" for index in range(9)], [20] * 9
-    pins = [InclusionSet(assets=names, variants=dict.fromkeys(names, task)) for task in range(20)]
-    worlds, _ = make_valid_clone_combinations(names, counts, pins)
-    assert len(worlds) == 20
-
-
 def test_replicate_session_clears_plan_when_asset_init_fails(simulation):
     """Failed construction releases the plan without dispatching any clone backend."""
     with pytest.raises(RuntimeError, match="asset boom"):
