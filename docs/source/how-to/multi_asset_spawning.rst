@@ -131,17 +131,32 @@ variant because their batched Newton views currently require a uniform body layo
    :end-at: scene_cfg.robot.spawn.usd_path = scene_cfg.robot.spawn.usd_path[0]
    :dedent: 8
 
-Clone planning creates one world prototype per choice of variant of every multi-variant asset, so their number is the
-product of the variant counts. When only some compositions are legal, or the product is too large to enumerate, list
-them by pinning variants with :attr:`~isaaclab.cloner.InclusionSet.variants`. Each combination then expands only over
-the assets it leaves unpinned, and the clone strategy distributes the worlds over the combinations by their weights:
+An :class:`~isaaclab.cloner.InclusionSet` defines the legal world layouts before replication. By default, its
+active assets choose variants independently. Explicit :attr:`~isaaclab.cloner.InclusionSet.layouts` list only
+legal pairings; each row selects local spawner variant indices in active scene declaration order, including
+unclaimed assets and repeated instances. For a scene declaring ``part`` then ``fixture``:
 
 .. code-block:: python
 
    scene_cfg.clone_cfg.clone_combinations = [
-       InclusionSet(assets=["part", "fixture"], variants={"part": 0, "fixture": 2}),
-       InclusionSet(assets=["part", "fixture"], variants={"part": 1, "fixture": 0}, weight=3.0),
+       InclusionSet(assets=["part", "fixture"], layouts=[(0, 2), (1, 0)]),
    ]
+
+For mathematical pairing rules, override :meth:`~isaaclab.cloner.InclusionSet.worlds`:
+
+.. code-block:: python
+
+   class MatchedWorlds(InclusionSet):
+       def worlds(self, asset_names, variants):
+           return zip(*variants, strict=True)
+
+   scene_cfg.clone_cfg.clone_combinations = [MatchedWorlds(assets=["part", "fixture"])]
+
+Each candidate range indexes one active asset instance's spawner. This definition pairs equal variant indices
+instead of constructing their Cartesian product; the example requires equal candidate counts. More general
+subclasses can express coupled choices directly. Their outputs are validated and translated into prototype IDs
+by scene planning; ``ReplicateSession`` consumes those IDs without interpreting the definition. An inclusion
+set's weight is split equally over its generated layouts.
 
 For more detail on prototype assignment and replication, see :doc:`cloning`.
 
@@ -149,7 +164,7 @@ Reset-time selection
 ~~~~~~~~~~~~~~~~~~~~
 
 A rigid object's multi-asset spawner defines the variants and their IDs in list order. Clone composition chooses
-the initial variant for each world; pinned variants use the same IDs. A reset event can change it before writing the
+the initial variant for each world, using those same IDs. A reset event can change it before writing the
 episode's pose and velocity:
 
 .. code-block:: python

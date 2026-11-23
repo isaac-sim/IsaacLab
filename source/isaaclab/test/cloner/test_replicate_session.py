@@ -17,13 +17,11 @@ import isaaclab.cloner.replicate_session as replicate_session
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.cloner import (
     CloneCfg,
-    InclusionSet,
     ReplicateContext,
     ReplicateSession,
     UsdReplicateContext,
     clone_plan_from_env_0,
     grid_transforms,
-    make_valid_clone_combinations,
 )
 from isaaclab.cloner import path as cloner_path
 from isaaclab.renderers import RenderContext, RendererCfg
@@ -285,28 +283,6 @@ def test_multi_spawner_creates_concrete_asset_prototypes(simulation, unused_vari
             assert UsdGeom.Imageable(prim).ComputeVisibility() == UsdGeom.Tokens.inherited
     if unused_variant:
         assert all(1 not in ids for _, _, ids in simulation.calls)
-
-
-def test_pinned_variants_narrow_a_combination_to_its_unpinned_product():
-    """A pin fixes one asset's variant, also for repeated instances; only unpinned assets multiply."""
-    # Flat prototype rows: robot 0, part 1-3, tool 4-5, lamp 6-7. Unclaimed robot and lamp join every world.
-    names, counts = ["robot", "part", "tool", "lamp"], [1, 3, 2, 2]
-    combinations = [
-        InclusionSet(assets=["part", "tool"], variants={"part": 2, "tool": 0, "lamp": 0}, weight=3.0),
-        InclusionSet(assets=["part", "part", "tool"], variants={"part": 1, "lamp": 1}),
-    ]
-    worlds, weights = make_valid_clone_combinations(names, counts, combinations)
-    # Pinning every multi-variant asset leaves one world carrying the whole weight; the free tool splits the other.
-    assert worlds == ((0, 3, 4, 6), (0, 2, 2, 4, 7), (0, 2, 2, 5, 7))
-    np.testing.assert_array_equal(weights, [3.0, 0.5, 0.5])
-
-    with pytest.raises(ValueError, match="does not replicate.*'tool'"):
-        absent = [InclusionSet(assets=["part"], variants={"tool": 0}), InclusionSet(assets=["tool"])]
-        make_valid_clone_combinations(names, counts, absent)
-    # A pin is an index into the asset's variants; None does not leave the asset free.
-    for variant in (3, -1, None, True):
-        with pytest.raises(ValueError, match=f"Cannot pin variant {variant} of 'part'"):
-            make_valid_clone_combinations(names, counts, [InclusionSet(assets=["part"], variants={"part": variant})])
 
 
 def test_replicate_session_clears_plan_when_asset_init_fails(simulation):

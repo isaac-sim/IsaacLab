@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for the cloner path/query algebra.
+"""Tests for inclusion definitions and the cloner path/query algebra.
 
 These exercise :class:`isaaclab.cloner.path` and :class:`isaaclab.cloner.query`, which are pure
 string/array operations over topology and path templates. They need no stage, no
@@ -11,6 +11,7 @@ simulator and no USD, so they live outside ``test/sim/``.
 """
 
 import ast
+import itertools
 import subprocess
 import sys
 from pathlib import Path
@@ -21,7 +22,7 @@ import warp as wp
 
 from isaaclab import cloner
 from isaaclab.assets import AssetBaseCfg
-from isaaclab.cloner import make_clone_plan
+from isaaclab.cloner import InclusionSet, make_clone_plan, make_valid_clone_combinations
 from isaaclab.sim import CuboidCfg
 
 ##
@@ -105,9 +106,21 @@ def test_clone_ownership_and_import_boundaries():
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == "False", "generic clone topology and queries imported the USD backend"
 
+    assert "variants" not in InclusionSet.__dataclass_fields__, "InclusionSet owns layouts rather than variant pins"
+
     source = Path(__file__).resolve().parents[3]
     for file in source.glob("*/isaaclab*/**/*.py"):
         tree = ast.parse(file.read_text())
+        if file.name == "replicate_session.py":
+            assert not any(
+                isinstance(node, (ast.FunctionDef, ast.ClassDef))
+                and node.name in {"InclusionSet", "make_valid_clone_combinations"}
+                or isinstance(node, ast.Attribute)
+                and node.attr in {"layouts", "worlds"}
+                or isinstance(node, ast.Name)
+                and node.id == "InclusionSet"
+                for node in ast.walk(tree)
+            ), "Inclusion definitions must resolve legal layouts before ReplicateSession consumes them"
         # Only cloning execution and its lifecycle owners may access context instances.
         if "cloner" not in file.parts and file.name not in {"simulation_context.py", "render_context.py"}:
             assert not any(
@@ -327,3 +340,51 @@ def test_batched_world_queries(device, worlds, num_worlds, shared, selectors):
             starts = short[1] if device == "numpy" else short[1].numpy()
             np.testing.assert_array_equal(values, [-99])
             assert starts[-1, -1] == len(expected)
+
+
+class _PairedWorlds(InclusionSet):
+    def worlds(self, asset_names, variants):
+        return itertools.islice(zip(*variants), 3)
+
+
+def test_inclusion_layouts_generate_legal_worlds_before_replication():
+    """Explicit and paired definitions avoid an astronomical product; default products still work."""
+    names = [f"object_{index}" for index in range(8)]
+    worlds, weights = make_valid_clone_combinations(names, [1_000_000] * 8, [_PairedWorlds(assets=names)])
+    assert worlds == (
+        (0, 1000000, 2000000, 3000000, 4000000, 5000000, 6000000, 7000000),
+        (1, 1000001, 2000001, 3000001, 4000001, 5000001, 6000001, 7000001),
+        (2, 1000002, 2000002, 3000002, 4000002, 5000002, 6000002, 7000002),
+    )
+    np.testing.assert_array_equal(weights, [1 / 3] * 3)
+
+    # Repeated declarations, unclaimed assets, and weights retain their membership semantics.
+    selections = [
+        InclusionSet(assets=["part", "tool"], layouts=[(0, 2, 0, 0)], weight=3.0),
+        InclusionSet(assets=["part", "part", "tool"], layouts=[(0, 1, 1, 0, 1), (0, 1, 1, 1, 1)]),
+    ]
+    worlds, weights = make_valid_clone_combinations(["robot", "part", "tool", "lamp"], [1, 3, 2, 2], selections)
+    assert worlds == ((0, 3, 4, 6), (0, 2, 2, 4, 7), (0, 2, 2, 5, 7))
+    np.testing.assert_array_equal(weights, [3.0, 0.5, 0.5])
+
+    worlds, weights = make_valid_clone_combinations(["part", "tool"], [2, 3])
+    assert worlds == ((0, 2), (0, 3), (0, 4), (1, 2), (1, 3), (1, 4))
+    np.testing.assert_array_equal(weights, [1 / 6] * 6)
+
+
+@pytest.mark.parametrize(
+    "layouts, message",
+    [
+        ([(0,)], "requires 2 variant indices"),
+        ([(0, 2)], "Invalid variant index 2"),
+        ([(0, -1)], "Invalid variant index -1"),
+        ([(True, 0)], "Invalid variant index True"),
+        ([(None, 0)], "Invalid variant index None"),
+        ([], "at least one world"),
+    ],
+)
+def test_inclusion_layouts_reject_invalid_definitions(layouts, message):
+    with pytest.raises(ValueError, match=message):
+        make_valid_clone_combinations(
+            ["part", "tool"], [2, 2], [InclusionSet(assets=["part", "tool"], layouts=layouts)]
+        )

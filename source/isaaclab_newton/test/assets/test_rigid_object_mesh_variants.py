@@ -151,8 +151,8 @@ def test_native_selection_preserves_initial_worlds_and_unused_variant(device: st
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
-def test_pinned_clone_combinations_choose_initial_variants(device: str) -> None:
-    """Each world starts with the variants its clone combination pins, for reset-time and static spawners."""
+def test_explicit_world_layouts_choose_initial_variants(device: str) -> None:
+    """Each world starts with its explicitly selected variants, for reset-time and static spawners."""
     scene_cfg = _VariantSceneCfg(num_envs=4, env_spacing=2.0)
     third = scene_cfg.object.spawn.assets_cfg[0].copy()
     third.radius, third.mass_props.mass = 0.06, 27.0
@@ -161,10 +161,10 @@ def test_pinned_clone_combinations_choose_initial_variants(device: str) -> None:
     scene_cfg.fixture.prim_path = "{ENV_REGEX_NS}/Fixture"
     scene_cfg.fixture.spawn.static = True
     scene_cfg.fixture.init_state.pos = (0.5, 0.0, 0.2)
-    # The second combination leaves the fixture free, so it expands into one world prototype per fixture variant.
+    # The second definition explicitly pairs the first object with both fixture variants.
     scene_cfg.clone_cfg.clone_combinations = [
-        InclusionSet(assets=["object", "fixture"], variants={"object": 2, "fixture": 1}),
-        InclusionSet(assets=["object", "fixture"], variants={"object": 0}),
+        InclusionSet(assets=["object", "fixture"], layouts=[(2, 1)]),
+        InclusionSet(assets=["object", "fixture"], layouts=[(0, 0), (0, 1)]),
     ]
     sim_cfg = SimulationCfg(
         device=device,
