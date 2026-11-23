@@ -447,7 +447,7 @@ class NewtonViewerGL(ViewerGL):
                         "Newton's Selection API: select articulations by name pattern and inspect their joints, "
                         "links, and attributes"
                     ),
-                    "Articulation Pattern:": "Name pattern selecting articulations, such as /World/envs/env_*/Robot",
+                    "Articulation Pattern:": "Name pattern selecting articulations; * matches any characters",
                     "Joint Filters (optional):": "Comma-separated joint names to include or exclude",
                     "Link Filters (optional):": "Comma-separated link names to include or exclude",
                     "Select Attribute:": "The attribute of the selected articulations to show",
