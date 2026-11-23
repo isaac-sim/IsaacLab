@@ -39,6 +39,57 @@ def solver_kwargs(solver_cls: type, cfg: Any, mode: wp.DeterministicMode) -> dic
     return kwargs
 
 
+@wp.kernel(enable_backward=False)
+def _flag_non_finite_particles(
+    positions: wp.array(dtype=wp.vec3),
+    velocities: wp.array(dtype=wp.vec3),
+    worlds: wp.array(dtype=wp.int32),
+    faults: wp.array(dtype=wp.bool),
+):
+    index = wp.tid()
+    world = worlds[index]
+    if world >= 0 and not (wp.isfinite(positions[index]) and wp.isfinite(velocities[index])):
+        faults[world] = True
+
+
+@wp.kernel(enable_backward=False)
+def _flag_non_finite_bodies(
+    poses: wp.array(dtype=wp.transform),
+    velocities: wp.array(dtype=wp.spatial_vector),
+    worlds: wp.array(dtype=wp.int32),
+    faults: wp.array(dtype=wp.bool),
+):
+    index = wp.tid()
+    world = worlds[index]
+    pose = poses[index]
+    if world >= 0 and not (
+        wp.isfinite(wp.transform_get_translation(pose))
+        and wp.isfinite(wp.transform_get_rotation(pose))
+        and wp.isfinite(velocities[index])
+    ):
+        faults[world] = True
+
+
+@wp.kernel(enable_backward=False)
+def _flag_non_finite_joints(
+    q: wp.array(dtype=wp.float32),
+    qd: wp.array(dtype=wp.float32),
+    q_start: wp.array(dtype=wp.int32),
+    qd_start: wp.array(dtype=wp.int32),
+    worlds: wp.array(dtype=wp.int32),
+    faults: wp.array(dtype=wp.bool),
+):
+    joint = wp.tid()
+    world = worlds[joint]
+    if world >= 0:
+        for i in range(q_start[joint], q_start[joint + 1]):
+            if not wp.isfinite(q[i]):
+                faults[world] = True
+        for i in range(qd_start[joint], qd_start[joint + 1]):
+            if not wp.isfinite(qd[i]):
+                faults[world] = True
+
+
 class NewtonSolver:
     """How Isaac Lab builds and drives a Newton solver.
 
@@ -172,6 +223,29 @@ class NewtonSolver:
 
     def post_step(self, state: State) -> None:
         """Publish derived state once per physics step, after the substeps."""
+
+    def mark_non_finite_worlds(self, state: State, faults: wp.array) -> None:
+        """Add worlds with nonfinite joint, body or particle state to faults, excluding the global world.
+
+        Solver integrations extend this check for persistent state outside Newton's State.
+        """
+        model = self.native.model
+        if model.body_count:
+            wp.launch(
+                _flag_non_finite_bodies, model.body_count, [state.body_q, state.body_qd, model.body_world, faults]
+            )
+        if model.joint_count:
+            wp.launch(
+                _flag_non_finite_joints,
+                model.joint_count,
+                [state.joint_q, state.joint_qd, model.joint_q_start, model.joint_qd_start, model.joint_world, faults],
+            )
+        if model.particle_count:
+            wp.launch(
+                _flag_non_finite_particles,
+                model.particle_count,
+                [state.particle_q, state.particle_qd, model.particle_world, faults],
+            )
 
     def reset(self, state: State, world_mask: wp.array) -> None:
         """Clear solver-owned history for the worlds of a ``(world_count + 1,)`` mask, keeping authored joint state."""
