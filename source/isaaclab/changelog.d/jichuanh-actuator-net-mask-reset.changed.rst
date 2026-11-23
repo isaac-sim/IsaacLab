@@ -1,6 +1,9 @@
-* Changed :class:`~isaaclab.actuators.ActuatorNetLSTM` and :class:`~isaaclab.actuators.ActuatorNetMLP` to clear
-  the state of the environments a boolean Warp mask selects with a Warp kernel, so a reset recorded in a CUDA graph
-  clears it on every replay. :class:`~isaaclab.actuators.ActuatorNetMLP` updates its history buffers in place.
+* Changed :class:`~isaaclab.actuators.ActuatorNetLSTM` and :class:`~isaaclab.actuators.ActuatorNetMLP` to reset by a
+  Warp kernel when given an environment mask, so a CUDA graph can record the reset.
+* Changed :class:`~isaaclab.actuators.ActuatorNetMLP` to run its network with Warp-NN, a new dependency, on an ONNX
+  export of the TorchScript network made when the actuator loads; the network must export to operators that Warp-NN
+  supports. One Warp kernel updates the joint history and writes the network input, so a CUDA graph can record the
+  whole torque computation.
 * Changed the ray-caster drift resampling on reset to draw from per-environment Warp random states, so a reset
   recorded in a CUDA graph resamples the drift of the selected environments on every replay. The states are seeded
   from the environment seed when the sensor initializes and again by every

@@ -30,11 +30,13 @@ class _ZeroTorqueLSTM(torch.nn.Module):
         return torch.zeros(x.shape[0], 1, device=x.device), hc
 
 
-class _ZeroTorqueMLP(torch.nn.Module):
-    """MLP-shaped network that requests no torque."""
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return torch.zeros(x.shape[0], 1, device=x.device)
+def _feature_torque_mlp(num_features: int) -> torch.nn.Linear:
+    """A linear network that gives every packed history feature a distinct weight in the requested torque."""
+    network = torch.nn.Linear(num_features, 1)
+    with torch.no_grad():
+        network.weight.copy_(torch.arange(1.0, num_features + 1).unsqueeze(0))
+        network.bias.zero_()
+    return network
 
 
 def _actuator(cfg_class, network: torch.nn.Module, tmp_path, device: str, **cfg):
@@ -80,47 +82,108 @@ def test_lstm_masked_reset_replays_from_a_cuda_graph(tmp_path, device):
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_mlp_masked_reset_replays_from_a_cuda_graph_while_the_history_moves(tmp_path, device):
-    """The history shifts every compute; the recorded reset still clears the masked environments of it."""
-    actuator = _actuator(
-        ActuatorNetMLPCfg,
-        _ZeroTorqueMLP(),
-        tmp_path,
-        device,
-        input_idx=[0, 1, 2],
+    """A recorded reset changes the next computed torque only for the environments in its current mask."""
+    torch_stream = torch.cuda.Stream(device=device)
+    stream = wp.stream_from_torch(torch_stream)
+    with torch.cuda.stream(torch_stream), wp.ScopedStream(stream):
+        actuator = _actuator(
+            ActuatorNetMLPCfg,
+            _feature_torque_mlp(6),
+            tmp_path,
+            device,
+            input_idx=[0, 1, 2],
+            pos_scale=1.0,
+            vel_scale=1.0,
+            torque_scale=1.0,
+            input_order="pos_vel",
+        )
+        mask = torch.tensor([True, False, True], device=device)
+        capture_stream = wp.Stream(device=device)
+        # The reset belongs to the Warp capture even though Torch is on a different stream.
+        capture_stream.wait_stream(stream)
+        with wp.ScopedStream(capture_stream, sync_enter=False):
+            graph = _record_masked_reset(actuator, wp.from_torch(mask))
+        zeros = torch.zeros(3, 2, device=device)
+        ones = torch.ones_like(zeros)
+        for _ in range(3):
+            # Fill the history with ones before replaying the same reset graph with a different mask.
+            for _ in range(3):
+                actuator.compute(ArticulationActions(joint_positions=ones), zeros, ones)
+            mask.logical_not_()
+            capture_stream.wait_stream(stream)
+            wp.capture_launch(graph, stream=capture_stream)
+            stream.wait_stream(capture_stream)
+            actuator.compute(ArticulationActions(joint_positions=zeros), zeros, zeros)
+            # The new sample is zero. The two older samples contribute 2 + 3 + 5 + 6 when kept.
+            expected = torch.where(mask, 0.0, 16.0).unsqueeze(1).expand(-1, 2)
+            torch.testing.assert_close(actuator.computed_effort, expected)
+
+
+def test_mlp_rejects_invalid_history_before_loading_checkpoint(tmp_path):
+    """The configured history error takes precedence over checkpoint I/O."""
+    cfg = ActuatorNetMLPCfg(
+        joint_names_expr=["joint_.*"],
+        network_file=str(tmp_path / "missing-network.pt"),
+        saturation_effort=120.0,
+        actuator_effort_limit=80.0,
+        actuator_velocity_limit=7.5,
+        input_idx=[0, -2],
         pos_scale=1.0,
         vel_scale=1.0,
         torque_scale=1.0,
         input_order="pos_vel",
     )
-    mask = wp.array([True, False, True], dtype=wp.bool, device=device)
-    graph = _record_masked_reset(actuator, mask)
-    zeros = torch.zeros(3, 2, device=device)
-    for _ in range(3):
-        actuator.compute(ArticulationActions(joint_positions=zeros), zeros, zeros)
-        actuator._joint_pos_error_history.fill_(1.0)
-        actuator._joint_vel_history.fill_(1.0)
-        wp.capture_launch(graph)
-        _assert_masked_zero(actuator._joint_pos_error_history, env_dim=0)
-        _assert_masked_zero(actuator._joint_vel_history, env_dim=0)
+    with pytest.raises(IndexError, match="MLP actuator history indices"):
+        instantiate(cfg, joint_names=["joint_0", "joint_1"], joint_ids=[0, 1], num_envs=3, device="cpu")
 
 
 @pytest.mark.parametrize("device", test_devices())
-def test_mlp_history_keeps_its_window(tmp_path, device):
-    """Each compute shifts the history by one step: entry i holds the input from i computes ago."""
+@pytest.mark.parametrize("input_idx,input_order", [([0, 1, 2], "pos_vel"), ([3, 0, -2, 3], "vel_pos")])
+def test_mlp_history_keeps_its_window(tmp_path, device, input_idx, input_order):
+    """Computed torque follows the selected zero-padded history across wraparound and partial resets."""
+    network = _feature_torque_mlp(2 * len(input_idx))
     actuator = _actuator(
         ActuatorNetMLPCfg,
-        _ZeroTorqueMLP(),
+        network,
         tmp_path,
         device,
-        input_idx=[0, 1, 2],
-        pos_scale=1.0,
-        vel_scale=1.0,
-        torque_scale=1.0,
-        input_order="pos_vel",
+        input_idx=input_idx,
+        pos_scale=-0.3,
+        vel_scale=1.25,
+        torque_scale=0.5,
+        input_order=input_order,
     )
-    zeros = torch.zeros(3, 2, device=device)
-    for step in range(5):
-        velocity = torch.full((3, 2), float(step), device=device)
-        actuator.compute(ArticulationActions(joint_positions=zeros), zeros, velocity)
-    expected = torch.tensor([4.0, 3.0, 2.0], device=device).view(1, 3, 1).expand(3, 3, 2)
-    torch.testing.assert_close(actuator._joint_vel_history, expected)
+    network = network.to(device)
+    length = max(input_idx) + 1
+    position_history = torch.zeros(3, length, 2, device=device)
+    velocity_history = torch.zeros_like(position_history)
+    joints = torch.arange(6.0, device=device).reshape(3, 2)
+    pos_scale, vel_scale = -0.3, 1.25
+    for step in range(8):
+        if step == 3:
+            actuator.reset(env_ids=torch.tensor([0, 2], dtype=torch.int32, device=device))
+            position_history[[0, 2]] = 0.0
+            velocity_history[[0, 2]] = 0.0
+        elif step == 5:
+            actuator.reset(env_ids=slice(1, None))
+            position_history[1:] = 0.0
+            velocity_history[1:] = 0.0
+        elif step == 6:
+            pos_scale, vel_scale = 0.6, -0.75
+            actuator.cfg.pos_scale, actuator.cfg.vel_scale = pos_scale, vel_scale
+        position = joints * 0.1 + step * 0.05
+        desired = position + joints * 0.03 + step * 0.07
+        velocity = joints * 0.2 - step * 0.03
+        position_history = position_history.roll(1, 1)
+        velocity_history = velocity_history.roll(1, 1)
+        position_history[:, 0] = desired - position
+        velocity_history[:, 0] = velocity
+        pos_features = torch.stack([position_history[:, index] for index in input_idx], dim=2).reshape(6, -1)
+        vel_features = torch.stack([velocity_history[:, index] for index in input_idx], dim=2).reshape(6, -1)
+        if input_order == "pos_vel":
+            features = torch.cat([pos_features * pos_scale, vel_features * vel_scale], dim=1)
+        else:
+            features = torch.cat([vel_features * vel_scale, pos_features * pos_scale], dim=1)
+        expected = network(features).detach().reshape(3, 2) * 0.5
+        actuator.compute(ArticulationActions(joint_positions=desired), position, velocity)
+        torch.testing.assert_close(actuator.computed_effort, expected)

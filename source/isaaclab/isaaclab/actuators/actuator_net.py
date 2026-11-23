@@ -14,11 +14,13 @@ Currently, the following models are supported:
 
 from __future__ import annotations
 
+import io
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
 import warp as wp
+from warp_nn.runtime import OnnxRuntime
 
 from ..utils import index_fill_
 from ..utils.assets import read_file
@@ -74,16 +76,14 @@ class ActuatorNetLSTM(DCMotor):
 
     def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None) -> None:
         if env_mask is not None:
-            # a mask resets with a Warp launch, which a CUDA graph recording of the reset holds
             for state in (self.sea_hidden_state_per_env, self.sea_cell_state_per_env):
-                for layer in state:
-                    values = wp.from_torch(layer.view(self._num_envs, -1))
-                    wp.launch(
-                        make_masked_fill(wp.float32, 2),
-                        dim=values.shape,
-                        inputs=[0.0, env_mask, None, values],
-                        device=self._device,
-                    )
+                values = wp.from_torch(state.flatten(2))
+                wp.launch(
+                    make_masked_fill(values.dtype, 3),
+                    dim=values.shape,
+                    inputs=[0.0, None, env_mask, values],
+                    device=self._device,
+                )
             return
         # reset the hidden and cell states for the specified environments
         with torch.no_grad():
@@ -114,6 +114,48 @@ class ActuatorNetLSTM(DCMotor):
         return control_action
 
 
+@wp.func
+def _push_newest(history: wp.array3d(dtype=wp.float32), env_id: int, joint: int, sample: wp.float32):
+    """Move the history of one (env, joint) back by one step and write ``sample`` as its newest entry."""
+    for t in range(history.shape[1] - 1):
+        k = history.shape[1] - 1 - t
+        history[env_id, k, joint] = history[env_id, k - 1, joint]
+    history[env_id, 0, joint] = sample
+
+
+@wp.kernel(enable_backward=False)
+def _update_mlp_history(
+    # input
+    joint_pos_target: wp.array2d(dtype=wp.float32),
+    joint_pos: wp.array2d(dtype=wp.float32),
+    joint_vel: wp.array2d(dtype=wp.float32),
+    history_indices: wp.array(dtype=wp.int32),
+    pos_scale: wp.float32,
+    vel_scale: wp.float32,
+    pos_first: bool,
+    # output
+    joint_pos_error_history: wp.array3d(dtype=wp.float32),
+    joint_vel_history: wp.array3d(dtype=wp.float32),
+    network_input: wp.array2d(dtype=wp.float32),
+):
+    """Record the newest joint position error and velocity, then write the scaled samples the network reads.
+
+    Each row of ``network_input`` belongs to one (env, joint): its position errors, then its velocities when
+    ``pos_first``, otherwise the reverse. Launch with ``dim=(num_envs, num_joints)``.
+    """
+    env_id, joint = wp.tid()
+    _push_newest(joint_pos_error_history, env_id, joint, joint_pos_target[env_id, joint] - joint_pos[env_id, joint])
+    _push_newest(joint_vel_history, env_id, joint, joint_vel[env_id, joint])
+    num_samples = history_indices.shape[0]
+    row = env_id * joint_pos.shape[1] + joint
+    pos_column = wp.where(pos_first, 0, num_samples)
+    vel_column = num_samples - pos_column
+    for i in range(num_samples):
+        index = history_indices[i]
+        network_input[row, pos_column + i] = pos_scale * joint_pos_error_history[env_id, index, joint]
+        network_input[row, vel_column + i] = vel_scale * joint_vel_history[env_id, index, joint]
+
+
 class ActuatorNetMLP(DCMotor):
     """Actuator model based on multi-layer perceptron and joint history.
 
@@ -141,74 +183,81 @@ class ActuatorNetMLP(DCMotor):
             raise ValueError("network_file must be provided for the Isaac Lab neural actuator model.")
         super().__init__(cfg, *args, **kwargs)
 
+        history_length = max(self.cfg.input_idx) + 1
+        if min(self.cfg.input_idx) < -history_length:
+            raise IndexError(f"MLP actuator history indices must be at least {-history_length}.")
+        if self.cfg.input_order not in ("pos_vel", "vel_pos"):
+            raise ValueError(
+                f"Invalid input order for MLP actuator net: {self.cfg.input_order}. Must be 'pos_vel' or 'vel_pos'."
+            )
+        # the history samples the network reads; negative indices count back from the oldest sample
+        indices = [index % history_length for index in self.cfg.input_idx]
+
         # load the model from JIT file
         file_bytes = read_file(self.cfg.network_file)
         self.network = torch.jit.load(file_bytes, map_location=self._device).eval()
+        # run it with Warp-NN, through an ONNX export in memory, so that a CUDA graph can record the inference
+        model = io.BytesIO()
+        torch.onnx.export(
+            self.network,
+            (torch.zeros(1, 2 * len(indices), device=self._device),),
+            model,
+            input_names=["input"],
+            output_names=["torque"],
+            dynamic_axes={"input": {0: "batch"}, "torque": {0: "batch"}},
+            dynamo=False,
+        )
+        model.seek(0)
+        self._runtime = OnnxRuntime(model, device=self._device)
 
-        # create buffers for MLP history
-        history_length = max(self.cfg.input_idx) + 1
-        self._joint_pos_error_history = torch.zeros(
-            self._num_envs, history_length, self.num_joints, device=self._device
-        )
-        self._joint_vel_history = torch.zeros(self._num_envs, history_length, self.num_joints, device=self._device)
-        # each history shifts through a scratch buffer and is copied back, so it stays at one address
-        self._history_scratch = torch.zeros_like(self._joint_pos_error_history)
-        self._history_shift = torch.tensor(
-            [(i - 1) % history_length for i in range(history_length)], device=self._device
-        )
+        # create buffers for MLP history, newest sample first
+        history_shape = (self._num_envs, history_length, self.num_joints)
+        self._joint_pos_error_history = wp.zeros(history_shape, dtype=wp.float32, device=self._device)
+        self._joint_vel_history = wp.zeros(history_shape, dtype=wp.float32, device=self._device)
+        self._history_indices = wp.array(indices, dtype=wp.int32, device=self._device)
+        # the network input, one row per (env, joint), and the network outputs it allocates once
+        input_shape = (self._num_envs * self.num_joints, 2 * len(indices))
+        self._network_input = wp.zeros(input_shape, dtype=wp.float32, device=self._device)
+        self._runtime.prepare({"input": self._network_input})
 
     """
     Operations.
     """
 
     def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None) -> None:
-        if env_mask is not None:
-            # a mask resets with a Warp launch, which a CUDA graph recording of the reset holds
-            for history in (self._joint_pos_error_history, self._joint_vel_history):
-                values = wp.from_torch(history.view(self._num_envs, -1))
+        # reset the history for the specified environments
+        for history in (self._joint_pos_error_history, self._joint_vel_history):
+            if env_mask is not None:
                 wp.launch(
-                    make_masked_fill(wp.float32, 2),
-                    dim=values.shape,
-                    inputs=[0.0, env_mask, None, values],
+                    make_masked_fill(history.dtype, 3),
+                    dim=history.shape,
+                    inputs=[0.0, env_mask, None, history],
                     device=self._device,
                 )
-            return
-        # reset the history for the specified environments
-        index_fill_(self._joint_pos_error_history, env_ids, 0.0)
-        index_fill_(self._joint_vel_history, env_ids, 0.0)
+            else:
+                index_fill_(wp.to_torch(history), env_ids, 0.0)
 
     def compute(
         self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
     ) -> ArticulationActions:
-        # move history queue by 1 and update top of history
-        # -- positions
-        torch.index_select(self._joint_pos_error_history, 1, self._history_shift, out=self._history_scratch)
-        self._joint_pos_error_history.copy_(self._history_scratch)
-        self._joint_pos_error_history[:, 0] = control_action.joint_positions - joint_pos
-        # -- velocity
-        torch.index_select(self._joint_vel_history, 1, self._history_shift, out=self._history_scratch)
-        self._joint_vel_history.copy_(self._history_scratch)
-        self._joint_vel_history[:, 0] = joint_vel
-        # compute network inputs
-        # -- positions
-        pos_input = torch.cat([self._joint_pos_error_history[:, i].unsqueeze(2) for i in self.cfg.input_idx], dim=2)
-        pos_input = pos_input.view(self._num_envs * self.num_joints, -1)
-        # -- velocity
-        vel_input = torch.cat([self._joint_vel_history[:, i].unsqueeze(2) for i in self.cfg.input_idx], dim=2)
-        vel_input = vel_input.view(self._num_envs * self.num_joints, -1)
-        # -- scale and concatenate inputs
-        if self.cfg.input_order == "pos_vel":
-            network_input = torch.cat([pos_input * self.cfg.pos_scale, vel_input * self.cfg.vel_scale], dim=1)
-        elif self.cfg.input_order == "vel_pos":
-            network_input = torch.cat([vel_input * self.cfg.vel_scale, pos_input * self.cfg.pos_scale], dim=1)
-        else:
-            raise ValueError(
-                f"Invalid input order for MLP actuator net: {self.cfg.input_order}. Must be 'pos_vel' or 'vel_pos'."
-            )
-
+        # move history queue by 1, update top of history and write the scaled network input
+        wp.launch(
+            _update_mlp_history,
+            dim=(self._num_envs, self.num_joints),
+            inputs=[
+                wp.from_torch(control_action.joint_positions),
+                wp.from_torch(joint_pos),
+                wp.from_torch(joint_vel),
+                self._history_indices,
+                self.cfg.pos_scale,
+                self.cfg.vel_scale,
+                self.cfg.input_order == "pos_vel",
+            ],
+            outputs=[self._joint_pos_error_history, self._joint_vel_history, self._network_input],
+            device=self._device,
+        )
         # run network inference
-        with torch.inference_mode():
-            torques = self.network(network_input).view(self._num_envs, self.num_joints)
+        torques = wp.to_torch(self._runtime({"input": self._network_input})["torque"])
         self.computed_effort = torques.view(self._num_envs, self.num_joints) * self.cfg.torque_scale
 
         # clip the computed effort based on the motor limits
