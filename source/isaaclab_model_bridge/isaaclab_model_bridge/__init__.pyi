@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-__all__ = ["serve"]
+__all__ = ["BridgeSession", "serve"]
 
+from .client import BridgeSession
 from .server import serve

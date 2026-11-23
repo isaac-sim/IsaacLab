@@ -5,6 +5,8 @@ another Torch version. Both processes install this package; it imports neither I
 
 - `protocol.py`: bounded messages, endpoints (`unix:///path` or `tcp://host:port`), and one-shot requests.
 - `ipc.py`: GPU buffers and events shared between the two processes on one Linux machine, through Warp's CUDA IPC.
+- `client.py`: `BridgeSession`, one generation session from the Isaac Lab side: it connects, chooses CUDA IPC or
+  the socket, sends each step's controls and returns the generated images on the controls' device.
 - `server.py`: `serve(model, endpoint)`, the resident service loop. It keeps the model loaded between sessions, runs
   it on one inference thread, and passes each session's model settings to the model, which checks them.
 

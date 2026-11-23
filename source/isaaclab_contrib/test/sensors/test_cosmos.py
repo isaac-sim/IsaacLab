@@ -1008,15 +1008,16 @@ def test_transport_keeps_images_on_gpus_that_can_access_each_other(
     stream = CosmosClient(CosmosClientCfg(max_episode_frames=13, transport=transport)).open_stream(
         num_views=1, seeds=(1,)
     )
-    stream._exchange = lambda metadata, arrays=(): ({"ok": True, "capabilities": capabilities}, [])
+    session = stream._session
+    session.exchange = lambda metadata, arrays=(): ({"ok": True, "capabilities": capabilities}, [])
     if expected == "unavailable":
         with pytest.raises(RuntimeError, match="cuda_ipc is unavailable"):
-            stream._select_transport(torch.device(device))
+            session._select_transport(torch.device(device))
         return
     with caplog.at_level("INFO"):
-        assert stream._select_transport(torch.device(device)) == expected
+        assert session._select_transport(torch.device(device)) == expected
     if expected == "cuda_ipc":
-        assert stream._service_device == torch.device("cuda", service_gpu)
+        assert session._service_device == torch.device("cuda", service_gpu)
     if transport != "socket":
         # The log says which path the images take; an explicit socket transport needs no choice.
         assert ("CUDA IPC" if expected == "cuda_ipc" else "through the socket") in caplog.text
@@ -1112,9 +1113,10 @@ def test_the_camera_frees_its_control_buffer_only_after_the_service_releases_it(
         raise ConnectionError("Cosmos connection closed")
 
     # A step writes to the connection directly; closing exchanges a message.
-    stream._exchange = exchange
+    session = stream._session
+    session.exchange = exchange
     connection = SimpleNamespace(close=lambda: None, sendall=send)
-    stream._socket, stream._channel, stream._shape = connection, channel, (2, 3, 3)
+    session._socket, session._channel, session._shape = connection, channel, (2, 3, 3)
     if failure == "step":
         with pytest.raises(ConnectionError):
             stream.step([_controls()], (), ())
@@ -1155,12 +1157,13 @@ def test_a_rejected_open_frees_the_control_buffer_and_a_dropped_one_keeps_it(
     def drop(self, metadata, arrays=()):
         raise ConnectionError("Cosmos connection closed")
 
-    stream_type = cosmos_client_module._CosmosStream
+    from isaaclab_model_bridge.client import BridgeSession
+
     monkeypatch.setattr(ipc, "SharedChannel", Channel)
     monkeypatch.setattr(ipc, "gpu_uuid", lambda index: _CAMERA_GPU)
-    monkeypatch.setattr(stream_type, "_select_transport", lambda self, device: "cuda_ipc")
+    monkeypatch.setattr(BridgeSession, "_select_transport", lambda self, device: "cuda_ipc")
     if dropped:
-        monkeypatch.setattr(stream_type, "_exchange", drop)
+        monkeypatch.setattr(BridgeSession, "exchange", drop)
     client = _client(cosmos_service.endpoint)
     stream = client.open_stream(num_views=1, seeds=(1,))
     with pytest.raises(error, match=message):

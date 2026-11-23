@@ -10,29 +10,19 @@ from __future__ import annotations
 import hashlib
 import logging
 import math
-import socket
 import threading
 from collections.abc import Callable, Sequence
 from contextlib import ExitStack
 from itertools import pairwise
 from typing import TYPE_CHECKING, Any, NamedTuple
 
-from isaaclab_model_bridge.protocol import (
-    SEED_LIMIT,
-    ProtocolError,
-    check_reply,
-    connect,
-    parse_endpoint,
-    receive_message,
-    request,
-    send_message,
-)
+from isaaclab_model_bridge.client import BridgeSession, SentStep
+from isaaclab_model_bridge.protocol import SEED_LIMIT, parse_endpoint, request
 
 from .cosmos_client_cfg import MAX_CHUNK_FRAMES
 from .prompt_files import read_prompt_files
 
 if TYPE_CHECKING:
-    import numpy as np
     import torch
 
     from .cosmos_client_cfg import CosmosClientCfg
@@ -167,17 +157,17 @@ class CosmosClient:
         with self._lock:
             if self._closed:
                 raise RuntimeError("Cosmos client model is closed.")
-            streams = tuple(stream for stream in self._streams if stream._socket is not None)
+            streams = tuple(stream for stream in self._streams if stream._session.is_open)
         if operation == "offload" and streams and self._cfg.generation_mode != "single_frame":
             raise RuntimeError("Close autoregressive Cosmos sessions before offloading; they would lose their history.")
         for endpoint in service_endpoints(self._cfg.endpoint):
-            session = next((stream for stream in streams if stream._endpoint == endpoint), None)
-            if session is None:
+            owner = next((stream for stream in streams if stream._endpoint == endpoint), None)
+            if owner is None:
                 request(endpoint, {"op": operation}, timeout=self._cfg.timeout)
             else:
                 # The service accepts the change only from the connection that owns its session.
-                with session._lock:
-                    session._exchange({"op": operation})
+                with owner._lock:
+                    owner._session.exchange({"op": operation})
 
     def close(self) -> None:
         """Close this client's camera sessions without shutting down the Cosmos services."""
@@ -267,14 +257,17 @@ def _image_seed(seed: int, count: int) -> int:
 class _SentStep(NamedTuple):
     """A step sent to a service, whose reply is outstanding."""
 
-    frames: list[int]
-    device: torch.device
+    step: SentStep
     episode: int
     reset: bool
 
 
 class _CosmosStream:
-    """One service session generating a contiguous share of a camera's views as one batch."""
+    """One service session generating a contiguous share of a camera's views as one batch.
+
+    The model bridge session holds the service connection, the transport, and the shared GPU buffers; this stream adds
+    Cosmos's settings, prompts and episodes.
+    """
 
     def __init__(
         self,
@@ -301,8 +294,7 @@ class _CosmosStream:
         self._views = views
         self._batched = batched
         self._lock = threading.Lock()
-        self._socket: socket.socket | None = None
-        self._shape: tuple[int, int, int] | None = None
+        self._session = BridgeSession(endpoint, self._cfg.timeout, self._cfg.transport)
         self._closed = False
         self._episode = 0
         self._episode_frames = 0
@@ -313,9 +305,11 @@ class _CosmosStream:
         self._view_resets = [0] * len(seeds)
         self._view_episodes = [0] * len(seeds)
         self._view_episode_numbers = [0] * len(seeds)
-        self._channel = None
-        self._service_device: torch.device | None = None
-        self.transport: str | None = None
+
+    @property
+    def transport(self) -> str | None:
+        """The session's transport once it opened, ``"cuda_ipc"`` or ``"socket"``."""
+        return self._session.transport
 
     def step(
         self,
@@ -372,122 +366,68 @@ class _CosmosStream:
             image_shape = tuple(control.shape[1:])
             if any(tuple(view.shape[1:]) != image_shape or view.device != control.device for view in controls):
                 raise ValueError("Cosmos views must share one image size and device.")
-            if self._shape is not None and image_shape != self._shape:
+            if self._session.image_shape is not None and image_shape != self._session.image_shape:
                 raise ValueError("Cosmos image size cannot change within a camera stream.")
-            frames = [view.shape[0] for view in controls]
-            if max(frames) > MAX_CHUNK_FRAMES:
+            if max(view.shape[0] for view in controls) > MAX_CHUNK_FRAMES:
                 raise ValueError(f"Cosmos chunks hold at most {MAX_CHUNK_FRAMES} frames.")
-            message = {"op": "step", "reset_rows": reset_rows, "seeds": seeds}
+            rows, row_seeds, settings = reset_rows, seeds, None
             episode = self._episode
             if self._single_frame:
-                message.update(self._single_frame_step(frames, reset_rows, seeds, episodes))
+                rows, row_seeds, settings = self._single_frame_step(controls, reset_rows, seeds, episodes)
             elif not self._batched and reset_rows and isinstance(self._cfg.prompt, (list, tuple)):
                 # A reset starts the next prompt's episode, unless the ending episode never got past its
                 # first frame, such as the capture taken before the environment's initial reset.
                 episode += 1 if self._episode_frames > 1 else 0
-                message["episode"] = {"prompt": self._episode_prompt(episode)}
-            if self._socket is None:
-                self._open(control.device, image_shape, message)
-            arrays = []
-            if self._channel is not None:
-                # Controls and images stay on the GPU, one buffer row per view; events order the processes.
-                for view, (chunk, count) in enumerate(zip(controls, frames)):
-                    self._channel.control.tensor[view, :count].copy_(chunk)
-                self._channel.control_ready.record()
-                message["frames"] = frames
-            else:
-                # Images cross the process boundary through host memory and the socket.
-                arrays = [chunk.detach().cpu().numpy() for chunk in controls]
-            send_message(self._socket, message, arrays)
-            return _SentStep(frames, control.device, episode, bool(reset_rows))
+                settings = {"prompt": self._episode_prompt(episode)}
+            if not self._session.is_open:
+                # The service starts every view fresh, so the first step's resets open the session.
+                self._open(control.device, image_shape, rows, row_seeds, settings)
+                rows, row_seeds, settings = (), (), None
+            return _SentStep(self._session.send(controls, rows, row_seeds, settings), episode, bool(reset_rows))
         except Exception:
             self._release(notify=False)
             raise
 
-    def _open(self, device: torch.device, image_shape: tuple[int, int, int], step: dict) -> None:
-        """Connect and open the session for the first step, whose resets become the session's opening state.
-
-        The service starts every view fresh, so the views ``step`` resets open with its seeds and prompts, and the
-        step itself is sent without resets.
+    def _open(
+        self,
+        device: torch.device,
+        image_shape: tuple[int, int, int],
+        reset_rows: tuple[int, ...],
+        seeds: tuple[int, ...],
+        episode: dict | None,
+    ) -> None:
+        """Open the session for the first step, whose resets become the session's opening state.
 
         Args:
             device: Device of the controls.
             image_shape: Control image shape ``(height, width, 3)``.
-            step: The first step's message; its ``reset_rows``, ``seeds`` and episode ``prompt`` are consumed.
+            reset_rows: Views the first step resets; they open with ``seeds``.
+            seeds: The seed of each view in ``reset_rows``.
+            episode: The first step's episode settings; their prompt opens the session.
         """
-        num_views = len(self._seeds)
-        seeds = list(self._seeds)
-        prompt = step.pop("episode", {}).get("prompt", self._session_prompt())
-        for row, seed in zip(step["reset_rows"], step["seeds"]):
-            seeds[row] = seed
-        step.update(reset_rows=(), seeds=())
-        self._socket = connect(self._endpoint, self._cfg.timeout)
-        message = {
-            "op": "open",
-            "num_views": num_views,
-            "seeds": tuple(seeds),
-            "height": image_shape[0],
-            "width": image_shape[1],
-            # The service passes the model settings to Cosmos, which checks them.
-            "settings": {
-                "prompt": prompt,
-                # A single-frame image is a one-frame episode.
-                "max_episode_frames": 1 if self._single_frame else self._cfg.max_episode_frames,
-                "fps": self._cfg.fps,
-            },
+        opening = list(self._seeds)
+        for row, seed in zip(reset_rows, seeds):
+            opening[row] = seed
+        # The service passes these settings to Cosmos, which checks them.
+        settings = {
+            "prompt": (episode or {}).get("prompt", self._session_prompt()),
+            # A single-frame image is a one-frame episode.
+            "max_episode_frames": 1 if self._single_frame else self._cfg.max_episode_frames,
+            "fps": self._cfg.fps,
         }
-        self.transport = self._select_transport(device)
-        if self.transport == "cuda_ipc":
-            from isaaclab_model_bridge import ipc
-
-            self._channel = ipc.SharedChannel(device, (num_views, MAX_CHUNK_FRAMES, *image_shape), writes="control")
-            # The service opens the controls on this GPU, which it finds by its UUID.
-            handles = {**self._channel.handles, "gpu_uuid": ipc.gpu_uuid(device.index or 0)}
-            message.update(transport="cuda_ipc", ipc=handles)
-        try:
-            reply, arrays = self._exchange(message)
-        except RuntimeError:
-            # The service answered and rejected the session, so it holds none of this camera's buffers.
-            if self._channel is not None:
-                self._channel.close(peer_released=True)
-                self._channel = None
-            raise
-        if arrays:
-            raise ProtocolError("Cosmos open reply must not contain image arrays.")
-        if self._channel is not None:
-            # The service writes generated images into a buffer on its own GPU.
-            self._channel.open(self._service_device, reply.get("ipc"))
-        self._shape = image_shape
+        self._session.open(device, len(self._seeds), tuple(opening), image_shape, settings)
 
     def _receive(self, sent: _SentStep) -> list[torch.Tensor]:
         """Wait for the reply to a step from :meth:`_send` and return its images on the controls' device.
 
         Call with this stream's lock held. A failure closes the session.
         """
-        import torch
-
         try:
-            reply, generated = receive_message(self._socket)
-            check_reply(reply)
-            if self._channel is not None:
-                if generated:
-                    raise ProtocolError("Cosmos returned images through the socket in a CUDA IPC session.")
-                self._channel.output_ready.wait()
-                # From the service's GPU, the images copy directly to this one.
-                images = [
-                    self._channel.output.tensor[view, :count].to(sent.device, copy=True)
-                    for view, count in enumerate(sent.frames)
-                ]
-            else:
-                if len(generated) != len(sent.frames) or any(
-                    images.shape != (count, *self._shape) for images, count in zip(generated, sent.frames)
-                ):
-                    raise ProtocolError("Cosmos returned images that do not match the control chunks.")
-                images = [torch.from_numpy(view).to(device=sent.device) for view in generated]
+            images = self._session.receive(sent.step)
             if not self._batched and not self._single_frame:
                 if sent.reset:
                     self._episode, self._episode_frames = sent.episode, 0
-                self._episode_frames += sent.frames[0]
+                self._episode_frames += sent.step.frames[0]
             return images
         except Exception:
             self._release(notify=False)
@@ -504,12 +444,12 @@ class _CosmosStream:
 
     def _single_frame_step(
         self,
-        frames: list[int],
+        controls: list[torch.Tensor],
         reset_rows: tuple[int, ...],
         seeds: tuple[int, ...],
         episodes: tuple[int, ...] | None = None,
-    ) -> dict:
-        """Return a single-frame step's service request fields: every view restarts with one frame.
+    ) -> tuple[tuple[int, ...], tuple[int, ...], dict | None]:
+        """Return a single-frame step's resets, seeds, and episode settings: every view restarts with one frame.
 
         ``reset_rows`` names the views starting a new environment episode, with its seed and, from ``episodes``, its
         episode number. A view's first image of the episode uses that seed and later images a seed derived from it
@@ -517,7 +457,7 @@ class _CosmosStream:
         episodes that generated no image and episodes before the first image, except at the view's first reset while
         it has at most one image: the environment's initial reset, which can follow one capture.
         """
-        if any(count != 1 for count in frames):
+        if any(control.shape[0] != 1 for control in controls):
             raise ValueError("Single-frame Cosmos sends one frame per view.")
         prompt = self._cfg.prompt
         new_prompt = False
@@ -534,18 +474,17 @@ class _CosmosStream:
             self._view_seeds[row], self._view_frames[row] = seed, 0
         # Every step restarts every view. On the first step the restarts open the session, so episodes that ended
         # before it also select its seeds and prompts.
-        fields = {
-            "reset_rows": tuple(range(len(frames))),
-            "seeds": tuple(_image_seed(seed, count) for seed, count in zip(self._view_seeds, self._view_frames)),
-        }
+        rows = tuple(range(len(controls)))
+        image_seeds = tuple(_image_seed(seed, count) for seed, count in zip(self._view_seeds, self._view_frames))
+        settings = None
         if new_prompt:
             prompts = [
                 prompt[(view + episode) % len(prompt)] for view, episode in zip(self._views, self._view_episodes)
             ]
             # The service takes one text for a one-view session, also for one view of a split camera.
-            fields["episode"] = {"prompt": prompts if len(self._views) > 1 else prompts[0]}
+            settings = {"prompt": prompts if len(self._views) > 1 else prompts[0]}
         self._view_frames = [count + 1 for count in self._view_frames]
-        return fields
+        return rows, image_seeds, settings
 
     def _session_prompt(self) -> str | None | list[str | None]:
         """Opening prompt: one view starts its prompt list; several views each take ``prompt[view % len]``."""
@@ -558,83 +497,13 @@ class _CosmosStream:
         prompt = self._cfg.prompt
         return prompt[episode % len(prompt)] if isinstance(prompt, (list, tuple)) else prompt
 
-    def _select_transport(self, device: torch.device) -> str:
-        """Choose CUDA IPC or the socket, per the configuration.
-
-        CUDA IPC needs the service on this machine, on this GPU or on another one this process can see and that
-        can access this GPU's memory directly, and the service must see this GPU. GPU UUIDs are unique across
-        machines, so a service that sees this GPU runs on this machine. Choosing it records this process's index of
-        the service's GPU.
-        """
-        import torch
-
-        if self._cfg.transport == "socket":
-            return "socket"
-        reason = None
-        if device.type != "cuda":
-            reason = "the camera images are not on a CUDA device"
-        else:
-            from isaaclab_model_bridge import ipc
-
-            capabilities = self._exchange({"op": "status"})[0].get("capabilities", {})
-            if not ipc.available():
-                reason = "CUDA IPC is not available on this platform"
-            elif "cuda_ipc" not in capabilities.get("transports", ()):
-                reason = "the service does not offer CUDA IPC"
-            elif ipc.gpu_uuid(device.index or 0) not in capabilities.get("visible_gpus", ()):
-                # A local endpoint can be a tunnel to another machine, and the service opens the camera's buffers on
-                # the camera's GPU, so it must see that GPU.
-                reason = "the service runs on another machine or cannot see this camera's GPU"
-            else:
-                service_gpu = ipc.device_by_uuid(capabilities.get("gpu_uuid"))
-                if service_gpu is None:
-                    reason = "this process cannot see the service's GPU"
-                elif not ipc.can_access_peer(device.index or 0, service_gpu):
-                    reason = "this GPU and the service's GPU cannot access each other's memory directly"
-                else:
-                    self._service_device = torch.device("cuda", service_gpu)
-        if reason is None:
-            _LOGGER.info("Cosmos keeps images on the GPU with CUDA IPC; the service uses %s.", self._service_device)
-            return "cuda_ipc"
-        if self._cfg.transport == "cuda_ipc":
-            raise RuntimeError(f"Cosmos transport cuda_ipc is unavailable: {reason}.")
-        _LOGGER.info("Cosmos sends images through the socket because %s.", reason)
-        return "socket"
-
-    def _exchange(self, metadata: dict, arrays: Sequence[np.ndarray] = ()) -> tuple[dict, list[np.ndarray]]:
-        if self._socket is None:
-            raise RuntimeError("Cosmos stream has no service connection.")
-        send_message(self._socket, metadata, arrays)
-        reply, images = receive_message(self._socket)
-        check_reply(reply)
-        return reply, images
-
     def _release(self, *, notify: bool) -> None:
         if self._closed:
             return
         self._closed = True
-        released = False
         try:
-            if self._socket is not None:
-                try:
-                    if self._channel is not None:
-                        # Release the service's output buffer before the service frees it when the session closes.
-                        self._channel.close_opened()
-                    if notify:
-                        self._exchange({"op": "close"})
-                        # The service releases the control buffer before it confirms the close.
-                        released = True
-                except (OSError, ValueError, RuntimeError):
-                    _LOGGER.debug("Cosmos session was already unavailable during close.", exc_info=True)
-                finally:
-                    self._socket.close()
-                    self._socket = None
+            self._session.release(notify=notify)
         finally:
-            if self._channel is not None:
-                # Without that confirmation the service may still read the control buffer, which then stays
-                # allocated until this process exits.
-                self._channel.close(peer_released=released)
-                self._channel = None
             self._model._discard_stream(self)
 
 
