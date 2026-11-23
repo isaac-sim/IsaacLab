@@ -221,7 +221,11 @@ class RslRlSuperMimicAlgorithmCfg:
     """Global gradient-norm limit for each model."""
 
     use_cuda_graph: bool = False
-    """Whether to capture learner iterations with CUDA graphs; results match eager execution."""
+    """Whether to capture learner iterations and the collection calls ``act`` and ``process_env_step`` with CUDA graphs.
+
+    Results match eager execution. Python values read inside the captured calls are fixed at capture time, for example
+    the reward weights that the differentiable velocity task reads from the reward manager.
+    """
 
 
 @configclass
