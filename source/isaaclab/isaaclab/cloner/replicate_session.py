@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import copy
 import itertools
-import math
 import warnings
 from collections.abc import Callable, Iterable, Sequence
 from typing import Any
@@ -27,9 +26,6 @@ from .cloner_cfg import DEFAULT_ENV_TEMPLATE, CloneCfg, InclusionSet, expand_env
 from .cloner_strategies import sequential
 from .replicate_context import ReplicateContext
 from .usd import UsdReplicateContext
-
-_MAX_WORLD_PROTOTYPES = 10_000_000
-"""Largest number of world prototypes that clone planning enumerates."""
 
 
 def num_spawn_variants(spawn_cfg: Any) -> int:
@@ -88,27 +84,10 @@ def make_valid_clone_combinations(
                     raise ValueError(f"Cannot pin variant {variant!r} of {name!r}: it declares {len(rows)}.")
                 rows = (rows[int(variant)],)
             choices.extend([rows] * count)
-        variants = _world_prototypes(choices, len(worlds))
+        variants = tuple(itertools.product(*choices))
         worlds.extend(variants)
         weights.extend([combination.weight / len(variants)] * len(variants))
     return tuple(worlds), np.asarray(weights, dtype=np.float64)
-
-
-def _world_prototypes(choices: Sequence[Sequence[int]], planned: int = 0) -> tuple[tuple[int, ...], ...]:
-    """Return every world prototype that takes one prototype row from each entry of ``choices``.
-
-    Args:
-        choices: Prototype rows to choose from, per asset instance.
-        planned: Number of world prototypes that the plan already holds.
-    """
-    count = planned + math.prod(map(len, choices))
-    if count > _MAX_WORLD_PROTOTYPES:
-        raise ValueError(
-            f"Clone planning would enumerate {count} world prototypes, the product of the variant counts of the"
-            f" replicated assets, which exceeds {_MAX_WORLD_PROTOTYPES}. Pin the variants of the legal compositions"
-            " with InclusionSet.variants."
-        )
-    return tuple(itertools.product(*choices))
 
 
 def replicate(plan: ClonePlan, *, replicate_physics: bool | None = None) -> None:
@@ -296,7 +275,7 @@ def _prepare_cloning(
             shared.extend(indices)
         else:
             groups.append(indices)
-    worlds = _world_prototypes(groups) if world_prototypes is None else world_prototypes
+    worlds = tuple(itertools.product(*groups)) if world_prototypes is None else world_prototypes
     positions = grid_transforms(num_clones, env_spacing)[0] if positions is None else positions
     options = dict(weights=weights, shared_assets=shared, clone_strategy=clone_strategy, env_template=env_template)
     plan = make_clone_plan(asset_prototypes, worlds, num_clones, positions=positions, **options)

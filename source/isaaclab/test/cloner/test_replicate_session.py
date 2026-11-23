@@ -309,31 +309,12 @@ def test_pinned_variants_narrow_a_combination_to_its_unpinned_product():
             make_valid_clone_combinations(names, counts, [InclusionSet(assets=["part"], variants={"part": variant})])
 
 
-def test_clone_planning_rejects_products_too_large_to_enumerate(simulation, monkeypatch):
-    """Planning names the pins instead of enumerating too many world prototypes, for combinations and for a scene."""
+def test_pinned_combinations_list_compositions_instead_of_their_product():
+    """Pinning every asset of a combination yields one world prototype per combination."""
     names, counts = [f"object_{index}" for index in range(9)], [20] * 9
-    with pytest.raises(ValueError, match="512000000000 world prototypes.*InclusionSet.variants"):
-        make_valid_clone_combinations(names, counts)
     pins = [InclusionSet(assets=names, variants=dict.fromkeys(names, task)) for task in range(20)]
     worlds, _ = make_valid_clone_combinations(names, counts, pins)
     assert len(worlds) == 20
-
-    monkeypatch.setattr(replicate_session, "_MAX_WORLD_PROTOTYPES", 10)
-    # The limit bounds the plan, not each combination.
-    with pytest.raises(ValueError, match="12 world prototypes"):
-        make_valid_clone_combinations(["part"], [6], [InclusionSet(assets=["part"])] * 2)
-    # A scene without clone combinations enumerates the product in the session.
-    shapes = [CuboidCfg(size=(1, 1, 1)), SphereCfg(radius=1)] * 2
-    objects = [
-        RigidObjectCfg(prim_path=f"{{ENV_REGEX_NS}}/Object{index}", spawn=MultiAssetSpawnerCfg(assets_cfg=shapes))
-        for index in range(2)
-    ]
-    with (
-        pytest.raises(ValueError, match="16 world prototypes.*InclusionSet.variants"),
-        ReplicateSession(objects, 4, 2.0),
-    ):
-        pass
-    assert simulation.plan is None
 
 
 def test_replicate_session_clears_plan_when_asset_init_fails(simulation):
