@@ -33,10 +33,10 @@ class CartpoleCameraSceneCfg(CartpoleSceneCfg):
 
 
 @configclass
-class CartpoleLidarSceneCfg(CartpoleCameraSceneCfg):
-    """One solid-state lidar captured by OVRTX. The policy reads that scan and no camera."""
+class CartpoleLidarSceneCfg(CartpoleSceneCfg):
+    """Cartpole scene with a tiled lidar and no view-obstructing ground plane."""
 
-    tiled_camera = None
+    ground = None
     lidar: LidarCfg = cartpole_lidar_cfg()
 
 
@@ -46,8 +46,8 @@ class CartpoleCameraEnvCfg(PresetCfg):
 
     The selector also picks the matching tiled camera preset and its rendering backend through
     :attr:`CartpoleCameraSceneCfg.tiled_camera`. The ``lidar`` variant replaces that camera with a
-    lidar captured by the OVRTX renderer and pinned to motion BVH. Its policy observation is a stacked
-    range image of that scan, and the scene defaults to 64 environments. The critic reads the joint state.
+    lidar. Its policy observation is a stacked range image of that scan, and the scene defaults to
+    64 environments. The critic reads the joint state.
     """
 
     @configclass
@@ -62,9 +62,8 @@ class CartpoleCameraEnvCfg(PresetCfg):
         Values less than two disable stacking.
         """
 
-        # spaces: single-frame channels + default spatial size. At env init, channels are expanded
-        # by frame_stack. Camera presets replace height and width with the tiled camera size. The
-        # lidar preset replaces them with CARTPOLE_LIDAR_ELEVATION_COUNT by CARTPOLE_LIDAR_AZIMUTH_COUNT.
+        # spaces: single-frame channels + default spatial size. At env init, height/width
+        # are replaced with the tiled camera size and channels are expanded by frame_stack.
         # Only the channel count must stay in sync with the camera data type (presets set this).
         observation_space = [3, 96, 96]
         state_space = 4
@@ -82,21 +81,17 @@ class CartpoleCameraEnvCfg(PresetCfg):
 
     @configclass
     class LidarCartpoleCameraEnvCfg(BaseCartpoleCameraEnvCfg):
-        """Lidar variant viewed close enough to check hits against one cart and pole."""
+        """Lidar variant. The policy reads the stacked range image and no camera."""
 
         scene: CartpoleLidarSceneCfg = CartpoleLidarSceneCfg(num_envs=64, env_spacing=20.0)
         # One range channel. Env init stacks ``frame_stack`` scans on the channel axis.
         observation_space = [1, CARTPOLE_LIDAR_ELEVATION_COUNT, CARTPOLE_LIDAR_AZIMUTH_COUNT]
 
-        def __post_init__(self):
-            super().__post_init__()
-            self.sim.visualizer_cfgs = VisualizerCfg(eye=(3.0, -3.0, 2.5), lookat=(0.0, 0.0, 1.0))
-
     default = BaseCartpoleCameraEnvCfg()
-    lidar = LidarCartpoleCameraEnvCfg()
     depth = BaseCartpoleCameraEnvCfg(observation_space=[1, 96, 96])
     albedo = BaseCartpoleCameraEnvCfg()
     semantic_segmentation = BaseCartpoleCameraEnvCfg(observation_space=[4, 96, 96])
     simple_shading_constant_diffuse = BaseCartpoleCameraEnvCfg()
     simple_shading_diffuse_mdl = BaseCartpoleCameraEnvCfg()
     simple_shading_full_mdl = BaseCartpoleCameraEnvCfg()
+    lidar = LidarCartpoleCameraEnvCfg()

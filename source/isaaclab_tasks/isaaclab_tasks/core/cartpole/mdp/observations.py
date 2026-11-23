@@ -53,7 +53,10 @@ class CameraImageStack(ManagerTermBase):
 
 
 class LidarRangeImage(ManagerTermBase):
-    """Stacked lidar range image, channel-first, for the cartpole policy.
+    """Experimental stacked lidar range image, channel-first, for the cartpole policy.
+
+    Packing the scan into an image lets the existing camera CNN train on lidar. This is a stand-in.
+    A native point-cloud network is the architecture to explore next.
 
     Each frame is :func:`~isaaclab_tasks.core.cartpole.cartpole_common.cartpole_lidar_range_image`:
     hit distance divided by the far range, with misses at 0. Frames are stacked oldest to newest.

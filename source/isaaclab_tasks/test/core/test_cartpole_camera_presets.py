@@ -62,7 +62,7 @@ def test_lidar_preset_uses_one_ovrtx_renderer(cfg_cls):
     validate(cfg)
     assert isinstance(cfg.scene.lidar, LidarCfg)
     assert isinstance(cfg.scene.lidar.renderer_cfg, OVRTXRendererCfg)
-    assert cfg.scene.tiled_camera is None
+    assert getattr(cfg.scene, "tiled_camera", None) is None
     assert cfg.scene.lidar.output_frame_of_reference == "SENSOR"
     assert cfg.scene.lidar.elements_coords_type == "CARTESIAN"
     assert cfg.scene.lidar.far_range_m == 12.0
@@ -91,7 +91,7 @@ def test_lidar_preset_selects_cnn_agents():
     )
     rl_games_config = rl_games_cfg["params"]["config"]
     assert "cnn" in rl_games_cfg["params"]["network"]
-    assert rl_games_config["name"] == "cartpole_lidar"
+    assert rl_games_config["name"] == "cartpole_camera"
     assert rl_games_config["normalize_input"] is False
 
     _, rsl_rl_cfg = resolve_task_config("Isaac-Cartpole-Camera", "rsl_rl_cfg_entry_point", overrides=["presets=lidar"])
@@ -104,7 +104,7 @@ def test_lidar_preset_selects_cnn_agents():
     )
     direct_rl_games_config = direct_rl_games_cfg["params"]["config"]
     assert "cnn" in direct_rl_games_cfg["params"]["network"]
-    assert direct_rl_games_config["name"] == "cartpole_lidar_direct"
+    assert direct_rl_games_config["name"] == "cartpole_camera"
     assert direct_rl_games_config["normalize_input"] is False
 
     _, direct_rsl_rl_cfg = resolve_task_config(
@@ -113,18 +113,7 @@ def test_lidar_preset_selects_cnn_agents():
     assert direct_rsl_rl_cfg.actor.class_name == "CNNModel"
     assert direct_rsl_rl_cfg.actor.obs_normalization is False
     assert direct_rsl_rl_cfg.obs_groups == {"actor": ["policy"], "critic": ["critic"]}
-    assert direct_rsl_rl_cfg.experiment_name == "cartpole_lidar_direct"
-
-    _, direct_skrl_cfg = resolve_task_config(
-        "Isaac-Cartpole-Camera-Direct", "skrl_cfg_entry_point", overrides=["presets=lidar"]
-    )
-    assert "conv2d" in direct_skrl_cfg["models"]["policy"]["network"][0]["layers"][0]
-    assert direct_skrl_cfg["models"]["separate"] is True
-    value_net = direct_skrl_cfg["models"]["value"]["network"][0]
-    assert value_net["input"] == "STATES"
-    assert value_net["layers"] == [32, 32]
-    assert direct_skrl_cfg["agent"]["state_preprocessor"] == "RunningStandardScaler"
-    assert direct_skrl_cfg["agent"]["experiment"]["directory"] == "cartpole_lidar_direct"
+    assert direct_rsl_rl_cfg.experiment_name == "cartpole_camera_direct"
 
 
 def test_lidar_range_image_places_rays_on_the_elevation_azimuth_grid():

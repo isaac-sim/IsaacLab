@@ -104,9 +104,6 @@ CARTPOLE_LIDAR_ELEVATION_COUNT = len(_CARTPOLE_LIDAR_ELEVATION_AXIS)
 """Height of the lidar range image, one row per elevation."""
 
 
-CARTPOLE_LIDAR_RAY_COUNT = CARTPOLE_LIDAR_ELEVATION_COUNT * CARTPOLE_LIDAR_AZIMUTH_COUNT
-"""Number of rays in one full cartpole scan, before ``LidarWpm`` subsampling."""
-
 CARTPOLE_LIDAR_SUBSAMPLING = 2
 """``LidarWpm`` tiled stride. Values above 1 publish one return out of this many authored rays."""
 

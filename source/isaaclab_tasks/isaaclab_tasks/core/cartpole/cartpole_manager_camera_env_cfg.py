@@ -34,10 +34,9 @@ class CartpoleCameraSceneCfg(CartpoleSceneCfg):
 
 
 @configclass
-class CartpoleLidarSceneCfg(CartpoleCameraSceneCfg):
-    """One solid-state lidar captured by OVRTX. The policy reads that scan and no camera."""
+class CartpoleLidarSceneCfg(CartpoleSceneCfg):
+    """Cartpole scene with a tiled lidar."""
 
-    tiled_camera = None
     lidar: LidarCfg = cartpole_lidar_cfg()
 
 
@@ -169,8 +168,7 @@ class CartpoleCameraEnvCfg(PresetCfg):
     here and, via :attr:`CartpoleCameraSceneCfg.tiled_camera`, the matching camera data type and
     rendering backend. The feature-extractor variants (``resnet18``, ``theia_tiny``) operate on RGB
     images, so they fall back to the default camera. The ``lidar`` variant replaces that camera with a
-    lidar captured by the OVRTX renderer and pinned to motion BVH, and its scene defaults to 64
-    environments.
+    lidar, and its scene defaults to 64 environments.
     """
 
     @configclass
@@ -205,15 +203,10 @@ class CartpoleCameraEnvCfg(PresetCfg):
 
     @configclass
     class LidarCartpoleCameraEnvCfg(BaseCartpoleCameraEnvCfg):
-        """Lidar variant viewed close enough to check hits against one cart and pole."""
+        """Lidar variant. The policy reads the stacked range image and no camera."""
 
         scene: CartpoleLidarSceneCfg = CartpoleLidarSceneCfg(num_envs=64, env_spacing=20.0)
 
-        def __post_init__(self):
-            super().__post_init__()
-            # Hits are a few centimeters across, so frame environment 0 tightly enough to compare
-            # them with the cart and pole.
-            self.sim.visualizer_cfgs = VisualizerCfg(eye=(3.0, -3.0, 2.5), lookat=(0.0, 0.0, 1.0))
-
     lidar = LidarCartpoleCameraEnvCfg(observations=lidar_observations_cfg())
+
     default = rgb

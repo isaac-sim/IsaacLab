@@ -20,7 +20,7 @@ Choose a sensor
      - Renderer-produced color, depth, normals, motion, and segmentation images
      - Vision observations and synthetic data
    * - :doc:`lidar`
-     - Tiled OVRTX lidar point clouds, one sensor prim per environment
+     - Tiled lidar point clouds, one sensor prim per environment
      - Range observations beside a camera render
    * - :doc:`ray_caster`
      - First collision locations for configurable ray patterns
