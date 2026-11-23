@@ -791,7 +791,7 @@ def main() -> None:
     """Set up and run the Isaac Lab Newton MPM teapot-fill demo."""
     if ROBOT_ENABLED:
         warnings.warn(
-            "The bundled Sharpa water-pouring variant is deprecated. Use an Isaac Lab release that still includes it.",
+            "The bundled Sharpa water-pouring variant is deprecated. Use an Isaac Lab revision that still includes it.",
             FutureWarning,
             stacklevel=2,
         )

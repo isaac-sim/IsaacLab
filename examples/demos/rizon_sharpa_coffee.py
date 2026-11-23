@@ -30,7 +30,7 @@ wp.config.enable_backward = False
 def main() -> None:
     args, parser = _parse_args()
     warnings.warn(
-        "The bundled Sharpa coffee demo is deprecated. Use an Isaac Lab release that still includes it.",
+        "The bundled Sharpa coffee demo is deprecated. Use an Isaac Lab revision that still includes it.",
         FutureWarning,
         stacklevel=2,
     )

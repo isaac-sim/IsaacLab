@@ -85,7 +85,7 @@ def main() -> int:
     parser.set_defaults(visualizer=["newton"])
     args = parser.parse_args()
     warnings.warn(
-        "The bundled Sharpa RJ45 example is deprecated. Use an Isaac Lab release that still includes it.",
+        "The bundled Sharpa RJ45 example is deprecated. Use an Isaac Lab revision that still includes it.",
         FutureWarning,
         stacklevel=2,
     )
