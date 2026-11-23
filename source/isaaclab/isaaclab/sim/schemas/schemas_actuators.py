@@ -39,8 +39,13 @@ from ...actuators.actuator_base_cfg import ActuatorBaseCfg, _is_implicit_actuato
 from ...actuators.actuator_net import ActuatorNetLSTM, ActuatorNetMLP
 from ...actuators.actuator_net_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg
 from ...actuators.actuator_pd import DCMotor, DelayedPDActuator, IdealPDActuator, RemotizedPDActuator
-from ...actuators.actuator_pd_cfg import DCMotorCfg, DelayedPDActuatorCfg, IdealPDActuatorCfg, RemotizedPDActuatorCfg
-from ...utils import clone, validate
+from ...actuators.actuator_pd_cfg import (
+    DCMotorCfg,
+    DelayedPDActuatorCfg,
+    IdealPDActuatorCfg,
+    RemotizedPDActuatorCfg,
+)
+from ...utils import validate
 from ...utils.assets import retrieve_file_path
 from ...utils.backend_utils import FactoryBase
 from ...utils.string import (
@@ -59,6 +64,8 @@ logger = logging.getLogger(__name__)
 
 _JOINT_TYPES = frozenset({"PhysicsRevoluteJoint", "PhysicsPrismaticJoint"})
 
+_BAM_LEGACY_API = "NewtonBamDriveAPI"
+
 _PD_API = "NewtonPDControlAPI"
 _PID_API = "NewtonPIDControlAPI"
 _NEURAL_API = "NewtonNeuralControlAPI"
@@ -67,7 +74,7 @@ _DC_MOTOR_API = "NewtonDCMotorClampingAPI"
 _POSITION_BASED_API = "NewtonPositionBasedClampingAPI"
 _DELAY_API = "NewtonActuatorDelayAPI"
 
-_DRIVE_APIS = frozenset({_PD_API, _PID_API, _NEURAL_API, BAM_DRIVE_API})
+_DRIVE_APIS = frozenset({_PD_API, _PID_API, _NEURAL_API, _BAM_LEGACY_API})
 """Drive schemas; Newton rejects an actuator prim with more than one."""
 
 _COMPONENT_APIS = _DRIVE_APIS | {_MAX_EFFORT_API, _DC_MOTOR_API, _POSITION_BASED_API, _DELAY_API}
@@ -160,28 +167,12 @@ def define_actuator_properties(
 ) -> None:
     """Author ``NewtonActuator`` USD prims under an articulation root.
 
-    For every joint covered by an explicit (non-implicit) Lab actuator
-    config, any existing ``NewtonActuator`` prim targeting that joint is
-    replaced by a new one created from the config values. Joints **not**
-    covered by any Lab config keep their USD-authored actuators unchanged.
-
-    The supported config-to-schema mapping is:
-
-    * :class:`~isaaclab.actuators.IdealPDActuatorCfg` →
-      ``NewtonPDControlAPI`` + ``NewtonMaxEffortClampingAPI``
-    * :class:`~isaaclab.actuators.DCMotorCfg` →
-      ``NewtonPDControlAPI`` + ``NewtonDCMotorClampingAPI``
-    * :class:`~isaaclab.actuators.DelayedPDActuatorCfg` →
-      same as ``IdealPDActuatorCfg`` + ``NewtonActuatorDelayAPI``
-    * :class:`~isaaclab.actuators.RemotizedPDActuatorCfg` →
-      same as ``DelayedPDActuatorCfg`` + ``NewtonPositionBasedClampingAPI``
-    * :class:`~isaaclab.actuators.ActuatorNetMLPCfg` /
-      :class:`~isaaclab.actuators.ActuatorNetLSTMCfg` →
-      ``NewtonNeuralControlAPI`` (+ ``NewtonDCMotorClampingAPI``)
-    * :class:`~isaaclab.actuators.BamActuatorCfg` →
-      ``NewtonVoltageControlAPI`` + ``NewtonCurrentPWMClampingAPI`` + ``NewtonDCMotorAPI``
-      (+ ``NewtonActuatorDelayAPI``, + ``NewtonActuatorEncoderAPI`` when the servo reads through a play hinge),
-      drawing through ``newton:battery`` from one ``NewtonConstantResistanceBattery`` prim per group
+    Every joint covered by an explicit (non-implicit) Lab actuator config ends up with one
+    active ``NewtonActuator`` prim. A config is authored onto the joint's USD actuator when
+    its drive matches, so values the config leaves unset keep the asset's value; otherwise
+    the USD actuators are replaced by a new prim. See :ref:`USD actuator overrides <actuators-usd-override>` for the
+    rules and the schemas each config type authors. Joints **not** covered by any Lab
+    config keep their USD-authored actuators unchanged.
 
     No-ops (returns immediately) when:
 
@@ -260,144 +251,14 @@ def author_actuator_prims(
         if not joint_names:
             continue
 
-        resolved_cfg = clone(cfg)
-        # Collection construction emits the deprecation warning later in the
-        # normal asset lifecycle. Authoring only needs the normalized value.
-        resolve_limit_aliases(group_name, resolved_cfg, joint_names, warn_deprecated=False)
-        cfg_entries.append((group_name, resolved_cfg, joint_names))
-        for jname in joint_names:
-            covered_joint_paths.add(joint_inventory[jname])
-
-    _remove_actuator_prims_for_joints(art_prim, covered_joint_paths)
-
-    for group_name, cfg, joint_names in cfg_entries:
-        stiffness_map = resolve_per_dof(cfg.stiffness, joint_names)
-        damping_map = resolve_per_dof(cfg.damping, joint_names)
-
-        is_neural = isinstance(cfg, (ActuatorNetMLPCfg, ActuatorNetLSTMCfg))
-        is_remotized = isinstance(cfg, RemotizedPDActuatorCfg)
-        is_dc_motor = isinstance(cfg, DCMotorCfg)
-        is_delayed = isinstance(cfg, DelayedPDActuatorCfg)
-        is_bam = isinstance(cfg, BamActuatorCfg)
-        configured_effort_limit = cfg.actuator_effort_limit
-        if is_bam:
-            validate(cfg)
-            # Float-typed in USD: an int-typed attribute on a weaker layer would truncate the override. The
-            # gearbox friction and the command lag are not authored: Isaac Lab runs them from the config.
-            bam_attrs = {
-                # Firmware: duty = error_gain * kp * (target - q), applied as a voltage at the supply voltage.
-                "kp": float(cfg.kp_fw),
-                "error_gain": float(cfg.motor.error_gain),
-                # Firmware current and PWM limits, which bound that voltage.
-                "max_current": float(cfg.motor.max_current),
-                "max_pwm": float(cfg.motor.max_pwm),
-                # DC motor; the battery supplies its voltage, so vin only documents the nominal supply.
-                "kt": float(cfg.motor.kt),
-                "resistance": float(cfg.motor.resistance),
-                "vin": float(cfg.vin),
-            }
-            # Each BAM group draws from its own battery prim, which Newton replicates per environment.
-            battery_path = f"{articulation_prim_path}/{group_name}_battery"
-            _define_bam_battery(stage, battery_path, cfg)
-
-        effort_map: dict[str, float] = {}
-        # BAM has no effort clamp: with a motor, Newton's clamps bound the voltage command instead.
-        if not is_remotized and not is_bam:
-            if configured_effort_limit is None:
-                for joint_name in joint_names:
-                    authored_effort_limit = _get_authored_joint_effort_limit(stage, joint_inventory[joint_name])
-                    if authored_effort_limit is not None:
-                        effort_map[joint_name] = authored_effort_limit
-            else:
-                effort_map = dict(
-                    zip(joint_names, _resolve_matching_values_dense(configured_effort_limit, joint_names))
-                )
-
-        vel_limit_map = resolve_per_dof(cfg.actuator_velocity_limit, joint_names) if is_dc_motor else {}
-        sat_effort_map = resolve_per_dof(cfg.saturation_effort, joint_names) if is_dc_motor else {}
-
-        # BAM sizes the delay buffer for its longest lag; Isaac Lab draws the lag of every step.
-        raw_delay = cfg.max_delay if is_delayed or is_bam else 0
-        delay_map = resolve_per_dof(raw_delay, joint_names, cast=int) if raw_delay else {}
-
-        patched_model_path: str | None = None
-        if is_neural:
-            meta: dict[str, Any] = {}
-            if isinstance(cfg, ActuatorNetMLPCfg):
-                meta["model_type"] = "mlp"
-                meta["input_order"] = cfg.input_order
-                meta["input_idx"] = list(cfg.input_idx)
-                meta["pos_scale"] = cfg.pos_scale
-                meta["vel_scale"] = cfg.vel_scale
-                meta["torque_scale"] = cfg.torque_scale
-            else:
-                meta["model_type"] = "lstm"
-            patched_model_path = resave_checkpoint_with_metadata(cfg.network_file, meta)
-
-        for jname in joint_names:
-            joint_prim_path = joint_inventory[jname]
-
-            schemas: list[str] = []
-            attrs: dict[str, bool | float | int] = {}
-            array_attrs: dict[str, list[float]] = {}
-            relationships: dict[str, str] = {"targets": joint_prim_path}
-
-            if is_neural:
-                schemas.append("NewtonNeuralControlAPI")
-            elif is_bam:
-                schemas.extend(("NewtonVoltageControlAPI", "NewtonCurrentPWMClampingAPI", "NewtonDCMotorAPI"))
-                attrs.update(bam_attrs)
-                relationships["battery"] = battery_path
-                joint_prim = stage.GetPrimAtPath(joint_prim_path)
-                # Allocate the friction constraint; Isaac Lab overwrites this seed before each solve.
-                joint_prim.CreateAttribute("newton:friction", Sdf.ValueTypeNames.Float).Set(1.0)
-                if cfg.stiff_frictionloss:
-                    for name, value in (
-                        ("mjc:solreffriction", BAM_STIFF_SOLREF_FRICTION),
-                        ("mjc:solimpfriction", BAM_STIFF_SOLIMP_FRICTION),
-                    ):
-                        joint_prim.CreateAttribute(name, Sdf.ValueTypeNames.DoubleArray).Set(Vt.DoubleArray(value))
-            else:
-                schemas.append("NewtonPDControlAPI")
-                attrs["kp"] = stiffness_map.get(jname, 0.0)
-                attrs["kd"] = damping_map.get(jname, 0.0)
-
-            if is_dc_motor:
-                schemas.append("NewtonDCMotorClampingAPI")
-                attrs["saturation_effort"] = sat_effort_map.get(jname, 0.0)
-                if jname in vel_limit_map:
-                    attrs["velocity_limit"] = vel_limit_map[jname]
-                if jname in effort_map:
-                    attrs["max_motor_effort"] = effort_map[jname]
-            elif not is_remotized and jname in effort_map:
-                schemas.append("NewtonMaxEffortClampingAPI")
-                attrs["max_effort"] = effort_map[jname]
-
-            if is_remotized:
-                lookup = cfg.joint_parameter_lookup
-                schemas.append("NewtonPositionBasedClampingAPI")
-                array_attrs["lookup_positions"] = [row[0] for row in lookup]
-                array_attrs["lookup_efforts"] = [row[2] for row in lookup]
-
-            delay_steps = delay_map.get(jname, 0)
-            if delay_steps > 0:
-                schemas.append("NewtonActuatorDelayAPI")
-                attrs["delay_steps"] = delay_steps
-
-            if is_bam and cfg.backlash_joint_template is not None:
-                # The encoder reads servo plus play angle; the motor keeps the servo velocity.
-                schemas.append("NewtonActuatorEncoderAPI")
-                relationships["output_joint"] = _bam_play_hinge_path(
-                    stage, joint_prim_path, cfg.backlash_joint_template.format(jname)
-                )
-
-            act_prim_path = f"{articulation_prim_path}/{group_name}_{jname}_actuator"
-            act_prim = stage.DefinePrim(act_prim_path, "NewtonActuator")
-            # Replacement may reuse the path of an actuator deactivated above.
-            act_prim.SetActive(True)
-            # Explicit, so a weaker layer cannot add back the replaced actuator's schemas, such as its backlash.
-            act_prim.SetMetadata("apiSchemas", Sdf.TokenListOp.CreateExplicit(schemas))
-            _set_actuator_properties(act_prim, attrs, array_attrs, relationships, patched_model_path)
+        validate(cfg)
+        if isinstance(cfg, BamActuatorCfg):
+            _author_bam_group(
+                stage, articulation_prim_path, group_name, cfg, joint_names, joint_inventory, actuator_prims
+            )
+            continue
+        joints = {name: stage.GetPrimAtPath(joint_inventory[name]) for name in joint_names}
+        _author_group(stage, articulation_prim_path, group_name, cfg, joints, actuator_prims)
 
 
 """
@@ -435,6 +296,156 @@ class ActuatorField:
         if self.source is not None:
             return self.source(cfg, joint_names)
         return _configured_values(attrgetter(self.name)(cfg), joint_names, int if self.type_name == _INT else float)
+
+
+@dataclass(frozen=True)
+class ActuatorLayout:
+    """The ``NewtonActuator`` components and attributes of one actuator config type."""
+
+    actuator_class: type[ActuatorBase] | None
+    """Isaac Lab actuator class the config must name, or None when the config names none."""
+
+    drive: str
+    """Drive schema; an existing prim is authored onto only when it has this drive."""
+
+    fields: tuple[ActuatorField, ...]
+    """Attributes the config type can author; their schemas and the drive are all it keeps."""
+
+
+def _author_group(
+    stage: Usd.Stage,
+    articulation_prim_path: str,
+    group_name: str,
+    cfg: ActuatorBaseCfg,
+    joints: dict[str, Usd.Prim],
+    actuator_prims: dict[str, list[Usd.Prim]],
+) -> None:
+    """Author the actuators of one group, raising before a joint's edits if a required value is missing.
+
+    A value the config sets is authored. An unset value keeps the prim's opinion when the prim keeps
+    that value's schema; otherwise it takes the field's default.
+    """
+    layout = _actuator_layout(cfg)
+    configured = {field.attr: field.configured(cfg, list(joints)) for field in layout.fields}
+    allowed = {layout.drive, *(field.schema for field in layout.fields)}
+    for joint_name, joint_prim in joints.items():
+        existing = actuator_prims.get(str(joint_prim.GetPath()), [])
+        prim, reason = _override_target(existing, layout.drive)
+        present = _applied_schemas(prim) if prim is not None else set()
+        # A zero max_delay removes the delay component instead of authoring it.
+        disabled = {_DELAY_API} if configured.get(_DELAY.attr, {}).get(joint_name) == 0 else set()
+        dropped = sorted((present & _COMPONENT_APIS) - allowed)
+        remove = sorted({*dropped, *(present & disabled)})
+        values = []
+        for field in layout.fields:
+            value = configured[field.attr].get(joint_name)
+            if field.schema in disabled or (value is None and field.schema in present):
+                continue
+            if value is None:
+                default = field.default
+                value = default(cfg, joint_prim, prim is None) if callable(default) else default
+            if value is None:
+                if field.required:
+                    raise ValueError(
+                        f"Actuator group '{group_name}' does not set '{field.name}' for joint '{joint_name}', and the"
+                        f" joint has no USD actuator with {field.schema} to provide it."
+                    )
+                continue
+            values.append((field, value))
+        if reason is not None:
+            logger.warning(
+                f"Actuator group '{group_name}' replaces the USD actuators of joint '{joint_name}': {reason}. Values"
+                " the configuration leaves unset use code defaults instead of the asset's."
+            )
+        if dropped:
+            logger.warning(
+                f"Actuator group '{group_name}' removes {dropped} from the USD actuator of joint '{joint_name}':"
+                f" {type(cfg).__name__} does not model them."
+            )
+        if prim is None:
+            # Define the new prim before deactivating the old ones, so a failure never leaves the joint without one.
+            prim_path = find_unique_string_name(
+                f"{articulation_prim_path}/{group_name}_{joint_name}_actuator",
+                lambda path: not stage.GetPrimAtPath(path).IsValid(),
+            )
+            prim = stage.DefinePrim(prim_path, "NewtonActuator")
+            prim.CreateRelationship("newton:targets").SetTargets([joint_prim.GetPath()])
+            for old_prim in existing:
+                old_prim.SetActive(False)
+        for schema in remove:
+            prim.RemoveAppliedSchema(schema)
+        if remove:
+            removed_attrs = {
+                field.attr
+                for known_layout in _ACTUATOR_LAYOUTS.values()
+                for field in known_layout.fields
+                if field.schema in remove
+            }
+            # Shared attributes, such as BAM's maxEffort, still belong to a retained component.
+            kept_attrs = {field.attr for field in layout.fields if field.schema not in disabled}
+            for name in sorted(removed_attrs - kept_attrs):
+                if (attr := prim.GetAttribute(name)) and attr.HasAuthoredValue():
+                    attr.Block()
+        for schema in dict.fromkeys([layout.drive, *(f.schema for f, _ in values)]):
+            if schema not in present:
+                prim.AddAppliedSchema(schema)
+        for field, value in values:
+            attr = prim.CreateAttribute(field.attr, field.type_name)
+            # CreateAttribute keeps an existing type, including one authored on a weaker layer.
+            if attr.GetTypeName() != field.type_name:
+                attr.SetTypeName(field.type_name)
+            attr.Set(value)
+
+
+def _author_bam_group(
+    stage: Usd.Stage,
+    root_path: str,
+    group_name: str,
+    cfg: BamActuatorCfg,
+    joint_names: list[str],
+    joint_inventory: dict[str, str],
+    actuator_prims: dict[str, list[Usd.Prim]],
+) -> None:
+    """Author a complete BAM fit using Newton's duty drive, clamp, motor, and shared battery."""
+    battery_path = f"{root_path}/{group_name}_battery"
+    _define_bam_battery(stage, battery_path, cfg)
+    for name in joint_names:
+        joint_path = joint_inventory[name]
+        schemas = ["NewtonPDControlAPI", "NewtonCurrentDutyClampingAPI", "NewtonDCMotorAPI"]
+        attrs = {
+            "kp": float(cfg.kp_fw * cfg.motor.error_gain),
+            "kd": 0.0,
+            "max_current": float(cfg.motor.max_current),
+            "max_duty": float(cfg.motor.max_pwm),
+            "kt": float(cfg.motor.kt),
+            "resistance": float(cfg.motor.resistance),
+            "vin": float(cfg.vin),
+        }
+        relationships = {"targets": joint_path, "battery": battery_path}
+        if cfg.max_delay > 0:
+            schemas.append("NewtonActuatorDelayAPI")
+            attrs["delay_steps"] = cfg.max_delay
+        if cfg.backlash_joint_template is not None:
+            schemas.append("NewtonActuatorEncoderAPI")
+            relationships["output_joint"] = _bam_play_hinge_path(
+                stage, joint_path, cfg.backlash_joint_template.format(name)
+            )
+        prim_path = f"{root_path}/{group_name}_{name}_actuator"
+        for old in actuator_prims.get(joint_path, []):
+            old.SetActive(False)
+        prim = stage.DefinePrim(prim_path, "NewtonActuator")
+        prim.SetActive(True)
+        prim.SetMetadata("apiSchemas", Sdf.TokenListOp.CreateExplicit(schemas))
+        _set_actuator_properties(prim, attrs, {}, relationships, None)
+        prim.CreateAttribute("newton:outputSpace", Sdf.ValueTypeNames.Token).Set("duty")
+        joint = stage.GetPrimAtPath(joint_path)
+        joint.CreateAttribute("newton:friction", _FLOAT).Set(1.0)
+        if cfg.stiff_frictionloss:
+            for attr, value in (
+                ("mjc:solreffriction", BAM_STIFF_SOLREF_FRICTION),
+                ("mjc:solimpfriction", BAM_STIFF_SOLIMP_FRICTION),
+            ):
+                joint.CreateAttribute(attr, Sdf.ValueTypeNames.DoubleArray).Set(Vt.DoubleArray(value))
 
 
 def _set_actuator_properties(
@@ -515,7 +526,33 @@ def _bam_play_hinge_path(stage: Usd.Stage, servo_path: str, hinge_name: str) -> 
     return hinge_path
 
 
-def _get_authored_joint_effort_limit(stage: Usd.Stage, joint_prim_path: str) -> float | None:
+def _override_target(prims: list[Usd.Prim], drive: str) -> tuple[Usd.Prim | None, str | None]:
+    """Choose the USD actuator prim a config with *drive* is authored onto.
+
+    Returns:
+        The prim, or None with the reason it must be replaced (None when the joint has no actuator).
+    """
+    if not prims:
+        return None, None
+    if len(prims) > 1:
+        return None, f"{len(prims)} actuator prims drive it"
+    schemas = _applied_schemas(prims[0])
+    drives = schemas & _DRIVE_APIS
+    if drives != {drive}:
+        return None, f"their drive {sorted(drives)} is not {drive}"
+    unknown = schemas - _KNOWN_ACTUATOR_APIS
+    if unknown:
+        return None, f"they apply schemas {sorted(unknown)} the configuration cannot keep"
+    return prims[0], None
+
+
+def _applied_schemas(prim: Usd.Prim) -> set[str]:
+    """Return the composed ``apiSchemas`` tokens of *prim*, including unregistered ones such as BAM's drive."""
+    list_op = prim.GetMetadata("apiSchemas")
+    return set(list_op.GetAddedOrExplicitItems()) if list_op is not None else set()
+
+
+def _get_authored_joint_effort_limit(joint_prim: Usd.Prim) -> float | None:
     """Read a revolute or prismatic joint's authored USD drive effort limit."""
     drive_name = drive_instance_name(joint_prim)
     if drive_name is None:
@@ -585,40 +622,6 @@ def _exported_model_path(cfg: ActuatorNetMLPCfg | ActuatorNetLSTMCfg, joint_name
     return dict.fromkeys(joint_names, Sdf.AssetPath(resave_checkpoint_with_metadata(cfg.network_file, meta)))
 
 
-def _bam_value(
-    name: str, type_name: Sdf.ValueTypeName = _FLOAT, default: float | None = None, required: bool = False
-) -> ActuatorField:
-    """Return the BAM drive attribute set by a :class:`BamActuatorCfg` field, named after its DriveBam argument."""
-    attr = f"newton:{to_camel_case(name.removeprefix('motor.'))}"
-    return ActuatorField(name, BAM_DRIVE_API, attr, type_name, default=default, required=required)
-
-
-def _bam_model_flag(flag: str) -> ActuatorField:
-    """Return a BAM drive flag set by the friction model of the :class:`BamMotorCfg`."""
-
-    def source(cfg: BamActuatorCfg, joint_names: list[str]) -> dict[str, int]:
-        model = cfg.motor.model
-        return _configured_values(BAM_MODEL_FLAGS[model][flag] if model is not None else None, joint_names, int)
-
-    return ActuatorField("motor.model", BAM_DRIVE_API, f"newton:{to_camel_case(flag)}", _INT, source, required=True)
-
-
-def _bam_effort_limits(cfg: BamActuatorCfg, joint_names: list[str]) -> dict[str, float]:
-    """Return the configured BAM effort limit, defaulting to the stall torque at the highest sampled voltage."""
-    if cfg.actuator_effort_limit is not None:
-        return _configured_values(cfg.actuator_effort_limit, joint_names)
-    voltage = max(cfg.vin_range) if cfg.vin_range is not None else cfg.vin
-    if cfg.motor.kt is None or cfg.motor.resistance is None or voltage is None:
-        if any(v is not None for v in (voltage, cfg.motor.kt, cfg.motor.resistance)):
-            logger.warning(
-                f"The BAM configuration of joints {joint_names} changes only part of the stall torque inputs, so their"
-                " limit stays the USD actuator's authored one or, without it, the drive's vin * kt / resistance"
-                " default, which ignores vin_range. Set actuator_effort_limit to choose it."
-            )
-        return {}
-    return dict.fromkeys(joint_names, voltage * cfg.motor.kt / cfg.motor.resistance)
-
-
 _PD_GAINS = (
     ActuatorField("stiffness", _PD_API, "newton:kp", default=0.0),
     ActuatorField("damping", _PD_API, "newton:kd", default=0.0),
@@ -649,41 +652,6 @@ _NEURAL_MODEL = ActuatorField(
     "network_file", _NEURAL_API, "newton:modelPath", Sdf.ValueTypeNames.Asset, _exported_model_path, required=True
 )
 
-# A new prim requires the fit and supply: the drive would silently fall back to m1 friction and no current limit.
-_BAM_FIELDS = (
-    *(_bam_value(f"motor.{name}", required=True) for name in ("kt", "resistance", "error_gain")),
-    *(_bam_value(f"motor.{name}", required=True) for name in ("max_current", "friction_base")),
-    *(_bam_value(f"motor.{name}", default=1.0) for name in ("max_pwm", "dtheta_stribeck", "alpha")),
-    *(
-        _bam_value(f"motor.{name}", default=0.0)
-        for name in (
-            "friction_stribeck",
-            "load_friction_motor",
-            "load_friction_external",
-            "load_friction_motor_stribeck",
-            "load_friction_external_stribeck",
-            "load_friction_motor_quad",
-            "load_friction_external_quad",
-        )
-    ),
-    *(_bam_model_flag(flag) for flag in ("stribeck", "load_dependent", "quadratic")),
-    *(_bam_value(name, required=True) for name in ("kp_fw", "vin")),
-    *(_bam_value(name) for name in ("vin_min", "delay_hold_prob")),
-    *(_bam_value(name, _INT) for name in ("min_delay", "max_delay", "delay_update_period")),
-    # Flag backlash drives so they never merge with regular ones; without a hinge template, keep the USD flag.
-    ActuatorField(
-        "backlash_joint_template",
-        BAM_DRIVE_API,
-        "newton:hasBacklash",
-        _INT,
-        lambda cfg, names: dict.fromkeys(names, 1) if cfg.backlash_joint_template is not None else {},
-    ),
-    # A new prim requires kt, resistance and vin, so the default only fills joints a configured mapping skips.
-    ActuatorField(
-        "actuator_effort_limit", BAM_DRIVE_API, "newton:maxEffort", _FLOAT, _bam_effort_limits, _default_effort_limit
-    ),
-)
-
 _ACTUATOR_LAYOUTS: dict[type, ActuatorLayout] = {
     IdealPDActuatorCfg: ActuatorLayout(IdealPDActuator, _PD_API, (*_PD_GAINS, _MAX_EFFORT)),
     DelayedPDActuatorCfg: ActuatorLayout(DelayedPDActuator, _PD_API, (*_PD_GAINS, _MAX_EFFORT, _DELAY)),
@@ -691,7 +659,7 @@ _ACTUATOR_LAYOUTS: dict[type, ActuatorLayout] = {
     DCMotorCfg: ActuatorLayout(DCMotor, _PD_API, (*_PD_GAINS, *_DC_MOTOR)),
     ActuatorNetMLPCfg: ActuatorLayout(ActuatorNetMLP, _NEURAL_API, (_NEURAL_MODEL, *_DC_MOTOR)),
     ActuatorNetLSTMCfg: ActuatorLayout(ActuatorNetLSTM, _NEURAL_API, (_NEURAL_MODEL, *_DC_MOTOR)),
-    BamActuatorCfg: ActuatorLayout(None, BAM_DRIVE_API, _BAM_FIELDS),
+    BamActuatorCfg: ActuatorLayout(None, "NewtonPDControlAPI", ()),
 }
 """Newton actuator layout of each supported config type; subclasses use their closest base's layout."""
 

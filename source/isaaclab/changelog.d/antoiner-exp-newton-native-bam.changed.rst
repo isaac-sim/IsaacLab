@@ -1,6 +1,6 @@
 * Changed :class:`~isaaclab.actuators.BamActuatorCfg` authoring to Newton's native BAM composition, with the
-  tokens of newton-usd-schemas#97: ``NewtonVoltageControlAPI`` (``newton:kp`` is ``kp_fw`` and
-  ``newton:errorGain`` the fit's ``error_gain``), ``NewtonCurrentPWMClampingAPI``, ``NewtonDCMotorAPI``, a
+  tokens of newton-usd-schemas#97: ``NewtonPDControlAPI`` (duty output, with ``newton:kp`` equal to
+  ``kp_fw * error_gain``), ``NewtonCurrentDutyClampingAPI``, ``NewtonDCMotorAPI``, a
   ``NewtonActuatorDelayAPI`` buffer sized by ``max_delay``, ``NewtonActuatorEncoderAPI`` bound through
   ``newton:outputJoint`` to the play hinge, and one ``NewtonConstantResistanceBattery`` prim per group that
   the servos draw from through ``newton:battery``. The stiff friction constraint is authored as the servo
@@ -17,17 +17,19 @@
   ``ValueError``, since no sag gain converts to the same sag.
 * **Breaking:** Changed BAM servos to apply no effort clamp after the motor, and
   :class:`~isaaclab.actuators.BamActuatorCfg` to reject ``actuator_effort_limit``. Newton has no stage after
-  its motors, and its clamps bound a motor's voltage command. The stall-torque cap
+  its motors, and its clamps bound a motor's duty command. The stall-torque cap
   ``max(vin_range) * kt / resistance`` no longer applies; the firmware current limit holds the torque at
   ``kt * max_current`` unless the PWM limit overrides it at high joint speed. Limit the torque through
   ``motor.max_current`` and ``motor.max_pwm`` instead.
 * Changed :class:`~isaaclab.actuators.newton.NewtonActuatorAdapter` to report the applied motor torque as the
-  computed effort of actuators with a motor, whose drive computes a voltage, not an effort.
+  computed effort of actuators with a motor, whose drive computes duty rather than effort.
 * Changed :class:`~isaaclab.actuators.newton.NewtonActuatorAdapter` to build Newton actuators with
   :class:`~newton.actuators.InputProcessorDelay` instead of the deprecated ``Delay``, and with their authored
   motor, on its ``vin``, on PhysX and OVPhysX.
 * Changed Newton-native actuator authoring to stop authoring ``newton:maxDelay``, which
   :class:`~newton.actuators.InputProcessorDelay` does not read; ``newton:delaySteps`` sizes its buffer.
-* Changed the Newton dependency pin from ``42f7def1`` to ``b9452c2f``, the merge of newton#4504 and newton#4797 on
-  a fork, with ``mujoco`` and ``mujoco-warp`` 3.16, and pinned ``newton-usd-schemas`` to newton-usd-schemas#97
-  (``1f440a08``), whose schemas register the native BAM actuator components.
+* Pinned ``newton-usd-schemas`` to newton-usd-schemas#97 (``d062f323``), whose schemas register the native
+  BAM actuator components, while retaining the upstream Newton and MuJoCo pins.
+* **Breaking:** Required the complete BAM motor fit, firmware gain, and supply voltage in the group
+  configuration. BAM replaces selected USD actuators; copy the asset's identified fit into
+  :class:`~isaaclab.actuators.BamMotorCfg` instead of relying on partial USD overrides.

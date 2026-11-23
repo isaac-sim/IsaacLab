@@ -11,7 +11,7 @@ with test-supplied joint state and external load.
 """
 
 import sys
-from dataclasses import fields
+from dataclasses import MISSING, fields
 from types import SimpleNamespace
 
 import numpy as np
@@ -22,8 +22,8 @@ from isaaclab_newton.actuators.bam import BamCommandLag, BamFriction
 from newton import ModelBuilder
 from newton.actuators import (
     BatteryConstantResistance,
-    ClampingCurrentPWM,
-    DriveVoltageControlled,
+    ClampingCurrentDuty,
+    DrivePD,
     InputProcessorDelay,
     InputProcessorEncoder,
     MotorDC,
@@ -328,24 +328,21 @@ def test_authored_prims_compose_native_components(goldens, servo_usd, resistance
     assert BatteryConstantResistance.resolve_arguments(battery.battery_kwargs) == pytest.approx(
         {"nominal_voltage": VIN, "resistance": resistance, "min_voltage": 6.0}
     )
-    expected_components = [ClampingCurrentPWM, MotorDC]
+    expected_components = [ClampingCurrentDuty, MotorDC]
     if max_delay:
         expected_components.append(InputProcessorDelay)
     if backlash:
         expected_components.append(InputProcessorEncoder)
     for name in JOINT_NAMES:
         entry = parse_actuator_prim(stage.GetPrimAtPath(f"/Robot/servo_{name}_actuator"))
-        assert entry.drive_class is DriveVoltageControlled
-        # kp is the firmware gain itself; the drive multiplies it by the error gain.
-        assert DriveVoltageControlled.resolve_arguments(entry.drive_kwargs) == pytest.approx(
-            {"kp": KP_FW, "error_gain": cfg.motor.error_gain}
-        )
+        assert entry.drive_class is DrivePD
+        assert entry.drive_kwargs["kp"] == pytest.approx(KP_FW * cfg.motor.error_gain)
+        assert entry.drive_kwargs["output_space"] == "duty"
         assert entry.battery_path == "/Robot/servo_battery"
         assert [component for component, _ in entry.component_specs] == expected_components
         components = dict(entry.component_specs)
-        assert ClampingCurrentPWM.resolve_arguments(components[ClampingCurrentPWM]) == pytest.approx(
-            {"max_current": cfg.motor.max_current, "max_pwm": cfg.motor.max_pwm}
-        )
+        assert components[ClampingCurrentDuty]["max_current"] == pytest.approx(cfg.motor.max_current)
+        assert components[ClampingCurrentDuty]["max_duty"] == pytest.approx(cfg.motor.max_pwm)
         assert MotorDC.resolve_arguments({**components[MotorDC], "supply_from_battery": True}) == pytest.approx(
             {"kt": cfg.motor.kt, "resistance": cfg.motor.resistance, "vin": VIN, "supply_from_battery": 1.0}
         )
@@ -378,24 +375,25 @@ def test_configuration_replaces_existing_usd_values(tmp_path, goldens, servo_usd
         prim.CreateRelationship("newton:outputJoint").SetTargets([f"/Robot/{name}"])
         prim.CreateRelationship("newton:battery").SetTargets(["/Robot/old_battery"])
     path = tmp_path / "robot.usda"
-    asset.Export(str(path))
+    stage.Export(str(path))
     asset_layer = Sdf.Layer.FindOrOpen(str(path))
     asset_opinions = asset_layer.ExportToString()
     stage = Usd.Stage.CreateInMemory()
     stage.GetRootLayer().subLayerPaths.append(str(path))
     cfg.kp_fw = 123.5
     author_actuator_prims(stage, "/Robot", {"servo": cfg})
+    assert asset_layer.ExportToString() == asset_opinions
 
     parsed = [entry for prim in Usd.PrimRange(stage.GetPrimAtPath("/Robot")) if (entry := parse_actuator_prim(prim))]
     assert len(parsed) == len(JOINT_NAMES)
     for entry in parsed:
-        assert entry.drive_class is DriveVoltageControlled
+        assert entry.drive_class is DrivePD
         # Without registered schemas Newton reads every authored attribute, so the stale ones must be blocked.
-        assert set(entry.drive_kwargs) == {"kp", "error_gain"}
-        assert entry.drive_kwargs["kp"] == pytest.approx(123.5)
+        assert entry.drive_kwargs["kp"] == pytest.approx(123.5 * cfg.motor.error_gain)
+        assert entry.drive_kwargs["output_space"] == "duty"
         assert entry.battery_path == "/Robot/servo_battery"
         components = dict(entry.component_specs)
-        assert list(components) == [ClampingCurrentPWM, MotorDC]
+        assert list(components) == [ClampingCurrentDuty, MotorDC]
         assert components[MotorDC]["kt"] == pytest.approx(goldens["attr_kt"].item())
     for name, seed in zip(JOINT_NAMES, seeds, strict=True):
         assert stage.GetPrimAtPath(f"/Robot/{name}").GetAttribute("newton:friction").Get() == seed
@@ -408,8 +406,8 @@ def test_newton_imports_one_battery_per_environment(goldens, device):
         goldens, battery_resistance=0.05, vin_min=6.0, max_delay=3, backlash_joint_template="passive_{}_backlash"
     )
     bam = make_model(cfg, num_envs=3, device=device, backlash=True)
-    assert isinstance(bam.actuator.drive, DriveVoltageControlled)
-    assert [type(clamp) for clamp in bam.actuator.clamping] == [ClampingCurrentPWM]
+    assert isinstance(bam.actuator.drive, DrivePD)
+    assert [type(clamp) for clamp in bam.actuator.clamping] == [ClampingCurrentDuty]
     assert [type(processor) for processor in bam.actuator.input_processors] == [
         InputProcessorDelay,
         InputProcessorEncoder,

@@ -5,8 +5,8 @@
 
 """The BAM servo parts that Newton's native BAM path does not provide.
 
-Newton runs the firmware (:class:`~newton.actuators.DriveVoltageControlled`), the current and PWM limits
-(:class:`~newton.actuators.ClampingCurrentPWM`), the DC motor (:class:`~newton.actuators.MotorDC`), the supply
+Newton runs the firmware (:class:`~newton.actuators.DrivePD` with duty output), the current and PWM limits
+(:class:`~newton.actuators.ClampingCurrentDuty`), the DC motor (:class:`~newton.actuators.MotorDC`), the supply
 (:class:`~newton.actuators.BatteryConstantResistance`), the command ring
 (:class:`~newton.actuators.InputProcessorDelay`) and the play-angle read
 (:class:`~newton.actuators.InputProcessorEncoder`). Isaac Lab adds a per-environment random command lag and the

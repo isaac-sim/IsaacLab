@@ -390,8 +390,14 @@ def test_configuration_overrides_only_the_values_it_sets(tmp_path, caplog):
 
     dc_b_curve = {"saturation_effort": 64.0, "velocity_limit": 8.0, "max_motor_effort": 54.0}
     expected = {
-        "pd_a": ({"kp": 99.0, "kd": 1.5}, {ClampingMaxEffort: {"max_effort": 5.0}, Delay: {"delay_steps": 2}}),
-        "pd_b": ({"kp": 22.0, "kd": 2.5}, {ClampingMaxEffort: {"max_effort": 81.0}, Delay: {"delay_steps": 4}}),
+        "pd_a": (
+            {"kp": 99.0, "kd": 1.5},
+            {ClampingMaxEffort: {"max_effort": 5.0}, InputProcessorDelay: {"delay_steps": 2}},
+        ),
+        "pd_b": (
+            {"kp": 22.0, "kd": 2.5},
+            {ClampingMaxEffort: {"max_effort": 81.0}, InputProcessorDelay: {"delay_steps": 4}},
+        ),
         "dc_a": ({"kp": 33.0, "kd": 3.5}, {ClampingMaxEffort: {"max_effort": 82.0}}),
         "dc_b": ({"kp": 1.0, "kd": 4.5}, {ClampingDCMotor: dc_b_curve}),
         "remote_a": ({"kp": 55.0, "kd": 5.5}, {ClampingDCMotor: {"saturation_effort": 5.0, "max_motor_effort": 84.0}}),
@@ -400,7 +406,7 @@ def test_configuration_overrides_only_the_values_it_sets(tmp_path, caplog):
             {"kp": 99.0, "kd": 5.5},
             {
                 ClampingPositionBased: {"lookup_positions": [-1.0, 1.0], "lookup_efforts": [11.0, 21.0]},
-                Delay: {"delay_steps": 1},
+                InputProcessorDelay: {"delay_steps": 1},
             },
         ),
         "mlp": (

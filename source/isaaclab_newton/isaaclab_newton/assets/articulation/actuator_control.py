@@ -30,6 +30,7 @@ from isaaclab.sim.schemas.schemas_actuators import validate_newton_native_actuat
 
 from isaaclab_newton.actuators.bam import BamCommandLag, BamFriction, BamGroup
 from isaaclab_newton.assets.articulation.joint_coordinates import scatter_joint_coordinates
+from isaaclab_newton.physics.mjwarp_solver_cfg import MJWarpSolverCfg
 
 if TYPE_CHECKING:
     from .articulation import Articulation
@@ -68,6 +69,15 @@ class NewtonActuatorControl(ArticulationActuatorControl):
             return set()
 
         self._bam_cfgs = {name: cfg for name, cfg in actuator_cfgs.items() if isinstance(cfg, BamActuatorCfg)}
+        if self._bam_cfgs:
+            solver_cfg = articulation._sim_cfg.physics.solver_cfg
+            if not isinstance(solver_cfg, MJWarpSolverCfg) or solver_cfg.use_mujoco_cpu:
+                raise ValueError(
+                    "BAM actuators require Newton's MJWarp solver (MJWarpSolverCfg with use_mujoco_cpu=False)."
+                )
+            self._articulation._backend_manager.request_solver_observables(
+                "qfrc_bias", "qfrc_constraint", "qfrc_frictionloss", owner=self._articulation
+            )
         self._native_actuator_path_active = True
         articulation._has_newton_actuators = True
         self._articulation._backend_manager.activate_newton_actuator_path()
@@ -335,16 +345,13 @@ class NewtonActuatorControl(ArticulationActuatorControl):
             raise ValueError(
                 "BAM actuators require Newton's MJWarp solver (MJWarpSolverCfg with use_mujoco_cpu=False)."
             )
-        self._articulation._backend_manager.request_solver_observables(
-            {"qfrc_bias", "qfrc_constraint", "qfrc_frictionloss"}
-        )
-        # The solver applies the published budgets once it re-reads the joint friction.
-        self._articulation._backend_manager.request_solver_model_sync(ModelFlags.JOINT_DOF_FORCE_PROPERTIES)
+        # Combine the friction sync for all BAM groups into one notification per physics step.
+        self._articulation._backend_manager.backend.actuator_model_sync_flags |= ModelFlags.JOINT_DOF_FORCE_PROPERTIES
         model = self._articulation._backend_manager.backend.model
         for group in self.bam_groups.values():
 
             def update_budget(friction: BamFriction = group.friction) -> None:
-                loads = self._articulation._backend_manager._solver_observables
+                loads = self._articulation._backend_manager.get_solver_observables()
                 friction.compute_budget(
                     self._articulation._backend_manager.backend.state_0.joint_qd,
                     loads.qfrc_bias,

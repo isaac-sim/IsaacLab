@@ -102,7 +102,7 @@ dependencies = [
     # Authored MPM particle import requires the 0.5 schema revision, and the native BAM servos the
     # actuator schemas of newton-usd-schemas#97, pinned until it is released. The managed Isaac Sim
     # workflow overrides its older exact transitive pin below.
-    "newton-usd-schemas @ git+https://github.com/jvonmuralt/newton-usd-schemas.git@1f440a0821ba30cdc1d690cb514ac5a99a92a361",
+    "newton-usd-schemas @ git+https://github.com/jvonmuralt/newton-usd-schemas.git@d062f323071140c49dda040fc30a37035b3662c6",
     "PyOpenGL-accelerate>=3.1.0",
     # ----- newton interactive viewer GUI (in base, no extra required) -----
     "imgui-bundle>=1.92.5",
@@ -432,7 +432,7 @@ override-dependencies = [
     "newton[sim] @ git+https://github.com/newton-physics/newton.git@d31603ff5e8389d1d6b2a5daef6ea2cb074c26ff ; extra != 'optix'",
     "newton[sim,optix] @ git+https://github.com/newton-physics/newton.git@d31603ff5e8389d1d6b2a5daef6ea2cb074c26ff ; extra == 'optix'",
     # Force the Newton-matched schemas over isaacsim's ==0.2.0 pin.
-    "newton-usd-schemas @ git+https://github.com/jvonmuralt/newton-usd-schemas.git@1f440a0821ba30cdc1d690cb514ac5a99a92a361",
+    "newton-usd-schemas @ git+https://github.com/jvonmuralt/newton-usd-schemas.git@d062f323071140c49dda040fc30a37035b3662c6",
     # isaacsim-asset-isolated and isaacsim-robot-schema 6.2 pin usd-exchange ==2.3.0.
     "usd-exchange==3.0.1",
     # usd-optimize must share usd-exchange's OpenUSD build (26.08); bump the two together.

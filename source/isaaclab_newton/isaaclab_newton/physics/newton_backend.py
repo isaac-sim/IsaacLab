@@ -463,6 +463,8 @@ class NewtonBackend:
         """Run before the Newton actuators of every physics step."""
         self.post_actuator_callbacks: list[Callable[[], None]] = []
         """Run after the Newton actuators of every physics step, before its solver substeps."""
+        self.actuator_model_sync_flags = 0
+        """Model properties the solver re-reads after every actuator step."""
         self.state_force_callbacks: list[Callable[[State], None]] = []
         """Add forces [N, N·m] to the input state of every solver substep."""
         self.post_solver_substep_callbacks: list[
@@ -666,6 +668,7 @@ class NewtonBackend:
             num_joints=model.joint_dof_count // num_envs,
             dof_offset=0,
             device=str(self.device),
+            batteries=model.batteries,
         )
         self.actuators.finalize(self.control)
         self.invalidate_graph()
@@ -944,6 +947,8 @@ class NewtonBackend:
         """Run the post-actuator callbacks and the solver substeps of one physics step."""
         for callback in self.post_actuator_callbacks:
             callback()
+        if self.actuator_model_sync_flags:
+            self.solver.notify_model_changed(self.actuator_model_sync_flags)
         contacts = (
             self.contacts
             if self.collision_pipeline is not None or observables is not None or self.solver_observables is not None

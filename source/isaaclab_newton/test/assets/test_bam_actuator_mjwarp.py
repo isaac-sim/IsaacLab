@@ -262,7 +262,7 @@ def test_reset_environment_starts_without_the_previous_episode_load(native_sim, 
         native_sim.step()
         robot.update(native_sim.get_physics_dt())
     # The load the next budget reads without a reset.
-    loads = native_sim.backend_manager._solver_observables
+    loads = native_sim.backend_manager.get_solver_observables()
     dofs = friction.dof_indices.numpy()
     last_load = (-loads.qfrc_bias.numpy() + loads.qfrc_constraint.numpy() - loads.qfrc_frictionloss.numpy())[dofs]
     reset = dofs // (native_sim.backend_manager.backend.model.joint_dof_count // NUM_ENVS) == 0

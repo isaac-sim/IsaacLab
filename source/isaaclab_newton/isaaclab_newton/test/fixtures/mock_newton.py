@@ -95,6 +95,7 @@ def backend_stub(**fields):
     backend.contact_sensors = {}
     backend.contact_observables = None
     backend.solver_observables = None
+    backend.actuator_model_sync_flags = 0
     backend.__dict__.update(fields)
     return backend
 

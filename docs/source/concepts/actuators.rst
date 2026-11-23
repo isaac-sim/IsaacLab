@@ -771,7 +771,7 @@ staging.
         :class:`~isaaclab.actuators.ActuatorNetLSTMCfg`
       - ``NewtonNeuralControlAPI`` + ``NewtonDCMotorClampingAPI``
     * - :class:`~isaaclab.actuators.BamActuatorCfg`
-      - ``NewtonVoltageControlAPI`` + ``NewtonCurrentPWMClampingAPI`` + ``NewtonDCMotorAPI``
+      - ``NewtonPDControlAPI`` (duty output) + ``NewtonCurrentDutyClampingAPI`` + ``NewtonDCMotorAPI``
         (+ ``NewtonActuatorDelayAPI``, + ``NewtonActuatorEncoderAPI``), drawing from a
         ``NewtonConstantResistanceBattery``; Newton only, see :ref:`actuators-bam`
 
@@ -782,8 +782,9 @@ an identified servo fit. Joints not covered by an explicit Lab actuator config k
 A prim drives only the first joint of its ``newton:targets`` and is ignored for joints listed later:
 a config treats such a joint as one without that prim, and changes the prim only when it covers the
 first joint. For a covered joint whose actuator prim has the config's drive schema
-(``NewtonPDControlAPI`` for the PD models, ``NewtonNeuralControlAPI`` for neural models,
-``NewtonBamDriveAPI`` for BAM), the config is authored onto that prim:
+(``NewtonPDControlAPI`` for the PD models or ``NewtonNeuralControlAPI`` for neural models), the
+config is authored onto that prim. BAM uses the complete group configuration described in
+:ref:`actuators-bam` instead.
 
 * Only the values the config sets are written, in the stage's edit target. A value left as ``None``,
   or a joint that a regex mapping does not match, keeps the asset's value through USD composition.
@@ -823,9 +824,11 @@ produces no torque. A warning names the replaced joints. The
 
 .. note::
 
-    Under native execution, delay is fixed. The schema stores only ``max_delay``, so ``min_delay``
-    is ignored. A :class:`~isaaclab.actuators.DelayedPDActuator` does not randomize delay between
-    resets as it does on the Isaac Lab path.
+    Native :class:`~isaaclab.actuators.DelayedPDActuator` and
+    :class:`~isaaclab.actuators.RemotizedPDActuator` use a fixed delay from ``max_delay``;
+    ``min_delay`` is ignored. They do not randomize delay between resets as they do on the Isaac Lab path.
+    :class:`~isaaclab.actuators.DelayedImplicitActuator` always uses Lab command processing and
+    retains its per-environment reset sampling even when native execution is enabled for other groups.
     :class:`~isaaclab.actuators.BamActuatorCfg` is the exception: Isaac Lab draws one lag per group
     and environment every step, honoring both bounds, and writes it into Newton's delay processor.
 
@@ -848,8 +851,8 @@ cannot hold its target under load, its gearbox sticks, and its supply sags.
 
 BAM requires Newton with ``MJWarpSolverCfg`` on MuJoCo Warp (``use_mujoco_cpu=False``) and
 :attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators` set to ``True``; other backends and solvers
-raise an error. Newton runs the firmware (:class:`~newton.actuators.DriveVoltageControlled`), the current
-and PWM limits (:class:`~newton.actuators.ClampingCurrentPWM`), the DC motor
+raise an error. Newton runs the firmware (:class:`~newton.actuators.DrivePD` with duty output), the current
+and PWM limits (:class:`~newton.actuators.ClampingCurrentDuty`), the DC motor
 (:class:`~newton.actuators.MotorDC`), the supply (:class:`~newton.actuators.BatteryConstantResistance`),
 the command delay (:class:`~newton.actuators.InputProcessorDelay`) and the play-angle read
 (:class:`~newton.actuators.InputProcessorEncoder`). Isaac Lab draws the command lag and computes the
@@ -915,21 +918,10 @@ never rises above ``vin``. The supply settles only under Newton's bound ``R_b * 
 group sets apply to every joint in it. Set the reflected rotor inertia through ``armature`` or on
 the joint.
 
-Like other explicit actuators, BAM is authored onto the joints' existing BAM actuator prims (see
-:ref:`Existing USD actuators <actuators-usd-override>`). A field left as ``None``, here or in
-``motor``, keeps the asset's value, so a task can change one setting of a fitted servo asset:
-
-.. code-block:: python
-
-    "servos": BamActuatorCfg(joint_names_expr=[".*"], kp_fw=150.0, motor=BamMotorCfg(friction_base=0.006))
-
-A joint without a BAM actuator gets a new one, which needs the motor fit (``model``, ``kt``,
-``resistance``, ``error_gain``, ``max_current``, and ``friction_base``), ``kp_fw``, and ``vin``.
-Only a new actuator gets the defaults in the table below. On an existing one, a value that neither
-the asset nor the config sets is left to the Newton drive: a missing ``model`` means ``m1`` friction,
-a missing ``max_current`` no current limit, and the drive raises if any other value it requires is
-missing. Without a ``vin_min`` or delay setting from the asset or the config, the supply has only
-its 0 V floor and commands are not delayed.
+BAM replaces the selected joints' USD actuators with its native composition. Supply, random lag,
+and gearbox friction are owned by the group configuration, so supply the complete motor fit
+(``model``, ``kt``, ``resistance``, ``error_gain``, ``max_current``, and ``friction_base``), ``kp_fw``,
+and ``vin``. The remaining values take the defaults in the table below.
 
 .. list-table:: BAM motor coefficients (rotational servo)
    :header-rows: 1
@@ -963,7 +955,7 @@ its 0 V floor and commands are not delayed.
 
 Nothing clamps the motor torque after the motor: the current limiter holds it at ``kt * max_current``
 unless the PWM range overrides the limiter at high joint speed, where the back-EMF brakes harder.
-``actuator_effort_limit`` must stay unset, since Newton's clamps act on the voltage command of a motor.
+``actuator_effort_limit`` must stay unset, since Newton's clamps act on the motor's duty command.
 ``joint_effort_limit`` is unchanged; keep it above ``kt * max_current``.
 
 MJWarp coupling
@@ -1014,8 +1006,8 @@ arrays; write them in place, for example through :func:`warp.to_torch`:
       - Multiplier of the dry-friction budget [-], shape ``(num_envs, num_joints)``
       - -- (defaults to 1)
 
-Start-up ranges are sampled once per environment and kept across resets. The firmware gain is the
-drive's ``kp`` (``kp_fw``), and its duty-cycle factor the drive's ``error_gain``, readable and writable
+Start-up ranges are sampled once per environment and kept across resets. The drive's ``kp`` is
+``kp_fw * error_gain``, readable and writable
 through :func:`~isaaclab.actuators.newton.read_group_parameter` and
 :func:`~isaaclab.actuators.newton.write_group_parameter`. To resample friction every episode, add a reset
 event:
