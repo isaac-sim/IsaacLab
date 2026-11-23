@@ -1813,13 +1813,13 @@ version = "7.0.3"
 source = { editable = "source/isaaclab_contrib" }
 dependencies = [
     { name = "isaaclab" },
-    { name = "isaaclab-model-bridge" },
+    { name = "isaaclab-neural-bridge" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "isaaclab", editable = "source/isaaclab" },
-    { name = "isaaclab-model-bridge", editable = "source/isaaclab_model_bridge" },
+    { name = "isaaclab-neural-bridge", editable = "source/isaaclab_neural_bridge" },
 ]
 
 [[package]]
@@ -1827,14 +1827,14 @@ name = "isaaclab-cosmos-server"
 version = "0.1.0"
 source = { editable = "source/isaaclab_cosmos_server" }
 dependencies = [
-    { name = "isaaclab-model-bridge" },
+    { name = "isaaclab-neural-bridge" },
     { name = "lazy-loader" },
     { name = "numpy" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "isaaclab-model-bridge", editable = "source/isaaclab_model_bridge" },
+    { name = "isaaclab-neural-bridge", editable = "source/isaaclab_neural_bridge" },
     { name = "lazy-loader", specifier = ">=0.4" },
     { name = "numpy", specifier = ">=2" },
 ]
@@ -1863,7 +1863,7 @@ dependencies = [
     { name = "isaaclab-cosmos-server" },
     { name = "isaaclab-experimental" },
     { name = "isaaclab-isaacsim" },
-    { name = "isaaclab-model-bridge" },
+    { name = "isaaclab-neural-bridge" },
     { name = "isaaclab-newton" },
     { name = "isaaclab-ov" },
     { name = "isaaclab-ppisp" },
@@ -2102,7 +2102,7 @@ requires-dist = [
     { name = "isaaclab-isaacsim", editable = "source/isaaclab_isaacsim" },
     { name = "isaaclab-mimic", marker = "extra == 'mimic'", editable = "source/isaaclab_mimic" },
     { name = "isaaclab-mimic", marker = "extra == 'teleop'", editable = "source/isaaclab_mimic" },
-    { name = "isaaclab-model-bridge", editable = "source/isaaclab_model_bridge" },
+    { name = "isaaclab-neural-bridge", editable = "source/isaaclab_neural_bridge" },
     { name = "isaaclab-newton", editable = "source/isaaclab_newton" },
     { name = "isaaclab-ov", editable = "source/isaaclab_ov" },
     { name = "isaaclab-ppisp", editable = "source/isaaclab_ppisp" },
@@ -2249,9 +2249,9 @@ requires-dist = [
 ]
 
 [[package]]
-name = "isaaclab-model-bridge"
+name = "isaaclab-neural-bridge"
 version = "0.1.0"
-source = { editable = "source/isaaclab_model_bridge" }
+source = { editable = "source/isaaclab_neural_bridge" }
 dependencies = [
     { name = "lazy-loader" },
     { name = "numpy" },

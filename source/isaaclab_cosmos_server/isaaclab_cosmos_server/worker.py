@@ -11,8 +11,8 @@ import argparse
 import logging
 import os
 
-from isaaclab_model_bridge import serve
-from isaaclab_model_bridge.protocol import default_endpoint
+from isaaclab_neural_bridge import serve
+from isaaclab_neural_bridge.protocol import default_endpoint
 
 from isaaclab_cosmos_server.framework import CosmosInferenceModel
 

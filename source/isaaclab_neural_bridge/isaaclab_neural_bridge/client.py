@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Client side of the model bridge: one generation session with a model service."""
+"""Client side of the neural bridge: one generation session with a model service."""
 
 from __future__ import annotations
 

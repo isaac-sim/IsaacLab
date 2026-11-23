@@ -30,8 +30,8 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
-from isaaclab_model_bridge import protocol, serve
-from isaaclab_model_bridge import server as service_module
+from isaaclab_neural_bridge import protocol, serve
+from isaaclab_neural_bridge import server as service_module
 
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils.tensor_processors import TensorProcessorCfg
@@ -233,7 +233,7 @@ def _single_frame_processor(endpoint, num_views=1, *, seed=0, image_size=None, *
 
 def _open_request(**fields) -> dict:
     """Return an ``open`` request for one 2 x 3 view, with ``fields`` replacing or adding to its fields or, for
-    fields the model bridge does not define, to its Cosmos settings."""
+    fields the neural bridge does not define, to its Cosmos settings."""
     request = {"op": "open", "num_views": 1, "seeds": [1], "height": 2, "width": 3, "transport": None, "ipc": None}
     settings = {"prompt": None, "max_episode_frames": 9, "fps": 30.0}
     for name, value in fields.items():
@@ -389,7 +389,7 @@ def test_a_prompt_list_cycles_per_episode_over_one_session(cosmos_service):
 
 
 def test_prompt_lists_must_hold_text_and_the_service_passes_settings_to_the_model(cosmos_service):
-    """The model bridge checks no model settings; the model receives them as sent (Cosmos checks its own)."""
+    """The neural bridge checks no model settings; the model receives them as sent (Cosmos checks its own)."""
     with pytest.raises(ValueError, match="nonempty"):
         CosmosClient(CosmosClientCfg(max_episode_frames=13, prompt=["", "Two"]))
     with pytest.raises(ValueError, match="nonempty"):
@@ -998,7 +998,7 @@ def test_transport_keeps_images_on_gpus_that_can_access_each_other(
     transport, device, capabilities, available, service_gpu, peer, expected, monkeypatch, caplog
 ):
     """Auto uses CUDA IPC for a service on this machine and this or a peer GPU; the socket is the fallback."""
-    from isaaclab_model_bridge import ipc
+    from isaaclab_neural_bridge import ipc
 
     monkeypatch.setattr(ipc, "available", lambda: available)
     monkeypatch.setattr(ipc, "gpu_uuid", lambda index: _CAMERA_GPU)
@@ -1026,7 +1026,7 @@ def test_transport_keeps_images_on_gpus_that_can_access_each_other(
 @pytest.mark.parametrize("case", [None, "created", "opened", "unconfirmed"])
 def test_cuda_ipc_channel_releases_the_other_process_buffer_first_and_its_own_only_once_released(monkeypatch, case):
     """Freeing memory another process still has open is undefined in CUDA, so each side releases the other's first."""
-    from isaaclab_model_bridge import ipc
+    from isaaclab_neural_bridge import ipc
 
     acquired, released = [], []
 
@@ -1082,8 +1082,8 @@ def test_cuda_ipc_channel_releases_the_other_process_buffer_first_and_its_own_on
 )
 def test_a_service_rejects_a_camera_gpu_it_cannot_reach_directly(monkeypatch, camera_gpu, peer, message):
     """The service refuses a camera GPU it cannot see or access directly instead of copying through host memory."""
-    from isaaclab_model_bridge import ipc
-    from isaaclab_model_bridge import server as service
+    from isaaclab_neural_bridge import ipc
+    from isaaclab_neural_bridge import server as service
 
     monkeypatch.setattr(ipc, "device_by_uuid", lambda uuid: camera_gpu)
     monkeypatch.setattr(ipc, "can_access_peer", lambda index, peer_index: peer)
@@ -1138,7 +1138,7 @@ def test_a_rejected_open_frees_the_control_buffer_and_a_dropped_one_keeps_it(
     cosmos_service, monkeypatch, dropped, error, message, released
 ):
     """A service that rejects the session holds no buffer; one that stops answering may still read the controls."""
-    from isaaclab_model_bridge import ipc
+    from isaaclab_neural_bridge import ipc
 
     closed = []
 
@@ -1157,7 +1157,7 @@ def test_a_rejected_open_frees_the_control_buffer_and_a_dropped_one_keeps_it(
     def drop(self, metadata, arrays=()):
         raise ConnectionError("Cosmos connection closed")
 
-    from isaaclab_model_bridge.client import BridgeSession
+    from isaaclab_neural_bridge.client import BridgeSession
 
     monkeypatch.setattr(ipc, "SharedChannel", Channel)
     monkeypatch.setattr(ipc, "gpu_uuid", lambda index: _CAMERA_GPU)
@@ -1178,7 +1178,7 @@ def test_after_a_failure_the_service_frees_its_output_buffer_only_once_the_camer
     """The camera may have the output buffer open until it handles the error and disconnects. An idle timeout or the
     service's own shutdown ends the connection without that confirmation, so the buffer stays until the service exits.
     """
-    from isaaclab_model_bridge import server as service
+    from isaaclab_neural_bridge import server as service
 
     released = []
 
@@ -1237,7 +1237,7 @@ def test_after_a_failure_the_service_frees_its_output_buffer_only_once_the_camer
 
 def test_cuda_ipc_handles_keep_all_64_bytes_including_zero_bytes():
     """Driver handles are raw bytes; zero bytes must survive the trip to the other process."""
-    from isaaclab_model_bridge import ipc
+    from isaaclab_neural_bridge import ipc
 
     raw = bytes([7, 0]) + bytes(range(62))
     assert ipc._decode(ipc._encode(raw)) == raw
@@ -1255,7 +1255,7 @@ def test_a_service_without_cuda_ipc_rejects_shared_gpu_sessions(cosmos_service):
 _GPU_SERVICE = r"""
 import sys
 import torch
-from isaaclab_model_bridge import serve
+from isaaclab_neural_bridge import serve
 
 DEVICE = torch.device(sys.argv[2])
 

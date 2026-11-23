@@ -17,7 +17,7 @@ from contextlib import ExitStack, contextmanager
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from isaaclab_model_bridge.protocol import SEED_LIMIT
+from isaaclab_neural_bridge.protocol import SEED_LIMIT
 
 if TYPE_CHECKING:
     import torch
@@ -172,7 +172,7 @@ class CosmosInferenceModel:
             "max_concurrent_streams": 1,
             "initial_frames": 1,
             "update_frames": MAX_CHUNK_FRAMES,
-            # The model bridge sizes its shared GPU buffers for this many frames per view.
+            # The neural bridge sizes its shared GPU buffers for this many frames per view.
             "max_chunk_frames": MAX_CHUNK_FRAMES,
             "canvases": [list(canvas) for canvas in CANVAS_ASPECT_RATIOS],
             # The Framework restarts single rows of a batch only on its compiled CUDA-graph path.

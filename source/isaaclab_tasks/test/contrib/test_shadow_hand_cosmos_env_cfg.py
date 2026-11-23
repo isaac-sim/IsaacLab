@@ -38,7 +38,7 @@ def test_registering_the_cosmos_tasks_imports_no_cosmos_code():
 
         for task in ("Isaac-Reorient-Cube-Shadow-Camera-Direct", "Isaac-Reorient-Cube-Shadow-Camera"):
             load_cfg_from_registry(task, "env_cfg_entry_point")
-        cosmos = ("isaaclab_contrib.sensors.cosmos", "isaaclab_cosmos_server", "isaaclab_model_bridge")
+        cosmos = ("isaaclab_contrib.sensors.cosmos", "isaaclab_cosmos_server", "isaaclab_neural_bridge")
         assert not [name for name in sys.modules if name.startswith(cosmos)]
 
         load_cfg_from_registry("IsaacContrib-Reorient-Cube-Shadow-Camera-Cosmos-Direct", "env_cfg_entry_point")

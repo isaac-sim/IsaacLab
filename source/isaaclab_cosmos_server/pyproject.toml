@@ -10,25 +10,25 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "isaaclab_cosmos_server"
 version = "0.1.0"
-description = "Cosmos Transfer model for Isaac Lab cameras, served through the Isaac Lab model bridge."
+description = "Cosmos Transfer model for Isaac Lab cameras, served through the Isaac Lab neural bridge."
 license = {text = "BSD-3-Clause"}
 authors = [{name = "Isaac Lab Project Developers"}]
 maintainers = [{name = "Isaac Lab Project Developers"}]
 keywords = ["robotics", "simulation", "cosmos", "world model"]
 requires-python = ">=3.12"
 # The service runs in Cosmos Framework's environment, which provides the model and its Torch and CUDA stack, without
-# Isaac Lab. The model bridge carries its messages and shared GPU buffers.
+# Isaac Lab. The neural bridge carries its messages and shared GPU buffers.
 dependencies = [
     "numpy>=2",
     "lazy-loader>=0.4",
-    "isaaclab_model_bridge",
+    "isaaclab_neural_bridge",
 ]
 
 [project.scripts]
 isaaclab-cosmos-server = "isaaclab_cosmos_server.worker:main"
 
 [tool.uv.sources]
-isaaclab_model_bridge = { path = "../isaaclab_model_bridge", editable = true }
+isaaclab_neural_bridge = { path = "../isaaclab_neural_bridge", editable = true }
 
 [project.urls]
 Homepage = "https://github.com/isaac-sim/IsaacLab"

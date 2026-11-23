@@ -21,7 +21,7 @@ environments, cameras, and GPUs.
 
 The service runs in a Cosmos Framework environment, separate from Isaac Lab's, and keeps the model loaded between
 camera sessions. It uses Cosmos Framework for inference, and two packages of the Isaac Lab checkout:
-`isaaclab_cosmos_server`, which runs Cosmos for camera sessions, and `isaaclab_model_bridge`, which connects it to
+`isaaclab_cosmos_server`, which runs Cosmos for camera sessions, and `isaaclab_neural_bridge`, which connects it to
 Isaac Lab. It does not need the `isaaclab` distribution, Isaac Sim, or a running simulation.
 
 ### Install the server
@@ -42,7 +42,7 @@ export COSMOS_FRAMEWORK_ROOT=/absolute/path/to/cosmos-framework
 export COSMOS_CHECKPOINT=/absolute/path/to/Cosmos3-Nano-Sim-Transfer
 ```
 
-Create the Framework environment, install **only the `isaaclab_model_bridge` and `isaaclab_cosmos_server`
+Create the Framework environment, install **only the `isaaclab_neural_bridge` and `isaaclab_cosmos_server`
 packages** into it, and download the
 [Cosmos3-Nano-Sim-Transfer checkpoint](https://huggingface.co/nvidia/Cosmos3-Nano-Sim-Transfer):
 
@@ -50,7 +50,7 @@ packages** into it, and download the
 cd "$COSMOS_FRAMEWORK_ROOT"
 uv sync --locked --all-extras --group=cu130-train
 uv run --no-sync uv pip install \
-  --editable "$ISAAC_LAB_ROOT/source/isaaclab_model_bridge" \
+  --editable "$ISAAC_LAB_ROOT/source/isaaclab_neural_bridge" \
   --editable "$ISAAC_LAB_ROOT/source/isaaclab_cosmos_server"
 uv run --no-sync hf download nvidia/Cosmos3-Nano-Sim-Transfer --local-dir "$COSMOS_CHECKPOINT"
 ```
@@ -127,10 +127,10 @@ The implementation has three boundaries:
 | Package | Responsibility | Environment |
 | --- | --- | --- |
 | `isaaclab_contrib.sensors.cosmos` | Cosmos settings, prompts and episodes, and the camera client | Isaac Lab |
-| `isaaclab_model_bridge` | Messages, endpoints, socket and CUDA IPC transport, and the service loop, for any model | Both |
+| `isaaclab_neural_bridge` | Messages, endpoints, socket and CUDA IPC transport, and the service loop, for any model | Both |
 | `isaaclab_cosmos_server` | Checkpoint loading, inference, and the `isaaclab-cosmos-server` command | Cosmos Framework |
 
-The model bridge knows no model: the camera client sends Cosmos's settings, such as the prompt, the episode frame
+The neural bridge knows no model: the camera client sends Cosmos's settings, such as the prompt, the episode frame
 budget and the frame rate, and the service passes them to Cosmos, which checks them. Cosmos also tells clients its
 chunk sizes and canvases in `status`. The server imports neither the `isaaclab` distribution nor the camera client.
 The client uses Isaac Lab's Torch and NumPy dependencies without importing Cosmos Framework or loading model weights.
@@ -525,13 +525,13 @@ The **transport** is how control images go to the service, and generated images 
 
 `CosmosClientCfg.transport` defaults to `auto`: CUDA IPC when the service reports it, sees the camera's GPU (GPU UUIDs
 are unique across machines, so this also means it runs on this machine), and uses that GPU or a GPU with direct
-access to it, the socket otherwise. The service needs `warp-lang`, which `isaaclab_model_bridge` installs.
+access to it, the socket otherwise. The service needs `warp-lang`, which `isaaclab_neural_bridge` installs.
 `cuda_ipc` fails when it is unavailable instead of falling back. `status` lists the service's transports and the
 GPUs it can see. With the defaults on one Linux
 machine, image transport uses shared GPU buffers and the messages use the Unix socket, so no TCP is involved. CUDA
 IPC avoids the socket transport's 16-view protocol limit; available GPU memory still limits the batch size.
 
-Buffer ownership and release order are documented with `SharedChannel` in `isaaclab_model_bridge/ipc.py`,
+Buffer ownership and release order are documented with `SharedChannel` in `isaaclab_neural_bridge/ipc.py`,
 which shares the buffers and events through Warp's CUDA IPC.
 
 For Isaac Lab on another machine, start the service with `--endpoint tcp://127.0.0.1:5555` and forward that port,

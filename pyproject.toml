@@ -26,7 +26,7 @@ dependencies = [
     "isaaclab-contrib",
     "isaaclab-cosmos-server",
     "isaaclab-experimental",
-    "isaaclab-model-bridge",
+    "isaaclab-neural-bridge",
     "isaaclab-newton",
     "isaaclab-ov",
     "isaaclab-isaacsim",
@@ -471,7 +471,7 @@ isaaclab = { path = "source/isaaclab", editable = true }
 "isaaclab-cosmos-server" = { path = "source/isaaclab_cosmos_server", editable = true }
 "isaaclab-experimental" = { path = "source/isaaclab_experimental", editable = true }
 "isaaclab-mimic" = { path = "source/isaaclab_mimic", editable = true }
-"isaaclab-model-bridge" = { path = "source/isaaclab_model_bridge", editable = true }
+"isaaclab-neural-bridge" = { path = "source/isaaclab_neural_bridge", editable = true }
 "isaaclab-newton" = { path = "source/isaaclab_newton", editable = true }
 "isaaclab-ov" = { path = "source/isaaclab_ov", editable = true }
 "isaaclab-isaacsim" = { path = "source/isaaclab_isaacsim", editable = true }

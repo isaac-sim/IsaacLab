@@ -16,8 +16,8 @@ from contextlib import ExitStack
 from itertools import pairwise
 from typing import TYPE_CHECKING, Any, NamedTuple
 
-from isaaclab_model_bridge.client import BridgeSession, SentStep
-from isaaclab_model_bridge.protocol import SEED_LIMIT, parse_endpoint, request
+from isaaclab_neural_bridge.client import BridgeSession, SentStep
+from isaaclab_neural_bridge.protocol import SEED_LIMIT, parse_endpoint, request
 
 from .cosmos_client_cfg import MAX_CHUNK_FRAMES
 from .prompt_files import read_prompt_files
@@ -265,7 +265,7 @@ class _SentStep(NamedTuple):
 class _CosmosStream:
     """One service session generating a contiguous share of a camera's views as one batch.
 
-    The model bridge session holds the service connection, the transport, and the shared GPU buffers; this stream adds
+    The neural bridge session holds the service connection, the transport, and the shared GPU buffers; this stream adds
     Cosmos's settings, prompts and episodes.
     """
 

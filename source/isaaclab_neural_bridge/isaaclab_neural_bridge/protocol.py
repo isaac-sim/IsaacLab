@@ -131,7 +131,7 @@ def send_message(sock: socket.socket, metadata: dict, arrays: Sequence[np.ndarra
     if not isinstance(metadata, dict) or "arrays" in metadata:
         raise ProtocolError("Message metadata must be a dictionary without an 'arrays' field.")
     if metadata.get("version", PROTOCOL_VERSION) != PROTOCOL_VERSION:
-        raise ProtocolError("Unsupported model bridge protocol version.")
+        raise ProtocolError("Unsupported neural bridge protocol version.")
     if len(arrays) > MAX_ARRAYS:
         raise ProtocolError("Too many arrays in one message.")
     descriptors = []
@@ -166,7 +166,7 @@ def receive_message(sock: socket.socket) -> tuple[dict, list[np.ndarray]]:
     """Receive a bounded message, validating all descriptors before allocating image buffers."""
     magic, metadata_size, body_size = _HEADER.unpack(_receive_exact(sock, _HEADER.size))
     if magic != _MAGIC:
-        raise ProtocolError("Invalid model bridge message header.")
+        raise ProtocolError("Invalid neural bridge message header.")
     if not 0 < metadata_size <= MAX_METADATA_BYTES or body_size > MAX_ARRAY_BYTES:
         raise ProtocolError("The message exceeds the metadata or array size limit.")
     try:
@@ -176,7 +176,7 @@ def receive_message(sock: socket.socket) -> tuple[dict, list[np.ndarray]]:
     if not isinstance(metadata, dict) or type(metadata.get("version")) is not int:
         raise ProtocolError("Message metadata must include an integer protocol version.")
     if metadata["version"] != PROTOCOL_VERSION:
-        raise ProtocolError("Unsupported model bridge protocol version.")
+        raise ProtocolError("Unsupported neural bridge protocol version.")
     descriptors = metadata.pop("arrays", None)
     if not isinstance(descriptors, list) or len(descriptors) > MAX_ARRAYS:
         raise ProtocolError("Invalid array descriptor list.")
@@ -229,7 +229,7 @@ def check_reply(reply: dict) -> None:
 
 
 class ProtocolError(ValueError):
-    """Invalid or oversized model bridge message data."""
+    """Invalid or oversized neural bridge message data."""
 
 
 def _receive_exact(sock: socket.socket, size: int) -> bytearray:

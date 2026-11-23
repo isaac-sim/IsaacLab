@@ -19,12 +19,12 @@ requires-python = ">=3.12"
 # Only interpackage dependencies should go here.
 dependencies = [
     "isaaclab",
-    "isaaclab_model_bridge",
+    "isaaclab_neural_bridge",
 ]
 
 [tool.uv.sources]
 isaaclab = { path = "../isaaclab", editable = true }
-isaaclab_model_bridge = { path = "../isaaclab_model_bridge", editable = true }
+isaaclab_neural_bridge = { path = "../isaaclab_neural_bridge", editable = true }
 
 [project.urls]
 Homepage = "https://github.com/isaac-sim/IsaacLab"

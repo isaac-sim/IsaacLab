@@ -8,7 +8,7 @@ requires = ["setuptools>=70.0,<82.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "isaaclab_model_bridge"
+name = "isaaclab_neural_bridge"
 version = "0.1.0"
 description = "Connects Isaac Lab to a model served by its own process: messages, socket and CUDA IPC transport, and the service loop."
 license = {text = "BSD-3-Clause"}
@@ -34,7 +34,7 @@ include-package-data = true
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["isaaclab_model_bridge", "isaaclab_model_bridge.*"]
+include = ["isaaclab_neural_bridge", "isaaclab_neural_bridge.*"]
 
 [tool.setuptools.package-data]
 "*" = ["*.pyi"]

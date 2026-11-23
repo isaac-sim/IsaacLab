@@ -16,7 +16,7 @@ import argparse
 import json
 import sys
 
-from isaaclab_model_bridge.protocol import DEFAULT_TIMEOUT_S, request
+from isaaclab_neural_bridge.protocol import DEFAULT_TIMEOUT_S, request
 
 from .cosmos_client_cfg import DEFAULT_ENDPOINT
 

@@ -26,7 +26,7 @@ import numpy as np
 import pytest
 import torch
 from isaaclab_cosmos_server import framework
-from isaaclab_model_bridge import protocol, serve
+from isaaclab_neural_bridge import protocol, serve
 
 from isaaclab_contrib.sensors.cosmos import CosmosClient, CosmosClientCfg
 
@@ -213,7 +213,7 @@ def test_a_single_frame_client_generates_through_the_service_on_the_server_strea
 
 
 def test_a_prompt_changes_only_with_an_episode_reset(batch):
-    """The model bridge passes a step's episode settings through; Cosmos takes a new prompt only with a reset."""
+    """The neural bridge passes a step's episode settings through; Cosmos takes a new prompt only with a reset."""
     stream, _ = batch(views=1)
     with pytest.raises(ValueError, match="only with an episode reset"):
         stream.step(_controls((1, 1)), (), (), prompt="A kitchen.")

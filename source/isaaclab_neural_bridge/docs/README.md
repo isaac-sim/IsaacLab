@@ -1,7 +1,8 @@
-# Isaac Lab: model bridge
+# Isaac Lab: neural bridge
 
 Connects Isaac Lab to a model that runs in its own process and Python environment, for example a model that needs
-another Torch version. Both processes install this package; it imports neither Isaac Lab nor a model framework.
+another Torch version. Both processes install this package; it imports neither Isaac Lab nor a model framework. It
+is separate from `isaaclab_neural`, the neural backend, because the model's environment installs it without Isaac Lab.
 
 - `protocol.py`: bounded messages, endpoints (`unix:///path` or `tcp://host:port`), and one-shot requests.
 - `ipc.py`: GPU buffers and events shared between the two processes on one Linux machine, through Warp's CUDA IPC.

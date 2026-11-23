@@ -10,7 +10,7 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING, Any, Literal
 
-from isaaclab_model_bridge.protocol import DEFAULT_TIMEOUT_S, default_endpoint
+from isaaclab_neural_bridge.protocol import DEFAULT_TIMEOUT_S, default_endpoint
 
 from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
