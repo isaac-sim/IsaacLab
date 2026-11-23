@@ -86,7 +86,7 @@ def main() -> int:
     )
     parser.add_argument("--output_dir", type=Path, default=Path("logs/demos/sharpa_rj45"))
     add_launcher_args(parser)
-    parser.set_defaults(visualizer=["newton_gl"])
+    parser.set_defaults(visualizer=["newton"])
     args = parser.parse_args()
     if args.num_steps <= 0:
         parser.error("--num_steps must be positive")
@@ -511,7 +511,8 @@ def _run(args: argparse.Namespace) -> int:
         ]
     with launch_simulation(cfg, args):
         cfg.sim.physics.load_visual_shapes = any(
-            viz.backend.visualizer_type == "newton_gl" for viz in cfg.sim.visualizer_cfgs
+            viz.backend.visualizer_type == "newton" and viz.backend.initial_renderer == "opengl"
+            for viz in cfg.sim.visualizer_cfgs
         )
         rack_path = configure_visual_scene(cfg)
         env = instantiate(cfg)

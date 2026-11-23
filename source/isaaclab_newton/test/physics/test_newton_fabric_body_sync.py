@@ -29,7 +29,7 @@ import warp as wp
 from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
 from isaaclab_isaacsim.renderers.fabric import FabricBackend, FabricBackendCfg
 from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, VBDSolverCfg, XPBDSolverCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, VBDSolverCfg, XPBDSolverCfg
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_visualizers.kit import KitBackendCfg
 
@@ -521,6 +521,9 @@ def test_cable_points_follow_newton_segments_after_step_and_reset():
         gravity=(0.0, 0.0, -9.81),
         physics=NewtonCfg(
             solver_cfg=VBDSolverCfg(iterations=2),
+            collision_cfg=NewtonCollisionPipelineCfg(
+                sdf_all_shapes=NewtonCollisionPipelineCfg.SDFAllShapesCfg(sdf_max_resolution=32)
+            ),
             num_substeps=1,
             use_cuda_graph=False,
         ),

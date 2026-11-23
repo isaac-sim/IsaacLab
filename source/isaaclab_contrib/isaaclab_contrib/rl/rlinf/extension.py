@@ -488,6 +488,7 @@ def _create_generic_env_wrapper(task_id: str) -> type:
         def chunk_step(self, chunk_actions):
             """Retire actions predicted for an episode once that episode has reset."""
             if self._hold_pose_on_midchunk_reset:
+                chunk_actions = chunk_actions.to(self.device)
                 self._chunk_done = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
             result = super().chunk_step(chunk_actions)
             self._chunk_done = self._hold_actions = None
