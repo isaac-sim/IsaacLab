@@ -9,7 +9,7 @@ An ``OmniLidar`` prim carries the scan. ``model_name`` is ``LidarWpm`` or ``Lida
 model attributes are written explicitly because the host USD runtime does not have the
 ``omniSensor`` schema registered. An unregistered ``OmniLidar`` type is not Xformable, so the pose
 written to the renderer is the configured offset composed with the parent prim's world pose.
-The OVRTX renderer is the current capture implementation.
+A renderer that implements lidar capture reads those attributes.
 """
 
 from __future__ import annotations
@@ -22,6 +22,7 @@ import warp as wp
 
 from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
+from isaaclab.renderers.sensor_render_spec import SensorRenderSpec
 from isaaclab.sim.utils.prims import clone, get_current_stage
 from isaaclab.sim.views import FrameView
 from isaaclab.utils import math as math_utils
@@ -189,15 +190,7 @@ class Lidar(SensorBase):
 
         Args:
             cfg: Lidar configuration. ``renderer_cfg`` selects the renderer that captures the scan.
-                The OVRTX renderer is the current capture implementation.
-
-        Raises:
-            ValueError: If ``renderer_cfg`` does not support lidar capture. Only OVRTX is supported.
         """
-        if getattr(cfg.renderer_cfg, "renderer_type", None) != "ovrtx":
-            renderer = getattr(cfg.renderer_cfg, "renderer_type", type(cfg.renderer_cfg).__name__)
-            raise ValueError(f"Lidar capture currently supports only the OVRTX renderer, got {renderer!r}.")
-
         super().__init__(cfg)
 
         self._data: LidarData | None = None
@@ -243,8 +236,8 @@ class Lidar(SensorBase):
             self._parent_view = None
 
         renderer = getattr(self, "_renderer", None)
-        if renderer is not None and hasattr(renderer, "cleanup_lidar"):
-            renderer.cleanup_lidar(getattr(self, "_render_data", None))
+        if renderer is not None:
+            renderer.cleanup(getattr(self, "_render_data", None))
 
     @property
     def data(self) -> LidarData:
@@ -265,9 +258,6 @@ class Lidar(SensorBase):
                 # A repeated read in this physics step must render again. The base update only
                 # captures when the buffers are dirty.
                 self._data_dirty = True
-                invalidate = getattr(self._renderer, "invalidate_sensor_capture", None)
-                if invalidate is not None:
-                    invalidate()
             super().update(dt, force_recompute=force_recompute)
         finally:
             self._force_capture = False
@@ -287,9 +277,7 @@ class Lidar(SensorBase):
             device=self._device,
         )
 
-        invalidate = getattr(self._renderer, "invalidate_sensor_capture", None)
-        if invalidate is not None:
-            invalidate()
+        self._renderer.reset(self._render_data)
 
     def _initialize_impl(self):
         """Allocate the return buffers and register the tiled lidar product."""
@@ -312,20 +300,22 @@ class Lidar(SensorBase):
         if not lidar_paths:
             raise RuntimeError(f"Lidar prim '{self.cfg.prim_path}' was not found after the scene was cloned.")
 
-        self._render_data = self._renderer.create_lidar_render_data(
-            prim_path=self.cfg.prim_path,
-            lidar_paths=lidar_paths,
-            num_envs=self._num_envs,
-            num_rays=num_rays,
-            points=self._data.points,
-            intensity=self._data.intensity,
-            valid=self._data.valid,
-            sample_dt=self._capture_interval(),
+        self._render_data = self._renderer.create_render_data(
+            SensorRenderSpec(
+                cfg=self.cfg,
+                device=str(self._device),
+                num_instances=self._num_envs,
+                prim_paths=tuple(lidar_paths),
+                view_count=self._num_envs,
+            )
+        )
+        self._renderer.set_outputs(
+            self._render_data,
+            {"points": self._data.points, "intensity": self._data.intensity, "valid": self._data.valid},
         )
 
-        register = getattr(self._renderer, "register_pose_update", None)
-        if register is not None and not self._pose_update_registered:
-            register(self._push_renderer_pose)
+        if not self._pose_update_registered:
+            self._renderer.register_pose_update(self._push_renderer_pose)
             self._pose_update_registered = True
 
         self._push_renderer_pose()
@@ -337,7 +327,7 @@ class Lidar(SensorBase):
         ``_render_data`` would leave the previous product and its output buffers registered.
         """
         if self._render_data is not None:
-            self._renderer.cleanup_lidar(self._render_data)
+            self._renderer.cleanup(self._render_data)
         self._render_data = None
         super()._invalidate_initialize_callback(event)
         if self._parent_view is not None:
@@ -354,7 +344,9 @@ class Lidar(SensorBase):
         if self.cfg.update_period > 0.0 and not self._force_capture and not bool(env_mask.numpy().any()):
             return
 
-        self._renderer.render_lidars(self._capture_interval(), force=self._force_capture)
+        self._sim.render_context.render_into_lidar(
+            self._renderer, self._render_data, self._sim.get_physics_step_count(), force=self._force_capture
+        )
 
     def _push_renderer_pose(self) -> None:
         """Write the current world pose of every tile. Safe to call more than once per step."""
@@ -362,18 +354,7 @@ class Lidar(SensorBase):
             return
 
         self._write_world_poses()
-        self._renderer.update_lidar(self._render_data, self._pos_w, self._quat_w)
-
-    def _capture_interval(self) -> float:
-        """Return the lidar sampling interval, in seconds.
-
-        A positive ``update_period`` is that interval. Otherwise the interval is the simulation
-        step, which is also the interval used when a camera shares this renderer.
-        """
-        if self.cfg.update_period > 0.0:
-            return float(self.cfg.update_period)
-
-        return float(self._sim_physics_dt)
+        self._renderer.update_sensor(self._render_data, self._pos_w, self._quat_w)
 
     def _write_world_poses(self) -> None:
         """Compose the configured offset with each parent world pose.

@@ -763,7 +763,7 @@ def test_camera_raises_on_unsupported_data_types(setup_sim_camera):
         def update_geometries(self):
             pass
 
-        def update_camera(self, render_data, positions, orientations, intrinsics):
+        def update_sensor(self, render_data, positions, orientations, intrinsics=None):
             pass
 
         def render(self, render_data):

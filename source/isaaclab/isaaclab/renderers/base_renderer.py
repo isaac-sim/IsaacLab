@@ -11,8 +11,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from .camera_render_spec import CameraRenderSpec
 from .output_contract import RenderBufferKind, RenderBufferSpec
+from .sensor_render_spec import SensorRenderSpec
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -89,14 +89,17 @@ class BaseRenderer(ABC):
         pass
 
     @abstractmethod
-    def create_render_data(self, spec: CameraRenderSpec) -> Any:
-        """Create render data for the given camera :class:`CameraRenderSpec`.
+    def create_render_data(self, spec: SensorRenderSpec) -> Any:
+        """Create render data for a camera or lidar spec.
 
         Args:
-            spec: Immutable description of the tiled camera (paths, config, device).
+            spec: Immutable description of the tiled camera or lidar.
 
         Returns:
             Renderer-specific data for subsequent :meth:`render` / :meth:`read_output` calls.
+
+        Raises:
+            NotImplementedError: If this renderer does not support the given spec.
         """
         pass
 
@@ -144,26 +147,27 @@ class BaseRenderer(ABC):
         pass
 
     @abstractmethod
-    def update_camera(
+    def update_sensor(
         self,
         render_data: Any,
         positions: ProxyArray,
         orientations: ProxyArray,
-        intrinsics: ProxyArray,
+        intrinsics: ProxyArray | None = None,
     ) -> None:
-        """Update camera poses and supply initial calibration for the next render.
+        """Update one sensor's world pose and, for a camera, its initial calibration.
 
-        Backends may use ``intrinsics`` to initialize projection state. Runtime calibration changes
-        are submitted separately through :meth:`update_camera_intrinsics`.
+        Backends may use ``intrinsics`` to initialize camera projection state. A lidar call omits
+        them. Runtime camera calibration changes are submitted separately through
+        :meth:`update_camera_intrinsics`.
 
         Args:
             render_data: The render data object from :meth:`create_render_data`.
-            positions: Camera positions in world frame. Shape ``(N,)``, dtype ``wp.vec3f``.
+            positions: Sensor positions in world frame. Shape ``(N,)``, dtype ``wp.vec3f``.
                 Use ``.torch`` for a ``(N, 3)`` tensor view.
-            orientations: Camera orientations as quaternions ``(x, y, z, w)``. Shape ``(N,)``,
+            orientations: Sensor orientations as quaternions ``(x, y, z, w)``. Shape ``(N,)``,
                 dtype ``wp.quatf``. Use ``.torch`` for a ``(N, 4)`` tensor view.
             intrinsics: Camera intrinsic matrices. Shape ``(N,)``, dtype ``wp.mat33f``.
-                Use ``.torch`` for a ``(N, 3, 3)`` tensor view.
+                Use ``.torch`` for a ``(N, 3, 3)`` tensor view. ``None`` for a lidar.
         """
         pass
 
@@ -185,13 +189,23 @@ class BaseRenderer(ABC):
         raise NotImplementedError(f"{type(self).__name__} does not support runtime camera calibration.")
 
     @abstractmethod
-    def render(self, render_data: Any) -> None:
+    def render(self, render_data: Any, *, force: bool = False) -> None:
         """Submit a capture; :meth:`read_output` publishes its camera's available observation.
 
         Args:
             render_data: The render data object from :meth:`create_render_data`.
+            force: When True, submit again even if this physics step already captured. Camera
+                callers omit it. Renderers that do not capture a lidar ignore it.
         """
         pass
+
+    def register_pose_update(self, callback: Callable) -> None:
+        """Remember a callback that refreshes sensor poses before a shared capture.
+
+        A renderer that submits several sensors in one step calls the callback first, so a sensor
+        whose own update has not run yet still contributes its current pose. The default does nothing.
+        """
+        del callback
 
     def render_batch(self, render_data: Sequence[Any]) -> None:
         """Submit captures for a collection of cameras.

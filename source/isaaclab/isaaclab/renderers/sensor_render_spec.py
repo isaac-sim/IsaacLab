@@ -3,34 +3,35 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Immutable description of a tiled camera passed to render backends."""
+"""Immutable description of a tiled camera or lidar passed to render backends."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
 from ..sensors.camera.camera_cfg import CameraCfg
+from ..sensors.lidar.lidar_cfg import LidarCfg
 
 
 @dataclass(frozen=True)
-class CameraRenderSpec:
+class SensorRenderSpec:
     """Stable inputs for :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.create_render_data`.
 
-    Backends use this instead of holding a reference to the :class:`~isaaclab.sensors.camera.Camera`
-    sensor instance, avoiding circular dependencies between sensors and render data.
+    Backends use this instead of holding a reference to the camera or lidar sensor instance,
+    avoiding circular dependencies between sensors and render data.
 
     Args:
-        cfg: Camera configuration (data types, resolution, filters, etc.).
+        cfg: Camera or lidar configuration.
         device: Torch device string (e.g. ``"cuda:0"``) used by GPU annotators and Warp.
-        num_instances: Number of tiled camera instances (environments).
-        camera_prim_paths: Absolute paths of the authored camera prims. When the renderer
-            clones environments internally, this may contain only the source camera path;
-            the renderer resolves its logical per-environment paths during registration.
-        view_count: Number of logical camera instances in the sensor view.
+        num_instances: Number of tiled sensor instances (environments).
+        prim_paths: Absolute paths of the authored sensor prims. When the renderer clones
+            environments internally, this may contain only the source prim path; the renderer
+            resolves its logical per-environment paths during registration.
+        view_count: Number of logical sensor instances in the sensor view.
     """
 
-    cfg: CameraCfg
+    cfg: CameraCfg | LidarCfg
     device: str
     num_instances: int
-    camera_prim_paths: tuple[str, ...]
+    prim_paths: tuple[str, ...]
     view_count: int

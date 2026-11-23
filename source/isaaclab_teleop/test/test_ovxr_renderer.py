@@ -25,8 +25,8 @@ import warp as wp
 
 from isaaclab.markers.vis_marker_registry import VisMarkerRegistry
 from isaaclab.renderers import BaseRenderer, RenderBufferKind
-from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 from isaaclab.renderers.renderer_cfg import RendererCfg
+from isaaclab.renderers.sensor_render_spec import SensorRenderSpec
 from isaaclab.sensors.camera import CameraCfg
 from isaaclab.sim import PinholeCameraCfg, SimulationContext
 from isaaclab.test.utils import DeviceScope, test_devices
@@ -172,7 +172,7 @@ def test_base_renderer_contract_under_the_session_lease(leased_renderer, monkeyp
     """Each ``BaseRenderer`` operation has the behavior the OVXR session requires, before and after the lease."""
     renderer = leased_renderer
     stage = renderer._sim.stage
-    spec = CameraRenderSpec(_make_camera_cfg(["rgb"]), "cpu", 1, ("/World/envs/env_0/Camera",), 1)
+    spec = SensorRenderSpec(_make_camera_cfg(["rgb"]), "cpu", 1, ("/World/envs/env_0/Camera",), 1)
     camera = object()
     frame = wp.zeros(1, dtype=wp.int64, device="cpu")
 
@@ -202,7 +202,7 @@ def test_base_renderer_contract_under_the_session_lease(leased_renderer, monkeyp
     with pytest.raises(RuntimeError, match="only the OVXR session's camera panels"):
         renderer.create_render_data(spec)
     with pytest.raises(RuntimeError, match="no such camera panel"):
-        renderer.update_camera(camera, None, None, None)
+        renderer.update_sensor(camera, None, None, None)
     for name, operation in {
         "render": lambda: renderer.render(camera),
         "render_batch": lambda: renderer.render_batch((camera,)),
@@ -789,14 +789,14 @@ def test_leased_material_updates_reach_the_reserved_scene(leased_renderer, monke
     context.finalize_consumers([])
     assert renderer._visual_material_writer_ref is not None
     if deferred:
-        spec = CameraRenderSpec(cfg, "cpu", 1, (cfg.prim_path,), 1)
+        spec = SensorRenderSpec(cfg, "cpu", 1, (cfg.prim_path,), 1)
         data = renderer.create_render_data(spec)
         monkeypatch.setattr(ovstage.population, "add_usd_reference_from_string", lambda *a: 1)
         monkeypatch.setattr(ovstage.population, "apply_usd_changes", lambda *a, **kw: None)
         token = lease.offer_owner_transfer()
         lease.claim_owner_transfer(token)
         assert lease.materialize_deferred_stage(renderer._sim.stage, 1)
-        renderer.update_camera(
+        renderer.update_sensor(
             data,
             wp.zeros(1, dtype=wp.vec3f, device="cpu"),
             wp.array([[0.0, 0.0, 0.0, 1.0]], dtype=wp.quatf, device="cpu"),
@@ -1000,7 +1000,7 @@ def test_leased_camera_cleanup_waits_for_lease_release(leased_renderer, monkeypa
     lease.configure_auxiliary_camera(cfg)
     _prepare_leased_renderer(renderer, bind=False)
     renderer.prepare_stage(renderer._sim.stage, 1)
-    data = renderer.create_render_data(CameraRenderSpec(cfg, "cpu", 1, (cfg.prim_path,), 1))
+    data = renderer.create_render_data(SensorRenderSpec(cfg, "cpu", 1, (cfg.prim_path,), 1))
     population = ovstage.population
     removed = []
     monkeypatch.setattr(population, "add_usd_reference_from_string", lambda *args: 7)
@@ -1029,8 +1029,8 @@ def test_only_the_session_camera_panel_is_accepted_and_its_pose_waits_for_public
         monkeypatch.setattr(ovstage.population, name, lambda *args, **kwargs: None)
     cfg = _make_camera_cfg(["rgb"])
     cfg.prim_path = "/World/Camera"
-    panel = CameraRenderSpec(cfg, "cpu", 1, (cfg.prim_path,), 1)
-    other = CameraRenderSpec(_make_camera_cfg(["rgb"]), "cpu", 1, ("/World/envs/env_0/Camera",), 1)
+    panel = SensorRenderSpec(cfg, "cpu", 1, (cfg.prim_path,), 1)
+    other = SensorRenderSpec(_make_camera_cfg(["rgb"]), "cpu", 1, ("/World/envs/env_0/Camera",), 1)
     lease = renderer.acquire_render_lease()
     try:
         lease.configure_auxiliary_camera(cfg)
@@ -1053,9 +1053,9 @@ def test_only_the_session_camera_panel_is_accepted_and_its_pose_waits_for_public
         stage = renderer.scene.stage
         stage.write_attribute.reset_mock()
         position = wp.array([[1.0, 2.0, 3.0]], dtype=wp.vec3f, device="cpu")
-        renderer.update_camera(data, position, wp.array([[0.0, 0.0, 0.0, 1.0]], dtype=wp.quatf, device="cpu"), None)
+        renderer.update_sensor(data, position, wp.array([[0.0, 0.0, 0.0, 1.0]], dtype=wp.quatf, device="cpu"), None)
         with pytest.raises(RuntimeError, match="no such camera panel"):
-            renderer.update_camera(object(), position, None, None)
+            renderer.update_sensor(object(), position, None, None)
         stage.write_attribute.assert_not_called()
         assert publisher.publish("step", _Ledger(23)) == 23
         (pose,) = [c for c in stage.write_attribute.call_args_list if c.args[1] == "omni:xform"]
@@ -1083,7 +1083,7 @@ def test_panel_product_is_pinned_to_the_simulation_gpu_or_unpinned_on_a_cpu_devi
         renderer._warp_device = types.SimpleNamespace(is_cuda=True, ordinal=cuda_ordinal)
     cfg = _make_camera_cfg(["rgb"])
     cfg.render_settings = render_settings
-    spec = CameraRenderSpec(cfg, "cpu", 1, ("/World/Camera",), 1)
+    spec = SensorRenderSpec(cfg, "cpu", 1, ("/World/Camera",), 1)
     data = ovxr_scene_module._OvxrPanelRenderData(spec, "RenderCamera_3", "cpu")
     layer = Sdf.Layer.CreateAnonymous()
     assert layer.ImportFromString(renderer._panel_product_usd(spec, data))
@@ -1123,7 +1123,7 @@ def test_panel_population_selects_frame_rates_only_for_rate_limited_panels(lease
     try:
         lease.configure_auxiliary_camera(cfg, max_fps=max_fps)
         lease.create_native_pair()
-        renderer._panels.cameras[0].spec = CameraRenderSpec(cfg, "cpu", 1, (cfg.prim_path,), 1)
+        renderer._panels.cameras[0].spec = SensorRenderSpec(cfg, "cpu", 1, (cfg.prim_path,), 1)
         renderer._panels.populate(usd)
         scene = renderer.scene
         domains = scene.cfg.population_domains
@@ -1149,9 +1149,7 @@ def test_external_camera_matches_the_actual_custom_clone_root(leased_renderer):
     renderer.scene = types.SimpleNamespace(clone_env_paths=["/Lab/Cell0"])
     cfg = types.SimpleNamespace(prim_path="{ENV_REGEX_NS}/Robot/Head", width=640, height=480, data_types=("rgb",))
     lease.configure_auxiliary_camera(cfg)
-    spec = types.SimpleNamespace(
-        cfg=cfg, num_instances=1, view_count=1, camera_prim_paths=("/Lab/Cell0/Robot/Head/camera",)
-    )
+    spec = types.SimpleNamespace(cfg=cfg, num_instances=1, view_count=1, prim_paths=("/Lab/Cell0/Robot/Head/camera",))
     assert renderer._panels.accept(spec)
     assert renderer._panels.cameras[0].spec is spec
     lease.release()
@@ -1166,7 +1164,7 @@ def test_only_a_matched_multi_view_camera_is_rejected_as_external(leased_rendere
     lease.configure_auxiliary_camera(cfg)
 
     def tiled(path):
-        return types.SimpleNamespace(cfg=cfg, num_instances=2, view_count=2, camera_prim_paths=(path, path))
+        return types.SimpleNamespace(cfg=cfg, num_instances=2, view_count=2, prim_paths=(path, path))
 
     try:
         assert renderer._panels.accept(tiled("/World/envs/env_0/Other")) is None
@@ -1183,7 +1181,7 @@ def test_selected_external_camera_order_is_independent_of_sensor_preparation(lea
     for name, hz in zip(("Head", "Left", "Right", "Overview"), (20, 10, 10, 5), strict=True):
         cfg = types.SimpleNamespace(prim_path=f"/World/{name}", width=640, height=480, data_types=("rgb",))
         lease.configure_auxiliary_camera(cfg, max_fps=hz)
-        specs.append(types.SimpleNamespace(cfg=cfg, num_instances=1, view_count=1, camera_prim_paths=(cfg.prim_path,)))
+        specs.append(types.SimpleNamespace(cfg=cfg, num_instances=1, view_count=1, prim_paths=(cfg.prim_path,)))
     for spec in reversed(specs):
         assert renderer._panels.accept(spec)
     assert [camera.spec for camera in renderer._panels.cameras] == specs
@@ -1199,7 +1197,7 @@ def test_external_camera_schedules_preserve_export_composition(leased_renderer, 
     asset = tmp_path / "robot.usda"
     asset.write_text('#usda 1.0\n(defaultPrim = "Robot")\ndef Xform "Robot" {\n def Camera "Head" {\n }\n}\n')
     usd = f'#usda 1.0\ndef Xform "World" {{\n def "Robot" (prepend references = @{asset}@) {{\n }}\n}}\n'
-    camera = types.SimpleNamespace(max_fps=max_fps, spec=types.SimpleNamespace(camera_prim_paths=["/World/Robot/Head"]))
+    camera = types.SimpleNamespace(max_fps=max_fps, spec=types.SimpleNamespace(prim_paths=["/World/Robot/Head"]))
     leased_renderer._panels.cameras = [camera]
     authored = leased_renderer._panels._author_schedules(usd)
     if max_fps is None:
@@ -1212,7 +1210,7 @@ def test_external_camera_schedules_preserve_export_composition(leased_renderer, 
     head = stage.GetPrimAtPath("/World/Robot/Head")
     assert head.GetAttribute("omni:sensor:frameRate").Get() == (20.0, 1.0)
     assert head.GetAttribute("omni:sensor:Core:partialOutputs").Get() is False
-    camera.spec.camera_prim_paths = ["/World/Robot/Missing"]
+    camera.spec.prim_paths = ["/World/Robot/Missing"]
     with pytest.raises(RuntimeError, match="absent from the exported Stage"):
         leased_renderer._panels._author_schedules(usd)
 
@@ -1250,7 +1248,7 @@ def Xform "World" {
             cfg.prim_path = path
             lease.configure_auxiliary_camera(cfg, max_fps=max_fps)
         for camera in renderer._panels.cameras:
-            camera.spec = types.SimpleNamespace(camera_prim_paths=[camera.cfg.prim_path])
+            camera.spec = types.SimpleNamespace(prim_paths=[camera.cfg.prim_path])
         renderer.scene = OvstageBackend(OvstageBackendCfg())
         resources.callback(renderer.scene.close)
         renderer._panels.populate(source)
@@ -1477,7 +1475,7 @@ def test_panel_products_request_the_simulation_gpu_only_when_it_renders(simulati
     renderer = OvxrRenderer(OvxrRendererCfg(active_cuda_gpus=active_cuda_gpus), sim=SimulationContext.instance())
     renderer._device = simulation
     renderer._warp_device = types.SimpleNamespace(is_cuda=simulation != "cpu", ordinal=2 if simulation != "cpu" else -1)
-    spec = CameraRenderSpec(_make_camera_cfg(["rgb"]), "cpu", 1, ("/World/Camera",), 1)
+    spec = SensorRenderSpec(_make_camera_cfg(["rgb"]), "cpu", 1, ("/World/Camera",), 1)
     data = ovxr_scene_module._OvxrPanelRenderData(spec, "RenderCamera_0", "cpu")
     layer = Sdf.Layer.CreateAnonymous()
     assert layer.ImportFromString(renderer._panel_product_usd(spec, data))

@@ -19,7 +19,7 @@ import torch
 import warp as wp
 
 from isaaclab.assets import AssetBaseCfg
-from isaaclab.renderers.camera_render_spec import CameraRenderSpec
+from isaaclab.renderers.sensor_render_spec import SensorRenderSpec
 from isaaclab.sensors.camera import CameraCfg
 from isaaclab.sensors.camera.camera_data import CameraData, RenderBufferKind, RenderBufferSpec
 from isaaclab.sim import PinholeCameraCfg, SimulationContext
@@ -44,6 +44,7 @@ if not _MISSING_MODULES:
         _DISABLE_LINUX_CUDA_CPU_SYNC_ENV,
         OVRTXBackend,
         OVRTXCameraRenderData,
+        OVRTXLidarRenderData,
         OVRTXRenderer,
         _AsyncWriteBuffers,
         _gpu_side_render_var_sync_enabled,
@@ -75,7 +76,7 @@ def _make_camera_cfg(data_types: list[str]) -> CameraCfg:
 
 
 def _make_ovrtx_camera_render_data() -> OVRTXCameraRenderData:
-    spec = CameraRenderSpec(_make_camera_cfg(["rgb"]), "cpu", 2, ("/World/envs/env_0/Camera",), 2)
+    spec = SensorRenderSpec(_make_camera_cfg(["rgb"]), "cpu", 2, ("/World/envs/env_0/Camera",), 2)
     return OVRTXCameraRenderData(spec, "RenderCamera_0", [f"/World/envs/env_{i}/Camera" for i in range(2)])
 
 
@@ -385,7 +386,8 @@ def test_shared_lidar_capture_steps_once_and_publishes_prepared_cameras(monkeypa
         products[camera.render_product_path] = types.SimpleNamespace(frames=[object()])
     renderer._camera_render_data = cameras
     renderer.backend.render_products.update(camera.render_product_path for camera in cameras)
-    lidar = types.SimpleNamespace(render_product_path="/Render/Lidar")
+    lidar = OVRTXLidarRenderData("RenderLidar", ["/Lidar"], 1, 1)
+    lidar.render_product_path = "/Render/Lidar"
     renderer._lidar_render_data = [lidar]
     renderer.backend.render_products.add("/Render/Lidar")
     products["/Render/Lidar"] = types.SimpleNamespace(frames=[object()])
@@ -400,22 +402,23 @@ def test_shared_lidar_capture_steps_once_and_publishes_prepared_cameras(monkeypa
     monkeypatch.setattr(renderer, "_process_render_frame", lambda *args: processed.append(args[0]))
     monkeypatch.setattr(renderer, "_publish_lidar_output", lambda *_args, **_kwargs: None)
 
+    lidar.sample_dt = 0.1
     renderer.render_batch((cameras[0],))
-    renderer.render_lidars(0.1)
+    renderer.render(lidar)
 
     assert len(submissions) == 1
     assert submissions[0]["delta_time"] == pytest.approx(0.1)
     assert submissions[0]["render_products"] == {"/Render/Camera0", "/Render/Camera1", "/Render/Lidar"}
     assert processed == [cameras[0]]
 
-    renderer.render_lidars(0.1, force=True)
+    renderer.render(lidar, force=True)
 
     assert len(submissions) == 2
     assert submissions[1]["delta_time"] == pytest.approx(0.1)
     assert processed == [cameras[0]]
 
     renderer._sim.get_physics_step_count = lambda: 5
-    renderer.render_lidars(0.1)
+    renderer.render(lidar)
     assert processed == [cameras[0]]
     renderer.render_batch((cameras[0],))
 
@@ -448,7 +451,7 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, capfd, use
     from pxr import Gf, Usd, UsdGeom, UsdLux
 
     from isaaclab.cloner import make_clone_plan, replicate
-    from isaaclab.renderers.camera_render_spec import CameraRenderSpec
+    from isaaclab.renderers.sensor_render_spec import SensorRenderSpec
     from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
     from isaaclab.utils.math import convert_camera_frame_orientation_convention
     from isaaclab.utils.warp import ProxyArray
@@ -566,14 +569,12 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, capfd, use
                 ["rgb", "distance_to_image_plane"] if index == 0 else ["rgb", "distance_to_image_plane", "normals"]
             )
             cfg.height, cfg.width = height, width
-            spec = CameraRenderSpec(
+            spec = SensorRenderSpec(
                 cfg=cfg,
                 device="cuda:0",
                 num_instances=2,
                 view_count=2,
-                camera_prim_paths=tuple(
-                    env_template.format(i) + f"/cam{index}" for i in range(1 if use_ovstage else 2)
-                ),
+                prim_paths=tuple(env_template.format(i) + f"/cam{index}" for i in range(1 if use_ovstage else 2)),
             )
             rd = renderer.create_render_data(spec)
             data = CameraData.allocate(
@@ -642,7 +643,7 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, capfd, use
         orientations = ProxyArray(wp.from_torch(quats, dtype=wp.quatf))
         with monkeypatch.context() as patches:
             patches.setattr(wp, "empty", MagicMock(side_effect=AssertionError("Camera updates must reuse GPU buffers")))
-            renderer.update_camera(cameras[1][0], positions, orientations, cameras[1][1].intrinsic_matrices)
+            renderer.update_sensor(cameras[1][0], positions, orientations, cameras[1][1].intrinsic_matrices)
         renderer.render_batch([rd for rd, _ in cameras])
         for rd, data in cameras:
             renderer.read_output(rd, data)
@@ -658,7 +659,7 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, capfd, use
             for height in (6.0, 8.0, 9.0):
                 with wp.ScopedStream(wp.Stream("cuda:0")):
                     positions = ProxyArray(wp.array([[0.0, 0, height]] * 2, dtype=wp.vec3f, device="cuda:0"))
-                    renderer.update_camera(cameras[0][0], positions, orientations, cameras[0][1].intrinsic_matrices)
+                    renderer.update_sensor(cameras[0][0], positions, orientations, cameras[0][1].intrinsic_matrices)
                     renderer.render(cameras[0][0])
                     renderer.read_output(*cameras[0])
                     wp.synchronize_stream()
@@ -918,12 +919,12 @@ def test_ovrtx_process_frame_reads_authored_camera_render_vars(monkeypatch, use_
     for camera_id in range(2):
         cfg = _make_camera_cfg(list(outputs))
         render_data = renderer.create_render_data(
-            CameraRenderSpec(
+            SensorRenderSpec(
                 cfg=cfg,
                 device="cpu",
                 num_instances=2,
                 view_count=2,
-                camera_prim_paths=[f"/World/envs/env_{i}/cam{camera_id}" for i in range(2)],
+                prim_paths=[f"/World/envs/env_{i}/cam{camera_id}" for i in range(2)],
             )
         )
         stage = stages[render_data.render_product_path]
@@ -1222,12 +1223,12 @@ def test_pose_and_intrinsic_updates_target_the_given_camera(monkeypatch, stage_m
         renderer.scene.paths.create_path_list_from_strings.reset_mock()
     cameras = [
         renderer.create_render_data(
-            CameraRenderSpec(
+            SensorRenderSpec(
                 cfg=_make_camera_cfg(["depth"]),
                 device="cpu",
                 num_instances=len(paths[index]),
                 view_count=len(paths[index]),
-                camera_prim_paths=camera_paths,
+                prim_paths=camera_paths,
             )
         )
         for index, camera_paths in enumerate((paths[0], paths[1][1:], paths[2], paths[3]))
@@ -1264,7 +1265,12 @@ def test_pose_and_intrinsic_updates_target_the_given_camera(monkeypatch, stage_m
     positions = wp.array([[1, 2, 3], [4, 5, 6]], dtype=wp.vec3f, device="cpu")
     rotations = np.array([[1, 2, 3, 4], [0, 0, 0, 1]], dtype=np.float32)
     rotations /= np.linalg.norm(rotations, axis=1, keepdims=True)
-    renderer.update_camera(cameras[1], positions, wp.array(rotations, dtype=wp.quatf, device="cpu"), None)
+    renderer.update_sensor(
+        cameras[1],
+        positions,
+        wp.array(rotations, dtype=wp.quatf, device="cpu"),
+        wp.zeros(positions.shape[0], dtype=wp.mat33f, device="cpu"),
+    )
     matrices = (
         renderer.scene.stage.write_attribute.call_args.kwargs["tensors"]
         if use_ovstage

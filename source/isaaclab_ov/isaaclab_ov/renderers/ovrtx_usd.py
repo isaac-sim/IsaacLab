@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 from pxr import Sdf, Usd
 
 if TYPE_CHECKING:
-    from isaaclab.renderers.camera_render_spec import CameraRenderSpec
+    from isaaclab.renderers.sensor_render_spec import SensorRenderSpec
 
     from isaaclab_ov.renderers.ovrtx_renderer import OVRTXCameraRenderData
 
@@ -141,7 +141,7 @@ def render_var_prim_paths_by_source(render_scope_name: str) -> Mapping[str, str]
 
 
 def build_render_product_as_string(
-    spec: CameraRenderSpec,
+    spec: SensorRenderSpec,
     render_data: OVRTXCameraRenderData,
     *,
     device_id: int,

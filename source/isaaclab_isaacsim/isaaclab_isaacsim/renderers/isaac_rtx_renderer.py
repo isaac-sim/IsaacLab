@@ -23,7 +23,8 @@ from pxr import Sdf, Usd, UsdGeom, UsdLux
 
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
-from isaaclab.renderers.camera_render_spec import CameraRenderSpec
+from isaaclab.renderers.sensor_render_spec import SensorRenderSpec
+from isaaclab.sensors.lidar.lidar_cfg import LidarCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import enable_extension
 from isaaclab.utils.version import get_isaac_sim_version
@@ -114,7 +115,7 @@ class IsaacRtxRenderData:
     annotators: dict[str, Any]
     render_product: HydraTexture
     output_data: dict[str, ProxyArray] | None = None
-    spec: CameraRenderSpec | None = None
+    spec: SensorRenderSpec | None = None
     renderer_info: dict[str, Any] = field(default_factory=dict)
     intrinsic_selection: Any = None
     intrinsic_row_attribute: str = ""
@@ -133,7 +134,7 @@ class IsaacRtxRenderData:
         stage = get_current_stage()
         fabric = get_current_stage(fabric=True)
         row_attribute = f"isaaclab:cameraIntrinsicRow:{uuid.uuid4().hex}"
-        for row, path in enumerate(spec.camera_prim_paths):
+        for row, path in enumerate(spec.prim_paths):
             prim = fabric.GetPrimAtPath(path)
             prim.CreateAttribute(row_attribute, usdrt.Sdf.ValueTypeNames.Int, True).Set(row)
             # Reinitialize from USD, including values left in Fabric by a previous runtime override.
@@ -150,7 +151,7 @@ class IsaacRtxRenderData:
             ],
             device=str(spec.device),
         )
-        if selection.GetCount() != len(spec.camera_prim_paths):
+        if selection.GetCount() != len(spec.prim_paths):
             raise RuntimeError("Fabric camera calibration selection does not match the camera count.")
         self.intrinsic_selection = selection
         self.intrinsic_row_attribute = row_attribute
@@ -254,9 +255,11 @@ class IsaacRtxRenderer(BaseRenderer):
                         attr_spec = root_layer.GetAttributeAtPath(attr_path)
                     attr_spec.default = token
 
-    def create_render_data(self, spec: CameraRenderSpec) -> IsaacRtxRenderData:
+    def create_render_data(self, spec: SensorRenderSpec) -> IsaacRtxRenderData:
         """Create render product and annotators for the tiled camera.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.create_render_data`."""
+        if isinstance(spec.cfg, LidarCfg):
+            raise NotImplementedError(f"{type(self).__name__} does not support lidar capture.")
         import omni.replicator.core as rep
         from omni.syntheticdata import SyntheticData
         from pxr import UsdGeom
@@ -305,7 +308,7 @@ class IsaacRtxRenderer(BaseRenderer):
                     prim.SetInstanceable(False)
 
         # Get camera prim paths from sensor view
-        cam_prim_paths = list(spec.camera_prim_paths)
+        cam_prim_paths = list(spec.prim_paths)
         for cam_prim_path in cam_prim_paths:
             cam_prim = stage.GetPrimAtPath(cam_prim_path)
             if not cam_prim.IsA(UsdGeom.Camera):
@@ -482,7 +485,7 @@ class IsaacRtxRenderer(BaseRenderer):
                     rp_prim.CreateAttribute(RTX_RENDER_MODE_ATTR, Sdf.ValueTypeNames.Token).Set(RTX_MINIMAL_RENDER_MODE)
                 rp_prim.CreateAttribute(RTX_MINIMAL_MODE_ATTR, Sdf.ValueTypeNames.Int).Set(shading_mode)
 
-    def _resolve_simple_shading_mode(self, spec: CameraRenderSpec) -> int | None:
+    def _resolve_simple_shading_mode(self, spec: SensorRenderSpec) -> int | None:
         """Resolve the requested simple shading mode from data types."""
         requested = [dt for dt in spec.cfg.data_types if dt in SIMPLE_SHADING_MODES]
         if not requested:
@@ -508,15 +511,15 @@ class IsaacRtxRenderer(BaseRenderer):
         """Update shared Fabric geometry from SDP's visual point publication."""
         self._fabric.update_geometries(self._sim.get_scene_data_provider(), self._sim.render_generation)
 
-    def update_camera(
+    def update_sensor(
         self,
         render_data: IsaacRtxRenderData,
         positions: ProxyArray,
         orientations: ProxyArray,
-        intrinsics: ProxyArray,
+        intrinsics: ProxyArray | None = None,
     ):
         """No-op for camera poses, which the frame view already writes into Fabric.
-        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_camera`."""
+        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_sensor`."""
         pass
 
     def update_camera_intrinsics(self, render_data: IsaacRtxRenderData, intrinsics: wp.array, parameters: wp.array):
@@ -534,8 +537,9 @@ class IsaacRtxRenderer(BaseRenderer):
             device=parameters.device,
         )
 
-    def render(self, render_data: IsaacRtxRenderData) -> None:
+    def render(self, render_data: IsaacRtxRenderData, *, force: bool = False) -> None:
         """Render one camera product into its bound output buffers."""
+        del force
         self.render_batch((render_data,))
 
     def render_batch(self, render_data: Sequence[IsaacRtxRenderData]) -> None:
@@ -696,7 +700,7 @@ class IsaacRtxRenderer(BaseRenderer):
 
         render_data.intrinsic_selection = None
         if render_data.intrinsic_stage is not None and render_data.spec is not None:
-            for path in render_data.spec.camera_prim_paths:
+            for path in render_data.spec.prim_paths:
                 prim = render_data.intrinsic_stage.GetPrimAtPath(path)
                 if prim.IsValid():
                     prim.RemoveProperty(render_data.intrinsic_row_attribute)

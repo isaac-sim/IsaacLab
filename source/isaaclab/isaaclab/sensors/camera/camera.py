@@ -19,7 +19,7 @@ from pxr import Usd, UsdGeom, UsdPhysics
 
 from ... import sim as sim_utils
 from ...app.logging_utils import force_log_level
-from ...renderers import BaseRenderer, CameraRenderSpec
+from ...renderers import BaseRenderer, SensorRenderSpec
 from ...sim.views import FrameView
 from ...utils import replace
 from ...utils.math import (
@@ -717,11 +717,11 @@ class Camera(SensorBase):
         cam_paths = tuple(str(p.GetPath()) for p in sim_utils.find_matching_prims(self.cfg.prim_path, self.stage))
         # The renderer produces processor inputs instead of processor outputs.
         render_cfg = replace(self.cfg, data_types=self._render_data_types) if self.cfg.tensor_processors else self.cfg
-        render_spec = CameraRenderSpec(
+        render_spec = SensorRenderSpec(
             cfg=render_cfg,
             device=str(self._device),
             num_instances=self._num_envs,
-            camera_prim_paths=cam_paths,
+            prim_paths=cam_paths,
             view_count=self._num_envs,
         )
 
@@ -1051,7 +1051,7 @@ class Camera(SensorBase):
         )
         # notify renderer of updated poses (guarded in case called before initialization completes)
         if self._render_data is not None:
-            self._renderer.update_camera(
+            self._renderer.update_sensor(
                 self._render_data, self._data.pos_w, self._data.quat_w_world, self._data.intrinsic_matrices
             )
 

@@ -34,7 +34,7 @@ if not _MISSING_MODULES:
 
     from pxr import Gf, Sdf, Usd, UsdGeom, UsdRender  # noqa: E402
 
-    from isaaclab.renderers.camera_render_spec import CameraRenderSpec  # noqa: E402
+    from isaaclab.renderers.sensor_render_spec import SensorRenderSpec  # noqa: E402
     from isaaclab.sensors.camera import CameraCfg  # noqa: E402
     from isaaclab.utils.tensor_processors import TensorProcessorCfg  # noqa: E402
 else:
@@ -57,11 +57,11 @@ def camera_spec():
         height=8,
         data_types=["rgb"],
     )
-    return CameraRenderSpec(
+    return SensorRenderSpec(
         cfg=cfg,
         device="cpu",
         num_instances=4,
-        camera_prim_paths=tuple(f"/World/envs/env_{i}/Robot/head_cam" for i in range(4)),
+        prim_paths=tuple(f"/World/envs/env_{i}/Robot/head_cam" for i in range(4)),
         view_count=4,
     )
 
@@ -71,7 +71,7 @@ def render_data(camera_spec):
     return SimpleNamespace(
         render_scope_name="RenderCamera_0",
         render_product_path="/RenderCamera_0/RenderProduct",
-        camera_paths=list(camera_spec.camera_prim_paths),
+        camera_paths=list(camera_spec.prim_paths),
         width=16,
         height=8,
         num_cols=2,

@@ -554,7 +554,7 @@ def test_isolation_requires_an_unpartitioned_camera(scene_ui_module, monkeypatch
     if partition is not None:
         prim.CreateAttribute("omni:scenePartition", Sdf.ValueTypeNames.Token).Set(partition)
     camera = SimpleNamespace(
-        _render_data=SimpleNamespace(render_product=object(), spec=SimpleNamespace(camera_prim_paths=[path]))
+        _render_data=SimpleNamespace(render_product=object(), spec=SimpleNamespace(prim_paths=[path]))
     )
     presenter = scene_ui_module._KitSceneUiCameraFeedPresenter()
     before = stage.GetRootLayer().ExportToString()

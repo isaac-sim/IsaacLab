@@ -115,7 +115,8 @@ if TYPE_CHECKING:
 
     from isaaclab_ov.stage import OvstageBackend
 
-from isaaclab.renderers.camera_render_spec import CameraRenderSpec
+from isaaclab.renderers.sensor_render_spec import SensorRenderSpec
+from isaaclab.sensors.lidar.lidar_cfg import LidarCfg
 
 _RENDER_VAR_PRIM_NAMES = render_var_prim_names_by_source()
 _RENDER_DELTA_TIME = 1.0 / 60.0
@@ -298,7 +299,7 @@ class OVRTXBackend:
 class OVRTXCameraRenderData:
     """Owns one camera sensor's native resources and borrowed output buffers."""
 
-    def __init__(self, spec: CameraRenderSpec, render_scope_name: str, camera_paths: list[str]):
+    def __init__(self, spec: SensorRenderSpec, render_scope_name: str, camera_paths: list[str]):
         """Create render data for a camera in its assigned render scope.
 
         Args:
@@ -373,6 +374,7 @@ class OVRTXLidarRenderData:
         self.points: ProxyArray | None = None
         self.intensity: ProxyArray | None = None
         self.valid: ProxyArray | None = None
+        self.sample_dt = 0.0
 
     def cleanup(self) -> None:
         """Release this lidar's native resources. Safe to call repeatedly."""
@@ -670,13 +672,15 @@ class OVRTXRenderer(BaseRenderer):
         ]
         return prim_paths, partitions
 
-    def create_render_data(self, spec: CameraRenderSpec) -> OVRTXCameraRenderData:
-        """Register a camera's product and bindings in the prepared scene."""
+    def create_render_data(self, spec: SensorRenderSpec) -> OVRTXCameraRenderData | OVRTXLidarRenderData:
+        """Register a camera or lidar product and its bindings in the prepared scene."""
+        if isinstance(spec.cfg, LidarCfg):
+            return self._create_lidar_render_data(spec)
         if str(wp.get_device(spec.device)) != self._device:
             raise ValueError("Cameras sharing an OVRTX renderer must use the simulation device.")
 
         camera_paths, camera_partitions = self._resolve_environment_sensor_paths(
-            list(spec.camera_prim_paths), spec.num_instances, environment_order=False
+            list(spec.prim_paths), spec.num_instances, environment_order=False
         )
         render_data = OVRTXCameraRenderData(spec, f"RenderCamera_{self.scene.next_camera_id}", camera_paths)
         scope, product_path = render_data.render_scope_name, render_data.render_product_path
@@ -774,43 +778,23 @@ class OVRTXRenderer(BaseRenderer):
         render_data.resources.callback(self.backend.render_products.discard, render_data.render_product_path)
         return render_data
 
-    def create_lidar_render_data(
-        self,
-        *,
-        prim_path: str,
-        lidar_paths: list[str],
-        num_envs: int,
-        num_rays: int,
-        points: ProxyArray,
-        intensity: ProxyArray,
-        valid: ProxyArray,
-        sample_dt: float = 0.0,
-    ) -> OVRTXLidarRenderData:
+    def _create_lidar_render_data(self, spec: SensorRenderSpec) -> OVRTXLidarRenderData:
         """Register one tiled lidar product. The product is not part of the camera-only set.
 
+        Destination buffers are attached later through :meth:`set_outputs`.
+
         Args:
-            prim_path: Lidar prim-path expression, used in error messages.
-            lidar_paths: Resolved lidar prims. A single source prim is expanded in environment order.
-            num_envs: Number of environment tiles.
-            num_rays: Ray slots stored for each environment.
-            points: Destination positions. The Warp array is ``(num_envs, num_rays)`` of ``vec3f``;
-                its Torch view is ``(num_envs, num_rays, 3)``.
-            intensity: Destination intensity, shape ``(num_envs, num_rays)``.
-            valid: Destination hit mask, shape ``(num_envs, num_rays)``.
-            sample_dt: Lidar sampling interval, in seconds. Cameras that share this renderer use it
-                for the combined step. ``0`` leaves the interval unset.
+            spec: Lidar paths and configuration. Ray count and sampling interval are derived here.
 
         Returns:
-            The lidar's render data. The caller retains it and passes it to :meth:`update_lidar`.
+            The lidar's render data. The caller retains it and passes it to :meth:`update_sensor`.
 
         Raises:
-            ValueError: If the buffers are not on this renderer's device.
             RuntimeError: If the lidar paths cannot be ordered one per environment.
         """
-        if any(str(buffer.device) != self._device for buffer in (points, intensity, valid)):
-            raise ValueError("Lidars sharing an OVRTX renderer must use the simulation device.")
-
-        lidar_paths = list(lidar_paths)
+        prim_path = spec.cfg.prim_path
+        num_envs = spec.num_instances
+        lidar_paths = list(spec.prim_paths)
         if not lidar_paths:
             raise RuntimeError(f"OVRTX lidar '{prim_path}' expected {num_envs} prims in environment order, found 0.")
 
@@ -824,9 +808,10 @@ class OVRTXRenderer(BaseRenderer):
             )
 
         scope = f"RenderLidar_{self.scene.next_lidar_id}"
-        render_data = OVRTXLidarRenderData(scope, lidar_paths, num_envs, num_rays)
+        render_data = OVRTXLidarRenderData(scope, lidar_paths, num_envs, spec.cfg.num_rays())
+        update_period = float(spec.cfg.update_period)
+        render_data.sample_dt = update_period if update_period > 0.0 else float(self._sim.get_physics_dt())
         product_path = render_data.render_product_path
-        render_data.points, render_data.intensity, render_data.valid = points, intensity, valid
 
         usd = build_lidar_render_product_as_string(
             render_scope_name=scope,
@@ -920,24 +905,38 @@ class OVRTXRenderer(BaseRenderer):
         self.backend.render_products.add(product_path)
         render_data.resources.callback(self.backend.render_products.discard, product_path)
 
-        if sample_dt > 0.0:
+        if render_data.sample_dt > 0.0:
             self._lidar_delta_time = (
-                sample_dt if self._lidar_delta_time <= 0.0 else min(self._lidar_delta_time, sample_dt)
+                render_data.sample_dt
+                if self._lidar_delta_time <= 0.0
+                else min(self._lidar_delta_time, render_data.sample_dt)
             )
 
         self.invalidate_sensor_capture()
         return render_data
 
-    def set_outputs(self, render_data: OVRTXCameraRenderData, output_data: dict[str, ProxyArray]) -> None:
+    def set_outputs(
+        self, render_data: OVRTXCameraRenderData | OVRTXLidarRenderData, output_data: dict[str, ProxyArray]
+    ) -> None:
         """Register pre-allocated warp output buffers for rendering.
 
         Each :class:`~isaaclab.utils.warp.ProxyArray` already carries the correct warp
         dtype from :meth:`~isaaclab.sensors.camera.CameraData.allocate`; store
         the underlying warp array directly. ``rgb`` is excluded because it is a
         non-contiguous strided view into ``rgba`` and is updated automatically.
+        A lidar stores ``points``, ``intensity``, and ``valid``.
 
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.set_outputs`.
         """
+        if isinstance(render_data, OVRTXLidarRenderData):
+            try:
+                points, intensity, valid = output_data["points"], output_data["intensity"], output_data["valid"]
+            except KeyError as error:
+                raise ValueError("Lidar outputs require 'points', 'intensity', and 'valid'.") from error
+            if any(str(buffer.device) != self._device for buffer in (points, intensity, valid)):
+                raise ValueError("Lidars sharing an OVRTX renderer must use the simulation device.")
+            render_data.points, render_data.intensity, render_data.valid = points, intensity, valid
+            return
         render_data.warp_buffers = {
             name: proxy.warp for name, proxy in output_data.items() if name != str(RenderBufferKind.RGB)
         }
@@ -1193,13 +1192,18 @@ class OVRTXRenderer(BaseRenderer):
                 errors.append(error)
         return errors
 
-    def reset(self, render_data: OVRTXCameraRenderData, env_ids: Sequence[int] | None = None) -> None:
+    def reset(
+        self, render_data: OVRTXCameraRenderData | OVRTXLidarRenderData, env_ids: Sequence[int] | None = None
+    ) -> None:
         """Retire pre-reset frames. The next capture primes this whole tiled product.
 
         Pending captures cover every environment tile, so they are not separable per environment
-        and ``env_ids`` is not consulted.
+        and ``env_ids`` is not consulted. A lidar only drops the shared capture cache.
         """
         del env_ids
+        if isinstance(render_data, OVRTXLidarRenderData):
+            self.invalidate_sensor_capture()
+            return
         self.invalidate_sensor_capture()
         errors = self.drain_pending_renders((render_data,))
         render_data.pending = render_data.ready = None
@@ -1379,14 +1383,23 @@ class OVRTXRenderer(BaseRenderer):
             binding.write(points, data_access=DataAccess.ASYNC, cuda_stream=stream.cuda_stream or 1)
         self._geometry_timestamp = timestamp
 
-    def update_camera(
+    def update_sensor(
         self,
-        render_data: OVRTXCameraRenderData,
+        render_data: OVRTXCameraRenderData | OVRTXLidarRenderData,
         positions: ProxyArray,
         orientations: ProxyArray,
-        intrinsics: ProxyArray,
+        intrinsics: ProxyArray | None = None,
     ) -> None:
-        """Update camera poses using the camera's reusable conversion buffers."""
+        """Update a camera or lidar world pose.
+
+        A camera uses the OpenGL basis. A lidar uses the identity basis, so the frame stays as authored.
+        Camera render data requires intrinsic matrices even though this pose write does not consume them.
+        """
+        if isinstance(render_data, OVRTXLidarRenderData):
+            self._update_lidar_pose(render_data, positions, orientations)
+            return
+        if intrinsics is None:
+            raise ValueError("OVRTX camera pose updates require intrinsic matrices.")
         binding = render_data.camera_xform_binding
         if binding is None:
             return
@@ -1443,8 +1456,17 @@ class OVRTXRenderer(BaseRenderer):
                 for operation in operations:
                     operation.wait()
 
-    def render(self, render_data: OVRTXCameraRenderData) -> None:
-        """Submit one camera capture; :meth:`read_output` publishes the available image."""
+    def render(self, render_data: OVRTXCameraRenderData | OVRTXLidarRenderData, *, force: bool = False) -> None:
+        """Submit one camera or lidar capture.
+
+        A lidar capture also publishes cameras prepared on this renderer. The sampling interval
+        comes from the lidar spec. ``force`` renders again when this physics step already captured.
+        """
+        if isinstance(render_data, OVRTXLidarRenderData):
+            if not self._lidar_render_data:
+                return
+            self._capture_sensors(self._agreed_lidar_delta(render_data.sample_dt), force=force)
+            return
         self.render_batch((render_data,))
 
     def log_mesh(self, name: str, *args, **kwargs) -> None:
@@ -1469,22 +1491,9 @@ class OVRTXRenderer(BaseRenderer):
         self._published_cameras.clear()
         self._cameras_posed_for_capture.clear()
 
-    def render_lidars(self, delta_time: float, *, force: bool = False) -> None:
-        """Capture every registered lidar, and cameras prepared on this renderer.
-
-        Args:
-            delta_time: Sensor interval, in seconds. ``instantLidar`` turns the step into a full scan.
-            force: When True, render again even if this physics step already captured.
-        """
-        if not self._lidar_render_data:
-            return
-        if delta_time > 0.0:
-            self._lidar_delta_time = float(delta_time)
-        self._sim.render_context.update_scene_state(self._sim.get_physics_step_count())
-        self._capture_sensors(self._agreed_lidar_delta(delta_time), force=force)
-
-    # HDC_TODO: We should use the existing architecture rather than adding an ad-hoc code path.
-    def update_lidar(self, render_data: OVRTXLidarRenderData, positions: ProxyArray, orientations: ProxyArray) -> None:
+    def _update_lidar_pose(
+        self, render_data: OVRTXLidarRenderData, positions: ProxyArray, orientations: ProxyArray
+    ) -> None:
         """Write lidar world poses. The lidar frame is used as authored, without a camera conversion."""
         binding = render_data.xform_binding
         if binding is None:
@@ -1515,7 +1524,7 @@ class OVRTXRenderer(BaseRenderer):
         else:
             render_data.pose_writes.submit(binding, matrices, stream).wait()
 
-    def cleanup_lidar(self, render_data: OVRTXLidarRenderData | None) -> None:
+    def _cleanup_lidar(self, render_data: OVRTXLidarRenderData | None) -> None:
         """Release one lidar product. Camera products registered on this renderer stay active."""
         if render_data is None:
             return
@@ -1789,12 +1798,16 @@ class OVRTXRenderer(BaseRenderer):
             )
             self._process_render_products(render_data, result)
 
-    def cleanup(self, render_data: OVRTXCameraRenderData | None) -> None:
+    def cleanup(self, render_data: OVRTXCameraRenderData | OVRTXLidarRenderData | None) -> None:
         """Release the render data's buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.cleanup`.
 
         Each camera owns its product and pose binding. Scene and physics bindings remain alive
-        until :meth:`close`, so other cameras can continue rendering.
+        until :meth:`close`, so other cameras can continue rendering. A lidar product is released
+        without removing camera products.
         """
+        if isinstance(render_data, OVRTXLidarRenderData):
+            self._cleanup_lidar(render_data)
+            return
         if render_data is None:
             return
         try:
@@ -1827,7 +1840,7 @@ class OVRTXRenderer(BaseRenderer):
                 for render_data in tuple(self._camera_render_data):
                     resources.callback(self.cleanup, render_data)
                 for render_data in tuple(self._lidar_render_data):
-                    resources.callback(self.cleanup_lidar, render_data)
+                    resources.callback(self.cleanup, render_data)
         finally:
             self._object_xform_binding = self._geometry_points_binding = None
             self._object_scales = None

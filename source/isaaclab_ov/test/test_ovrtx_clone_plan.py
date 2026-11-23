@@ -20,7 +20,7 @@ import pytest
 
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import ClonePlan, PrototypeWorldTopology, make_clone_plan
-from isaaclab.renderers.camera_render_spec import CameraRenderSpec
+from isaaclab.renderers.sensor_render_spec import SensorRenderSpec
 from isaaclab.sensors.camera import CameraCfg
 from isaaclab.sim import PinholeCameraCfg, SimulationContext, SpawnerCfg
 
@@ -111,7 +111,7 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     return renderer
 
 
-def _make_camera_render_spec(num_envs: int = 1, device: str = "cpu") -> CameraRenderSpec:
+def _make_camera_render_spec(num_envs: int = 1, device: str = "cpu") -> SensorRenderSpec:
     spawn = PinholeCameraCfg(
         focal_length=24.0,
         focus_distance=400.0,
@@ -126,8 +126,8 @@ def _make_camera_render_spec(num_envs: int = 1, device: str = "cpu") -> CameraRe
         data_types=["rgb"],
     )
     camera_paths = tuple(f"/World/envs/env_{env_idx}/Camera" for env_idx in range(num_envs))
-    return CameraRenderSpec(
-        cfg=cfg, device=device, num_instances=num_envs, camera_prim_paths=camera_paths, view_count=num_envs
+    return SensorRenderSpec(
+        cfg=cfg, device=device, num_instances=num_envs, prim_paths=camera_paths, view_count=num_envs
     )
 
 
@@ -366,7 +366,7 @@ def test_create_render_data_writes_combined_stage_on_the_simulation_device(tmp_p
     assert combined_layer.ImportFromString(combined_text)
     assert combined_layer.defaultPrim == "World"
     assert combined_layer.pseudoRoot.GetInfo("metersPerUnit") == 1.0
-    assert combined_layer.GetPrimAtPath(spec.camera_prim_paths[0])
+    assert combined_layer.GetPrimAtPath(spec.prim_paths[0])
     assert combined_layer.GetPrimAtPath(render_data.render_product_path).typeName == "RenderProduct"
     assert combined_layer.GetPrimAtPath(second_camera.render_product_path).typeName == "RenderProduct"
     assert combined_layer.GetAttributeAtPath(render_data.render_product_path + ".deviceIds").default == [1]
@@ -414,7 +414,7 @@ def test_create_render_data_binds_camera_after_cloning(monkeypatch, global_camer
     renderer.prepare_stage(_make_multi_env_stage(num_envs), num_envs)
     spec = _make_camera_render_spec(num_envs=1 if global_camera else num_envs)
     if global_camera:
-        spec = replace(spec, camera_prim_paths=("/World/Camera",))
+        spec = replace(spec, prim_paths=("/World/Camera",))
     render_data = renderer.create_render_data(spec)
 
     assert call_order == ["open", "clone", "partitions", "rewrite_cameras"]
