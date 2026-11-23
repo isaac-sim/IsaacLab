@@ -7,8 +7,9 @@
 
 from __future__ import annotations
 
+import itertools
 import math
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import MISSING
 from typing import TYPE_CHECKING, Any
 
@@ -17,7 +18,7 @@ import torch
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.cloner import InclusionSet
-from isaaclab.utils import dict_to_md5_hash, string_to_callable
+from isaaclab.utils import configclass, dict_to_md5_hash, string_to_callable
 
 from .manager_base import ManagerTermBase, _populate_term_defaults
 from .manager_term_cfg import EventTermCfg, ManagerTermBaseCfg, TerminationTermCfg
@@ -130,13 +131,11 @@ class HeterogeneousTaskManager(ManagerTermBase):
                 prim_path=f"{{ENV_REGEX_NS}}/object_{slot}", spawn=spawn, init_state=objects[0].init_state
             )
             setattr(cfg.scene, f"object_{slot}", obj)
-        # Every environment starts with the objects of the first task, the first candidates of the slots.
-        pins = {f"object_{slot}": 0 for slot in range(len(slots))}
-        combinations = cfg.scene.clone_cfg.clone_combinations
-        if not combinations:
-            combinations.append(InclusionSet(assets=list(pins)))
-        for combination in combinations:
-            combination.variants.update(pins)
+        # Default layouts start with the first task; caller-supplied inclusion definitions stay authoritative.
+        if not cfg.scene.clone_cfg.clone_combinations:
+            cfg.scene.clone_cfg.clone_combinations = [
+                _TaskInclusionSet(assets=[f"object_{slot}" for slot in range(len(slots))])
+            ]
         terms = _terms(cfg.terminations)
         for index, (task_name, task) in enumerate(tasks.items()):
             for name, term in _terms(task.terminations).items():
@@ -237,6 +236,18 @@ class HeterogeneousTaskManager(ManagerTermBase):
             self._slot_task_ids[changed] = self.task_ids[changed]
         for slot, obj in enumerate(self._slots):
             obj.data.default_root_pose.torch[env_ids] = self._poses[slot, tasks]
+
+
+@configclass
+class _TaskInclusionSet(InclusionSet):
+    """Start task slots at their first candidate while retaining independent shared scene choices."""
+
+    def worlds(self, asset_names: Sequence[str], variants: Sequence[range]) -> Iterable[Sequence[int]]:
+        choices = [
+            range(1) if name in self.assets else candidates
+            for name, candidates in zip(asset_names, variants, strict=True)
+        ]
+        return itertools.product(*choices)
 
 
 class task_term(ManagerTermBase):

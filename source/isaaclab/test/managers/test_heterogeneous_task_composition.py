@@ -12,7 +12,7 @@ import pytest
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
-from isaaclab.cloner import CloneCfg, InclusionSet
+from isaaclab.cloner import CloneCfg, InclusionSet, make_valid_clone_combinations
 from isaaclab.managers import (
     EventTermCfg,
     HeterogeneousTaskManager,
@@ -184,22 +184,41 @@ def test_placeholders_match_kinematic_slots():
     assert [spawn.rigid_props.kinematic_enabled for spawn in stand_ins] == [True, False]
 
 
-def test_clone_combinations_pin_the_first_candidate_of_every_slot():
-    """Clone planning starts every environment with the first task instead of enumerating the candidates."""
-    pins = {"object_0": 0, "object_1": 0}
-    task = SimpleNamespace(
+def test_task_inclusion_starts_with_one_world_and_retains_shared_choices():
+    """Distinct candidates stay available, but initial layouts do not multiply task slots."""
+    first = SimpleNamespace(
         scene=SimpleNamespace(cube=_object("cube"), ball=_object("ball")), terminations={}, episode_length_s=5.0
     )
+    second = SimpleNamespace(
+        scene=SimpleNamespace(cube=_object("other_cube"), ball=_object("other_ball")),
+        terminations={},
+        episode_length_s=5.0,
+    )
+    second.scene.cube.spawn.radius = 0.08
+    second.scene.ball.spawn.radius = 0.09
     cfg = _env_cfg()
-    HeterogeneousTaskManager.compose_tasks(cfg, {"a": task})
-    assert [(combination.assets, combination.variants) for combination in cfg.scene.clone_cfg.clone_combinations] == [
-        (list(pins), pins)
-    ]
-    # The combinations that the scene declares itself keep their assets.
+    HeterogeneousTaskManager.compose_tasks(cfg, {"a": first, "b": second})
+    counts = [len(cfg.scene.object_0.spawn.assets_cfg), len(cfg.scene.object_1.spawn.assets_cfg)]
+    assert counts == [2, 2]
+    worlds, weights = make_valid_clone_combinations(
+        ["object_0", "object_1"], counts, cfg.scene.clone_cfg.clone_combinations
+    )
+    assert worlds == ((0, 2),)
+    assert weights.tolist() == [1.0]
+    # Independent robot variants remain legal without multiplying the task object candidates.
+    worlds, weights = make_valid_clone_combinations(
+        ["robot", "object_0", "object_1"], [2, *counts], cfg.scene.clone_cfg.clone_combinations
+    )
+    assert worlds == ((0, 2, 4), (1, 2, 4))
+    assert weights.tolist() == [0.5, 0.5]
+
+    # A caller's explicit world definitions are authoritative rather than rewritten by composition.
     cfg = _env_cfg()
-    cfg.scene.clone_cfg.clone_combinations = [InclusionSet(assets=["left_arm"]), InclusionSet(assets=["right_arm"])]
-    HeterogeneousTaskManager.compose_tasks(cfg, {"a": task})
-    assert [(combination.assets, combination.variants) for combination in cfg.scene.clone_cfg.clone_combinations] == [
-        (["left_arm"], pins),
-        (["right_arm"], pins),
-    ]
+    selection = InclusionSet(assets=["robot", "object_0", "object_1"], layouts=[(1, 0, 0)])
+    cfg.scene.clone_cfg.clone_combinations = [selection]
+    HeterogeneousTaskManager.compose_tasks(cfg, {"a": first, "b": second})
+    assert cfg.scene.clone_cfg.clone_combinations == [selection]
+    worlds, _ = make_valid_clone_combinations(
+        ["robot", "object_0", "object_1"], [2, *counts], cfg.scene.clone_cfg.clone_combinations
+    )
+    assert worlds == ((1, 2, 4),)

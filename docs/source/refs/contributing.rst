@@ -439,6 +439,9 @@ before changing an interface. Apply these rules when adding code or cleaning up 
   required attribute; express optional fields explicitly in the interface.
   Use concrete defaults for known empty selections. Reserve ``None`` for a distinct policy or lifecycle
   state, such as choosing an environment's frame rate or waiting for a client to connect.
+* Inclusion definitions own legal world layouts, including explicit rows and pairing formulas. Resolve them
+  during scene planning before entering ``ReplicateSession``. Keep inclusion interpretation and task-specific
+  combination policies out of replication execution; do not add variant-pinning exceptions there.
 * Give each piece of state and validation one owner. Consumers should use the owner's contract instead
   of repairing results or maintaining duplicate state. Cache derived values only when their lifetime and
   invalidation are clear; do not expose mutable cached results for callers to modify accidentally.
