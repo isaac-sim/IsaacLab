@@ -536,9 +536,8 @@ class IsaacRtxRenderer(BaseRenderer):
             device=parameters.device,
         )
 
-    def render(self, render_data: IsaacRtxRenderData, *, force: bool = False) -> None:
+    def render(self, render_data: IsaacRtxRenderData) -> None:
         """Render one camera product into its bound output buffers."""
-        del force
         self.render_batch((render_data,))
 
     def render_batch(self, render_data: Sequence[IsaacRtxRenderData]) -> None:

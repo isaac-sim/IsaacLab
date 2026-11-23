@@ -1203,8 +1203,8 @@ class OvxrRenderer(BaseRenderer):
     def update_camera_intrinsics(self, render_data: Any, intrinsics: wp.array, parameters: wp.array) -> None:
         raise RuntimeError("OvxrRenderer produces no camera images; the OVXR session renders its Stage")
 
-    def render(self, render_data: Any, *, force: bool = False) -> None:
-        del force
+    def render(self, render_data: Any) -> None:
+        del render_data
         raise RuntimeError("OvxrRenderer produces no camera images; the OVXR session renders its Stage")
 
     def render_batch(self, render_data: Sequence[Any]) -> None:

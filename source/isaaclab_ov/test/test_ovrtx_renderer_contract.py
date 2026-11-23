@@ -368,16 +368,14 @@ def test_ovrtx_render_submits_every_product_and_routes_requested_outputs(
         assert not published_ordinals
 
 
-def test_shared_lidar_capture_steps_once_and_publishes_prepared_cameras(monkeypatch):
-    """A camera and a lidar share one step. Later lidar reads leave unpublished cameras unchanged."""
+def test_lidar_and_camera_captures_use_separate_steps(monkeypatch):
+    """A camera step omits lidar products, and a lidar step does not publish cameras."""
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._initialized_scene = True
     renderer._use_ovstage = False
     renderer._visual_material_writer_ref = None
     renderer._needs_transform_initialization = False
     renderer._lidar_delta_time = 0.1
-    renderer._sim.get_physics_step_count = lambda: 4
-    monkeypatch.setattr(type(renderer._sim.render_context), "update_scene_state", lambda _self, _count: None)
     cameras = [_make_ovrtx_camera_render_data() for _ in range(2)]
     products = {}
     for index, camera in enumerate(cameras):
@@ -388,6 +386,7 @@ def test_shared_lidar_capture_steps_once_and_publishes_prepared_cameras(monkeypa
     renderer.backend.render_products.update(camera.render_product_path for camera in cameras)
     lidar = OVRTXLidarRenderData("RenderLidar", ["/Lidar"], 1, 1)
     lidar.render_product_path = "/Render/Lidar"
+    lidar.sample_dt = 0.1
     renderer._lidar_render_data = [lidar]
     renderer.backend.render_products.add("/Render/Lidar")
     products["/Render/Lidar"] = types.SimpleNamespace(frames=[object()])
@@ -400,31 +399,18 @@ def test_shared_lidar_capture_steps_once_and_publishes_prepared_cameras(monkeypa
 
     renderer.backend.renderer = types.SimpleNamespace(step=step)
     monkeypatch.setattr(renderer, "_process_render_frame", lambda *args: processed.append(args[0]))
-    monkeypatch.setattr(renderer, "_publish_lidar_output", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(renderer, "_publish_lidar_output", lambda *_args, **_kwargs: published.append(_args[0]))
+    published = []
 
-    lidar.sample_dt = 0.1
     renderer.render_batch((cameras[0],))
     renderer.render(lidar)
-
-    assert len(submissions) == 1
-    assert submissions[0]["delta_time"] == pytest.approx(0.1)
-    assert submissions[0]["render_products"] == {"/Render/Camera0", "/Render/Camera1", "/Render/Lidar"}
-    assert processed == [cameras[0]]
-
-    renderer.render(lidar, force=True)
 
     assert len(submissions) == 2
+    assert submissions[0]["render_products"] == {"/Render/Camera0", "/Render/Camera1"}
     assert submissions[1]["delta_time"] == pytest.approx(0.1)
+    assert submissions[1]["render_products"] == {"/Render/Lidar"}
     assert processed == [cameras[0]]
-
-    renderer._sim.get_physics_step_count = lambda: 5
-    renderer.render(lidar)
-    assert processed == [cameras[0]]
-    renderer.render_batch((cameras[0],))
-
-    assert len(submissions) == 4
-    assert processed[-1] is cameras[0]
-    assert cameras[1] not in processed
+    assert published == [lidar]
 
 
 def test_ovrtx_render_batch_empty_sequence_does_not_require_initialized_backend():

@@ -189,13 +189,11 @@ class BaseRenderer(ABC):
         raise NotImplementedError(f"{type(self).__name__} does not support runtime camera calibration.")
 
     @abstractmethod
-    def render(self, render_data: Any, *, force: bool = False) -> None:
+    def render(self, render_data: Any) -> None:
         """Submit a capture; :meth:`read_output` publishes its camera's available observation.
 
         Args:
             render_data: The render data object from :meth:`create_render_data`.
-            force: When True, submit again even if this physics step already captured. Camera
-                callers omit it. Renderers that do not capture a lidar ignore it.
         """
         pass
 

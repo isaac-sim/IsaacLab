@@ -406,9 +406,8 @@ class NewtonWarpRenderer(BaseRenderer):
             device=intrinsics.device,
         )
 
-    def render(self, render_data: RenderData, *, force: bool = False):
+    def render(self, render_data: RenderData):
         """Render and write to output buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.render`."""
-        del force
         backend, provider = self.backend, self._scene_data_provider
         poses = SceneDataFormat.Transform()
         if provider.get_transforms(poses, mapping=self._transform_mapping, count=backend.model.body_count):

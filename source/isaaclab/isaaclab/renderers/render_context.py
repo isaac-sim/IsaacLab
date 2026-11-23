@@ -332,14 +332,7 @@ class RenderContext:
             renderer.update_transforms()
             renderer.update_geometries()
 
-    def render_into_lidar(
-        self,
-        renderer: BaseRenderer,
-        render_data: Any,
-        physics_step_count: int,
-        *,
-        force: bool = False,
-    ) -> None:
+    def render_into_lidar(self, renderer: BaseRenderer, render_data: Any, physics_step_count: int) -> None:
         """Sync scene state and capture one lidar.
 
         The point cloud is published by :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.render`,
@@ -349,10 +342,9 @@ class RenderContext:
             renderer: Renderer that owns ``render_data``.
             render_data: Renderer-specific lidar resources from ``create_render_data``.
             physics_step_count: Current physics step for shared scene synchronization.
-            force: When True, capture again even if this physics step already rendered.
         """
         self.update_scene_state(physics_step_count)
-        renderer.render(render_data, force=force)
+        renderer.render(render_data)
 
     def render_into_camera(
         self,

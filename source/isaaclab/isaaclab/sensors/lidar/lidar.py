@@ -179,8 +179,7 @@ class Lidar(SensorBase):
     and ``scan_type`` selects a solid-state or rotary scan. A capture submits those prims as
     tiles of one lidar render product, in environment order, and writes the split point cloud into
     :attr:`data`. The buffer length is the full scan: one firing of the pattern for a solid-state
-    scan, or one firing at every azimuth step for a rotary scan. When the scene also has cameras on
-    the same renderer, one renderer step produces both.
+    scan, or one firing at every azimuth step for a rotary scan.
     """
 
     cfg: LidarCfg
@@ -249,7 +248,7 @@ class Lidar(SensorBase):
 
         Args:
             dt: Time elapsed since the previous sensor update, in seconds.
-            force_recompute: When True, drop the shared capture cache and render again in this step.
+            force_recompute: When True, capture again even if the sampling period has not expired.
         """
         self._force_capture = force_recompute
         try:
@@ -262,7 +261,7 @@ class Lidar(SensorBase):
             self._force_capture = False
 
     def reset(self, env_ids=None, env_mask=None) -> None:
-        """Clear returns for the reset environments and drop the shared capture cache."""
+        """Clear returns for the reset environments."""
         reset_mask = self._resolve_indices_and_mask(env_ids, env_mask)
         super().reset(env_mask=reset_mask)
 
@@ -341,7 +340,7 @@ class Lidar(SensorBase):
 
         self._push_renderer_pose()
         self._sim.render_context.render_into_lidar(
-            self._renderer, self._render_data, self._sim.get_physics_step_count(), force=self._force_capture
+            self._renderer, self._render_data, self._sim.get_physics_step_count()
         )
 
     def _push_renderer_pose(self) -> None:
