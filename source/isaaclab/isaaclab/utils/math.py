@@ -434,7 +434,8 @@ def euler_xyz_from_quat(
     """Convert rotations given as quaternions to Euler angles in radians.
 
     Note:
-        The euler angles are assumed in XYZ extrinsic convention.
+        The euler angles are assumed in XYZ extrinsic convention. At gimbal lock (pitch of ±π/2), roll and yaw
+        are not unique; the returned pair is one of the solutions and reproduces the input rotation.
 
     Args:
         quat: The quaternion orientation in (x, y, z, w). Shape is (N, 4).
@@ -449,19 +450,21 @@ def euler_xyz_from_quat(
         https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
     """
     q_x, q_y, q_z, q_w = quat[:, 0], quat[:, 1], quat[:, 2], quat[:, 3]
-    # roll (x-axis rotation)
-    sin_roll = 2.0 * (q_w * q_x + q_y * q_z)
-    cos_roll = 1 - 2 * (q_x * q_x + q_y * q_y)
-    roll = torch.atan2(sin_roll, cos_roll)
-
     # pitch (y-axis rotation)
     sin_pitch = 2.0 * (q_w * q_y - q_z * q_x)
     pitch = torch.where(torch.abs(sin_pitch) >= 1, copysign(torch.pi / 2.0, sin_pitch), torch.asin(sin_pitch))
 
-    # yaw (z-axis rotation)
-    sin_yaw = 2.0 * (q_w * q_z + q_x * q_y)
-    cos_yaw = 1 - 2 * (q_y * q_y + q_z * q_z)
-    yaw = torch.atan2(sin_yaw, cos_yaw)
+    # roll (x-axis rotation) and yaw (z-axis rotation)
+    # At gimbal lock (pitch = +/-pi/2) both atan2 arguments of the direct roll and yaw formulas vanish, so those
+    # formulas lose the rotation. Instead, compute the half-angles (roll + yaw) / 2 and (roll - yaw) / 2 separately:
+    # at pitch = +/-pi/2 only one of them is undefined, and the rotation does not depend on it.
+    half_sum = torch.atan2(q_x + q_z, q_w - q_y)
+    half_diff = torch.atan2(q_x - q_z, q_w + q_y)
+    roll = half_sum + half_diff
+    yaw = half_sum - half_diff
+    # wrap to (-pi, pi]
+    roll = torch.where(roll > torch.pi, roll - 2 * torch.pi, torch.where(roll <= -torch.pi, roll + 2 * torch.pi, roll))
+    yaw = torch.where(yaw > torch.pi, yaw - 2 * torch.pi, torch.where(yaw <= -torch.pi, yaw + 2 * torch.pi, yaw))
 
     if wrap_to_2pi:
         return roll % (2 * torch.pi), pitch % (2 * torch.pi), yaw % (2 * torch.pi)
