@@ -12,7 +12,7 @@ from types import SimpleNamespace
 import pytest
 import torch
 
-from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg
+from isaaclab.envs import DirectMARLEnv, DirectRLEnv, DirectRLEnvCfg
 from isaaclab.utils.noise import (
     ConstantNoiseCfg,
     GaussianNoiseCfg,
@@ -26,8 +26,6 @@ pytestmark = pytest.mark.unit
 @pytest.mark.parametrize("multi_agent", [False, True])
 def test_every_step_final_observations_own_nested_tensor_leaves(multi_agent: bool) -> None:
     """Composite terminal observations retain pre-reset values after live buffers change."""
-    from isaaclab.envs import DirectMARLEnv
-
     live = torch.ones(2, 1)
     observations = {"policy": {"position": (live,)}}
     done, timeout = torch.tensor([True, False]), torch.zeros(2, dtype=torch.bool)

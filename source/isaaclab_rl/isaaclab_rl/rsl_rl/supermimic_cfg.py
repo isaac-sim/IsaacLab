@@ -148,7 +148,7 @@ class RslRlSuperMimicRunnerCfg(RslRlBaseRunnerCfg):
     """The runner class resolved by RSL-RL."""
 
     final_obs_every_step: bool = True
-    """Capture physical observations before interval events on continuing steps."""
+    """Capture physical observations before resets and interval events on every step."""
 
     actor: RslRlSuperMimicActorCfg = MISSING
     """History-conditioned deployment actor."""

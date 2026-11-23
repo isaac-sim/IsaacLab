@@ -91,8 +91,8 @@ class VelocityStateRepresentation:
 class VelocityTask(DifferentiableTask):
     """Robot-parameterized differentiable task for the shared flat velocity MDP.
 
-    G1 flat is the first consumer. Commands are held over an imagined horizon;
-    real command resampling is read from the next physical ``goal`` observation.
+    Commands are held over an imagined horizon; real command resampling is read
+    from the next physical ``goal`` observation.
     Analytic contact clocks use policy-step resolution, approximating contact
     changes within physics substeps. Real reward parity uses observed clocks.
     """
@@ -107,8 +107,8 @@ class VelocityTask(DifferentiableTask):
         self.num_actions = owner.action_manager.total_action_dim
         self.foot_ids, self.sensor_foot_ids = _feet(owner)
         self.num_feet = len(self.foot_ids)
-        sensor = owner.scene.sensors[owner.cfg.rewards.feet_air_time.params["sensor_cfg"].name]
-        self.num_bodies = sensor.num_sensors
+        sensor_name = owner.cfg.rewards.feet_air_time.params["sensor_cfg"].name
+        self.num_bodies = owner.scene.sensors[sensor_name].num_sensors
         self.num_labels = self.num_bodies + 2 * self.num_feet
         self.representation = VelocityStateRepresentation(self.num_joints, self.num_feet, device)
         self.default_pos = data.default_joint_pos.torch[0].to(device).clone()
@@ -162,7 +162,6 @@ class VelocityTask(DifferentiableTask):
         for name, cfg in self.rewards.items():
             if cfg.weight and cfg.func.__name__ not in supported:
                 raise ValueError(f"Unsupported differentiable velocity reward: {name} ({cfg.func.__name__}).")
-        sensor_name = owner.cfg.rewards.feet_air_time.params["sensor_cfg"].name
         for cfg in (*self.rewards.values(), *self.terminations.values()):
             if "sensor_cfg" in cfg.params and cfg.params["sensor_cfg"].name != sensor_name:
                 raise ValueError("Velocity contact terms must use the feet_air_time sensor.")

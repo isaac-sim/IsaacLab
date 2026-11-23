@@ -204,22 +204,18 @@ class ObservationsCfg:
     @configclass
     class StateCfg(ObsGroup):
         state = ObsTerm(func=mdp.VelocityState)
-        enable_corruption = False
 
     @configclass
     class GoalCfg(ObsGroup):
         command = ObsTerm(func=mdp.generated_commands, params={"command_name": "base_velocity"})
-        enable_corruption = False
 
     @configclass
     class ContextCfg(ObsGroup):
         mass = ObsTerm(func=mdp.velocity_context)
-        enable_corruption = False
 
     @configclass
     class LabelsCfg(ObsGroup):
         contacts = ObsTerm(func=mdp.VelocityLabels)
-        enable_corruption = False
 
     state = preset(default=None, state_obs=StateCfg())
     goal = preset(default=None, state_obs=GoalCfg())

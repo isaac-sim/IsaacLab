@@ -194,8 +194,7 @@ world-model training windows at continuing-state edits and retains the physical 
 The differentiable velocity task owns the state coordinates, deployable actor features,
 reward terms and contact probabilities. Joint torque rewards use a PD approximation.
 Acceleration rewards use policy-rate differences. Contact timers advance analytically
-at the policy timestep using predicted event labels. The per-term manager parity test
-records tolerances for these approximations. The first supported learning preset is G1.
+at the policy timestep using predicted event labels.
 
 Pass the same agent and ``presets=state_obs`` to playback, which also writes JIT and ONNX exports.
 The preset collects one step before applying fractional learner updates. See the
