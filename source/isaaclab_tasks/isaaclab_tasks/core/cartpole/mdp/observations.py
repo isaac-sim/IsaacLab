@@ -57,15 +57,22 @@ class LidarRangeImage(ManagerTermBase):
 
     Each frame is :func:`~isaaclab_tasks.core.cartpole.cartpole_common.cartpole_lidar_range_image`:
     hit distance divided by the far range, with misses at 0. Frames are stacked oldest to newest.
+    The stack is built from the term config and replaced when a call passes a different
+    ``frame_stack`` or ``channel_first``.
     """
 
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
-        self._frames = CameraFrameStack(
+        self._frame_stack = cfg.params["frame_stack"]
+        self._channel_first = cfg.params["channel_first"]
+        self._frames = self._make_frames(env)
+
+    def _make_frames(self, env: ManagerBasedRLEnv) -> CameraFrameStack:
+        return CameraFrameStack(
             env.num_envs,
             env.device,
-            frame_stack=cfg.params["frame_stack"],
-            channel_first=cfg.params["channel_first"],
+            frame_stack=self._frame_stack,
+            channel_first=self._channel_first,
         )
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
@@ -84,14 +91,18 @@ class LidarRangeImage(ManagerTermBase):
             env: Environment whose scene owns the lidar.
             sensor_cfg: Scene entity that names the lidar sensor. Defaults to ``SceneEntityCfg("lidar")``.
             channel_first: Whether to return ``(num_envs, frame_stack, elevation, azimuth)``.
-                Applied when the frame stack is constructed. Defaults to True.
-            frame_stack: Number of recent scans to stack along the channel axis. Applied when the
-                frame stack is constructed. Defaults to 2.
+                A value that differs from the current stack replaces that stack. Defaults to True.
+            frame_stack: Number of recent scans to stack along the channel axis. A value that differs
+                from the current stack replaces that stack. Defaults to 2.
 
         Returns:
             The stacked range image.
         """
-        del channel_first, frame_stack  # consumed while constructing the frame stack
+        if frame_stack != self._frame_stack or channel_first != self._channel_first:
+            self._frame_stack = frame_stack
+            self._channel_first = channel_first
+            self._frames = self._make_frames(env)
+
         points = env.scene.sensors[sensor_cfg.name].data.points.torch
         scan = cartpole_lidar_range_image(points).unsqueeze(-1)
         return self._frames(scan)

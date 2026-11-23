@@ -79,5 +79,4 @@ class CartpoleCameraEnv(CartpoleEnv):
 
     def _reset_idx(self, env_ids: Sequence[int] | None):
         super()._reset_idx(env_ids)
-        if self._frames is not None:
-            self._frames.reset(env_ids)
+        self._frames.reset(env_ids)

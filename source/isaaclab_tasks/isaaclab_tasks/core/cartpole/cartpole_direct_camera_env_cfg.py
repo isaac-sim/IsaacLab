@@ -62,8 +62,9 @@ class CartpoleCameraEnvCfg(PresetCfg):
         Values less than two disable stacking.
         """
 
-        # spaces: single-frame channels + default spatial size. At env init, height/width
-        # are replaced with the tiled camera size and channels are expanded by frame_stack.
+        # spaces: single-frame channels + default spatial size. At env init, channels are expanded
+        # by frame_stack. Camera presets replace height and width with the tiled camera size. The
+        # lidar preset replaces them with CARTPOLE_LIDAR_ELEVATION_COUNT by CARTPOLE_LIDAR_AZIMUTH_COUNT.
         # Only the channel count must stay in sync with the camera data type (presets set this).
         observation_space = [3, 96, 96]
         state_space = 4
