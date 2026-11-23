@@ -85,10 +85,11 @@ def test_compose_tasks_once_into_a_configuration():
 
 
 def test_compose_tasks_creates_missing_events_and_terminations():
-    """A configuration without events or terminations gets those of the tasks."""
+    """A configuration without events or terminations gets the tasks' terms; a task without terminations adds none."""
     scene = SimpleNamespace(clone_cfg=CloneCfg())
     cfg = SimpleNamespace(scene=scene, terminations=MISSING, events=None, episode_length_s=0.0)
-    HeterogeneousTaskManager.compose_tasks(cfg, {"a": _task(5.0)})
+    bare = SimpleNamespace(scene=SimpleNamespace(cube=_object("cube")), terminations=None, episode_length_s=3.0)
+    HeterogeneousTaskManager.compose_tasks(cfg, {"a": _task(5.0), "b": bare})
     assert list(cfg.events) == ["select_task"]
     assert sorted(cfg.terminations) == ["a_done", "time_out"]
 
@@ -104,6 +105,16 @@ def test_compose_tasks_renames_default_entities():
     HeterogeneousTaskManager.compose_tasks(cfg, {"a": task})
     assert cfg.terminations["a_done"].params["term"].params["asset_cfg"].name == "object_0"
     assert _lifted.__defaults__[0].name == "cube"
+
+
+def test_compose_tasks_rejects_slots_that_mix_kinematic_objects():
+    """A slot whose object is kinematic in one task and dynamic in another is rejected: one body cannot be both."""
+    table = SimpleNamespace(
+        scene=SimpleNamespace(table=_object("table", kinematic=True)), terminations={}, episode_length_s=5.0
+    )
+    cube = SimpleNamespace(scene=SimpleNamespace(cube=_object("cube")), terminations={}, episode_length_s=5.0)
+    with pytest.raises(ValueError, match="kinematic"):
+        HeterogeneousTaskManager.compose_tasks(_env_cfg(), {"table": table, "cube": cube})
 
 
 def test_placeholders_match_kinematic_slots():

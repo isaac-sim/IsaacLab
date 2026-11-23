@@ -111,7 +111,8 @@ class HeterogeneousTaskManager(ManagerTermBase):
             tasks: The task configurations, keyed by task name.
 
         Raises:
-            ValueError: If ``cfg`` is composed of other tasks already.
+            ValueError: If ``cfg`` is composed of other tasks already, or if the objects of a slot do not agree on
+                being kinematic.
         """
         if cfg.events is None:
             cfg.events = {}
@@ -208,7 +209,8 @@ class HeterogeneousTaskManager(ManagerTermBase):
             task_ids: Task index of each environment.
         """
         device = self._env.device
-        self._next_task_ids[torch.as_tensor(env_ids, device=device)] = torch.as_tensor(task_ids, device=device)
+        task_ids = torch.as_tensor(task_ids, device=device, dtype=torch.long)
+        self._next_task_ids[torch.as_tensor(env_ids, device=device)] = task_ids
 
     def __call__(
         self, env: ManagerBasedRLEnv, env_ids: torch.Tensor | slice, tasks: dict[str, ManagerBasedRLEnvCfg]
@@ -268,12 +270,20 @@ def _slot_term(task: ManagerBasedRLEnvCfg, term: TerminationTermCfg) -> Terminat
 
 
 def _slot_objects(tasks: dict[str, ManagerBasedRLEnvCfg]) -> list[list[RigidObjectCfg]]:
-    """Return the object of every task in every slot: its k-th rigid object, or a placeholder if it has fewer."""
+    """Return the object of every task in every slot: its k-th rigid object, or a placeholder if it has fewer.
+
+    The objects of a slot must agree on being kinematic, as the physics gives all candidates the body of the first.
+    """
     objects = [[obj for _, obj in _task_objects(task)] for task in tasks.values()]
     slots = []
     for slot in range(max(map(len, objects))):
-        kinematic = any(_kinematic(task[slot]) for task in objects if slot < len(task))
-        placeholder = HeterogeneousTaskManager.placeholder(slot, kinematic)
+        kinematic = {_kinematic(task[slot]) for task in objects if slot < len(task)}
+        if len(kinematic) > 1:
+            raise ValueError(
+                f"The objects of slot {slot} mix kinematic and dynamic bodies, but the candidates of a slot share the"
+                " body of its first candidate: declare kinematic objects in the same slots in every task."
+            )
+        placeholder = HeterogeneousTaskManager.placeholder(slot, kinematic.pop())
         slots.append([task[slot] if slot < len(task) else placeholder for task in objects])
     return slots
 
@@ -291,8 +301,13 @@ def _variants(objects: list[RigidObjectCfg]) -> tuple[list[sim_utils.SpawnerCfg]
     return [objects[keys.index(key)].spawn for key in variants], [variants[key] for key in keys]
 
 
-def _terms(cfg: object | dict) -> dict[str, Any]:
-    """Return the terms of a manager configuration, a configuration class or a dictionary, as a writable mapping."""
+def _terms(cfg: object | dict | None) -> dict[str, Any]:
+    """Return the terms of a manager configuration, a configuration class, a dictionary or ``None``, as a mapping.
+
+    The mapping is the configuration's own, writable, unless the configuration is ``None`` or missing.
+    """
+    if cfg is None or isinstance(cfg, type(MISSING)):
+        return {}
     return cfg if isinstance(cfg, dict) else vars(cfg)
 
 
