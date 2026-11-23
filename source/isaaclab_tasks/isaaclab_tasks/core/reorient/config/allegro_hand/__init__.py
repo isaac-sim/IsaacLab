@@ -38,6 +38,7 @@ gym.register(
         "env_cfg_entry_point": f"{__name__}.allegro_hand_manager_env_cfg:AllegroHandManagerEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:AllegroHandManagerPPORunnerCfg",
+        "rsl_rl_sac_cfg_entry_point": f"{agents.__name__}.rsl_rl_sac_cfg:AllegroHandManagerSACRunnerCfg",
         "default_agent": "rsl_rl",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg.yaml",
     },

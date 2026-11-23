@@ -11,6 +11,9 @@
     DifferentialIKControllerCfg
     OperationalSpaceController
     OperationalSpaceControllerCfg
+    Conveyor
+    ConveyorCfg
+    ConveyorSurfaceCfg
     pink_ik.PinkIKController
     pink_ik.PinkIKControllerCfg
     pink_ik.NullSpacePostureTask
@@ -42,6 +45,21 @@ Operational Space controllers
     :inherited-members:
     :show-inheritance:
     :exclude-members: __init__, class_type
+
+
+Conveyors
+---------
+
+.. autoclass:: Conveyor
+    :members:
+    :inherited-members:
+
+.. autoclass:: ConveyorCfg
+    :members:
+    :exclude-members: __init__, class_type
+
+.. autoclass:: ConveyorSurfaceCfg
+    :members:
 
 
 Pink IK Controller

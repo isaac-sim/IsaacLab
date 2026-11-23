@@ -61,15 +61,18 @@ class _ScaleProcessor(TensorProcessor):
         _ScaleProcessor.events.append(("close", self._cfg.outputs[0]))
 
 
-def test_camera_isp_is_resolved_during_construction():
-    """Authored and explicit ISP configurations are ready before physics or renderer initialization."""
+def test_camera_isp_is_resolved_during_construction(caplog, monkeypatch):
+    """Authored, explicit, and deprecated ISP configurations are ready before physics or renderer initialization."""
     pytest.importorskip("isaaclab_newton")
     pytest.importorskip("newton")
     from isaaclab_newton.physics import NewtonCfg
     from isaaclab_newton.renderers import NewtonWarpRendererCfg
-    from isaaclab_ppisp import PpispCfg
+    from isaaclab_ppisp import PpispCfg, PpispProcessorCfg
 
     from pxr import Sdf, UsdGeom
+
+    from isaaclab.renderers import RendererCfg
+    from isaaclab.sensors.camera.camera_exposure import has_neutral_exposure
 
     sim_cfg = sim_utils.SimulationCfg(device="cpu", physics=NewtonCfg())
     with sim_utils.build_simulation_context(sim_cfg=sim_cfg) as sim:
@@ -77,26 +80,89 @@ def test_camera_isp_is_resolved_during_construction():
         prim.CreateAttribute("ppisp:responsivity", Sdf.ValueTypeNames.Float).Set(3.0)
         prim.CreateAttribute("exposure", Sdf.ValueTypeNames.Float).Set(2.0)
         cfg = CameraCfg(
-            prim_path="/World/AuthoredCamera", width=16, height=16, data_types=["rgb"],
-            spawn=None, isp_cfg=CameraISPMode.AUTO_CAMERA, renderer_cfg=NewtonWarpRendererCfg(),
+            prim_path="/World/AuthoredCamera", width=16, height=16, data_types=["rgb"], spawn=None,
+            renderer_cfg=NewtonWarpRendererCfg(),
+            tensor_processors=[PpispProcessorCfg(isp_cfg=CameraISPMode.AUTO_CAMERA)],
         )  # fmt: skip
         authored = instantiate(cfg)
-        spawned = instantiate(replace(
-            cfg, prim_path="/World/SpawnedCamera", spawn=_SPAWN, isp_cfg=PpispCfg(inputs={"exposureOffset": 2.0}),
-        ))  # fmt: skip
+        with pytest.warns(FutureWarning, match="isp_cfg is deprecated"):
+            spawned = instantiate(replace(
+                cfg, prim_path="/World/SpawnedCamera", spawn=_SPAWN, tensor_processors=[],
+                isp_cfg=PpispCfg(inputs={"exposureOffset": 2.0}),
+            ))  # fmt: skip
         without_isp = instantiate(replace(cfg, prim_path="/World/PlainCamera", spawn=_SPAWN))
+        # Deprecated discovery that finds no PPISP attributes leaves the camera's exposure unchanged.
+        plain = UsdGeom.Camera.Define(sim.stage, "/World/DiscoveredPlainCamera").GetPrim()
+        plain.CreateAttribute("exposure", Sdf.ValueTypeNames.Float).Set(2.0)
+        with pytest.warns(FutureWarning, match="isp_cfg is deprecated"):
+            discovered_plain = instantiate(replace(
+                cfg, prim_path="/World/DiscoveredPlainCamera", tensor_processors=[], isp_cfg=CameraISPMode.AUTO_CAMERA,
+            ))  # fmt: skip
+        rebuilt = instantiate(spawned.cfg)
+        # Isaac RTX applies the camera's exposure, so there the deprecated path neutralizes it. The renderer
+        # itself is not needed to author the camera.
+        with monkeypatch.context() as patched, pytest.warns(FutureWarning, match="isp_cfg is deprecated"):
+            patched.setattr(
+                type(sim), "get_or_create_backend", lambda self, cfg: SimpleNamespace(cleanup=lambda render_data: None)
+            )
+            rtx = instantiate(replace(
+                cfg, prim_path="/World/RtxCamera", spawn=_SPAWN, tensor_processors=[],
+                isp_cfg=PpispCfg(inputs={"exposureOffset": 2.0}), renderer_cfg=RendererCfg(renderer_type="isaac_rtx"),
+            ))  # fmt: skip
+        # isp_cfg next to a PpispProcessorCfg would run PPISP twice, so camera construction rejects it.
+        with pytest.warns(FutureWarning, match="isp_cfg is deprecated"), pytest.raises(ValueError, match="twice"):
+            instantiate(replace(cfg, isp_cfg=PpispCfg()))
 
-        assert isinstance(authored.cfg.isp_cfg, PpispCfg)
-        assert authored.cfg.isp_cfg.inputs["responsivity"] == 3.0
-        assert spawned.cfg.isp_cfg.inputs["exposureOffset"] == 2.0
-        assert spawned.cfg.isp_cfg.inputs["responsivity"] == 1.0
-        assert without_isp.cfg.isp_cfg is None
-        assert cfg.isp_cfg is CameraISPMode.AUTO_CAMERA
-        assert prim.GetAttribute("exposure").Get() == 2.0  # Newton does not use RTX exposure.
+        assert authored.cfg.tensor_processors[0].isp_cfg.inputs["responsivity"] == 3.0
+        assert spawned.cfg.tensor_processors[0].isp_cfg.inputs["exposureOffset"] == 2.0
+        assert spawned.cfg.tensor_processors[0].isp_cfg.inputs["responsivity"] == 1.0
+        assert len(rebuilt.cfg.tensor_processors) == 1  # the deprecated value is forwarded once
+        assert without_isp.cfg.tensor_processors == []  # discovery found no PPISP attributes
+        # Removing a configured processor is reported; the deprecated discovery stays silent, as it was.
+        removed = [record.getMessage() for record in caplog.records if "runs without PPISP" in record.getMessage()]
+        assert len(removed) == 1 and "/World/PlainCamera" in removed[0]
+        assert cfg.tensor_processors[0].isp_cfg is CameraISPMode.AUTO_CAMERA
+        assert prim.GetAttribute("exposure").Get() == 2.0  # The default exposure keeps the authored value.
+        # Newton applies no camera exposure, so the deprecated path leaves it alone, as it did before.
+        assert spawned.cfg.exposure.mode == "default"
+        assert not has_neutral_exposure(sim.stage.GetPrimAtPath("/World/SpawnedCamera"))
+        assert rtx.cfg.exposure.mode == "neutral"
+        assert has_neutral_exposure(sim.stage.GetPrimAtPath("/World/RtxCamera"))
+        assert discovered_plain.cfg.exposure.mode == "default" and discovered_plain.cfg.tensor_processors == []
+        assert plain.GetAttribute("exposure").Get() == 2.0
         assert all(not camera.is_initialized for camera in (authored, spawned, without_isp))
         # Scene authoring belongs to camera construction, without a second renderer lifecycle.
         assert not hasattr(BaseRenderer, "author_camera")
         assert not hasattr(BaseRenderer, "prepare_cameras")
+
+
+def test_camera_async_ppisp_supports_explicit_and_legacy_configs(monkeypatch):
+    """Both explicit and deprecated PPISP configurations support asynchronous rendering."""
+    pytest.importorskip("isaaclab_newton")
+    pytest.importorskip("newton")
+    pytest.importorskip("isaaclab_ov")
+    from isaaclab_newton.physics import NewtonCfg
+    from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXRendererCfg
+    from isaaclab_ppisp import PpispCfg, PpispProcessorCfg
+
+    from isaaclab.sensors.camera import ExposureCfg
+
+    with sim_utils.build_simulation_context(sim_cfg=sim_utils.SimulationCfg(device="cpu", physics=NewtonCfg())) as sim:
+        # Construction authors USD and validates configs; this test does not render.
+        monkeypatch.setattr(
+            type(sim), "get_or_create_backend", lambda self, cfg: SimpleNamespace(cleanup=lambda render_data: None)
+        )
+        cfg = CameraCfg(
+            prim_path="/World/AsyncCamera", width=16, height=16, data_types=["rgb"], spawn=_SPAWN,
+            renderer_cfg=OVRTXRendererCfg(async_rendering=True), exposure=ExposureCfg(mode="neutral"),
+            tensor_processors=[PpispProcessorCfg(isp_cfg=PpispCfg())],
+        )  # fmt: skip
+        explicit = instantiate(cfg)
+        legacy_cfg = replace(cfg, prim_path="/World/LegacyCamera", tensor_processors=[], isp_cfg=PpispCfg())
+        with pytest.warns(FutureWarning, match="isp_cfg is deprecated"):
+            legacy = instantiate(legacy_cfg)
+        assert len(explicit.cfg.tensor_processors) == len(legacy.cfg.tensor_processors) == 1
+        assert explicit.cfg.renderer_cfg.async_rendering and legacy.cfg.renderer_cfg.async_rendering
 
 
 @contextlib.contextmanager

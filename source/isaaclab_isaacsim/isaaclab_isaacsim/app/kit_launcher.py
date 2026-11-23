@@ -296,14 +296,12 @@ class KitLauncher(SimulationLauncher):
           Valid options are:
 
           - ``rerun``: Use Rerun visualizer.
-          - ``newton_gl``: Use Newton GL visualizer.
-          - ``newton_rtx``: Use Newton RTX path-tracer visualizer (experimental).
+          - ``newton``: Use Newton visualizer (``newton_gl`` is an alias). It renders with OpenGL or RTX.
           - ``viser``: Use Viser visualizer.
           - ``kit``: Use Omniverse Kit visualizer.
           - Multiple visualizers can be specified as a comma-delimited list:
-            ``--viz rerun,newton_gl,viser``.
+            ``--viz rerun,newton,viser``.
 
-          .. deprecated:: Use ``newton_gl`` instead of ``newton``.
 
         * ``max_visible_envs`` (int | None): Optional global override for partial visualization by capping
           how many environments are shown in the visualizers.

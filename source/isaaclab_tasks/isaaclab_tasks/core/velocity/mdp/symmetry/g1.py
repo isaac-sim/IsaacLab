@@ -29,7 +29,16 @@ _VECTOR_MIRRORS = {
 _JOINT_TERMS = ("joint_pos", "joint_vel", "actions")
 _PITCH_TOKENS = ("_pitch_", "knee", "elbow")
 _FLIP_TOKENS = ("_roll_", "_yaw_")
-_EXPLICIT_SIGNS = {"hand_thumb_0_joint": 1.0}
+_EXPLICIT_SIGNS = {
+    "hand_thumb_0_joint": 1.0,
+    # waist yaw of the velocity-task G1; its limits are symmetric, so neither limits nor name resolve it
+    "torso_joint": -1.0,
+    # Dex3 thumb rotation. The left and right Dex3 hands are not mirror images, so no sign reflects the thumb
+    # exactly; finger mirroring is approximate on this hand either way.
+    "zero_joint": 1.0,
+}
+# Vector mirror factors per (term, device, size), built once so captured CUDA graphs need no host-to-device copy
+_FACTOR_CACHE: dict[tuple[str, torch.device, int], torch.Tensor] = {}
 
 
 def _counterpart(name: str) -> str:
@@ -157,8 +166,10 @@ def _mirror_group(env: ManagerBasedRLEnv, group: str, obs: torch.Tensor) -> torc
             size *= int(s)
         block = obs[:, offset : offset + size]
         if name in _VECTOR_MIRRORS:
-            factor = torch.tensor(_VECTOR_MIRRORS[name], device=obs.device)
-            out[:, offset : offset + size] = block * factor.repeat(size // 3)
+            key = (name, obs.device, size)
+            if key not in _FACTOR_CACHE:
+                _FACTOR_CACHE[key] = torch.tensor(_VECTOR_MIRRORS[name], device=obs.device).repeat(size // 3)
+            out[:, offset : offset + size] = block * _FACTOR_CACHE[key]
         elif name in _JOINT_TERMS:
             perm, sign = _action_joint_map(env) if name == "actions" else _observation_joint_map(env, group, name)
             if size % perm.numel():
