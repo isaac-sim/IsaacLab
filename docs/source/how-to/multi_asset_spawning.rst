@@ -162,6 +162,13 @@ With supported Newton physics, ``static=False`` authors every alternative under 
 clones the chosen source into each world. The source parent is hidden after cloning. The default ``static=True``
 authors each alternative at its first assigned world and uses the same source-to-destination clone pass.
 
+The OVRTX renderer shows the selected alternative. Its clone pass copies every alternative below
+``<rigid body>/variant_<id>`` in each world, parks the unselected copies far below the body, and moves the selected
+copy onto the body when Newton's selection changes, so a switch costs a few transform writes rather than a scene
+rebuild. Every alternative stays resident in the renderer: renderer memory grows with the number of worlds times the
+number of alternatives.
+Renderers that only read the USD stage keep showing each world's initial alternative.
+
 Run the example
 ---------------
 

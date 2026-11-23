@@ -31,6 +31,7 @@
       to_warp
       make_valid_clone_combinations
       num_spawn_variants
+      mesh_variant_groups
       grid_transforms
       replicate
       usd_replicate

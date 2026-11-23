@@ -17,8 +17,8 @@ from newton import Axis, BodyFlags, JointType, ModelBuilder
 
 from pxr import Sdf, Usd, UsdGeom
 
-from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
-from isaaclab.cloner import ClonePlan, PrototypeWorldTopology, ReplicateContext
+from isaaclab.assets import AssetBaseCfg
+from isaaclab.cloner import ClonePlan, PrototypeWorldTopology, ReplicateContext, mesh_variant_groups
 from isaaclab.cloner import path as cloner_path
 from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
 from isaaclab.scene_data import SceneDataFormat
@@ -28,7 +28,7 @@ from isaaclab.scene_data.deformable_discovery import (
     expand_deformable_entries,
 )
 from isaaclab.sensors import SensorBaseCfg
-from isaaclab.sim import MultiAssetSpawnerCfg, MultiUsdFileCfg, SimulationContext, SpawnerCfg
+from isaaclab.sim import SimulationContext, SpawnerCfg
 from isaaclab.sim.utils.newton_model_utils import resolve_display_color
 
 from isaaclab_newton.cloner.newton_clone_utils import (
@@ -119,16 +119,9 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
         root for root, parent in zip(shared, cloner_path.get_parent_indices(shared), strict=True) if parent == -1
     )
     newton_physics = isinstance(cfg, NewtonCfg)
-    asset_prototypes = {}
-    for row, asset in enumerate(plan.asset_cfgs):
-        if (
-            isinstance(asset, RigidObjectCfg)
-            and isinstance(asset.spawn, (MultiAssetSpawnerCfg, MultiUsdFileCfg))
-            and not asset.spawn.static
-            and asset.spawn.spawn_path
-        ):
-            asset_prototypes.setdefault(asset.prim_path, []).append(row)
-    variant_groups = [rows for rows in asset_prototypes.values() if any(row in asset_prototype_ids for row in rows)]
+    variant_groups = [
+        rows for rows in mesh_variant_groups(plan).values() if any(row in asset_prototype_ids for row in rows)
+    ]
     for rows in variant_groups:
         for row in rows:
             sources[row] = plan.asset_cfgs[row].spawn.spawn_path

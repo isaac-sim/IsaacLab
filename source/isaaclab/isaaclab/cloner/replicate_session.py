@@ -37,6 +37,34 @@ def num_spawn_variants(spawn_cfg: Any) -> int:
     return 1
 
 
+def mesh_variant_groups(plan: ClonePlan) -> dict[str, tuple[int, ...]]:
+    """Return the asset-prototype rows of each rigid object declared with reset-time mesh variants.
+
+    Rows are keyed by the declared prim path and ordered like the spawner's list, so a row's position
+    in its group is the variant ID that :meth:`~isaaclab.assets.RigidObject.write_mesh_variant_to_sim`
+    selects. A declaration takes part only when planning routed every alternative to the physics
+    backend's mesh-variant source root and recorded that path as ``spawn_path``.
+
+    Args:
+        plan: Host declarations and their numeric topology.
+
+    Returns:
+        Prototype rows per declared prim path, in spawner order.
+    """
+    from ..assets import RigidObjectCfg  # noqa: PLC0415
+
+    groups: dict[str, list[int]] = {}
+    for row, asset in enumerate(plan.asset_cfgs):
+        if (
+            isinstance(asset, RigidObjectCfg)
+            and isinstance(asset.spawn, (sim_utils.MultiAssetSpawnerCfg, sim_utils.MultiUsdFileCfg))
+            and not asset.spawn.static
+            and asset.spawn.spawn_path
+        ):
+            groups.setdefault(asset.prim_path, []).append(row)
+    return {prim_path: tuple(rows) for prim_path, rows in groups.items()}
+
+
 def make_valid_clone_combinations(
     asset_names: Sequence[str],
     variant_counts: Sequence[int],

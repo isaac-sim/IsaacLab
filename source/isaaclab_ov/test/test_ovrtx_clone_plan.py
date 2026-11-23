@@ -94,6 +94,9 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
         clone_env_paths=[],
         population_env_paths=[],
         clone_positions=None,
+        mesh_variant_paths={},
+        mesh_variant_sources={},
+        mesh_variant_selection=None,
         render_products=set(),
         cfg=SimpleNamespace(read_gpu_transforms=False),
     )
@@ -131,7 +134,7 @@ def _make_camera_render_spec(num_envs: int = 1, device: str = "cpu") -> CameraRe
     )
 
 
-def _prepare_clones(renderer, plan, routed=None):
+def _prepare_clones(renderer, plan, routed=None, stage=None):
     from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg
 
     cfg = OVRTXBackendCfg(scene_key=renderer.cfg, use_ovstage=renderer._use_ovstage, read_gpu_transforms=True)
@@ -140,7 +143,7 @@ def _prepare_clones(renderer, plan, routed=None):
 
         cfg = OvstageBackendCfg(scene_key=cfg)
     renderer.scene.cfg = cfg
-    sim = SimpleNamespace(_backend_registry=[(cfg, renderer.scene)])
+    sim = SimpleNamespace(_backend_registry=[(cfg, renderer.scene)], stage=stage or Usd.Stage.CreateInMemory())
     sim.get_backends = SimulationContext.get_backends.__get__(sim)
     routed = tuple(range(len(plan.asset_cfgs))) if routed is None else routed
     context = OvstageReplicateContext if renderer._use_ovstage else OvrtxReplicateContext
@@ -406,10 +409,8 @@ def test_create_render_data_binds_camera_after_cloning(monkeypatch, global_camer
 
     renderer.backend.renderer.write_array_attribute = _write_array_attribute
     renderer.backend.renderer.bind_attribute = lambda **_kwargs: SimpleNamespace(unbind=lambda: None)
-    renderer.backend.renderer.write_attribute = (
-        lambda prim_paths=None, attribute_name=None, *args, **kwargs: call_order.append("partitions")
-        if attribute_name == "primvars:omni:scenePartition"
-        else None
+    renderer.backend.renderer.write_attribute = lambda prim_paths=None, attribute_name=None, *args, **kwargs: (
+        call_order.append("partitions") if attribute_name == "primvars:omni:scenePartition" else None
     )
     renderer.prepare_stage(_make_multi_env_stage(num_envs), num_envs)
     spec = _make_camera_render_spec(num_envs=1 if global_camera else num_envs)
@@ -470,7 +471,7 @@ def test_prepare_stage_exports_only_clone_sources_and_their_materials(monkeypatc
         monkeypatch.setattr(ovstage.population, "open_usd_from_string", imported)
         cfg = OvstageBackendCfg(scene_key=renderer.cfg, population_domains=ovstage.PopulationDomain.RENDERING)
         backend = OvstageBackend(cfg)
-        sim = SimpleNamespace(_backend_registry=[(cfg, backend)])
+        sim = SimpleNamespace(_backend_registry=[(cfg, backend)], stage=stage)
         sim.get_backends = SimulationContext.get_backends.__get__(sim)
         OvstageReplicateContext(sim).replicate(plan, (0,))
         exported_usd = renderer.backend.renderer.open_usd_from_string.call_args.args[0]
@@ -623,7 +624,11 @@ def test_clone_context_omits_covered_children_and_honors_routing(child_source, r
     )
     for selected, context in enumerate((OvrtxReplicateContext, OvstageReplicateContext)):
         backends = [SimpleNamespace() for _ in configs]
-        sim = SimpleNamespace(_backend_registry=list(zip(configs, backends)), backend_manager=SimpleNamespace())
+        sim = SimpleNamespace(
+            _backend_registry=list(zip(configs, backends)),
+            backend_manager=SimpleNamespace(),
+            stage=Usd.Stage.CreateInMemory(),
+        )
         sim.get_backends = SimulationContext.get_backends.__get__(sim)
         for cfg, backend in sim._backend_registry:
             backend.cfg = cfg
@@ -633,3 +638,161 @@ def test_clone_context_omits_covered_children_and_honors_routing(child_source, r
         assert all(
             vars(backend) == {"cfg": configs[index]} for index, backend in enumerate(backends) if index != selected
         )
+
+
+def _mesh_variant_stage_and_plan(num_envs: int, worlds: tuple[tuple[int, ...], ...]):
+    """Two alternatives as ReplicateSession plans them: sources under the prototype root, one rigid body each."""
+    from pxr import UsdPhysics
+
+    from isaaclab.assets import RigidObjectCfg
+    from isaaclab.sim import MultiUsdFileCfg
+
+    root = "/World/IsaacLabPrototypes"
+    stage = Usd.Stage.CreateInMemory()
+    for env in range(num_envs):
+        UsdGeom.Xform.Define(stage, f"/World/envs/env_{env}")
+    # The first alternative is its own rigid body, posed at the initial state and scaled.
+    first = UsdGeom.Xform.Define(stage, f"{root}/asset_0")
+    first.AddTranslateOp().Set(Gf.Vec3d(0.0, 0.0, 0.2))
+    first.AddScaleOp().Set(Gf.Vec3d(2.0, 2.0, 2.0))
+    UsdPhysics.RigidBodyAPI.Apply(first.GetPrim())
+    # The second alternative nests its rigid body below the source root, like SimReady props; the body
+    # resets its transform stack, so the root's translation does not reach it.
+    UsdGeom.Xform.Define(stage, f"{root}/asset_1").AddTranslateOp().Set(Gf.Vec3d(1.0, 0.0, 0.0))
+    nested = UsdGeom.Xform.Define(stage, f"{root}/asset_1/large_part")
+    nested.SetResetXformStack(True)
+    nested.AddTranslateOp().Set(Gf.Vec3d(0.0, 0.0, 0.2))
+    UsdPhysics.RigidBodyAPI.Apply(nested.GetPrim())
+    prototypes = tuple(
+        RigidObjectCfg(
+            prim_path="/World/envs/env_[^/]+/Object",
+            spawn=MultiUsdFileCfg(usd_path=[f"part_{index}.usd"], static=False, spawn_path=f"{root}/asset_{index}"),
+        )
+        for index in range(2)
+    )
+    positions = np.zeros((num_envs, 3), dtype=np.float32)
+    return stage, make_clone_plan(prototypes, worlds, num_envs, positions=positions)
+
+
+@pytest.mark.parametrize("worlds", [((0,), (1,)), ((0,),)], ids=["both-used", "variant-1-unused"])
+def test_mesh_variants_clone_every_alternative_under_the_body_frame(worlds):
+    """Alternatives land below child frames of the published body frame, including one no initial world uses."""
+    stage, plan = _mesh_variant_stage_and_plan(3, worlds)
+    root = "/World/IsaacLabPrototypes"
+    frames = [f"/World/envs/env_{env}/Object" for env in range(3)]
+    renderer = _make_ovrtx_renderer_without_backend()
+    _prepare_clones(renderer, plan, stage=stage)
+    backend = renderer.backend
+    assert {source: sorted(targets) for source, targets in backend.clone_copies} == {
+        f"{root}/asset_{variant}": [f"{frame}/variant_{variant}/asset_{variant}" for frame in frames]
+        for variant in range(2)
+    }
+    assert backend.mesh_variant_paths == {frame: [f"{frame}/variant_0", f"{frame}/variant_1"] for frame in frames}
+    assert backend.mesh_variant_sources == {
+        f"{root}/asset_0": f"{root}/asset_0",
+        f"{root}/asset_1": f"{root}/asset_1/large_part",
+    }
+    assert backend.population_env_paths == [f"/World/envs/env_{env}" for env in range(3)]
+
+    renderer._sdp.backend.transform_paths = frames
+    renderer._device = "cpu"
+    renderer.backend.renderer.bind_attribute = Mock()
+    renderer.prepare_stage(stage, 3)
+    exported = Usd.Stage.CreateInMemory()
+    assert exported.GetRootLayer().ImportFromString(renderer.backend.renderer.open_usd_from_string.call_args.args[0])
+    for frame in frames:
+        for path in (frame, f"{frame}/variant_0", f"{frame}/variant_1"):
+            prim = exported.GetPrimAtPath(path)
+            assert prim.IsA(UsdGeom.Xform) and not UsdGeom.Xformable(prim).GetOrderedXformOps()
+        assert [child.GetName() for child in exported.GetPrimAtPath(frame).GetChildren()] == ["variant_0", "variant_1"]
+    # Each source undoes its body's pose below the root and keeps the body's scale; a body that reset its
+    # transform stack becomes parent-relative so the frame and the correction reach it.
+    expected = {
+        "asset_0": Gf.Matrix4d().SetScale(Gf.Vec3d(2.0)),
+        "asset_1": Gf.Matrix4d().SetTranslate(Gf.Vec3d(1.0, 0.0, -0.2)),
+        "asset_1/large_part": Gf.Matrix4d().SetTranslate(Gf.Vec3d(-1.0, 0.0, 0.2)),
+    }
+    for path, local in expected.items():
+        prim = UsdGeom.Xformable(exported.GetPrimAtPath(f"{root}/{path}"))
+        assert list(prim.GetXformOpOrderAttr().Get()) == ["xformOp:transform"] and not prim.GetResetXformStack()
+        np.testing.assert_allclose(np.array(prim.GetLocalTransformation()), np.array(local), atol=1e-12)
+
+
+@pytest.mark.parametrize("use_ovstage", [False, True], ids=["native", "ovstage"])
+def test_mesh_variant_selection_moves_child_frames(use_ovstage):
+    """Every alternative starts parked; a selection change puts the new one on the body and parks the old one."""
+    import ovstage
+    import warp as wp
+    from isaaclab_ov.renderers.ovrtx_renderer import _PARKED_VARIANT_OFFSET
+    from ovrtx import Semantic
+
+    frames = ["/World/envs/env_0/Object", "/World/envs/env_1/Object"]
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer.scene.mesh_variant_paths = {frame: [f"{frame}/variant_{v}" for v in range(2)] for frame in frames}
+    backend = renderer._sdp.backend
+    with pytest.raises(RuntimeError, match="not published as transforms"):
+        renderer._setup_mesh_variants()
+    backend.transform_paths = ["/World/envs/env_0/Robot", *frames]
+    backend.variants_timestamp = 1
+    backend.transform_variants = wp.array([-1, 0, 1], dtype=wp.int32, device="cpu")
+    writes = Mock()
+    if use_ovstage:
+        renderer._use_ovstage = True
+        renderer.scene.ordinal = 3
+        renderer.scene.query = lambda paths: contextlib.nullcontext(list(paths))
+        renderer.scene.stage = SimpleNamespace(write_attribute=writes)
+    else:
+        renderer.backend.renderer.write_attribute = writes
+
+    def written():
+        """Return every write as (attribute, paths, value per path) after checking the call shape."""
+        calls = []
+        for args, kwargs in writes.call_args_list:
+            paths, attribute = list(args[0]), args[1]
+            if use_ovstage:
+                tensor = kwargs["tensors"]
+                assert kwargs["ordinal"] == 3 and kwargs["is_array"] is False
+                assert (attribute == "omni:xform") == (kwargs.get("semantic") is ovstage.AttributeSemantic.MATRIX)
+            else:
+                tensor = args[2]
+                assert (attribute == "omni:xform") == (kwargs.get("semantic") is Semantic.XFORM_MAT4x4)
+            if attribute == "omni:xform":
+                assert tensor.shape == (len(paths), 4, 4)
+                values = ["parked" if z == _PARKED_VARIANT_OFFSET else "shown" for z in tensor[:, 3, 2]]
+                assert all(np.array_equal(xform[:3, :3], np.eye(3)) for xform in tensor)
+            else:
+                values = tensor.tolist()
+            calls.append((attribute, paths, values))
+        if use_ovstage:
+            assert writes.return_value.wait.call_count == len(calls)
+        return calls
+
+    renderer._setup_mesh_variants()
+    children = [f"{frame}/variant_{v}" for frame in frames for v in range(2)]
+    assert written() == [
+        ("omni:resetXformStack", children, [False] * 4),
+        ("omni:xform", children, ["parked"] * 4),
+    ]
+    renderer.update_geometries()
+    renderer.update_geometries()
+    assert written()[2:] == [("omni:xform", [f"{frames[0]}/variant_0", f"{frames[1]}/variant_1"], ["shown"] * 2)]
+    backend.transform_variants = wp.array([-1, 1, 1], dtype=wp.int32, device="cpu")
+    backend.variants_timestamp = 2
+    renderer.update_geometries()
+    assert written()[-1] == ("omni:xform", [f"{frames[0]}/variant_0", f"{frames[0]}/variant_1"], ["parked", "shown"])
+    backend.transform_variants = None
+    backend.variants_timestamp = 3
+    renderer.update_geometries()
+    assert written()[-1] == ("omni:xform", [f"{frames[0]}/variant_1", f"{frames[1]}/variant_1"], ["parked"] * 2)
+    assert len(written()) == 5
+    # A renderer that joins the populated scene later shares its shown alternatives instead of parking them.
+    other = _make_ovrtx_renderer_without_backend()
+    other.backend = other.scene = renderer.scene
+    other._use_ovstage = use_ovstage
+    other._setup_mesh_variants()
+    other.update_geometries()
+    backend.transform_variants = wp.array([-1, 0, 0], dtype=wp.int32, device="cpu")
+    backend.variants_timestamp = 4
+    other.update_geometries()
+    renderer.update_geometries()
+    assert written()[5:] == [("omni:xform", [f"{frames[0]}/variant_0", f"{frames[1]}/variant_0"], ["shown"] * 2)]
