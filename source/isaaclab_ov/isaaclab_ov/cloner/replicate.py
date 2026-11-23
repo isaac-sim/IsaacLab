@@ -505,7 +505,11 @@ def _classify_physics(stage: Usd.Stage, source: str) -> tuple[bool, bool]:
 
 
 def _has_incompatible_mixed_clone_opinions(
-    stage: Usd.Stage, scene: Usd.Prim, known_groups: set[Sdf.Path], native_targets: set[Sdf.Path]
+    stage: Usd.Stage,
+    scene: Usd.Prim,
+    known_groups: set[Sdf.Path],
+    sources: Sequence[Sdf.Path],
+    native_targets: set[Sdf.Path],
 ) -> bool:
     """Reject custom filtering and relationships that require native targets to exist in USD."""
     for prim in stage.Traverse(Usd.TraverseInstanceProxies()):
@@ -515,17 +519,21 @@ def _has_incompatible_mixed_clone_opinions(
             continue
         if prim.IsA(UsdPhysics.Scene) and prim != scene:
             return True
-        # Attachment and pair-filter metadata can be resolved at attach time, before native targets
-        # exist. Keep the full import for scenes with any of these extra collision constraints.
+        # Attachment metadata can be resolved before native targets exist.
         schema_names = (*prim.GetPrimTypeInfo().GetAppliedAPISchemas(), prim.GetTypeName())
-        if any(
-            "Attachment" in name or "ElementCollisionFilter" in name or "FilteredPairs" in name for name in schema_names
-        ):
+        if any("Attachment" in name or "ElementCollisionFilter" in name for name in schema_names):
             return True
         for rel in prim.GetRelationships():
             if not rel.HasAuthoredTargets():
                 continue
-            for target in rel.GetTargets():
+            targets = rel.GetTargets()
+            if rel.GetName() == "physics:filteredPairs":
+                # Native clones preserve pair filters inside a replicated subtree, such as
+                # the link0/link1 exclusion on Franka. Cross-subtree filters need the full import.
+                owner = next((source for source in sources if prim.GetPath().HasPrefix(source)), None)
+                if owner is None or any(not target.HasPrefix(owner) for target in targets):
+                    return True
+            for target in targets:
                 path = target.GetPrimPath()
                 while path and path != Sdf.Path.absoluteRootPath:
                     if path in native_targets:
@@ -660,7 +668,7 @@ def _mixed_clone_groups(
         for target in targets
         if target != source
     }
-    if _has_incompatible_mixed_clone_opinions(stage, scene, known_groups, native_targets):
+    if _has_incompatible_mixed_clone_opinions(stage, scene, known_groups, sources, native_targets):
         return None
     return usd_only, groups
 

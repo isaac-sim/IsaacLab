@@ -527,6 +527,8 @@ def test_mixed_deformable_export_falls_back_for_relationship_to_clone_target(rel
     robot = UsdGeom.Cube.Define(stage, worlds[0] + "/Robot").GetPrim()
     UsdPhysics.RigidBodyAPI.Apply(robot)
     UsdPhysics.CollisionAPI.Apply(robot)
+    link = stage.DefinePrim(worlds[0] + "/Robot/Link", "Xform")
+    UsdPhysics.FilteredPairsAPI.Apply(robot).CreateFilteredPairsRel().SetTargets([link.GetPath()])
     cloth = stage.DefinePrim(worlds[0] + "/Cloth", "Xform")
     cloth.AddAppliedSchema("OmniPhysicsDeformableBodyAPI")
     plan = make_clone_plan(
