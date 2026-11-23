@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
-from isaaclab_experimental.cosmos._protocol import check_reply, connect, receive_message, request, send_message
+from isaaclab_cosmos_server.protocol import check_reply, connect, receive_message, request, send_message
 
 from isaaclab.utils.configclass import instantiate
 
@@ -121,15 +121,15 @@ class Cosmos3Model(WorldModel):
             reply = receive_message(self._socket)[0]
             check_reply(reply)
             if self.transport == "cuda_ipc":
-                from isaaclab_experimental.cosmos import _cuda_ipc
+                from isaaclab_cosmos_server import ipc
 
                 handles = reply.get("ipc")
                 if not isinstance(handles, dict) or set(handles) != {"output", "output_ready"}:
                     raise RuntimeError("The Cosmos world model did not return its output buffer and event.")
                 shape = (self.num_envs, spec.chunk_length, *spec.image_size, 3)
                 # The buffer stays on the service's GPU; the event is imported on this one, whose stream waits for it.
-                self._output = _cuda_ipc.SharedBuffer(service_gpu, shape, handles["output"])
-                self._output_ready = _cuda_ipc.SharedEvent(torch.device(self.device), handles["output_ready"])
+                self._output = ipc.SharedBuffer(service_gpu, shape, handles["output"])
+                self._output_ready = ipc.SharedEvent(torch.device(self.device), handles["output_ready"])
         except Exception:
             # Disconnecting without a close tells the service that this process holds none of its buffers.
             self._release(notify=False)
@@ -149,20 +149,21 @@ class Cosmos3Model(WorldModel):
         if device.type != "cuda":
             reason = "the simulation does not run on a CUDA device"
         else:
-            from isaaclab_experimental.cosmos import _cuda_ipc
+            from isaaclab_cosmos_server import ipc
 
-            if not _cuda_ipc.available():
+            if not ipc.available():
                 reason = "CUDA IPC is not available on this platform"
             elif "cuda_ipc" not in capabilities.get("transports", ()):
                 reason = "the service does not offer CUDA IPC"
-            elif capabilities.get("host_id") is None or capabilities["host_id"] != _cuda_ipc.host_id():
-                # A local endpoint can be a tunnel; the other machine's GPU can have a PCI bus ID this one uses.
-                reason = "the service runs on another machine"
+            elif ipc.gpu_uuid(device.index or 0) not in capabilities.get("visible_gpus", ()):
+                # GPU UUIDs are unique across machines, so a service that sees this GPU runs on this machine; a local
+                # endpoint can be a tunnel to another one.
+                reason = "the service runs on another machine or cannot see this simulation's GPU"
             else:
-                index = _cuda_ipc.device_by_bus_id(capabilities.get("pci_bus_id"))
+                index = ipc.device_by_uuid(capabilities.get("gpu_uuid"))
                 if index is None:
                     reason = "this process cannot see the service's GPU"
-                elif not _cuda_ipc.can_access_peer(device.index or 0, index):
+                elif not ipc.can_access_peer(device.index or 0, index):
                     reason = "this GPU and the service's GPU cannot access each other's memory directly"
                 else:
                     service_gpu = torch.device("cuda", index)

@@ -10,8 +10,8 @@ from __future__ import annotations
 from dataclasses import MISSING
 from typing import Literal
 
-from isaaclab_experimental.cosmos._protocol import DEFAULT_TIMEOUT_S
-from isaaclab_experimental.cosmos.server.world_model import DEFAULT_WORLD_MODEL_ENDPOINT
+from isaaclab_cosmos_server.protocol import DEFAULT_TIMEOUT_S
+from isaaclab_cosmos_server.world_model import DEFAULT_WORLD_MODEL_ENDPOINT
 
 from isaaclab.utils import configclass
 
