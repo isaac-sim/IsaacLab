@@ -327,6 +327,7 @@ def test_starting_a_video_that_cannot_begin_keeps_the_unsaved_clip(tmp_path, mon
     blocker.write_text("not a folder")
     panel.output_dir = str(blocker)
 
+    monkeypatch.setattr(newton_recording, "_ffmpeg_executable", lambda: "ffmpeg")  # whether or not it is installed
     panel.start_video()  # The video folder cannot be created.
 
     assert not panel.recording_video and "Could not create" in panel._message
