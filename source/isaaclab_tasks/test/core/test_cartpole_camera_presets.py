@@ -135,13 +135,15 @@ def test_lidar_range_image_places_rays_on_the_elevation_azimuth_grid():
         CARTPOLE_LIDAR_AZIMUTH_COUNT,
         CARTPOLE_LIDAR_ELEVATION_COUNT,
         CARTPOLE_LIDAR_FAR_RANGE,
+        CARTPOLE_LIDAR_SUBSAMPLING,
         cartpole_lidar_range_image,
     )
 
     elevation, azimuth = 3, 5
+    ray = elevation * CARTPOLE_LIDAR_AZIMUTH_COUNT + azimuth
     num_rays = CARTPOLE_LIDAR_ELEVATION_COUNT * CARTPOLE_LIDAR_AZIMUTH_COUNT
     points = torch.full((2, num_rays, 3), float("nan"))
-    points[:, elevation * CARTPOLE_LIDAR_AZIMUTH_COUNT + azimuth] = torch.tensor([6.0, 0.0, 0.0])
+    points[:, ray] = torch.tensor([6.0, 0.0, 0.0])
     image = cartpole_lidar_range_image(points)
 
     assert image.shape == (2, CARTPOLE_LIDAR_ELEVATION_COUNT, CARTPOLE_LIDAR_AZIMUTH_COUNT)
@@ -149,6 +151,14 @@ def test_lidar_range_image_places_rays_on_the_elevation_azimuth_grid():
     assert image[0, azimuth, elevation] == 0.0
     assert image[0, 0, 0] == 0.0
     assert float(image.max()) <= 1.0
+
+    published = num_rays // CARTPOLE_LIDAR_SUBSAMPLING
+    sparse = torch.full((2, published, 3), float("nan"))
+    sparse[:, ray // CARTPOLE_LIDAR_SUBSAMPLING] = torch.tensor([6.0, 0.0, 0.0])
+    sparse_image = cartpole_lidar_range_image(sparse)
+    assert sparse_image.shape == image.shape
+    assert sparse_image[0, elevation, azimuth] == pytest.approx(6.0 / CARTPOLE_LIDAR_FAR_RANGE)
+    assert sparse_image[0, 0, 1] == 0.0
 
 
 @pytest.mark.parametrize("cfg_cls", _ENV_CFG_CLASSES)

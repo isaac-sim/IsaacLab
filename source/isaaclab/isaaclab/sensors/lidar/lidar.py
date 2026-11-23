@@ -5,7 +5,7 @@
 
 """Lidar sensor.
 
-An ``OmniLidar`` prim carries the scan. ``model_name`` is ``LidarWpm`` or ``LidarCore``, and those
+An ``OmniLidar`` prim carries a LidarWpm scan. Those
 model attributes are written explicitly because the host USD runtime does not have the
 ``omniSensor`` schema registered. An unregistered ``OmniLidar`` type is not Xformable, so the pose
 written to the renderer is the configured offset composed with the parent prim's world pose.
@@ -42,16 +42,9 @@ def _apply_api_schemas(prim, names: tuple[str, ...]) -> None:
     prim.SetMetadata("apiSchemas", schemas)
 
 
-def _scan_token(cfg: LidarCfg) -> str:
-    """Return the scan-type token for the selected model."""
-    if cfg.model_name == "LidarWpm":
-        return "solidState" if cfg.scan_type == "solid_state" else "rotary"
-    return "SOLID_STATE" if cfg.scan_type == "solid_state" else "ROTARY"
-
-
 def _author_output(prim, prefix: str, cfg: LidarCfg, ray_type: str) -> None:
-    """Write the output contract shared by both lidar models."""
-    prim.CreateAttribute(f"{prefix}:scanType", Sdf.ValueTypeNames.Token).Set(_scan_token(cfg))
+    """Write the LidarWpm output contract."""
+    prim.CreateAttribute(f"{prefix}:scanType", Sdf.ValueTypeNames.Token).Set(cfg.scan_type)
     prim.CreateAttribute(f"{prefix}:rayType", Sdf.ValueTypeNames.Token).Set(ray_type)
     prim.CreateAttribute(f"{prefix}:elementsCoordsType", Sdf.ValueTypeNames.Token).Set(cfg.elements_coords_type)
     prim.CreateAttribute(f"{prefix}:outputFrameOfReference", Sdf.ValueTypeNames.Token).Set(
@@ -74,29 +67,6 @@ def _author_pattern(prim, prefix: str, cfg: LidarCfg) -> None:
     prim.CreateAttribute(f"{prefix}:elevationDeg", Sdf.ValueTypeNames.FloatArray).Set(Vt.FloatArray(cfg.elevation_deg))
     prim.CreateAttribute(f"{prefix}:fireTimeNs", Sdf.ValueTypeNames.UIntArray).Set(Vt.UIntArray(cfg.fire_time_ns))
     prim.CreateAttribute(f"{prefix}:channelId", Sdf.ValueTypeNames.UIntArray).Set(Vt.UIntArray(cfg.channel_id))
-
-
-def _author_core(prim, cfg: LidarCfg) -> None:
-    """Write ``LidarCore`` and its ``s001`` emitter state."""
-    emitter_state = "s001"
-    _apply_api_schemas(
-        prim, ("OmniSensorGenericLidarCoreAPI", f"OmniSensorGenericLidarCoreEmitterStateAPI:{emitter_state}")
-    )
-    prefix = "omni:sensor:Core"
-    emitter_count = len(cfg.azimuth_deg)
-    _author_output(prim, prefix, cfg, "IDEALIZED")
-    prim.CreateAttribute(f"{prefix}:numberOfEmitters", Sdf.ValueTypeNames.UInt).Set(emitter_count)
-    prim.CreateAttribute(f"{prefix}:numberOfChannels", Sdf.ValueTypeNames.UInt).Set(
-        max(emitter_count, max(int(value) for value in cfg.channel_id))
-    )
-    if cfg.scan_type == "solid_state":
-        prim.CreateAttribute(f"{prefix}:numLines", Sdf.ValueTypeNames.UInt).Set(1)
-        prim.CreateAttribute(f"{prefix}:numRaysPerLine", Sdf.ValueTypeNames.UIntArray).Set(
-            Vt.UIntArray([emitter_count])
-        )
-    else:
-        prim.CreateAttribute(f"{prefix}:rotationDirection", Sdf.ValueTypeNames.Token).Set(cfg.rotation_direction)
-    _author_pattern(prim, f"{prefix}:emitterState:{emitter_state}", cfg)
 
 
 def _author_wpm(prim, cfg: LidarCfg) -> None:
@@ -140,17 +110,12 @@ def spawn_lidar(prim_path: str, cfg: LidarCfg) -> Usd.Prim:
     xform.AddOrientOp(UsdGeom.XformOp.PrecisionFloat).Set(Gf.Quatf(float(w), Gf.Vec3f(float(x), float(y), float(z))))
     xform.AddScaleOp(UsdGeom.XformOp.PrecisionDouble).Set(Gf.Vec3d(1.0, 1.0, 1.0))
 
-    prim.CreateAttribute("omni:sensor:modelName", Sdf.ValueTypeNames.String).Set(cfg.model_name)
+    prim.CreateAttribute("omni:sensor:modelName", Sdf.ValueTypeNames.String).Set("LidarWpm")
     prim.CreateAttribute("cameraSensorType", Sdf.ValueTypeNames.Token).Set("lidar")
     prim.CreateAttribute("visibility", Sdf.ValueTypeNames.Token).Set("invisible")
     prim.CreateAttribute("omni:sensor:frameRate", Sdf.ValueTypeNames.Double2).Set(Gf.Vec2d(10.0, 1.0))
 
-    if cfg.model_name == "LidarCore":
-        _author_core(prim, cfg)
-    elif cfg.model_name == "LidarWpm":
-        _author_wpm(prim, cfg)
-    else:
-        raise ValueError(f"Lidar model must be 'LidarCore' or 'LidarWpm', got {cfg.model_name!r}.")
+    _author_wpm(prim, cfg)
 
     return prim
 
@@ -175,8 +140,8 @@ def _clear_lidar_returns_kernel(
 class Lidar(SensorBase):
     """Lidar sensor captured by one renderer.
 
-    Each environment contributes one prim. ``model_name`` selects ``LidarWpm`` or ``LidarCore``,
-    and ``scan_type`` selects a solid-state or rotary scan. A capture submits those prims as
+    Each environment contributes one LidarWpm prim.
+    ``scan_type`` selects a solid-state or rotary scan. A capture submits those prims as
     tiles of one lidar render product, in environment order, and writes the split point cloud into
     :attr:`data`. The buffer length is the full scan: one firing of the pattern for a solid-state
     scan, or one firing at every azimuth step for a rotary scan.

@@ -104,32 +104,11 @@ CARTPOLE_LIDAR_ELEVATION_COUNT = len(_CARTPOLE_LIDAR_ELEVATION_AXIS)
 """Height of the lidar range image, one row per elevation."""
 
 
-def cartpole_lidar_pattern() -> tuple[list[float], list[float], list[int], list[int]]:
-    """Build one solid-state grid aimed at the cartpole from the side camera.
+CARTPOLE_LIDAR_RAY_COUNT = CARTPOLE_LIDAR_ELEVATION_COUNT * CARTPOLE_LIDAR_AZIMUTH_COUNT
+"""Number of rays in one full cartpole scan, before ``LidarWpm`` subsampling."""
 
-    Azimuth runs along the rail. Elevation is symmetric about the horizon because the pole can hang
-    below the slider as well as stand above it. Both angles use a 0.5° step, from -40° to 40° in
-    azimuth and from -12° to 12° in elevation.
-
-    Returns:
-        Azimuth degrees, elevation degrees, firing times in nanoseconds, and channel ids. Each
-        sequence has one entry per ray. Elevation is the slow axis and azimuth is the fast axis,
-        matching :func:`cartpole_lidar_range_image`.
-    """
-    azimuths = _CARTPOLE_LIDAR_AZIMUTH_AXIS
-    elevations = _CARTPOLE_LIDAR_ELEVATION_AXIS
-    azimuth_deg = [azimuth for elevation in elevations for azimuth in azimuths]
-    elevation_deg = [elevation for elevation in elevations for _azimuth in azimuths]
-    fire_time_ns = [index * 1000 for index in range(len(azimuth_deg))]
-    channel_id = [index + 1 for index in range(len(azimuth_deg))]
-    return azimuth_deg, elevation_deg, fire_time_ns, channel_id
-
-
-_CARTPOLE_LIDAR_AZIMUTH, _CARTPOLE_LIDAR_ELEVATION, _CARTPOLE_LIDAR_TIME, _CARTPOLE_LIDAR_CHANNEL = (
-    cartpole_lidar_pattern()
-)
-CARTPOLE_LIDAR_RAY_COUNT = len(_CARTPOLE_LIDAR_AZIMUTH)
-"""Number of rays in :func:`cartpole_lidar_pattern`."""
+CARTPOLE_LIDAR_SUBSAMPLING = 2
+"""``LidarWpm`` tiled stride. Values above 1 publish one return out of this many authored rays."""
 
 CARTPOLE_LIDAR_FAR_RANGE = 12.0
 """Maximum lidar range, in meters.
@@ -146,50 +125,107 @@ def cartpole_lidar_range_image(points: torch.Tensor) -> torch.Tensor:
     on the sensor and become 0. Neighboring rays stay neighboring pixels, so a one-ray-wide pole
     remains a column instead of disappearing into a flat coordinate list.
 
+    A subsampled scan still uses that grid. ``LidarWpm`` publishes authored rays ``0, stride, 2 * stride, ...``
+    and drops the remainder. Unpublished pixels stay 0.
+
     Args:
-        points: Sensor-frame returns, in meters. Shape is ``(num_envs, num_rays, 3)``.
+        points: Sensor-frame returns, in meters. Shape is ``(num_envs, num_rays, 3)``, either one return
+            per authored ray or the shorter published scan.
 
     Returns:
         Range image in ``[0, 1]``. Shape is ``(num_envs, elevation, azimuth)``.
 
     Raises:
-        ValueError: If ``points`` is not one Cartesian return per ray of :func:`cartpole_lidar_pattern`.
+        ValueError: If ``points`` is neither the authored grid nor the subsampled scan.
     """
-    num_rays = CARTPOLE_LIDAR_ELEVATION_COUNT * CARTPOLE_LIDAR_AZIMUTH_COUNT
-    if points.ndim != 3 or points.shape[1:] != (num_rays, 3):
-        raise ValueError(f"Expected lidar points of shape (num_envs, {num_rays}, 3), got {tuple(points.shape)}.")
-    grid = points.reshape(points.shape[0], CARTPOLE_LIDAR_ELEVATION_COUNT, CARTPOLE_LIDAR_AZIMUTH_COUNT, 3)
-    distance = torch.linalg.vector_norm(grid, dim=-1)
+    height = CARTPOLE_LIDAR_ELEVATION_COUNT
+    width = CARTPOLE_LIDAR_AZIMUTH_COUNT
+    authored = height * width
+    stride = CARTPOLE_LIDAR_SUBSAMPLING if CARTPOLE_LIDAR_SUBSAMPLING > 1 else 1
+    published = authored // stride
+    if points.ndim != 3 or points.shape[-1] != 3 or points.shape[1] not in (authored, published):
+        raise ValueError(
+            f"Expected lidar points of shape (num_envs, {authored}, 3) or (num_envs, {published}, 3),"
+            f" got {tuple(points.shape)}."
+        )
+
+    if points.shape[1] == authored:
+        grid = points.reshape(points.shape[0], height, width, 3)
+        distance = torch.linalg.vector_norm(grid, dim=-1)
+    else:
+        samples = torch.linalg.vector_norm(points, dim=-1)
+        distance = samples.new_zeros(samples.shape[0], height, width)
+        ray = torch.arange(published, device=points.device) * stride
+        distance[:, torch.div(ray, width, rounding_mode="floor"), ray % width] = samples
     distance = torch.nan_to_num(distance, nan=0.0, posinf=0.0, neginf=0.0)
     return distance.div_(CARTPOLE_LIDAR_FAR_RANGE).clamp_(0.0, 1.0)
 
 
-def cartpole_lidar_cfg() -> LidarCfg:
-    """Return one solid-state ``LidarWpm`` aimed at the cartpole from the side camera.
+def cartpole_lidar_rotary_cfg() -> LidarCfg:
+    """Return a ``LidarWpm`` rotary scan aimed at the cartpole from the side camera.
 
-    The position matches the side camera. The quaternion aims the boresight along world +X, so
-    azimuth 0 and elevation 0 look at the rail center. Points are Cartesian positions in the sensor
-    frame, out to :data:`CARTPOLE_LIDAR_FAR_RANGE`, with one return per ray. Missed rays keep their
-    slots, and one render step publishes the whole grid, so the same cart pose is the same coordinate
-    in every environment and a ray does not hit the next environment.
-
-    Returns:
-        Lidar configuration pinned to OVRTX with motion BVH enabled.
+    The tick pattern is one elevation fan at azimuth 0. The window repeats it from -40° through 40°
+    at 0.5°. :data:`CARTPOLE_LIDAR_SUBSAMPLING` keeps one published slot out of that many authored rays.
     """
+    elevations = _CARTPOLE_LIDAR_ELEVATION_AXIS
+    azimuth_deg = [0.0 for _elevation in elevations]
+    elevation_deg = list(elevations)
+    fire_time_ns = [index * 1000 for index in range(len(azimuth_deg))]
+    channel_id = [index + 1 for index in range(len(azimuth_deg))]
     return LidarCfg(
         prim_path="{ENV_REGEX_NS}/Lidar",
-        model_name="LidarWpm",
-        scan_type="solid_state",
+        scan_type="rotary",
+        rot_pattern_firing_res_deg=0.5,
+        valid_start_azimuth_deg=-40.0,
+        valid_end_azimuth_deg=40.5,
         offset=LidarCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(0.5, -0.5, -0.5, 0.5)),
-        azimuth_deg=_CARTPOLE_LIDAR_AZIMUTH,
-        elevation_deg=_CARTPOLE_LIDAR_ELEVATION,
-        fire_time_ns=_CARTPOLE_LIDAR_TIME,
-        channel_id=_CARTPOLE_LIDAR_CHANNEL,
+        azimuth_deg=azimuth_deg,
+        elevation_deg=elevation_deg,
+        fire_time_ns=fire_time_ns,
+        channel_id=channel_id,
         output_frame_of_reference="SENSOR",
         elements_coords_type="CARTESIAN",
         far_range_m=CARTPOLE_LIDAR_FAR_RANGE,
+        tiled_subsampling=CARTPOLE_LIDAR_SUBSAMPLING,
         max_returns=1,
         instant_lidar=True,
         include_invalid_points=True,
         renderer_cfg=OVRTXRendererCfg(motion_bvh="auto"),
     )
+
+
+def cartpole_lidar_solid_state_cfg() -> LidarCfg:
+    """Return a ``LidarWpm`` solid-state scan aimed at the cartpole from the side camera.
+
+    The scan fires the full elevation-azimuth grid once. Azimuth runs from -40° to 40° and elevation
+    from -12° to 12°, both at 0.5°. Elevation is the slow axis. :data:`CARTPOLE_LIDAR_SUBSAMPLING`
+    keeps one published slot out of that many authored rays.
+    """
+    azimuths = _CARTPOLE_LIDAR_AZIMUTH_AXIS
+    elevations = _CARTPOLE_LIDAR_ELEVATION_AXIS
+    azimuth_deg = [azimuth for _elevation in elevations for azimuth in azimuths]
+    elevation_deg = [elevation for elevation in elevations for _azimuth in azimuths]
+    fire_time_ns = [index * 1000 for index in range(len(azimuth_deg))]
+    channel_id = [index + 1 for index in range(len(azimuth_deg))]
+    return LidarCfg(
+        prim_path="{ENV_REGEX_NS}/Lidar",
+        scan_type="solidState",
+        offset=LidarCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(0.5, -0.5, -0.5, 0.5)),
+        azimuth_deg=azimuth_deg,
+        elevation_deg=elevation_deg,
+        fire_time_ns=fire_time_ns,
+        channel_id=channel_id,
+        output_frame_of_reference="SENSOR",
+        elements_coords_type="CARTESIAN",
+        far_range_m=CARTPOLE_LIDAR_FAR_RANGE,
+        tiled_subsampling=CARTPOLE_LIDAR_SUBSAMPLING,
+        max_returns=1,
+        instant_lidar=True,
+        include_invalid_points=True,
+        renderer_cfg=OVRTXRendererCfg(motion_bvh="auto"),
+    )
+
+
+def cartpole_lidar_cfg() -> LidarCfg:
+    """Return the lidar used by the cartpole lidar preset."""
+    return cartpole_lidar_solid_state_cfg()

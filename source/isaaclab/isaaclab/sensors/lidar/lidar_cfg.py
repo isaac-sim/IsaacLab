@@ -54,18 +54,10 @@ class LidarCfg(SensorBaseCfg):
     asset is already present in the scene.
     """
 
-    model_name: Literal["LidarCore", "LidarWpm"] = "LidarCore"
-    """Lidar model. Defaults to ``LidarCore``.
+    scan_type: Literal["rotary", "solidState"] = "rotary"
+    """USD ``scanType`` token. Defaults to ``rotary``.
 
-    ``LidarCore`` applies ``OmniSensorGenericLidarCoreAPI``. ``LidarWpm`` applies
-    ``OmniSensorGenericLidarWpmAPI``.
-    """
-
-    scan_type: Literal["rotary", "solid_state"] = "rotary"
-    """How the firing pattern is scheduled. Defaults to ``rotary``.
-
-    Both OmniLidar schemas default to a rotary scan. ``solid_state`` fires the pattern once per
-    scan. ``rotary`` repeats it at each azimuth step.
+    ``solidState`` fires the pattern once per scan. ``rotary`` repeats it at each azimuth step.
     """
 
     rot_pattern_firing_res_deg: float = 0.1
@@ -83,12 +75,6 @@ class LidarCfg(SensorBaseCfg):
     A window whose end is not after its start wraps through 360 degrees.
     """
 
-    rotation_direction: Literal["CW", "CCW"] = "CW"
-    """Direction of a core rotary sweep. Defaults to ``CW``.
-
-    ``LidarWpm`` does not read this value.
-    """
-
     azimuth_deg: list[float] = MISSING
     """Azimuth of each pattern ray, in degrees, relative to the tick. Zero is the tick azimuth."""
 
@@ -102,9 +88,9 @@ class LidarCfg(SensorBaseCfg):
     """Channel id of each ray. One entry is required for every azimuth."""
 
     tiled_subsampling: int = 0
-    """Number of rays skipped between published returns. ``0`` publishes every ray.
+    """Published-slot stride for ``LidarWpm``. ``0`` and ``1`` publish every authored slot.
 
-    ``LidarCore`` does not read this value.
+    A larger value keeps one slot out of that many authored slots and drops the remainder.
     """
 
     max_returns: int = 2
@@ -159,19 +145,13 @@ class LidarCfg(SensorBaseCfg):
                 f"Lidar output_frame_of_reference must be 'SENSOR' or 'WORLD', got {self.output_frame_of_reference!r}."
             )
 
-        if self.model_name not in ("LidarCore", "LidarWpm"):
-            raise ValueError(f"Lidar model_name must be 'LidarCore' or 'LidarWpm', got {self.model_name!r}.")
-
-        if self.scan_type not in ("solid_state", "rotary"):
-            raise ValueError(f"Lidar scan_type must be 'solid_state' or 'rotary', got {self.scan_type!r}.")
+        if self.scan_type not in ("solidState", "rotary"):
+            raise ValueError(f"Lidar scan_type must be 'solidState' or 'rotary', got {self.scan_type!r}.")
 
         if self.rot_pattern_firing_res_deg <= 0.0:
             raise ValueError(
                 f"Lidar rot_pattern_firing_res_deg must be positive, got {self.rot_pattern_firing_res_deg}."
             )
-
-        if self.rotation_direction not in ("CW", "CCW"):
-            raise ValueError(f"Lidar rotation_direction must be 'CW' or 'CCW', got {self.rotation_direction!r}.")
 
         if self.far_range_m <= 0.0:
             raise ValueError(f"Lidar far_range_m must be positive, got {self.far_range_m}.")
@@ -183,7 +163,8 @@ class LidarCfg(SensorBaseCfg):
         """Return the number of point slots in one full scan.
 
         A solid-state scan fires the pattern once. A rotary scan repeats it once per azimuth step
-        across the configured window. Each firing keeps :attr:`max_returns` slots.
+        across the configured window. Each firing keeps :attr:`max_returns` slots. ``LidarWpm``
+        with :attr:`tiled_subsampling` above 1 publishes one slot out of that many and drops the remainder.
         """
         ticks = 1
         if self.scan_type == "rotary":
@@ -192,4 +173,8 @@ class LidarCfg(SensorBaseCfg):
                 span += 360.0
             ticks = math.ceil(span / self.rot_pattern_firing_res_deg)
 
-        return ticks * len(self.azimuth_deg) * self.max_returns
+        slots = ticks * len(self.azimuth_deg) * self.max_returns
+        # A stride of 2 on 7889 rays publishes 3944 slots.
+        if self.tiled_subsampling > 1:
+            slots //= self.tiled_subsampling
+        return slots

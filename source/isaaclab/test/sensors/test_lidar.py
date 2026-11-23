@@ -46,10 +46,10 @@ def test_lidar_cfg_rejects_a_non_positive_azimuth_step():
 @pytest.mark.parametrize(
     ("overrides", "expected"),
     [
-        ({"scan_type": "solid_state"}, 1),
+        ({"scan_type": "solidState"}, 1),
         (
             {
-                "scan_type": "solid_state",
+                "scan_type": "solidState",
                 "azimuth_deg": [0.0, 1.0],
                 "elevation_deg": [0.0, 0.0],
                 "fire_time_ns": [0, 0],
@@ -57,6 +57,17 @@ def test_lidar_cfg_rejects_a_non_positive_azimuth_step():
                 "max_returns": 2,
             },
             4,
+        ),
+        (
+            {
+                "scan_type": "solidState",
+                "azimuth_deg": [0.0, 1.0, 2.0],
+                "elevation_deg": [0.0, 0.0, 0.0],
+                "fire_time_ns": [0, 0, 0],
+                "channel_id": [0, 1, 2],
+                "tiled_subsampling": 2,
+            },
+            1,
         ),
         ({"scan_type": "rotary", "rot_pattern_firing_res_deg": 90.0}, 4),
         (

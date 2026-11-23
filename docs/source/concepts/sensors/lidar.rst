@@ -7,8 +7,7 @@ Lidar
 =====
 
 A :class:`~sensors.Lidar` publishes one scan per environment from an ``OmniLidar`` prim.
-``model_name`` selects ``LidarWpm`` or ``LidarCore`` and defaults to ``LidarCore``, matching
-the schema ``omni:sensor:modelName`` values. ``scan_type`` selects a solid-state or rotary
+The prim is a LidarWpm sensor. ``scan_type`` selects a solid-state or rotary
 scan and defaults to rotary, matching the OmniLidar schemas. Those prims share one render
 product, and one renderer step returns a point cloud that is split back into
 per-environment buffers.
