@@ -60,19 +60,14 @@ jobs:
     timeout-minutes: 120
     needs: [config]
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v6
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 1
           lfs: true
-
-      - name: Set up uv
-        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
         with:
           enable-cache: true
-
-      - name: Build and push to ECR
-        uses: ./.github/actions/ecr-build-push-pull
+      - uses: ./.github/actions/ecr-build-push-pull
         with:
           image-tag: ${{ needs.config.outputs.ci_image_tag }}
           isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
