@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Unit tests for the camera sources of the Newton GL window."""
+"""Unit tests for the Tracking Camera views of the Newton GL window."""
 
 from __future__ import annotations
 
@@ -16,7 +16,8 @@ pytest.importorskip("newton")
 from isaaclab_visualizers.newton.newton_visualizer import NewtonGLVisualizer, NewtonVisualizerBase
 from pyglet.math import Vec3
 
-from isaaclab.visualizers import PerspectiveCameraCfg
+from isaaclab.visualizers import PerspectiveCameraCfg, TrackingCameraCfg
+from isaaclab.visualizers.camera_follower import CameraFollower
 
 pytestmark = pytest.mark.kitless
 
@@ -41,7 +42,7 @@ class _Scene:
 
 
 class _View:
-    """An image view; a class, not a namespace, so that it can key the pose dictionary."""
+    """An image view; a class, not a namespace, so that it can key the follower dictionary."""
 
     def __init__(self, source, camera=None):
         self.cfg, self.camera = SimpleNamespace(source=source), camera
@@ -62,14 +63,28 @@ def _visualizer(views) -> NewtonVisualizerBase:
     viz._viewer = SimpleNamespace(camera=camera, set_camera=set_camera)
     viz._sim = SimpleNamespace(get_physics_step_count=lambda: 10, get_physics_dt=lambda: 0.1)
     viz._image_views = list(views)
-    viz.rtx_rendering, viz._perspective_pose = False, None
+    viz._followers = {view: CameraFollower(view.cfg.source, _Scene()) for view in views if viz._is_tracking_view(view)}
+    viz.rtx_rendering, viz._rtx_pose_view, viz._perspective_pose = False, None, None
     return viz
 
 
-def test_a_lone_free_view_is_called_perspective():
-    viz = _visualizer([_view(PerspectiveCameraCfg())])
+def test_a_lone_free_view_is_called_perspective_and_a_task_view_the_tracking_camera():
+    free, task = _view(PerspectiveCameraCfg()), _view(TrackingCameraCfg(env_index=0, eye=(2.0, 0.0, 1.0)))
+    viz = _visualizer([free, task])
 
-    assert viz._view_labels([0]) == ["Perspective"]
+    assert viz._view_labels([0, 1]) == ["Perspective", "Tracking Camera"]
+    assert [viz._is_tracking_view(view) for view in viz._image_views] == [False, True]
+
+
+def test_tracking_cameras_are_numbered_only_when_several_share_a_name():
+    views = [
+        _view(PerspectiveCameraCfg()),
+        _view(TrackingCameraCfg(env_index=0)),
+        _view(TrackingCameraCfg(env_index=1)),
+    ]
+    viz = _visualizer(views)
+
+    assert viz._view_labels([0, 1, 2]) == ["Perspective", "Tracking Camera 1", "Tracking Camera 2"]
 
 
 def test_scene_cameras_are_named_by_their_prim_without_the_environment_pattern():
@@ -80,19 +95,19 @@ def test_scene_cameras_are_named_by_their_prim_without_the_environment_pattern()
     assert viz._view_labels([0, 1]) == ["Perspective", "wrist_camera (RGB sensor)"]
 
 
-def test_the_camera_list_puts_perspective_first_then_sensors():
+def test_the_camera_list_puts_perspective_first_then_tracking_cameras_then_sensors():
     sensor = _View("/World/envs/env_[^/]+/Camera", camera=object())
-    free = _view(PerspectiveCameraCfg())
-    viz = _visualizer([sensor, free])
+    tracking, free = _view(TrackingCameraCfg(env_index=0)), _view(PerspectiveCameraCfg())
+    viz = _visualizer([sensor, tracking, free])
 
-    order = sorted(range(2), key=lambda i: viz._source_rank(viz._image_views[i]))
+    order = sorted(range(3), key=lambda i: viz._source_rank(viz._image_views[i]))
 
-    assert order == [1, 0]
+    assert order == [2, 1, 0]
 
 
 def test_the_free_perspective_pose_is_kept_while_another_source_is_shown():
-    free = _view(PerspectiveCameraCfg())
-    viz = _visualizer([free])
+    free, task = _view(PerspectiveCameraCfg()), _view(TrackingCameraCfg(env_index=0))
+    viz = _visualizer([free, task])
     viz._focal_length_to_vertical_fov_degrees = lambda focal=None: 40.0
     viz.current_image_view = free
     viz._viewer.camera.fov = 0.0
@@ -100,11 +115,40 @@ def test_the_free_perspective_pose_is_kept_while_another_source_is_shown():
     camera.pos, camera.pitch, camera.yaw = (1.0, 2.0, 3.0), -10.0, 45.0
 
     viz._remember_perspective_pose()
-    camera.pos, camera.pitch, camera.yaw = (9.0, 9.0, 9.0), 0.0, 0.0  # A sensor moved it.
+    camera.pos, camera.pitch, camera.yaw = (9.0, 9.0, 9.0), 0.0, 0.0  # A Tracking Camera or sensor moved it.
     viz.cfg.focal_length = 50.0
 
     assert viz._restore_perspective_pose()
     assert (tuple(camera.pos), camera.pitch, camera.yaw, viz.cfg.focal_length) == ((1.0, 2.0, 3.0), -10.0, 45.0, 12.0)
+
+
+def test_resetting_the_tracking_camera_works_while_the_rtx_view_is_current():
+    view = _view(TrackingCameraCfg(env_index=0, eye=(2.0, 0.0, 1.0), lookat=(0.0, 0.0, 0.5), focal_length=24.0))
+    rtx = _View("/World/viewer_camera_0_rtx", camera=object())
+    viz = _visualizer([view])
+    cfg = view.cfg.source
+    viz._tracking_defaults = {
+        view: {
+            "eye": cfg.eye,
+            "lookat": cfg.lookat,
+            "focal_length": cfg.focal_length,
+            "track_path": cfg.track_path,
+            "follow_heading": cfg.follow_heading,
+            "heading_smoothing_time_constant": cfg.heading_smoothing_time_constant,
+            "env": 0,
+        }
+    }
+    viz.current_image_view, viz.rtx_rendering, viz._rtx_pose_view = (
+        rtx,
+        True,
+        view,
+    )  # RTX is showing the Tracking Camera.
+    viz._tracking_error = ""
+
+    cfg.eye = (9.0, 9.0, 9.0)
+    assert viz._reset_tracking_camera(viz._followers[view])
+
+    assert cfg.eye == (2.0, 0.0, 1.0)
 
 
 def test_a_perspective_that_was_never_left_has_no_pose_to_restore():
@@ -276,3 +320,23 @@ def test_a_free_view_records_the_rtx_window_instead_of_an_opengl_render():
 
     assert viz._capture_view(free, None) == "window frame"
     assert viz.current_image_view is rtx
+
+
+def test_the_camera_speed_slider_sets_the_free_cameras_keyboard_speed():
+    free, tracking = _view(PerspectiveCameraCfg()), _view(TrackingCameraCfg(env_index=0))
+    viz = _switchable([free, tracking])
+    viz._viewer = SimpleNamespace(_camera_speed=5.0, camera_speed=5.0, camera_speed_boost=2.0)
+    viz._pose_source_view = lambda: viz.current_image_view
+    imgui = SimpleNamespace(
+        slider_float=lambda *args: (True, 12.0),
+        SliderFlags_=SimpleNamespace(logarithmic=0),
+        is_item_hovered=lambda *args: False,
+        HoveredFlags_=SimpleNamespace(allow_when_disabled=0),
+    )
+    viz.current_image_view = tracking
+    viz._draw_camera_speed(imgui)
+    assert viz._viewer.camera_speed == 5.0  # a tracking camera does not move with the keys
+
+    viz.current_image_view = free
+    viz._draw_camera_speed(imgui)
+    assert viz._viewer.camera_speed == 12.0 and viz._viewer.camera_speed_boost == 12.0
