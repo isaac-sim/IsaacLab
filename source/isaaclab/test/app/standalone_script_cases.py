@@ -24,6 +24,8 @@ from pathlib import Path
 
 from isaaclab.programs import DEMOS, EXAMPLES
 
+from tools import hang_dump
+
 ROOT = Path(__file__).resolve().parents[4]
 EXAMPLE_ROOT = ROOT / "examples"
 DEMO_ROOT = EXAMPLE_ROOT / "demos"
@@ -489,6 +491,26 @@ def gui_is_available() -> bool:
     return bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
 
 
+def _dump_simulator_stacks(process: subprocess.Popen) -> None:
+    """Ask only the instrumented simulator in this launch's process group for a stack."""
+    for entry in Path("/proc").iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            pid = int(entry.name)
+            if os.getpgid(pid) != process.pid:
+                continue
+            args = (entry / "cmdline").read_bytes().split(b"\0")
+            # uv and the isaaclab launcher also contain -c in their arguments. Only signal Python itself.
+            if len(args) < 3 or args[1] != b"-c" or b"hang_dump.register()" not in args[2]:
+                continue
+            caught = re.search(r"^SigCgt:\s*([0-9a-fA-F]+)$", (entry / "status").read_text(), re.MULTILINE)
+            if caught and int(caught[1], 16) & (1 << (hang_dump.DUMP_SIGNAL - 1)):
+                os.kill(pid, hang_dump.DUMP_SIGNAL)
+        except (OSError, ValueError):
+            continue
+
+
 def run_until_ready(
     command: list[str],
     readiness_pattern: str | None,
@@ -523,6 +545,8 @@ def run_until_ready(
     screenshot_captured = False
     fatal_patterns = set()
     monitor_fatal_patterns = True
+    dump_requested = False
+    dump_start = 0
 
     def record_output(chunk: bytes) -> None:
         """Record bounded output while retaining fatal-pattern state."""
@@ -554,6 +578,17 @@ def run_until_ready(
             if returncode is not None:
                 break
             now = time.monotonic()
+            if (
+                not dump_requested
+                and ready_at is None
+                and now - start_time >= startup_timeout - 1.0
+                and hang_dump.is_supported()
+                and hang_dump.dump_path()
+                and any("hang_dump.register()" in arg for arg in command)
+            ):
+                dump_requested = True
+                dump_start = hang_dump.size(hang_dump.dump_path())
+                _dump_simulator_stacks(process)
             if (
                 screenshot_path is not None
                 and ready_at is not None
@@ -593,6 +628,8 @@ def run_until_ready(
             remainder, _ = process.communicate(timeout=5)
             record_output(remainder or b"")
 
+    if dump_requested:
+        record_output(hang_dump.read_since(hang_dump.dump_path(), dump_start).encode())
     decoded = output.decode(errors="replace")
     if ready_at is None and readiness_pattern and re.search(readiness_pattern, decoded):
         ready_at = time.monotonic()

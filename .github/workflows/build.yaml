@@ -505,19 +505,23 @@ jobs:
         ref: 1815972863fa60221a865c81b2879c9e79f8c626
     - name: Apply the same stack probe to the original source snapshot
       shell: bash
+      env:
+        PROBE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       run: |
         python3 - <<'PY'
+        import os
+        import re
         from pathlib import Path
         from urllib.request import urlopen
 
-        url = (
-            "https://raw.githubusercontent.com/kellyguo11/IsaacLab-public/"
-            "dd1a66f35ace4377a85d052b580f9e936e4f6ca6/"
-            "source/isaaclab/test/app/test_standalone_scripts.py"
-        )
-        with urlopen(url, timeout=30) as response:
-            source = response.read()
-        Path("source/isaaclab/test/app/test_standalone_scripts.py").write_bytes(source)
+        sha = os.environ["PROBE_SHA"]
+        assert re.fullmatch(r"[0-9a-f]{40}", sha), sha
+        for name in ("test_standalone_scripts.py", "standalone_script_cases.py"):
+            path = f"source/isaaclab/test/app/{name}"
+            url = f"https://raw.githubusercontent.com/kellyguo11/IsaacLab-public/{sha}/{path}"
+            with urlopen(url, timeout=30) as response:
+                source = response.read()
+            Path(path).write_bytes(source)
         PY
     - uses: ./.github/actions/run-package-tests
       with:

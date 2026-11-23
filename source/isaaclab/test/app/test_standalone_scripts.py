@@ -655,13 +655,11 @@ def _launch(case, *extra_args: str, screenshot_path: Path | None = None) -> None
         and case.visualizer is None
         and not gui_is_available()
     ):
-        # Temporary diagnosis: dump the actual simulator process's stacks if its native shutdown stalls.
-        # The C-level timer still fires when a native call holds the GIL. Keep the normal CLI and viewer.
+        # Temporary diagnosis: register an on-demand native stack dump without starting a watchdog thread.
         module_index = command.index("-m")
         command[module_index : module_index + 2] = [
             "-c",
-            "import faulthandler, runpy; "
-            "faulthandler.dump_traceback_later(60, repeat=True); "
+            "import runpy; from tools import hang_dump; hang_dump.register(); "
             "runpy.run_module('isaaclab', run_name='__main__', alter_sys=True)",
         ]
     result = run_until_ready(
