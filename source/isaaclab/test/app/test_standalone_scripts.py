@@ -647,8 +647,25 @@ def _skip_unsupported(case) -> None:
 
 def _launch(case, *extra_args: str, screenshot_path: Path | None = None) -> None:
     """Launch *case* and assert it ran without a fatal error."""
+    command = [*case.command(), *extra_args]
+    if (
+        RUNTIME_GROUP == "kit"
+        and case.spec.relative_path == "examples/multi_asset.py"
+        and case.physics_backend == "isaacsim_physx"
+        and case.visualizer is None
+        and not gui_is_available()
+    ):
+        # Temporary diagnosis: dump the actual simulator process's stacks if its native shutdown stalls.
+        # The C-level timer still fires when a native call holds the GIL. Keep the normal CLI and viewer.
+        module_index = command.index("-m")
+        command[module_index : module_index + 2] = [
+            "-c",
+            "import faulthandler, runpy; "
+            "faulthandler.dump_traceback_later(60, repeat=True); "
+            "runpy.run_module('isaaclab', run_name='__main__', alter_sys=True)",
+        ]
     result = run_until_ready(
-        [*case.command(), *extra_args],
+        command,
         None if case.spec.finite else case.spec.readiness_pattern,
         startup_timeout=max(STARTUP_TIMEOUT, case.spec.startup_timeout or 0.0),
         soak_time=SOAK_TIME,
@@ -662,24 +679,13 @@ def _launch(case, *extra_args: str, screenshot_path: Path | None = None) -> None
 @pytest.mark.rendering
 @pytest.mark.smoke
 @pytest.mark.parametrize("case", CASES, ids=lambda case: case.id)
-def test_standalone_script_runs_cleanly(case, monkeypatch):
+def test_standalone_script_runs_cleanly(case):
     """Each supported script launch must initialize, step, and stop without a fatal error."""
     _skip_unsupported(case)
     screenshot_path = None
     if SCREENSHOT_DIR and not case.spec.finite and case.visualizer is not None and gui_is_available():
         screenshot_path = Path(SCREENSHOT_DIR) / f"{case.id}.png"
-    extra_args = ()
-    if (
-        RUNTIME_GROUP == "kit"
-        and case.spec.relative_path == "examples/multi_asset.py"
-        and case.physics_backend == "isaacsim_physx"
-        and case.visualizer is None
-        and not gui_is_available()
-    ):
-        # Exercise headless Kit visualization without mixing the default Newton viewer into this Kit launch.
-        monkeypatch.setenv("HEADLESS", "1")
-        extra_args = ("--visualizer", "kit")
-    _launch(case, *extra_args, screenshot_path=screenshot_path)
+    _launch(case, screenshot_path=screenshot_path)
 
 
 @pytest.mark.integration
