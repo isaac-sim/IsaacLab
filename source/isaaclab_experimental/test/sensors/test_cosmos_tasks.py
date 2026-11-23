@@ -355,8 +355,8 @@ def test_trocar_tasks_share_the_calibrated_scene():
     )
     assert raw.scene.spawn.usd_path.endswith("/Props/LightWheel/scene03cell.usd")
     assert raw.robot.spawn.usd_path.endswith("/Robots/g1_29dof_with_dex3_base_fix02.usd")
-    assert raw.trocar_1.spawn.usd_path.endswith("/Trocar004_test_nodeform.usd")
-    assert raw.trocar_2.spawn.usd_path.endswith("/DisposableLaparoscopicPunctureDevice006_test.usd")
+    assert raw.trocar_1.spawn.usd_path.endswith("/Trocar004_nodeform.usd")
+    assert raw.trocar_2.spawn.usd_path.endswith("/DisposableLaparoscopicPunctureDevice006.usd")
     assert raw.tray.spawn.usd_path.endswith("/SurgicalTray001_FixedBoxProp.usd")
     assert raw.tray.spawn.mass_props["/[^/]+"][0].mass == 1000
     assert raw.work_light.spawn.intensity == 0

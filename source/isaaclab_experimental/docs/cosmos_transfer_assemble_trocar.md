@@ -32,8 +32,8 @@ Follow [Serve Cosmos](cosmos_transfer.md#serve-cosmos) to install Cosmos Framewo
 `nvidia/Cosmos3-Nano-Sim-Transfer` and start the service. One service handles all three cameras.
 Leave it running and open a second terminal in the Isaac Lab checkout.
 
-The task expects its scene assets in `/workspace/assets/132c82d`. If they are mounted elsewhere,
-set `ASSET_LOCAL` to the directory containing `Robots/` and `Props/`.
+Extract `assemble-trocar-assets.zip` into `/workspace/assets`. To use a different location,
+set `ASSET_LOCAL` to the directory or HTTPS URL containing `Robots/` and `Props/`.
 
 ## 2. Record a video (optional)
 

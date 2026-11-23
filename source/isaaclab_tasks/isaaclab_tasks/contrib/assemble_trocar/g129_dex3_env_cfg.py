@@ -87,7 +87,7 @@ offset_dict = {
     "right_elbow_joint": -0.3,
 }
 
-HEALTHCARE_ASSET_ROOT = os.environ.get("ASSET_LOCAL", "/workspace/assets/132c82d")
+HEALTHCARE_ASSET_ROOT = os.environ.get("ASSET_LOCAL", "/workspace/assets").rstrip("/")
 USD_ROOT = f"{HEALTHCARE_ASSET_ROOT}/Props/LightWheel"
 
 
@@ -116,7 +116,7 @@ class AssembleTrocarSceneCfg(InteractiveSceneCfg):
     trocar_1 = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/trocar_1",
         spawn=UsdFileCfg(
-            usd_path=f"{USD_ROOT}/Assets/Trocar002/Trocar004_test_nodeform.usd",
+            usd_path=f"{USD_ROOT}/Assets/Trocar002/Trocar004_nodeform.usd",
             collision_props={
                 "/.*": [
                     sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
@@ -139,9 +139,7 @@ class AssembleTrocarSceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/trocar_2",
         spawn=UsdFileCfg(
             usd_path=(
-                f"{USD_ROOT}/Assets/"
-                "DisposableLaparoscopicPunctureDevice001/"
-                "DisposableLaparoscopicPunctureDevice006_test.usd"
+                f"{USD_ROOT}/Assets/DisposableLaparoscopicPunctureDevice001/DisposableLaparoscopicPunctureDevice006.usd"
             ),
             rigid_props=[
                 sim_utils.UsdPhysicsRigidBodyCfg(rigid_body_enabled=True),
