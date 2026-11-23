@@ -27,15 +27,15 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg
 
 
-class HeterogeneousTaskManager:
+class HeterogeneousTaskManager(ManagerTermBase):
     """Manager for environments that each run one of several tasks.
 
-    The tasks are complete environment configurations, of which their rigid objects, termination terms and
-    episode lengths are used; :meth:`compose_tasks` adds them to an environment configuration, with the reset
-    event that creates the manager as ``env.task_manager``. The other managers and scene entities are shared by
-    all tasks. Each environment runs the task set with :meth:`set_task` from its next reset on: the reset selects
-    the task's objects in the slots, where the task changed, and makes their task poses the default root poses,
-    which the environment's reset events write.
+    The tasks are complete environment configurations, of which the rigid objects, termination terms and episode
+    lengths are used; :meth:`compose_tasks` adds them to an environment configuration, with the reset event
+    ``select_task``, which is the manager itself, ``env.task_manager``. The other managers and scene entities are
+    shared by all tasks. Each environment runs the task set with :meth:`set_task` from its next reset on: the event
+    selects the task's objects in the slots, where the task changed, and makes their task poses the default root
+    poses, which the environment's later reset events write.
 
     .. note::
         The objects are selected as reset-time mesh variants, which decides the physics and the camera renderer
@@ -59,32 +59,33 @@ class HeterogeneousTaskManager:
         env.task_manager.set_task([0, 1], [1, 1])
     """
 
-    def __init__(self, cfg: dict[str, ManagerBasedRLEnvCfg], env: ManagerBasedRLEnv):
-        """Initialize the task manager.
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedRLEnv):
+        """Initialize the task manager, the reset event ``select_task`` of the environment.
 
         Args:
-            cfg: The task configurations, keyed by task name.
-            env: The environment instance.
+            cfg: The event configuration, whose ``tasks`` parameter holds the task configurations by task name.
+            env: The environment instance, which gets the manager as ``env.task_manager``.
         """
-        self._env = env
-        self._tasks = cfg
-        self.task_names = list(cfg)
+        super().__init__(cfg, env)
+        self._tasks: dict[str, ManagerBasedRLEnvCfg] = cfg.params["tasks"]
+        self.task_names = list(self._tasks)
         """Task names, in task index order."""
-        slots = _slot_objects(cfg)
+        slots = _slot_objects(self._tasks)
         self._slots = [env.scene[f"object_{slot}"] for slot in range(len(slots))]
         poses = [[(*obj.init_state.pos, *obj.init_state.rot) for obj in objects] for objects in slots]
         self._poses = torch.tensor(poses, device=env.device)
         variants = [_variants(objects)[1] for objects in slots]
         self._variants = torch.tensor(variants, dtype=torch.long, device=env.device)
         self.max_episode_length = torch.tensor(
-            [math.ceil(task.episode_length_s / env.step_dt) for task in cfg.values()], device=env.device
+            [math.ceil(task.episode_length_s / env.step_dt) for task in self._tasks.values()], device=env.device
         )
         """Episode length of each task in environment steps."""
         self.task_ids = torch.zeros(env.num_envs, dtype=torch.long, device=env.device)
         """Index of the task each environment runs."""
         self._next_task_ids = self.task_ids.clone()
-        # Task whose objects the slots of each environment hold; none before the first reset.
-        self._slot_task_ids = torch.full_like(self.task_ids, -1)
+        # Task whose objects the slots of each environment hold: the first task, whose candidates the clone plan pins.
+        self._slot_task_ids = self.task_ids.clone()
+        env.task_manager = self
 
     @staticmethod
     def compose_tasks(cfg: ManagerBasedRLEnvCfg, tasks: dict[str, ManagerBasedRLEnvCfg]) -> None:
@@ -119,7 +120,7 @@ class HeterogeneousTaskManager:
         events = _terms(cfg.events)
         # Copying a configuration composes its tasks again; other tasks would leave slots and terms of the first.
         previous = events.pop("select_task", None)
-        if previous is not None and list(previous.params.get("tasks", ())) != list(tasks):
+        if previous is not None and list(previous.params["tasks"]) != list(tasks):
             raise ValueError("The configuration is composed of other tasks already: compose its tasks once.")
         slots = _slot_objects(tasks)
         for slot, objects in enumerate(slots):
@@ -145,7 +146,7 @@ class HeterogeneousTaskManager:
         terms["time_out"] = TerminationTermCfg(func=task_time_out, time_out=True)
         cfg.episode_length_s = max(task.episode_length_s for task in tasks.values())
         # The tasks are selected before the other reset events write the default states.
-        select = EventTermCfg(func=select_task, mode="reset", params={"tasks": tasks})
+        select = EventTermCfg(func=HeterogeneousTaskManager, mode="reset", params={"tasks": tasks})
         others = dict(events)
         events.clear()
         events.update({"select_task": select, **others})
@@ -184,8 +185,7 @@ class HeterogeneousTaskManager:
         return self._variants[int(name.removeprefix("object_")), self.task_ids]
 
     def task_terms(self, name: str) -> dict[int, TerminationTermCfg]:
-        """Return the termination term ``name`` of the tasks that have one, with their scene entities renamed to the
-        slots.
+        """Return the termination term ``name`` of each task that has one, with its scene entities renamed to the slots.
 
         Args:
             name: Term name in the tasks' termination configurations.
@@ -210,11 +210,17 @@ class HeterogeneousTaskManager:
         device = self._env.device
         self._next_task_ids[torch.as_tensor(env_ids, device=device)] = torch.as_tensor(task_ids, device=device)
 
-    def reset(self, env_ids: torch.Tensor | slice) -> None:
+    def __call__(
+        self, env: ManagerBasedRLEnv, env_ids: torch.Tensor | slice, tasks: dict[str, ManagerBasedRLEnvCfg]
+    ) -> None:
         """Switch the slots of environments to the objects of their tasks, where the task changed, and to their poses.
 
+        The environment applies it as the reset event ``select_task``, before its other reset events.
+
         Args:
+            env: The environment instance.
             env_ids: Environment indices.
+            tasks: The task configurations, the parameter of the event.
         """
         self.task_ids[env_ids] = self._next_task_ids[env_ids]
         tasks = self.task_ids[env_ids]
@@ -224,27 +230,11 @@ class HeterogeneousTaskManager:
             for slot, obj in enumerate(self._slots):
                 # A slot whose tasks all have the same object has no variant to select.
                 if obj.num_mesh_variants > 1:
-                    variant_ids = self._variants[slot, self.task_ids[changed]].int()
+                    variant_ids = self._variants[slot, self.task_ids[changed]]
                     obj.write_mesh_variant_to_sim(variant_ids=variant_ids, env_ids=changed)
             self._slot_task_ids[changed] = self.task_ids[changed]
         for slot, obj in enumerate(self._slots):
             obj.data.default_root_pose.torch[env_ids] = self._poses[slot, tasks]
-
-
-class select_task(ManagerTermBase):
-    """Reset event that creates the task manager, ``env.task_manager``, and switches the environments to their tasks.
-
-    :meth:`HeterogeneousTaskManager.compose_tasks` adds it to the environment configuration.
-    """
-
-    def __init__(self, cfg: EventTermCfg, env: ManagerBasedRLEnv):
-        super().__init__(cfg, env)
-        env.task_manager = HeterogeneousTaskManager(cfg.params["tasks"], env)
-
-    def __call__(
-        self, env: ManagerBasedRLEnv, env_ids: torch.Tensor | slice, tasks: dict[str, ManagerBasedRLEnvCfg]
-    ) -> None:
-        env.task_manager.reset(env_ids)
 
 
 class task_term(ManagerTermBase):
