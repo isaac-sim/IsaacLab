@@ -320,7 +320,19 @@ def _check_random_actions(
             env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
         reset_event = getattr(env_cfg.events, "reset_strategies", None)
         if reset_event is not None and "state_table_size" in reset_event.params:
-            reset_event.params["state_table_size"] = min(32, reset_event.params["state_table_size"])
+            table_size = min(32, reset_event.params["state_table_size"])
+            if "variant_context" in reset_event.params:
+                variants = getattr(env_cfg.events, reset_event.params["variant_context"]).params["variant_names"]
+                choice = reset_event.params["reset_term"].params["terms"][reset_event.params["state_tag_term"]]
+                table_size = max(table_size, len(variants) * len(choice.params["terms"]))
+            reset_event.params["state_table_size"] = table_size
+            if task_name == "IsaacContrib-Factory-Variant-Franka":
+                # Exercise every label/variant reset path; small runs have too few settled poses to screen them all.
+                reset_event.params["acceptance_conditions"] = {}
+            if task_name == "IsaacContrib-Factory-Franka":
+                # This smoke test checks startup and stepping, not the costly training reset-bank screening.
+                reset_event.params["acceptance_conditions"] = {}
+                reset_event.params["state_table_size"] = 2
         # set config args
         env_cfg.sim.create_stage_in_memory = create_stage_in_memory
 

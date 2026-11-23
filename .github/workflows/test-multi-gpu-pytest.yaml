@@ -42,6 +42,7 @@ jobs:
     outputs:
       unit: ${{ steps.unit.outputs.should_run }}
       smoke: ${{ steps.smoke.outputs.should_run }}
+      split_gpu: ${{ steps.split_gpu.outputs.should_run }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
         with:
@@ -85,6 +86,22 @@ jobs:
             ^(pyproject\.toml|uv\.lock)$ :: Dependency graph (image identity)
             ^\.github/workflows/test-multi-gpu-pytest\.yaml$ :: This workflow
             ^\.github/actions/(run-tests|run-package-tests|ecr-build-push-pull|multi-gpu|detect-changes)/ :: Shared actions
+
+      # Split physics/rendering GPU publication lives in isaaclab_teleop, outside the smoke filter, and
+      # its two-GPU cases run nowhere else. The kit-less job runs for either filter.
+      - name: Detect changes (split-GPU publication)
+        id: split_gpu
+        uses: ./.github/actions/detect-changes
+        with:
+          triggered-jobs-pr: multi-GPU split rendering
+          patterns: |
+            ^source/isaaclab_teleop/isaaclab_teleop/(ovxr_renderer|ovxr_scene|ovxr_gpu_publication|tools/check_cuda_peer)\.py$ :: Split-GPU publication
+            ^source/isaaclab_teleop/test/test_(ovxr_renderer|check_cuda_peer)\.py$ :: Split-GPU tests
+            ^source/isaaclab_ov/ :: OVStage and OVRTX helpers used by split-GPU publication
+            ^docker/Dockerfile\.kitless$ :: CI image definition
+            ^(pyproject\.toml|uv\.lock)$ :: Dependency graph (image identity)
+            ^\.github/workflows/test-multi-gpu-pytest\.yaml$ :: This workflow
+            ^\.github/actions/(run-tests|ecr-build-push-pull|detect-changes)/ :: Shared actions
 
   config:
     name: Load Config
@@ -137,7 +154,7 @@ jobs:
     name: Build / cache kit-less image
     needs: [config, changes]
     # Only the training smoke uses this image; the sharded unit tests are Kit-only.
-    if: needs.changes.outputs.smoke == 'true'
+    if: needs.changes.outputs.smoke == 'true' || needs.changes.outputs.split_gpu == 'true'
     # Same pool as the test job for the same reason as ``build`` above -- the ECR cache repo is
     # per pool, so building elsewhere would force a rebuild on the scarce multi-GPU runner.
     runs-on: [self-hosted, linux, x64, multi-gpu]
@@ -333,7 +350,9 @@ jobs:
     # that dies under it -- cannot take down the Kit-renderer lane, which needs a different image
     # entirely. When two multi-GPU runners are free the lanes also overlap; when only one is, the
     # scheduler serialises them onto it, which is the previous behaviour.
-    if: always() && needs.build-kitless.result == 'success' && needs.changes.outputs.smoke == 'true'
+    if: >-
+      always() && needs.build-kitless.result == 'success' &&
+      (needs.changes.outputs.smoke == 'true' || needs.changes.outputs.split_gpu == 'true')
     runs-on: [self-hosted, linux, x64, multi-gpu]
     timeout-minutes: 60
     steps:
@@ -364,6 +383,7 @@ jobs:
         # which already carries ``ov[all]``. Each stack runs in the image built for it, and the
         # job split keeps a kitless-renderer fault from taking down the Kit-renderer coverage
         # that guards renderer device selection.
+        if: needs.changes.outputs.smoke == 'true'
         uses: ./.github/actions/run-tests
         env:
           ISAACLAB_TEST_REQUIRE_MULTI_GPU: "1"  # same as the Kit lane
@@ -375,3 +395,39 @@ jobs:
           pytest-options: -m kitless -n 4
           # Same reason as the Kit lane.
           volume-mount-source: ${{ github.workspace }}
+
+      - name: Split physics and rendering GPUs (kitless renderer)
+        # These cases need two GPUs at once, which the one-device shards never expose, so they
+        # skip everywhere else. This step selects cuda:0 and cuda:1; the next step fails on skips.
+        if: ${{ !cancelled() }}
+        uses: ./.github/actions/run-tests
+        env:
+          ISAACLAB_TEST_DEVICES: "011"
+        with:
+          test-path: source/isaaclab_teleop/test/test_check_cuda_peer.py
+          result-file: multi-gpu-split-rendering-report.xml
+          container-name: isaac-lab-mgpu-split-rendering-${{ github.run_id }}-${{ github.run_attempt }}
+          image-tag: ${{ env.CI_KITLESS_IMAGE_TAG }}
+          # The kitless image does not install isaaclab_teleop, and the CI user cannot write its venv, so
+          # import it from the mounted source. Split-GPU publication needs only the OV libraries in the image.
+          pytest-options: >-
+            source/isaaclab_teleop/test/test_ovxr_renderer.py::test_rigid_publication_uses_target_device_and_retains_failed_producer
+            source/isaaclab_teleop/test/test_ovxr_renderer.py::test_geometry_publication_cuda_devices_resize_and_failed_consumption
+            -o pythonpath=/workspace/isaaclab/source/isaaclab_teleop
+          # Same reason as the Kit lane.
+          volume-mount-source: ${{ github.workspace }}
+
+      - name: Require the split-GPU cases to run
+        # Every case above skips on a runner without two GPUs; fail instead of passing vacuously.
+        if: ${{ !cancelled() }}
+        run: |
+          python3 - reports/multi-gpu-split-rendering-report.xml <<'PY'
+          import sys
+          import xml.etree.ElementTree as ET
+
+          cases = list(ET.parse(sys.argv[1]).getroot().iter("testcase"))
+          skipped = [case.get("name") for case in cases if case.find("skipped") is not None]
+          if not cases or skipped:
+              print(f"::error::split-GPU rendering ran {len(cases)} cases and skipped {skipped}")
+              sys.exit(1)
+          PY
