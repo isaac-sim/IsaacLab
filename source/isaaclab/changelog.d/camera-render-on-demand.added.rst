@@ -1,0 +1,1 @@
+* Added :attr:`~isaaclab.sensors.camera.CameraCfg.render_on_demand`, which keeps a camera out of eager sensor updates so it renders only when its data is read. The visualizer's OVRTX viewer camera uses it.

@@ -24,6 +24,8 @@ import pytest
 import torch
 import yaml
 
+from isaaclab.test.utils import test_devices
+
 # ---------------------------------------------------------------------------
 # Mock the ``rlinf`` package so the extension module can be imported without
 # having RLinf installed.  We create just enough structure for the top-level
@@ -66,6 +68,7 @@ def _build_rlinf_mocks() -> dict[str, types.ModuleType]:
             self.isaaclab_env_id = ""
             self.cfg = cfg
             self.num_envs = num_envs
+            self.device = "cpu"
             self.task_description = ""
 
     mock_isaaclab_base.IsaaclabBaseEnv = _FakeIsaaclabBaseEnv
@@ -426,6 +429,44 @@ class TestTaskRegistration:
 # ---------------------------------------------------------------------------
 # Tests: converter registration
 # ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("hold_pose,device", [(False, "cpu"), *((True, device) for device in test_devices())])
+def test_midchunk_reset_does_not_replay_old_episode_actions(monkeypatch, hold_pose, device):
+    """Only reset worlds hold their returned joint positions, until the next chunk."""
+    monkeypatch.setattr(
+        ext, "_full_cfg_cache", {"env": {"train": {"isaaclab": {"hold_pose_on_midchunk_reset": hold_pose}}}}
+    )
+    base = _rlinf_mocks["rlinf.envs.isaaclab.isaaclab_env"].IsaaclabBaseEnv
+    states = torch.tensor([[0.2, 0.3], [0.4, 0.5]], device=device)
+    done = torch.tensor([True, False], device=device)
+    clear = torch.zeros_like(done)
+    step = mock.Mock(
+        side_effect=[
+            ({"states": states}, torch.ones(2), clear, done, {}),
+            ({"states": states}, torch.ones(2), clear, clear, {}),
+            ({"states": states}, torch.ones(2), clear, clear, {}),
+            ({"states": states}, torch.ones(2), clear, clear, {}),
+        ]
+    )
+    monkeypatch.setattr(base, "step", step, raising=False)
+
+    def chunk_step(self, actions):
+        return [self.step(action, auto_reset=False) for action in actions.unbind(dim=1)]
+
+    monkeypatch.setattr(base, "chunk_step", chunk_step, raising=False)
+    env = ext._create_generic_env_wrapper("test")(None, 2, 0, 1, None)
+    env.device = device
+    actions = torch.ones(2, 2)  # The RLinf env worker receives action chunks on the CPU.
+    env.chunk_step(torch.stack([actions, actions * 2], dim=1))
+    expected = (actions * 2).to(device)
+    if hold_pose:
+        expected[0] = states[0]
+    torch.testing.assert_close(step.call_args.args[0], expected)
+    env.step(actions * 3)
+    torch.testing.assert_close(step.call_args.args[0], actions * 3)
+    env.chunk_step(actions[:, None])
+    torch.testing.assert_close(step.call_args.args[0], actions.to(device))
 
 
 class TestConverterRegistration:

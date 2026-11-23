@@ -6,10 +6,15 @@
 import tempfile
 
 from isaaclab.envs import ManagerBasedRLEnvCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 
 from isaaclab_tasks.contrib import ISAACLAB_TELEOP_AVAILABLE
 
+from ..teleop_physics_cfg import (
+    TeleopPhysicsCfg,
+    prepare_humanoid_teleop_environment,
+)
 from .pickplace_gr1t2_env_cfg import (
     ActionsCfg,
     EventCfg,
@@ -23,6 +28,19 @@ from .pickplace_gr1t2_env_cfg import (
 @configclass
 class PickPlaceGR1T2WaistEnabledEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the GR1T2 environment."""
+
+    class_type: type | str = "isaaclab_tasks.contrib.teleop_env:make_humanoid_teleop_env"
+    _prepared_physics_backend: str | None = None
+    backend_preparation: dict[str, str] = {
+        "ovphysx": "isaaclab_tasks.contrib.pick_place.pickplace_gr1t2_env_cfg:prepare_gr1t2_for_ovphysx",
+        "newton_mjwarp": ("isaaclab_tasks.contrib.pick_place.pickplace_gr1t2_env_cfg:prepare_gr1t2_for_newton_mjwarp"),
+    }
+    """Preparation function, as a ``"module:function"`` reference, for each supported standalone backend.
+
+    The shared GR1T2 preparation keeps the configured controlled joints, including the waist.
+    """
+    haptic_feedback: object | None = None
+    sim: SimulationCfg = SimulationCfg(physics=TeleopPhysicsCfg())
 
     # Scene settings
     scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=1, env_spacing=2.5)
@@ -43,6 +61,8 @@ class PickPlaceGR1T2WaistEnabledEnvCfg(ManagerBasedRLEnvCfg):
 
     def __post_init__(self):
         """Post initialization."""
+        if self._prepared_physics_backend is not None:
+            return
         # general settings
         self.decimation = 6
         self.episode_length_s = 20.0
@@ -66,8 +86,11 @@ class PickPlaceGR1T2WaistEnabledEnvCfg(ManagerBasedRLEnvCfg):
             self.xr = XrCfg(
                 anchor_pos=(0.0, 0.0, 0.0),
                 anchor_rot=(0.0, 0.0, 0.0, 1.0),
+                # Exclude head visuals from the operator camera, not the source scene.
+                excluded_visual_meshes=["{ENV_REGEX_NS}/Robot/head_.*_link/visuals/.*"],
             )
             self.isaac_teleop = IsaacTeleopCfg(
+                prepare_environment=prepare_humanoid_teleop_environment,
                 pipeline_builder=lambda: build_gr1t2_pickplace_pipeline()[0],
                 sim_device=self.sim.device,
                 xr_cfg=self.xr,

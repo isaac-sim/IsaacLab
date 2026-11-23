@@ -137,9 +137,11 @@ def test_native_pendulum_matches_recorded_trajectory(native_sim, device, pendulu
     """Replay command reversals, settling and per-environment friction changes.
 
     On CUDA the friction scales change after graph capture, so live parameter updates are
-    exercised with both state-buffer parities.
+    exercised with both state-buffer parities. The fixture authors the same fit, so the
+    decimation-2 run configures no drive value and runs on the asset's fit alone.
     """
-    (robot,) = _spawn_pendulums(native_sim, pendulum_usd, {"Robot": _make_cfg()})
+    cfg = _make_cfg() if decimation == 1 else BamActuatorCfg(joint_names_expr=[".*"])
+    (robot,) = _spawn_pendulums(native_sim, pendulum_usd, {"Robot": cfg})
     drive = robot.actuators["servo"].drive
     np.testing.assert_allclose(
         robot.data.joint_viscous_friction_coeff.torch.cpu().numpy(), _make_cfg().motor.friction_viscous, rtol=1e-6
