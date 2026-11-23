@@ -20,10 +20,12 @@ Two test suites are provided:
    feature-extractor checkpoints.
 """
 
+import copy
 import types
 from pathlib import Path
 
 import pytest
+import torch
 from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 
@@ -254,6 +256,78 @@ def test_task_presets_select_published_feature_extractor_checkpoint(
 
     expected_path = f"{ISAACLAB_NUCLEUS_DIR}/PretrainedCheckpoints/rsl_rl/{checkpoint_filename}"
     assert env_cfg.feature_extractor.pretrained_checkpoint == expected_path
+
+
+def test_manager_camera_term_forwards_resets_to_the_feature_extractor(monkeypatch):
+    """Resets reach the feature extractor, so each new episode's first image takes a new pose target."""
+    from isaaclab_tasks.core.reorient import mdp
+
+    resets = []
+    extractor = types.SimpleNamespace(reset=lambda env_ids=None: resets.append(env_ids))
+    monkeypatch.setattr(feature_extractor_module, "FeatureExtractor", lambda *args, **kwargs: extractor)
+    camera = types.SimpleNamespace(cfg=types.SimpleNamespace(data_types=["rgb"], height=4, width=4))
+    env = types.SimpleNamespace(
+        device="cpu", num_envs=1, cfg=types.SimpleNamespace(log_dir=None), scene=types.SimpleNamespace(sensors={})
+    )
+    env.scene.sensors["tiled_camera"] = camera
+    params = {"feature_extractor_cfg": FeatureExtractorCfg(), "sensor_cfg": types.SimpleNamespace(name="tiled_camera")}
+    mdp.ShadowHandCameraFeatures(types.SimpleNamespace(params=params), env).reset([0])
+
+    assert resets == [[0]]
+
+
+def _extractor(log_dir, hold_image_targets: bool, lr: float = 0.0) -> FeatureExtractor:
+    """Return a training feature extractor; with ``lr=0`` its weights never change."""
+    cfg = FeatureExtractorCfg(train=True, hold_image_targets=hold_image_targets)
+    extractor = FeatureExtractor(cfg, device="cpu", data_types=["rgb"], log_dir=str(log_dir), height=64, width=64)
+    for group in extractor.optimizer.param_groups:
+        group["lr"] = lr
+    return extractor
+
+
+def test_held_image_targets_pair_each_view_with_the_pose_its_image_appeared_with(tmp_path):
+    """Each view trains on the pose of the step its image appeared, until the image changes or the view resets;
+    black views are left out of the loss, and a step where every view is black does not train."""
+    held = _extractor(tmp_path, hold_image_targets=True)
+    # Trains on the poses it is given, with the same weights.
+    plain = _extractor(tmp_path, hold_image_targets=False)
+    plain.feature_extractor.load_state_dict(held.feature_extractor.state_dict())
+    lit = torch.full((1, 64, 64, 3), 90, dtype=torch.uint8)
+    black = torch.zeros_like(lit)
+    pose = torch.zeros(1, 27)
+
+    def loss(extractor, images, poses):
+        return extractor.step({"rgb": torch.cat(images)}, torch.cat(poses))[0]
+
+    torch.testing.assert_close(loss(held, (lit, lit), (pose, pose)), loss(plain, (lit, lit), (pose, pose)))
+    # Both images are held, so both views keep pose 0.
+    torch.testing.assert_close(loss(held, (lit, lit), (pose + 5, pose + 5)), loss(plain, (lit, lit), (pose, pose)))
+    # View 1 resets and shows black until its next image: only view 0 trains.
+    held.reset(torch.tensor([1]))
+    torch.testing.assert_close(loss(held, (lit, black), (pose + 5, pose + 5)), loss(plain, (lit,), (pose,)))
+    # View 1's next image takes the pose of its step; view 0 still holds pose 0.
+    expected = loss(plain, (lit, lit + 1), (pose, pose + 7))
+    torch.testing.assert_close(loss(held, (lit, lit + 1), (pose + 7, pose + 7)), expected)
+    # After a reset, even the same image takes a new pose.
+    held.reset(torch.tensor([0]))
+    expected = loss(plain, (lit, lit + 1), (pose + 9, pose + 7))
+    torch.testing.assert_close(loss(held, (lit, lit + 1), (pose + 9, pose + 9)), expected)
+    held.reset()
+    assert loss(held, (black, black), (pose, pose)) is None
+
+
+def test_a_step_where_every_view_is_black_leaves_the_weights_and_optimizer_unchanged(tmp_path):
+    """Adam's momentum moves the weights even on a zero loss, so such a step must not reach the optimizer."""
+    extractor = _extractor(tmp_path, hold_image_targets=True, lr=1e-3)
+    lit = torch.full((1, 64, 64, 3), 90, dtype=torch.uint8)
+    extractor.step({"rgb": lit}, torch.ones(1, 27))
+    weights = copy.deepcopy(extractor.feature_extractor.state_dict())
+    state = copy.deepcopy(extractor.optimizer.state_dict()["state"])
+
+    extractor.reset()
+    assert extractor.step({"rgb": torch.zeros_like(lit)}, torch.zeros(1, 27))[0] is None
+    torch.testing.assert_close(extractor.feature_extractor.state_dict(), weights, rtol=0, atol=0)
+    torch.testing.assert_close(extractor.optimizer.state_dict()["state"], state, rtol=0, atol=0)
 
 
 @pytest.fixture

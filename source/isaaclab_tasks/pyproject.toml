@@ -41,4 +41,10 @@ include = ["isaaclab_tasks", "isaaclab_tasks.*"]
 
 [tool.setuptools.package-data]
 "*" = ["*.pyi"]
+"isaaclab_tasks.contrib.medical_pad_unfold" = [
+    "assets/*.json",
+    "assets/*.yaml",
+    "assets/*.png",
+    "assets/resources/*.urdf",
+]
 "isaaclab_tasks.contrib.pick_place" = ["assets/*.urdf"]
