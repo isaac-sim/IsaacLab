@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass, replace
 
 from isaaclab_rl.rsl_rl import (
     RslRlCNNModelCfg,
@@ -33,7 +33,7 @@ class FrankaDeformablePPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 24
     max_iterations = 3000
     save_interval = 50
-    experiment_name = "franka_soft"
+    experiment_name = "lift_soft"
     obs_groups = {
         "actor": ["policy"],
         "critic": ["policy"],
@@ -49,7 +49,7 @@ class FrankaDeformablePPORunnerCfg(RslRlOnPolicyRunnerCfg):
         activation="elu",
         obs_normalization=True,
     )
-    algorithm = ALGO_CFG.replace(learning_rate=1.0e-3)
+    algorithm = replace(ALGO_CFG, learning_rate=1.0e-3)
 
 
 @configclass
@@ -67,7 +67,7 @@ class FrankaDeformableCameraPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 24
     max_iterations = 5000
     save_interval = 50
-    experiment_name = "franka_deformable_camera"
+    experiment_name = "lift_soft_camera"
     obs_groups = {
         "actor": ["policy", "proprio", "base_image"],
         "critic": ["policy", "proprio", "perception"],
@@ -89,7 +89,12 @@ class FrankaDeformableCameraPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         hidden_dims=[512, 256, 128],
         activation="elu",
     )
-    algorithm = ALGO_CFG.replace(num_mini_batches=8)
+    algorithm = replace(ALGO_CFG, num_mini_batches=8)
+
+
+@configclass
+class FrankaClothCameraPPORunnerCfg(FrankaDeformableCameraPPORunnerCfg):
+    experiment_name = "lift_cloth_camera"
 
 
 @configclass

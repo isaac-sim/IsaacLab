@@ -99,10 +99,10 @@ def test_tensor_fill_preserves_item_selector_width() -> None:
     assert inputs["body_ids"].shape == (4,)
 
 
-@pytest.mark.parametrize("physics", ("physx", "newton_mjwarp", "ovphysx"))
-def test_articulation_position_limits_preserve_lower_upper_ordering(physics) -> None:
+def test_articulation_position_limits_preserve_lower_upper_ordering() -> None:
     """Joint-limit inputs should always place non-positive lower bounds before non-negative upper bounds."""
-    adapter = get_asset_benchmark_adapter(physics, "articulation")
+    # No backend overrides the suite-owned joint generators; OVPhysX resolves both the indexed and mask variants.
+    adapter = get_asset_benchmark_adapter("ovphysx", "articulation")
     definitions = resolve_method_benchmarks(get_asset_benchmark_suite("articulation"), adapter)
     limit_definitions = [
         definition
@@ -118,7 +118,6 @@ def test_articulation_position_limits_preserve_lower_upper_ordering(physics) -> 
             assert torch.all(limits[..., 1] >= 0)
 
 
-@pytest.mark.parametrize("physics", ("physx", "newton_mjwarp", "ovphysx"))
 @pytest.mark.parametrize(
     ("method_name", "field_name", "expected_scale"),
     (
@@ -131,15 +130,16 @@ def test_articulation_position_limits_preserve_lower_upper_ordering(physics) -> 
     ),
 )
 def test_articulation_joint_parameter_generators_preserve_workload_scales(
-    monkeypatch, physics, method_name, field_name, expected_scale
+    monkeypatch, method_name, field_name, expected_scale
 ) -> None:
-    """Every backend and available input mode should preserve its workload parameter scale."""
+    """Every available input mode should preserve its workload parameter scale."""
 
     def ones(*shape, **kwargs):
         return torch.ones(*shape, device=kwargs.get("device"), dtype=kwargs.get("dtype"))
 
     monkeypatch.setattr(asset_generators.torch, "rand", ones)
-    adapter = get_asset_benchmark_adapter(physics, "articulation")
+    # No backend overrides the suite-owned joint generators; OVPhysX resolves both the indexed and mask variants.
+    adapter = get_asset_benchmark_adapter("ovphysx", "articulation")
     definitions = resolve_method_benchmarks(get_asset_benchmark_suite("articulation"), adapter)
     matching = [
         definition for definition in definitions if definition.method_name in {method_name, f"{method_name}_mask"}

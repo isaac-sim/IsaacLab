@@ -12,9 +12,15 @@ https://arxiv.org/abs/2601.18336.
 from __future__ import annotations
 
 from dataclasses import field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
+from isaaclab.utils.tensor_processors import TensorProcessorCfg
+
+if TYPE_CHECKING:
+    from isaaclab.sensors.camera import CameraISPMode
+
+    from .pipeline import PpispProcessor
 
 PPISP_ATTR_NAMESPACE = "ppisp:"
 """Namespace prefix for authoritative PPISP attributes authored on a USD camera."""
@@ -126,6 +132,18 @@ class PpispCfg:
     and the four color latents from the HDR image each frame. Static PPISP
     inputs still provide responsivity, vignetting, and CRF.
     """
+
+
+@configclass
+class PpispProcessorCfg(TensorProcessorCfg):
+    """Camera processor configuration that converts ``rgb_hdr`` to ``rgb`` and ``rgba`` with PPISP."""
+
+    func: type[PpispProcessor] | str = "{DIR}.pipeline:PpispProcessor"
+    inputs: list[str] = ["rgb_hdr"]
+    outputs: list[str] = ["rgb", "rgba"]
+
+    isp_cfg: PpispCfg | CameraISPMode = PpispCfg()
+    """PPISP coefficients, or a mode that discovers them from the camera's ``ppisp:*`` attributes."""
 
 
 def normalize_ppisp_cfg(
@@ -336,11 +354,8 @@ def resolve_and_normalize(isp_cfg: Any, stage: Any, camera_prim_path: str | None
       fills defaults, and merges camera-authored USD values when
       ``camera_prim_path`` is set).
 
-    This is the single entry point renderer backends call inside their
-    ``prepare_cameras`` hook so :mod:`isaaclab.sensors.camera` does not need
-    to know about PPISP types at all. The returned cfg applies to the whole
-    Camera sensor batch; callers pass the first matched camera prim path for
-    the camera-local discovery phase.
+    Camera construction calls this before cloning or importing the scene. The returned cfg applies
+    to the whole Camera sensor batch; callers pass the first matched camera prim path for discovery.
 
     Args:
         isp_cfg: The Camera sensor's :attr:`isp_cfg` value (``None``, ``CameraISPMode``, or :class:`PpispCfg`).
@@ -361,9 +376,7 @@ def resolve_and_normalize(isp_cfg: Any, stage: Any, camera_prim_path: str | None
         resolved = auto_camera_ppisp_cfg(stage, camera_prim_path) if camera_prim_path else None
         if resolved is None and (isp_cfg == CameraISPMode.AUTO_ANY or not camera_prim_path):
             resolved = auto_any_ppisp_cfg(stage)
-        if resolved is None:
-            return None
-        return normalize_ppisp_cfg(resolved)
+        return resolved
     return normalize_ppisp_cfg(isp_cfg, stage=stage)
 
 

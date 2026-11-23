@@ -12,19 +12,23 @@ import math
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
-from isaaclab.managers import SceneEntityCfg
+from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
+from isaaclab.utils import index_fill_
 from isaaclab.utils.math import quat_apply, quat_mul
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedRLEnv
+    from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
 
 logger = logging.getLogger(__name__)
 
 __all__ = [
+    "remap_newton_shape_friction",
     "reset_tray_with_random_rotation",
     "reset_robot_to_default_joint_positions",
     "reset_task_stage",
+    "set_newton_shape_solref",
 ]
 
 
@@ -46,25 +50,26 @@ def reset_task_stage(
     from .rewards import get_assemble_trocar_state
 
     s = get_assemble_trocar_state(env)
-    s.task_stage[env_ids] = 0
+    index_fill_(s.task_stage, env_ids, 0)
 
     # Reset dense-reward locked caches
-    s.lift_reward_locked[env_ids] = 0
-    s.tip_reward_locked[env_ids] = 0
-    s.insertion_reward_locked[env_ids] = 0
-    s.placement_reward_locked[env_ids] = 0
+    index_fill_(s.lift_reward_locked, env_ids, 0)
+    index_fill_(s.tip_reward_locked, env_ids, 0)
+    index_fill_(s.insertion_reward_locked, env_ids, 0)
+    index_fill_(s.placement_reward_locked, env_ids, 0)
 
     # Reset sparse-reward previous-stage trackers
-    s.prev_stage_lift[env_ids] = 0
-    s.prev_stage_tip[env_ids] = 0
-    s.prev_stage_insert[env_ids] = 0
-    s.prev_stage_place[env_ids] = 0
+    index_fill_(s.prev_stage_lift, env_ids, 0)
+    index_fill_(s.prev_stage_tip, env_ids, 0)
+    index_fill_(s.prev_stage_insert, env_ids, 0)
+    index_fill_(s.prev_stage_place, env_ids, 0)
 
     # Reset debug throttle
     s.last_debug_print_step = -1
 
     if print_log:
-        logger.debug("Reset task stage for %d environment(s)", len(env_ids))
+        num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
+        logger.debug("Reset task stage for %d environment(s)", num_envs)
 
 
 def reset_tray_with_random_rotation(
@@ -94,8 +99,13 @@ def reset_tray_with_random_rotation(
             - tuple (min, max): Random rotation between min and max degrees
             - float value: Random rotation between -value and +value degrees
             Examples: (0, 10), (-5, 15), 5.0 (equivalent to (-5, 5))
+        deterministic_per_env: Whether to reuse a stable yaw for each environment index
+            and seed across resets. If False (default), sample a fresh yaw on each reset.
+        deterministic_seed: Seed for deterministic_per_env. If None (default), use
+            :func:`torch.initial_seed`. Ignored when deterministic_per_env is False.
     """
-    if len(env_ids) == 0:
+    num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
+    if num_envs == 0:
         return
 
     # Parse rotation_range parameter
@@ -142,13 +152,13 @@ def reset_tray_with_random_rotation(
             deterministic_seed = int(torch.initial_seed())
         u = _deterministic_uniform_0_1_from_ids(env, env_ids, deterministic_seed)  # (num_envs,)
     else:
-        u = torch.rand(len(env_ids), device=env.device)
+        u = torch.rand(num_envs, device=env.device)
     random_yaw = u * (max_angle_rad - min_angle_rad) + min_angle_rad  # (num_envs,)
 
     # Create rotation quaternion for yaw (rotation around Z-axis)
     # XYZW: quat = [x, y, z, w] = [0, 0, sin(θ/2), cos(θ/2)]
     half_angle = random_yaw / 2.0
-    delta_quat = torch.zeros(len(env_ids), 4, device=env.device)
+    delta_quat = torch.zeros(num_envs, 4, device=env.device)
     delta_quat[:, 2] = torch.sin(half_angle)  # z
     delta_quat[:, 3] = torch.cos(half_angle)  # w
 
@@ -178,7 +188,7 @@ def reset_tray_with_random_rotation(
     trocar_1_new_pose[:, 3:7] = quat_mul(delta_quat, trocar_1_default_pose[:, 3:7])
     trocar_2_new_pose[:, 3:7] = quat_mul(delta_quat, trocar_2_default_pose[:, 3:7])
 
-    zero_velocity = torch.zeros(len(env_ids), 6, device=env.device)  # [lin_vel(3), ang_vel(3)]
+    zero_velocity = torch.zeros(num_envs, 6, device=env.device)  # [lin_vel(3), ang_vel(3)]
 
     tray.write_root_pose_to_sim_index(root_pose=tray_new_pose, env_ids=env_ids)
     trocar_1.write_root_pose_to_sim_index(root_pose=trocar_1_new_pose, env_ids=env_ids)
@@ -232,7 +242,8 @@ def reset_robot_to_default_joint_positions(
         env_ids: The environment indices to reset.
         robot_cfg: Scene entity config for the robot.
     """
-    if len(env_ids) == 0:
+    num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
+    if num_envs == 0:
         return
 
     # Get robot asset
@@ -251,3 +262,95 @@ def reset_robot_to_default_joint_positions(
     default_root_vel = robot.data.default_root_vel.torch[env_ids].clone()
     robot.write_root_pose_to_sim_index(root_pose=default_root_pose, env_ids=env_ids)
     robot.write_root_velocity_to_sim_index(root_velocity=default_root_vel, env_ids=env_ids)
+
+
+class remap_newton_shape_friction(ManagerTermBase):
+    """Replace one friction coefficient on an asset's shapes when running on Newton.
+
+    Newton combines a contact pair's friction with ``max`` while PhysX averages it, so a pair with very different
+    coefficients grips much harder on Newton. Remapping only the shapes whose coefficient equals ``source_mu`` lets one
+    pair match its PhysX value while the asset's other materials stay untouched. Other backends are left unchanged.
+    """
+
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
+        super().__init__(cfg, env)
+        self._binding = None
+        physics_modules = {cls.__module__.split(".")[0] for cls in type(env.sim.cfg.physics).__mro__}
+        if "isaaclab_newton" not in physics_modules:
+            return
+        asset = env.scene[cfg.params["asset_cfg"].name]
+        self._newton_manager = env.sim.backend_manager
+        model = self._newton_manager.backend.model
+        self._binding = asset._root_view.get_attribute("shape_material_mu", model)[:, 0]
+
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        env_ids: torch.Tensor | None,
+        asset_cfg: SceneEntityCfg,
+        source_mu: float,
+        target_mu: float,
+    ) -> None:
+        """Set every selected-environment shape with friction ``source_mu`` to ``target_mu``.
+
+        Args:
+            env: Environment owning this term.
+            env_ids: Environments to update. None selects all environments.
+            asset_cfg: Asset whose shapes are remapped.
+            source_mu: Friction coefficient to replace.
+            target_mu: Friction coefficient written in its place.
+        """
+        if self._binding is None:
+            return
+        from newton import ModelFlags
+
+        mu = wp.to_torch(self._binding)
+        rows = torch.arange(env.num_envs, device=mu.device) if env_ids is None else env_ids.to(mu.device)
+        current = mu[rows]
+        mu[rows] = torch.where((current - source_mu).abs() < 1e-4, torch.full_like(current, target_mu), current)
+        self._newton_manager.add_model_change(ModelFlags.SHAPE_PROPERTIES)
+
+
+# Value of ``model.mujoco.solref_mode`` that passes ``model.mujoco.solref`` to MuJoCo unchanged.
+_SOLREF_MODE_RAW = 1
+
+
+def set_newton_shape_solref(
+    env: ManagerBasedEnv,
+    env_ids: torch.Tensor | None,
+    shape_label_pattern: str,
+    solref: tuple[float, float],
+) -> None:
+    """Set the MuJoCo contact ``solref`` of matching Newton shapes. Other backends are left unchanged.
+
+    MuJoCo's soft contacts let closed fingers sink a few millimeters into a held object, deep enough to hook it so the
+    hand cannot let go. A shorter contact time constant on both sides of the pair limits that penetration without
+    changing friction or contact priority.
+
+    Args:
+        env: Environment owning this term.
+        env_ids: Unused; shapes of all environments are matched by label.
+        shape_label_pattern: Regular expression searched in each Newton shape label.
+        solref: MuJoCo ``(time_constant [s], damping_ratio [dimensionless])`` written to the matching shapes.
+    """
+    import re
+
+    physics_modules = {cls.__module__.split(".")[0] for cls in type(env.sim.cfg.physics).__mro__}
+    if "isaaclab_newton" not in physics_modules:
+        return
+    from newton import ModelFlags
+
+    model = env.sim.backend_manager.backend.model
+    pattern = re.compile(shape_label_pattern)
+    shape_ids = [i for i, label in enumerate(model.shape_label) if pattern.search(label)]
+    if not shape_ids:
+        logger.warning("set_newton_shape_solref: no Newton shape label matches '%s'.", shape_label_pattern)
+        return
+    shape_solref = model.mujoco.solref.numpy()
+    shape_solref_mode = model.mujoco.solref_mode.numpy()
+    shape_solref[shape_ids] = solref
+    shape_solref_mode[shape_ids] = _SOLREF_MODE_RAW
+    model.mujoco.solref.assign(shape_solref)
+    model.mujoco.solref_mode.assign(shape_solref_mode)
+    env.sim.backend_manager.add_model_change(ModelFlags.SHAPE_PROPERTIES)
+    logger.info("set_newton_shape_solref: set solref=%s on %d shapes.", solref, len(shape_ids))

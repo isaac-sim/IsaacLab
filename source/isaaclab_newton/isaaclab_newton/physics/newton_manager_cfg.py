@@ -11,45 +11,36 @@ import logging
 from typing import TYPE_CHECKING, Literal
 
 from isaaclab.physics import PhysicsCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_newton.physics.newton_collision_cfg import NewtonCollisionPipelineCfg
 
 if TYPE_CHECKING:
-    from isaaclab_newton.physics import NewtonManager
+    from isaaclab_newton.physics import NewtonManager, NewtonSolver
 
 logger = logging.getLogger(__name__)
 
 
 @configclass
 class NewtonSolverCfg:
-    """Configuration for Newton solver-related parameters.
+    """Configuration of a Newton solver.
 
-    These parameters are used to configure the Newton solver. For more information, see the `Newton documentation`_.
-
-    Subclasses set :attr:`class_type` to their matching :class:`NewtonManager`
-    subclass; :class:`NewtonCfg` propagates that to its own
-    :attr:`NewtonCfg.class_type` in :meth:`NewtonCfg.__post_init__` so that
-    ``SimulationContext`` resolves the correct manager via the existing
-    dispatch path.
+    :attr:`class_type` selects the :class:`~isaaclab_newton.physics.NewtonSolver` that builds and drives the
+    solver; customizing a solver means subclassing it. For the solver parameters, see the
+    `Newton documentation`_.
 
     .. _Newton documentation: https://newton.readthedocs.io/en/latest/
     """
 
-    class_type: type[NewtonManager] | str = "{DIR}.newton_manager:NewtonManager"
-    """Manager class for this solver.
-
-    Default points at the abstract :class:`NewtonManager`; concrete subclasses
-    override it.
-    """
+    class_type: type[NewtonSolver] | str = "{DIR}.newton_solver:NewtonSolver"
+    """Solver class that builds and drives Newton's solver, e.g. ``instantiate(cfg, model, mode).step(...)``."""
 
     solver_type: str = "None"
     """Solver type metadata (deprecated).
 
     .. deprecated::
-        Manager dispatch is now driven by :attr:`class_type`; this field is
-        retained as metadata for logging and debugging only.  Do not branch on
-        ``solver_type`` in new code.
+        Solver dispatch is driven by the configuration class; this field is retained as metadata for logging and
+        debugging only. Do not branch on ``solver_type`` in new code.
     """
 
 
@@ -126,20 +117,14 @@ class NewtonCfg(PhysicsCfg):
 
     This configuration includes Newton-specific simulation settings and solver configuration.
 
-    The active :class:`NewtonManager` subclass is determined by
-    :attr:`solver_cfg.class_type`, which :meth:`__post_init__` propagates to
-    :attr:`class_type` so that ``SimulationContext`` resolves the right
-    manager subclass automatically.  User code keeps the existing two-level
-    shape ``NewtonCfg(solver_cfg=...)`` and does not need to set
-    :attr:`class_type` explicitly.
+    ``class_type`` selects the integration manager independently of the solver, which :attr:`solver_cfg` describes.
+    Downstream code can subclass :class:`NewtonManager` and set this field.
     """
 
-    class_type: type[NewtonManager] | str | None = None
-    """The class type of the :class:`NewtonManager`.
+    class_type: type[NewtonManager] | str = "{DIR}.newton_manager:NewtonManager"
+    """Manager class, constructed by SimulationContext as ``instantiate(cfg)``."""
 
-    Auto-set in :meth:`__post_init__` from :attr:`solver_cfg.class_type`.
-    Users normally do not set this directly.
-    """
+    mesh_variant_source_root: str = "/World/IsaacLabPrototypes"
 
     num_substeps: int = 1
     """Number of substeps to use for the solver."""
@@ -151,7 +136,20 @@ class NewtonCfg(PhysicsCfg):
     """Whether to enable debug mode for the solver."""
 
     use_cuda_graph: bool = True
-    """Whether to use CUDA graphing when simulating.
+    """Whether to replay the physics step from a captured Warp graph.
+
+    Graphs are captured immediately after the first eager physics step, after reset and decimation
+    setup. Capture does not advance physics. Kit/RTX uses a nonblocking stream with relaxed
+    capture mode; kitless simulation uses Warp's standard capture mode.
+
+    On the CPU, Warp's CPU graph capture records the step and removes Python launch overhead. A solver
+    whose :meth:`~isaaclab_newton.physics.NewtonSolver.supports_capture` returns False steps eagerly.
+
+    Step callbacks registered on the manager are recorded into the captured step, so they must be
+    graph-safe: fixed array shapes and no host branching on device data. On the CPU they must also
+    issue only Warp work on contiguous arrays: Warp's CPU capture does not record torch operations,
+    host reads or :meth:`warp.Mesh.refit`, which then run once at capture time instead of on every
+    step. Set this to False to step such callbacks eagerly.
 
     If set to False, the simulation performance will be severely degraded.
     """
@@ -170,11 +168,10 @@ class NewtonCfg(PhysicsCfg):
        overhead therefore grow with contact capacity. Enable this mode only
        when its reproducibility guarantee is required.
 
-    MJWarp on the GPU with
-    :attr:`~isaaclab_newton.physics.MJWarpSolverCfg.disable_sensors` set to
-    ``True``, XPBD, and Featherstone support this setting. Newton raises an
-    error during solver initialization for unsupported solvers rather than
-    silently running them without the requested guarantee.
+    XPBD and Featherstone support both guarantees; MJWarp on the GPU (built with
+    its sensor stage disabled) and Steel support only ``"run_to_run"``. Newton
+    raises an error during solver initialization when the solver cannot honor
+    the requested mode rather than silently running it without the guarantee.
     """
 
     solver_cfg: NewtonSolverCfg | None = None
@@ -193,10 +190,11 @@ class NewtonCfg(PhysicsCfg):
     The pipeline is active when the solver delegates collision detection to Newton:
 
     - :class:`MJWarpSolverCfg` with ``use_mujoco_contacts=False``,
-    - :class:`KaminoPADMMSolverCfg` or :class:`KaminoDVISolverCfg` with
+    - :class:`KaminoPADMMSolverCfg` or :class:`KaminoSCCSolverCfg` with
       ``use_collision_detector=False``,
     - :class:`XPBDSolverCfg` (always),
     - :class:`VBDSolverCfg` (always),
+    - :class:`SteelSolverCfg` (always),
     - :class:`FeatherstoneSolverCfg` (always).
 
     :class:`~isaaclab_newton.physics.MPMSolverCfg` does not use this pipeline;
@@ -207,9 +205,9 @@ class NewtonCfg(PhysicsCfg):
     parameters such as broad phase algorithm, contact limits, or hydroelastic mode.
 
     .. note::
-        Setting this while ``MJWarpSolverCfg.use_mujoco_contacts=True`` raises
-        :class:`ValueError`.  When a Kamino solver config has ``use_collision_detector=True``,
-        the field is ignored because Kamino's internal detector handles contacts.
+        Setting this while ``MJWarpSolverCfg.use_mujoco_contacts=True``, or while a Kamino solver
+        config has ``use_collision_detector=True``, raises :class:`ValueError` because the solver's
+        internal detector handles contacts.
     """
 
     default_shape_cfg: NewtonShapeCfg = NewtonShapeCfg()
@@ -262,22 +260,17 @@ class NewtonCfg(PhysicsCfg):
     """
 
     def __post_init__(self):
-        # NewtonCfg.class_type is auto-derived from solver_cfg.class_type.
-        # Refuse a user-set value: setting both is ambiguous and was
-        # previously silently overwritten.
-        if self.class_type is not None:
-            raise TypeError("Cannot manually set NewtonCfg.class_type; it is auto-derived from solver_cfg.class_type.")
+        if self.class_type is None:
+            raise ValueError("NewtonCfg.class_type must select a NewtonManager class; omit it for the default.")
         if self.deterministic_mode not in ("not_guaranteed", "run_to_run", "gpu_to_gpu"):
             raise ValueError(
                 "NewtonCfg.deterministic_mode must be 'not_guaranteed', 'run_to_run', or 'gpu_to_gpu', "
                 f"got {self.deterministic_mode!r}."
             )
         if self.solver_cfg is None:
-            from isaaclab_newton.physics.mjwarp_manager_cfg import MJWarpSolverCfg
+            from isaaclab_newton.physics.mjwarp_solver_cfg import MJWarpSolverCfg
 
             self.solver_cfg = MJWarpSolverCfg()
-
-        self.class_type = self.solver_cfg.class_type
 
         # Mid-tick re-collide is silently disabled when collision_decimation >= num_substeps.
         if self.collision_decimation > 0 and self.collision_decimation >= self.num_substeps:

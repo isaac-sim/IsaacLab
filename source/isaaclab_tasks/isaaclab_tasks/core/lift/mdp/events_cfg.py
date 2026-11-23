@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Configuration for the lift event terms."""
+"""Configuration for the event terms of the lift environments."""
 
 from __future__ import annotations
 
@@ -11,9 +11,7 @@ from collections.abc import Callable
 from dataclasses import MISSING
 
 from isaaclab.managers import ManagerTermBaseCfg
-from isaaclab.utils.configclass import configclass
-
-from isaaclab_tasks.utils.success_monitor import SuccessMonitorCfg as SuccessMonitorCfg
+from isaaclab.utils import configclass
 
 
 @configclass

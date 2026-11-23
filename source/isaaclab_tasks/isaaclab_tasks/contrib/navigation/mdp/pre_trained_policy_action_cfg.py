@@ -3,10 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Configuration for the pre-trained low-level policy action."""
+
 from dataclasses import MISSING
 
 from isaaclab.managers import ActionTermCfg, ObservationGroupCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 
 @configclass
@@ -35,4 +37,4 @@ class PreTrainedPolicyActionCfg(ActionTermCfg):
     """Low level observation configuration."""
 
     debug_vis: bool = True
-    """Whether to visualize debug information. Defaults to False."""
+    """Whether to visualize debug information. Defaults to True."""

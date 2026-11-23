@@ -9,7 +9,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "isaaclab_tasks"
-version = "17.1.0"
+version = "31.0.0"
 description = "Extension containing suite of environments for robot learning."
 license = {text = "BSD-3-Clause"}
 authors = [{name = "Isaac Lab Project Developers"}]
@@ -20,11 +20,13 @@ requires-python = ">=3.12"
 dependencies = [
     "isaaclab",
     "isaaclab_assets",
+    "isaaclab_experimental",
 ]
 
 [tool.uv.sources]
 isaaclab = { path = "../isaaclab", editable = true }
 isaaclab_assets = { path = "../isaaclab_assets", editable = true }
+isaaclab_experimental = { path = "../isaaclab_experimental", editable = true }
 
 [project.urls]
 Homepage = "https://github.com/isaac-sim/IsaacLab"
@@ -39,3 +41,4 @@ include = ["isaaclab_tasks", "isaaclab_tasks.*"]
 
 [tool.setuptools.package-data]
 "*" = ["*.pyi"]
+"isaaclab_tasks.contrib.pick_place" = ["assets/*.urdf"]

@@ -15,7 +15,6 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
-import warp as wp
 
 from isaaclab.managers import ManagerTermBase, SceneEntityCfg
 from isaaclab.managers.manager_term_cfg import CurriculumTermCfg
@@ -59,8 +58,8 @@ class ObstacleDensityCurriculum(ManagerTermBase):
         # Extract parameters from config
         self._min_difficulty = cfg.params["min_difficulty"]
         self._max_difficulty = cfg.params["max_difficulty"]
-        self._asset_cfg = cfg.params.get("asset_cfg", SceneEntityCfg("robot"))
-        self._command_name = cfg.params.get("command_name", "target_pose")
+        self._asset_cfg = cfg.params["asset_cfg"]
+        self._command_name = cfg.params["command_name"]
 
         # Initialize difficulty levels for all environments
         self._difficulty_levels = torch.ones(env.num_envs, device=env.device) * self._min_difficulty
@@ -81,8 +80,8 @@ class ObstacleDensityCurriculum(ManagerTermBase):
             env_ids: Environment indices to update.
             asset_cfg: Scene entity configuration for the robot. Defaults to SceneEntityCfg("robot").
             command_name: Name of the command to track. Defaults to "target_pose".
-            max_difficulty: Maximum difficulty level. Defaults to 10.
-            min_difficulty: Minimum difficulty level. Defaults to 2.
+            min_difficulty: Unused. The minimum difficulty level is read from ``cfg.params`` in :meth:`__init__`.
+            max_difficulty: Unused. The maximum difficulty level is read from ``cfg.params`` in :meth:`__init__`.
 
         Returns:
             Mean difficulty level across all environments (for logging).
@@ -92,7 +91,7 @@ class ObstacleDensityCurriculum(ManagerTermBase):
         command = env.command_manager.get_command(command_name)
 
         target_position_w = command[:, :3].clone()
-        current_position = wp.to_torch(asset.data.root_pos_w) - env.scene.env_origins
+        current_position = asset.data.root_pos_w.torch - env.scene.env_origins
         position_error = torch.norm(target_position_w[env_ids] - current_position[env_ids], dim=1)
 
         # Decide difficulty changes

@@ -11,6 +11,9 @@
     DifferentialIKControllerCfg
     OperationalSpaceController
     OperationalSpaceControllerCfg
+    Conveyor
+    ConveyorCfg
+    ConveyorSurfaceCfg
     pink_ik.PinkIKController
     pink_ik.PinkIKControllerCfg
     pink_ik.NullSpacePostureTask
@@ -44,8 +47,30 @@ Operational Space controllers
     :exclude-members: __init__, class_type
 
 
+Conveyors
+---------
+
+.. autoclass:: Conveyor
+    :members:
+    :inherited-members:
+
+.. autoclass:: ConveyorCfg
+    :members:
+    :exclude-members: __init__, class_type
+
+.. autoclass:: ConveyorSurfaceCfg
+    :members:
+
+
 Pink IK Controller
 ------------------
+
+.. note::
+
+   The standard Isaac Lab installation provides Pink IK dependencies only on Linux x86_64 and aarch64.
+   Pink IK requires ``pin`` (Pinocchio), ``pin-pink``, and ``daqp``. The Windows uv/pip installation does not
+   provide Pinocchio, so Pink IK tasks cannot run with that installation. This is an installation limitation;
+   upstream Pinocchio supports Windows through other distribution methods.
 
 .. automodule:: isaaclab.controllers.pink_ik
 

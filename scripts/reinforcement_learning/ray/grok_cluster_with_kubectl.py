@@ -5,6 +5,9 @@
 
 """Deprecated wrapper for :mod:`isaaclab_contrib.rl.ray.grok_cluster_with_kubectl`."""
 
-from _compat import forward
+if __package__:
+    from ._compat import forward
+else:
+    from _compat import forward
 
 forward("isaaclab_contrib.rl.ray.grok_cluster_with_kubectl", globals())

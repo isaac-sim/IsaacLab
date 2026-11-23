@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import warnings
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
@@ -27,18 +28,21 @@ from isaaclab.actuators.actuator_base_cfg import _is_implicit_actuator_cfg
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.physics import PhysicsEvent
-from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
+from isaaclab.sim import SimulationContext
+from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
-from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.warp import ProxyArray, memory
+from isaaclab.utils.warp import math as warp_math
+from isaaclab.utils.warp.memory import resolve_1d_mask, resolve_ids, write_2d_with_mask
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_newton.assets import kernels as shared_kernels
 from isaaclab_newton.assets.articulation import kernels as articulation_kernels
-from isaaclab_newton.physics import NewtonManager as SimulationManager
+from isaaclab_newton.assets.articulation.joint_coordinates import scatter_joint_coordinates
 
 from .actuator_control import NewtonActuatorControl
-from .articulation_data import ArticulationData
+from .articulation_data import ArticulationData, _unsupported_fixed_tendon_property
 
 if TYPE_CHECKING:
     from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
@@ -80,56 +84,6 @@ def _resolve_articulation_root_prim_path_expr(cfg: ArticulationCfg) -> str:
 
     resolve_kwargs = {"predicate": has_articulation_root_api, "expected_num_matches": 1}
     return resolve_matching_prims_from_source(cfg.prim_path, **resolve_kwargs)[0][1]
-
-
-def _configure_builder_joint_target_modes(builder, cfg: ArticulationCfg) -> None:
-    """Resolve configured actuator gains into Newton builder target modes before finalization."""
-    root_prim_path_regex = path_expr_to_glob(_resolve_articulation_root_prim_path_expr(cfg)).replace("*", ".*")
-    articulation_ids, _ = resolve_matching_names(
-        root_prim_path_regex, builder.articulation_label, raise_when_no_match=False
-    )
-    for articulation_id in articulation_ids:
-        joint_start = builder.articulation_start[articulation_id]
-        joint_end = builder.articulation_end[articulation_id]
-        dof_ids: list[int] = []
-        dof_names: list[str] = []
-        for joint_id in range(joint_start, joint_end):
-            if builder.joint_type[joint_id] in (JointType.FREE, JointType.FIXED):
-                continue
-            dof_start = builder.joint_qd_start[joint_id]
-            dof_end = (
-                builder.joint_qd_start[joint_id + 1]
-                if joint_id + 1 < len(builder.joint_qd_start)
-                else len(builder.joint_target_mode)
-            )
-            joint_name = builder.joint_label[joint_id].rsplit("/", maxsplit=1)[-1]
-            for axis_index, dof_id in enumerate(range(dof_start, dof_end)):
-                dof_ids.append(dof_id)
-                dof_names.append(joint_name if dof_end - dof_start == 1 else f"{joint_name}:{axis_index}")
-
-        for actuator_cfg in cfg.actuators.values():
-            matched_indices, matched_names = resolve_matching_names(
-                actuator_cfg.joint_names_expr, dof_names, raise_when_no_match=False
-            )
-            if not matched_indices:
-                continue
-            selected_dof_ids = [dof_ids[index] for index in matched_indices]
-            stiffness_values = _resolve_actuator_gain_values(
-                actuator_cfg.stiffness,
-                matched_names,
-                [builder.joint_target_ke[dof_id] for dof_id in selected_dof_ids],
-            )
-            damping_values = _resolve_actuator_gain_values(
-                actuator_cfg.damping,
-                matched_names,
-                [builder.joint_target_kd[dof_id] for dof_id in selected_dof_ids],
-            )
-            for dof_id, stiffness, damping in zip(selected_dof_ids, stiffness_values, damping_values, strict=True):
-                builder.joint_target_mode[dof_id] = int(
-                    _target_mode_from_gains(stiffness, damping)
-                    if _is_implicit_actuator_cfg(actuator_cfg)
-                    else JointTargetMode.EFFORT
-                )
 
 
 class Articulation(BaseArticulation):
@@ -203,27 +157,82 @@ class Articulation(BaseArticulation):
         Args:
             cfg: A configuration instance.
         """
-        from isaaclab.sim import SimulationContext  # noqa: PLC0415
-
         super().__init__(cfg)
+
+        if cfg.enable_joint_wrench:
+            self._backend_manager.request_extended_state_attribute("body_parent_f")
 
         sim_ctx = SimulationContext.instance()
         self._sim_cfg = sim_ctx.cfg if sim_ctx is not None else None
+        # Solver-built fixed-tendon adapter, held like ``_actuator_control``; None when the active
+        # solver has no tendon transmission. ``_process_tendons`` asks the manager for it.
+        self._fixed_tendon_control = None
 
     def _register_callbacks(self) -> None:
         """Register Newton lifecycle callbacks required before model finalization."""
         super()._register_callbacks()
-        self._model_init_handle = SimulationManager.register_callback(
+        self._model_init_handle = self._backend_manager.register_callback(
             self._configure_joint_target_modes,
             PhysicsEvent.MODEL_INIT,
             name=f"articulation_target_modes_{self.cfg.prim_path}",
         )
 
     def _configure_joint_target_modes(self, _event) -> None:
-        """Apply configured actuator modes to the private Newton model builder."""
-        builder = SimulationManager._builder
-        if builder is not None:
-            _configure_builder_joint_target_modes(builder, self.cfg)
+        """Apply configured actuator modes to the shared builder before model allocation."""
+        builder = SimulationContext.instance().backend_manager.builder
+        root_prim_path_regex = _resolve_articulation_root_prim_path_expr(self.cfg)
+        articulation_ids, _ = resolve_matching_names(
+            root_prim_path_regex, builder.articulation_label, raise_when_no_match=False
+        )
+        source_dof_ids = None
+        for articulation_id in articulation_ids:
+            joint_start = builder.articulation_start[articulation_id]
+            joint_end = builder.articulation_end[articulation_id]
+            dof_ids: list[int] = []
+            dof_names: list[str] = []
+            for joint_id in range(joint_start, joint_end):
+                if builder.joint_type[joint_id] in (JointType.FREE, JointType.FIXED):
+                    continue
+                dof_start = builder.joint_qd_start[joint_id]
+                dof_end = (
+                    builder.joint_qd_start[joint_id + 1]
+                    if joint_id + 1 < len(builder.joint_qd_start)
+                    else len(builder.joint_target_mode)
+                )
+                joint_name = builder.joint_label[joint_id].rsplit("/", maxsplit=1)[-1]
+                for axis_index, dof_id in enumerate(range(dof_start, dof_end)):
+                    dof_ids.append(dof_id)
+                    dof_names.append(joint_name if dof_end - dof_start == 1 else f"{joint_name}:{axis_index}")
+
+            if source_dof_ids is not None:
+                for source_dof_id, dof_id in zip(source_dof_ids, dof_ids, strict=True):
+                    builder.joint_target_mode[dof_id] = builder.joint_target_mode[source_dof_id]
+                continue
+
+            for actuator_cfg in self.cfg.actuators.values():
+                matched_indices, matched_names = resolve_matching_names(
+                    actuator_cfg.joint_names_expr, dof_names, raise_when_no_match=False
+                )
+                if not matched_indices:
+                    continue
+                selected_dof_ids = [dof_ids[index] for index in matched_indices]
+                stiffness_values = _resolve_actuator_gain_values(
+                    actuator_cfg.stiffness,
+                    matched_names,
+                    [builder.joint_target_ke[dof_id] for dof_id in selected_dof_ids],
+                )
+                damping_values = _resolve_actuator_gain_values(
+                    actuator_cfg.damping,
+                    matched_names,
+                    [builder.joint_target_kd[dof_id] for dof_id in selected_dof_ids],
+                )
+                for dof_id, stiffness, damping in zip(selected_dof_ids, stiffness_values, damping_values, strict=True):
+                    builder.joint_target_mode[dof_id] = int(
+                        _target_mode_from_gains(stiffness, damping)
+                        if _is_implicit_actuator_cfg(actuator_cfg)
+                        else JointTargetMode.EFFORT
+                    )
+            source_dof_ids = dof_ids
 
     """
     Properties
@@ -241,6 +250,11 @@ class Articulation(BaseArticulation):
     def is_fixed_base(self) -> bool:
         """Whether the articulation is a fixed-base or floating-base system."""
         return self.root_view.is_fixed_base
+
+    @property
+    def num_base_dofs(self) -> int:
+        """Number of free DoFs of the floating base: 6 for a free root joint, otherwise 0."""
+        return self.data._num_base_dofs
 
     @property
     def num_joints(self) -> int:
@@ -264,11 +278,12 @@ class Articulation(BaseArticulation):
 
     @property
     def num_shapes_per_body(self) -> list[int]:
-        """Number of collision shapes per body in public body-name order.
+        """Number of shapes per body in public body-name order.
 
         Each element corresponds to the body at the same index in
         :attr:`body_names`. Backend-order counts are cached; a nonidentity body
-        ordering returns those counts gathered into public order.
+        ordering returns those counts gathered into public order. The counts are
+        not offsets into the shape axis; see :attr:`backend_num_shapes_per_body`.
 
         Returns:
             List of integers representing the number of shapes per body.
@@ -280,12 +295,16 @@ class Articulation(BaseArticulation):
 
     @property
     def backend_num_shapes_per_body(self) -> list[int]:
-        """Number of collision shapes per body in active backend solver-view order.
+        """Number of shapes per body in active backend solver-view order.
 
         Each element corresponds to the body at the same index in
-        :attr:`backend_body_names`, matching the shape axis of the backend
-        solver arrays. The counts are cached on first access. Use
+        :attr:`backend_body_names`. The counts include visual-only shapes when they
+        are imported. The counts are cached on first access. Use
         :attr:`num_shapes_per_body` for public body order.
+
+        The shape axis of the solver-view bindings follows the model's shape order and
+        is not grouped by body, so these counts are not offsets into it. Use
+        ``root_view.body_shapes[i]`` for the shape indices of backend body ``i``.
 
         Returns:
             List of integers representing the number of shapes per backend-order body.
@@ -344,6 +363,11 @@ class Articulation(BaseArticulation):
         """
         return self._permanent_wrench_composer
 
+    @property
+    def is_graphable(self) -> bool:
+        """Whether :meth:`write_data_to_sim` can be recorded: no Torch actuators and no fixed tendons."""
+        return self.actuators.is_graphable and self._fixed_tendon_control is None
+
     """
     Operations.
     """
@@ -363,7 +387,7 @@ class Articulation(BaseArticulation):
             env_ids = slice(None)
         # reset actuators, including backend-native actuator state. None selects all
         # environments; delayed-actuator buffers do not accept a slice.
-        self.actuators.reset(None if env_ids == slice(None) else env_ids)
+        self.actuators.reset(None if env_ids == slice(None) else env_ids, env_mask)
         # reset external wrenches.
         self._instantaneous_wrench_composer.reset(env_ids, env_mask)
         self._permanent_wrench_composer.reset(env_ids, env_mask)
@@ -378,14 +402,17 @@ class Articulation(BaseArticulation):
             We write external wrench to the simulation here since this function is called before the simulation step.
             This ensures that the external wrench is applied at every simulation step.
         """
+        if self._post_step_callback is not None and self._backend_manager.backend.handles_actions:
+            # handled writes run between physics steps, before the post-step callbacks republish the reordered state
+            self._post_step_callback()
         # write external wrench
-        if self._instantaneous_wrench_composer.active or self._permanent_wrench_composer.active:
-            if self._instantaneous_wrench_composer.active:
+        if self._instantaneous_wrench_composer.pending or self._permanent_wrench_composer.pending:
+            if self._instantaneous_wrench_composer.pending:
                 composer = self._instantaneous_wrench_composer
                 composer.add_raw_buffers_from(self._permanent_wrench_composer)
             else:
                 composer = self._permanent_wrench_composer
-            composer.compose_to_body_frame()
+            force_b, torque_b, _ = composer.get_forces_and_torques()
             # Kept separate from the joint-target gather below: this scatter runs
             # over bodies while the target gather runs over joints (mismatched
             # item axes), and it must precede the actuator compute/submit below,
@@ -397,8 +424,8 @@ class Articulation(BaseArticulation):
                     dim=(self.num_instances, self.num_bodies),
                     device=self.device,
                     inputs=[
-                        composer.out_force_b.warp,
-                        composer.out_torque_b.warp,
+                        force_b,
+                        torque_b,
                         self._data.body_link_pose_w.warp,
                         self._body_user_to_backend_map(),
                         self._data._sim_bind_body_external_wrench,
@@ -412,21 +439,27 @@ class Articulation(BaseArticulation):
                     dim=(self.num_instances, self.num_bodies),
                     device=self.device,
                     inputs=[
-                        composer.out_force_b,
-                        composer.out_torque_b,
+                        force_b,
+                        torque_b,
                         self._data.body_link_pose_w.warp,
                         self._data._sim_bind_body_external_wrench,
                         self._ALL_ENV_MASK,
                         self._ALL_BODY_MASK,
                     ],
                 )
-        if self._instantaneous_wrench_composer.active:
+        if self._instantaneous_wrench_composer.pending:
             self._instantaneous_wrench_composer.reset()
 
         # Compute processed actuator commands (native path is a no-op here) and
         # submit them to the backend through the collection's control adapter.
-        self.actuators.compute(SimulationManager.get_physics_dt())
+        self.actuators.compute(self._backend_manager.get_physics_dt())
         self.actuators.submit_commands()
+
+        # Tendon submission is solver-specific: MuJoCo drives tendons through actuator controls
+        # outside the articulation view, so the manager owns how a buffered target reaches the solver.
+        if self._fixed_tendon_target_dirty:
+            self._fixed_tendon_control.write_data_to_sim(self._backend_manager.backend.control)
+            self._fixed_tendon_target_dirty = False
 
     def update(self, dt: float):
         """Updates the simulation data.
@@ -669,22 +702,20 @@ class Articulation(BaseArticulation):
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         self.assert_shape_and_dtype(root_pose, (env_ids.shape[0],), wp.transformf, "root_pose")
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
             shared_kernels.set_root_link_pose_to_sim_index_kernel(env_ids),
             dim=env_ids.shape[0],
-            inputs=[
-                root_pose,
-                env_ids,
-            ],
-            outputs=[
-                self.data.root_link_pose_w,
-            ],
+            inputs=[root_pose, env_ids],
+            outputs=[self.data._sim_bind_root_link_pose_w],
             device=self.device,
         )
+        # Nonfloating root bindings write model.joint_X_p, not state.joint_q.
+        if self._backend_manager.backend.solver is not None and not self.root_view.is_floating_base:
+            self._backend_manager.add_model_change(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of the pose related properties.
         if not skip_forward:
-            self.data._reset_pose(env_ids=env_ids)
+            self.data._reset_pose()
+            self._invalidate_fk_index(env_ids)
 
     def write_root_link_pose_to_sim_mask(
         self,
@@ -720,18 +751,16 @@ class Articulation(BaseArticulation):
         wp.launch(
             shared_kernels.set_root_link_pose_to_sim_mask,
             dim=root_pose.shape[0],
-            inputs=[
-                root_pose,
-                env_mask,
-            ],
-            outputs=[
-                self.data.root_link_pose_w,
-            ],
+            inputs=[root_pose, env_mask],
+            outputs=[self.data._sim_bind_root_link_pose_w],
             device=self.device,
         )
+        if self._backend_manager.backend.solver is not None and not self.root_view.is_floating_base:
+            self._backend_manager.add_model_change(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of the pose related properties.
         if not skip_forward:
-            self.data._reset_pose(env_mask=env_mask)
+            self.data._reset_pose()
+            self._backend_manager.invalidate_fk(articulation_ids=self.root_view.articulation_ids, env_mask=env_mask)
 
     def write_root_com_pose_to_sim_index(
         self,
@@ -743,7 +772,8 @@ class Articulation(BaseArticulation):
         """Set the root center of mass pose over selected environment indices into the simulation.
 
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
-        The orientation is the orientation of the principal axes of inertia.
+        The COM axes are aligned with the link frame, so the quaternion sets the link orientation.
+        These axes need not coincide with the principal axes of inertia.
 
         .. note::
             This method expects partial data.
@@ -765,27 +795,21 @@ class Articulation(BaseArticulation):
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         self.assert_shape_and_dtype(root_pose, (env_ids.shape[0],), wp.transformf, "root_pose")
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         # Note: we are doing a single launch for faster performance. Prior versions would call
         # write_root_link_pose_to_sim after this.
         wp.launch(
             shared_kernels.set_root_com_pose_to_sim_index_kernel(env_ids),
             dim=env_ids.shape[0],
-            inputs=[
-                root_pose,
-                self.data._sim_bind_body_com_pos_b,
-                env_ids,
-            ],
-            outputs=[
-                self.data.root_com_pose_w,
-                self.data.root_link_pose_w,
-            ],
+            inputs=[root_pose, self.data._sim_bind_body_com_pos_b, env_ids],
+            outputs=[self.data._sim_bind_root_link_pose_w],
             device=self.device,
         )
+        if self._backend_manager.backend.solver is not None and not self.root_view.is_floating_base:
+            self._backend_manager.add_model_change(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of the pose related properties.
-        # The com pose was just written, so it must not be invalidated.
         if not skip_forward:
-            self.data._reset_pose(env_ids=env_ids, from_link=False)
+            self.data._reset_pose()
+            self._invalidate_fk_index(env_ids)
 
     def write_root_com_pose_to_sim_mask(
         self,
@@ -797,7 +821,8 @@ class Articulation(BaseArticulation):
         """Set the root center of mass pose over selected environment mask into the simulation.
 
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
-        The orientation is the orientation of the principal axes of inertia.
+        The COM axes are aligned with the link frame, so the quaternion sets the link orientation.
+        These axes need not coincide with the principal axes of inertia.
 
         .. note::
             This method expects full data.
@@ -821,21 +846,16 @@ class Articulation(BaseArticulation):
         wp.launch(
             shared_kernels.set_root_com_pose_to_sim_mask,
             dim=root_pose.shape[0],
-            inputs=[
-                root_pose,
-                self.data._sim_bind_body_com_pos_b,
-                env_mask,
-            ],
-            outputs=[
-                self.data.root_com_pose_w,
-                self.data.root_link_pose_w,
-            ],
+            inputs=[root_pose, self.data._sim_bind_body_com_pos_b, env_mask],
+            outputs=[self.data._sim_bind_root_link_pose_w],
             device=self.device,
         )
+        if self._backend_manager.backend.solver is not None and not self.root_view.is_floating_base:
+            self._backend_manager.add_model_change(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of the pose related properties.
-        # The com pose was just written, so it must not be invalidated.
         if not skip_forward:
-            self.data._reset_pose(env_mask=env_mask, from_link=False)
+            self.data._reset_pose()
+            self._backend_manager.invalidate_fk(articulation_ids=self.root_view.articulation_ids, env_mask=env_mask)
 
     def write_root_velocity_to_sim_index(
         self,
@@ -938,24 +958,17 @@ class Articulation(BaseArticulation):
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         self.assert_shape_and_dtype(root_velocity, (env_ids.shape[0],), wp.spatial_vectorf, "root_velocity")
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
             shared_kernels.set_root_com_velocity_to_sim_index_kernel(env_ids),
             dim=env_ids.shape[0],
-            inputs=[
-                root_velocity,
-                env_ids,
-                self.data._num_bodies,
-            ],
-            outputs=[
-                self.data.root_com_vel_w,
-                self.data.body_com_acc_w,
-            ],
+            inputs=[root_velocity, env_ids, self.data._num_bodies],
+            outputs=[self.data._sim_bind_root_com_vel_w, self.data.body_com_acc_w],
             device=self.device,
         )
         # Let the data class handle the invalidation of the velocity related properties.
         if not skip_forward:
-            self.data._reset_velocity(env_ids=env_ids)
+            self.data._reset_velocity()
+            self._invalidate_fk_index(env_ids)
 
     def write_root_com_velocity_to_sim_mask(
         self,
@@ -993,20 +1006,14 @@ class Articulation(BaseArticulation):
         wp.launch(
             shared_kernels.set_root_com_velocity_to_sim_mask,
             dim=root_velocity.shape[0],
-            inputs=[
-                root_velocity,
-                env_mask,
-                self.data._num_bodies,
-            ],
-            outputs=[
-                self.data.root_com_vel_w,
-                self.data.body_com_acc_w,
-            ],
+            inputs=[root_velocity, env_mask, self.data._num_bodies],
+            outputs=[self.data._sim_bind_root_com_vel_w, self.data.body_com_acc_w],
             device=self.device,
         )
         # Let the data class handle the invalidation of the velocity related properties.
         if not skip_forward:
-            self.data._reset_velocity(env_mask=env_mask)
+            self.data._reset_velocity()
+            self._backend_manager.invalidate_fk(articulation_ids=self.root_view.articulation_ids, env_mask=env_mask)
 
     def write_root_link_velocity_to_sim_index(
         self,
@@ -1042,7 +1049,6 @@ class Articulation(BaseArticulation):
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         self.assert_shape_and_dtype(root_velocity, (env_ids.shape[0],), wp.spatial_vectorf, "root_velocity")
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         # Note: we are doing a single launch for faster performance. Prior versions would do multiple launches.
         wp.launch(
             shared_kernels.set_root_link_velocity_to_sim_index_kernel(env_ids),
@@ -1050,21 +1056,17 @@ class Articulation(BaseArticulation):
             inputs=[
                 root_velocity,
                 self.data._sim_bind_body_com_pos_b,
-                self.data.root_link_pose_w,
+                self.data._sim_bind_root_link_pose_w,
                 env_ids,
                 self.data._num_bodies,
             ],
-            outputs=[
-                self.data.root_link_vel_w,
-                self.data.root_com_vel_w,
-                self.data.body_com_acc_w,
-            ],
+            outputs=[self.data._sim_bind_root_com_vel_w, self.data.body_com_acc_w],
             device=self.device,
         )
         # Let the data class handle the invalidation of the velocity related properties.
-        # The link velocity was just written, so it must not be invalidated.
         if not skip_forward:
-            self.data._reset_velocity(env_ids=env_ids, from_com=False)
+            self.data._reset_velocity()
+            self._invalidate_fk_index(env_ids)
 
     def write_root_link_velocity_to_sim_mask(
         self,
@@ -1105,21 +1107,17 @@ class Articulation(BaseArticulation):
             inputs=[
                 root_velocity,
                 self.data._sim_bind_body_com_pos_b,
-                self.data.root_link_pose_w,
+                self.data._sim_bind_root_link_pose_w,
                 env_mask,
                 self.data._num_bodies,
             ],
-            outputs=[
-                self.data.root_link_vel_w,
-                self.data.root_com_vel_w,
-                self.data.body_com_acc_w,
-            ],
+            outputs=[self.data._sim_bind_root_com_vel_w, self.data.body_com_acc_w],
             device=self.device,
         )
         # Let the data class handle the invalidation of the velocity related properties.
-        # The link velocity was just written, so it must not be invalidated.
         if not skip_forward:
-            self.data._reset_velocity(env_mask=env_mask, from_com=False)
+            self.data._reset_velocity()
+            self._backend_manager.invalidate_fk(articulation_ids=self.root_view.articulation_ids, env_mask=env_mask)
 
     def write_joint_state_to_sim_index(
         self,
@@ -1131,6 +1129,10 @@ class Articulation(BaseArticulation):
         skip_forward: bool = False,
     ):
         """Write joint positions and velocities in a single fused kernel launch.
+
+        .. deprecated::
+            Use :meth:`write_joint_state_to_sim_mask`, or :meth:`write_joint_position_to_sim_index` and
+            :meth:`write_joint_velocity_to_sim_index`.
 
         .. note::
             This method expects partial data.
@@ -1150,6 +1152,12 @@ class Articulation(BaseArticulation):
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
+        warnings.warn(
+            "Articulation.write_joint_state_to_sim_index is deprecated. Use write_joint_state_to_sim_mask, or"
+            " write_joint_position_to_sim_index and write_joint_velocity_to_sim_index.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
         self.assert_shape_and_dtype(position, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "position")
@@ -1183,10 +1191,18 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
+        # The write landed in DOF space; push it back into Newton's joint coordinates.
+        if self.data._joint_coord_map.required:
+            scatter_joint_coordinates(
+                self.data._joint_coord_map,
+                self.data._sim_bind_joint_pos,
+                self.data._sim_bind_joint_coords,
+                self._env_ids_to_mask(env_ids),
+            )
         # Let the data class handle the invalidation of the pose and velocity related properties.
         if not skip_forward:
-            self.data._reset_pose(env_ids=env_ids)
-            self.data._reset_velocity(env_ids=env_ids)
+            self.data._reset_pose()
+            self._invalidate_fk_index(env_ids)
 
     def write_joint_state_to_sim_mask(
         self,
@@ -1231,14 +1247,7 @@ class Articulation(BaseArticulation):
         wp.launch(
             ordering_kernels.write_joint_state_user_to_backend_with_mask,
             dim=(env_mask.shape[0], joint_mask.shape[0]),
-            inputs=[
-                position,
-                velocity,
-                env_mask,
-                joint_mask,
-                self._joint_user_to_backend_map(),
-                has_joint_ordering,
-            ],
+            inputs=[position, velocity, env_mask, joint_mask, self._joint_user_to_backend_map(), has_joint_ordering],
             outputs=[
                 joint_pos_user,
                 joint_vel_user,
@@ -1249,10 +1258,18 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
+        # The write landed in DOF space; push it back into Newton's joint coordinates.
+        if self.data._joint_coord_map.required:
+            scatter_joint_coordinates(
+                self.data._joint_coord_map,
+                self.data._sim_bind_joint_pos,
+                self.data._sim_bind_joint_coords,
+                env_mask,
+            )
         # Let the data class handle the invalidation of the pose and velocity related properties.
         if not skip_forward:
-            self.data._reset_pose(env_mask=env_mask)
-            self.data._reset_velocity(env_mask=env_mask)
+            self.data._reset_pose()
+            self._backend_manager.invalidate_fk(articulation_ids=self.root_view.articulation_ids, env_mask=env_mask)
 
     def write_joint_position_to_sim_index(
         self,
@@ -1285,7 +1302,6 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
         self.assert_shape_and_dtype(position, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "position")
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         has_joint_ordering = self.data.has_joint_ordering
         if has_joint_ordering:
             joint_pos_user = self.data._joint_pos_user
@@ -1302,10 +1318,18 @@ class Articulation(BaseArticulation):
             self.data._sim_bind_joint_pos,
             device=self.device,
         )
+        # The write landed in DOF space; push it back into Newton's joint coordinates.
+        if self.data._joint_coord_map.required:
+            scatter_joint_coordinates(
+                self.data._joint_coord_map,
+                self.data._sim_bind_joint_pos,
+                self.data._sim_bind_joint_coords,
+                self._env_ids_to_mask(env_ids),
+            )
         # Let the data class handle the invalidation of pose- and velocity-dependent properties.
         if not skip_forward:
-            self.data._reset_pose(env_ids=env_ids)
-            self.data._reset_velocity(env_ids=env_ids)
+            self.data._reset_pose()
+            self._invalidate_fk_index(env_ids)
 
     def write_joint_position_to_sim_mask(
         self,
@@ -1352,10 +1376,18 @@ class Articulation(BaseArticulation):
             self.data._sim_bind_joint_pos,
             device=self.device,
         )
+        # The write landed in DOF space; push it back into Newton's joint coordinates.
+        if self.data._joint_coord_map.required:
+            scatter_joint_coordinates(
+                self.data._joint_coord_map,
+                self.data._sim_bind_joint_pos,
+                self.data._sim_bind_joint_coords,
+                env_mask,
+            )
         # Let the data class handle the invalidation of pose- and velocity-dependent properties.
         if not skip_forward:
-            self.data._reset_pose(env_mask=env_mask)
-            self.data._reset_velocity(env_mask=env_mask)
+            self.data._reset_pose()
+            self._backend_manager.invalidate_fk(articulation_ids=self.root_view.articulation_ids, env_mask=env_mask)
 
     def write_joint_velocity_to_sim_index(
         self,
@@ -1378,7 +1410,7 @@ class Articulation(BaseArticulation):
             However, to allow graphed pipelines, the mask method must be used.
 
         Args:
-            velocity: Joint velocities. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
+            velocity: Joint velocities. Shape is (len(env_ids), len(joint_ids)).
             joint_ids: Joint indices. If None, then all joints are used.
             env_ids: Environment indices. If None, then all indices are used.
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
@@ -1388,27 +1420,15 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
         self.assert_shape_and_dtype(velocity, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "velocity")
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         has_joint_ordering = self.data.has_joint_ordering
         if has_joint_ordering:
             joint_vel_user = self.data._joint_vel_user
         else:
             joint_vel_user = self.data._sim_bind_joint_vel
-        # Two-tier ordering-kernel contract: hot per-step write paths like this one launch the raw
-        # ``ordering_kernels`` kernel directly, since inputs are already Warp-native (or torch tensors
-        # Warp ingests). The ``ordering_kernels.write_*`` Python wrappers are used instead in the
-        # property setters, where torch->warp adaptation (dtype/shape coercion) is needed first.
         wp.launch(
             ordering_kernels.write_joint_vel_user_to_backend_with_indices_kernel(env_ids, joint_ids),
             dim=(env_ids.shape[0], joint_ids.shape[0]),
-            inputs=[
-                velocity,
-                env_ids,
-                joint_ids,
-                self._joint_user_to_backend_map(),
-                has_joint_ordering,
-                False,
-            ],
+            inputs=[velocity, env_ids, joint_ids, self._joint_user_to_backend_map(), has_joint_ordering, False],
             outputs=[
                 joint_vel_user,
                 self.data._previous_joint_vel,
@@ -1419,7 +1439,8 @@ class Articulation(BaseArticulation):
         )
         # Let the data class handle the invalidation of the velocity related properties.
         if not skip_forward:
-            self.data._reset_velocity(env_ids=env_ids)
+            self.data._reset_velocity()
+            self._invalidate_fk_index(env_ids)
 
     def write_joint_velocity_to_sim_mask(
         self,
@@ -1459,13 +1480,7 @@ class Articulation(BaseArticulation):
         wp.launch(
             ordering_kernels.write_joint_vel_user_to_backend_with_mask,
             dim=(env_mask.shape[0], joint_mask.shape[0]),
-            inputs=[
-                velocity,
-                env_mask,
-                joint_mask,
-                self._joint_user_to_backend_map(),
-                has_joint_ordering,
-            ],
+            inputs=[velocity, env_mask, joint_mask, self._joint_user_to_backend_map(), has_joint_ordering],
             outputs=[
                 joint_vel_user,
                 self.data._previous_joint_vel,
@@ -1476,7 +1491,8 @@ class Articulation(BaseArticulation):
         )
         # Let the data class handle the invalidation of the velocity related properties.
         if not skip_forward:
-            self.data._reset_velocity(env_mask=env_mask)
+            self.data._reset_velocity()
+            self._backend_manager.invalidate_fk(articulation_ids=self.root_view.articulation_ids, env_mask=env_mask)
 
     """
     Operations - Simulation Parameters Writers.
@@ -1516,7 +1532,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
 
-        SimulationManager.add_model_change(ModelFlags.JOINT_DOF_PROPERTIES)
+        self._backend_manager.add_model_change(ModelFlags.JOINT_DOF_PROPERTIES)
 
     def _write_joint_float_property_to_sim_mask(
         self,
@@ -1551,7 +1567,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
 
-        SimulationManager.add_model_change(ModelFlags.JOINT_DOF_PROPERTIES)
+        self._backend_manager.add_model_change(ModelFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_stiffness_to_sim_index(
         self,
@@ -1643,50 +1659,6 @@ class Articulation(BaseArticulation):
             env_ids=env_ids,
         )
 
-    def write_actuator_stiffness_to_sim(
-        self,
-        *,
-        stiffness: torch.Tensor,
-        env_ids: torch.Tensor,
-        joint_ids: torch.Tensor,
-    ) -> None:
-        """Write native actuator stiffness [N/m or N·m/rad, depending on joint type].
-
-        .. deprecated:: 3.0
-            Use :func:`isaaclab.envs.mdp.events.randomize_actuator_gains` for
-            managed randomization. Direct controller-gain writes have no public
-            replacement. This method will be removed in 4.0.
-
-        Args:
-            stiffness: Controller stiffness [N/m or N·m/rad, depending on joint type].
-            env_ids: Articulation instance indices.
-            joint_ids: Articulation-local joint indices.
-        """
-        self._write_deprecated_native_actuator_gain(
-            "write_actuator_stiffness_to_sim", "kp", stiffness, env_ids, joint_ids
-        )
-
-    def write_actuator_damping_to_sim(
-        self,
-        *,
-        damping: torch.Tensor,
-        env_ids: torch.Tensor,
-        joint_ids: torch.Tensor,
-    ) -> None:
-        """Write native actuator damping [N·s/m or N·m·s/rad, depending on joint type].
-
-        .. deprecated:: 3.0
-            Use :func:`isaaclab.envs.mdp.events.randomize_actuator_gains` for
-            managed randomization. Direct controller-gain writes have no public
-            replacement. This method will be removed in 4.0.
-
-        Args:
-            damping: Controller damping [N·s/m or N·m·s/rad, depending on joint type].
-            env_ids: Articulation instance indices.
-            joint_ids: Articulation-local joint indices.
-        """
-        self._write_deprecated_native_actuator_gain("write_actuator_damping_to_sim", "kd", damping, env_ids, joint_ids)
-
     def write_joint_damping_to_sim_mask(
         self,
         *,
@@ -1743,7 +1715,11 @@ class Articulation(BaseArticulation):
         """
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
-        clamped_defaults = wp.zeros(1, dtype=wp.int32, device=self.device)
+        # Count clamped defaults (a host sync) only when the resulting message would be logged.
+        log_level = logging.WARNING if warn_limit_violation else logging.INFO
+        report_clamping = logger.isEnabledFor(log_level)
+        if report_clamping:
+            self._clamped_default_count.zero_()
         if isinstance(limits, float):
             raise ValueError("Joint position limits must be a tensor or array, not a float.")
         self.assert_shape_and_dtype(limits, (env_ids.shape[0], joint_ids.shape[0]), wp.vec2f, "limits")
@@ -1770,26 +1746,23 @@ class Articulation(BaseArticulation):
             outputs=[
                 joint_pos_limits_lower_user,
                 joint_pos_limits_upper_user,
-                self.data._joint_pos_limits,
+                self.data._joint_pos_limits.data,
                 self.data._sim_bind_joint_pos_limits_lower,
                 self.data._sim_bind_joint_pos_limits_upper,
                 self.data._soft_joint_pos_limits,
                 self.data._default_joint_pos,
-                clamped_defaults,
+                self._clamped_default_count,
             ],
             device=self.device,
         )
-        self.data._joint_pos_limits_timestamp = self.data._sim_timestamp
-        if clamped_defaults.numpy()[0] > 0:
-            violation_message = (
+        self.data._joint_pos_limits.timestamp = self.data._timestamp
+        if report_clamping and self._clamped_default_count.numpy()[0] > 0:
+            logger.log(
+                log_level,
                 "Some default joint positions are outside of the range of the new joint limits. Default joint positions"
-                " will be clamped to be within the new joint limits."
+                " will be clamped to be within the new joint limits.",
             )
-            if warn_limit_violation:
-                logger.warning(violation_message)
-            else:
-                logger.info(violation_message)
-        SimulationManager.add_model_change(ModelFlags.JOINT_DOF_PROPERTIES)
+        self._backend_manager.add_model_change(ModelFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_position_limit_to_sim_mask(
         self,
@@ -1817,7 +1790,11 @@ class Articulation(BaseArticulation):
         """
         env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
         joint_mask = self._resolve_mask(joint_mask, self._ALL_JOINT_MASK)
-        clamped_defaults = wp.zeros(1, dtype=wp.int32, device=self.device)
+        # Count clamped defaults (a host sync) only when the resulting message would be logged.
+        log_level = logging.WARNING if warn_limit_violation else logging.INFO
+        report_clamping = logger.isEnabledFor(log_level)
+        if report_clamping:
+            self._clamped_default_count.zero_()
         if isinstance(limits, float):
             raise ValueError("Joint position limits must be a tensor or array, not a float.")
         self.assert_shape_and_dtype_mask(limits, (env_mask, joint_mask), wp.vec2f, "limits")
@@ -1844,26 +1821,23 @@ class Articulation(BaseArticulation):
             outputs=[
                 joint_pos_limits_lower_user,
                 joint_pos_limits_upper_user,
-                self.data._joint_pos_limits,
+                self.data._joint_pos_limits.data,
                 self.data._sim_bind_joint_pos_limits_lower,
                 self.data._sim_bind_joint_pos_limits_upper,
                 self.data._soft_joint_pos_limits,
                 self.data._default_joint_pos,
-                clamped_defaults,
+                self._clamped_default_count,
             ],
             device=self.device,
         )
-        self.data._joint_pos_limits_timestamp = self.data._sim_timestamp
-        if clamped_defaults.numpy()[0] > 0:
-            violation_message = (
+        self.data._joint_pos_limits.timestamp = self.data._timestamp
+        if report_clamping and self._clamped_default_count.numpy()[0] > 0:
+            logger.log(
+                log_level,
                 "Some default joint positions are outside of the range of the new joint limits. Default joint positions"
-                " will be clamped to be within the new joint limits."
+                " will be clamped to be within the new joint limits.",
             )
-            if warn_limit_violation:
-                logger.warning(violation_message)
-            else:
-                logger.info(violation_message)
-        SimulationManager.add_model_change(ModelFlags.JOINT_DOF_PROPERTIES)
+        self._backend_manager.add_model_change(ModelFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_velocity_limit_to_sim_index(
         self,
@@ -2230,19 +2204,21 @@ class Articulation(BaseArticulation):
     Operations - Newton Actuator Parameter Writers.
     """
 
-    @staticmethod
-    @wp.kernel(enable_backward=False)
-    def _build_env_mask_kernel(mask: wp.array(dtype=wp.bool), indices: wp.array(dtype=wp.int32)):
-        i = wp.tid()
-        mask[indices[i]] = True
+    def _env_ids_to_mask(self, env_ids: wp.array | torch.Tensor) -> wp.array:
+        """Convert env_ids to a boolean Warp mask.
 
-    def _env_ids_to_mask(self, env_ids: wp.array) -> wp.array:
-        """Convert warp env_ids to a boolean Warp mask."""
+        Needed because :func:`scatter_joint_coordinates` only takes a mask.
+
+        Args:
+            env_ids: Environment indices as returned by :meth:`_resolve_env_ids`, which may be a
+                warp array or a torch tensor of any integer width.
+
+        Returns:
+            A per-environment boolean mask.
+        """
         if env_ids is self._ALL_INDICES:
             return self._ALL_ENV_MASK
-        mask = wp.zeros(self.num_instances, dtype=wp.bool, device=self.device)
-        wp.launch(self._build_env_mask_kernel, dim=env_ids.shape[0], inputs=[mask, env_ids], device=self.device)
-        return mask
+        return resolve_1d_mask(ids=env_ids, all_mask=self._ALL_ENV_MASK, scratch_mask=self._scratch_env_mask)
 
     """
     Operations - Setters.
@@ -2273,7 +2249,6 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
         self.assert_shape_and_dtype(masses, (env_ids.shape[0], body_ids.shape[0]), wp.float32, "masses")
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         has_body_ordering = self.data.has_body_ordering
         wp.launch(
             shared_kernels.write_body_mass_and_inverse_index_kernel(env_ids, body_ids),
@@ -2295,7 +2270,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
+        self._backend_manager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_masses_mask(
         self,
@@ -2343,7 +2318,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
+        self._backend_manager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_coms_index(
         self,
@@ -2367,16 +2342,18 @@ class Articulation(BaseArticulation):
             aligned with the body frame.
 
         Args:
-            coms: Center of mass position of all bodies. Shape is (len(env_ids), len(body_ids), 3). In warp
-                the expected shape is (num_instances, num_bodies), with dtype wp.vec3f.
+            coms: Center of mass positions in the body link frame [m]. Torch shape is
+                (len(env_ids), len(body_ids), 3), or (len(env_ids), len(body_ids), 7) for poses.
+                Warp shape is (len(env_ids), len(body_ids)), with dtype wp.vec3f or wp.transformf.
+                Pose quaternions use (x, y, z, w) order and are ignored.
             body_ids: Body indices. If None, then all bodies are used.
             env_ids: Environment indices. If None, then all indices are used.
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
+        coms = shared_kernels.com_positions(coms)
         self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.vec3f, "coms")
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         has_body_ordering = self.data.has_body_ordering
         ordering_kernels.write_2d_user_to_backend_with_indices(
             coms,
@@ -2392,7 +2369,7 @@ class Articulation(BaseArticulation):
         )
         self.data._reset_body_com_pose_b_dependents()
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
+        self._backend_manager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_coms_mask(
         self,
@@ -2419,12 +2396,15 @@ class Articulation(BaseArticulation):
             coms: Center of mass position of all bodies. Shape is (num_instances, num_bodies, 3) or
                 (num_instances, num_bodies, 7) (transformf convention — only position is used). In warp
                 the expected shape is (num_instances, num_bodies), with dtype wp.vec3f or wp.transformf.
+                Poses with a trailing dimension of 7 (dtype wp.transformf) are also accepted; their
+                orientation is ignored.
             body_mask: Body mask. If None, then all bodies are used. Shape is (num_bodies,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # resolve masks
         env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
         body_mask = self._resolve_mask(body_mask, self._ALL_BODY_MASK)
+        coms = shared_kernels.com_positions(coms)
         self.assert_shape_and_dtype_mask(coms, (env_mask, body_mask), wp.vec3f, "coms")
         has_body_ordering = self.data.has_body_ordering
         ordering_kernels.write_2d_user_to_backend_with_mask(
@@ -2440,7 +2420,7 @@ class Articulation(BaseArticulation):
         )
         self.data._reset_body_com_pose_b_dependents()
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
+        self._backend_manager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_inertias_index(
         self,
@@ -2459,8 +2439,8 @@ class Articulation(BaseArticulation):
             However, to allow graphed pipelines, the mask method must be used.
 
         Args:
-            inertias: Inertias of all bodies. Shape is (len(env_ids), len(body_ids), 9). In warp
-                the expected shape is (num_instances, num_bodies, 9), with dtype wp.float32.
+            inertias: Inertias of the selected bodies. Shape is (len(env_ids), len(body_ids), 9)
+                for both Torch and Warp arrays, with dtype wp.float32 for Warp arrays.
             body_ids: The body indices to set the inertias for. Defaults to None (all bodies).
             env_ids: The environment indices to set the inertias for. Defaults to None (all environments).
         """
@@ -2468,7 +2448,6 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
         self.assert_shape_and_dtype(inertias, (env_ids.shape[0], body_ids.shape[0], 9), wp.float32, "inertias")
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         has_body_ordering = self.data.has_body_ordering
         wp.launch(
             shared_kernels.write_body_inertia_and_inverse_index_kernel(env_ids, body_ids),
@@ -2490,7 +2469,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
+        self._backend_manager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_inertias_mask(
         self,
@@ -2538,7 +2517,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
+        self._backend_manager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     """
     Operations - Tendons.
@@ -2558,52 +2537,27 @@ class Articulation(BaseArticulation):
         :meth:`write_fixed_tendon_properties_to_sim_index` method.
 
         .. note::
-            This method expects partial data or full data.
+            This method expects partial data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            stiffness: Fixed tendon stiffness. Shape is (len(env_ids), len(fixed_tendon_ids)) or
-                (num_instances, num_fixed_tendons) if full_data.
+            stiffness: Fixed tendon stiffness. Shape is (len(env_ids), len(fixed_tendon_ids)).
             fixed_tendon_ids: The tendon indices to set the stiffness for. Defaults to None (all fixed tendons).
             env_ids: Environment indices. If None, then all indices are used.
-            full_data: Whether to expect full data. Defaults to False.
         """
         # resolve indices
-        env_ids = self._resolve_env_ids(env_ids)
-        fixed_tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
+        env_ids = memory.resolve_1d_indices(self._resolve_env_ids(env_ids))
+        fixed_tendon_ids = memory.resolve_1d_indices(self._resolve_fixed_tendon_ids(fixed_tendon_ids))
         self.assert_shape_and_dtype(stiffness, (env_ids.shape[0], fixed_tendon_ids.shape[0]), wp.float32, "stiffness")
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        selected = wp.indexedarray(self.data._fixed_tendon_stiffness, [env_ids, fixed_tendon_ids])
         if isinstance(stiffness, float):
-            wp.launch(
-                articulation_kernels.float_data_to_buffer_with_indices_kernel(env_ids, fixed_tendon_ids),
-                dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
-                inputs=[
-                    stiffness,
-                    env_ids,
-                    fixed_tendon_ids,
-                ],
-                outputs=[
-                    self.data._fixed_tendon_stiffness,
-                ],
-                device=self.device,
-            )
+            selected.fill_(stiffness)
         else:
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, fixed_tendon_ids),
-                dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
-                inputs=[
-                    stiffness,
-                    env_ids,
-                    fixed_tendon_ids,
-                ],
-                outputs=[
-                    self.data._fixed_tendon_stiffness,
-                ],
-                device=self.device,
-            )
+            values = wp.from_torch(stiffness, dtype=wp.float32) if isinstance(stiffness, torch.Tensor) else stiffness
+            wp.copy(selected, values)
         # Only updates internal buffers, does not apply the stiffness to the simulation.
 
     def set_fixed_tendon_stiffness_mask(
@@ -2623,8 +2577,8 @@ class Articulation(BaseArticulation):
             This method expects full data.
 
         .. tip::
-            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
-            is only supporting indexing, hence masks need to be converted to indices.
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             stiffness: Fixed tendon stiffness. Shape is (num_instances, num_fixed_tendons).
@@ -2632,12 +2586,10 @@ class Articulation(BaseArticulation):
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # Resolve masks.
-        env_ids = self._resolve_env_mask(env_mask)
-        fixed_tendon_ids = self._resolve_fixed_tendon_mask(fixed_tendon_mask)
-        # Set full data to True to ensure the right code path is taken inside the kernel.
-        self.set_fixed_tendon_stiffness_index(
-            stiffness=stiffness, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids, full_data=True
-        )
+        env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
+        fixed_tendon_mask = self._resolve_mask(fixed_tendon_mask, self._ALL_FIXED_TENDON_MASK)
+        self.assert_shape_and_dtype_mask(stiffness, (env_mask, fixed_tendon_mask), wp.float32, "stiffness")
+        write_2d_with_mask(stiffness, env_mask, fixed_tendon_mask, self.data._fixed_tendon_stiffness)
 
     def set_fixed_tendon_damping_index(
         self,
@@ -2653,53 +2605,30 @@ class Articulation(BaseArticulation):
         function.
 
         .. note::
-            This method expects partial data or full data.
+            This method expects partial data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            damping: Fixed tendon damping. Shape is (len(env_ids), len(fixed_tendon_ids)) or
-                (num_instances, num_fixed_tendons) if full_data.
+            damping: Fixed tendon damping. A float is broadcast to all selected tendons; arrays have shape
+                (len(env_ids), len(fixed_tendon_ids)).
             fixed_tendon_ids: The tendon indices to set the damping for. Defaults to None (all fixed tendons).
             env_ids: Environment indices. If None, then all indices are used.
         """
         # resolve indices
-        env_ids = self._resolve_env_ids(env_ids)
-        fixed_tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
+        env_ids = memory.resolve_1d_indices(self._resolve_env_ids(env_ids))
+        fixed_tendon_ids = memory.resolve_1d_indices(self._resolve_fixed_tendon_ids(fixed_tendon_ids))
 
         self.assert_shape_and_dtype(damping, (env_ids.shape[0], fixed_tendon_ids.shape[0]), wp.float32, "damping")
 
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        selected = wp.indexedarray(self.data._fixed_tendon_damping, [env_ids, fixed_tendon_ids])
         if isinstance(damping, float):
-            wp.launch(
-                articulation_kernels.float_data_to_buffer_with_indices_kernel(env_ids, fixed_tendon_ids),
-                dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
-                inputs=[
-                    damping,
-                    env_ids,
-                    fixed_tendon_ids,
-                ],
-                outputs=[
-                    self.data._fixed_tendon_damping,
-                ],
-                device=self.device,
-            )
+            selected.fill_(damping)
         else:
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, fixed_tendon_ids),
-                dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
-                inputs=[
-                    damping,
-                    env_ids,
-                    fixed_tendon_ids,
-                ],
-                outputs=[
-                    self.data._fixed_tendon_damping,
-                ],
-                device=self.device,
-            )
+            values = wp.from_torch(damping, dtype=wp.float32) if isinstance(damping, torch.Tensor) else damping
+            wp.copy(selected, values)
         # Only updates internal buffers, does not apply the damping to the simulation.
 
     def set_fixed_tendon_damping_mask(
@@ -2719,8 +2648,8 @@ class Articulation(BaseArticulation):
             This method expects full data.
 
         .. tip::
-            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
-            is only supporting indexing, hence masks need to be converted to indices.
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
             damping: Fixed tendon damping. Shape is (num_instances, num_fixed_tendons).
@@ -2728,12 +2657,10 @@ class Articulation(BaseArticulation):
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # Resolve masks.
-        env_ids = self._resolve_env_mask(env_mask)
-        fixed_tendon_ids = self._resolve_fixed_tendon_mask(fixed_tendon_mask)
-        # Set full data to True to ensure the right code path is taken inside the kernel.
-        self.set_fixed_tendon_damping_index(
-            damping=damping, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids, full_data=True
-        )
+        env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
+        fixed_tendon_mask = self._resolve_mask(fixed_tendon_mask, self._ALL_FIXED_TENDON_MASK)
+        self.assert_shape_and_dtype_mask(damping, (env_mask, fixed_tendon_mask), wp.float32, "damping")
+        write_2d_with_mask(damping, env_mask, fixed_tendon_mask, self.data._fixed_tendon_damping)
 
     def set_fixed_tendon_limit_stiffness_index(
         self,
@@ -2742,25 +2669,19 @@ class Articulation(BaseArticulation):
         fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Set fixed tendon limit stiffness into internal buffers using indices.
+        """Set fixed tendon limit stiffness (unimplemented in this backend).
 
-        This function does not apply the tendon limit stiffness to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon limit stiffness, call the
-        :meth:`write_fixed_tendon_properties_to_sim_index` method.
-
-        .. note::
-            This method expects partial data.
-
-        .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.
+        See :attr:`ArticulationData.fixed_tendon_limit_stiffness` for the backend limitation.
 
         Args:
             limit_stiffness: Fixed tendon limit stiffness. Shape is (len(env_ids), len(fixed_tendon_ids)).
             fixed_tendon_ids: The tendon indices to set the limit stiffness for. Defaults to None (all fixed tendons).
             env_ids: Environment indices. If None, then all indices are used.
+
+        Raises:
+            NotImplementedError: This shared property has no implementation in Isaac Lab's Newton backend.
         """
-        raise NotImplementedError()
+        raise _unsupported_fixed_tendon_property("limit_stiffness")
 
     def set_fixed_tendon_limit_stiffness_mask(
         self,
@@ -2769,26 +2690,20 @@ class Articulation(BaseArticulation):
         fixed_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set fixed tendon limit stiffness into internal buffers using masks.
+        """Set fixed tendon limit stiffness (unimplemented in this backend).
 
-        This function does not apply the tendon limit stiffness to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon limit stiffness, call the
-        :meth:`write_fixed_tendon_properties_to_sim_mask` method.
-
-        .. note::
-            This method expects full data.
-
-        .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.
+        See :attr:`ArticulationData.fixed_tendon_limit_stiffness` for the backend limitation.
 
         Args:
             limit_stiffness: Fixed tendon limit stiffness. Shape is (num_instances, num_fixed_tendons).
             fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
                 Shape is (num_fixed_tendons,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+
+        Raises:
+            NotImplementedError: This shared property has no implementation in Isaac Lab's Newton backend.
         """
-        raise NotImplementedError()
+        raise _unsupported_fixed_tendon_property("limit_stiffness")
 
     def set_fixed_tendon_position_limit_index(
         self,
@@ -2796,7 +2711,6 @@ class Articulation(BaseArticulation):
         limit: float | torch.Tensor | wp.array,
         fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        full_data: bool = False,
     ) -> None:
         """Set fixed tendon position limit into internal buffers using indices.
 
@@ -2804,21 +2718,30 @@ class Articulation(BaseArticulation):
         the desired values. To apply the tendon position limit, call the
         :meth:`write_fixed_tendon_properties_to_sim_index` method.
 
+        This updates MuJoCo's tendon range; limits must already be enabled in the model.
+
         .. note::
-            This method expects partial data or full data.
+            This method expects partial data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            limit: Fixed tendon position limit. Shape is (len(env_ids), len(fixed_tendon_ids)) or
-                (num_instances, num_fixed_tendons) if full_data.
+            limit: Fixed tendon position limits ``[lower, upper]`` [m]. Shape is (len(env_ids), len(fixed_tendon_ids))
+                with dtype wp.vec2f, or (len(env_ids), len(fixed_tendon_ids), 2) for a torch tensor.
             fixed_tendon_ids: The tendon indices to set the position limit for. Defaults to None (all fixed tendons).
             env_ids: Environment indices. If None, then all indices are used.
-            full_data: Whether to expect full data. Defaults to False.
         """
-        raise NotImplementedError()
+        env_ids = self._resolve_env_ids(env_ids)
+        fixed_tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
+        self.assert_shape_and_dtype(limit, (env_ids.shape[0], fixed_tendon_ids.shape[0]), wp.vec2f, "limit")
+        if isinstance(limit, float):
+            raise ValueError("Fixed tendon position limits must be a tensor or array, not a float.")
+        # the vec2f buffer and a vec2f input both view as (..., 2) float tensors in torch
+        limit = wp.to_torch(limit) if isinstance(limit, wp.array) else limit
+        rows, cols = self._to_torch_ids(env_ids), self._to_torch_ids(fixed_tendon_ids)
+        wp.to_torch(self.data._fixed_tendon_pos_limits)[rows[:, None], cols] = limit
 
     def set_fixed_tendon_position_limit_mask(
         self,
@@ -2833,19 +2756,27 @@ class Articulation(BaseArticulation):
         the desired values. To apply the tendon position limit, call the
         :meth:`write_fixed_tendon_properties_to_sim_mask` method.
 
+        This updates MuJoCo's tendon range; limits must already be enabled in the model.
+
         .. note::
             This method expects full data.
 
         .. tip::
-            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
-            is only supporting indexing, hence masks need to be converted to indices.
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
-            limit: Fixed tendon position limit. Shape is (num_instances, num_fixed_tendons).
+            limit: Fixed tendon position limits ``[lower, upper]`` [m]. Shape is (num_instances, num_fixed_tendons)
+                with dtype wp.vec2f, or (num_instances, num_fixed_tendons, 2) for a torch tensor.
             fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        raise NotImplementedError()
+        env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
+        fixed_tendon_mask = self._resolve_mask(fixed_tendon_mask, self._ALL_FIXED_TENDON_MASK)
+        self.assert_shape_and_dtype_mask(limit, (env_mask, fixed_tendon_mask), wp.vec2f, "limit")
+        if isinstance(limit, float):
+            raise ValueError("Fixed tendon position limits must be a tensor or array, not a float.")
+        write_2d_with_mask(limit, env_mask, fixed_tendon_mask, self.data._fixed_tendon_pos_limits)
 
     def set_fixed_tendon_rest_length_index(
         self,
@@ -2854,25 +2785,19 @@ class Articulation(BaseArticulation):
         fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Set fixed tendon rest length into internal buffers using indices.
+        """Set fixed tendon rest length (unimplemented in this backend).
 
-        This function does not apply the tendon rest length to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon rest length, call the
-        :meth:`write_fixed_tendon_properties_to_sim_index` method.
-
-        .. note::
-            This method expects partial data.
-
-        .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.
+        See :attr:`ArticulationData.fixed_tendon_rest_length` for the backend limitation.
 
         Args:
             rest_length: Fixed tendon rest length. Shape is (len(env_ids), len(fixed_tendon_ids)).
             fixed_tendon_ids: The tendon indices to set the rest length for. Defaults to None (all fixed tendons).
             env_ids: Environment indices. If None, then all indices are used.
+
+        Raises:
+            NotImplementedError: This shared property has no implementation in Isaac Lab's Newton backend.
         """
-        raise NotImplementedError()
+        raise _unsupported_fixed_tendon_property("rest_length")
 
     def set_fixed_tendon_rest_length_mask(
         self,
@@ -2881,26 +2806,54 @@ class Articulation(BaseArticulation):
         fixed_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set fixed tendon rest length into internal buffers using masks.
+        """Set fixed tendon rest length (unimplemented in this backend).
 
-        This function does not apply the tendon rest length to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon rest length, call the
-        :meth:`write_fixed_tendon_properties_to_sim_mask` method.
-
-        .. note::
-            This method expects full data.
-
-        .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.
+        See :attr:`ArticulationData.fixed_tendon_rest_length` for the backend limitation.
 
         Args:
             rest_length: Fixed tendon rest length. Shape is (num_instances, num_fixed_tendons).
             fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
                 Shape is (num_fixed_tendons,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+
+        Raises:
+            NotImplementedError: This shared property has no implementation in Isaac Lab's Newton backend.
         """
-        raise NotImplementedError()
+        raise _unsupported_fixed_tendon_property("rest_length")
+
+    def set_fixed_tendon_position_target_index(
+        self,
+        *,
+        target: torch.Tensor | wp.array,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Command the tendon's length through MuJoCo's native tendon actuator.
+
+        MuJoCo's tendon spring has a fixed setpoint, so the command goes to the actuator whose
+        transmission is the tendon rather than to the tendon itself.
+
+        This function does not apply the target to the simulation. It only fills the buffer with
+        the desired value, which reaches ``mujoco.ctrl`` from :meth:`write_data_to_sim`.
+
+        .. note::
+            This method expects partial data.
+
+        Args:
+            target: Target tendon length [m or rad, depending on the spanned joints' type].
+                Shape is (len(env_ids), len(fixed_tendon_ids)).
+            fixed_tendon_ids: The tendon indices to command. Defaults to None (all fixed tendons).
+            env_ids: Environment indices. If None, then all indices are used.
+        """
+        if self._fixed_tendon_control is None:
+            raise RuntimeError(
+                "This articulation has no MuJoCo tendon actuator, so its tendons cannot be"
+                " commanded. The asset must author an actuator whose transmission is the tendon."
+            )
+        self._fixed_tendon_control.set_position_target_index(
+            target=target, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids
+        )
+        self._fixed_tendon_target_dirty = True
 
     def set_fixed_tendon_offset_index(
         self,
@@ -2909,25 +2862,50 @@ class Articulation(BaseArticulation):
         fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Set fixed tendon offset into internal buffers using indices.
+        """Set fixed tendon offset (unimplemented in this backend).
 
-        This function does not apply the tendon offset to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon offset, call the
-        :meth:`write_fixed_tendon_properties_to_sim_index` method.
-
-        .. note::
-            This method expects partial data.
-
-        .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.
+        See :attr:`ArticulationData.fixed_tendon_offset` for the backend limitation.
 
         Args:
             offset: Fixed tendon offset. Shape is (len(env_ids), len(fixed_tendon_ids)).
             fixed_tendon_ids: The tendon indices to set the offset for. Defaults to None (all fixed tendons).
             env_ids: Environment indices. If None, then all indices are used.
+
+        Raises:
+            NotImplementedError: This shared property has no implementation in Isaac Lab's Newton backend.
         """
-        raise NotImplementedError()
+        raise _unsupported_fixed_tendon_property("offset")
+
+    def set_fixed_tendon_position_target_mask(
+        self,
+        *,
+        target: torch.Tensor | wp.array,
+        fixed_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Command the target length of fixed tendons using masks.
+
+        Same control input as :meth:`set_fixed_tendon_position_target_index`, selecting the tendons
+        and environments by mask instead of by index.
+
+        .. note::
+            This method expects full data.
+
+        Args:
+            target: Target tendon length [m or rad, depending on the spanned joints' type].
+                Shape is (num_instances, num_fixed_tendons).
+            fixed_tendon_mask: Fixed tendon mask. If None, then all the fixed tendons are commanded.
+            env_mask: Environment mask. If None, then all the instances are commanded.
+        """
+        if self._fixed_tendon_control is None:
+            raise RuntimeError(
+                "This articulation has no MuJoCo tendon actuator, so its tendons cannot be"
+                " commanded. The asset must author an actuator whose transmission is the tendon."
+            )
+        self._fixed_tendon_control.set_position_target_mask(
+            target=target, fixed_tendon_mask=fixed_tendon_mask, env_mask=env_mask
+        )
+        self._fixed_tendon_target_dirty = True
 
     def set_fixed_tendon_offset_mask(
         self,
@@ -2936,33 +2914,30 @@ class Articulation(BaseArticulation):
         fixed_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set fixed tendon offset into internal buffers using masks.
+        """Set fixed tendon offset (unimplemented in this backend).
 
-        This function does not apply the tendon offset to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon offset, call the
-        :meth:`write_fixed_tendon_properties_to_sim_mask` method.
-
-        .. note::
-            This method expects full data.
-
-        .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.
+        See :attr:`ArticulationData.fixed_tendon_offset` for the backend limitation.
 
         Args:
             offset: Fixed tendon offset. Shape is (num_instances, num_fixed_tendons).
             fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
                 Shape is (num_fixed_tendons,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+
+        Raises:
+            NotImplementedError: This shared property has no implementation in Isaac Lab's Newton backend.
         """
-        raise NotImplementedError()
+        raise _unsupported_fixed_tendon_property("offset")
 
     def write_fixed_tendon_properties_to_sim_index(
         self,
         *,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write fixed tendon properties into the simulation using indices.
+
+        Writes the stiffness, damping, and position limits set with the ``set_fixed_tendon_*`` methods.
 
         .. tip::
             Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
@@ -2973,37 +2948,22 @@ class Articulation(BaseArticulation):
                 (all fixed tendons).
             env_ids: Environment indices. If None, then all indices are used.
         """
-        # TODO: Combine into one
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, self._ALL_FIXED_TENDON_INDICES),
-            dim=(env_ids.shape[0], self._ALL_FIXED_TENDON_INDICES.shape[0]),
-            inputs=[
-                self.data._fixed_tendon_damping,
-                env_ids,
-                self._ALL_FIXED_TENDON_INDICES,
-            ],
-            outputs=[
-                self.data._sim_bind_fixed_tendon_damping,
-            ],
-            device=self.device,
-        )
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, self._ALL_FIXED_TENDON_INDICES),
-            dim=(env_ids.shape[0], self._ALL_FIXED_TENDON_INDICES.shape[0]),
-            inputs=[
-                self.data._fixed_tendon_stiffness,
-                env_ids,
-                self._ALL_FIXED_TENDON_INDICES,
-            ],
-            outputs=[
-                self.data._sim_bind_fixed_tendon_stiffness,
-            ],
-            device=self.device,
-        )
+        env_ids = self._resolve_env_ids(env_ids)
+        fixed_tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
+        rows, cols = self._to_torch_ids(env_ids)[:, None], self._to_torch_ids(fixed_tendon_ids)
+        for staged, sim_bind in (
+            (self.data._fixed_tendon_stiffness, self.data._sim_bind_fixed_tendon_stiffness),
+            (self.data._fixed_tendon_damping, self.data._sim_bind_fixed_tendon_damping),
+            (self.data._fixed_tendon_pos_limits, self.data._sim_bind_fixed_tendon_pos_limits),
+        ):
+            wp.to_torch(sim_bind)[rows, cols] = wp.to_torch(staged)[rows, cols]
+        # the solver keeps its own copy of the tendon properties and only re-reads them when notified
+        self._backend_manager.add_model_change(ModelFlags.TENDON_PROPERTIES)
 
     def write_fixed_tendon_properties_to_sim_mask(
         self,
         *,
+        fixed_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
         """Write fixed tendon properties into the simulation using masks.
@@ -3013,11 +2973,30 @@ class Articulation(BaseArticulation):
             However, to allow graphed pipelines, the mask method must be used.
 
         Args:
+            fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are updated.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        env_ids = self._resolve_mask(env_mask)
-
-        self.write_fixed_tendon_properties_to_sim_index(env_ids)
+        env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
+        fixed_tendon_mask = self._resolve_mask(fixed_tendon_mask, self._ALL_FIXED_TENDON_MASK)
+        wp.launch(
+            articulation_kernels.copy_fixed_tendon_properties_with_mask,
+            dim=(env_mask.shape[0], fixed_tendon_mask.shape[0]),
+            inputs=[
+                env_mask,
+                fixed_tendon_mask,
+                self.data._fixed_tendon_stiffness,
+                self.data._fixed_tendon_damping,
+                self.data._fixed_tendon_pos_limits,
+            ],
+            outputs=[
+                self.data._sim_bind_fixed_tendon_stiffness,
+                self.data._sim_bind_fixed_tendon_damping,
+                self.data._sim_bind_fixed_tendon_pos_limits,
+            ],
+            device=self.device,
+        )
+        # the solver keeps its own copy of the tendon properties and only re-reads them when notified
+        self._backend_manager.add_model_change(ModelFlags.TENDON_PROPERTIES)
 
     def set_spatial_tendon_stiffness_index(
         self,
@@ -3279,29 +3258,17 @@ class Articulation(BaseArticulation):
     """
 
     def _initialize_impl(self):
-        # obtain global simulation view
-        self._physics_sim_view = SimulationManager.get_physics_sim_view()
-
         root_prim_path_expr = _resolve_articulation_root_prim_path_expr(self.cfg)
         # -- articulation
-        self._root_view = ArticulationView(
-            SimulationManager.get_model(),
-            path_expr_to_glob(root_prim_path_expr),
+        self._root_view = self._backend_manager.views[root_prim_path_expr] = ArticulationView(
+            self._backend_manager.backend.model,
+            re.compile(root_prim_path_expr),
             verbose=False,
             exclude_joint_types=[JointType.FREE, JointType.FIXED],
         )
-        # Register view with Newton manager so sensors (e.g. FrameTransformer) can find it.
-        SimulationManager.get_physics_sim_view().append(self._root_view)
 
         # container for data access
-        self._data = ArticulationData(self.root_view, self.device)
-
-        # Register callback to rebind simulation data after a full reset (model/state recreation).
-        self._physics_ready_handle = SimulationManager.register_callback(
-            lambda _: self._data._create_simulation_bindings(),
-            PhysicsEvent.PHYSICS_READY,
-            name=f"articulation_rebind_{self.cfg.prim_path}",
-        )
+        self._data = ArticulationData(self.root_view, self.device, backend_manager=self._backend_manager)
 
         # create buffers
         self._create_buffers()
@@ -3319,25 +3286,24 @@ class Articulation(BaseArticulation):
         self.data.is_primed = True
 
     def _clear_callbacks(self) -> None:
-        """Clears all registered callbacks, including the physics-ready rebind handle."""
+        """Clear lifecycle and post-step callbacks."""
         super()._clear_callbacks()
         if hasattr(self, "_model_init_handle") and self._model_init_handle is not None:
             self._model_init_handle.deregister()
             self._model_init_handle = None
-        if hasattr(self, "_physics_ready_handle") and self._physics_ready_handle is not None:
-            self._physics_ready_handle.deregister()
-            self._physics_ready_handle = None
         # Remove the post-step republish hook registered in ``_create_buffers`` so the
-        # bound method does not linger on ``NewtonManager._post_step_callbacks`` after
+        # bound method does not linger on the backend's post-step callbacks after
         # this articulation is gone (registered only for non-identity ordering).
         post_step_callback = getattr(self, "_post_step_callback", None)
         if post_step_callback is not None:
-            SimulationManager.unregister_post_step_callback(post_step_callback)
+            self._backend_manager.unregister_post_step_callback(post_step_callback)
             self._post_step_callback = None
 
     def _create_buffers(self):
         self._ALL_INDICES = wp.array(np.arange(self.num_instances, dtype=np.int32), device=self.device)
         self._ALL_ENV_MASK = wp.ones((self.num_instances,), dtype=wp.bool, device=self.device)
+        self._scratch_env_mask = wp.zeros((self.num_instances,), dtype=wp.bool, device=self.device)
+        self._index_env_mask = wp.zeros((self.num_instances,), dtype=wp.bool, device=self.device)
         self._ALL_JOINT_INDICES = wp.array(np.arange(self.num_joints, dtype=np.int32), device=self.device)
         self._ALL_JOINT_MASK = wp.ones((self.num_joints,), dtype=wp.bool, device=self.device)
         self._ALL_BODY_INDICES = wp.array(np.arange(self.num_bodies, dtype=np.int32), device=self.device)
@@ -3348,13 +3314,17 @@ class Articulation(BaseArticulation):
             np.arange(self.num_spatial_tendons, dtype=np.int32), device=self.device
         )
         self._ALL_SPATIAL_TENDON_MASK = wp.ones((self.num_spatial_tendons,), dtype=wp.bool, device=self.device)
+        # Scratch counter for default joint positions clamped by a joint position-limit write.
+        self._clamped_default_count = wp.zeros(1, dtype=wp.int32, device=self.device)
 
         # Lazily-filled cache of backend-order collision-shape counts (see ``backend_num_shapes_per_body``).
         self._num_shapes_per_body_backend: list[int] | None = None
 
         # external wrench composer
-        self._instantaneous_wrench_composer = WrenchComposer(self)
-        self._permanent_wrench_composer = WrenchComposer(self)
+        # a captured step records wrench work only once forces are written, so it is captured again then
+        invalidate_graph = self._backend_manager.backend.invalidate_graph
+        self._instantaneous_wrench_composer = WrenchComposer(self, on_first_use=invalidate_graph)
+        self._permanent_wrench_composer = WrenchComposer(self, on_first_use=invalidate_graph)
 
         # asset named data
         self._resolve_and_install_ordering_maps()
@@ -3367,20 +3337,23 @@ class Articulation(BaseArticulation):
         )
         # Republish the Tier-1 backend->user state shadows inside the stepped
         # (and captured) region after the last solver substep. Registering only
-        # when ordering is non-identity keeps identity-ordering scenes at zero
+        # when ordering is non-identity or a ball joint needs the coordinate
+        # gather keeps a plain identity-ordering, non-ball-joint scene at zero
         # overhead (empty callback list). The reorders are then recorded into
         # every captured graph, so passthrough state getters never replay stale.
         # The stored handle is the exact bound method ``_clear_callbacks`` later
         # deregisters.
+        # A ball-jointed articulation also needs the slot: its DOF-space joint_pos is derived, not
+        # sim-bound, so it has to be republished after every step just like the ordering shadows.
         self._post_step_callback = None
-        if self.data.has_joint_ordering or self.data.has_body_ordering:
+        if self.data.has_joint_ordering or self.data.has_body_ordering or self.data._joint_coord_map.required:
             self._post_step_callback = self._data._refresh_user_order_state
-            SimulationManager.register_post_step_callback(self._post_step_callback)
+            self._backend_manager.register_post_step_callback(self._post_step_callback)
         # tendon names are set in _process_tendons function
 
         # soft joint position limits (recommended not to be too close to limits).
         wp.launch(
-            articulation_kernels.update_soft_joint_pos_limits,
+            warp_math.scale_intervals,
             dim=(self.num_instances, self.num_joints),
             inputs=[
                 self.data.joint_pos_limits,
@@ -3442,6 +3415,9 @@ class Articulation(BaseArticulation):
         super()._invalidate_initialize_callback(event)
         self._root_view = None
 
+        if self.cfg.enable_joint_wrench:
+            self._backend_manager.request_extended_state_attribute("body_parent_f")
+
     """
     Internal helpers -- Actuators.
     """
@@ -3462,10 +3438,14 @@ class Articulation(BaseArticulation):
         """Process fixed and spatial tendons."""
         if self._root_view.tendon_count > 0:
             tendon_types = wp.to_torch(
-                self._root_view.get_attribute("mujoco.tendon_type", SimulationManager.get_model())
+                self._root_view.get_attribute("mujoco.tendon_type", self._backend_manager.backend.model)
             )
             if tendon_types.sum() > 0:
                 raise NotImplementedError("Spatial tendons are not supported yet.")
+            # Only the solver knows whether it transmits to tendons.
+            backend = self._backend_manager.backend
+            solver_cfg = backend.cfg.solver_cfg
+            self._fixed_tendon_control = solver_cfg.class_type.fixed_tendon_control(solver_cfg, self, backend.model)
 
     """
     Internal helpers -- Debugging.
@@ -3594,6 +3574,13 @@ class Articulation(BaseArticulation):
         if self.num_spatial_tendons > 0:
             raise NotImplementedError("Spatial tendons are not supported yet.")
 
+    def _invalidate_fk_index(self, env_ids: wp.array | torch.Tensor) -> None:
+        """Schedule FK for env_ids through a scratch mask that the invalidation clears as it reads it."""
+        env_mask = shared_kernels.mask_from_ids(env_ids, self._ALL_INDICES, self._ALL_ENV_MASK, self._index_env_mask)
+        self._backend_manager.invalidate_fk(
+            env_mask, self.root_view.articulation_ids, consume_mask=env_mask is self._index_env_mask
+        )
+
     def _resolve_env_ids(self, env_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
         """Resolve environment indices.
 
@@ -3603,13 +3590,7 @@ class Articulation(BaseArticulation):
         Returns:
             Environment indices.
         """
-        if isinstance(env_ids, ProxyArray):
-            raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
-        if (env_ids is None) or (env_ids == slice(None)):
-            return self._ALL_INDICES
-        if isinstance(env_ids, list):
-            return wp.array(env_ids, dtype=wp.int32, device=self.device)
-        return env_ids
+        return resolve_ids(ids=env_ids, all_ids=self._ALL_INDICES)
 
     def _resolve_joint_ids(self, joint_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
         """Resolve joint indices to a warp array or tensor.
@@ -3620,13 +3601,7 @@ class Articulation(BaseArticulation):
         Returns:
             A warp array of joint indices or a tensor of joint indices.
         """
-        if isinstance(joint_ids, ProxyArray):
-            raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
-        if isinstance(joint_ids, list):
-            return wp.array(joint_ids, dtype=wp.int32, device=self.device)
-        if (joint_ids is None) or (joint_ids == slice(None)):
-            return self._ALL_JOINT_INDICES
-        return joint_ids
+        return resolve_ids(ids=joint_ids, all_ids=self._ALL_JOINT_INDICES)
 
     def _resolve_body_ids(self, body_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
         """Resolve body indices to a warp array or tensor.
@@ -3637,13 +3612,7 @@ class Articulation(BaseArticulation):
         Returns:
             A warp array of body indices or a tensor of body indices.
         """
-        if isinstance(body_ids, ProxyArray):
-            raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
-        if isinstance(body_ids, list):
-            return wp.array(body_ids, dtype=wp.int32, device=self.device)
-        if (body_ids is None) or (body_ids == slice(None)):
-            return self._ALL_BODY_INDICES
-        return body_ids
+        return resolve_ids(ids=body_ids, all_ids=self._ALL_BODY_INDICES)
 
     def _resolve_fixed_tendon_ids(
         self, tendon_ids: Sequence[int] | torch.Tensor | wp.array | None
@@ -3656,13 +3625,7 @@ class Articulation(BaseArticulation):
         Returns:
             A warp array of tendon indices or a tensor of tendon indices.
         """
-        if isinstance(tendon_ids, ProxyArray):
-            raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
-        if isinstance(tendon_ids, list):
-            return wp.array(tendon_ids, dtype=wp.int32, device=self.device)
-        if (tendon_ids is None) or (tendon_ids == slice(None)):
-            return self._ALL_FIXED_TENDON_INDICES
-        return tendon_ids
+        return resolve_ids(ids=tendon_ids, all_ids=self._ALL_FIXED_TENDON_INDICES)
 
     def _resolve_spatial_tendon_ids(
         self, spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None
@@ -3675,13 +3638,21 @@ class Articulation(BaseArticulation):
         Returns:
             A warp array of spatial tendon indices or a tensor of spatial tendon indices.
         """
-        if isinstance(spatial_tendon_ids, ProxyArray):
-            raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
-        if isinstance(spatial_tendon_ids, list):
-            return wp.array(spatial_tendon_ids, dtype=wp.int32, device=self.device)
-        if (spatial_tendon_ids is None) or (spatial_tendon_ids == slice(None)):
-            return self._ALL_SPATIAL_TENDON_INDICES
-        return spatial_tendon_ids
+        return resolve_ids(ids=spatial_tendon_ids, all_ids=self._ALL_SPATIAL_TENDON_INDICES)
+
+    @staticmethod
+    def _to_torch_ids(ids: wp.array | torch.Tensor) -> torch.Tensor:
+        """View resolved indices as a torch tensor for indexing."""
+        return (wp.to_torch(ids) if isinstance(ids, wp.array) else ids).long()
+
+    def _select_full_data(
+        self, data: float | torch.Tensor | wp.array, env_ids: wp.array | torch.Tensor, ids: wp.array | torch.Tensor
+    ) -> float | torch.Tensor:
+        """Select the rows and columns of full (num_instances, num_items, ...) data given by the indices."""
+        if isinstance(data, float):
+            return data
+        data = wp.to_torch(data) if isinstance(data, wp.array) else data
+        return data[self._to_torch_ids(env_ids)[:, None], self._to_torch_ids(ids)]
 
     def _resolve_mask(self, mask: wp.array | torch.Tensor | None, full_mask: wp.array) -> wp.array:
         """Resolve a mask to a warp array.
@@ -3692,37 +3663,11 @@ class Articulation(BaseArticulation):
         Returns:
             A warp array of mask.
         """
-        if mask is None:
-            return full_mask
-
-        if isinstance(mask, torch.Tensor):
-            return wp.from_torch(mask, dtype=wp.bool)
-        return mask
+        return resolve_1d_mask(mask=mask, all_mask=full_mask)
 
     """
     Deprecated methods.
     """
-
-    def write_joint_friction_coefficient_to_sim(
-        self,
-        joint_friction_coeff: torch.Tensor | wp.array | float,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        full_data: bool = False,
-    ):
-        """Deprecated, same as :meth:`write_joint_friction_coefficient_to_sim_index`."""
-        warnings.warn(
-            "The function 'write_joint_friction_coefficient_to_sim' will be deprecated in a future release. Please"
-            " use 'write_joint_friction_coefficient_to_sim_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        self.write_joint_friction_coefficient_to_sim_index(
-            joint_friction_coeff,
-            joint_ids=joint_ids,
-            env_ids=env_ids,
-            full_data=full_data,
-        )
 
     def write_root_state_to_sim(
         self,
@@ -3785,11 +3730,13 @@ class Articulation(BaseArticulation):
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ):
-        """Deprecated, same as :meth:`write_joint_state_to_sim_index`."""
+        """Deprecated, same as :meth:`write_joint_position_to_sim_index` and
+        :meth:`write_joint_velocity_to_sim_index`."""
         warnings.warn(
             "The function 'write_joint_state_to_sim' will be deprecated in a future release. Please"
-            " use 'write_joint_state_to_sim_index' instead.",
+            " use 'write_joint_position_to_sim_index' and 'write_joint_velocity_to_sim_index' instead.",
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_joint_state_to_sim_index(position=position, velocity=velocity, joint_ids=joint_ids, env_ids=env_ids)
+        self.write_joint_position_to_sim_index(position=position, joint_ids=joint_ids, env_ids=env_ids)
+        self.write_joint_velocity_to_sim_index(velocity=velocity, joint_ids=joint_ids, env_ids=env_ids)

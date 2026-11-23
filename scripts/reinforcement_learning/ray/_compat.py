@@ -24,7 +24,7 @@ def forward(module_name: str, namespace: dict[str, object]) -> None:
         stacklevel=2,
     )
     if namespace.get("__name__") == "__main__":
-        runpy.run_module(module_name, run_name="__main__")
+        runpy.run_module(module_name, run_name="__main__", alter_sys=True)
         return
 
     module = importlib.import_module(module_name)

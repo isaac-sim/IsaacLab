@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from gymnasium import spaces
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.core.cartpole.cartpole_direct_env_cfg import CartpoleEnvCfg
 from isaaclab_tasks.utils import PresetCfg
@@ -620,10 +620,7 @@ class CartpoleShowcasePresetsEnvCfg(PresetCfg):
     Each variant attribute is an instance of an existing per-shape cfg class
     declared above. The hydra resolver picks one based on the
     ``presets=<name>`` CLI token; the default is ``box_box`` (matching the
-    canonical cartpole shape). The retired per-shape task IDs are registered
-    in the sibling ``__init__.py`` with a ``deprecated={"alias": ...}`` kwarg
-    so ``parse_cfg.load_cfg_from_registry`` emits a ``FutureWarning`` when
-    one of them is loaded.
+    canonical cartpole shape).
     """
 
     box_box = BoxBoxEnvCfg()

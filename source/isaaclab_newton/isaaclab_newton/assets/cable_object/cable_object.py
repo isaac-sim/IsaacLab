@@ -16,12 +16,11 @@ from newton.selection import ArticulationView
 from pxr import UsdGeom
 
 from isaaclab.assets.cable_object.base_cable_object import BaseCableObject
-from isaaclab.cloner import queue_replication
-from isaaclab.physics import PhysicsEvent
 from isaaclab.sim.utils.queries import has_deformable_curve_api, path_expr_to_glob, resolve_matching_prims_from_source
 from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.warp.memory import resolve_1d_indices, resolve_ids
 
-from isaaclab_newton.physics import NewtonManager as SimulationManager
+from isaaclab_newton.assets.kernels import mask_from_ids
 
 from .cable_object_data import CableObjectData
 from .kernels import (
@@ -44,15 +43,6 @@ class CableObject(BaseCableObject):
     __backend_name__: str = "newton"
     """The name of the backend for the cable object."""
 
-    def __init__(self, cfg: CableObjectCfg) -> None:
-        """Initialize the cable object.
-
-        Args:
-            cfg: A configuration instance.
-        """
-        super().__init__(cfg)
-        queue_replication(cfg)
-
     @property
     def data(self) -> CableObjectData:
         return self._data
@@ -64,20 +54,21 @@ class CableObject(BaseCableObject):
     @property
     def num_segments(self) -> int:
         """Number of rigid segments per cable."""
-        return self.root_view.link_count + 1
+        return self.root_view.link_count
 
     @property
     def root_view(self) -> ArticulationView:
         """Articulation view for the cable."""
         return self._root_view
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         """Reset the cable object's internal buffers.
 
         Args:
             env_ids: Environment indices. Defaults to all instances.
+            env_mask: Boolean environment mask. Shape is (num_instances,). Defaults to None.
         """
-        del env_ids
+        del env_ids, env_mask
 
     def write_data_to_sim(self) -> None:
         """Write buffered commands to the simulation."""
@@ -108,7 +99,13 @@ class CableObject(BaseCableObject):
             segment_pose = segment_pose.warp
         env_ids = self._resolve_env_ids(env_ids)
         self.assert_shape_and_dtype(segment_pose, (env_ids.shape[0], self.num_segments), wp.transformf, "segment_pose")
-        self._write_segment_state_to_sim(segment_pose, env_ids, set_segment_pose_to_sim_index, "body_q", use_mask=False)
+        self._write_segment_state_to_sim(
+            segment_pose,
+            env_ids,
+            set_segment_pose_to_sim_index,
+            "body_q",
+            mask_from_ids(env_ids, self._ALL_INDICES, self._ALL_ENV_MASK, self._index_env_mask),
+        )
 
     def write_segment_pose_to_sim_mask(
         self,
@@ -131,7 +128,7 @@ class CableObject(BaseCableObject):
         self.assert_shape_and_dtype_mask(
             segment_pose, (env_mask,), wp.transformf, "segment_pose", trailing_dims=(self.num_segments,)
         )
-        self._write_segment_state_to_sim(segment_pose, env_mask, set_segment_pose_to_sim_mask, "body_q", use_mask=True)
+        self._write_segment_state_to_sim(segment_pose, env_mask, set_segment_pose_to_sim_mask, "body_q", env_mask)
 
     def write_segment_velocity_to_sim_index(
         self,
@@ -155,7 +152,11 @@ class CableObject(BaseCableObject):
             segment_velocity, (env_ids.shape[0], self.num_segments), wp.spatial_vectorf, "segment_velocity"
         )
         self._write_segment_state_to_sim(
-            segment_velocity, env_ids, set_segment_velocity_to_sim_index, "body_qd", use_mask=False
+            segment_velocity,
+            env_ids,
+            set_segment_velocity_to_sim_index,
+            "body_qd",
+            mask_from_ids(env_ids, self._ALL_INDICES, self._ALL_ENV_MASK, self._index_env_mask),
         )
 
     def write_segment_velocity_to_sim_mask(
@@ -181,7 +182,7 @@ class CableObject(BaseCableObject):
             segment_velocity, (env_mask,), wp.spatial_vectorf, "segment_velocity", trailing_dims=(self.num_segments,)
         )
         self._write_segment_state_to_sim(
-            segment_velocity, env_mask, set_segment_velocity_to_sim_mask, "body_qd", use_mask=True
+            segment_velocity, env_mask, set_segment_velocity_to_sim_mask, "body_qd", env_mask
         )
 
     def _initialize_impl(self) -> None:
@@ -192,7 +193,7 @@ class CableObject(BaseCableObject):
         curve_prim, curve_path_expr = resolve_matching_prims_from_source(self.cfg.prim_path, **resolve_kwargs)[0]
         num_segments = int(UsdGeom.BasisCurves(curve_prim).GetCurveVertexCountsAttr().Get()[0]) - 1
 
-        model = SimulationManager.get_model()
+        model = self._backend_manager.backend.model
         articulation_path_expr = f"{curve_path_expr}_articulation"
         self._root_view = ArticulationView(
             model,
@@ -200,38 +201,28 @@ class CableObject(BaseCableObject):
             verbose=False,
         )
         topology_error = "CableObject requires one standalone, unwelded cable articulation per simulation world."
-        expected_joint_count = num_segments - 1
         joint_types = self.root_view.get_attribute("joint_type", model).numpy()
         valid_topology = (
             self.root_view.count_per_world == 1
-            and self.root_view.joint_count == expected_joint_count
-            and self.root_view.link_count == expected_joint_count
-            and bool((joint_types == int(JointType.CABLE)).all())
+            and self.root_view.joint_count == num_segments
+            and self.root_view.link_count == num_segments
+            and bool((joint_types[..., 0] == int(JointType.FREE)).all())
+            and bool((joint_types[..., 1:] == int(JointType.ROD)).all())
         )
         if not valid_topology:
             raise RuntimeError(topology_error)
 
         self._ALL_INDICES = wp.array(list(range(self.num_instances)), dtype=wp.int32, device=self.device)
         self._ALL_ENV_MASK = wp.ones((self.num_instances,), dtype=wp.bool, device=self.device)
+        self._index_env_mask = wp.zeros((self.num_instances,), dtype=wp.bool, device=self.device)
 
-        self._data = CableObjectData(self.root_view, self.device)
-        self._physics_ready_handle = SimulationManager.register_callback(
-            self._rebind,
-            PhysicsEvent.PHYSICS_READY,
-            name=f"cable_object_rebind_{self.cfg.prim_path}",
-        )
+        self._data = CableObjectData(self.root_view, self.device, backend_manager=self._backend_manager)
 
     def _resolve_env_ids(self, env_ids: Sequence[int] | torch.Tensor | wp.array(dtype=wp.int32) | None) -> wp.array(
         dtype=wp.int32
     ):
         """Resolve environment indices to a Warp array."""
-        if env_ids is None or (isinstance(env_ids, slice) and env_ids == slice(None)):
-            return self._ALL_INDICES
-        if isinstance(env_ids, torch.Tensor):
-            return wp.from_torch(env_ids.to(device=self.device, dtype=torch.int32).contiguous(), dtype=wp.int32)
-        if isinstance(env_ids, Sequence):
-            return wp.array(list(env_ids), dtype=wp.int32, device=self.device)
-        return env_ids
+        return resolve_1d_indices(resolve_ids(ids=env_ids, all_ids=self._ALL_INDICES))
 
     def _write_segment_state_to_sim(
         self,
@@ -239,10 +230,9 @@ class CableObject(BaseCableObject):
         selector: wp.array(dtype=wp.int32) | wp.array(dtype=wp.bool),
         kernel: wp.Kernel,
         state_attribute: str,
-        *,
-        use_mask: bool,
+        env_mask: wp.array,
     ) -> None:
-        """Write a validated segment state into the active Newton states."""
+        """Write a validated segment state into the active Newton states and flag env_mask for a solver reset."""
         if isinstance(value, torch.Tensor):
             value = value.contiguous()
 
@@ -250,31 +240,17 @@ class CableObject(BaseCableObject):
             wp.launch(
                 kernel,
                 dim=(selector.shape[0], self.num_segments),
-                inputs=[value, selector, self.data._sim_bind_root_body_ids, self.data._sim_bind_link_body_ids],
+                inputs=[value, selector, self.data._sim_bind_body_ids],
                 outputs=[getattr(state, state_attribute)],
                 device=self.device,
             )
-        if use_mask:
-            SimulationManager.invalidate_body_state(env_mask=selector)
-        else:
-            SimulationManager.invalidate_body_state(selector)
+        self._backend_manager.invalidate_body_state(env_mask, consume_mask=env_mask is self._index_env_mask)
         self.update(0.0)
 
     def _iter_states(self):
         """Yield active Newton states."""
-        state_0 = SimulationManager.get_state_0()
-        state_1 = SimulationManager.get_state_1()
+        state_0 = self._backend_manager.backend.state_0
+        state_1 = self._backend_manager.backend.state_1
         yield state_0
         if state_1 is not None and state_1 is not state_0:
             yield state_1
-
-    def _rebind(self, _: object) -> None:
-        """Rebind simulation arrays after a Newton model rebuild."""
-        self._data._create_simulation_bindings()
-
-    def _clear_callbacks(self) -> None:
-        """Clear all registered callbacks."""
-        super()._clear_callbacks()
-        if hasattr(self, "_physics_ready_handle") and self._physics_ready_handle is not None:
-            self._physics_ready_handle.deregister()
-            self._physics_ready_handle = None

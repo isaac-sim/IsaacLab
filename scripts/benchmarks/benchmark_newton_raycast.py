@@ -14,10 +14,8 @@ rough terrain on the Newton backend:
   refit (the refit is shared with the tiled-camera renderer in real scenes).
 
 Usage:
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_newton_raycast.py --num_envs 1024 --headless
+    uv run python scripts/benchmarks/benchmark_newton_raycast.py --num_envs 1024
 """
-
-"""Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
 
 import argparse
 
@@ -32,12 +30,13 @@ parser.add_argument("--grid_resolution", type=float, default=0.1, help="Grid pat
 add_launcher_args(parser)
 args_cli = parser.parse_args()
 
+import itertools
 import math
 import time
 
 import torch
 import warp as wp
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonManager
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.sensors import LegacyRayCaster, NewtonRaycastSensorCfg
 
 import isaaclab.sim as sim_utils
@@ -47,7 +46,7 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import RayCasterCfg
 from isaaclab.sensors.ray_caster.patterns import GridPatternCfg
 from isaaclab.terrains import TerrainGeneratorCfg, TerrainImporterCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 
 def _make_terrain_cfg(num_envs: int, env_spacing: float) -> TerrainGeneratorCfg:
@@ -81,8 +80,8 @@ def _make_scene_cfg(num_envs: int, env_spacing: float = 2.0) -> InteractiveScene
             prim_path="{ENV_REGEX_NS}/SensorBody",
             spawn=sim_utils.CuboidCfg(
                 size=(0.1, 0.1, 0.1),
-                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-                mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+                rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+                mass_props=sim_utils.MassCfg(mass=1.0),
             ),
             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
         )
@@ -118,8 +117,10 @@ def _time_calls(fn, num_iterations: int, warmup: int, device: str) -> float:
 
 
 def main():
-    with launch_simulation(cfg=NewtonCfg(solver_cfg=MJWarpSolverCfg()), launcher_args=args_cli) as physics_cfg:
-        sim_cfg = sim_utils.SimulationCfg(dt=1 / 200, device=args_cli.device, physics=physics_cfg)
+    sim_cfg = sim_utils.SimulationCfg(
+        dt=1 / 200, device=args_cli.device, physics=NewtonCfg(solver_cfg=MJWarpSolverCfg())
+    )
+    with launch_simulation(sim_cfg, args_cli):
         sim = sim_utils.SimulationContext(sim_cfg)
         scene = InteractiveScene(_make_scene_cfg(args_cli.num_envs))
         sim.reset()
@@ -153,13 +154,15 @@ def main():
         def run_bvh():
             newton_raycast._update_buffers_impl(newton_raycast._ALL_ENV_MASK)
 
+        backend = sim.backend_manager.backend
+        versions = itertools.count(1 << 32)
+
         def run_bvh_with_refit():
-            NewtonManager._mark_sensor_state_dirty()
+            backend.refit_bvh(next(versions))
             newton_raycast._update_buffers_impl(newton_raycast._ALL_ENV_MASK)
 
         def run_refit_only():
-            NewtonManager._mark_sensor_state_dirty()
-            NewtonManager._update_sensor_tasks()
+            backend.refit_bvh(next(versions))
 
         results = {
             "LegacyRayCaster (warp mesh)": run_warp_mesh,
@@ -170,7 +173,7 @@ def main():
 
         print(
             f"\nnum_envs={args_cli.num_envs}, rays/env={num_rays}, total rays={total_rays},"
-            f" shapes in BVH={NewtonManager.get_model().bvh_shape_count_enabled},"
+            f" shapes in BVH={backend.model.bvh_shape_count_enabled},"
             f" iterations={args_cli.num_iterations}, device={device}"
         )
         print(f"{'benchmark':<40} {'ms/call':>10} {'Mrays/s':>10}")

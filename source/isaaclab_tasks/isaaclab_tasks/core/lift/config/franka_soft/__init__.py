@@ -3,9 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Franka deformable, cloth, and cable lifting environments."""
+
 import gymnasium as gym
 
-from isaaclab_tasks.core.lift.config.franka_soft import agents
+from . import agents
 
 ##
 # Register Gym environments.
@@ -33,7 +35,6 @@ gym.register(
     },
 )
 
-
 gym.register(
     id="Isaac-Lift-Cable-Franka",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
@@ -41,9 +42,9 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": f"{__name__}.franka_cable_env_cfg:FrankaCableEnvCfg",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:FrankaCablePPORunnerCfg",
+        "default_agent": "rsl_rl",
     },
 )
-
 
 gym.register(
     id="Isaac-Lift-Cable-Franka-Camera",
@@ -52,9 +53,9 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": f"{__name__}.franka_cable_env_cfg:FrankaCableCameraEnvCfg",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:FrankaCableCameraPPORunnerCfg",
+        "default_agent": "rsl_rl",
     },
 )
-
 
 gym.register(
     id="Isaac-Lift-Soft-Franka-Camera",
@@ -73,7 +74,7 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.franka_cloth_env_cfg:FrankaClothCameraEnvCfg",
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:FrankaDeformableCameraPPORunnerCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:FrankaClothCameraPPORunnerCfg",
         "default_agent": "rsl_rl",
     },
 )

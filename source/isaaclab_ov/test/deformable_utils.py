@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from isaaclab_physx.sim.spawners.materials import (
+from isaaclab_isaacsim.sim.spawners.materials import (
     PhysxDeformableBodyMaterialCfg,
     PhysxSurfaceDeformableBodyMaterialCfg,
 )
@@ -15,7 +15,7 @@ from isaaclab_physx.sim.spawners.materials import (
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdShade
 
 import isaaclab.sim as sim_utils
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 _VOLUME_MATERIAL_CFG = PhysxDeformableBodyMaterialCfg(
     dynamic_friction=0.5,

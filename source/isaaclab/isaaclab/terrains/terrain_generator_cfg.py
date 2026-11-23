@@ -4,12 +4,12 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """
-Configuration classes defining the different terrains available. Each configuration class must
-inherit from ``isaaclab.terrains.terrains_cfg.TerrainConfig`` and define the following attributes:
+Configuration for terrain generation using sub-terrain configurations derived from
+:class:`isaaclab.terrains.SubTerrainBaseCfg`.
 
-- ``name``: Name of the terrain. This is used for the prim name in the USD stage.
-- ``function``: Function to generate the terrain. This function must take as input the terrain difficulty
-  and the configuration parameters and return a `tuple with the `trimesh`` mesh object and terrain origin.
+The keys in :attr:`TerrainGeneratorCfg.sub_terrains` name the sub-terrains. Each sub-terrain's
+:attr:`~isaaclab.terrains.SubTerrainBaseCfg.function` takes the terrain difficulty and configuration,
+and returns a tuple containing a list of ``trimesh.Trimesh`` meshes and the terrain origin.
 """
 
 from __future__ import annotations
@@ -17,8 +17,7 @@ from __future__ import annotations
 from dataclasses import MISSING
 from typing import TYPE_CHECKING, Literal
 
-from isaaclab.utils.configclass import configclass
-
+from ..utils import configclass
 from .sub_terrain_cfg import SubTerrainBaseCfg
 
 if TYPE_CHECKING:
@@ -90,21 +89,21 @@ class TerrainGeneratorCfg:
     horizontal_scale: float = 0.1
     """The discretization of the terrain along the x and y axes (in m). Defaults to 0.1.
 
-    This value is passed on to all the height field sub-terrain configurations.
+    Height-field sub-terrains inherit this value only when their ``horizontal_scale`` is None.
     """
 
     vertical_scale: float = 0.005
     """The discretization of the terrain along the z axis (in m). Defaults to 0.005.
 
-    This value is passed on to all the height field sub-terrain configurations.
+    Height-field sub-terrains inherit this value only when their ``vertical_scale`` is None.
     """
 
     slope_threshold: float | None = 0.75
     """The slope threshold above which surfaces are made vertical. Defaults to 0.75.
 
-    If None no correction is applied.
+    If None, no correction is applied to sub-terrains that inherit this value.
 
-    This value is passed on to all the height field sub-terrain configurations.
+    Height-field sub-terrains inherit this value only when their ``slope_threshold`` is None.
     """
 
     sub_terrains: dict[str, SubTerrainBaseCfg] = MISSING

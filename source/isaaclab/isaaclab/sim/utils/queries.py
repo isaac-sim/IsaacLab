@@ -12,15 +12,14 @@ import re
 from collections.abc import Callable, Iterator
 from typing import TYPE_CHECKING
 
-from isaaclab import cloner
-from isaaclab.sim.simulation_context import SimulationContext
-
+from ... import cloner
+from ...cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
+from ..simulation_context import SimulationContext
 from .stage import get_current_stage
 
 if TYPE_CHECKING:
     from pxr import Sdf, Usd, UsdPhysics  # noqa: F401
 
-# import logger
 logger = logging.getLogger(__name__)
 
 _CHARACTER_CLASS = re.compile(r"\[\^?[^]]*\]")
@@ -128,31 +127,21 @@ def get_first_matching_ancestor_prim(
     Raises:
         ValueError: If the prim path is not global (i.e: does not start with '/').
     """
-    # get stage handle
     if stage is None:
         stage = get_current_stage()
 
-    # make paths str type if they aren't already
     prim_path = str(prim_path)
-    # check if prim path is global
     if not prim_path.startswith("/"):
         raise ValueError(f"Prim path '{prim_path}' is not global. It must start with '/'.")
-    # get prim
     prim = stage.GetPrimAtPath(prim_path)
-    # check if prim is valid
     if not prim.IsValid():
         raise ValueError(f"Prim at path '{prim_path}' is not valid.")
 
-    # walk up to find the first matching ancestor prim
     ancestor_prim = prim
     while ancestor_prim and ancestor_prim.IsValid():
-        # check if prim passes predicate
         if predicate(ancestor_prim):
             return ancestor_prim
-        # get parent prim
         ancestor_prim = ancestor_prim.GetParent()
-
-    # If no ancestor prim passes the predicate, return None
     return None
 
 
@@ -164,7 +153,7 @@ def get_first_matching_child_prim(
 ) -> Usd.Prim | None:
     """Recursively get the first USD Prim at the path string that passes the predicate function.
 
-    This function performs a depth-first traversal of the prim hierarchy starting from
+    This function performs a breadth-first traversal of the prim hierarchy starting from
     :attr:`prim_path`, returning the first prim that satisfies the provided :attr:`predicate`.
     It optionally supports traversal through instance prims, which are normally skipped in standard USD
     traversals.
@@ -192,29 +181,22 @@ def get_first_matching_child_prim(
     """
     from pxr import Usd  # noqa: PLC0415
 
-    # get stage handle
     if stage is None:
         stage = get_current_stage()
 
-    # make paths str type if they aren't already
     prim_path = str(prim_path)
-    # check if prim path is global
     if not prim_path.startswith("/"):
         raise ValueError(f"Prim path '{prim_path}' is not global. It must start with '/'.")
-    # get prim
     prim = stage.GetPrimAtPath(prim_path)
-    # check if prim is valid
     if not prim.IsValid():
         raise ValueError(f"Prim at path '{prim_path}' is not valid.")
-    # iterate over all prims under prim-path
+
+    # breadth-first search
     all_prims = [prim]
-    while len(all_prims) > 0:
-        # get current prim
+    while all_prims:
         child_prim = all_prims.pop(0)
-        # check if prim passes predicate
         if predicate(child_prim):
             return child_prim
-        # add children to list
         if traverse_instance_prims:
             all_prims += child_prim.GetFilteredChildren(Usd.TraverseInstanceProxies())
         else:
@@ -232,7 +214,7 @@ def get_all_matching_child_prims(
 ) -> list[Usd.Prim]:
     """Performs a search starting from the root and returns all the prims matching the predicate.
 
-    This function performs a depth-first traversal of the prim hierarchy starting from
+    This function performs a breadth-first traversal of the prim hierarchy starting from
     :attr:`prim_path`, returning all prims that satisfy the provided :attr:`predicate`. It optionally
     supports traversal through instance prims, which are normally skipped in standard USD traversals.
 
@@ -266,44 +248,32 @@ def get_all_matching_child_prims(
     """
     from pxr import Usd  # noqa: PLC0415
 
-    # get stage handle
     if stage is None:
         stage = get_current_stage()
 
-    # make paths str type if they aren't already
     prim_path = str(prim_path)
-    # check if prim path is global
     if not prim_path.startswith("/"):
         raise ValueError(f"Prim path '{prim_path}' is not global. It must start with '/'.")
-    # get prim
     prim = stage.GetPrimAtPath(prim_path)
-    # check if prim is valid
     if not prim.IsValid():
         raise ValueError(f"Prim at path '{prim_path}' is not valid.")
-    # check if depth is valid
     if depth is not None and depth <= 0:
         raise ValueError(f"Depth must be bigger than zero, got {depth}.")
     if expected_num_matches is not None and expected_num_matches < 0:
         raise ValueError(f"Expected number of matches must be non-negative, got {expected_num_matches}.")
 
-    # iterate over all prims under prim-path
-    # list of tuples (prim, current_depth)
+    # breadth-first search over (prim, depth) pairs
     all_prims_queue = [(prim, 0)]
     output_prims = []
-    while len(all_prims_queue) > 0:
-        # get current prim
+    while all_prims_queue:
         child_prim, current_depth = all_prims_queue.pop(0)
-        # check if prim passes predicate
         if predicate(child_prim):
             output_prims.append(child_prim)
-        # add children to list
         if depth is None or current_depth < depth:
-            # resolve prims under the current prim
             if traverse_instance_prims:
                 children = child_prim.GetFilteredChildren(Usd.TraverseInstanceProxies())
             else:
                 children = child_prim.GetChildren()
-            # add children to list
             all_prims_queue += [(child, current_depth + 1) for child in children]
 
     if expected_num_matches is not None and len(output_prims) != expected_num_matches:
@@ -412,19 +382,21 @@ def resolve_matching_prims_from_source(
     path_expr: str,
     predicate: Callable[[Usd.Prim], bool] | None = None,
     expected_num_matches: int | None = None,
-    env_regex_ns: str = "/World/envs/env_[^/]+",
+    env_regex_ns: str = DEFAULT_ENV_TEMPLATE.format("[^/]+"),
     raise_if_no_matches: bool = True,
     traverse_instance_prims: bool = True,
 ) -> list[tuple[Usd.Prim, str]]:
     """Resolve matching prims from a single(source) instance when multiple instances are present.
 
     The returned prims come from the stage source instance, while each destination expression
-    keeps the multi-instance pattern that callers can pass to simulation views.
+    keeps the multi-instance pattern that callers can pass to simulation views. Each source
+    prim appears once, in first-match order, even when matching ancestor subtrees overlap.
+    Uniqueness is resolved here before counting matches, rather than by individual callers.
 
     Args:
         path_expr: Prim path expression to resolve. It may contain regex wildcards.
         predicate: Optional descendant filter; returned expressions include the matching descendant suffix.
-        expected_num_matches: Optional exact result count.
+        expected_num_matches: Optional exact count of unique source prims.
         env_regex_ns: Namespace pattern that marks one instance root when no clone plan applies.
         raise_if_no_matches: Whether to raise if no prim matches ``path_expr``. Defaults to True.
         traverse_instance_prims: Whether to traverse instance prims when applying ``predicate``.
@@ -437,15 +409,25 @@ def resolve_matching_prims_from_source(
         RuntimeError: If no prim matches ``path_expr`` and ``raise_if_no_matches`` is True.
     """
     plan = SimulationContext.instance().get_clone_plan()
-    resolved = cloner.query.path_to_source(plan, path_expr) if plan is not None else None
-    if resolved is not None:
-        source_path, dest_expr, asset_suffix = resolved
-        source_expr = source_path + asset_suffix
+    matches = []
+    if plan is not None:
+        sources = cloner.path.get_asset_prototype_paths(plan)
+        templates, starts, worlds, world_starts = cloner.path.get_world_prototype_asset_templates(
+            plan, include_world_indices=True
+        )
+        for group in range(1, len(starts) - 1):
+            targets = worlds[world_starts[group] : world_starts[group + 1]]
+            for index in range(starts[group], starts[group + 1]):
+                matched = cloner.path.match(path_expr, templates[index])
+                if matched is not None and any(re.fullmatch(matched.instance, str(world)) for world in targets):
+                    matches.append((index, matched))
+    if matches:
+        index, matched = min(matches, key=lambda item: len(item[1].suffix))
+        source_path, destination = sources[plan.topology.world_prototypes[index]], templates[index]
+        dest_expr = destination.format("[^/]+")
         source_prim = get_current_stage().GetPrimAtPath(source_path)
-        results = [
-            (prim, dest_expr + prim.GetPath().pathString[len(source_path) :])
-            for prim in _iter_matching_prims_in_subtree(source_expr, source_prim)
-        ]
+        prims = _iter_matching_prims_in_subtree(source_path + matched.suffix, source_prim)
+        results = [(prim, dest_expr + prim.GetPath().pathString[len(source_path) :]) for prim in prims]
     else:
         # No clone plan, or ``path_expr`` is not owned by any plan row. Resolve from the stage
         # in two phases (mirroring the clone-plan branch above): (1) locate ONE instance root to
@@ -479,20 +461,23 @@ def resolve_matching_prims_from_source(
             instance_root = "/" + "/".join(match_segments[: instance_seg + 1])
             trailing = segments[instance_seg + 1 :]
             walk_root = instance_root + ("/" + "/".join(trailing) if trailing else "")
-            results = [
-                (prim, instance_expr + prim.GetPath().pathString[len(instance_root) :])
-                for prim in find_matching_prims(walk_root)
-                if prim.GetPath().pathString == instance_root
-                or prim.GetPath().pathString.startswith(instance_root + "/")
-            ]
+            results = []
+            for prim in find_matching_prims(walk_root):
+                path = prim.GetPath().pathString
+                if path == instance_root or path.startswith(instance_root + "/"):
+                    results.append((prim, instance_expr + path[len(instance_root) :]))
     if predicate is not None:
-        results = [
-            (child, dest + child.GetPath().pathString[len(source.GetPath().pathString) :])
-            for source, dest in results
-            for child in get_all_matching_child_prims(
-                source.GetPath(), predicate, traverse_instance_prims=traverse_instance_prims
+        # Whole-path regexes can select both a prim and its ancestors; their descendant sets overlap.
+        unique_matches = {}
+        for source, dest in results:
+            source_path = source.GetPath().pathString
+            children = get_all_matching_child_prims(
+                source_path, predicate, traverse_instance_prims=traverse_instance_prims
             )
-        ]
+            for child in children:
+                child_path = child.GetPath().pathString
+                unique_matches.setdefault(child_path, (child, dest + child_path[len(source_path) :]))
+        results = list(unique_matches.values())
 
     if expected_num_matches is not None and len(results) != expected_num_matches:
         raise RuntimeError(f"Expected {expected_num_matches} prims at '{path_expr}', found {len(results)}.")
@@ -526,8 +511,10 @@ def find_global_fixed_joint_prim(
     between the two bodies. When a fixed joint has only one target body, it is considered to attach the body
     to the simulation world.
 
-    This function finds the fixed joint prim that has only one target under the specified prim path. If no such
-    fixed joint prim exists, it returns None.
+    If the prim itself is a fixed joint that attaches a rigid body to the world, as for an articulation rooted at
+    its fixed world joint, that joint is returned (see :func:`_is_world_fixed_joint`). Otherwise, this function
+    finds the joint prim that has only one target under the specified prim path. If no such joint prim exists, it
+    returns None.
 
     Args:
         prim_path: The prim path to search for the fixed joint prim.
@@ -536,7 +523,7 @@ def find_global_fixed_joint_prim(
         stage: The stage where the prim exists. Defaults to None, in which case the current stage is used.
 
     Returns:
-        The fixed joint prim that has only one target. If no such fixed joint prim exists, it returns None.
+        The fixed joint prim that attaches the prim to the world. If no such joint prim exists, it returns None.
 
     Raises:
         ValueError: If the prim path is not global (i.e: does not start with '/').
@@ -544,39 +531,71 @@ def find_global_fixed_joint_prim(
     """
     from pxr import Usd, UsdPhysics  # noqa: PLC0415
 
-    # get stage handle
     if stage is None:
         stage = get_current_stage()
 
+    prim_path = str(prim_path)
     # check prim path is global
     if not prim_path.startswith("/"):
         raise ValueError(f"Prim path '{prim_path}' is not global. It must start with '/'.")
-
-    # check if prim exists
     prim = stage.GetPrimAtPath(prim_path)
     if not prim.IsValid():
         raise ValueError(f"Prim at path '{prim_path}' is not valid.")
 
-    fixed_joint_prim = None
-    # we check all joints under the root prim and classify the asset as fixed base if there exists
-    # a fixed joint that has only one target (i.e. the root link).
-    for prim in Usd.PrimRange(prim):
-        # note: ideally checking if it is FixedJoint would have been enough, but some assets use "Joint" as the
-        # schema name which makes it difficult to distinguish between the two.
+    # an articulation rooted at its fixed world joint: the prim itself is that joint
+    if _is_world_fixed_joint(prim):
         joint_prim = UsdPhysics.Joint(prim)
-        if joint_prim:
-            # if check_enabled_only is True, we only consider enabled joints
-            if check_enabled_only and not joint_prim.GetJointEnabledAttr().Get():
-                continue
-            # check body 0 and body 1 exist
-            body_0_exist = joint_prim.GetBody0Rel().GetTargets() != []
-            body_1_exist = joint_prim.GetBody1Rel().GetTargets() != []
-            # if either body 0 or body 1 does not exist, we have a fixed joint that connects to the world
-            if not (body_0_exist and body_1_exist):
-                fixed_joint_prim = joint_prim
-                break
+        if not check_enabled_only or joint_prim.GetJointEnabledAttr().Get():
+            return joint_prim
 
-    return fixed_joint_prim
+    # note: some assets author fixed joints with the generic "Joint" schema, so every joint is checked
+    # and a joint missing one of its two body targets is taken to attach the asset to the world.
+    for child_prim in Usd.PrimRange(prim):
+        joint_prim = UsdPhysics.Joint(child_prim)
+        if not joint_prim:
+            continue
+        if check_enabled_only and not joint_prim.GetJointEnabledAttr().Get():
+            continue
+        if not joint_prim.GetBody0Rel().GetTargets() or not joint_prim.GetBody1Rel().GetTargets():
+            return joint_prim
+    return None
+
+
+def _is_world_fixed_joint(prim: Usd.Prim) -> bool:
+    """Check whether a prim is a fixed joint that attaches a rigid body to the simulation world.
+
+    One body target of the joint must be a rigid body or a prim under one. The other side counts as the world when
+    its body target is empty or names no prim, or when neither the target nor an ancestor is a rigid body or a
+    collider. A collider without a rigid-body ancestor is a static body, not the world.
+    :func:`find_global_fixed_joint_prim` applies this rule to the prim it is called on; for the joints under that
+    prim it treats only an empty body target as the world.
+
+    Args:
+        prim: The USD prim to check.
+
+    Returns:
+        True if the prim is a fixed joint between a rigid body and the world.
+    """
+    from pxr import UsdPhysics  # noqa: PLC0415
+
+    # a plain UsdPhysics.Joint is a free D6 joint, so it is excluded on purpose, unlike in the subtree search
+    if not prim.IsA(UsdPhysics.FixedJoint):
+        return False
+    joint = UsdPhysics.FixedJoint(prim)
+    stage = prim.GetStage()
+
+    def resolve(rel: Usd.Relationship) -> str:
+        """Resolve a body relationship of the joint to ``"body"``, ``"static"`` or ``"world"``."""
+        targets = rel.GetTargets()
+        if not targets or not stage.GetPrimAtPath(targets[0]):
+            return "world"
+        if get_first_matching_ancestor_prim(targets[0], lambda p: p.HasAPI(UsdPhysics.RigidBodyAPI), stage=stage):
+            return "body"
+        if get_first_matching_ancestor_prim(targets[0], lambda p: p.HasAPI(UsdPhysics.CollisionAPI), stage=stage):
+            return "static"
+        return "world"
+
+    return sorted((resolve(joint.GetBody0Rel()), resolve(joint.GetBody1Rel()))) == ["body", "world"]
 
 
 def has_deformable_body_api(prim: Usd.Prim) -> bool:

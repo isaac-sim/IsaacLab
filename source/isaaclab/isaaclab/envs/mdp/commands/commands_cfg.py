@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 from isaaclab.managers import CommandTermCfg
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.markers.config import BLUE_ARROW_X_MARKER_CFG, FRAME_MARKER_CFG, GREEN_ARROW_X_MARKER_CFG
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass, replace
 
 if TYPE_CHECKING:
     from .null_command import NullCommand
@@ -97,13 +97,13 @@ class UniformVelocityCommandCfg(CommandTermCfg):
     the robot's head rather than clipping through the torso.
     """
 
-    goal_vel_visualizer_cfg: VisualizationMarkersCfg = GREEN_ARROW_X_MARKER_CFG.replace(
-        prim_path="/Visuals/Command/velocity_goal"
+    goal_vel_visualizer_cfg: VisualizationMarkersCfg = replace(
+        GREEN_ARROW_X_MARKER_CFG, prim_path="/Visuals/Command/velocity_goal"
     )
     """The configuration for the goal velocity visualization marker. Defaults to GREEN_ARROW_X_MARKER_CFG."""
 
-    current_vel_visualizer_cfg: VisualizationMarkersCfg = BLUE_ARROW_X_MARKER_CFG.replace(
-        prim_path="/Visuals/Command/velocity_current"
+    current_vel_visualizer_cfg: VisualizationMarkersCfg = replace(
+        BLUE_ARROW_X_MARKER_CFG, prim_path="/Visuals/Command/velocity_current"
     )
     """The configuration for the current velocity visualization marker. Defaults to BLUE_ARROW_X_MARKER_CFG."""
 
@@ -124,15 +124,15 @@ class NormalVelocityCommandCfg(UniformVelocityCommandCfg):
         """Normal distribution ranges for the velocity commands."""
 
         mean_vel: tuple[float, float, float] = MISSING
-        """Mean velocity for the normal distribution (in m/s).
+        """Mean velocity for the normal distribution.
 
-        The tuple contains the mean linear-x, linear-y, and angular-z velocity.
+        The tuple contains the mean linear-x, linear-y, and angular-z velocity, in (m/s, m/s, rad/s).
         """
 
         std_vel: tuple[float, float, float] = MISSING
-        """Standard deviation for the normal distribution (in m/s).
+        """Standard deviation for the normal distribution.
 
-        The tuple contains the standard deviation linear-x, linear-y, and angular-z velocity.
+        The tuple contains the standard deviations of linear-x, linear-y, and angular-z velocity, in (m/s, m/s, rad/s).
         """
 
         zero_prob: tuple[float, float, float] = MISSING
@@ -202,11 +202,13 @@ class UniformPoseCommandCfg(CommandTermCfg):
     The episode-level binary "ever successful" is mean-reduced across environments and logged
     under ``Metrics/success_rate``. Defaults to ``None``."""
 
-    goal_pose_visualizer_cfg: VisualizationMarkersCfg = FRAME_MARKER_CFG.replace(prim_path="/Visuals/Command/goal_pose")
+    goal_pose_visualizer_cfg: VisualizationMarkersCfg = replace(
+        FRAME_MARKER_CFG, prim_path="/Visuals/Command/goal_pose"
+    )
     """The configuration for the goal pose visualization marker. Defaults to FRAME_MARKER_CFG."""
 
-    current_pose_visualizer_cfg: VisualizationMarkersCfg = FRAME_MARKER_CFG.replace(
-        prim_path="/Visuals/Command/body_pose"
+    current_pose_visualizer_cfg: VisualizationMarkersCfg = replace(
+        FRAME_MARKER_CFG, prim_path="/Visuals/Command/body_pose"
     )
     """The configuration for the current pose visualization marker. Defaults to FRAME_MARKER_CFG."""
 
@@ -255,8 +257,8 @@ class UniformPose2dCommandCfg(CommandTermCfg):
     The episode-level binary "ever within threshold" is mean-reduced across environments and
     logged under ``Metrics/success_rate``. Defaults to ``None`` (success tracking disabled)."""
 
-    goal_pose_visualizer_cfg: VisualizationMarkersCfg = GREEN_ARROW_X_MARKER_CFG.replace(
-        prim_path="/Visuals/Command/pose_goal"
+    goal_pose_visualizer_cfg: VisualizationMarkersCfg = replace(
+        GREEN_ARROW_X_MARKER_CFG, prim_path="/Visuals/Command/pose_goal"
     )
     """The configuration for the goal pose visualization marker. Defaults to GREEN_ARROW_X_MARKER_CFG."""
 

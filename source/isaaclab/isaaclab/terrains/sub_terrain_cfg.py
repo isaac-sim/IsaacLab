@@ -10,7 +10,7 @@ from collections.abc import Callable
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
-from isaaclab.utils.configclass import configclass
+from ..utils import configclass
 
 if TYPE_CHECKING:
     import numpy as np
@@ -85,8 +85,8 @@ class SubTerrainBaseCfg:
     size: tuple[float, float] = (10.0, 10.0)
     """The width (along x) and length (along y) of the terrain (in m). Defaults to (10.0, 10.0).
 
-    In case the :class:`~isaaclab.terrains.TerrainImporterCfg` is used, this parameter gets overridden by
-    :attr:`isaaclab.scene.TerrainImporterCfg.size` attribute.
+    When used with a terrain generator, this parameter is overridden by
+    :attr:`isaaclab.terrains.TerrainGeneratorCfg.size`.
     """
 
     convert_to_heightfield: bool = False

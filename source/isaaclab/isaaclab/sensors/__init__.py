@@ -30,15 +30,15 @@ interpretation of the prim paths for different sensor types:
 +---------------------+---------------------------+---------------------------------------------------------------+
 | Frame Transformer   | /World/robot/base         | Leaf exists and is a physics body (Articulation / Rigid Body) |
 +---------------------+---------------------------+---------------------------------------------------------------+
-| Imu                 | /World/robot/base         | Leaf exists and is a physics body (Rigid Body)                |
+| Imu                 | /World/robot/base         | Leaf is a rigid body or (PhysX) has a rigid-body ancestor     |
 +---------------------+---------------------------+---------------------------------------------------------------+
-| Pva                 | /World/robot/base         | Leaf exists and is a physics body (Rigid Body)                |
+| Pva                 | /World/robot/base         | Leaf is a rigid body or (PhysX) has a rigid-body ancestor     |
 +---------------------+---------------------------+---------------------------------------------------------------+
 | Joint Wrench Sensor | /World/robot              | Leaf exists and is an articulation                            |
 +---------------------+---------------------------+---------------------------------------------------------------+
 
 """
 
-from isaaclab.utils.module import lazy_export
+from ..utils.module import lazy_export
 
 lazy_export()

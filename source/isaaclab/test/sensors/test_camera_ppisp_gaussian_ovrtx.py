@@ -29,7 +29,7 @@ between renderers.
 
 Notes:
   * Runs **kit-less**: this test does not call
-    :class:`~isaaclab.app.AppLauncher`. ``ovrtx`` and Isaac Sim Kit ship the
+    :class:`~isaaclab_isaacsim.app.KitLauncher`. ``ovrtx`` and Isaac Sim Kit ship the
     same RTX hydra libraries (``librtx.hydra.so``, ``liblegacy.hydra.so``)
     under conflicting USD namespaces; loading both into the same process
     causes a dynamic-linker crash. See
@@ -38,9 +38,9 @@ Notes:
   * Uses Newton physics because ``ovrtx`` is incompatible with Kit/Isaac Sim
     and the PhysX backend requires Kit (``carb``) to bootstrap.
   * Requests ``"rgb_hdr"`` in ``data_types`` because the test asserts the raw
-    HDR source with :func:`assert_ppisp_lifts_exposure`. The PPISP render path
-    itself also allocates an internal HDR buffer when ``isp_cfg`` is set, so
-    ``"rgb_hdr"`` is not required just to enable PPISP.
+    HDR source with :func:`assert_ppisp_lifts_exposure`. The camera also
+    requests the PPISP processor's HDR input itself, so ``"rgb_hdr"`` is not
+    required just to enable PPISP.
 """
 
 import importlib.util
@@ -64,7 +64,7 @@ from generate_synthetic_gaussian_asset import (
 
 from isaaclab.sim import SimulationCfg
 
-pytestmark = [pytest.mark.integration, pytest.mark.rendering]
+pytestmark = [pytest.mark.integration, pytest.mark.rendering, pytest.mark.ov]
 
 # Use collection-time skip markers so unavailable optional modules remain
 # visible per test in reports.
@@ -76,7 +76,7 @@ _SKIP_MISSING_OVRTX = pytest.mark.skipif(
 )
 
 if not _MISSING_MODULES:
-    from isaaclab_newton.physics.mjwarp_manager_cfg import MJWarpSolverCfg  # noqa: E402
+    from isaaclab_newton.physics.mjwarp_solver_cfg import MJWarpSolverCfg  # noqa: E402
     from isaaclab_newton.physics.newton_manager_cfg import NewtonCfg  # noqa: E402
     from isaaclab_ov.renderers import OVRTXRendererCfg  # noqa: E402
 else:
@@ -109,38 +109,6 @@ def _ovrtx_sim_cfg(device: str) -> SimulationCfg:
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
-@pytest.mark.isaacsim_ci
-@_SKIP_MISSING_OVRTX
-@_XFAIL_OVRTX_GAUSSIAN_PPISP
-def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_ovrtx(device):
-    """Wrapper PPISP via ``ovrtx`` must show every PPISP-feature signature.
-
-    Renders a synthetic RGBW gaussian grid through ``ovrtx`` plus the
-    aggressive wrapper PPISP cfg and asserts:
-
-    1. **Non-degenerate frame** — content is rendered (not pure black / pure white).
-    2. **HDR source** — ``rgb_hdr`` is present and bright enough for PPISP.
-    3. **PPISP LDR mapping** — the center patch lands in a useful, non-saturated
-       LDR range after the calibrated responsivity/exposure pair.
-    4. **Vignetting** — each corner patch mean is meaningfully below the center patch mean.
-    5. **CRF/clamping** — no value exceeds 255.
-    """
-    with tempfile.TemporaryDirectory(prefix="isaaclab-synth-gauss-") as tmpdir:
-        asset_path = make_synthetic_gaussian_usd(f"{tmpdir}/synthetic_gaussians.usda")
-        output = render_synthetic_gaussian_scene(
-            asset_path,
-            sim_cfg=_ovrtx_sim_cfg(device),
-            renderer_cfg=OVRTXRendererCfg(),
-            data_types=["rgb", "rgb_hdr"],
-            sim_dt=SIM_DT,
-            stabilisation_steps=15,
-        )
-    assert_ppisp_lifts_exposure(output["rgb_hdr"][0], output["rgb"][0], label="ovrtx")
-    assert_ppisp_invariants(output["rgb"][0], label="ovrtx")
-
-
-@pytest.mark.parametrize("device", ["cuda:0"])
-@pytest.mark.isaacsim_ci
 @_SKIP_MISSING_OVRTX
 @_XFAIL_OVRTX_GAUSSIAN_PPISP
 def test_camera_ppisp_authored_static_attrs_are_applied_on_synthetic_gaussians_ovrtx(device):
@@ -172,7 +140,6 @@ def test_camera_ppisp_authored_static_attrs_are_applied_on_synthetic_gaussians_o
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
-@pytest.mark.isaacsim_ci
 @_SKIP_MISSING_OVRTX
 @_XFAIL_OVRTX_GAUSSIAN_PPISP
 def test_camera_ppisp_controller_matches_static_attrs_on_synthetic_gaussians_ovrtx(device):
@@ -203,7 +170,6 @@ def test_camera_ppisp_controller_matches_static_attrs_on_synthetic_gaussians_ovr
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
-@pytest.mark.isaacsim_ci
 @_SKIP_MISSING_OVRTX
 @_XFAIL_OVRTX_GAUSSIAN_PPISP
 def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_ovrtx_multitile(device):
@@ -225,6 +191,7 @@ def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_ovrtx_multitile(
             data_types=["rgb", "rgb_hdr"],
             num_envs=MULTI_TILE_COUNT,
             sim_dt=SIM_DT,
+            stabilisation_steps=15,
         )
 
     rgb = output["rgb"]

@@ -13,16 +13,9 @@ steps (e.g. ~12 rad of total joint drift on the Agibot right arm). These tests p
 behavior: the arm settles quickly and stays close to its reset pose.
 """
 
-"""Launch Isaac Sim Simulator first."""
+from isaaclab.test.utils import launch_test_simulation
 
-from isaaclab.app import AppLauncher
-
-# launch the simulator
-app_launcher = AppLauncher(headless=True)
-simulation_app = app_launcher.app
-
-
-"""Rest everything follows."""
+launch_test_simulation()
 
 import gymnasium as gym
 import pytest

@@ -19,7 +19,8 @@ __all__ = [
     "object_away_from_goal",
 ]
 
-from .commands import ReorientCommand, ReorientCommandCfg
+from .commands import ReorientCommand
+from .commands_cfg import ReorientCommandCfg
 from .events import reset_reorient_hand
 from .observations import (
     fingertip_pos,

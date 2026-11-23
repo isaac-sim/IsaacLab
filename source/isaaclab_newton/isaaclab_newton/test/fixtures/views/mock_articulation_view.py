@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import numpy as np
 import warp as wp
+from newton import JointType
 
 
 class MockNewtonCollectionView:
@@ -240,6 +241,7 @@ class MockNewtonArticulationView:
         joint_names: list[str] | None = None,
         body_names: list[str] | None = None,
         tendon_names: list[str] | None = None,
+        joint_coord_counts: list[int] | None = None,
     ):
         """Initialize the mock Newton articulation view.
 
@@ -253,6 +255,10 @@ class MockNewtonArticulationView:
             joint_names: Names of joints. Defaults to ["joint_0", ...].
             body_names: Names of bodies. Defaults to ["body_0", ...].
             tendon_names: Names of fixed tendons. Defaults to ["tendon_0", ...].
+            joint_coord_counts: Coordinate count per selected joint, e.g. ``[1, 4, 1]`` for a
+                three-joint articulation with a ball joint in the middle. Must sum with its
+                matching per-joint DOF counts (inferred as 3 in place of any ``4``, 1 otherwise)
+                to ``num_joints`` DOFs. Defaults to one coordinate per DOF -- no ball joints.
         """
         self._count = num_instances
         self._link_count = num_bodies
@@ -261,6 +267,10 @@ class MockNewtonArticulationView:
         self._device = device
         self._is_fixed_base = is_fixed_base
         self._noop_setters = False
+        self._joint_coord_counts_override = joint_coord_counts
+        # Real Newton's ``get_dof_positions`` returns ``joint_q`` (coordinate space), wider than the
+        # DOF count whenever a ball joint is present; fake that width here too.
+        self._joint_coord_count_total = sum(joint_coord_counts) if joint_coord_counts is not None else num_joints
 
         # Set joint and body names
         self._joint_dof_names = joint_names if joint_names is not None else [f"joint_{i}" for i in range(num_joints)]
@@ -321,9 +331,28 @@ class MockNewtonArticulationView:
         return self._joint_dof_count
 
     @property
+    def joint_dof_counts(self) -> list[int]:
+        """DOF count per selected joint. One DOF per joint unless a ball layout was requested."""
+        if self._joint_coord_counts_override is None:
+            return [1] * self._joint_dof_count
+        return [3 if n_coords == 4 else 1 for n_coords in self._joint_coord_counts_override]
+
+    @property
+    def joint_coord_counts(self) -> list[int]:
+        """Coordinate count per selected joint. Equal to :attr:`joint_dof_counts` unless a ball layout was requested."""
+        if self._joint_coord_counts_override is None:
+            return [1] * self._joint_dof_count
+        return list(self._joint_coord_counts_override)
+
+    @property
     def is_fixed_base(self) -> bool:
         """Whether the articulation has a fixed base."""
         return self._is_fixed_base
+
+    @property
+    def root_joint_type(self) -> int:
+        """Type of the root joint: fixed for a fixed base, free otherwise."""
+        return int(JointType.FIXED if self._is_fixed_base else JointType.FREE)
 
     @property
     def joint_dof_names(self) -> list[str]:
@@ -385,10 +414,8 @@ class MockNewtonArticulationView:
             )
         return self._link_transforms
 
-    def _ensure_link_velocities(self) -> wp.array | None:
-        """Lazily create link velocities (None for fixed base)."""
-        if self._is_fixed_base:
-            return None
+    def _ensure_link_velocities(self) -> wp.array:
+        """Lazily create link velocities for both fixed and floating bases."""
         if self._link_velocities is None:
             self._link_velocities = wp.zeros(
                 (self._count, 1, self._link_count), dtype=wp.spatial_vectorf, device=self._device
@@ -396,10 +423,10 @@ class MockNewtonArticulationView:
         return self._link_velocities
 
     def _ensure_dof_positions(self) -> wp.array:
-        """Lazily create DOF positions."""
+        """Lazily create DOF positions, in coordinate space (see ``_joint_coord_count_total``)."""
         if self._dof_positions is None:
             self._dof_positions = wp.zeros(
-                (self._count, 1, self._joint_dof_count), dtype=wp.float32, device=self._device
+                (self._count, 1, self._joint_coord_count_total), dtype=wp.float32, device=self._device
             )
         return self._dof_positions
 
@@ -496,15 +523,14 @@ class MockNewtonArticulationView:
         """
         return self._ensure_link_transforms()
 
-    def get_link_velocities(self, state) -> wp.array | None:
+    def get_link_velocities(self, state) -> wp.array:
         """Get velocities of all links.
 
         Args:
             state: Newton state object (unused in mock).
 
         Returns:
-            Warp array of shape ``(N, 1, L)`` with dtype=wp.spatial_vectorf,
-            or None for fixed base.
+            Warp array of shape ``(N, 1, L)`` with dtype=wp.spatial_vectorf.
         """
         return self._ensure_link_velocities()
 
@@ -615,9 +641,7 @@ class MockNewtonArticulationView:
         Args:
             velocities: Warp array of shape ``(N, 1, L)`` with dtype=wp.spatial_vectorf.
         """
-        link_velocities = self._ensure_link_velocities()
-        if link_velocities is not None:
-            link_velocities.assign(velocities)
+        self._ensure_link_velocities().assign(velocities)
 
     def set_mock_dof_positions(self, positions: wp.array) -> None:
         """Set mock DOF position data directly for testing.
@@ -714,13 +738,14 @@ class MockNewtonArticulationView:
         link_tf_np[..., 3:7] /= np.linalg.norm(link_tf_np[..., 3:7], axis=-1, keepdims=True)
         self._link_transforms = wp.array(link_tf_np, dtype=wp.transformf, device=dev)
 
-        # Link velocities (floating base only)
-        if not self._is_fixed_base:
-            link_vel_np = np.random.randn(N, 1, L, 6).astype(np.float32)
-            self._link_velocities = wp.array(link_vel_np, dtype=wp.spatial_vectorf, device=dev)
+        # Link velocities
+        link_vel_np = np.random.randn(N, 1, L, 6).astype(np.float32)
+        self._link_velocities = wp.array(link_vel_np, dtype=wp.spatial_vectorf, device=dev)
 
-        # DOF state
-        self._dof_positions = wp.array(np.random.randn(N, 1, J).astype(np.float32), dtype=wp.float32, device=dev)
+        # DOF state -- positions are coordinate-space width (see ``_joint_coord_count_total``),
+        # velocities are always DOF-space width.
+        C = self._joint_coord_count_total
+        self._dof_positions = wp.array(np.random.randn(N, 1, C).astype(np.float32), dtype=wp.float32, device=dev)
         self._dof_velocities = wp.array(np.random.randn(N, 1, J).astype(np.float32), dtype=wp.float32, device=dev)
 
         # Body properties

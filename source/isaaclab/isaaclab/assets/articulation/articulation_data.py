@@ -7,12 +7,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from isaaclab.utils.backend_utils import FactoryBase
-
+from ...utils.backend_utils import FactoryBase
 from .base_articulation_data import BaseArticulationData
 
 if TYPE_CHECKING:
-    from isaaclab_physx.assets.articulation.articulation_data import ArticulationData as PhysXArticulationData
+    from isaaclab_isaacsim.assets.articulation.articulation_data import ArticulationData as PhysXArticulationData
 
 
 class ArticulationData(FactoryBase):

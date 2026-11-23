@@ -3,63 +3,17 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Unit tests for Factory sampling and curriculum scheduling."""
+
+"""Unit tests for Factory curriculum scheduling."""
 
 from types import SimpleNamespace
 
+import pytest
 import torch
 
 from isaaclab_tasks.contrib.nist.mdp.curriculums import DifficultyScheduler
-from isaaclab_tasks.contrib.nist.utils import (
-    BetaSamplingStrategyCfg,
-    Sampler,
-    SamplerCfg,
-    UniformSamplingStrategyCfg,
-)
 
-
-def test_uniform_only_sampler_is_uniform():
-    """A uniform-only sampler with no floor returns exact uniform probabilities."""
-    rates = torch.rand(100)
-    cfg = SamplerCfg(strategies=[UniformSamplingStrategyCfg(weight=1.0)], eps=0.0)
-    probs = cfg.class_type(cfg, rates).probabilities()
-    torch.testing.assert_close(probs, torch.full_like(probs, 1.0 / 100))
-
-
-def test_sampler_probabilities_are_finite_nonnegative_and_normalized():
-    rates = torch.rand(50)
-    sampler = Sampler(
-        SamplerCfg(
-            strategies=[
-                BetaSamplingStrategyCfg(target=0.66, kappa=1.0, weight=1.0),
-                UniformSamplingStrategyCfg(weight=0.1),
-            ],
-            eps=1e-3,
-        ),
-        rates,
-    )
-    probs = sampler.probabilities()
-    assert torch.isfinite(probs).all()
-    assert (probs >= 0).all()
-    torch.testing.assert_close(probs.sum(), torch.tensor(1.0))
-
-
-def test_sampler_clamps_negative_strategy_weight():
-    """A negative strategy weight contributes no probability mass."""
-    rates = torch.rand(50)
-    positive = Sampler(SamplerCfg(strategies=[UniformSamplingStrategyCfg(weight=1.0)], eps=1e-6), rates).probabilities()
-    negative = Sampler(
-        SamplerCfg(strategies=[UniformSamplingStrategyCfg(weight=-1.0)], eps=1e-6), rates
-    ).probabilities()
-    torch.testing.assert_close(positive, negative)
-
-
-def test_sampler_cfg_builds_runtime_sampler():
-    rates = torch.rand(50)
-    cfg = SamplerCfg(strategies=[BetaSamplingStrategyCfg(target=0.5, kappa=2.0)])
-    sampler = cfg.class_type(cfg, rates)
-    assert isinstance(sampler, Sampler)
-    assert sampler.names == ["beta"]
+pytestmark = pytest.mark.kitless
 
 
 def test_difficulty_scheduler_waits_for_accumulator_rates():

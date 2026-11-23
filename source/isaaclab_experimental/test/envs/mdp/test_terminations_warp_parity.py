@@ -41,11 +41,11 @@ from parity_helpers import (
     MockSensorCfg,
     MockTerminationManager,
     assert_equal,
+    copy_np_to_wp,
     make_pose_command_term,
     mutate_art_data,
-    mutate_body_data,
+    run_warp_captured_mutated,
     run_warp_term,
-    run_warp_term_captured,
 )
 
 import isaaclab.envs.mdp.terminations as stable_term
@@ -212,6 +212,12 @@ def all_joints_cfg():
 
 
 @pytest.fixture()
+def subset_cfg():
+    """Non-identity joint subset, so the masked kernel's false branch is exercised."""
+    return MockSceneEntityCfg("robot", [0, 2, 5, 8], NUM_JOINTS, DEVICE)
+
+
+@pytest.fixture()
 def sensor_cfg():
     return MockSensorCfg("contact_sensor", BODY_IDS)
 
@@ -222,55 +228,81 @@ def sensor_cfg():
 
 
 class TestTerminationParity:
-    """Verify experimental termination Warp kernels match stable torch implementations."""
+    """Verify experimental termination Warp kernels match stable torch implementations.
 
-    def test_root_height_below_minimum(self, warp_env, stable_env, all_joints_cfg):
-        cfg = all_joints_cfg
-        min_h = 0.5
-        expected = stable_term.root_height_below_minimum(stable_env, minimum_height=min_h, asset_cfg=cfg)
-        actual = run_warp_term(warp_term.root_height_below_minimum, warp_env, minimum_height=min_h, asset_cfg=cfg)
-        actual_cap = run_warp_term_captured(
-            warp_term.root_height_below_minimum, warp_env, minimum_height=min_h, asset_cfg=cfg
+    Each term is checked eagerly, then captured, has its inputs overwritten in place, and is
+    replayed: the replay must match stable on the *new* data, which proves it is capture-safe.
+    """
+
+    def test_root_height_below_minimum(self, warp_env, stable_env, art_data, all_joints_cfg):
+        kwargs = {"minimum_height": 0.5, "asset_cfg": all_joints_cfg}
+        expected = stable_term.root_height_below_minimum(stable_env, **kwargs)
+        assert_equal(run_warp_term(warp_term.root_height_below_minimum, warp_env, **kwargs), expected)
+
+        actual_cap = run_warp_captured_mutated(
+            warp_term.root_height_below_minimum,
+            warp_env,
+            lambda: mutate_art_data(art_data, warp_env),
+            dtype=wp.bool,
+            **kwargs,
         )
-        assert_equal(actual, expected)
-        assert_equal(actual_cap, expected)
+        assert_equal(actual_cap, stable_term.root_height_below_minimum(stable_env, **kwargs))
 
-    def test_joint_pos_out_of_manual_limit(self, warp_env, stable_env, all_joints_cfg):
-        cfg = all_joints_cfg
+    def test_joint_pos_out_of_manual_limit(self, warp_env, stable_env, art_data, subset_cfg):
         bounds = (-1.0, 1.0)
+        cfg = subset_cfg
         expected = stable_term.joint_pos_out_of_manual_limit(stable_env, bounds=bounds, asset_cfg=cfg)
         actual = run_warp_term(warp_term.joint_pos_out_of_manual_limit, warp_env, bounds=bounds, asset_cfg=cfg)
-        actual_cap = run_warp_term_captured(
-            warp_term.joint_pos_out_of_manual_limit, warp_env, bounds=bounds, asset_cfg=cfg
-        )
         assert_equal(actual, expected)
-        assert_equal(actual_cap, expected)
 
-
-# ============================================================================
-# Termination parity tests (from test_mdp_warp_parity_new_terms.py)
-# ============================================================================
+        # joint_pos_out_of_manual_limit uses a 2D kernel that only writes True
+        # (never clears to False), so the output must be zeroed before each call.
+        # We include the zeroing inside the captured graph.
+        out = wp.zeros((NUM_ENVS,), dtype=wp.bool, device=DEVICE)
+        # warm-up
+        out.zero_()
+        warp_term.joint_pos_out_of_manual_limit(warp_env, out, bounds=bounds, asset_cfg=cfg)
+        # capture (including the zero)
+        with wp.ScopedCapture() as cap:
+            out.zero_()
+            warp_term.joint_pos_out_of_manual_limit(warp_env, out, bounds=bounds, asset_cfg=cfg)
+        mutate_art_data(art_data, warp_env)
+        wp.capture_launch(cap.graph)
+        expected = stable_term.joint_pos_out_of_manual_limit(stable_env, bounds=bounds, asset_cfg=cfg)
+        assert_equal(wp.to_torch(out).clone(), expected)
 
 
 class TestTerminationParityNewTerms:
     """Verify termination Warp kernels for newly migrated terms match stable torch implementations."""
 
     def test_time_out(self, warp_env_bodies, stable_env_bodies):
+        # Lengths straddle max_episode_length (500), so both outcomes occur.
+        warp_env_bodies.episode_length_buf[:] = torch.randint(0, 600, (NUM_ENVS,), dtype=torch.int64, device=DEVICE)
         expected = stable_term.time_out(stable_env_bodies)
-        actual = run_warp_term(warp_term.time_out, warp_env_bodies)
-        actual_cap = run_warp_term_captured(warp_term.time_out, warp_env_bodies)
-        assert_equal(actual, expected)
-        assert_equal(actual_cap, expected)
+        assert expected.any() and not expected.all()
+        assert_equal(run_warp_term(warp_term.time_out, warp_env_bodies), expected)
 
-    def test_illegal_contact(self, warp_env_bodies, stable_env_bodies, sensor_cfg):
-        threshold = 1.0
-        expected = stable_term.illegal_contact(stable_env_bodies, threshold=threshold, sensor_cfg=sensor_cfg)
-        actual = run_warp_term(warp_term.illegal_contact, warp_env_bodies, threshold=threshold, sensor_cfg=sensor_cfg)
-        actual_cap = run_warp_term_captured(
-            warp_term.illegal_contact, warp_env_bodies, threshold=threshold, sensor_cfg=sensor_cfg
+        def mutate():
+            warp_env_bodies.episode_length_buf[:] = torch.randint(0, 600, (NUM_ENVS,), dtype=torch.int64, device=DEVICE)
+
+        actual_cap = run_warp_captured_mutated(warp_term.time_out, warp_env_bodies, mutate, dtype=wp.bool)
+        assert_equal(actual_cap, stable_term.time_out(stable_env_bodies))
+
+    def test_illegal_contact(self, warp_env_bodies, stable_env_bodies, contact_data, sensor_cfg):
+        kwargs = {"threshold": 1.0, "sensor_cfg": sensor_cfg}
+        expected = stable_term.illegal_contact(stable_env_bodies, **kwargs)
+        assert_equal(run_warp_term(warp_term.illegal_contact, warp_env_bodies, **kwargs), expected)
+
+        def mutate():
+            rng = np.random.RandomState(300)
+            history = contact_data.net_normal_forces_w_history
+            copy_np_to_wp(history, rng.randn(*history.shape, 3).astype(np.float32) * 2.0)
+            wp.synchronize()
+
+        actual_cap = run_warp_captured_mutated(
+            warp_term.illegal_contact, warp_env_bodies, mutate, dtype=wp.bool, **kwargs
         )
-        assert_equal(actual, expected)
-        assert_equal(actual_cap, expected)
+        assert_equal(actual_cap, stable_term.illegal_contact(stable_env_bodies, **kwargs))
 
 
 class TestPoseCommandSuccessParity:
@@ -307,9 +339,9 @@ class TestPoseCommandSuccessParity:
         )
         assert_equal(run_warp_term(warp_fn, env, **params), expected)
         # the stable term ORs into the sticky tracker; the twin must too, or the terminating
-        # step is never recorded before ``reset()`` reads and clears it
+        # step is never recorded before ``reset()`` reads and clears it. Capture safety is
+        # owned by ``test_capture_safety.py``.
         assert_equal(command._succeeded, expected)
-        assert_equal(run_warp_term_captured(warp_fn, env, **params), expected)
 
     def _run_both(self, scene_bodies, **thresholds):
         """Return ``(stable, warp)`` results for one threshold configuration."""
@@ -345,84 +377,3 @@ class TestPoseCommandSuccessParity:
 
         assert not expected.any(), "no distance is below a negative threshold"
         assert_equal(actual, expected)
-
-
-# ============================================================================
-# Capture-then-mutate-then-replay termination tests (from test_mdp_warp_parity.py)
-# ============================================================================
-
-
-def _mutate_art_data(art_data: MockArticulationData, warp_env, rng_seed: int = 200):
-    """Mutate every data array in-place so captured graphs see fresh values."""
-    mutate_art_data(art_data, warp_env, rng_seed=rng_seed)
-
-
-def _mutate_body_data(art_data: MockArticulationData, rng_seed=200):
-    """Mutate body-level and root-level data in-place so captured graphs see fresh values."""
-    mutate_body_data(art_data, rng_seed=rng_seed)
-
-
-class TestCapturedDataMutationTerminations:
-    """Capture a graph, mutate buffer data in-place, replay -- results must match stable on the *new* data.
-
-    This verifies termination MDP functions are truly capture-safe.
-    """
-
-    def _capture_mutate_check_term(self, warp_fn, stable_fn, warp_env, stable_env, art_data, **kwargs):
-        out = wp.zeros((NUM_ENVS,), dtype=wp.bool, device=DEVICE)
-        warp_fn(warp_env, out, **kwargs)
-        with wp.ScopedCapture() as cap:
-            warp_fn(warp_env, out, **kwargs)
-        _mutate_art_data(art_data, warp_env)
-        wp.capture_launch(cap.graph)
-        assert_equal(wp.to_torch(out).clone(), stable_fn(stable_env, **kwargs))
-
-    def test_root_height_below_minimum(self, warp_env, stable_env, art_data, all_joints_cfg):
-        self._capture_mutate_check_term(
-            warp_term.root_height_below_minimum,
-            stable_term.root_height_below_minimum,
-            warp_env,
-            stable_env,
-            art_data,
-            minimum_height=0.5,
-            asset_cfg=all_joints_cfg,
-        )
-
-    def test_joint_pos_out_of_manual_limit(self, warp_env, stable_env, art_data, all_joints_cfg):
-        # joint_pos_out_of_manual_limit uses a 2D kernel that only writes True
-        # (never clears to False), so the output must be zeroed before each call.
-        # We include the zeroing inside the captured graph.
-        bounds = (-1.0, 1.0)
-        cfg = all_joints_cfg
-        out = wp.zeros((NUM_ENVS,), dtype=wp.bool, device=DEVICE)
-        # warm-up
-        out.zero_()
-        warp_term.joint_pos_out_of_manual_limit(warp_env, out, bounds=bounds, asset_cfg=cfg)
-        # capture (including the zero)
-        with wp.ScopedCapture() as cap:
-            out.zero_()
-            warp_term.joint_pos_out_of_manual_limit(warp_env, out, bounds=bounds, asset_cfg=cfg)
-        _mutate_art_data(art_data, warp_env)
-        wp.capture_launch(cap.graph)
-        expected = stable_term.joint_pos_out_of_manual_limit(stable_env, bounds=bounds, asset_cfg=cfg)
-        assert_equal(wp.to_torch(out).clone(), expected)
-
-
-# ============================================================================
-# Capture-mutate-replay termination tests for new terms (from test_mdp_warp_parity_new_terms.py)
-# ============================================================================
-
-
-class TestCapturedDataMutationTerminationsNewTerms:
-    """Capture graph, mutate buffer data, replay -- verify new-terms termination results match stable."""
-
-    def test_time_out(self, warp_env_bodies, stable_env_bodies, art_data_bodies):
-        out = wp.zeros((NUM_ENVS,), dtype=wp.bool, device=DEVICE)
-        warp_term.time_out(warp_env_bodies, out)
-        with wp.ScopedCapture() as cap:
-            warp_term.time_out(warp_env_bodies, out)
-        # Mutate episode length in-place
-        warp_env_bodies.episode_length_buf[:] = torch.randint(0, 600, (NUM_ENVS,), dtype=torch.int64, device=DEVICE)
-        wp.capture_launch(cap.graph)
-        expected = stable_term.time_out(stable_env_bodies)
-        assert_equal(wp.to_torch(out).clone(), expected)

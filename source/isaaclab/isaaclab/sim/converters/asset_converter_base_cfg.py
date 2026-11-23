@@ -8,7 +8,7 @@ from __future__ import annotations
 from dataclasses import MISSING
 from enum import StrEnum
 
-from isaaclab.utils.configclass import configclass
+from ...utils import configclass
 
 
 @configclass
@@ -36,8 +36,8 @@ class AssetConverterBaseCfg:
     usd_dir: str | None = None
     """The output directory path to store the generated USD file. Defaults to None.
 
-    If None, it is resolved as ``/tmp/IsaacLab/usd_{date}_{time}_{random}``, where
-    the parameters in braces are runtime generated.
+    If None, it is resolved as ``<tempdir>/IsaacLab/usd_{date}_{time}_{random}``, where
+    ``<tempdir>`` is the system temporary directory and the parameters in braces are runtime generated.
     """
 
     usd_file_name: str | None = None
@@ -53,7 +53,8 @@ class AssetConverterBaseCfg:
     force_usd_conversion: bool = False
     """Force the conversion of the asset file to usd. Defaults to False.
 
-    If True, then the USD file is always generated. It will overwrite the existing USD file if it exists.
+    If True, the USD file is always generated. Some importers write a new numbered output instead of overwriting
+    an existing one.
     """
 
     make_instanceable: bool = True

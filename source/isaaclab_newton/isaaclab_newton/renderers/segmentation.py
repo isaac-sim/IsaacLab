@@ -28,8 +28,8 @@ import warp as wp
 
 # Colorization (host ``random_color_from_id`` / ``pack_rgba``) and the reserved BACKGROUND / UNLABELLED
 # ids are shared with the RTX and OVRTX renderers to keep colorized segmentation visually consistent.
+from isaaclab.cloner import ClonePlan
 from isaaclab.cloner import path as cloner_path
-from isaaclab.cloner import query as cloner_query
 from isaaclab.renderers.segmentation_colors import BACKGROUND_ID, UNLABELLED_ID, pack_rgba, random_color_from_id
 from isaaclab.utils.timer import Timer
 
@@ -38,18 +38,12 @@ if TYPE_CHECKING:
 
     from pxr import Usd
 
-    from isaaclab.cloner import ClonePlan
 
 _UNLABELLED_COLOR: int = 0xFF000000
 """Packed RGBA color for UNLABELLED pixels: ``(0, 0, 0, 255)`` opaque black."""
 
-# Newton ray-tracer sentinel values. These mirror the constants in
-# ``newton._src.sensors.warp_raytrace.raytrace`` (``NO_HIT_SHAPE_ID``, ``MAX_SHAPE_ID``), which are
-# not re-exported by Newton's public API. Keep in sync if Newton changes them.
 _NEWTON_NO_HIT_SHAPE_ID: int = 0xFFFFFFFF
-"""Shape-index value written by the Newton ray tracer when a ray hits nothing (ray miss)."""
-_NEWTON_MAX_SHAPE_ID: int = 0xFFFFFFF0
-"""Guard threshold: any shape_index >= this value is a synthetic/sentinel id, not a real shape."""
+"""Shape index Newton's camera writes for a ray miss (:attr:`SensorCamera.ClearData.clear_shape_index`)."""
 
 _FIRST_ID: int = 2
 """First id assigned to a real semantic/instance group (0 and 1 are reserved)."""
@@ -81,13 +75,13 @@ SemanticPrimPath: TypeAlias = str
 # ------------------------------------------------------------------------------------------------
 # Semantic-filter predicate — RTX parity.
 #
-# The Isaac RTX renderer evaluates :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.semantic_filter`
+# The Isaac RTX renderer evaluates :attr:`~isaaclab_isaacsim.renderers.IsaacRtxRendererCfg.semantic_filter`
 # inside Replicator's C++ ``SyntheticData`` instance-mapping filter (see
-# :func:`isaaclab_physx.renderers.isaac_rtx_renderer._camera_semantic_filter_predicate`). The kit-less
+# :func:`isaaclab_isaacsim.renderers.isaac_rtx_renderer._camera_semantic_filter_predicate`). The kit-less
 # Newton path has no Replicator, so the three functions below re-implement the *same* predicate grammar
 # on the host so :attr:`~isaaclab_newton.renderers.NewtonWarpRendererCfg.semantic_filter` selects
 # exactly the labels the RTX renderer would. The grammar is documented on
-# :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.semantic_filter`.
+# :attr:`~isaaclab_isaacsim.renderers.IsaacRtxRendererCfg.semantic_filter`.
 # ------------------------------------------------------------------------------------------------
 
 
@@ -123,8 +117,8 @@ def _parse_semantic_filter(semantic_filter: str | list[str]) -> list[tuple[str, 
     """Normalize a semantic filter into a list of ``(type, label_expr)`` clauses (RTX parity).
 
     Reproduces the normalization in
-    :func:`isaaclab_physx.renderers.isaac_rtx_renderer._camera_semantic_filter_predicate` so the same
-    :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.semantic_filter` value behaves identically on
+    :func:`isaaclab_isaacsim.renderers.isaac_rtx_renderer._camera_semantic_filter_predicate` so the same
+    :attr:`~isaaclab_isaacsim.renderers.IsaacRtxRendererCfg.semantic_filter` value behaves identically on
     the Newton Warp backend: a list is treated as bare semantic types (``["class"] -> "class:*"``); a
     string is a ``;``-separated disjunction of ``type:label_expr`` clauses (e.g.
     ``"class:* ; *:shelf"``).  Within each ``;``-separated segment, commas that precede an
@@ -164,58 +158,29 @@ def _parse_semantic_filter(semantic_filter: str | list[str]) -> list[tuple[str, 
 
 
 @wp.kernel(enable_backward=False)
-def _remap_shape_index_to_id_kernel(
-    shape_index: wp.array(dtype=wp.uint32, ndim=4),
-    shape_to_id: wp.array(dtype=wp.uint32),
-    shape_count: wp.int32,
-    out_id: wp.array(dtype=wp.int32, ndim=4),
+def _remap_shape_index(
+    shape_index: wp.array(dtype=wp.uint32),
+    table: wp.array(dtype=wp.uint32),
+    miss: wp.uint32,
+    unlabelled: wp.uint32,
+    out: wp.array(dtype=wp.uint32),
 ):
-    """Write the segmentation id of each pixel's shape."""
-    w, c, y, x = wp.tid()
-    idx = shape_index[w, c, y, x]
+    """Write each pixel's table entry, or a sentinel for misses and hits without a shape."""
+    i = wp.tid()
+    idx = shape_index[i]
     if idx == wp.uint32(wp.static(_NEWTON_NO_HIT_SHAPE_ID)):
-        # Ray missed all geometry — no surface was hit.
-        out_id[w, c, y, x] = wp.int32(wp.static(BACKGROUND_ID))
-    elif idx >= wp.uint32(wp.static(_NEWTON_MAX_SHAPE_ID)):
-        # Synthetic hit (particles, deformable mesh, etc.) — real geometry but no shape-array entry.
-        out_id[w, c, y, x] = wp.int32(wp.static(UNLABELLED_ID))
-    elif idx < wp.uint32(shape_count):
-        # Normal geometry hit — look up the pre-built segmentation id for this shape.
-        out_id[w, c, y, x] = wp.int32(shape_to_id[wp.int32(idx)])
+        out[i] = miss
+    elif idx < wp.uint32(table.shape[0]):
+        out[i] = table[wp.int32(idx)]
     else:
-        # Index is in the valid uint32 range but beyond shape_count — should not happen in practice.
-        out_id[w, c, y, x] = wp.int32(wp.static(UNLABELLED_ID))
-
-
-@wp.kernel(enable_backward=False)
-def _remap_shape_index_to_color_kernel(
-    shape_index: wp.array(dtype=wp.uint32, ndim=4),
-    shape_to_color: wp.array(dtype=wp.uint32),
-    shape_count: wp.int32,
-    out_color: wp.array(dtype=wp.uint32, ndim=4),
-):
-    """Write the packed RGBA color of each pixel's shape."""
-    w, c, y, x = wp.tid()
-    idx = shape_index[w, c, y, x]
-    if idx == wp.uint32(wp.static(_NEWTON_NO_HIT_SHAPE_ID)):
-        # Ray missed all geometry — no surface was hit.
-        out_color[w, c, y, x] = wp.uint32(0)
-    elif idx >= wp.uint32(wp.static(_NEWTON_MAX_SHAPE_ID)):
-        # Synthetic hit (particles, deformable mesh, etc.) — real geometry but no shape-array entry.
-        out_color[w, c, y, x] = wp.uint32(wp.static(_UNLABELLED_COLOR))
-    elif idx < wp.uint32(shape_count):
-        # Normal geometry hit — look up the pre-built color for this shape.
-        out_color[w, c, y, x] = shape_to_color[wp.int32(idx)]
-    else:
-        # Index is in the valid uint32 range but beyond shape_count — should not happen in practice.
-        out_color[w, c, y, x] = wp.uint32(wp.static(_UNLABELLED_COLOR))
+        out[i] = unlabelled
 
 
 @dataclass
 class NewtonSegmentationMapping:
     """Device lookup tables and host metadata for one segmentation output.
 
-    Built once per (kind, colorize) by :meth:`NewtonSegmentationMapper.mapping` and reused across frames
+    Built once per (kind, colorize) by :meth:`NewtonSegmentationMapper.build_mapping` and reused across frames
     since the scene geometry and semantics are static after construction.
     """
 
@@ -227,39 +192,36 @@ class NewtonSegmentationMapping:
     info: dict[str, dict]
 
     def convert_shape_index_to_output(self, shape_index: wp.array, out_view: wp.array) -> None:
-        """Generate the segmentation output into ``out_view`` (colorized RGBA or raw uint32 ids).
+        """Generate the segmentation output into ``out_view`` (colorized packed RGBA or raw int32 ids).
 
         Args:
-            shape_index: Newton ``shape_index_image`` scratch, ``(world_count, 1, H, W)`` uint32.
-            out_view: Destination view aliasing the camera output buffer as ``(world_count, 1, H, W)``,
-                dtype uint32 (both colorized and non-colorized).
+            shape_index: Newton ``shape_index_image`` scratch, ``(view_count, H, W)`` uint32.
+            out_view: Destination view aliasing the camera output buffer as ``(view_count, H, W)``,
+                dtype uint32 when colorized and int32 otherwise.
         """
         if self.shape_count == 0:
             out_view.zero_()
             return
         if self.colorize:
-            wp.launch(
-                _remap_shape_index_to_color_kernel,
-                dim=shape_index.shape,
-                inputs=[shape_index, self.shape_to_color, self.shape_count],
-                outputs=[out_view],
-                device=out_view.device,
-            )
+            table, miss, unlabelled = self.shape_to_color, 0, _UNLABELLED_COLOR
         else:
-            wp.launch(
-                _remap_shape_index_to_id_kernel,
-                dim=shape_index.shape,
-                inputs=[shape_index, self.shape_to_id, self.shape_count],
-                outputs=[out_view],
-                device=out_view.device,
-            )
+            table, miss, unlabelled = self.shape_to_id, BACKGROUND_ID, UNLABELLED_ID
+        # Raw int32 ids are written through a uint32 view.
+        out = wp.array(ptr=out_view.ptr, dtype=wp.uint32, shape=out_view.size, device=out_view.device, copy=False)
+        wp.launch(
+            _remap_shape_index,
+            shape_index.size,
+            [shape_index.flatten(), table, miss, unlabelled],
+            [out],
+            device=out_view.device,
+        )
 
 
 class NewtonSegmentationMapper:
     """Builds per-shape segmentation lookup tables from a Newton model and its USD stage."""
 
-    def __init__(self, model: newton.Model, stage: Usd.Stage | None, cfg, clone_plan: ClonePlan) -> None:
-        """Initialize the mapper from the Newton model, USD stage, renderer config, and clone plan.
+    def __init__(self, model: newton.Model, stage: Usd.Stage | None, cfg, plan: ClonePlan | None) -> None:
+        """Initialize the mapper from the Newton model, USD stage, renderer config, and native instance paths.
 
         Construction is cheap — it only captures references and snapshots ``model.shape_label``.
         Call :meth:`build_mapping` to do the actual per-shape USD resolution and id assignment.
@@ -269,9 +231,8 @@ class NewtonSegmentationMapper:
             stage: The live USD stage used to read :class:`UsdSemantics.LabelsAPI` labels. May be
                 ``None`` in stageless setups, in which case every shape is treated as unlabelled.
             cfg: Renderer config exposing ``semantic_filter`` and ``semantic_segmentation_mapping``.
-            clone_plan: The scene's published :class:`~isaaclab.cloner.ClonePlan`, used to fall back
-                to the prototype env when a replicated shape has no prim on the stage (backend-only
-                replication). See :meth:`_resolve_via_prototype`.
+            plan: Prototype topology and native naming, used when a
+                replicated shape has no prim on the stage. See :meth:`_resolve_via_prototype`.
         """
         self._model = model
         self._stage = stage
@@ -283,7 +244,9 @@ class NewtonSegmentationMapper:
         # Cache of prim path -> (matched_labels or None); labels resolved with ancestor inheritance.
         self._matched_cache: dict[str, tuple[dict[SemanticType, SemanticLabels], SemanticPrimPath] | None] = {}
         self._mappings: dict[tuple[str, bool], NewtonSegmentationMapping] = {}
-        self._clone_plan = clone_plan
+        self._plan = plan
+        self._source_paths = () if plan is None else cloner_path.get_asset_prototype_paths(plan)
+        self._templates = () if plan is None else cloner_path.get_world_prototype_asset_templates(plan)[0]
 
     def build_mapping(self, kind: _SegKind, colorize: bool) -> None:
         """Build and cache the :class:`NewtonSegmentationMapping` for ``kind`` at the requested colorization."""
@@ -376,48 +339,32 @@ class NewtonSegmentationMapper:
     def _resolve_via_prototype(
         self, prim_path: str
     ) -> tuple[dict[SemanticType, SemanticLabels], SemanticPrimPath] | None:
-        """Resolve a replicated shape's labels through the prototype env it was cloned from.
+        """Read labels from the authored prototype when a native clone has no USD prim.
 
-        Newton replicates the *model*, rewriting each cloned shape's ``shape_label`` to its per-env
-        path (see ``isaaclab_newton.cloner.rename_builder_labels``), but a scene that spawns only
-        the prototype (:attr:`~isaaclab.sim.spawners.SpawnerCfg.spawn_path`) authors USD prims —
-        and therefore :class:`UsdSemantics.LabelsAPI` labels — for that one env only. Those clones
-        would otherwise resolve to UNLABELLED, so their labels are read off the prototype instead.
-
-        The matched ancestor is rebased back onto the clone before being returned, because
-        ``instance_segmentation`` groups by that path: leaving it on the prototype side would
-        collapse every environment into a single instance id.
-
-        Returns:
-            The prototype's ``(filtered_labels, matched_ancestor_path)`` with the ancestor rebased
-            into ``prim_path``'s environment, or ``None`` when ``prim_path`` is not a clone, or the
-            prototype itself is unlabelled.
-
-        Raises:
-            ValueError: When ``prim_path`` is owned by multiple distinct, equally near destination
-                templates — a malformed clone plan, not a state to resolve around.
+        Rebase the labelled ancestor to keep instance IDs distinct across worlds. Labels above
+        the cloned subtree remain shared. Return None for unowned or unlabelled paths.
         """
-        resolved = cloner_query.path_to_source(self._clone_plan, prim_path)
-        if resolved is None:
-            # ``prim_path`` is not owned by the clone plan at all (e.g. an un-cloned ground plane or
-            # other static prim) — nothing to fall back to, so it stays unlabelled.
+        if self._plan is None or (world := cloner_path.match(prim_path, self._plan.env_template)) is None:
             return None
-        source_root, _, asset_suffix = resolved
-        prototype_path = source_root + asset_suffix
-        # The prototype path is where the labels actually live, so a plain stage walk — not another
-        # round of clone-plan resolution — is all that's needed here. When ``prim_path`` names the
-        # prototype's own env, this re-walks the same path the caller already walked; the cache it
-        # left behind makes that a cheap no-op rather than a correctness concern.
-        match = self._walk_for_labels(prototype_path)
+        world_id = int(world.instance)
+        topology = self._plan.topology
+        if not 0 <= world_id < len(topology.world_prototype_layout):
+            return None
+        prototype = topology.world_prototype_layout[world_id]
+        start, end = topology.world_prototype_starts[prototype + 1 : prototype + 3]
+        matches = []
+        for index in range(start, end):
+            if (matched := cloner_path.match(prim_path, self._templates[index])) is not None:
+                matches.append((index, matched.suffix))
+        if not matches:
+            return None
+        index, suffix = min(matches, key=lambda item: len(item[1]))
+        source = self._source_paths[topology.world_prototypes[index]]
+        match = self._walk_for_labels(source + suffix)
         if match is None:
             return None
-        matched, ancestor_path = match
-        # ``asset_suffix`` is the part of ``prim_path`` below the destination template, so trimming
-        # it yields this clone's counterpart of ``source_root``. An ancestor above ``source_root``
-        # (a label authored outside the cloned subtree) is genuinely shared and ``rebase`` leaves
-        # it alone, keeping such shapes in one instance group across envs.
-        clone_root = prim_path[: len(prim_path) - len(asset_suffix)] if asset_suffix else prim_path
-        return matched, cloner_path.rebase(ancestor_path, source_root, clone_root)
+        labels, ancestor = match
+        return labels, cloner_path.rebase(ancestor, source, self._templates[index].format(world.instance))
 
     def _apply_filter(self, labels: dict[SemanticType, SemanticLabels]) -> dict[SemanticType, SemanticLabels]:
         """Restrict ``labels`` (``{type: [labels]}``) to the types/labels passing the semantic filter.

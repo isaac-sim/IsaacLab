@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING
 import torch
 
 import isaaclab.utils.math as math_utils
+from isaaclab.utils import instantiate
 
 from isaaclab_tasks.contrib.nist.assembly_keypoints import Offset
 
@@ -167,12 +168,9 @@ class AssemblyProfile:
     def __init__(self, cfg: AssemblyProfileCfg):
         self.cfg = cfg
         assert cfg.segments is not None, "AssemblyProfileCfg.segments must be set"
-        self.segments: list[EndPointsSegment | IncrementalSegment] = [
-            seg_cfg.class_type(seg_cfg)
-            for seg_cfg in cfg.segments  # type: ignore[misc]
-        ]
+        self.segments: list[EndPointsSegment | IncrementalSegment] = [instantiate(seg_cfg) for seg_cfg in cfg.segments]
         self._samplers: list[StartSampler | None] = [
-            seg_cfg.start_sampler.class_type(seg_cfg.start_sampler) if seg_cfg.start_sampler is not None else None
+            instantiate(seg_cfg.start_sampler) if seg_cfg.start_sampler is not None else None
             for seg_cfg in cfg.segments
         ]
         self._boundaries: torch.Tensor | None = None

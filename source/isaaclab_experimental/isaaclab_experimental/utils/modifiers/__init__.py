@@ -3,19 +3,32 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Warp-native modifier implementations (experimental).
+"""Deprecated import path for Warp-native tensor processors."""
 
-Re-exports stable configs and base classes, then overrides the function-based
-modifiers (``scale``, ``bias``, ``clip``) with Warp-native versions that
-operate in-place on ``wp.array``.
+import sys
+import warnings
 
-Calling convention (matches Warp MDP terms)::
+from .. import tensor_processors as _processors
 
-    modifier.func(data_wp, **params) -> None   # in-place on wp.array
-"""
+__all__ = ["ModifierBase", "ModifierCfg", "bias", "clip", "scale"]
 
-from .modifier import bias, clip, scale  # noqa: F401
-from .modifier_base import ModifierBase  # noqa: F401
+warnings.warn(
+    "isaaclab_experimental.utils.modifiers is deprecated; use isaaclab_experimental.utils.tensor_processors."
+    " ModifierBase and ModifierCfg are now TensorProcessor and TensorProcessorCfg.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
-# Override with Warp-native implementations
-from .modifier_cfg import ModifierCfg  # noqa: F401
+
+def __getattr__(name: str):
+    aliases = {"ModifierBase": "TensorProcessor", "ModifierCfg": "TensorProcessorCfg"}
+    return getattr(_processors, aliases.get(name, name))
+
+
+def __dir__():
+    return __all__
+
+
+for _name in ("modifier", "modifier_base", "modifier_cfg"):
+    sys.modules[f"{__name__}.{_name}"] = sys.modules[__name__]
+    setattr(sys.modules[__name__], _name, sys.modules[__name__])

@@ -11,70 +11,40 @@ import pytest
 import torch
 import warp as wp
 
-from isaaclab.benchmark.asset_suites import get_asset_benchmark_suite, resolve_method_benchmarks
+from isaaclab.benchmark.asset_suites import (
+    get_asset_benchmark_adapter,
+    get_asset_benchmark_suite,
+    resolve_method_benchmarks,
+)
 from isaaclab.benchmark.method_benchmark import MethodBenchmarkRunnerConfig
 
 pytestmark = pytest.mark.benchmark
 
 
 @pytest.mark.parametrize(
-    ("component", "physics", "capabilities", "definition_count", "workload_count"),
+    ("component", "physics", "definition_count", "workload_count"),
     (
-        ("articulation", "physx", frozenset({"tensor_fill"}), 30, 190),
-        (
-            "articulation",
-            "newton",
-            frozenset({"warp_mask", "tensor_fill", "mask_fill"}),
-            50,
-            210,
-        ),
-        ("articulation", "ovphysx", frozenset({"warp_mask"}), 50, 210),
-        (
-            "rigid_object",
-            "physx",
-            frozenset({"physx_legacy_state", "tensor_fill"}),
-            13,
-            77,
-        ),
-        (
-            "rigid_object",
-            "newton",
-            frozenset({"warp_mask", "tensor_fill", "mask_fill"}),
-            15,
-            59,
-        ),
-        ("rigid_object", "ovphysx", frozenset({"warp_mask"}), 15, 59),
-        (
-            "rigid_object_collection",
-            "physx",
-            frozenset({"physx_legacy_state", "tensor_fill"}),
-            13,
-            113,
-        ),
-        (
-            "rigid_object_collection",
-            "newton",
-            frozenset({"warp_mask", "tensor_fill", "mask_fill"}),
-            15,
-            75,
-        ),
-        ("rigid_object_collection", "ovphysx", frozenset({"warp_mask"}), 15, 75),
+        ("articulation", "physx", 30, 190),
+        ("articulation", "newton_mjwarp", 50, 210),
+        ("articulation", "ovphysx", 50, 210),
+        # PhysX rigid-object generator replacements drop the body selectors.
+        ("rigid_object", "physx", 13, 65),
+        ("rigid_object", "newton_mjwarp", 15, 59),
+        ("rigid_object", "ovphysx", 15, 59),
+        ("rigid_object_collection", "physx", 13, 113),
+        ("rigid_object_collection", "newton_mjwarp", 15, 75),
+        ("rigid_object_collection", "ovphysx", 15, 75),
     ),
 )
 def test_method_manifests_preserve_backend_workloads(
     component: str,
     physics: str,
-    capabilities: frozenset[str],
     definition_count: int,
     workload_count: int,
 ) -> None:
-    """Capability resolution should produce every declared method workload."""
+    """The shipped backend adapters should produce every declared method workload."""
     suite = get_asset_benchmark_suite(component)
-    adapter = SimpleNamespace(
-        physics=physics,
-        capabilities=capabilities,
-        generator_overrides={},
-    )
+    adapter = get_asset_benchmark_adapter(physics, component)
 
     definitions = resolve_method_benchmarks(suite, adapter)
 

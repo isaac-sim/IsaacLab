@@ -8,19 +8,21 @@
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
-import isaaclab_tasks.core.reorient.mdp as mdp
-from isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_common import (
-    ALLEGRO_HAND_ROBOT_CFG,
-    CUBE_CFG,
-    GOAL_OBJECT_CFG,
-    PhysicsCfg,
-)
-from isaaclab_tasks.core.reorient.reorient_manager_env_cfg import ReorientManagerEnvBaseCfg, ReorientSceneBaseCfg
 from isaaclab_tasks.utils import PresetCfg
 
 from isaaclab_assets.robots.allegro import ALLEGRO_ACTUATED_JOINT_NAMES, ALLEGRO_FINGERTIP_BODY_NAMES
+
+from ... import mdp
+from ...reorient_manager_env_cfg import ReorientManagerEnvBaseCfg, ReorientSceneBaseCfg
+from .allegro_hand_common import (
+    ALLEGRO_HAND_ROBOT_CFG,
+    CUBE_CFG,
+    GOAL_MARKER_OFFSET,
+    GOAL_OBJECT_CFG,
+    PhysicsCfg,
+)
 
 
 @configclass
@@ -49,7 +51,7 @@ class AllegroHandResetEventCfg:
         func=mdp.reset_reorient_hand,
         mode="reset",
         params={
-            "joint_position_noise": 0.2,  # [rad]
+            "joint_position_noise": 0.2,  # fraction of the way toward a point sampled within the joint limits
             "joint_velocity_noise": 0.0,  # [rad/s]
         },
     )
@@ -139,4 +141,6 @@ class AllegroHandManagerEnvCfg(ReorientManagerEnvBaseCfg):
 
     def __post_init__(self):
         super().__post_init__()
+        self.commands.object_pose.marker_pos_offset = GOAL_MARKER_OFFSET
+        # simulation settings
         self.sim.physics = PhysicsCfg()

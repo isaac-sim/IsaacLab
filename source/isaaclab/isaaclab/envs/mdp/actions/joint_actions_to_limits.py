@@ -15,14 +15,13 @@ import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.articulation import Articulation
 from isaaclab.managers.action_manager import ActionTerm
+from isaaclab.utils import index_fill_
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv
-    from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
-
+    from ... import ManagerBasedEnv
+    from ...utils.io_descriptors import GenericActionIODescriptor
     from . import actions_cfg
 
-# import logger
 logger = logging.getLogger(__name__)
 
 
@@ -41,6 +40,8 @@ class JointPositionToLimitsAction(ActionTerm):
 
     The processed actions are then sent as position commands to the articulation's joints.
     """
+
+    is_graphable = True
 
     cfg: actions_cfg.JointPositionToLimitsActionCfg
     """The configuration of the action term."""
@@ -155,12 +156,10 @@ class JointPositionToLimitsAction(ActionTerm):
     def process_actions(self, actions: torch.Tensor):
         # store the raw actions
         self._raw_actions[:] = actions
-        # apply affine transformations
-        self._processed_actions = self._raw_actions * self._scale
+        # apply affine transformations in place: a recorded apply_actions reads this buffer
+        self._processed_actions[:] = self._raw_actions * self._scale
         if self.cfg.clip is not None:
-            self._processed_actions = torch.clamp(
-                self._processed_actions, min=self._clip[:, :, 0], max=self._clip[:, :, 1]
-            )
+            self._processed_actions.clamp_(min=self._clip[:, :, 0], max=self._clip[:, :, 1])
         # rescale the position targets if configured
         # this is useful when the input actions are in the range [-1, 1]
         if self.cfg.rescale_to_limits:
@@ -179,7 +178,7 @@ class JointPositionToLimitsAction(ActionTerm):
         self._asset.set_joint_position_target_index(target=self.processed_actions, joint_ids=self._joint_ids)
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
-        self._raw_actions[env_ids] = 0.0
+        index_fill_(self._raw_actions, env_ids, 0.0)
 
 
 class EMAJointPositionToLimitsAction(JointPositionToLimitsAction):
@@ -205,6 +204,8 @@ class EMAJointPositionToLimitsAction(JointPositionToLimitsAction):
 
     On reset, the previous action is initialized to the current joint positions of the articulation's joints.
     """
+
+    is_graphable = True
 
     cfg: actions_cfg.EMAJointPositionToLimitsActionCfg
     """The configuration of the action term."""
@@ -267,17 +268,14 @@ class EMAJointPositionToLimitsAction(JointPositionToLimitsAction):
             )
         return self._IO_descriptor
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
-        # check if specific environment ids are provided
+    def reset(self, env_ids: Sequence[int] | slice | None = None) -> None:
         if env_ids is None:
-            super().reset(slice(None))
-            self._prev_applied_actions[:] = self._asset.data.joint_pos.torch[:, self._joint_ids]
-        else:
-            super().reset(env_ids)
-            curr_applied_actions = self._asset.data.joint_pos.torch[env_ids[:, None], self._joint_ids].view(
-                len(env_ids), -1
-            )
-            self._prev_applied_actions[env_ids, :] = curr_applied_actions
+            env_ids = slice(None)
+        super().reset(env_ids)
+        env_index = env_ids
+        if isinstance(env_ids, torch.Tensor) and not isinstance(self._joint_ids, slice):
+            env_index = env_ids[:, None]
+        self._prev_applied_actions[env_ids] = self._asset.data.joint_pos.torch[env_index, self._joint_ids]
 
     def process_actions(self, actions: torch.Tensor):
         # apply affine transformations

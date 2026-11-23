@@ -20,18 +20,15 @@ Examples
     # Run all tests inside Docker (Ubuntu 24.04)
     tools/run_install_ci.py docker
 
-    # Run only pip tests with a custom base image
+    # Run selected tests with a custom base image
     tools/run_install_ci.py docker --base-image ubuntu:22.04 -- -vs -k "testname"
 
     # Run with GPU support (passes --gpus all to Docker)
     tools/run_install_ci.py docker --gpu
 
-    # Filter by marker (e.g. only uv tests, only slow tests)
-    tools/run_install_ci.py docker -- -m uv
+    # Filter by contract or runtime cost
+    tools/run_install_ci.py docker -- -m resolve
     tools/run_install_ci.py docker --gpu -- -m "slow and gpu"
-
-    # Filter by bug ID (dashes become underscores)
-    tools/run_install_ci.py docker --gpu -- -m <bug-id>
 
     # Drop into a shell for debugging
     tools/run_install_ci.py docker --shell
@@ -144,7 +141,7 @@ def _find_repo_root() -> Path:
     """Walk up from CWD or this file to find the repo root."""
     for anchor in [Path.cwd(), Path(__file__).resolve().parent]:
         for parent in [anchor] + list(anchor.parents):
-            if (parent / "isaaclab.sh").exists():
+            if (parent / "uv.lock").is_file() and (parent / "source" / "isaaclab").is_dir():
                 return parent
     raise FileNotFoundError("Could not locate IsaacLab repository root")
 
@@ -154,7 +151,7 @@ def _build_isaaclab_wheel(repo_root: Path, debug: bool = False) -> Path:
 
     Used by ``--build-wheel`` so callers (CI or local dev) don't have to pre-build the
     wheel out-of-band before invoking the install_ci runner. Tests consume the wheel
-    via the existing ``ISAACLAB_WHEEL`` env var / ``wheel_path`` session fixture.
+    via the existing ``ISAACLAB_WHEEL`` env var / ``wheel`` session fixture.
 
     Output is captured and discarded by default to avoid spamming CI logs with thousands of
     setuptools / pip lines. Pass ``debug=True`` (via the runner's ``--debug`` flag) to stream
@@ -356,6 +353,8 @@ def _cmd_docker(args: argparse.Namespace) -> int:
     else:
         # Test execution mode
         pytest_args = args.pytest_args or ["--tb=short"]
+        if args.gpu:
+            pytest_args = ["--run-gpu", *pytest_args]
         if args.results_dir:
             pytest_args = [f"--junitxml={container_results_xml}"] + pytest_args
         docker_run_cmd.extend([image_tag] + pytest_args)
@@ -438,16 +437,14 @@ native options:
   --debug              Stream wheel-build output live (default: quiet, only dumped on failure)
 
 pytest arguments:
-  Pass pytest options after '--'. Without '--', defaults to '-sv --tb=short'.
+  Pass pytest options after '--'. Without '--', defaults to '--tb=short'.
 
   examples:
     %(prog)s docker                                          # run all tests in Docker
     %(prog)s docker --base-image ubuntu:22.04 -- -vs -k "testname"  # custom base image
     %(prog)s docker --gpu                                    # GPU support (--gpus all)
-    %(prog)s docker --gpu -- -m uv                           # uv tests only
-    %(prog)s docker --gpu -- -m conda                        # conda tests only
+    %(prog)s docker -- -m resolve                           # dependency resolution only
     %(prog)s docker --gpu -- -m "slow and gpu"               # combine markers with GPU
-    %(prog)s docker --gpu -- -k <bug-id>                     # filter by bug ID
     %(prog)s docker --shell                                  # drop into shell for debugging
     %(prog)s native -- -vs                                   # run natively (no Docker)
     %(prog)s docker --wheel /tmp/isaaclab.whl                # pass a pre-built wheel

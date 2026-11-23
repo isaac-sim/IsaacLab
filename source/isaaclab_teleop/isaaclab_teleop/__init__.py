@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Package providing IsaacTeleop-based teleoperation for Isaac Lab."""
+"""Package providing Isaac Capture-based teleoperation for Isaac Lab."""
 
 import importlib.metadata
 
@@ -14,4 +14,7 @@ except importlib.metadata.PackageNotFoundError:
 
 from isaaclab.utils.module import lazy_export
 
-lazy_export()
+__getattr__, __dir__, __all__ = lazy_export()
+# The Kit teleop selection does not install Capture's standalone OVXR runtime or the OV renderers.
+__all__.remove("OvLibrariesXrSession")
+__all__.remove("OvxrRendererCfg")

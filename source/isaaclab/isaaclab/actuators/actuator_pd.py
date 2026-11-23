@@ -11,25 +11,74 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, ClassVar
 
 import torch
+import warp as wp
 
-from isaaclab.utils import DelayBuffer, LinearInterpolation
-from isaaclab.utils.types import ArticulationActions
-
-from ._compat import _limits_equal
+from ..utils import DelayBuffer, LinearInterpolation
+from ..utils.types import ArticulationActions
 from .actuator_base import ActuatorBase, resolve_joint_parameter
 
 if TYPE_CHECKING:
     from .actuator_control import ActuatorControl
     from .actuator_pd_cfg import (
         DCMotorCfg,
+        DelayedImplicitActuatorCfg,
         DelayedPDActuatorCfg,
         IdealPDActuatorCfg,
         ImplicitActuatorCfg,
         RemotizedPDActuatorCfg,
     )
 
-# import logger
 logger = logging.getLogger(__name__)
+
+
+class _DelayedActuator:
+    """Shared command history and reset lifecycle for delayed actuator models."""
+
+    def __init__(self, cfg: DelayedImplicitActuatorCfg | DelayedPDActuatorCfg, *args, **kwargs) -> None:
+        self._max_delay = 0 if cfg.max_delay is None else cfg.max_delay
+        if not 0 <= cfg.min_delay <= self._max_delay:
+            raise ValueError("Expected 0 <= min_delay <= max_delay.")
+        super().__init__(cfg, *args, **kwargs)
+        self.positions_delay_buffer = DelayBuffer(self._max_delay, self._num_envs, device=self._device)
+        self.velocities_delay_buffer = DelayBuffer(self._max_delay, self._num_envs, device=self._device)
+        self.efforts_delay_buffer = DelayBuffer(self._max_delay, self._num_envs, device=self._device)
+        self._delay_buffers = (self.positions_delay_buffer, self.velocities_delay_buffer, self.efforts_delay_buffer)
+
+    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None) -> None:
+        super().reset(env_ids, env_mask)
+        if env_mask is not None:
+            # draw a delay for every environment and keep the selected ones, so the mask stays on the device
+            time_lags = torch.randint(
+                self.cfg.min_delay, self._max_delay + 1, (self._num_envs,), dtype=torch.int, device=self._device
+            )
+            selected = wp.to_torch(env_mask)
+            for delay_buffer in self._delay_buffers:
+                torch.where(selected, time_lags, delay_buffer.time_lags, out=delay_buffer.time_lags)
+                delay_buffer.reset(selected)
+            return
+        # number of environments (since env_ids can be a slice)
+        if env_ids is None:
+            env_ids = slice(None)
+        num_envs = len(range(self._num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
+        time_lags = torch.randint(
+            low=self.cfg.min_delay,
+            high=self._max_delay + 1,
+            size=(num_envs,),
+            dtype=torch.int,
+            device=self._device,
+        )
+        for delay_buffer in self._delay_buffers:
+            delay_buffer.set_time_lag(time_lags, env_ids)
+            delay_buffer.reset(env_ids)
+
+    def compute(
+        self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
+    ) -> ArticulationActions:
+        control_action.joint_positions = self.positions_delay_buffer.compute(control_action.joint_positions)
+        control_action.joint_velocities = self.velocities_delay_buffer.compute(control_action.joint_velocities)
+        control_action.joint_efforts = self.efforts_delay_buffer.compute(control_action.joint_efforts)
+        return super().compute(control_action, joint_pos, joint_vel)
+
 
 """
 Implicit Actuator Models.
@@ -61,8 +110,6 @@ class ImplicitActuator(ActuatorBase):
         damping: torch.Tensor | float = 0.0,
         joint_effort_limit: torch.Tensor | float | None = None,
         actuator_velocity_limit: torch.Tensor | float | None = None,
-        effort_limit: torch.Tensor | float | None = None,  # TODO: Deprecated. Remove in 4.0.
-        velocity_limit: torch.Tensor | float | None = None,  # TODO: Deprecated. Remove in 4.0.
     ):
         """Initialize the implicit actuator.
 
@@ -79,27 +126,9 @@ class ImplicitActuator(ActuatorBase):
                 joint type]. Defaults to infinity.
             actuator_velocity_limit: Default actuator velocity limit [m/s or rad/s,
                 depending on joint type]. Defaults to infinity.
-            effort_limit: Deprecated alias for :paramref:`joint_effort_limit`.
-            velocity_limit: Deprecated alias for :paramref:`actuator_velocity_limit`.
         """
-        # TODO: Deprecated. Remove in 4.0.
-        if effort_limit is not None:
-            warnings.warn(
-                "The effort_limit constructor argument is deprecated. Use joint_effort_limit instead; "
-                "effort_limit will be removed in 4.0.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            if joint_effort_limit is not None and not _limits_equal(joint_effort_limit, effort_limit):
-                raise ValueError(
-                    "Received conflicting joint_effort_limit and deprecated effort_limit constructor arguments."
-                )
-            joint_effort_limit = effort_limit
-        # the base class resolves deprecated configuration aliases and skips the actuator effort
-        # limit, which implicit models expose as a live projection of the articulation limit.
-        super().__init__(
-            cfg, joint_names, joint_ids, num_envs, device, None, actuator_velocity_limit, None, velocity_limit
-        )
+        # Implicit models expose their effort limit as a live projection of the articulation limit.
+        super().__init__(cfg, joint_names, joint_ids, num_envs, device, None, actuator_velocity_limit)
         # construction values, used until the group is bound to articulation storage.
         self._construction_stiffness = resolve_joint_parameter(
             self.cfg.stiffness, stiffness, joint_names, num_envs, device
@@ -167,9 +196,9 @@ class ImplicitActuator(ActuatorBase):
         """Actuator effort limit [N or N·m, depending on joint type].
 
         The actuator's rated force/torque reflected at the joint when configured through
-        :attr:`~isaaclab.actuators.ActuatorBaseCfg.actuator_effort_limit`; it clips the
-        effort telemetry but is not pushed to the solver. When unset, it tracks the live
-        articulation joint effort limit (:attr:`joint_effort_limit`).
+        :attr:`~isaaclab.actuators.ActuatorBaseCfg.actuator_effort_limit`; it is not pushed to the
+        solver, and the effort telemetry is clipped by :attr:`joint_effort_limit` instead. When unset,
+        it tracks the live articulation joint effort limit (:attr:`joint_effort_limit`).
         """
         if self._rated_effort_limit is not None:
             return self._rated_effort_limit
@@ -192,7 +221,7 @@ class ImplicitActuator(ActuatorBase):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None) -> None:
         # This is a no-op. There is no state to reset for implicit actuators.
         pass
 
@@ -245,6 +274,19 @@ class ImplicitActuator(ActuatorBase):
         self._joint_effort_limit = control.joint_effort_limits.torch
 
 
+class DelayedImplicitActuator(_DelayedActuator, ImplicitActuator):
+    """Solver-side PD actuator with delayed position, velocity, and feed-forward effort targets.
+
+    One delay is sampled uniformly per environment from ``[min_delay, max_delay]``
+    at reset and shared by all joints and command channels in the group. Delays
+    count physics steps. Before enough history is available, the oldest command
+    since reset is used. Joint state feedback and solver gains remain current.
+    """
+
+    cfg: DelayedImplicitActuatorCfg
+    """The configuration for the actuator model."""
+
+
 """
 Explicit Actuator Models.
 """
@@ -294,8 +336,6 @@ class IdealPDActuator(ActuatorBase):
         damping: torch.Tensor | float = 0.0,
         actuator_effort_limit: torch.Tensor | float | None = None,
         actuator_velocity_limit: torch.Tensor | float | None = None,
-        effort_limit: torch.Tensor | float | None = None,  # TODO: Deprecated. Remove in 4.0.
-        velocity_limit: torch.Tensor | float | None = None,  # TODO: Deprecated. Remove in 4.0.
     ):
         super().__init__(
             cfg,
@@ -305,8 +345,6 @@ class IdealPDActuator(ActuatorBase):
             device,
             actuator_effort_limit,
             actuator_velocity_limit,
-            effort_limit,  # TODO: Deprecated. Remove in 4.0.
-            velocity_limit,  # TODO: Deprecated. Remove in 4.0.
         )
         self.stiffness = resolve_joint_parameter(self.cfg.stiffness, stiffness, joint_names, num_envs, device)
         self.damping = resolve_joint_parameter(self.cfg.damping, damping, joint_names, num_envs, device)
@@ -315,7 +353,7 @@ class IdealPDActuator(ActuatorBase):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int]):
+    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None) -> None:
         pass
 
     def compute(
@@ -327,7 +365,7 @@ class IdealPDActuator(ActuatorBase):
         # calculate the desired joint torques
         self.computed_effort = self.stiffness * error_pos + self.damping * error_vel + control_action.joint_efforts
         # clip the torques based on the motor limits
-        self.applied_effort = self._clip_effort(self.computed_effort)
+        self.applied_effort = self._clip_effort(self.computed_effort, joint_vel)
         # set the computed actions back into the control action
         control_action.joint_efforts = self.applied_effort
         control_action.joint_positions = None
@@ -405,7 +443,9 @@ class DCMotor(IdealPDActuator):
         # parse configuration
         if self.cfg.saturation_effort is None:
             raise ValueError("The saturation_effort must be provided for the DC motor actuator model.")
-        self._saturation_effort = self.cfg.saturation_effort
+        self._saturation_effort = resolve_joint_parameter(
+            self.cfg.saturation_effort, None, self._joint_names, self._num_envs, self._device
+        )
         # check that quantities are provided
         if self.cfg.actuator_velocity_limit is None:
             raise ValueError("The velocity limit must be provided for the DC motor actuator model.")
@@ -413,33 +453,17 @@ class DCMotor(IdealPDActuator):
         self._vel_at_effort_lim = self.actuator_velocity_limit * (
             1 + self.actuator_effort_limit / self._saturation_effort
         )
-        # prepare joint vel buffer for max effort computation
-        self._joint_vel = torch.zeros_like(self.computed_effort)
-        # create buffer for zeros effort
-        self._zeros_effort = torch.zeros_like(self.computed_effort)
-
-    """
-    Operations.
-    """
-
-    def compute(
-        self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
-    ) -> ArticulationActions:
-        # save current joint vel
-        self._joint_vel[:] = joint_vel
-        # calculate the desired joint torques
-        return super().compute(control_action, joint_pos, joint_vel)
 
     """
     Helper functions.
     """
 
-    def _clip_effort(self, effort: torch.Tensor) -> torch.Tensor:
-        # save current joint vel
-        self._joint_vel[:] = torch.clip(self._joint_vel, min=-self._vel_at_effort_lim, max=self._vel_at_effort_lim)
+    def _clip_effort(self, effort: torch.Tensor, joint_vel: torch.Tensor) -> torch.Tensor:
+        # Clamp the local value without modifying the measured joint velocity.
+        joint_vel = torch.clip(joint_vel, min=-self._vel_at_effort_lim, max=self._vel_at_effort_lim)
         # compute torque limits
-        torque_speed_top = self._saturation_effort * (1.0 - self._joint_vel / self.actuator_velocity_limit)
-        torque_speed_bottom = self._saturation_effort * (-1.0 - self._joint_vel / self.actuator_velocity_limit)
+        torque_speed_top = self._saturation_effort * (1.0 - joint_vel / self.actuator_velocity_limit)
+        torque_speed_bottom = self._saturation_effort * (-1.0 - joint_vel / self.actuator_velocity_limit)
         # -- max limit
         max_effort = torch.clip(torque_speed_top, max=self.actuator_effort_limit)
         # -- min limit
@@ -449,7 +473,7 @@ class DCMotor(IdealPDActuator):
         return clamped
 
 
-class DelayedPDActuator(IdealPDActuator):
+class DelayedPDActuator(_DelayedActuator, IdealPDActuator):
     """Ideal PD actuator with delayed command application.
 
     This class extends the :class:`IdealPDActuator` class by adding a delay to the actuator commands. The delay
@@ -464,49 +488,6 @@ class DelayedPDActuator(IdealPDActuator):
 
     cfg: DelayedPDActuatorCfg
     """The configuration for the actuator model."""
-
-    def __init__(self, cfg: DelayedPDActuatorCfg, *args, **kwargs):
-        super().__init__(cfg, *args, **kwargs)
-        # instantiate the delay buffers
-        self.positions_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
-        self.velocities_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
-        self.efforts_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
-        # all of the envs
-        self._ALL_INDICES = torch.arange(self._num_envs, dtype=torch.long, device=self._device)
-
-    def reset(self, env_ids: Sequence[int]):
-        super().reset(env_ids)
-        # number of environments (since env_ids can be a slice)
-        if env_ids is None or env_ids == slice(None):
-            num_envs = self._num_envs
-        else:
-            num_envs = len(env_ids)
-        # set a new random delay for environments in env_ids
-        time_lags = torch.randint(
-            low=self.cfg.min_delay,
-            high=self.cfg.max_delay + 1,
-            size=(num_envs,),
-            dtype=torch.int,
-            device=self._device,
-        )
-        # set delays
-        self.positions_delay_buffer.set_time_lag(time_lags, env_ids)
-        self.velocities_delay_buffer.set_time_lag(time_lags, env_ids)
-        self.efforts_delay_buffer.set_time_lag(time_lags, env_ids)
-        # reset buffers
-        self.positions_delay_buffer.reset(env_ids)
-        self.velocities_delay_buffer.reset(env_ids)
-        self.efforts_delay_buffer.reset(env_ids)
-
-    def compute(
-        self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
-    ) -> ArticulationActions:
-        # apply delay based on the delay the model for all the setpoints
-        control_action.joint_positions = self.positions_delay_buffer.compute(control_action.joint_positions)
-        control_action.joint_velocities = self.velocities_delay_buffer.compute(control_action.joint_velocities)
-        control_action.joint_efforts = self.efforts_delay_buffer.compute(control_action.joint_efforts)
-        # compte actuator model
-        return super().compute(control_action, joint_pos, joint_vel)
 
 
 class RemotizedPDActuator(DelayedPDActuator):
@@ -533,8 +514,6 @@ class RemotizedPDActuator(DelayedPDActuator):
         damping: torch.Tensor | float = 0.0,
         actuator_effort_limit: torch.Tensor | float | None = None,
         actuator_velocity_limit: torch.Tensor | float | None = None,
-        effort_limit: torch.Tensor | float | None = None,  # TODO: Deprecated. Remove in 4.0.
-        velocity_limit: torch.Tensor | float | None = None,  # TODO: Deprecated. Remove in 4.0.
     ):
         super().__init__(
             cfg,
@@ -546,13 +525,13 @@ class RemotizedPDActuator(DelayedPDActuator):
             damping,
             actuator_effort_limit,
             actuator_velocity_limit,
-            effort_limit,  # TODO: Deprecated. Remove in 4.0.
-            velocity_limit,  # TODO: Deprecated. Remove in 4.0.
         )
         # This model has no box constraints: the angle-dependent lookup table below governs
         # effort clipping, so the parsed actuator limits are replaced with infinity.
         self.actuator_effort_limit = torch.full_like(self.actuator_effort_limit, torch.inf)
         self.actuator_velocity_limit = torch.full_like(self.actuator_velocity_limit, torch.inf)
+        if cfg.joint_parameter_lookup is None:
+            raise ValueError("joint_parameter_lookup must be provided for the Isaac Lab remotized actuator model.")
         self._joint_parameter_lookup = torch.tensor(cfg.joint_parameter_lookup, device=device)
         # define remotized joint torque limit
         self._torque_limit = LinearInterpolation(self.angle_samples, self.max_torque_samples, device=device)

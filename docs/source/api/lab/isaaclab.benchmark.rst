@@ -150,6 +150,10 @@ Workflow Functions
 
 .. autofunction:: run_runtime_benchmark
 
+.. autofunction:: isaaclab.benchmark.stepping.profile_physics_steps
+
+.. autofunction:: isaaclab.benchmark.stepping.profile_renderers
+
 .. autofunction:: run_startup_benchmark
 
 .. autofunction:: run_training_benchmark

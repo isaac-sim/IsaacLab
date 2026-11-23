@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""This sub-module contains the functions that are specific to the locomotion environments."""
+"""MDP terms specific to the velocity-tracking locomotion environments."""
 
 from isaaclab.utils.module import lazy_export
 

@@ -5,6 +5,10 @@
 
 """Warp-first IO descriptor decorator and inspection hooks (experimental).
 
+.. deprecated:: 3.0
+   IO descriptors will be removed in Isaac Lab 3.2. Use the LEAPP export
+   workflow for supported RSL-RL/PyTorch deployments.
+
 This module mirrors the stable :mod:`isaaclab.envs.utils.io_descriptors` but is
 designed for Warp-first observation terms whose signature is::
 
@@ -73,6 +77,9 @@ def generic_io_descriptor_warp(
     **descriptor_kwargs: Any,
 ) -> Callable[[Callable[Concatenate[ManagerBasedEnv, P], R]], Callable[Concatenate[ManagerBasedEnv, P], R]]:
     """IO descriptor decorator for Warp-first observation terms.
+
+    .. deprecated:: 3.0
+       IO descriptors will be removed in Isaac Lab 3.2.
 
     Works like the stable :func:`generic_io_descriptor` but adapted to the
     ``func(env, out, **params) -> None`` signature:

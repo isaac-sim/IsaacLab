@@ -32,6 +32,8 @@ def get_reset_state(env, env_ids: Tensor, reset_assets: Sequence[str], is_relati
             if is_relative:
                 root_state = root_state.clone()
                 root_state[:, :3] -= env.scene.env_origins[env_ids]
+            if rigid_object.num_mesh_variants > 1:
+                states.append(rigid_object.mesh_variant_ids.torch[env_ids, None].to(root_state.dtype))
             states.append(root_state)
     return torch.cat(states, dim=-1)
 
@@ -47,20 +49,30 @@ def set_reset_state(env, states: Tensor, env_ids: Tensor, reset_assets: Sequence
             if is_relative:
                 root_state = root_state.clone()
                 root_state[:, :3] += env.scene.env_origins[env_ids]
-            articulation.write_root_pose_to_sim_index(root_pose=root_state[:, :7], env_ids=env_ids)
-            articulation.write_root_velocity_to_sim_index(root_velocity=root_state[:, 7:], env_ids=env_ids)
+            articulation.write_root_link_pose_to_sim_index(root_pose=root_state[:, :7], env_ids=env_ids)
+            if not articulation.is_fixed_base:
+                articulation.write_root_com_velocity_to_sim_index(root_velocity=root_state[:, 7:], env_ids=env_ids)
             articulation.write_joint_position_to_sim_index(position=state[:, 13 : 13 + n_joints], env_ids=env_ids)
             articulation.write_joint_velocity_to_sim_index(
-                velocity=state[:, 13 + n_joints : 13 + 2 * n_joints], env_ids=env_ids
+                velocity=state[:, 13 + n_joints : 13 + 2 * n_joints],
+                env_ids=env_ids,
             )
             offset += width
 
     for name, rigid_object in env.scene._rigid_objects.items():
         if name in reset_assets:
+            if rigid_object.num_mesh_variants > 1:
+                variant_ids = states[:, offset].to(dtype=torch.int32)
+                rigid_object.write_mesh_variant_to_sim(variant_ids, env_ids)
+                offset += 1
             root_state = states[:, offset : offset + 13]
             if is_relative:
                 root_state = root_state.clone()
                 root_state[:, :3] += env.scene.env_origins[env_ids]
-            rigid_object.write_root_pose_to_sim_index(root_pose=root_state[:, :7], env_ids=env_ids)
-            rigid_object.write_root_velocity_to_sim_index(root_velocity=root_state[:, 7:], env_ids=env_ids)
+            rigid_object.write_root_link_pose_to_sim_index(root_pose=root_state[:, :7], env_ids=env_ids)
+            if not getattr(rigid_object.root_view, "is_fixed_base", False):
+                rigid_object.write_root_com_velocity_to_sim_index(root_velocity=root_state[:, 7:], env_ids=env_ids)
             offset += 13
+
+    if offset != states.shape[1]:
+        raise ValueError(f"Reset state has {states.shape[1]} values, but the scene consumed {offset}.")

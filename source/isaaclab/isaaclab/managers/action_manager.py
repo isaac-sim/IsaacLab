@@ -11,19 +11,19 @@ import inspect
 import re
 from abc import abstractmethod
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import torch
 from prettytable import PrettyTable
 
-from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
-
+from ..envs.utils.io_descriptors import GenericActionIODescriptor, _warn_io_descriptors_deprecated
+from ..utils import index_fill_, instantiate
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ActionTermCfg
 
 if TYPE_CHECKING:
-    from isaaclab.assets import AssetBase
-    from isaaclab.envs import ManagerBasedEnv
+    from ..assets import AssetBase
+    from ..envs import ManagerBasedEnv
 
 
 class ActionTerm(ManagerTermBase):
@@ -38,6 +38,15 @@ class ActionTerm(ManagerTermBase):
     * Applying actions: This operation is performed once per **simulation step** and is
       responsible for applying the processed actions to the asset managed by the term.
     """
+
+    is_graphable: ClassVar[bool] = False
+    """Whether :meth:`apply_actions` can be recorded into a CUDA graph: it writes from buffers updated in place."""
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        # A subclass that overrides how actions are processed or applied declares its own flag; it does not inherit it.
+        if "apply_actions" in cls.__dict__ or "process_actions" in cls.__dict__:
+            cls.is_graphable = cls.__dict__.get("is_graphable", False)
 
     def __init__(self, cfg: ActionTermCfg, env: ManagerBasedEnv):
         """Initialize the action term.
@@ -85,7 +94,10 @@ class ActionTerm(ManagerTermBase):
     @property
     @abstractmethod
     def processed_actions(self) -> torch.Tensor:
-        """The actions computed by the term after applying any processing."""
+        """The actions computed by the term after applying any processing.
+
+        Terms that support graph capture update this tensor in place, so a held reference sees later commands.
+        """
         raise NotImplementedError
 
     @property
@@ -97,7 +109,11 @@ class ActionTerm(ManagerTermBase):
 
     @property
     def IO_descriptor(self) -> GenericActionIODescriptor:
-        """The IO descriptor for the action term."""
+        """The IO descriptor for the action term.
+
+        .. deprecated:: 3.0
+           IO descriptors will be removed in Isaac Lab 3.2.
+        """
         self._IO_descriptor.name = re.sub(r"([a-z])([A-Z])", r"\1_\2", self.__class__.__name__).lower()
         self._IO_descriptor.full_path = f"{self.__class__.__module__}.{self.__class__.__name__}"
         self._IO_descriptor.description = " ".join(self.__class__.__doc__.split())
@@ -106,7 +122,11 @@ class ActionTerm(ManagerTermBase):
 
     @property
     def export_IO_descriptor(self) -> bool:
-        """Whether to export the IO descriptor for the action term."""
+        """Whether to export the IO descriptor for the action term.
+
+        .. deprecated:: 3.0
+           IO descriptors will be removed in Isaac Lab 3.2.
+        """
         return self._export_IO_descriptor
 
     """
@@ -205,6 +225,10 @@ class ActionManager(ManagerBase):
 
         # call the base class constructor (this prepares the terms)
         super().__init__(cfg, env)
+        self._graphable = True
+        # fixed once the terms are built
+        self._action_term_dim = [term.action_dim for term in self._terms.values()]
+        self._total_action_dim = sum(self._action_term_dim)
         # create buffers to store actions
         self._action = torch.zeros((self.num_envs, self.total_action_dim), device=self.device)
         self._prev_action = torch.zeros_like(self._action)
@@ -241,7 +265,7 @@ class ActionManager(ManagerBase):
     @property
     def total_action_dim(self) -> int:
         """Total dimension of actions."""
-        return sum(self.action_term_dim)
+        return self._total_action_dim
 
     @property
     def active_terms(self) -> list[str]:
@@ -251,7 +275,7 @@ class ActionManager(ManagerBase):
     @property
     def action_term_dim(self) -> list[int]:
         """Shape of each action term."""
-        return [term.action_dim for term in self._terms.values()]
+        return self._action_term_dim
 
     @property
     def action(self) -> torch.Tensor:
@@ -262,6 +286,19 @@ class ActionManager(ManagerBase):
     def prev_action(self) -> torch.Tensor:
         """The previous actions sent to the environment. Shape is (num_envs, total_action_dim)."""
         return self._prev_action
+
+    @property
+    def is_graphable(self) -> bool:
+        """Whether :meth:`apply_action` can be recorded into a CUDA graph.
+
+        True when all terms are. Set it to False before the environment's first step to keep :meth:`apply_action` in
+        the environment's loop, for example when wrapping it in Python.
+        """
+        return self._graphable and all(term.is_graphable for term in self._terms.values())
+
+    @is_graphable.setter
+    def is_graphable(self, value: bool):
+        self._graphable = value
 
     @property
     def has_debug_vis_implementation(self) -> bool:
@@ -276,10 +313,17 @@ class ActionManager(ManagerBase):
     def get_IO_descriptors(self) -> list[dict[str, Any]]:
         """Get the IO descriptors for the action manager.
 
-        Returns:
-            A dictionary with keys as the term names and values as the IO descriptors.
-        """
+        .. deprecated:: 3.0
+           IO descriptors will be removed in Isaac Lab 3.2.
 
+        Returns:
+            A list of dictionaries, one per exported action term, each holding the term's name and IO descriptor.
+        """
+        _warn_io_descriptors_deprecated(stacklevel=3)
+        return self._collect_io_descriptors()
+
+    def _collect_io_descriptors(self) -> list[dict[str, Any]]:
+        """Collect IO descriptors without emitting a deprecation warning."""
         data = []
 
         for term_name, term in self._terms.items():
@@ -292,7 +336,6 @@ class ActionManager(ManagerBase):
         for item in data:
             name = item.pop("name")
             formatted_item = {"name": name, "extras": item.pop("extras")}
-            print(item["export"])
             if not item.pop("export"):
                 continue
             for k, v in item.items():
@@ -334,9 +377,6 @@ class ActionManager(ManagerBase):
         """Sets whether to visualize the action data.
         Args:
             debug_vis: Whether to visualize the action data.
-        Returns:
-            Whether the debug visualization was successfully set. False if the action
-            does not support debug visualization.
         """
         for term in self._terms.values():
             term.set_debug_vis(debug_vis)
@@ -351,12 +391,9 @@ class ActionManager(ManagerBase):
         Returns:
             An empty dictionary.
         """
-        # resolve environment ids
-        if env_ids is None:
-            env_ids = slice(None)
         # reset the action history
-        self._prev_action[env_ids] = 0.0
-        self._action[env_ids] = 0.0
+        index_fill_(self._prev_action, env_ids, 0.0)
+        index_fill_(self._action, env_ids, 0.0)
         # reset all action terms
         for term in self._terms.values():
             term.reset(env_ids=env_ids)
@@ -420,8 +457,8 @@ class ActionManager(ManagerBase):
 
     def _prepare_terms(self):
         # create buffers to parse and store terms
-        self._term_names: list[str] = list()
-        self._terms: dict[str, ActionTerm] = dict()
+        self._term_names: list[str] = []
+        self._terms: dict[str, ActionTerm] = {}
 
         # check if config is dict already
         if isinstance(self.cfg, dict):
@@ -440,7 +477,7 @@ class ActionManager(ManagerBase):
                     f" Received: '{type(term_cfg)}'."
                 )
             # create the action term
-            term = term_cfg.class_type(term_cfg, self._env)
+            term = instantiate(term_cfg, self._env)
             # sanity check if term is valid type
             if not isinstance(term, ActionTerm):
                 raise TypeError(f"Returned object for the term '{term_name}' is not of type ActionType.")

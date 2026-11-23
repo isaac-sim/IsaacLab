@@ -12,6 +12,8 @@ The following configurations are available:
 * :obj:`UNITREE_GO2_CFG`: Unitree Go2 robot with DC motor model for the legs
 * :obj:`H1_CFG`: H1 humanoid robot
 * :obj:`H1_MINIMAL_CFG`: H1 humanoid robot with minimal collision bodies
+* :obj:`H2_CFG`: H2 humanoid robot with 31 actuated joints
+* :obj:`H2_SHARPA_CFG`: H2 humanoid robot with Sharpa Wave hands
 * :obj:`G1_CFG`: G1 humanoid robot
 * :obj:`G1_MINIMAL_CFG`: G1 humanoid robot with minimal collision bodies
 * :obj:`G1_29DOF_CFG`: G1 humanoid robot configured for locomanipulation tasks
@@ -20,9 +22,13 @@ The following configurations are available:
 Reference: https://github.com/unitreerobotics/unitree_ros
 """
 
+from isaaclab_isaacsim.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ActuatorNetMLPCfg, DCMotorCfg, IdealPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
+from isaaclab.utils import clone
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 HEALTHCARE_S3 = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/Healthcare/0.5.0/132c82d"
@@ -39,9 +45,11 @@ GO1_ACTUATOR_CFG = ActuatorNetMLPCfg(
     torque_scale=1.0,
     input_order="pos_vel",
     input_idx=[0, 1, 2],
-    actuator_effort_limit=23.7,  # taken from spec sheet
-    actuator_velocity_limit=30.0,  # taken from spec sheet
-    saturation_effort=23.7,  # same as effort limit
+    # the calf sits behind an extra 1.5:1 knee reduction, so its joint-side torque is higher
+    # and its joint-side speed lower than the hip and thigh. Values match ``go1.usd``.
+    actuator_effort_limit={".*_hip_joint": 23.7, ".*_thigh_joint": 23.7, ".*_calf_joint": 35.55},
+    actuator_velocity_limit={".*_hip_joint": 30.1, ".*_thigh_joint": 30.1, ".*_calf_joint": 20.06},
+    saturation_effort={".*_hip_joint": 23.7, ".*_thigh_joint": 23.7, ".*_calf_joint": 35.55},
 )
 """Configuration of Go1 actuators using MLP model.
 
@@ -60,7 +68,7 @@ UNITREE_A1_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/A1/a1.usd",
         activate_contact_sensors=True,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+        rigid_props=PhysxRigidBodyCfg(
             disable_gravity=False,
             retain_accelerations=False,
             linear_damping=0.0,
@@ -69,9 +77,12 @@ UNITREE_A1_CFG = ArticulationCfg(
             max_angular_velocity=1000.0,
             max_depenetration_velocity=1.0,
         ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=False, solver_position_iteration_count=4, solver_velocity_iteration_count=0
-        ),
+        articulation_props=[
+            PhysxArticulationCfg(
+                enabled_self_collisions=False, solver_position_iteration_count=4, solver_velocity_iteration_count=0
+            ),
+            NewtonArticulationCfg(self_collision_enabled=False),
+        ],
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 0.42),
@@ -107,7 +118,7 @@ UNITREE_GO1_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/Go1/go1.usd",
         activate_contact_sensors=True,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+        rigid_props=PhysxRigidBodyCfg(
             disable_gravity=False,
             retain_accelerations=False,
             linear_damping=0.0,
@@ -116,9 +127,12 @@ UNITREE_GO1_CFG = ArticulationCfg(
             max_angular_velocity=1000.0,
             max_depenetration_velocity=1.0,
         ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=False, solver_position_iteration_count=4, solver_velocity_iteration_count=0
-        ),
+        articulation_props=[
+            PhysxArticulationCfg(
+                enabled_self_collisions=False, solver_position_iteration_count=4, solver_velocity_iteration_count=0
+            ),
+            NewtonArticulationCfg(self_collision_enabled=False),
+        ],
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 0.4),
@@ -143,7 +157,7 @@ UNITREE_GO2_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/Go2/go2.usd",
         activate_contact_sensors=True,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+        rigid_props=PhysxRigidBodyCfg(
             disable_gravity=False,
             retain_accelerations=False,
             linear_damping=0.0,
@@ -152,9 +166,12 @@ UNITREE_GO2_CFG = ArticulationCfg(
             max_angular_velocity=1000.0,
             max_depenetration_velocity=1.0,
         ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=False, solver_position_iteration_count=4, solver_velocity_iteration_count=0
-        ),
+        articulation_props=[
+            PhysxArticulationCfg(
+                enabled_self_collisions=False, solver_position_iteration_count=4, solver_velocity_iteration_count=0
+            ),
+            NewtonArticulationCfg(self_collision_enabled=False),
+        ],
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 0.4),
@@ -171,9 +188,11 @@ UNITREE_GO2_CFG = ArticulationCfg(
     actuators={
         "base_legs": DCMotorCfg(
             joint_names_expr=[".*_hip_joint", ".*_thigh_joint", ".*_calf_joint"],
-            actuator_effort_limit=23.5,
-            saturation_effort=23.5,
-            actuator_velocity_limit=30.0,
+            # the calf sits behind an extra 1.92:1 knee reduction, so its joint-side torque is
+            # higher and its joint-side speed lower than the hip and thigh. Values match ``go2.usd``.
+            actuator_effort_limit={".*_hip_joint": 23.7, ".*_thigh_joint": 23.7, ".*_calf_joint": 45.43},
+            saturation_effort={".*_hip_joint": 23.7, ".*_thigh_joint": 23.7, ".*_calf_joint": 45.43},
+            actuator_velocity_limit={".*_hip_joint": 30.1, ".*_thigh_joint": 30.1, ".*_calf_joint": 15.70},
             stiffness=25.0,
             damping=0.5,
             friction=0.0,
@@ -187,7 +206,7 @@ H1_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/H1/h1.usd",
         activate_contact_sensors=True,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+        rigid_props=PhysxRigidBodyCfg(
             disable_gravity=False,
             retain_accelerations=False,
             linear_damping=0.0,
@@ -196,9 +215,12 @@ H1_CFG = ArticulationCfg(
             max_angular_velocity=1000.0,
             max_depenetration_velocity=1.0,
         ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=False, solver_position_iteration_count=4, solver_velocity_iteration_count=4
-        ),
+        articulation_props=[
+            PhysxArticulationCfg(
+                enabled_self_collisions=False, solver_position_iteration_count=4, solver_velocity_iteration_count=4
+            ),
+            NewtonArticulationCfg(self_collision_enabled=False),
+        ],
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 1.05),
@@ -263,7 +285,7 @@ H1_CFG = ArticulationCfg(
 """Configuration for the Unitree H1 Humanoid robot."""
 
 
-H1_MINIMAL_CFG = H1_CFG.copy()
+H1_MINIMAL_CFG = clone(H1_CFG)
 H1_MINIMAL_CFG.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/H1/h1_minimal.usd"
 """Configuration for the Unitree H1 Humanoid robot with fewer collision meshes.
 
@@ -271,11 +293,12 @@ This configuration removes most collision meshes to speed up simulation.
 """
 
 
-G1_CFG = ArticulationCfg(
+H2_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/G1/g1.usd",
+        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/H2/h2.usd",
         activate_contact_sensors=True,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+        variants={"Sensor": "None"},
+        rigid_props=PhysxRigidBodyCfg(
             disable_gravity=False,
             retain_accelerations=False,
             linear_damping=0.0,
@@ -284,9 +307,89 @@ G1_CFG = ArticulationCfg(
             max_angular_velocity=1000.0,
             max_depenetration_velocity=1.0,
         ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=False, solver_position_iteration_count=8, solver_velocity_iteration_count=4
+        articulation_props=[
+            PhysxArticulationCfg(
+                enabled_self_collisions=False, solver_position_iteration_count=8, solver_velocity_iteration_count=4
+            ),
+            NewtonArticulationCfg(self_collision_enabled=False),
+        ],
+    ),
+    init_state=ArticulationCfg.InitialStateCfg(
+        pos=(0.0, 0.0, 1.0),
+        joint_pos={
+            ".*_hip_pitch_joint": -0.312,
+            ".*_knee_joint": 0.669,
+            ".*_ankle_pitch_joint": -0.363,
+            ".*_elbow_joint": 0.6,
+            ".*_shoulder_pitch_joint": 0.2,
+            "left_shoulder_roll_joint": 0.2,
+            "right_shoulder_roll_joint": -0.2,
+        },
+        joint_vel={".*": 0.0},
+    ),
+    soft_joint_pos_limit_factor=0.9,
+    # Keep the effort and velocity limits authored in the official asset.
+    actuators={
+        "legs": ImplicitActuatorCfg(
+            joint_names_expr=[".*_hip_.*", ".*_knee_joint"],
+            stiffness=200.0,
+            damping=5.0,
+            armature=0.05,
         ),
+        "feet": ImplicitActuatorCfg(
+            joint_names_expr=[".*_ankle_.*"],
+            stiffness=50.0,
+            damping=2.0,
+            armature=0.02,
+        ),
+        "waist": ImplicitActuatorCfg(
+            joint_names_expr=["waist_.*"],
+            stiffness=200.0,
+            damping=5.0,
+            armature=0.05,
+        ),
+        "arms": ImplicitActuatorCfg(
+            joint_names_expr=[".*_shoulder_.*", ".*_elbow_joint"],
+            stiffness=40.0,
+            damping=2.0,
+            armature=0.01,
+        ),
+        "wrists": ImplicitActuatorCfg(
+            joint_names_expr=[".*_wrist_.*"],
+            stiffness=10.0,
+            damping=0.5,
+            armature=0.005,
+        ),
+        "head": ImplicitActuatorCfg(
+            joint_names_expr=["head_.*"],
+            stiffness=20.0,
+            damping=1.0,
+            armature=0.01,
+        ),
+    },
+)
+"""Configuration for the Unitree H2 humanoid using the official 31-DOF USD asset."""
+
+
+G1_CFG = ArticulationCfg(
+    spawn=sim_utils.UsdFileCfg(
+        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/G1/g1.usd",
+        activate_contact_sensors=True,
+        rigid_props=PhysxRigidBodyCfg(
+            disable_gravity=False,
+            retain_accelerations=False,
+            linear_damping=0.0,
+            angular_damping=0.0,
+            max_linear_velocity=1000.0,
+            max_angular_velocity=1000.0,
+            max_depenetration_velocity=1.0,
+        ),
+        articulation_props=[
+            PhysxArticulationCfg(
+                enabled_self_collisions=False, solver_position_iteration_count=8, solver_velocity_iteration_count=4
+            ),
+            NewtonArticulationCfg(self_collision_enabled=False),
+        ],
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 0.74),
@@ -379,7 +482,7 @@ G1_CFG = ArticulationCfg(
 """Configuration for the Unitree G1 Humanoid robot."""
 
 
-G1_MINIMAL_CFG = G1_CFG.copy()
+G1_MINIMAL_CFG = clone(G1_CFG)
 G1_MINIMAL_CFG.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/G1/g1_minimal.usd"
 """Configuration for the Unitree G1 Humanoid robot with fewer collision meshes.
 
@@ -391,7 +494,7 @@ G1_29DOF_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Unitree/G1/g1.usd",
         activate_contact_sensors=False,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+        rigid_props=PhysxRigidBodyCfg(
             disable_gravity=False,
             retain_accelerations=False,
             linear_damping=0.0,
@@ -400,12 +503,15 @@ G1_29DOF_CFG = ArticulationCfg(
             max_angular_velocity=1000.0,
             max_depenetration_velocity=1.0,
         ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=False,
-            fix_root_link=False,  # Configurable - can be set to True for fixed base
-            solver_position_iteration_count=8,
-            solver_velocity_iteration_count=4,
-        ),
+        articulation_props=[
+            PhysxArticulationCfg(
+                enabled_self_collisions=False,
+                solver_position_iteration_count=8,
+                solver_velocity_iteration_count=4,
+            ),
+            NewtonArticulationCfg(self_collision_enabled=False),
+        ],
+        fix_root_link=False,  # Configurable - can be set to True for fixed base
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 0.75),
@@ -549,12 +655,12 @@ Key features:
 
 Usage examples:
     # For fixed base scenarios (upper body manipulation only)
-    fixed_base_cfg = G1_29DOF_CFG.copy()
-    fixed_base_cfg.spawn.articulation_props.fix_root_link = True
+    fixed_base_cfg = clone(G1_29DOF_CFG)
+    fixed_base_cfg.spawn.fix_root_link = True
 
     # For mobile scenarios (locomotion + manipulation)
-    mobile_cfg = G1_29DOF_CFG.copy()
-    mobile_cfg.spawn.articulation_props.fix_root_link = False
+    mobile_cfg = clone(G1_29DOF_CFG)
+    mobile_cfg.spawn.fix_root_link = False
 """
 
 """
@@ -565,11 +671,11 @@ The merging code for the hand and robot can be found here: https://github.com/un
 Necessary modifications should be made to ensure the correct parent–child relationship.
 """
 # Inherit PD settings from G1_29DOF_CFG, with minor adjustments for grasping task
-G1_INSPIRE_FTP_CFG = G1_29DOF_CFG.copy()
+G1_INSPIRE_FTP_CFG = clone(G1_29DOF_CFG)
 G1_INSPIRE_FTP_CFG.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/G1/g1_29dof_inspire_hand.usd"
 G1_INSPIRE_FTP_CFG.spawn.activate_contact_sensors = True
 G1_INSPIRE_FTP_CFG.spawn.rigid_props.disable_gravity = True
-G1_INSPIRE_FTP_CFG.spawn.articulation_props.fix_root_link = True
+G1_INSPIRE_FTP_CFG.spawn.fix_root_link = True
 G1_INSPIRE_FTP_CFG.init_state = ArticulationCfg.InitialStateCfg(
     pos=(0.0, 0.0, 1.0),
     joint_pos={".*": 0.0},
@@ -617,7 +723,7 @@ G129_CFG_WITH_DEX3_BASE_FIX = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{HEALTHCARE_S3}/Robots/UnitreeG1/g1_29dof_with_dex3_base_fix/g1_29dof_with_dex3_base_fix.usd",
         activate_contact_sensors=False,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+        rigid_props=PhysxRigidBodyCfg(
             disable_gravity=False,
             retain_accelerations=False,
             linear_damping=0.0,
@@ -628,9 +734,12 @@ G129_CFG_WITH_DEX3_BASE_FIX = ArticulationCfg(
             solver_position_iteration_count=4,
             solver_velocity_iteration_count=0,
         ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=False, solver_position_iteration_count=4, solver_velocity_iteration_count=0
-        ),
+        articulation_props=[
+            PhysxArticulationCfg(
+                enabled_self_collisions=False, solver_position_iteration_count=4, solver_velocity_iteration_count=0
+            ),
+            NewtonArticulationCfg(self_collision_enabled=False),
+        ],
     ),
     prim_path="{ENV_REGEX_NS}/Robot",
     init_state=ArticulationCfg.InitialStateCfg(
@@ -744,7 +853,6 @@ G129_CFG_WITH_DEX3_BASE_FIX = ArticulationCfg(
         "waist": ImplicitActuatorCfg(
             joint_names_expr=["waist_yaw_joint", "waist_roll_joint", "waist_pitch_joint"],
             joint_effort_limit=1000.0,
-            joint_velocity_limit=0.0,
             stiffness={"waist_yaw_joint": 10000.0, "waist_roll_joint": 10000.0, "waist_pitch_joint": 10000.0},
             damping={"waist_yaw_joint": 10000.0, "waist_roll_joint": 10000.0, "waist_pitch_joint": 10000.0},
             armature=None,
@@ -809,3 +917,166 @@ G129_CFG_WITH_DEX3_BASE_FIX = ArticulationCfg(
 
 This configuration is designed for high-precision manipulation tasks such as trocar assembly.
 """
+
+
+H2_SHARPA_CFG: ArticulationCfg = ArticulationCfg(
+    spawn=sim_utils.UsdFileCfg(
+        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/H2/H2_with_sharpa_flat.usd",
+        activate_contact_sensors=True,
+        rigid_props=PhysxRigidBodyCfg(
+            disable_gravity=False,
+            retain_accelerations=False,
+            linear_damping=0.0,
+            angular_damping=0.0,
+            max_linear_velocity=1000.0,
+            max_angular_velocity=1000.0,
+            max_depenetration_velocity=1.0,
+            solver_position_iteration_count=16,
+            solver_velocity_iteration_count=4,
+        ),
+        fix_root_link=True,
+        articulation_props=PhysxArticulationCfg(
+            enabled_self_collisions=False,
+            solver_position_iteration_count=16,
+            solver_velocity_iteration_count=4,
+        ),
+        # Bind a contact material to the whole robot (recurses to all collision
+        # meshes incl. fingertips) so hand<->apple friction matches the apple's
+        # 0.95, instead of the PhysX default ~0.5 baked into the H2 USD.
+        physics_material=sim_utils.RigidBodyMaterialCfg(
+            static_friction=0.95,
+            dynamic_friction=0.95,
+            restitution=0.0,
+        ),
+    ),
+    prim_path="{ENV_REGEX_NS}/Robot",
+    init_state=ArticulationCfg.InitialStateCfg(
+        pos=(-0.95, 0.0, 1.05),
+        rot=(0.0, 0.0, 0.0, 1.0),
+        joint_pos={
+            "left_hip_pitch_joint": -0.1,
+            "left_hip_roll_joint": 0.0,
+            "left_hip_yaw_joint": 0.0,
+            "left_knee_joint": 0.3,
+            "left_ankle_roll_joint": 0.0,
+            "left_ankle_pitch_joint": -0.2,
+            "right_hip_pitch_joint": -0.1,
+            "right_hip_roll_joint": 0.0,
+            "right_hip_yaw_joint": 0.0,
+            "right_knee_joint": 0.3,
+            "right_ankle_roll_joint": 0.0,
+            "right_ankle_pitch_joint": -0.2,
+            "waist_yaw_joint": 0.0,
+            "waist_roll_joint": 0.0,
+            "waist_pitch_joint": 0.0,
+            "head_pitch_joint": 0.0,
+            "head_yaw_joint": 0.0,
+            "left_shoulder_pitch_joint": 0.0,
+            "left_shoulder_roll_joint": 0.0,
+            "left_shoulder_yaw_joint": 0.0,
+            "left_elbow_joint": 0.0,
+            "left_wrist_roll_joint": 0.0,
+            "left_wrist_pitch_joint": 0.0,
+            "left_wrist_yaw_joint": 0.0,
+            "right_shoulder_pitch_joint": 0.0,
+            "right_shoulder_roll_joint": 0.0,
+            "right_shoulder_yaw_joint": 0.0,
+            "right_elbow_joint": 0.0,
+            "right_wrist_roll_joint": 0.0,
+            "right_wrist_pitch_joint": 0.0,
+            "right_wrist_yaw_joint": 0.0,
+        },
+        joint_vel={".*": 0.0},
+    ),
+    actuators={
+        "legs": ImplicitActuatorCfg(
+            joint_names_expr=[".*_hip_yaw_joint", ".*_hip_roll_joint", ".*_hip_pitch_joint", ".*_knee_joint"],
+            joint_effort_limit=1000.0,
+            actuator_effort_limit=1000.0,
+            actuator_velocity_limit=0.0,
+            stiffness=10000.0,
+            damping=1000.0,
+            armature=0.03,
+        ),
+        "feet": ImplicitActuatorCfg(
+            joint_names_expr=[".*_ankle_roll_joint", ".*_ankle_pitch_joint"],
+            joint_effort_limit=1000.0,
+            actuator_effort_limit=1000.0,
+            actuator_velocity_limit=0.0,
+            stiffness=10000.0,
+            damping=1000.0,
+            armature=0.03,
+        ),
+        "waist": ImplicitActuatorCfg(
+            joint_names_expr=["waist_.*_joint"],
+            joint_effort_limit=1000.0,
+            actuator_effort_limit=1000.0,
+            actuator_velocity_limit=0.0,
+            stiffness=1e6,
+            damping=1e5,
+            armature=0.03,
+        ),
+        "head": IdealPDActuatorCfg(
+            joint_names_expr=["head_.*_joint"],
+            actuator_effort_limit=50.0,
+            actuator_velocity_limit=10.0,
+            stiffness=150.0,
+            damping=10.0,
+            armature=0.03,
+            friction=0.03,
+        ),
+        "arms": IdealPDActuatorCfg(
+            joint_names_expr=[
+                ".*_shoulder_pitch_joint",
+                ".*_shoulder_roll_joint",
+                ".*_shoulder_yaw_joint",
+                ".*_elbow_joint",
+                ".*_wrist_.*_joint",
+            ],
+            actuator_effort_limit={
+                ".*_shoulder_pitch_joint": 220.0,
+                ".*_shoulder_roll_joint": 154.0,
+                ".*_shoulder_yaw_joint": 154.0,
+                ".*_elbow_joint": 154.0,
+                ".*_wrist_roll_joint": 154.0,
+                ".*_wrist_pitch_joint": 125.0,
+                ".*_wrist_yaw_joint": 125.0,
+            },
+            actuator_velocity_limit={
+                ".*_shoulder_pitch_joint": 28.0,
+                ".*_shoulder_roll_joint": 34.0,
+                ".*_shoulder_yaw_joint": 34.0,
+                ".*_elbow_joint": 34.0,
+                ".*_wrist_roll_joint": 34.0,
+                ".*_wrist_pitch_joint": 50.0,
+                ".*_wrist_yaw_joint": 50.0,
+            },
+            stiffness={
+                ".*_shoulder_.*_joint": 150.0,
+                ".*_elbow_joint": 150.0,
+                ".*_wrist_.*_joint": 50.0,
+            },
+            damping={
+                ".*_shoulder_.*_joint": 10.0,
+                ".*_elbow_joint": 10.0,
+                ".*_wrist_.*_joint": 3.0,
+            },
+            armature={".*_shoulder_.*": 0.03, ".*_elbow_.*": 0.03, ".*_wrist_.*_joint": 0.03},
+            friction=0.03,
+        ),
+        "hands": IdealPDActuatorCfg(
+            joint_names_expr=[".*_thumb_.*", ".*_index_.*", ".*_middle_.*", ".*_ring_.*", ".*_pinky_.*"],
+            # Grasp vs tunneling tradeoff (IdealPD, torque capped by effort_limit):
+            #   20/2  -> contact wins, but fingers often cannot hold the apple
+            #   40/5  -> grasp succeeds more, but fingers tunnel into the apple
+            #   28/3  -> middle ground; keep actuator_effort_limit=5 so peak force stays bounded
+            actuator_effort_limit=5.0,
+            actuator_velocity_limit=16.0,
+            stiffness=28.0,
+            damping=3.0,
+            armature=0.03,
+            friction=0.03,
+        ),
+    },
+)
+"""Unitree H2 humanoid with Sharpa Wave hands."""

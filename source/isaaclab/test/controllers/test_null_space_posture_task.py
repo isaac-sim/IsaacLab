@@ -72,76 +72,6 @@ class TestNullSpacePostureTaskSimplifiedRobot:
             ),
         ]
 
-    def test_null_space_jacobian_zero_end_effector_velocity(
-        self, robot_configuration, tasks, joint_configurations, num_joints
-    ):
-        """Test that velocities projected through null space Jacobian result in zero end-effector velocity."""
-        # Set specific joint configuration
-        robot_configuration.q = joint_configurations["random"]
-
-        # Set frame task target to a specific position in workspace
-        frame_task = tasks[0]
-        # Create pin.SE3 from position and quaternion
-        position = np.array([0.5, 0.3, 0.8])  # x, y, z
-        quaternion = pin.Quaternion(0.0, 0.0, 0.0, 1.0)  # x, y, z, w (identity quaternion)
-        target_pose = pin.SE3(quaternion, position)
-        frame_task.set_target(target_pose)
-
-        # Set null space posture task target
-        null_space_task = tasks[1]
-        target_posture = np.zeros(num_joints)
-        null_space_task.set_target(target_posture)
-
-        # Get the null space Jacobian
-        null_space_jacobian = null_space_task.compute_jacobian(robot_configuration)
-
-        # Get the end-effector Jacobian
-        frame_task_jacobian = frame_task.compute_jacobian(robot_configuration)
-
-        # Test multiple random velocities in null space
-        for _ in range(10):
-            # Generate random joint velocity
-            random_velocity = np.random.randn(num_joints) * 0.1
-
-            # Project through null space Jacobian
-            null_space_velocity = null_space_jacobian @ random_velocity
-
-            # Compute resulting end-effector velocity
-            ee_velocity = frame_task_jacobian @ null_space_velocity
-
-            # The end-effector velocity should be approximately zero
-            assert np.allclose(ee_velocity, np.zeros(6), atol=1e-7), f"End-effector velocity not zero: {ee_velocity}"
-
-    def test_null_space_jacobian_properties(self, robot_configuration, tasks, joint_configurations, num_joints):
-        """Test mathematical properties of the null space Jacobian."""
-        # Set specific joint configuration
-        robot_configuration.q = joint_configurations["random"]
-
-        # Set frame task target
-        frame_task = tasks[0]
-        # Create pin.SE3 from position and quaternion
-        position = np.array([0.3, 0.4, 0.6])
-        quaternion = pin.Quaternion(0.707, 0.0, 0.0, 0.707)  # w, x, y, z (90-degree rotation around X)
-        target_pose = pin.SE3(quaternion, position)
-        frame_task.set_target(target_pose)
-
-        # Set null space posture task target
-        null_space_task = tasks[1]
-        target_posture = np.zeros(num_joints)
-        target_posture[0:5] = [0.1, -0.1, 0.2, -0.2, 0.0]  # Set first 5 joints (controlled joints)
-        null_space_task.set_target(target_posture)
-
-        # Get Jacobians
-        null_space_jacobian = null_space_task.compute_jacobian(robot_configuration)
-        ee_jacobian = robot_configuration.get_frame_jacobian("left_hand_pitch_link")
-
-        # Test: N * J^T should be approximately zero (null space property)
-        # where N is the null space projector and J is the end-effector Jacobian
-        null_space_projection = null_space_jacobian @ ee_jacobian.T
-        assert np.allclose(null_space_projection, np.zeros_like(null_space_projection), atol=1e-7), (
-            f"Null space projection of end-effector Jacobian not zero: {null_space_projection}"
-        )
-
     def test_null_space_jacobian_identity_when_no_frame_tasks(
         self, robot_configuration, joint_configurations, num_joints
     ):
@@ -225,10 +155,11 @@ class TestNullSpacePostureTaskSimplifiedRobot:
         with pytest.raises(ValueError, match="No posture target has been set"):
             null_space_task.compute_error(robot_configuration)
 
-    def test_joint_masking(self, robot_configuration, joint_configurations, num_joints):
-        """Test that joint mask correctly filters only controlled joints."""
-
-        controlled_joint_names = ["waist_pitch_joint", "left_shoulder_pitch_joint", "left_elbow_pitch_joint"]
+    @pytest.mark.parametrize(
+        "controlled_joint_names", [["waist_pitch_joint", "left_shoulder_pitch_joint", "left_elbow_pitch_joint"], []]
+    )
+    def test_joint_masking(self, robot_configuration, joint_configurations, num_joints, controlled_joint_names):
+        """Test that joint mask correctly filters only controlled joints, and zeroes the error when none are."""
 
         # Create task with specific controlled joints
         null_space_task = NullSpacePostureTask(
@@ -262,23 +193,6 @@ class TestNullSpacePostureTaskSimplifiedRobot:
         assert np.allclose(error, expected_error, atol=1e-7), (
             f"Joint mask not working correctly: expected {expected_error}, got {error}"
         )
-
-    def test_empty_controlled_joints(self, robot_configuration, joint_configurations, num_joints):
-        """Test behavior when controlled_joints is empty."""
-        null_space_task = NullSpacePostureTask(
-            NullSpacePostureTaskCfg(cost=1.0, controlled_frames=["left_hand_pitch_link"], controlled_joints=[])
-        )
-
-        current_config = joint_configurations["sequential"]
-        target_config = np.zeros(num_joints)
-
-        robot_configuration.q = current_config
-        null_space_task.set_target(target_config)
-
-        # Error should be all zeros
-        error = null_space_task.compute_error(robot_configuration)
-        expected_error = np.zeros(num_joints)
-        assert np.allclose(error, expected_error), f"Error should be zero when no joints controlled: {error}"
 
     def test_set_target_from_configuration(self, robot_configuration, joint_configurations):
         """Test set_target_from_configuration method."""

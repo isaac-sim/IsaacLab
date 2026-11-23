@@ -19,8 +19,8 @@ import torch
 
 from pxr import Gf
 
-from isaaclab.sim import SimulationContext
-from isaaclab.ui.xr_widgets import show_instruction
+from ...sim import SimulationContext
+from . import show_instruction
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -307,23 +307,33 @@ class VisualizationManager:
         Args:
             trigger: Type of trigger that should execute the callback
             arg: Dictionary containing trigger-specific parameters:
-                - For TRIGGER_ON_PERIOD: {"period": float}
-                - For TRIGGER_ON_EVENT: {"event_name": str}
-                - For TRIGGER_ON_CHANGE: {"variable_name": str}
-                - For TRIGGER_ON_UPDATE: {}
+
+                - For TRIGGER_ON_PERIOD: ``{"period": float}``
+                - For TRIGGER_ON_EVENT: ``{"event_name": str}``
+                - For TRIGGER_ON_CHANGE: ``{"variable_name": str}``
+                - For TRIGGER_ON_UPDATE: ``{}``
+
             callback: Function to execute when trigger condition is met. The callback should have
                 the following signatures according to the trigger type:
+
                 - For TRIGGER_ON_EVENT:
-                    callback(
-                        manager: VisualizationManager,
-                        data_collector: DataCollector,
-                        event_params: Any,
-                    )
+
+                  .. code-block:: python
+
+                      callback(
+                          manager: VisualizationManager,
+                          data_collector: DataCollector,
+                          event_params: Any,
+                      )
+
                 - For others:
-                    callback(
-                        manager: VisualizationManager,
-                        data_collector: DataCollector,
-                    )
+
+                  .. code-block:: python
+
+                      callback(
+                          manager: VisualizationManager,
+                          data_collector: DataCollector,
+                      )
 
         Raises:
             TypeError: If callback signature doesn't match the expected signature for the trigger type
@@ -371,11 +381,10 @@ class VisualizationManager:
     def cancel_rule(self, trigger: TriggerType, arg: str | TimeCountdown, callback: Callable | None = None) -> None:
         """Remove a previously registered callback.
 
-        Periodic callbacks are not supported to be cancelled for now.
-
         Args:
             trigger: Type of trigger for the callback to remove
-            arg: Trigger-specific identifier (event name or variable name)
+            arg: Trigger-specific identifier (event name, variable name, or the timer returned when
+                registering a periodic callback)
             callback: The callback function to remove
         """
         callbacks = None
@@ -483,10 +492,10 @@ class XRVisualization:
 
     @classmethod
     def __create_instance(cls, manager: type[VisualizationManager] = VisualizationManager) -> XRVisualization:
-        """Get the visualization manager instance.
+        """Create the singleton instance with the given visualization manager type, if needed.
 
         Returns:
-            VisualizationManager: The visualization manager instance
+            XRVisualization: The singleton instance of the visualization system
         """
         with cls._lock:
             if cls._instance is None:
@@ -525,7 +534,6 @@ class XRVisualization:
 
     def _initialize(self, manager: type[VisualizationManager]) -> None:
         """Initialize the singleton instance with data collector and visualization manager."""
-
         self._data_collector = DataCollector()
         self._visualization_manager = manager(self._data_collector)
 
@@ -550,7 +558,7 @@ class XRVisualization:
 
         Args:
             name: Name of the event to trigger
-            args: Optional arguments for the event (currently unused)
+            args: Optional arguments for the event, passed to each callback as ``event_params``
         """
         instance = cls.__get_instance()
         instance._visualization_manager.on_event(name, args)
@@ -576,7 +584,6 @@ class XRVisualization:
         Args:
             attributes: Dictionary containing configuration keys and values
         """
-
         instance = cls.__get_instance()
         for name, data in attributes.items():
             instance._visualization_manager.set_attr(name, data)

@@ -14,11 +14,9 @@ source by dotted paths. These tests catch two kinds of drift:
   signals that new coverage may need to be added)
 """
 
-from isaaclab.app import AppLauncher
+from isaaclab.test.utils import launch_test_simulation
 
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
+launch_test_simulation()
 
 import importlib
 import inspect

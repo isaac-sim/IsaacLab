@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Newton visualizer backends (GL and RTX).
+"""Newton visualizer backend (OpenGL and RTX rendering).
 
 This package keeps imports lazy so configuration-only imports do not pull in
 the heavy viewer/runtime stack before Isaac Sim has finished bootstrapping.
@@ -13,31 +13,39 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from .newton_visualizer_cfg import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg, NewtonVisualizerCfg
+from .newton_visualizer_cfg import NewtonGLBackendCfg, NewtonGLVisualizerCfg, NewtonVisualizerCfg
 
 if TYPE_CHECKING:
-    from .newton_visualizer import NewtonGLVisualizer, NewtonRTXVisualizer, NewtonVisualizer
+    from .newton_visualizer import NewtonGLVisualizer
+    from .particle_surface import ParticleSurfaceRenderer
 
 __all__ = [
-    # Base config (shared fields, not directly instantiable as a visualizer)
+    # Deprecated combined configurations
+    "NewtonGLVisualizerCfg",
     "NewtonVisualizerCfg",
     # GL backend
     "NewtonGLVisualizer",
-    "NewtonGLVisualizerCfg",
-    # RTX backend
-    "NewtonRTXVisualizer",
-    "NewtonRTXVisualizerCfg",
+    "NewtonGLBackendCfg",
+    # MPM particle-surface rendering
+    "ParticleSurfaceRenderer",
 ]
 
 
 def __getattr__(name: str):
-    if name in ("NewtonVisualizer", "NewtonGLVisualizer", "NewtonRTXVisualizer"):
-        from .newton_visualizer import NewtonGLVisualizer, NewtonRTXVisualizer, NewtonVisualizer
+    if name == "ParticleSurfaceRenderer":
+        from .particle_surface import ParticleSurfaceRenderer
+
+        return ParticleSurfaceRenderer
+    if name in ("NewtonRTXVisualizer", "NewtonRTXBackendCfg", "NewtonRTXVisualizerCfg"):
+        raise AttributeError(
+            f"{name} was removed. Use NewtonGLBackendCfg, which renders with OpenGL or RTX;"
+            " set initial_renderer='rtx' to start in RTX."
+        )
+    if name in ("NewtonVisualizer", "NewtonGLVisualizer"):
+        from .newton_visualizer import NewtonGLVisualizer
 
         if name == "NewtonGLVisualizer":
             return NewtonGLVisualizer
-        if name == "NewtonRTXVisualizer":
-            return NewtonRTXVisualizer
         import warnings
 
         warnings.warn(

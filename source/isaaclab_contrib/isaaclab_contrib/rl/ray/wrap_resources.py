@@ -31,7 +31,7 @@ of sub-jobs that can be near-simultaneously submitted.
 
 This script is meant to be executed on a Ray cluster head node as an aggregate cluster job.
 To submit aggregate cluster jobs such as this script to one or more remote clusters,
-see :file:`../submit_isaac_ray_job.py`.
+see :file:`submit_job.py`.
 
 KubeRay clusters on Google GKE can be created with :file:`../launch.py`
 
@@ -49,10 +49,10 @@ Usage:
     --num_workers <NUM_TO_DIVIDE_TOTAL_RESOURCES_BY> \
     --sub_jobs <JOB0>+<JOB1>
     # Manual Resource Isolation; Example B:  needed for parallelization
-    uv run --extra ray python -m isaaclab_contrib.rl.ray.wrap_resources --num_cpu_per_worker <CPU> \
+    uv run --extra ray python -m isaaclab_contrib.rl.ray.wrap_resources --cpu_per_worker <CPU> \
     --gpu_per_worker <GPU> --ram_gb_per_worker <RAM> --sub_jobs <JOB0>+<JOB1>
     # Manual Resource Isolation; Example C: Needed for parallelization, for heterogeneous workloads
-    uv run --extra ray python -m isaaclab_contrib.rl.ray.wrap_resources --num_cpu_per_worker <CPU> \
+    uv run --extra ray python -m isaaclab_contrib.rl.ray.wrap_resources --cpu_per_worker <CPU> \
     --gpu_per_worker <GPU1> <GPU2> --ram_gb_per_worker <RAM> --sub_jobs <JOB0>+<JOB1>
     # to see all arguments
     uv run --extra ray python -m isaaclab_contrib.rl.ray.wrap_resources -h
@@ -89,10 +89,10 @@ def wrap_resources_to_jobs(jobs: list[str], args: argparse.Namespace) -> None:
     num_nodes = len(gpu_node_resources)
     # Populate arguments
     formatted_node_resources = {
-        "gpu_per_worker": [gpu_node_resources[i]["GPU"] for i in range(num_nodes)],
-        "cpu_per_worker": [gpu_node_resources[i]["CPU"] for i in range(num_nodes)],
-        "ram_gb_per_worker": [gpu_node_resources[i]["ram_gb"] for i in range(num_nodes)],
-        "num_workers": args.num_workers,  # By default, 1 worker por node
+        "gpu_per_worker": args.gpu_per_worker or [gpu_node_resources[i]["GPU"] for i in range(num_nodes)],
+        "cpu_per_worker": args.cpu_per_worker or [gpu_node_resources[i]["CPU"] for i in range(num_nodes)],
+        "ram_gb_per_worker": args.ram_gb_per_worker or [gpu_node_resources[i]["ram_gb"] for i in range(num_nodes)],
+        "num_workers": args.num_workers or [1],
     }
     args = util.fill_in_missing_resources(args, resources=formatted_node_resources, policy=min)
     print(f"[INFO]: Number of GPU nodes found: {num_nodes}")
@@ -126,7 +126,7 @@ def wrap_resources_to_jobs(jobs: list[str], args: argparse.Namespace) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Submit multiple jobs with optional GPU testing.")
-    parser = util.add_resource_arguments(arg_parser=parser)
+    parser = util.add_resource_arguments(arg_parser=parser, defaults=[None, None, None, None])
     parser.add_argument("--ray_address", type=str, default="auto", help="the Ray address.")
     parser.add_argument(
         "--test",

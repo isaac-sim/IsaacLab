@@ -5,7 +5,7 @@
 
 import torch
 
-from isaaclab.utils.math import combine_frame_transforms, quat_apply, quat_inv
+from isaaclab.utils.math import quat_apply, subtract_frame_transforms
 
 
 def get_random_prop_gains(default_values, noise_levels, num_envs, device):
@@ -24,25 +24,23 @@ def get_random_prop_gains(default_values, noise_levels, num_envs, device):
 def change_FT_frame(source_F, source_T, source_frame, target_frame):
     """Convert force/torque reading from source to target frame.
 
+    The wrench is re-expressed in the target frame's axes and the torque is taken about the
+    target frame's origin.
+
     Args:
-        source_F: Force in source frame.
-        source_T: Torque in source frame.
-        source_frame: Tuple of (quat_xyzw, pos) for source frame.
-        target_frame: Tuple of (quat_xyzw, pos) for target frame.
+        source_F: Force in source frame [N]. Shape is (N, 3).
+        source_T: Torque in source frame, about the source frame's origin [N·m]. Shape is (N, 3).
+        source_frame: Tuple of (quat_xyzw, pos) for source frame, both expressed in a common frame.
+        target_frame: Tuple of (quat_xyzw, pos) for target frame, both expressed in the same common frame.
 
     Returns:
-        Tuple of (target_F, target_T) - force and torque in target frame.
+        Tuple of (target_F, target_T) - force [N] and torque [N·m] in target frame.
     """
-    # Modern Robotics eq. 3.95
-    # Compute inverse of source frame
-    source_quat_inv = quat_inv(source_frame[0])
-    source_pos_inv = -quat_apply(source_quat_inv, source_frame[1])
-
-    # Combine: source_inv * target = target_T_source
-    target_T_source_pos, target_T_source_quat = combine_frame_transforms(
-        source_pos_inv, source_quat_inv, target_frame[1], target_frame[0]
+    # Modern Robotics eq. 3.95: F_t = Ad_{T_st}^T F_s, written in terms of T_ts (source pose in the target frame).
+    source_pos_in_target, source_quat_in_target = subtract_frame_transforms(
+        target_frame[1], target_frame[0], source_frame[1], source_frame[0]
     )
 
-    target_F = quat_apply(target_T_source_quat, source_F)
-    target_T = quat_apply(target_T_source_quat, (source_T + torch.cross(target_T_source_pos, source_F, dim=-1)))
+    target_F = quat_apply(source_quat_in_target, source_F)
+    target_T = quat_apply(source_quat_in_target, source_T) + torch.cross(source_pos_in_target, target_F, dim=-1)
     return target_F, target_T

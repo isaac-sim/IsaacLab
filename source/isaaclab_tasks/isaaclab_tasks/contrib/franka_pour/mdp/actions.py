@@ -15,6 +15,7 @@ import torch
 import warp as wp
 
 from isaaclab.envs.mdp.actions import BinaryJointPositionAction, RelativeJointPositionAction
+from isaaclab.utils import clone, index_fill_
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -47,19 +48,20 @@ class EMARelativeJointPositionAction(RelativeJointPositionAction):
 
     def reset(self, env_ids: Sequence[int] | torch.Tensor | slice | None = None) -> None:
         """Clear selected command history so a reset pose receives exactly zero delta."""
-        selected = slice(None) if env_ids is None else env_ids
-        super().reset(selected)
-        self._processed_actions[selected] = 0.0
-        self._previous_delta[selected] = 0.0
+        super().reset(env_ids)
+        index_fill_(self._processed_actions, env_ids, 0.0)
+        index_fill_(self._previous_delta, env_ids, 0.0)
 
 
 class CurriculumGripperPositionAction(BinaryJointPositionAction):
     """Filtered binary symmetric finger-position command with grasp-contact state."""
 
+    is_graphable = True
+
     cfg: CurriculumGripperPositionActionCfg
 
     def __init__(self, cfg: CurriculumGripperPositionActionCfg, env: ManagerBasedEnv) -> None:
-        binary_cfg = cfg.copy()
+        binary_cfg = clone(cfg)
         binary_cfg.open_command_expr = {".*": float(cfg.neutral_position)}
         binary_cfg.close_command_expr = {".*": float(cfg.close_position)}
         super().__init__(binary_cfg, env)
@@ -82,6 +84,7 @@ class CurriculumGripperPositionAction(BinaryJointPositionAction):
         if not math.isfinite(self._contact_min_deflection) or self._contact_min_deflection <= 0.0:
             raise ValueError("contact_min_deflection must be finite and positive.")
         self._processed_actions.fill_(default_position)
+        self._previous_target = torch.empty_like(self._processed_actions)
 
     @property
     def commanded_position(self) -> torch.Tensor:
@@ -137,7 +140,6 @@ class CurriculumGripperPositionAction(BinaryJointPositionAction):
         self._processed_actions[selected] = expanded
 
     def process_actions(self, actions: torch.Tensor) -> None:
-        previous_target = self._processed_actions
+        self._previous_target.copy_(self._processed_actions)
         super().process_actions(actions)
-        previous_target.lerp_(self._processed_actions, self._alpha)
-        self._processed_actions = previous_target
+        self._processed_actions[:] = torch.lerp(self._previous_target, self._processed_actions, self._alpha)

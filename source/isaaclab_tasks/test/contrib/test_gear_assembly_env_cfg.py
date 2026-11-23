@@ -7,30 +7,16 @@
 
 import pytest
 
-from isaaclab_tasks.contrib.deploy.gear_assembly.config.rizon_4s.joint_pos_env_cfg import Rizon4sGearAssemblyEnvCfg
 from isaaclab_tasks.contrib.deploy.gear_assembly.config.rizon_4s.ros_inference_env_cfg import (
     Rizon4sGearAssemblyROSInferenceEnvCfg,
 )
-from isaaclab_tasks.contrib.deploy.gear_assembly.config.ur_10e.joint_pos_env_cfg import (
-    UR10e2F85GearAssemblyEnvCfg,
-    UR10e2F140GearAssemblyEnvCfg,
-)
-from isaaclab_tasks.contrib.deploy.gear_assembly.config.ur_10e.ros_inference_env_cfg import (
-    UR10e2F85GearAssemblyROSInferenceEnvCfg,
-    UR10e2F140GearAssemblyROSInferenceEnvCfg,
-)
+from isaaclab_tasks.contrib.deploy.gear_assembly.config.ur_10e.joint_pos_env_cfg import UR10e2F140GearAssemblyEnvCfg
 
 
 @pytest.mark.parametrize(
     "env_cfg_cls",
-    (
-        Rizon4sGearAssemblyEnvCfg,
-        Rizon4sGearAssemblyROSInferenceEnvCfg,
-        UR10e2F85GearAssemblyEnvCfg,
-        UR10e2F85GearAssemblyROSInferenceEnvCfg,
-        UR10e2F140GearAssemblyEnvCfg,
-        UR10e2F140GearAssemblyROSInferenceEnvCfg,
-    ),
+    # Every class inherits the base scene default; Rizon 4s ROS inference is the only one that writes num_envs.
+    (UR10e2F140GearAssemblyEnvCfg, Rizon4sGearAssemblyROSInferenceEnvCfg),
 )
 def test_gear_assembly_defaults_limit_parallel_environments(env_cfg_cls):
     """GearAssembly defaults must fit recurrent PPO training on development GPUs."""

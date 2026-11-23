@@ -52,10 +52,10 @@ Typical usage:
 .. code-block:: bash
 
     # Print help and argument details:
-    uv run --extra ray python -m isaaclab_contrib.rl.ray.task_runner -h
+    python task_runner.py -h
 
     # Submit tasks defined in a YAML file to the Ray cluster (auto-detects Ray head address):
-    uv run --extra ray python -m isaaclab_contrib.rl.ray.task_runner --task_cfg /path/to/tasks.yaml
+    python task_runner.py --task_cfg /path/to/tasks.yaml
 
 YAML configuration example-1:
 -----------------------------
@@ -113,6 +113,7 @@ from datetime import datetime
 
 import yaml
 
+# Local imports
 from isaaclab_contrib.rl.ray import util
 
 # Safe operators for arithmetic expression evaluation

@@ -37,33 +37,35 @@ Usage:
 .. code-block:: bash
 
     # Example; submitting a tuning job
-    uv run --extra ray python -m isaaclab_contrib.rl.ray.submit_job \
-    --aggregate_jobs /workspace/isaaclab/source/isaaclab_contrib/isaaclab_contrib/rl/ray/tuner.py \
+    python3 scripts/reinforcement_learning/ray/submit_job.py \
+    --aggregate_jobs /workspace/isaaclab/scripts/reinforcement_learning/ray/tuner.py \
         --cfg_file hyperparameter_tuning/vision_cartpole_cfg.py \
         --cfg_class CartpoleTheiaJobCfg --mlflow_uri <ML_FLOW_URI>
 
     # Example: Submitting resource wrapped job
-    uv run --extra ray python -m isaaclab_contrib.rl.ray.submit_job --aggregate_jobs wrap_resources.py --test
+    python3 scripts/reinforcement_learning/ray/submit_job.py --aggregate_jobs wrap_resources.py --test
 
     # Example: submitting tasks with specific resources, and supporting pip packages and py_modules
     # You may use relative paths for task_cfg and py_modules, placing them in the
-    # "source/isaaclab_contrib/isaaclab_contrib/rl/ray" directory, which will be uploaded to the cluster.
-    uv run --extra ray python -m isaaclab_contrib.rl.ray.submit_job \
-        --aggregate_jobs task_runner.py --task_cfg tasks.yaml
+    # "scripts/reinforcement_learning/ray" directory, which will be uploaded to the cluster.
+    python3 scripts/reinforcement_learning/ray/submit_job.py --aggregate_jobs task_runner.py --task_cfg tasks.yaml
 
     # For all command line arguments
-    uv run --extra ray python -m isaaclab_contrib.rl.ray.submit_job -h
+    python3 scripts/reinforcement_learning/ray/submit_job.py -h
 """
 
 import argparse
+import logging
 import os
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from ray import job_submission
 
+logger = logging.getLogger(__name__)
+
 script_directory = os.path.dirname(os.path.abspath(__file__))
-CONFIG = {"working_dir": script_directory, "executable": "/workspace/isaaclab/isaaclab.sh -p"}
+CONFIG = {"working_dir": script_directory, "executable": "uv run --project /workspace/isaaclab --no-sync isaaclab -p"}
 
 
 def read_cluster_spec(fn: str | None = None) -> list[dict]:
@@ -115,6 +117,8 @@ def submit_job(cluster: dict, job_command: str) -> None:
     print(f"[INFO]: Cluster {cluster_name} Logs: \n")
     print(final_logs)
     print("----------------------------------------------------")
+    if status != job_submission.JobStatus.SUCCEEDED:
+        raise RuntimeError(f"Ray job {job_id} on {cluster_name} ended with {status}:\n{final_logs}")
 
 
 def submit_jobs_to_clusters(jobs: list[str], clusters: list[dict]) -> None:
@@ -131,15 +135,23 @@ def submit_jobs_to_clusters(jobs: list[str], clusters: list[dict]) -> None:
     else:
         print("[INFO]: More jobs than clusters, jobs submitted as clusters become available.")
     with ThreadPoolExecutor() as executor:
+        futures = []
         for idx, job_command in enumerate(jobs):
             # Cycle through clusters using modulus to wrap around if there are more jobs than clusters
             cluster = clusters[idx % len(clusters)]
-            executor.submit(submit_job, cluster, job_command)
+            futures.append(executor.submit(submit_job, cluster, job_command))
+        for future in as_completed(futures):
+            future.result()
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Submit multiple GPU jobs to multiple Ray clusters.")
     parser.add_argument("--config_file", default="~/.cluster_config", help="The cluster config path.")
+    parser.add_argument(
+        "--working_dir",
+        default=script_directory,
+        help="Directory to upload, containing aggregate scripts, task configs, and Python modules.",
+    )
     parser.add_argument(
         "--aggregate_jobs",
         type=str,
@@ -147,11 +159,12 @@ if __name__ == "__main__":
         help="This should be last argument. The aggregate jobs to submit separated by the * delimiter.",
     )
     args = parser.parse_args()
+    CONFIG["working_dir"] = os.path.abspath(args.working_dir)
     if args.aggregate_jobs is not None:
         jobs = " ".join(args.aggregate_jobs)
         formatted_jobs = jobs.split("*")
         if len(formatted_jobs) > 1:
-            print("Warning; Split jobs by cluster with the * delimiter")
+            logger.warning("Split jobs by cluster with the * delimiter")
     else:
         formatted_jobs = []
     print(f"[INFO]: Isaac Ray Wrapper received jobs {formatted_jobs=}")

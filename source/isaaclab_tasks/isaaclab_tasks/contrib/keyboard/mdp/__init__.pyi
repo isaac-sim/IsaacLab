@@ -28,9 +28,11 @@ __all__ = [
     "target_keys_onehot",
     "typed_keys_onehot",
     "mechanical_power",
+    "reset_keyboard_root_state_uniform",
 ]
 
 from .commands import LetterTypingCommand, LetterTypingCommandCfg
+from .events import reset_keyboard_root_state_uniform
 from .observations import key_positions_b, target_keys_onehot, typed_keys_onehot
 from .rewards import letter_typing_progress, mechanical_power, reach_key, typing_success
 from .terminations import typing_complete, typing_mistake

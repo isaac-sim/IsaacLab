@@ -5,11 +5,13 @@
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Callable
 from dataclasses import MISSING
 
-from isaaclab.utils.configclass import configclass
+import numpy as np
 
+from ..utils import configclass
 from .cloner_strategies import sequential
 
 DEFAULT_ENV_TEMPLATE = "/World/envs/env_{}"
@@ -42,7 +44,7 @@ class InclusionSet:
     assets: list[str] = MISSING
     """Scene asset names active in this clone combination."""
 
-    weight: int = 1
+    weight: float = 1.0
     """Relative sampling weight for this clone combination."""
 
 
@@ -54,8 +56,8 @@ class CloneCfg:
     :func:`~isaaclab.cloner.make_clone_plan` when building per-env layouts.
     """
 
-    clone_strategy: Callable[..., object] = sequential
-    """Function used to build prototype-to-environment mapping. Default is :func:`sequential`."""
+    clone_strategy: Callable[[np.ndarray, int], np.ndarray] = sequential
+    """Function selecting world-prototype indices from relative weights. Default is :func:`sequential`."""
 
     clone_combinations: list[InclusionSet] = []
     """Legal scene-asset combinations for heterogeneous clone planning.
@@ -65,9 +67,6 @@ class CloneCfg:
     empty list keeps the homogeneous/default behavior.
     """
 
-    device: str = "cpu"
-    """Torch device on which mapping buffers are allocated."""
-
     clone_template: str = DEFAULT_ENV_TEMPLATE
     """Path template for every replicated env prim, where ``{}`` is the environment index.
 
@@ -75,12 +74,12 @@ class CloneCfg:
     ``clone_template.format("[^/]+")``, which confines the slot to one path segment.
     """
 
-    replicate_physics: bool = True
-    """Whether physics replication clones each environment. Default is True.
+    replicate_physics: bool | None = None
+    """Deprecated and ignored. Clone contexts are selected per asset."""
 
-    If False, cloning is USD-only: the physics engine parses the per-env USD prims directly
-    instead of replicating env_0's parsed structure. Applied by :func:`~isaaclab.cloner.replicate`.
-    """
+    def __post_init__(self) -> None:
+        if self.replicate_physics is not None:
+            warnings.warn("CloneCfg.replicate_physics is deprecated and ignored.", DeprecationWarning, stacklevel=2)
 
 
 def add(this: CloneCfg, other: InclusionSet) -> CloneCfg:

@@ -14,12 +14,16 @@ hard timeout - loses every verdict it had already printed. The journal records c
 per-test start/finish, and per-test outcomes as they happen, letting ``tools/conftest.py``
 rebuild a real report instead of a single synthetic ``test_execution`` entry.
 
+Also hands ``tools/conftest.py`` the output pytest captured from passing tests (see :data:`CAPTURED_OUTPUT_ENV_VAR`).
+pytest prints it only for a failing test, so the runner's output budget would otherwise never see it.
+
 Level markers (``unit`` / ``integration`` / ``benchmark``) are applied per file via a module-level ``pytestmark``
 and registered in the repo-root ``pyproject.toml``. Select them with the standard ``-m`` syntax,
 e.g. ``pytest -m unit source/isaaclab/test`` or ``pytest -m "not unit" source/isaaclab/test``.
 
 Also loads ``tools/ovrtx_log.py``, which replays the OVRTX renderer log per test, so every suite that
-builds a renderer reports what it logged the same way.
+builds a renderer reports what it logged the same way, and ``tools/hang_dump.py``, which lets the CI
+runner ask this process for a stack dump before it kills it for hanging.
 """
 
 from __future__ import annotations
@@ -27,10 +31,21 @@ from __future__ import annotations
 import json
 import os
 
-pytest_plugins = ["tools.ovrtx_log"]
+try:
+    import warp as wp
+except ModuleNotFoundError as exc:
+    if exc.name != "warp":
+        raise
+else:
+    wp.config.enable_backward = False
+
+pytest_plugins = ["tools.ovrtx_log", "tools.hang_dump"]
 
 JOURNAL_ENV_VAR = "ISAACLAB_TEST_JOURNAL"
 """Environment variable naming the crash-journal file. Unset (the default) disables journaling."""
+
+CAPTURED_OUTPUT_ENV_VAR = "ISAACLAB_TEST_CAPTURED_OUTPUT"
+"""Environment variable naming the file unprinted captured output is appended to. Unset (the default) disables it."""
 
 _MAX_LONGREPR_CHARS = 4000
 """Maximum characters of a failure representation stored on a single journal record."""
@@ -42,9 +57,18 @@ def _journal_write(record: dict) -> None:
     The per-record flush is the whole point: it puts the data in the OS page cache before the
     next test starts, so a process killed by a signal cannot take down verdicts it had already
     reported. Journaling failures are swallowed — losing debug context must never fail a run.
+
+    Under ``pytest-xdist`` the controller receives every worker's start, report and finish, so only
+    it journals those; each worker journaling too would record every event twice and leave a
+    worker crash that xdist recovered from looking like an in-flight test. The controller never
+    collects, so the ``collected`` record comes from the first worker instead (every worker
+    collects the same items).
     """
     path = os.environ.get(JOURNAL_ENV_VAR)
     if not path:
+        return
+    worker = os.environ.get("PYTEST_XDIST_WORKER")
+    if worker and (record["event"] != "collected" or worker != "gw0"):
         return
     try:
         with open(path, "a", encoding="utf-8") as handle:
@@ -115,12 +139,26 @@ def pytest_runtest_logstart(nodeid, location):
     _journal_write({"event": "start", "node_id": nodeid})
 
 
+def _keep_unprinted_output(report) -> None:
+    """Append the output a passing or skipped test phase captured, which no report prints."""
+    path = os.environ.get(CAPTURED_OUTPUT_ENV_VAR)
+    # Under pytest-xdist the controller receives every worker's reports, so it alone records them.
+    if not path or report.failed or os.environ.get("PYTEST_XDIST_WORKER"):
+        return
+    # A report also carries the sections of the phases before it; only this phase's are new.
+    names = (f"Captured stdout {report.when}", f"Captured stderr {report.when}")
+    if texts := [text for name, text in report.sections if name in names]:
+        with open(path, "a", encoding="utf-8", errors="replace") as file:
+            file.writelines(texts)
+
+
 def pytest_runtest_logreport(report):
-    """Journal a test phase's outcome as soon as pytest resolves it.
+    """Journal a test phase's outcome as soon as pytest resolves it, and keep the output no report prints.
 
     Passing setup and teardown phases are skipped to keep the journal small; everything that
     decides a test's reported outcome (the call phase, plus any non-passing phase) is kept.
     """
+    _keep_unprinted_output(report)
     if report.when != "call" and report.outcome == "passed":
         return
     _journal_write(

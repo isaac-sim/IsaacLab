@@ -27,11 +27,18 @@ inputs:
     description: 'ECR cache tag'
     default: 'cache-base'
     required: false
+  ci-marker:
+    description: 'Optional pytest -m marker expression applied to every test file (e.g. arm_ci)'
+    default: ''
+    required: false
+  platform:
+    description: 'Target platform if the image has to be built'
+    default: 'linux/amd64'
+    required: false
   filter-pattern:
     description: >-
-      Pattern to filter test files (e.g., isaaclab_tasks); test files whose path
-      contains this pattern are included. Only one pattern can be used at a time,
-      no comma-separated substrings allowed. Also supports the legacy "not <pattern>"
+      Comma-separated substrings (e.g., isaaclab_rl,isaaclab_mimic); test files whose
+      path contains any entry are included. Also supports the legacy "not <pattern>"
       form for exclude-only jobs.
     default: ''
     required: false
@@ -44,7 +51,14 @@ inputs:
   test-k-expr:
     description: >-
       Global pytest -k expression applied inside every per-file pytest run
-      spawned by tools/conftest.py (combined with device-split selectors).
+      spawned by tools/conftest.py.
+    default: ''
+    required: false
+  test-jobs:
+    description: >-
+      Number of test-file slots tools/conftest.py runs at once. Each file still runs in
+      its own pytest process; files listed in tools/test_settings.py PYTEST_WORKERS split
+      across several slots with pytest-xdist. Empty or 1 runs files one by one.
     default: ''
     required: false
   shard-index:
@@ -104,16 +118,30 @@ inputs:
       newest compatible snapshot and never writes; every test job uses this, so
       a pull request can never publish kernels built from unmerged code. 'save'
       restores the same way and writes the result back as a new snapshot, making
-      post-merge a cumulative writeback; only warm-warp-cache uses it.
+      post-merge a cumulative writeback; only trusted post-merge cache producers
+      use it.
     default: ''
+    required: false
+  ovrtx-shader-cache:
+    description: >-
+      OVRTX shader cache mode. Empty disables the cache. 'restore' reads the
+      newest compatible snapshot and never writes. 'save' restores and writes
+      back a new snapshot; only trusted post-merge cache producers use it.
+    default: ''
+    required: false
+  ovrtx-shader-cache-trees:
+    description: >-
+      Which OVRTX cache tree(s) this job needs: 'kit', 'kitless', or 'both'. A
+      job that only exercises one render path should request just that tree.
+    default: 'both'
     required: false
   standalone-script-scope:
     description: 'Enable standalone script smoke tests for this scripts/ subdirectory'
     default: ''
     required: false
   standalone-script-visualizer:
-    description: 'Visualizer slice used when standalone-script-scope is set'
-    default: 'none'
+    description: 'Visualizer slice used when standalone-script-scope is set; default launches without --viz'
+    default: 'default'
     required: false
   standalone-script-runtime-group:
     description: 'Run Kit-dependent or non-Kit standalone script cases'
@@ -126,6 +154,13 @@ inputs:
   container-name:
     description: 'Docker container name prefix (run-id is appended automatically)'
     required: true
+outputs:
+  warp-cache-host-dir:
+    description: 'Host directory mounted as the Warp kernel cache; empty when the cache is disabled'
+    value: ${{ steps.warp-cache-key.outputs.host-dir }}
+  ovrtx-shader-cache-host-dir:
+    description: 'Host directory mounted as the OVRTX shader cache; empty when the cache is disabled'
+    value: ${{ steps.ovrtx-cache.outputs.host-dir }}
 runs:
   using: composite
   steps:
@@ -153,10 +188,14 @@ runs:
 
     - name: Prepare Docker disk space
       shell: bash
+      env:
+        CONTAINER_NAME: ${{ inputs.container-name }}
+        ISAACSIM_BASE_IMAGE: ${{ inputs.isaacsim-base-image }}
+        ISAACSIM_VERSION: ${{ inputs.isaacsim-version }}
       run: |
         bash .github/actions/run-package-tests/cleanup_docker_storage.sh \
-          "${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}" \
-          "isaacsim-pin-${{ inputs.container-name }}-${{ github.run_id }}-${{ github.run_attempt }}-pre" \
+          "${ISAACSIM_BASE_IMAGE}:${ISAACSIM_VERSION}" \
+          "isaacsim-pin-${CONTAINER_NAME}-${{ github.run_id }}-${{ github.run_attempt }}-pre" \
           "pre-test-cleanup" \
           "true"
 
@@ -173,6 +212,7 @@ runs:
         isaacsim-version: ${{ inputs.isaacsim-version }}
         dockerfile-path: ${{ inputs.dockerfile-path }}
         cache-tag: ${{ inputs.cache-tag }}
+        platform: ${{ inputs.platform }}
 
     - name: Report pull duration
       if: always()
@@ -236,6 +276,18 @@ runs:
           fingerprint="$(python3 .github/actions/run-package-tests/warp_cache_inventory.py "$HOST_DIR" --fingerprint)"
           echo "WARP_CACHE_FINGERPRINT_BEFORE=$fingerprint" >> "$GITHUB_ENV"
         fi
+
+    # The cache action owns keys, restore, reporting and writeback; this file
+    # only decides when each phase runs.
+    - name: Restore OVRTX shader cache
+      if: inputs.ovrtx-shader-cache != ''
+      id: ovrtx-cache
+      uses: ./.github/actions/ovrtx-shader-cache
+      with:
+        mode: restore
+        publishes: ${{ inputs.ovrtx-shader-cache == 'save' }}
+        isaacsim-version: ${{ inputs.isaacsim-version }}
+        trees: ${{ inputs.ovrtx-shader-cache-trees }}
 
     - name: Setup wheelhouse registry authentication
       if: inputs.wheelhouse-image != ''
@@ -304,6 +356,7 @@ runs:
         filter-pattern: ${{ inputs.filter-pattern }}
         exclude-pattern: ${{ inputs.exclude-pattern }}
         test-k-expr: ${{ inputs.test-k-expr }}
+        test-jobs: ${{ inputs.test-jobs }}
         shard-index: ${{ inputs.shard-index }}
         shard-count: ${{ inputs.shard-count }}
         curobo-only: ${{ inputs.curobo-only }}
@@ -311,6 +364,7 @@ runs:
         include-files: ${{ inputs.include-files }}
         test-node-ids-file: ${{ inputs.test-node-ids-file }}
         test-node-ids-key: ${{ inputs.test-node-ids-key }}
+        ci-marker: ${{ inputs.ci-marker }}
         volume-mount-source: ${{ github.workspace }}
         extra-pip-packages: ${{ inputs.extra-pip-packages }}
         extra-uv-packages: ${{ inputs.extra-uv-packages }}
@@ -318,6 +372,7 @@ runs:
         wheelhouse-packages: ${{ inputs.wheelhouse-packages }}
         omni-github-test-type: ${{ inputs.omni-github-test-type }}
         warp-cache-host-dir: ${{ steps.warp-cache-key.outputs.host-dir }}
+        ovrtx-shader-cache-host-dir: ${{ steps.ovrtx-cache.outputs.host-dir }}
         standalone-script-scope: ${{ inputs.standalone-script-scope }}
         standalone-script-visualizer: ${{ inputs.standalone-script-visualizer }}
         standalone-script-runtime-group: ${{ inputs.standalone-script-runtime-group }}
@@ -407,6 +462,28 @@ runs:
         path: ${{ steps.warp-cache-key.outputs.host-dir }}
         key: ${{ steps.warp-cache-key.outputs.key }}
 
+    # Consumers only report; the warmer reports and publishes. 'save' already
+    # reports before it writes back, so the two are mutually exclusive.
+    - name: Report OVRTX shader cache growth
+      if: always() && inputs.ovrtx-shader-cache != '' && inputs.ovrtx-shader-cache != 'save'
+      uses: ./.github/actions/ovrtx-shader-cache
+      with:
+        mode: report
+        isaacsim-version: ${{ inputs.isaacsim-version }}
+        trees: ${{ inputs.ovrtx-shader-cache-trees }}
+
+    # Not success(): compiled PSO blobs stay valid when a golden-image assertion
+    # fails, so one failing assertion should not discard a whole warm run.
+    # Cancellation still skips, so a tree the driver was mid-write on is never
+    # published.
+    - name: Publish OVRTX shader cache
+      if: '!cancelled() && inputs.ovrtx-shader-cache == ''save'''
+      uses: ./.github/actions/ovrtx-shader-cache
+      with:
+        mode: save
+        isaacsim-version: ${{ inputs.isaacsim-version }}
+        trees: ${{ inputs.ovrtx-shader-cache-trees }}
+
     - name: Cleanup wheelhouse artifacts
       if: always() && steps.extract-wheelhouse.outputs.wheelhouse_host_dir != ''
       shell: bash
@@ -415,8 +492,10 @@ runs:
     - name: Kill container on cancellation
       if: cancelled()
       shell: bash
+      env:
+        CONTAINER_NAME: ${{ inputs.container-name }}
       run: |
-        CONTAINER="${{ inputs.container-name }}-${{ github.run_id }}-${{ github.run_attempt }}"
+        CONTAINER="${CONTAINER_NAME}-${{ github.run_id }}-${{ github.run_attempt }}"
         echo "🟠 Workflow cancelled, force-killing container ${CONTAINER}..."
         docker kill "${CONTAINER}" 2>/dev/null || true
         docker rm -f "${CONTAINER}" 2>/dev/null || true
@@ -424,9 +503,13 @@ runs:
     - name: Cleanup old Docker images
       if: always()
       shell: bash
+      env:
+        CONTAINER_NAME: ${{ inputs.container-name }}
+        ISAACSIM_BASE_IMAGE: ${{ inputs.isaacsim-base-image }}
+        ISAACSIM_VERSION: ${{ inputs.isaacsim-version }}
       run: |
         bash .github/actions/run-package-tests/cleanup_docker_storage.sh \
-          "${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}" \
-          "isaacsim-pin-${{ inputs.container-name }}-${{ github.run_id }}-${{ github.run_attempt }}-post" \
+          "${ISAACSIM_BASE_IMAGE}:${ISAACSIM_VERSION}" \
+          "isaacsim-pin-${CONTAINER_NAME}-${{ github.run_id }}-${{ github.run_attempt }}-post" \
           "post-job-cleanup" \
           "false"

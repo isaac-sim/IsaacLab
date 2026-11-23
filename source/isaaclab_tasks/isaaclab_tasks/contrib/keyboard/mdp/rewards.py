@@ -48,8 +48,8 @@ def letter_typing_progress(env: ManagerBasedRLEnv, command_name: str) -> torch.T
     * ``-1`` on any step that sets a new episode minimum prefix length (destroying correct progress),
     * ``0`` otherwise - staying put, or re-reaching a prefix length already seen this episode.
 
-    Since one control step registers at most one keystroke, ``prefix_len`` moves by at most one, so each
-    integer level is crossed cleanly. Rewarding only *new* maxima means the total positive reward per
+    A step that sets a new record earns ``+1`` even if ``prefix_len`` jumps several levels (every key pressed
+    in one step registers). Rewarding only *new* maxima means the total positive reward per
     episode is bounded by ``target_len - prefix_0`` and the total penalty by ``prefix_0`` (with
     ``prefix_0`` the correct prefix of the reset buffer); consequently ``type-wrong -> backspace`` and
     ``backspace -> retype`` loops cannot farm reward - a re-reached level is neither a new max nor a new
@@ -97,7 +97,9 @@ class reach_key(ManagerTermBase):
     encouraging the policy to push down rather than just hover on the cap. Body indices, tip offsets, and
     the press offset are resolved once at construction so each step only does the gather and kernel.
 
-    Args (from ``cfg.params``):
+    The following arguments are supplied through ``cfg.params``.
+
+    Args:
         command_name: Name of the :class:`LetterTypingCommand` term providing the next target key.
         moving_jaw_body: Body name of the moving jaw link.
         moving_jaw_offset: Tip offset [m] in the moving jaw link frame.
@@ -111,16 +113,16 @@ class reach_key(ManagerTermBase):
 
     def __init__(self, cfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
-        asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg", SceneEntityCfg("robot"))
+        asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         self.robot = env.scene[asset_cfg.name]
-        self.std: float = cfg.params.get("std", 0.2)  # type: ignore
+        self.std: float = cfg.params["std"]  # type: ignore
         # resolve body indices and broadcast tip offsets once (they never change at runtime).
         self._moving = self.robot.body_names.index(cfg.params["moving_jaw_body"])
         self._fixed = self.robot.body_names.index(cfg.params["fixed_jaw_body"])
         self._off_moving = torch.tensor(cfg.params["moving_jaw_offset"], device=env.device).expand(env.num_envs, 3)
         self._off_fixed = torch.tensor(cfg.params["fixed_jaw_offset"], device=env.device).expand(env.num_envs, 3)
         # world -Z offset that lowers the reach target below the key to encourage pressing.
-        self._press_offset = torch.tensor((0.0, 0.0, cfg.params.get("press_depth", 0.0)), device=env.device)
+        self._press_offset = torch.tensor((0.0, 0.0, cfg.params["press_depth"]), device=env.device)
 
     def __call__(
         self,

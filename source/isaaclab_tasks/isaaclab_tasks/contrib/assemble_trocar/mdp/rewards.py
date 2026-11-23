@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Reward terms for the trocar assembly environment."""
+
 from __future__ import annotations
 
 import logging
@@ -11,6 +13,7 @@ from typing import TYPE_CHECKING
 
 import torch
 
+import isaaclab.utils.math as math_utils
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.math import quat_apply
 
@@ -126,8 +129,8 @@ def update_task_stage(
 
     This function checks conditions and advances stages automatically.
     Once a stage is completed, it never goes back.
-    Returns a zero-valued tensor (num_envs,) so it can be used as a
-    weight=0 reward term to run before the actual reward terms.
+    Returns a zero-valued tensor (num_envs,). Note that the reward manager skips
+    terms with weight 0.0, so it does not run when registered as a weight=0 reward term.
     """
     state = get_assemble_trocar_state(env)
     stage = state.task_stage
@@ -230,6 +233,12 @@ def lift_trocars_reward(
     Only active in Stage 0. Once completed, this reward is locked at the achieved value.
 
     Args:
+        env: Environment instance.
+        table_height: Table height in world Z [m]. Defaults to 0.85483.
+        lift_threshold: Height [m] above table_height required for both trocars to count
+            as lifted. Defaults to 0.05.
+        asset_cfg1: Scene entity configuration for the first trocar.
+        asset_cfg2: Scene entity configuration for the second trocar.
         use_sparse_reward: If True, only give reward (1.0) when stage transitions from 0->1.
                           If False, give continuous reward based on current state.
         print_log: If True, log debug information.
@@ -295,13 +304,12 @@ def get_trocar_tip_position(
     Returns:
         torch.Tensor: Shape (num_envs, 3) - Position in world coordinates
     """
+    # USD is a runtime dependency that must not load at config-import time
     from pxr import Gf, Usd, UsdGeom
-
-    import isaaclab.utils.math as math_utils
 
     # Cache the tip offset to avoid recalculating every step.
     # The local offset from root to tip is a static geometric property of the USD
-    # asset and is identical across all replicated envs. We read it once from env_0's
+    # asset and is identical across all replicated envs. We read it once from the authored prototype's
     # USD prim, then apply it per-env at runtime using each env's dynamic root pose.
     s = get_assemble_trocar_state(env)
     cache_attr = f"tip_offset_{asset_cfg.name}"
@@ -310,12 +318,11 @@ def get_trocar_tip_position(
     if tip_offset_local is None:
         usd_stage = env.scene.stage
 
+        root_path = env.scene[asset_cfg.name].cfg.spawn.spawn_path
         if asset_cfg.name == "trocar_1":
-            tip_path = "/World/envs/env_0/trocar_1/Trocar002/White_pos"
-            root_path = "/World/envs/env_0/trocar_1"
+            tip_path = f"{root_path}/Trocar002/White_pos"
         elif asset_cfg.name == "trocar_2":
-            tip_path = "/World/envs/env_0/trocar_2/DisposableLaparoscopicPunctureDevice001/Red_pos"
-            root_path = "/World/envs/env_0/trocar_2"
+            tip_path = f"{root_path}/DisposableLaparoscopicPunctureDevice001/Red_pos"
         else:
             raise ValueError(f"Invalid asset configuration: {asset_cfg.name}")
 
@@ -468,8 +475,8 @@ def trocar_insertion_reward(
         center_dist_std: Standard deviation for center distance reward shaping
         asset_cfg1: Configuration for trocar 1
         asset_cfg2: Configuration for trocar 2
-        use_sparse_reward: If True, only give reward (1.0) when stage >= 3.
-                          If False (default), give continuous reward based on alignment and distance.
+        use_sparse_reward: If True (default), give a one-step reward of ``1 / env.step_dt`` on the step the
+            stage advances from 2 to 3 or beyond. If False, give continuous reward based on alignment and distance.
         print_log: If True, print debug information.
     Returns:
         torch.Tensor: Reward tensor (num_envs,)
@@ -561,8 +568,8 @@ def trocar_placement_reward(
         z_min: Z threshold (below this is considered placed)
         asset_cfg1: Configuration for trocar 1
         asset_cfg2: Configuration for trocar 2
-        use_sparse_reward: If True, only give reward (1.0) when stage >= 4.
-                          If False (default), give continuous reward based on placement status.
+        use_sparse_reward: If True (default), give a one-step reward of ``1 / env.step_dt`` on the step the
+            stage advances from 3 to 4 or beyond. If False, give continuous reward based on placement status.
         print_log: If True, print debug information.
 
     Returns:

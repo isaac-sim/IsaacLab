@@ -10,8 +10,8 @@ import platform
 
 import psutil
 
-from isaaclab.benchmark.interfaces import MeasurementData, MeasurementDataRecorder
-from isaaclab.benchmark.measurements import IntMetadata, SingleMeasurement, StringMetadata
+from ..interfaces import MeasurementData, MeasurementDataRecorder
+from ..measurements import IntMetadata, SingleMeasurement, StringMetadata
 
 
 class CPUInfoRecorder(MeasurementDataRecorder):
@@ -70,9 +70,9 @@ class CPUInfoRecorder(MeasurementDataRecorder):
     def get_data(self) -> MeasurementData:
         return MeasurementData(
             measurements=[
-                SingleMeasurement(name="CPU Utilization", value=self._cpu_runtime_info["mean"], unit="%"),
-                SingleMeasurement(name="CPU Utilization std", value=self._cpu_runtime_info["std"], unit="%"),
-                SingleMeasurement(name="CPU Utilization n", value=self._cpu_runtime_info["n"], unit=""),
+                SingleMeasurement(name="CPU Utilization", value=self._mean, unit="%"),
+                SingleMeasurement(name="CPU Utilization std", value=self._std, unit="%"),
+                SingleMeasurement(name="CPU Utilization n", value=self._n, unit=""),
             ],
             metadata=[
                 StringMetadata(name="cpu_name", data=self._cpu_hardware_info["name"]),

@@ -10,7 +10,7 @@ This file processes a given dae mesh file and saves the resulting mesh file in o
 
 It needs to be called using the python packaged with blender, i.e.:
 
-    blender --background --python blender_obj.py -- -in_file FILE -out_file FILE
+    blender --background --python blender_obj.py -- --in_file FILE --out_file FILE
 
 For more information: https://docs.blender.org/api/current/index.html
 
@@ -42,7 +42,9 @@ def parse_cli_args():
     )
     parser = argparse.ArgumentParser(description=usage_text)
     # Add arguments
-    parser.add_argument("-i", "--in_file", metavar="FILE", type=str, required=True, help="Path to input OBJ file.")
+    parser.add_argument(
+        "-i", "--in_file", metavar="FILE", type=str, required=True, help="Path to input DAE or STL file."
+    )
     parser.add_argument("-o", "--out_file", metavar="FILE", type=str, required=True, help="Path to output OBJ file.")
     args = parser.parse_args(argv)
     # Check if any arguments provided
@@ -59,6 +61,7 @@ def convert_to_obj(in_file: str, out_file: str, save_usd: bool = False):
     Args:
         in_file: Input mesh file to process.
         out_file: Path to store output obj file.
+        save_usd: Whether to also save the converted mesh as a USD file. Defaults to False.
     """
     # check valid input file
     if not os.path.exists(in_file):
@@ -67,8 +70,9 @@ def convert_to_obj(in_file: str, out_file: str, save_usd: bool = False):
     if not out_file.endswith(".obj"):
         out_file += ".obj"
     # create directory if it doesn't exist for destination file
-    if not os.path.exists(os.path.dirname(out_file)):
-        os.makedirs(os.path.dirname(out_file), exist_ok=True)
+    out_dir = os.path.dirname(out_file)
+    if out_dir and not os.path.exists(out_dir):
+        os.makedirs(out_dir, exist_ok=True)
     # reset scene to empty
     bpy.ops.wm.read_factory_settings(use_empty=True)
     # load object into scene
@@ -86,8 +90,8 @@ def convert_to_obj(in_file: str, out_file: str, save_usd: bool = False):
     )
     # save it as usd as well
     if save_usd:
-        out_file = out_file.replace("obj", "usd")
-        bpy.ops.wm.usd_export(filepath=out_file, check_existing=False)
+        usd_file = os.path.splitext(out_file)[0] + ".usd"
+        bpy.ops.wm.usd_export(filepath=usd_file, check_existing=False)
 
 
 if __name__ == "__main__":

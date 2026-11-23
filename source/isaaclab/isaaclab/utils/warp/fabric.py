@@ -4,10 +4,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 # pyright: ignore
-# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).  # noqa: E501
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
 
 """Warp kernels for GPU-accelerated Fabric operations."""
 
@@ -83,7 +79,7 @@ def decompose_fabric_transformation_matrix_to_warp_arrays(
     """Decompose Fabric transformation matrices into position, orientation, and scale arrays.
 
     This kernel extracts transform components from Fabric's omni:fabric:worldMatrix attribute
-    and stores them in separate arrays. It handles the quaternion convention conversion
+    and stores them in separate arrays. Orientations are written in Warp's (x, y, z, w) order.
 
     Args:
         fabric_matrices: Fabric array containing 4x4 transformation matrices

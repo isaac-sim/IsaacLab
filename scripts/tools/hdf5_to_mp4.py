@@ -17,7 +17,7 @@ required arguments:
 optional arguments:
     --input_keys         List of input keys to process from the HDF5 file.
                          (default: ["table_cam", "wrist_cam", "table_cam_segmentation",
-                                    "table_cam_normals", "table_cam_shaded_segmentation"])
+                                    "table_cam_normals", "table_cam_shaded_segmentation", "table_cam_depth"])
     --video_height       Height of the output video in pixels. (default: 704)
     --video_width        Width of the output video in pixels. (default: 1280)
     --framerate          Frames per second for the output video. (default: 30)
@@ -46,6 +46,18 @@ DEFAULT_FRAMERATE = 30
 LIGHT_SOURCE = np.array([0.0, 0.0, 1.0])
 MIN_DEPTH = 0.0
 MAX_DEPTH = 1.5
+
+
+def _convert_frame_to_uint8(frame: np.ndarray) -> np.ndarray:
+    """Convert a video frame to the uint8 format expected by MP4 encoders."""
+    if frame.dtype == np.uint8:
+        return frame
+
+    if np.issubdtype(frame.dtype, np.floating):
+        frame = np.nan_to_num(frame, nan=0.0, posinf=1.0, neginf=0.0)
+        return np.clip(frame * 255.0, 0, 255).astype(np.uint8)
+
+    return np.clip(frame, 0, 255).astype(np.uint8)
 
 
 def parse_args():
@@ -147,15 +159,17 @@ def write_demo_to_mp4(
 
             # Process shaded segmentation frames
             elif "shaded_segmentation" in input_key:
-                seg = frame[..., :-1]
+                segmentation_frame = _convert_frame_to_uint8(frame)
+                seg = segmentation_frame[..., :-1]
                 normals_key = input_key.replace("shaded_segmentation", "normals")
                 normals = f[f"data/demo_{demo_id}/obs/{normals_key}"][ix]
                 shade = 0.5 + (normals * LIGHT_SOURCE[None, None, :]).sum(axis=-1) * 0.5
-                shaded_seg = (shade[..., None] * seg).astype(np.uint8)
-                frame = np.concatenate((shaded_seg, frame[..., -1:]), axis=-1)
+                shaded_seg = np.clip(shade[..., None] * seg, 0, 255).astype(np.uint8)
+                frame = np.concatenate((shaded_seg, segmentation_frame[..., -1:]), axis=-1)
 
             # Convert RGB to BGR
             if "depth" not in input_key:
+                frame = _convert_frame_to_uint8(frame)
                 frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
             else:
                 frame = (frame[..., 0] - MIN_DEPTH) / (MAX_DEPTH - MIN_DEPTH)
@@ -185,7 +199,6 @@ def get_num_demos(hdf5_file):
 
 def main():
     """Main function to convert all demonstrations to MP4 videos."""
-    # Parse command line arguments
     args = parse_args()
 
     # Create output directory if it doesn't exist

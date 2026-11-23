@@ -12,8 +12,8 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
-from isaaclab.assets.asset_base import AssetBase
-from isaaclab.utils.warp import ProxyArray
+from ...utils.warp import ProxyArray
+from ..asset_base import AssetBase
 
 if TYPE_CHECKING:
     from .base_cable_object_data import BaseCableObjectData
@@ -31,14 +31,6 @@ class BaseCableObject(AssetBase):
 
     __backend_name__: str = "base"
     """The name of the backend for the cable object."""
-
-    def __init__(self, cfg: CableObjectCfg) -> None:
-        """Initialize the cable object.
-
-        Args:
-            cfg: A configuration instance.
-        """
-        super().__init__(cfg)
 
     @property
     @abstractmethod
@@ -69,11 +61,15 @@ class BaseCableObject(AssetBase):
         raise NotImplementedError()
 
     @abstractmethod
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         """Reset the cable object.
+
+        .. caution::
+            If both ``env_ids`` and ``env_mask`` are provided, ``env_mask`` takes precedence.
 
         Args:
             env_ids: Environment indices. If None, all instances are used.
+            env_mask: Boolean environment mask. Shape is (num_instances,). Defaults to None.
         """
         raise NotImplementedError()
 

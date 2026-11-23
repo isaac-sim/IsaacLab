@@ -6,7 +6,7 @@
 import math
 
 from isaaclab.assets import RigidObjectCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from .joint_pos_env_cfg import UR10e2F85GearAssemblyEnvCfg, UR10e2F140GearAssemblyEnvCfg
 
@@ -93,7 +93,7 @@ class UR10e2F140GearAssemblyROSInferenceEnvCfg(UR10e2F140GearAssemblyEnvCfg):
             pose_range["y"][1],  # max value
             pose_range["z"][1],  # max value
         ]
-        # Orientation in degrees (quaternion (-0.70711, 0.0, 0.0, 0.70711) = -90° around Z)
+        # Orientation in degrees (quaternion (0.0, 0.0, 0.70711, -0.70711) = -90° around Z)
         self.fixed_asset_init_orn_deg = [0.0, 0.0, -90.0]
         # Derive orientation range from parent's pose_range (radians to degrees)
         self.fixed_asset_init_orn_deg_range = [
@@ -192,7 +192,7 @@ class UR10e2F85GearAssemblyROSInferenceEnvCfg(UR10e2F85GearAssemblyEnvCfg):
             pose_range["y"][1],  # max value
             pose_range["z"][1],  # max value
         ]
-        # Orientation in degrees (quaternion (-0.70711, 0.0, 0.0, 0.70711) = -90° around Z)
+        # Orientation in degrees (quaternion (0.0, 0.0, 0.70711, -0.70711) = -90° around Z)
         self.fixed_asset_init_orn_deg = [0.0, 0.0, -90.0]
         # Derive orientation range from parent's pose_range (radians to degrees)
         self.fixed_asset_init_orn_deg_range = [

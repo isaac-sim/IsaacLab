@@ -46,19 +46,25 @@ Guidelines for modifications:
 
 ## Contributors
 
+* Achintya Paningapalli
 * Advait Jayant
 * Agon Serifi
+* Ahmet Gundogdu
 * Alessandro Assirelli
 * Alex Omar
 * Alexander Millane
+* Alexander Temirov
 * Alice Zhou
+* alltheseas
 * Amr Mousa
 * Andrei Aristarkhov
 * Andrej Orsula
 * Anke Zhao
+* Anthony Clark
 * Anton Bjørndahl Mortensen
 * Antonin Raffin
 * Arjun Bhardwaj
+* Asier Arranz
 * Ashwin Varghese Kuruttukulam
 * Asier Arranz
 * Bikram Pandit
@@ -77,18 +83,24 @@ Guidelines for modifications:
 * Chenyu Yang
 * Connor Smith
 * CY (Chien-Ying) Chen
+* cyanseek
 * David Cao-Mueller
 * David Leon
 * David Yang
+* Daniel Florea
 * Daniela Hasenbring
 * Dhananjay Shendre
 * Dhyan Thakkar
+* Diego Ferigo
+* Donguk Kim
 * Dongxuan Fan
 * Dorsa Rohani
 * Ege Sekkin
+* Elle Miller
 * Emily Sturman
 * Emmanuel Ferdman
 * Fabian Jenelten
+* Fanxing Li
 * Fatima Anes
 * Felipe Mohr
 * Felix Yu
@@ -100,21 +112,25 @@ Guidelines for modifications:
 * Harsh Patel
 * Henry Hu
 * HoJin Jeon
+* Hong Wang
 * Hongwei Xiong
 * Hongyu Li
 * Hougant Chen
 * HuiDong Chen
 * Huihua Zhao
 * Iretiayo Akinola
+* Ivan Wang
 * Jack Zeng
 * Jan Kerner
 * Jean Tampon
 * Jeonghwan Kim
 * Jessica Martinez
+* JF Lafleche
 * Ji Yuan Feng
 * Jia Lin Yuan
 * Jiakai Zhang
 * Jichuan Hu
+* jih0
 * Jinghuan Shang
 * Jingzhou Liu
 * Jinqi Wei
@@ -122,6 +138,7 @@ Guidelines for modifications:
 * Jiwen Cai
 * Johnson Sun
 * Juana Du
+* Kai Pei
 * Kaixi Bao
 * Kourosh Darvish
 * Kousheek Chakraborty
@@ -133,9 +150,11 @@ Guidelines for modifications:
 * Lorenz Wellhausen
 * Lotus Li
 * Louis Le Lay
+* Luca Schwarzenbach
 * Lukas Fröhlich
 * Manuel Schweiger
 * Marco Alesiani
+* Mark Finean
 * Masoud Moghani
 * Mateo Guaman Castro
 * Matthew Taylor
@@ -143,6 +162,7 @@ Guidelines for modifications:
 * Michael Gussert
 * Michael Lin
 * Michael Noseworthy
+* Michael Wedd
 * Michal Hapala
 * Miguel Alonso Jr
 * Mihir Kulkarni
@@ -161,15 +181,19 @@ Guidelines for modifications:
 * Oyindamola Omotuyi
 * Özhan Özen
 * Patrick Yin
+* Patrick-SCH03
 * Paul Reeves
 * Peter Du
 * Peter Verswyvelen
 * Philipp Reist
 * Piotr Barejko
+* Pranav Shirgur
 * Pulkit Goyal
+* Qian Lin
 * Qian Wan
 * Qingyang Jiang
 * Qinxi Yu
+* Rafael Cathomen
 * Rafael Wiltz
 * Rebecca (Rui) Zhang
 * Renaud Poncelet
@@ -184,16 +208,20 @@ Guidelines for modifications:
 * Ryan Gresia
 * Ryley McCarroll
 * Sahara Yuta
+* saime428
+* Sanghyun Yun
 * Sergey Grizan
 * Shafeef Omar
 * Shane Reetz
 * Shaoshu Su
 * Shaurya Dewan
+* Shreya Boyane
 * Shundo Kishi
 * Sixiang Chen
 * Song Yi
 * Stefan Van de Mosselaer
 * Stephan Pleines
+* Sujal
 * Tiffany Chen
 * Trushant Adeshara
 * Tsz Ki GAO
@@ -202,6 +230,7 @@ Guidelines for modifications:
 * Vidur Vij
 * Virgilio Gómez Lambo
 * Vladimir Fokow
+* Wang Ke
 * Wei Yang
 * Weihua Zhang
 * Welf Rehberg
@@ -209,16 +238,20 @@ Guidelines for modifications:
 * Xiaodi Yuan
 * Xinjie Yao
 * Xinpeng Liu
+* Xin Xu
 * Xu Li
 * Yang Jin
 * Yanzi Zhu
 * Yijie Guo
 * Yize Wang
 * Yohan Choi
+* Yuguo Shan
 * Yujian Zhang
 * Yun Liu
+* Yusuf Guenena
 * YuTeh Shen
 * Zehao Wang
+* Zeng Qingcheng
 * Zijian Li
 * Ziqi Fan
 * Zoe McCarthy

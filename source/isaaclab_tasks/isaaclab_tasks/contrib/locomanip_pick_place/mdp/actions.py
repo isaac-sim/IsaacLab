@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Action terms for the loco-manipulation pick-and-place environment."""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING

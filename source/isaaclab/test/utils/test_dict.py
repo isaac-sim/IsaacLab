@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import enum
-import random
+from collections import namedtuple
 
 import numpy as np
 import pytest
@@ -13,7 +13,7 @@ import torch
 import isaaclab.utils.dict as dict_utils
 import isaaclab.utils.string as string_utils
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.windows_ci]
 
 
 def _test_function(x):
@@ -26,30 +26,20 @@ def _test_lambda_function(x):
     return x**2
 
 
-def test_print_dict():
+def test_print_dict(capsys):
     """Test printing of dictionary."""
     # create a complex nested dictionary
     test_dict = {
         "a": 1,
-        "b": 2,
-        "c": {"d": 3, "e": 4, "f": {"g": 5, "h": 6}},
-        "i": 7,
+        "c": {"d": 3, "f": {"g": 5}},
         "j": lambda x: x**2,  # noqa: E731
         "k": dict_utils.class_to_dict,
     }
     # print the dictionary
     dict_utils.print_dict(test_dict)
-
-
-def test_string_callable_function_conversion():
-    """Test string <-> callable conversion for function."""
-
-    # convert function to string
-    test_string = dict_utils.callable_to_string(_test_function)
-    # convert string to function
-    test_function_2 = string_utils.string_to_callable(test_string)
-    # check that functions are the same
-    assert _test_function(2) == test_function_2(2)
+    # nested keys are indented by four spaces and callables are printed as strings
+    expected = "a: 1\nc: \n    d: 3\n    f: \n        g: 5\nj: lambda x: x**2\nk: isaaclab.utils.dict:class_to_dict\n"
+    assert capsys.readouterr().out == expected
 
 
 def test_string_callable_function_with_lambda_in_name_conversion():
@@ -59,8 +49,8 @@ def test_string_callable_function_with_lambda_in_name_conversion():
     test_string = dict_utils.callable_to_string(_test_lambda_function)
     # convert string to function
     test_function_2 = string_utils.string_to_callable(test_string)
-    # check that functions are the same
-    assert _test_function(2) == test_function_2(2)
+    # check that the string resolves to the same function
+    assert test_function_2 is _test_lambda_function
 
 
 def test_string_callable_lambda_conversion():
@@ -84,16 +74,21 @@ def test_dict_to_md5():
         "a": 1,
         "b": 2,
         "c": {"d": 3, "e": 4, "f": {"g": 5, "h": 6}},
-        "i": random.random(),
+        "i": 0.5,
         "k": dict_utils.callable_to_string(dict_utils.class_to_dict),
     }
-    # generate the MD5 hash
-    md5_hash_1 = dict_utils.dict_to_md5_hash(test_dict)
-
-    # check that the hash is correct even after multiple calls
-    for _ in range(200):
-        md5_hash_2 = dict_utils.dict_to_md5_hash(test_dict)
-        assert md5_hash_1 == md5_hash_2
+    # an independently built dictionary with a different key order has the same hash
+    reordered_dict = {
+        "k": "isaaclab.utils.dict:class_to_dict",
+        "i": 0.5,
+        "c": {"f": {"h": 6, "g": 5}, "e": 4, "d": 3},
+        "b": 2,
+        "a": 1,
+    }
+    assert dict_utils.dict_to_md5_hash(test_dict) == dict_utils.dict_to_md5_hash(reordered_dict)
+    # changing a nested value changes the hash
+    reordered_dict["c"]["f"]["g"] = 7
+    assert dict_utils.dict_to_md5_hash(test_dict) != dict_utils.dict_to_md5_hash(reordered_dict)
 
 
 class _CallableCfg:
@@ -184,3 +179,44 @@ def test_nested_conversion_preserves_requested_backend():
 
     assert isinstance(converted["outer"]["values"], torch.Tensor)
     torch.testing.assert_close(converted["outer"]["values"], torch.tensor([1.0, 2.0, 3.0]))
+
+
+def test_slice_round_trip_preserves_tuple_containers():
+    """Slices nested in tuples should serialize and deserialize without changing container types."""
+    data = {
+        "selectors": (
+            slice(None, 4, 2),
+            [slice(1, None, None)],
+            ("unchanged", slice(-3, -1, 1)),
+        )
+    }
+
+    serialized = dict_utils.replace_slices_with_strings(data)
+
+    assert isinstance(serialized["selectors"], tuple)
+    assert isinstance(serialized["selectors"][1], list)
+    assert isinstance(serialized["selectors"][2], tuple)
+    assert serialized["selectors"][0] == "slice(None,4,2)"
+    assert serialized["selectors"][1][0] == "slice(1,None,None)"
+    assert serialized["selectors"][2][1] == "slice(-3,-1,1)"
+
+    restored = dict_utils.replace_strings_with_slices(serialized)
+
+    assert restored == data
+    assert isinstance(restored["selectors"], tuple)
+    assert isinstance(restored["selectors"][1], list)
+    assert isinstance(restored["selectors"][2], tuple)
+
+
+def test_slice_conversion_leaves_tuple_subclasses_unchanged():
+    """Tuple subclasses that previously passed through should not be reconstructed
+    through an incompatible constructor.
+    """
+    Pair = namedtuple("Pair", ["selector", "label"])
+    data = {"pair": Pair(slice(1, 3), "value")}
+
+    serialized = dict_utils.replace_slices_with_strings(data)
+    restored = dict_utils.replace_strings_with_slices(serialized)
+
+    assert serialized["pair"] is data["pair"]
+    assert restored["pair"] is data["pair"]

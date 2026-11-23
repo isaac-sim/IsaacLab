@@ -19,7 +19,7 @@ from isaaclab.actuators.actuator_control import ArticulationActuatorControl
 from isaaclab.actuators.newton.adapter import LightArticulationView, NewtonActuatorSelection
 from isaaclab.actuators.newton.physx_runtime import PhysxActuatorRuntime
 from isaaclab.assets.articulation import ordering_kernels
-from isaaclab.sim.schemas.schemas_actuators import _validate_newton_native_actuator_cfgs
+from isaaclab.sim.schemas.schemas_actuators import validate_newton_native_actuator_cfgs
 from isaaclab.sim.utils.queries import find_first_matching_prim
 from isaaclab.sim.utils.stage import get_current_stage
 
@@ -53,14 +53,15 @@ class OvPhysxActuatorControl(ArticulationActuatorControl):
         if not use_newton_actuators:
             return set()
 
-        _validate_newton_native_actuator_cfgs(actuator_cfgs)
-        # Activate the runtime even without explicit native groups: implicit-only
-        # articulations still rely on it for the solver telemetry fast path.
-        self._native_actuator_path_active = True
-        articulation._has_newton_actuators = True
+        validate_newton_native_actuator_cfgs(actuator_cfgs)
         native_group_names = {
             name for name, actuator_cfg in actuator_cfgs.items() if not _is_implicit_actuator_cfg(actuator_cfg)
         }
+        if not native_group_names:
+            return set()
+
+        self._native_actuator_path_active = True
+        articulation._has_newton_actuators = True
         first_prim = find_first_matching_prim(articulation.cfg.prim_path)
         articulation_prim_path = str(first_prim.GetPath()) if first_prim is not None else None
         self._actuator_runtime = PhysxActuatorRuntime(articulation, logger=logger)
@@ -97,9 +98,9 @@ class OvPhysxActuatorControl(ArticulationActuatorControl):
         self._actuator_runtime.compute(collection, dt)
         return True
 
-    def reset_native_actuators(self, env_ids: Sequence[int] | slice) -> None:
+    def reset_native_actuators(self, env_ids: Sequence[int] | slice, env_mask: wp.array | None = None) -> None:
         if self._native_actuator_path_active and self._actuator_runtime is not None:
-            self._actuator_runtime.reset(env_ids)
+            self._actuator_runtime.reset(env_ids, env_mask)
 
     def stage_user_command(
         self,
@@ -127,21 +128,25 @@ class OvPhysxActuatorControl(ArticulationActuatorControl):
 
     def submit_commands(self, collection: ActuatorCollection) -> None:
         articulation = self._articulation
-        # Native telemetry contains the local implicit-drive shadow. Submit raw runtime effort
-        # instead, so OVPhysX evaluates each implicit PD drive exactly once.
         write_effort = articulation._can_write_effort
-        # position and velocity targets only for implicit actuators.
         write_pos = articulation._has_implicit_actuators and articulation._can_write_pos_target
         write_vel = articulation._has_implicit_actuators and articulation._can_write_vel_target
-        user_effort = collection._applied_effort
         if self._actuator_runtime is not None:
+            # Native execution bypasses Lab's processed buffers and merges effort in the wrapper.
             user_effort = self._actuator_runtime.wrapper.joint_f_2d
+            user_pos_target = collection._joint_pos_target
+            user_vel_target = collection._joint_vel_target
+        else:
+            # Processed effort excludes the implicit-drive estimate reported in telemetry.
+            user_effort = collection._joint_effort_target_sim
+            user_pos_target = collection._joint_pos_target_sim
+            user_vel_target = collection._joint_vel_target_sim
         if articulation.data.has_joint_ordering:
             if write_effort or write_pos or write_vel:
                 ordering_kernels.launch_reorder_joint_targets_user_to_backend(
                     user_effort=user_effort,
-                    user_pos_target=collection._joint_pos_target,
-                    user_vel_target=collection._joint_vel_target,
+                    user_pos_target=user_pos_target,
+                    user_vel_target=user_vel_target,
                     backend_to_user=articulation.data.joint_ordering.backend_to_user,
                     write_effort=write_effort,
                     write_pos_target=write_pos,
@@ -158,8 +163,8 @@ class OvPhysxActuatorControl(ArticulationActuatorControl):
             vel_target = articulation._joint_vel_target_backend
         else:
             effort = user_effort
-            pos_target = collection._joint_pos_target
-            vel_target = collection._joint_vel_target
+            pos_target = user_pos_target
+            vel_target = user_vel_target
         if write_effort:
             articulation._root_view.set_attribute(TT.DOF_ACTUATION_FORCE, effort)
         if write_pos:

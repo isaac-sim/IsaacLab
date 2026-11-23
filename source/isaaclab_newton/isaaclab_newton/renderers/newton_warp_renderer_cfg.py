@@ -5,18 +5,34 @@
 
 """Configuration for Newton Warp Renderer."""
 
-from typing import Literal
+from __future__ import annotations
 
+from typing import TYPE_CHECKING, Literal
+
+import warp as wp
+
+from isaaclab.renderers import RenderBufferKind, RenderBufferSpec
 from isaaclab.renderers.renderer_cfg import RendererCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
+
+if TYPE_CHECKING:
+    from .newton_warp_renderer import NewtonWarpRenderer
 
 
 @configclass
 class NewtonWarpRendererCfg(RendererCfg):
     """Configuration for Newton Warp Renderer."""
 
+    class_type: type[NewtonWarpRenderer] | str = "{DIR}.newton_warp_renderer:NewtonWarpRenderer"
+    """Renderer implementation class."""
+
     renderer_type: str = "newton_warp"
     """Type identifier for Newton Warp renderer."""
+
+    cloning_contexts: tuple[type | str, ...] = ("isaaclab_newton.cloner:NewtonReplicateContext",)
+
+    use_cuda_graph: bool = True
+    """Capture camera queries independently of the physics solver's graph setting."""
 
     enable_textures: bool = True
     """Enable texture-mapped rendering for meshes."""
@@ -48,7 +64,7 @@ class NewtonWarpRendererCfg(RendererCfg):
     - ``"none"``: leave background depth at ``0.0``.
     - ``"zero"``: leave background depth at ``0.0`` (identical to ``"none"`` for this backend).
     - ``"max"``: replace background depth with the far clip [m], mirroring
-      :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.depth_clipping_behavior`.
+      :attr:`~isaaclab_isaacsim.renderers.IsaacRtxRendererCfg.depth_clipping_behavior`.
     """
 
     create_default_light: bool = True
@@ -58,7 +74,7 @@ class NewtonWarpRendererCfg(RendererCfg):
     """A string or list specifying a semantic filter predicate for :attr:`semantic_segmentation` and
     :attr:`instance_segmentation`. Defaults to ``"*:*"`` (all semantic types and labels).
 
-    Mirrors :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.semantic_filter`. If a string, it is a
+    Mirrors :attr:`~isaaclab_isaacsim.renderers.IsaacRtxRendererCfg.semantic_filter`. If a string, it is a
     disjunctive-normal-form predicate over ``(semantic_type, labels)`` clauses separated by ``;``. Each
     clause is ``type:labels`` where ``labels`` supports ``&`` (and), ``|`` / ``,`` (or), ``!`` (not), and
     ``*`` (any); ``type`` may be ``*``. For example ``"class:* ; * : shelf"`` keeps every prim with a
@@ -93,7 +109,7 @@ class NewtonWarpRendererCfg(RendererCfg):
     """Optional mapping from ``"type:label"`` to an explicit RGBA color tuple for
     :attr:`semantic_segmentation` when :attr:`colorize_semantic_segmentation` is True. Defaults to ``{}``.
 
-    Mirrors :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.semantic_segmentation_mapping`. For
+    Mirrors :attr:`~isaaclab_isaacsim.renderers.IsaacRtxRendererCfg.semantic_segmentation_mapping`. For
     example ``{"class:cube": (255, 36, 66, 255)}`` forces cube-labeled pixels to that color. Labels absent
     from the mapping fall back to the deterministic palette shared with the RTX renderer.
     """
@@ -109,3 +125,34 @@ class NewtonWarpRendererCfg(RendererCfg):
 
     kernel_block_dim: int = 64
     """Thread block dimension forwarded to Newton."""
+
+    def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
+        """Return the per-output layouts supported by the Newton Warp renderer."""
+
+        def segmentation_spec(colorize: bool) -> RenderBufferSpec:
+            return RenderBufferSpec(4, wp.uint8) if colorize else RenderBufferSpec(1, wp.int32)
+
+        return {
+            RenderBufferKind.RGBA: RenderBufferSpec(4, wp.uint8),
+            RenderBufferKind.RGB: RenderBufferSpec(3, wp.uint8),
+            RenderBufferKind.RGB_HDR: RenderBufferSpec(3, wp.float32),
+            RenderBufferKind.ALBEDO: RenderBufferSpec(4, wp.uint8),
+            RenderBufferKind.DEPTH: RenderBufferSpec(1, wp.float32),
+            RenderBufferKind.DISTANCE_TO_CAMERA: RenderBufferSpec(1, wp.float32),
+            RenderBufferKind.DISTANCE_TO_IMAGE_PLANE: RenderBufferSpec(1, wp.float32),
+            RenderBufferKind.NORMALS: RenderBufferSpec(3, wp.float32),
+            RenderBufferKind.SEMANTIC_SEGMENTATION: segmentation_spec(self.colorize_semantic_segmentation),
+            RenderBufferKind.INSTANCE_SEGMENTATION: segmentation_spec(self.colorize_instance_segmentation),
+        }
+
+
+@configclass
+class NewtonOptixRendererCfg(NewtonWarpRendererCfg):
+    """Configuration for the Newton OptiX renderer, which ray traces in hardware on RTX GPUs.
+
+    Requires the ``optix`` extra. It does not support particles or deformable surfaces, and it
+    ignores :attr:`use_cuda_graph`.
+    """
+
+    renderer_type: str = "newton_optix"
+    """Type identifier for the Newton OptiX renderer."""

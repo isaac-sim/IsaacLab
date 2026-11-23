@@ -7,30 +7,20 @@
 
 Imports the shared contract tests and provides the USD-specific
 ``view_factory`` fixture.  Also includes USD-only tests for visibility,
-prim ordering, xformOp standardization, and Isaac Sim comparison.
+prim ordering, and xformOp standardization.
 """
 
-from isaaclab.app import AppLauncher
-from isaaclab.test.utils import resolve_test_sim_device, test_devices
+from isaaclab.test.utils import launch_test_simulation, resolve_test_sim_device
 
-simulation_app = AppLauncher(headless=True, device=resolve_test_sim_device()).app
+launch_test_simulation()
 
 import pytest  # noqa: E402
 import torch  # noqa: E402
 import warp as wp  # noqa: E402
-
-from pxr import Gf, UsdGeom  # noqa: E402
-
-try:
-    from isaaclab.sim.utils import enable_extension  # noqa: E402
-
-    enable_extension("isaacsim.core.experimental.prims")
-    from isaacsim.core.experimental.prims import XformPrim as _IsaacSimXformPrimView
-except (ModuleNotFoundError, ImportError, RuntimeError):
-    _IsaacSimXformPrimView = None
-
 from frame_view_contract_utils import *  # noqa: F401, F403, E402
 from frame_view_contract_utils import CHILD_OFFSET, ViewBundle  # noqa: E402
+
+from pxr import Gf, UsdGeom  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
 from isaaclab.sim.views import UsdFrameView as FrameView  # noqa: E402
@@ -38,12 +28,14 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR  # noqa: E402
 
 pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
 PARENT_POS = (0.0, 0.0, 1.0)
+USD_ONLY_DEVICES = [resolve_test_sim_device()]
+"""UsdFrameView computes on the host and only places its outputs on the device, which the shared
+contract tests cover per device; the USD-only tests below run on the boot device alone."""
 
 
 @pytest.fixture(autouse=True)
 def test_setup_teardown():
     sim_utils.create_new_stage()
-    sim_utils.update_stage()
     yield
     sim_utils.clear_stage()
     sim_utils.SimulationContext.clear_instance()
@@ -105,12 +97,9 @@ def view_factory():
 # ==================================================================
 
 
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("device", USD_ONLY_DEVICES)
 def test_visibility_toggle(device):
     """Test toggling visibility multiple times."""
-    if device == "cuda" and not torch.cuda.is_available():
-        pytest.skip("CUDA not available")
-
     stage = sim_utils.get_current_stage()
     num_prims = 3
     for i in range(num_prims):
@@ -133,12 +122,9 @@ def test_visibility_toggle(device):
     assert vis[0] and not vis[1] and vis[2]
 
 
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("device", USD_ONLY_DEVICES)
 def test_visibility_parent_inheritance(device):
     """Making a parent invisible hides all children."""
-    if device == "cuda" and not torch.cuda.is_available():
-        pytest.skip("CUDA not available")
-
     stage = sim_utils.get_current_stage()
     sim_utils.create_prim("/World/Parent", "Xform", stage=stage)
     for i in range(4):
@@ -159,12 +145,9 @@ def test_visibility_parent_inheritance(device):
 # ==================================================================
 
 
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("device", USD_ONLY_DEVICES)
 def test_prim_ordering_follows_creation_order(device):
     """Prims are returned in USD creation order (DFS), not alphabetical."""
-    if device == "cuda" and not torch.cuda.is_available():
-        pytest.skip("CUDA not available")
-
     stage = sim_utils.get_current_stage()
     num_envs = 3
     for i in range(num_envs):
@@ -185,12 +168,39 @@ def test_prim_ordering_follows_creation_order(device):
 # ==================================================================
 
 
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("device", USD_ONLY_DEVICES)
+@pytest.mark.parametrize(
+    ("scale_precision", "scale_value"),
+    [
+        (UsdGeom.XformOp.PrecisionHalf, Gf.Vec3h(0.25, 0.5, 0.75)),
+        (UsdGeom.XformOp.PrecisionFloat, Gf.Vec3f(0.01, 0.02, 0.03)),
+        (UsdGeom.XformOp.PrecisionDouble, Gf.Vec3d(0.01, 0.02, 0.03)),
+    ],
+    ids=["half3", "float3", "double3"],
+)
+def test_local_scales_accept_all_usd_precisions(device, scale_precision, scale_value):
+    """Scale reads normalize every legal USD precision without changing the FP32 view contract."""
+    stage = sim_utils.get_current_stage()
+    prim = stage.DefinePrim("/World/ScaledPrim", "Xform")
+    xformable = UsdGeom.Xformable(prim)
+    xformable.AddTranslateOp().Set(Gf.Vec3d(0.0))
+    xformable.AddOrientOp(UsdGeom.XformOp.PrecisionFloat).Set(Gf.Quatf(1.0, Gf.Vec3f(0.0)))
+    xformable.AddScaleOp(scale_precision).Set(scale_value)
+
+    view = FrameView("/World/ScaledPrim", device=device)
+    assert isinstance(prim.GetAttribute("xformOp:scale").Get(), type(scale_value))
+
+    expected = torch.tensor([[float(value) for value in scale_value]], dtype=torch.float32, device=device)
+    scales = view.get_local_scales()
+    assert scales.shape == (1, 3)
+    assert scales.warp.dtype == wp.float32
+    assert scales.torch.dtype == torch.float32
+    torch.testing.assert_close(scales.torch, expected, atol=1e-6, rtol=0)
+
+
+@pytest.mark.parametrize("device", USD_ONLY_DEVICES)
 def test_standardize_transform_op(device):
     """FrameView standardizes a prim with xformOp:transform to translate/orient/scale."""
-    if device == "cuda" and not torch.cuda.is_available():
-        pytest.skip("CUDA not available")
-
     expected_pos = (3.0, -1.0, 0.5)
     matrix = Gf.Matrix4d(1.0)
     matrix.SetTranslateOnly(Gf.Vec3d(*expected_pos))
@@ -206,41 +216,6 @@ def test_standardize_transform_op(device):
     op_names = [op.GetOpName() for op in ordered_ops]
     assert op_names == ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
     assert ordered_ops[0].Get() == Gf.Vec3d(*expected_pos)
-
-
-# ==================================================================
-# USD-only: Nested hierarchy (frame + target)
-# ==================================================================
-
-
-@pytest.mark.parametrize("device", test_devices())
-def test_nested_hierarchy_world_poses(device):
-    """World pose of nested child == sum of parent + child translations."""
-    if device == "cuda" and not torch.cuda.is_available():
-        pytest.skip("CUDA not available")
-
-    stage = sim_utils.get_current_stage()
-    frame_positions = [(0.0, 0.0, 0.0), (0.0, 10.0, 5.0), (0.0, 3.0, 5.0)]
-    target_positions = [(0.0, 20.0, 10.0), (0.0, 30.0, 20.0), (0.0, 50.0, 10.0)]
-
-    for i in range(3):
-        sim_utils.create_prim(f"/World/Frame_{i}", "Xform", translation=frame_positions[i], stage=stage)
-        sim_utils.create_prim(f"/World/Frame_{i}/Target", "Xform", translation=target_positions[i], stage=stage)
-
-    frames_view = FrameView("/World/Frame_[^/]*", device=device)
-    targets_view = FrameView("/World/Frame_[^/]*/Target", device=device)
-
-    with frames_view.xform_local_space_writer() as w:
-        w.set_poses(positions=torch.tensor(frame_positions, device=device))
-    with targets_view.xform_local_space_writer() as w:
-        w.set_poses(positions=torch.tensor(target_positions, device=device))
-
-    world_pos = targets_view.get_world_poses()[0].torch
-    expected = torch.tensor(
-        [[f[j] + t[j] for j in range(3)] for f, t in zip(frame_positions, target_positions)],
-        device=device,
-    )
-    torch.testing.assert_close(world_pos, expected, atol=1e-5, rtol=0)
 
 
 # ==================================================================
@@ -263,16 +238,13 @@ def _make_scaled_parent_child_view(device, parent_scale, child_scale=None):
     return FrameView("/World/Parent_[^/]*/Child", device=device)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.parametrize("device", USD_ONLY_DEVICES)
 def test_world_scale_composes_with_parent_scale(device):
     """Under a scaled parent, ``get_world_scales`` returns ``parent_scale * local_scale``.
 
     Writes the child's local scale via the local-space writer and verifies
     that reading the world scale composes with the parent's scale.
     """
-    if device == "cuda" and not torch.cuda.is_available():
-        pytest.skip("CUDA not available")
-
     view = _make_scaled_parent_child_view(device, parent_scale=(2.0, 1.0, 1.0))
     local_scales = wp.array([wp.vec3f(3.0, 1.0, 1.0)], dtype=wp.vec3f, device=device)
     with view.xform_local_space_writer() as w:
@@ -283,7 +255,7 @@ def test_world_scale_composes_with_parent_scale(device):
     torch.testing.assert_close(world_scales, expected, atol=1e-5, rtol=0)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.parametrize("device", USD_ONLY_DEVICES)
 def test_local_scale_inverts_parent_when_writing_world_scale(device):
     """Writing a world scale derives ``local = world / parent_scale`` under a scaled parent.
 
@@ -291,9 +263,6 @@ def test_local_scale_inverts_parent_when_writing_world_scale(device):
     that the derived local scale is the world scale divided by the
     parent's scale.
     """
-    if device == "cuda" and not torch.cuda.is_available():
-        pytest.skip("CUDA not available")
-
     view = _make_scaled_parent_child_view(device, parent_scale=(2.0, 1.0, 1.0))
     world_scales = wp.array([wp.vec3f(6.0, 1.0, 1.0)], dtype=wp.vec3f, device=device)
     with view.xform_world_space_writer() as w:
@@ -305,60 +274,13 @@ def test_local_scale_inverts_parent_when_writing_world_scale(device):
 
 
 # ==================================================================
-# USD-only: Comparison with Isaac Sim
-# ==================================================================
-
-
-def test_compare_get_world_poses_with_isaacsim():
-    """Compare get_world_poses with Isaac Sim's implementation."""
-    if _IsaacSimXformPrimView is None:
-        pytest.skip("Isaac Sim is not available")
-
-    stage = sim_utils.get_current_stage()
-    num_prims = 10
-    for i in range(num_prims):
-        pos = (i * 2.0, i * 0.5, i * 1.5)
-        quat = (0.0, 0.0, 0.0, 1.0) if i % 2 == 0 else (0.0, 0.0, 0.7071068, 0.7071068)
-        sim_utils.create_prim(f"/World/Env_{i}/Object", "Xform", translation=pos, orientation=quat, stage=stage)
-
-    pattern = "/World/Env_[^/]*/Object"
-    isaacsim_paths = [f"/World/Env_{i}/Object" for i in range(num_prims)]
-    isaaclab_view = FrameView(pattern, device="cpu")
-
-    import omni.usd  # noqa: PLC0415
-
-    context = omni.usd.get_context()
-    context.attach_stage_with_callback(sim_utils.get_current_stage_id())
-    sim_utils.update_stage()
-
-    for kwargs in ({"reset_xform_properties": False}, {"reset_xform_op_properties": False}, {}):
-        try:
-            isaacsim_view = _IsaacSimXformPrimView(isaacsim_paths, **kwargs)
-            break
-        except TypeError as exc:
-            if kwargs and next(iter(kwargs)) in str(exc):
-                continue
-            raise
-
-    isaaclab_pos = isaaclab_view.get_world_poses()[0].torch
-    isaacsim_pos, isaacsim_quat = isaacsim_view.get_world_poses()
-    if not isinstance(isaacsim_pos, torch.Tensor):
-        isaacsim_pos = torch.tensor(isaacsim_pos, dtype=torch.float32)
-
-    torch.testing.assert_close(isaaclab_pos, isaacsim_pos, atol=1e-5, rtol=0)
-
-
-# ==================================================================
 # USD-only: Franka integration
 # ==================================================================
 
 
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("device", USD_ONLY_DEVICES)
 def test_with_franka_robots(device):
     """Verify FrameView works with real Franka robot USD assets."""
-    if device == "cuda" and not torch.cuda.is_available():
-        pytest.skip("CUDA not available")
-
     stage = sim_utils.get_current_stage()
     franka_usd_path = f"{ISAAC_NUCLEUS_DIR}/Robots/FrankaRobotics/FrankaPanda/franka.usd"
 

@@ -12,7 +12,7 @@ from typing import Any
 import torch
 import warp as wp
 
-from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
+from ..utils.warp.index_kernel import IndexKernelDispatcher
 
 
 @wp.kernel(enable_backward=False)

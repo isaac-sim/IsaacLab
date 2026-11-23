@@ -87,7 +87,10 @@ def apply_mujoco_fixed_tendon(cfg: MujocoFixedTendonCfg, prim_path: str, stage: 
     """Write ``mjc:*`` fixed-tendon attributes on a ``MjcTendon`` prim.
 
     Custom ``func`` override for :class:`~isaaclab_newton.sim.schemas.MujocoFixedTendonCfg`.
-    No-op (returns False) on any prim whose type is not ``MjcTendon``.
+    This is a strictly per-prim tuner: the core writer
+    (:func:`~isaaclab.sim.schemas.apply_fixed_tendon_properties`) owns targeting and hands it the
+    exact resolved prim paths, so it never descends into descendants. No-op (returns False) on any
+    prim whose type is not ``MjcTendon``.
 
     Args:
         cfg: The :class:`MujocoFixedTendonCfg` fragment to apply.
@@ -102,24 +105,19 @@ def apply_mujoco_fixed_tendon(cfg: MujocoFixedTendonCfg, prim_path: str, stage: 
     """
     if stage is None:
         stage = get_current_stage()
-    root = stage.GetPrimAtPath(prim_path)
-    if not root.IsValid():
+    prim = stage.GetPrimAtPath(prim_path)
+    if not prim.IsValid():
         raise ValueError(f"Prim path '{prim_path}' is not valid.")
+    if prim.GetTypeName() != "MjcTendon":
+        return False
     values = {
         f.name: getattr(cfg, f.name)
         for f in dataclasses.fields(cfg)
         if f.name != "func" and getattr(cfg, f.name) is not None
     }
-    # Descend the whole subtree (matching legacy apply_nested): ``MjcTendon`` prims may sit below
-    # the prim_path the spawner targets. Write ``mjc:*`` on every ``MjcTendon`` descendant.
-    found = False
-    for prim in Usd.PrimRange(root):
-        if prim.GetTypeName() != "MjcTendon":
-            continue
-        found = True
-        for attr_name, value in values.items():
-            safe_set_attribute_on_usd_prim(prim, f"mjc:{to_camel_case(attr_name, 'cC')}", value, camel_case=False)
-    return found
+    for attr_name, value in values.items():
+        safe_set_attribute_on_usd_prim(prim, f"mjc:{to_camel_case(attr_name, 'cC')}", value, camel_case=False)
+    return True
 
 
 def apply_mujoco_joint(cfg: MujocoJointCfg, prim_path: str, stage: Usd.Stage | None = None) -> bool:
@@ -132,8 +130,7 @@ def apply_mujoco_joint(cfg: MujocoJointCfg, prim_path: str, stage: Usd.Stage | N
     through the actuator, and it is inert unless that body's ``mjc:gravcomp`` is non-zero. So when
     :attr:`~MujocoJointCfg.actuatorgravcomp` is requested, this enables ``mjc:gravcomp = 1.0`` on the
     joint's child body (its ``physics:body1`` target) when the body has not authored it. An explicitly
-    authored body gravcomp is preserved. Keeping this coupling in the Newton applier (not the core
-    spawner) keeps the core package free of any backend dependency.
+    authored body gravcomp, including ``0.0``, is preserved. This coupling belongs in the Newton applier.
 
     Args:
         cfg: The :class:`MujocoJointCfg` fragment to apply.
@@ -156,7 +153,7 @@ def apply_mujoco_joint(cfg: MujocoJointCfg, prim_path: str, stage: Usd.Stage | N
             body = stage.GetPrimAtPath(body_path)
             if not body.IsValid():
                 continue
-            current = body.GetAttribute("mjc:gravcomp").Get()
-            if current is None or current == 0.0:
+            gravcomp_attr = body.GetAttribute("mjc:gravcomp")
+            if not (gravcomp_attr and gravcomp_attr.HasAuthoredValue()):
                 safe_set_attribute_on_usd_prim(body, "mjc:gravcomp", 1.0, camel_case=False)
     return success

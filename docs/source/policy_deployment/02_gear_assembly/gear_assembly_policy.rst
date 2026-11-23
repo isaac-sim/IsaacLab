@@ -3,12 +3,9 @@
 Training a Gear Insertion Policy and ROS Deployment
 ====================================================
 
-This tutorial walks you through how to train a gear insertion reinforcement learning (RL) policy that transfers from simulation to a real robot. The workflow consists of two main stages:
-
-1. **Simulation Training in Isaac Lab**: Train the policy in a high-fidelity physics simulation with domain randomization
-2. **Real Robot Deployment with Isaac ROS**: Deploy the trained policy on real hardware using Isaac ROS and a custom ROS inference node
-
-This walkthrough covers the key principles and best practices for sim-to-real transfer using Isaac Lab.
+Train a gear-insertion policy in Isaac Lab, then deploy it with Isaac ROS and a
+custom inference node. The training setup uses domain randomization to account
+for differences between simulation and hardware.
 
 **Supported Robots:**
 
@@ -36,7 +33,7 @@ This environment has been successfully deployed on real UR10e and Flexiv Rizon 4
 
 **Scope of This Tutorial:**
 
-This tutorial focuses exclusively on the **training part** of the sim-to-real transfer workflow in Isaac Lab. For the complete deployment workflow on the real robot, including the exact steps to set up the vision pipeline, robot interface and the ROS inference node to run your trained policy on real hardware, please refer to the `Isaac ROS Documentation <https://nvidia-isaac-ros.github.io/reference_workflows/isaac_for_manipulation/packages/isaac_ros_manipulation_dnn_policy/index.html>`_.
+This tutorial focuses exclusively on the **training part** of the sim-to-real transfer workflow in Isaac Lab. For the complete deployment workflow on the real robot, including the exact steps to set up the vision pipeline, robot interface and the ROS inference node to run your trained policy on real hardware, please refer to the `Isaac ROS Documentation <https://nvidia-isaac-ros.github.io/v/release-4.6/reference_workflows/isaac_for_manipulation/packages/isaac_ros_manipulation_dnn_policy/index.html>`_.
 
 Overview
 --------
@@ -271,14 +268,6 @@ These friction values were determined through iterative visual comparison:
                          --task IsaacContrib-Deploy-GearAssembly-UR10e-2F140 \
                          --video --video_length 800 --video_interval 5000
 
-              .. tab-item:: isaaclab.sh / isaaclab.bat
-
-                 .. code-block:: bash
-
-                     ./isaaclab.sh train --rl_library rsl_rl \
-                         --task IsaacContrib-Deploy-GearAssembly-UR10e-2F140 \
-                         --video --video_length 800 --video_interval 5000
-
        .. tab-item:: Flexiv Rizon 4s
 
            .. tab-set::
@@ -291,14 +280,6 @@ These friction values were determined through iterative visual comparison:
                          --task IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference \
                          --video --video_length 800 --video_interval 5000
 
-              .. tab-item:: isaaclab.sh / isaaclab.bat
-
-                 .. code-block:: bash
-
-                     ./isaaclab.sh train --rl_library rsl_rl \
-                         --task IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference \
-                         --video --video_length 800 --video_interval 5000
-
 8. Review the recorded videos and compare with real hardware videos to verify physics behavior
 
 **Contact Solver Configuration**
@@ -307,8 +288,10 @@ Contact-rich manipulation requires careful solver tuning. These parameters were 
 
 .. code-block:: python
 
+    from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
+
     # Robot rigid body properties
-    rigid_props=sim_utils.RigidBodyPropertiesCfg(
+    rigid_props=PhysxRigidBodyCfg(
         disable_gravity=True,                    # Robot is mounted, no gravity
         max_depenetration_velocity=5.0,          # Control interpenetration resolution
         linear_damping=0.0,                      # No artificial damping
@@ -325,17 +308,19 @@ Contact-rich manipulation requires careful solver tuning. These parameters were 
 
 .. code-block:: python
 
+    from isaaclab_isaacsim.sim.schemas import PhysxArticulationCfg, PhysxCollisionCfg
+
     # Articulation properties
-    articulation_props=sim_utils.ArticulationRootPropertiesCfg(
+    articulation_props=PhysxArticulationCfg(
         enabled_self_collisions=False,
         solver_position_iteration_count=4,
         solver_velocity_iteration_count=1,
     ),
 
     # Contact properties
-    collision_props=sim_utils.CollisionPropertiesCfg(
-        contact_offset=0.005,                    # 5mm contact detection distance
-        rest_offset=0.0,                         # Objects touch at 0 distance
+    collision_props=PhysxCollisionCfg(
+        contact_offset=0.005,                # 5mm contact detection distance
+        rest_offset=0.0,                     # Objects touch at 0 distance
     ),
 
 Actuator Modeling
@@ -364,15 +349,22 @@ For the UR10e and Flexiv Rizon 4s deployments, we use an impedance controller in
 
         .. code-block:: python
 
-            # Default UR10e actuator configuration
+            # Default UR10e actuator configuration (UR10e_CFG)
             actuators = {
-                "arm": ImplicitActuatorCfg(
-                    joint_names_expr=["shoulder_pan_joint", "shoulder_lift_joint",
-                                    "elbow_joint", "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"],
-                    joint_effort_limit=87.0,       # From UR10e specifications
-                    joint_velocity_limit=2.0,      # From UR10e specifications
-                    stiffness=800.0,             # Calibrated to match real behavior
-                    damping=40.0,                # Calibrated to match real behavior
+                "shoulder": ImplicitActuatorCfg(
+                    joint_names_expr=["shoulder_.*"],
+                    stiffness=1320.0,
+                    damping=72.66,
+                ),
+                "elbow": ImplicitActuatorCfg(
+                    joint_names_expr=["elbow_joint"],
+                    stiffness=600.0,
+                    damping=34.64,
+                ),
+                "wrist": ImplicitActuatorCfg(
+                    joint_names_expr=["wrist_.*"],
+                    stiffness=216.0,
+                    damping=29.39,
                 ),
             }
 
@@ -386,17 +378,17 @@ For the UR10e and Flexiv Rizon 4s deployments, we use an impedance controller in
                 "shoulder": ImplicitActuatorCfg(
                     joint_names_expr=["joint[1-2]"],
                     joint_effort_limit=123.0, joint_velocity_limit=2.094,
-                    stiffness=6000.0, damping=108.4,
+                    stiffness=1320.0, damping=72.0,
                 ),
                 "elbow": ImplicitActuatorCfg(
                     joint_names_expr=["joint[3-4]"],
                     joint_effort_limit=64.0, joint_velocity_limit=2.443,
-                    stiffness=4200.0, damping=90.7,
+                    stiffness=600.0, damping=35.0,
                 ),
                 "wrist": ImplicitActuatorCfg(
                     joint_names_expr=["joint[5-7]"],
                     joint_effort_limit=39.0, joint_velocity_limit=4.887,
-                    stiffness=1500.0, damping=54.2,
+                    stiffness=216.0, damping=29.0,
                 ),
                 "gripper_drive": ImplicitActuatorCfg(
                     joint_names_expr=["finger_joint"],
@@ -605,7 +597,7 @@ The Rizon 4s configuration adds two reward terms that measure the distance betwe
             "keypoint_scale": 0.15,
             "ee_grasp_threshold": 0.00,
             "weight_ramp_start": 0.0,
-            "weight_ramp_steps": 250_000,
+            "weight_ramp_steps": self.ee_grasp_weight_ramp_steps,  # 512_000
             "end_effector_body_name": self.end_effector_body_name,
             "grasp_rot_offset": self.grasp_rot_offset,
             "gear_offsets_grasp": self.gear_offsets_grasp,
@@ -623,7 +615,7 @@ The Rizon 4s configuration adds two reward terms that measure the distance betwe
             "keypoint_scale": 0.15,
             "ee_grasp_threshold": 0.00,
             "weight_ramp_start": 0.0,
-            "weight_ramp_steps": 250_000,
+            "weight_ramp_steps": self.ee_grasp_weight_ramp_steps,  # 512_000
             "end_effector_body_name": self.end_effector_body_name,
             "grasp_rot_offset": self.grasp_rot_offset,
             "gear_offsets_grasp": self.gear_offsets_grasp,
@@ -681,15 +673,6 @@ First, launch the training with a small number of environments and visualization
                       --num_envs 4 \
                       --visualizer kit
 
-           .. tab-item:: isaaclab.sh / isaaclab.bat
-
-              .. code-block:: bash
-
-                  ./isaaclab.sh train --rl_library rsl_rl \
-                      --task IsaacContrib-Deploy-GearAssembly-UR10e-2F140-ROS-Inference \
-                      --num_envs 4 \
-                      --visualizer kit
-
     .. tab-item:: UR10e (2F-85)
 
         .. tab-set::
@@ -703,15 +686,6 @@ First, launch the training with a small number of environments and visualization
                       --num_envs 4 \
                       --visualizer kit
 
-           .. tab-item:: isaaclab.sh / isaaclab.bat
-
-              .. code-block:: bash
-
-                  ./isaaclab.sh train --rl_library rsl_rl \
-                      --task IsaacContrib-Deploy-GearAssembly-UR10e-2F85-ROS-Inference \
-                      --num_envs 4 \
-                      --visualizer kit
-
     .. tab-item:: Flexiv Rizon 4s + Grav
 
         .. tab-set::
@@ -721,15 +695,6 @@ First, launch the training with a small number of environments and visualization
               .. code-block:: bash
 
                   uv run isaaclab train --rl_library rsl_rl \
-                      --task IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference \
-                      --num_envs 4 \
-                      --visualizer kit
-
-           .. tab-item:: isaaclab.sh / isaaclab.bat
-
-              .. code-block:: bash
-
-                  ./isaaclab.sh train --rl_library rsl_rl \
                       --task IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference \
                       --num_envs 4 \
                       --visualizer kit
@@ -767,15 +732,6 @@ Now launch the full training run with more parallel environments in headless mod
                       --num_envs 256 \
                       --video --video_length 200 --video_interval 76800
 
-           .. tab-item:: isaaclab.sh / isaaclab.bat
-
-              .. code-block:: bash
-
-                  ./isaaclab.sh train --rl_library rsl_rl \
-                      --task IsaacContrib-Deploy-GearAssembly-UR10e-2F140-ROS-Inference \
-                      --num_envs 256 \
-                      --video --video_length 200 --video_interval 76800
-
     .. tab-item:: UR10e (2F-85)
 
         .. tab-set::
@@ -785,15 +741,6 @@ Now launch the full training run with more parallel environments in headless mod
               .. code-block:: bash
 
                   uv run --extra video isaaclab train --rl_library rsl_rl \
-                      --task IsaacContrib-Deploy-GearAssembly-UR10e-2F85-ROS-Inference \
-                      --num_envs 256 \
-                      --video --video_length 200 --video_interval 76800
-
-           .. tab-item:: isaaclab.sh / isaaclab.bat
-
-              .. code-block:: bash
-
-                  ./isaaclab.sh train --rl_library rsl_rl \
                       --task IsaacContrib-Deploy-GearAssembly-UR10e-2F85-ROS-Inference \
                       --num_envs 256 \
                       --video --video_length 200 --video_interval 76800
@@ -811,26 +758,17 @@ Now launch the full training run with more parallel environments in headless mod
                       --num_envs 256 \
                       --video --video_length 200 --video_interval 76800
 
-           .. tab-item:: isaaclab.sh / isaaclab.bat
-
-              .. code-block:: bash
-
-                  ./isaaclab.sh train --rl_library rsl_rl \
-                      --task IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference \
-                      --num_envs 256 \
-                      --video --video_length 200 --video_interval 76800
-
 **Command breakdown:**
 
 - ``--num_envs 256``: Runs 256 parallel environments for efficient training
-- ``--video_length 200``: Each video captures approximately one full episode (``episode_length_s / (sim.dt * decimation)`` = ``6.66 / (1/1000 * 33)`` ≈ 200 steps)
+- ``--video_length 200``: Each video captures approximately one full episode (``episode_length_s / (sim.dt * decimation)`` = ``6.66 / (1/120 * 4)`` ≈ 200 steps)
 - ``--video_interval 76800``: Records a video every 76,800 environment steps (~every 150 iterations), producing ~10 videos over full training
 
 Training typically takes ~12-24 hours for a robust insertion policy. The videos will be saved in the ``logs`` directory and can be reviewed to assess policy performance during training.
 
 .. note::
 
-    **GPU Memory Considerations**: The default configuration uses 256 parallel environments, which should work on most modern GPUs (e.g., RTX 3090, RTX 4090, A100). For better sim-to-real transfer performance, you can increase ``solver_position_iteration_count`` from 4 to 196 in ``gear_assembly_env_cfg.py`` and ``joint_pos_env_cfg.py`` for more realistic contact simulation, but this requires a larger GPU (e.g., RTX PRO 6000 with 40GB+ VRAM). Higher solver iteration counts reduce penetration and improve contact stability but significantly increase GPU memory usage.
+    **GPU Memory Considerations**: The default configuration uses 256 parallel environments, which should work on most modern GPUs (e.g., RTX 3090, RTX 4090, A100). For better sim-to-real transfer performance, you can increase the robot's ``solver_position_iteration_count`` from 4 to 196 in ``joint_pos_env_cfg.py`` (and the value of 32 used by the gears and gear base in ``gear_assembly_env_cfg.py``) for more realistic contact simulation, but this requires a larger GPU (e.g., RTX PRO 6000 with 40GB+ VRAM). Higher solver iteration counts reduce penetration and improve contact stability but significantly increase GPU memory usage.
 
 
 **Monitoring Training Progress with TensorBoard:**
@@ -849,12 +787,6 @@ You can monitor training metrics in real-time using TensorBoard. Open a new term
 
                   uv run python -m tensorboard.main --logdir logs/rsl_rl/gear_assembly_ur10e
 
-           .. tab-item:: isaaclab.sh / isaaclab.bat
-
-              .. code-block:: bash
-
-                  ./isaaclab.sh -p -m tensorboard.main --logdir logs/rsl_rl/gear_assembly_ur10e
-
     .. tab-item:: Flexiv Rizon 4s
 
         .. tab-set::
@@ -863,13 +795,7 @@ You can monitor training metrics in real-time using TensorBoard. Open a new term
 
               .. code-block:: bash
 
-                  uv run python -m tensorboard.main --logdir logs/rsl_rl/gear_assembly_rizon4s_grav
-
-           .. tab-item:: isaaclab.sh / isaaclab.bat
-
-              .. code-block:: bash
-
-                  ./isaaclab.sh -p -m tensorboard.main --logdir logs/rsl_rl/gear_assembly_rizon4s_grav
+                  uv run python -m tensorboard.main --logdir logs/rsl_rl/gear_assembly_rizon4s
 
 Replace the log directory path with your actual training log location if different. TensorBoard will display plots showing rewards, episode lengths, and other metrics. Verify that the rewards are increasing over iterations to ensure the policy is learning successfully.
 
@@ -877,7 +803,7 @@ Replace the log directory path with your actual training log location if differe
 Step 3: Deploy on Real Robot
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Once training is complete, follow the `Isaac ROS inference documentation <https://nvidia-isaac-ros.github.io/reference_workflows/isaac_for_manipulation/packages/isaac_ros_manipulation_dnn_policy/index.html>`_ to deploy your policy.
+Once training is complete, follow the `Isaac ROS inference documentation <https://nvidia-isaac-ros.github.io/v/release-4.6/reference_workflows/isaac_for_manipulation/packages/isaac_ros_manipulation_dnn_policy/index.html>`_ to deploy your policy.
 
 The Isaac ROS deployment pipeline directly uses the trained model checkpoint (``.pt`` file) along with the ``agent.yaml`` and ``env.yaml`` configuration files generated during training. No additional export step is required.
 
@@ -913,7 +839,7 @@ PhysX Collision Stack Overflow
 
     # In GearAssemblyEnvCfg class
     sim: SimulationCfg = SimulationCfg(
-        physx=PhysxCfg(
+        physics=PhysxCfg(
             gpu_collision_stack_size=2**31,  # Increase this value if you see overflow errors
             gpu_max_rigid_contact_count=2**23,
             gpu_max_rigid_patch_count=2**23,
@@ -947,14 +873,6 @@ CUDA Out of Memory
                  --task IsaacContrib-Deploy-GearAssembly-UR10e-2F140 \
                  --num_envs 128  # Reduce from 256 to 128, 64, etc.
 
-      .. tab-item:: isaaclab.sh / isaaclab.bat
-
-         .. code-block:: bash
-
-             ./isaaclab.sh train --rl_library rsl_rl \
-                 --task IsaacContrib-Deploy-GearAssembly-UR10e-2F140 \
-                 --num_envs 128  # Reduce from 256 to 128, 64, etc.
-
    **Trade-off:** Using fewer environments will reduce sample diversity per training iteration and may slow down training convergence. You may need to train for more iterations to achieve the same performance. However, the final policy quality should be similar.
 
 2. **If using increased solver iteration counts** (values higher than the default 4):
@@ -963,12 +881,12 @@ CUDA Out of Memory
 
    .. code-block:: python
 
-       rigid_props=sim_utils.RigidBodyPropertiesCfg(
+       rigid_props=PhysxRigidBodyCfg(
            solver_position_iteration_count=4,  # Use default value
            # ... other parameters
        ),
 
-       articulation_props=sim_utils.ArticulationRootPropertiesCfg(
+       articulation_props=PhysxArticulationCfg(
            solver_position_iteration_count=4,  # Use default value
            # ... other parameters
        ),
@@ -986,14 +904,6 @@ CUDA Out of Memory
          .. code-block:: bash
 
              uv run isaaclab train --rl_library rsl_rl \
-                 --task IsaacContrib-Deploy-GearAssembly-UR10e-2F140 \
-                 --num_envs 256
-
-      .. tab-item:: isaaclab.sh / isaaclab.bat
-
-         .. code-block:: bash
-
-             ./isaaclab.sh train --rl_library rsl_rl \
                  --task IsaacContrib-Deploy-GearAssembly-UR10e-2F140 \
                  --num_envs 256
 
@@ -1019,15 +929,6 @@ To use it, run the standard play command:
       .. code-block:: bash
 
           uv run isaaclab play --rl_library rsl_rl \
-              --task IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference \
-              --num_envs 1 \
-              --checkpoint <path_to_model.pt>
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-          ./isaaclab.sh play --rl_library rsl_rl \
               --task IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference \
               --num_envs 1 \
               --checkpoint <path_to_model.pt>
@@ -1068,6 +969,6 @@ Further Resources
 
 - `IndustReal: Transferring Contact-Rich Assembly Tasks from Simulation to Reality <https://arxiv.org/abs/2305.17110>`_
 - `FORGE: Force-Guided Exploration for Robust Contact-Rich Manipulation under Uncertainty <https://arxiv.org/abs/2408.04587>`_
-- `Isaac ROS Manipulation Documentation <https://nvidia-isaac-ros.github.io/reference_workflows/isaac_for_manipulation/index.html>`_
-- `Isaac ROS Gear Assembly Tutorial <https://nvidia-isaac-ros.github.io/reference_workflows/isaac_for_manipulation/tutorials/sim_to_real/tutorial_gear_assembly.html>`_
+- `Isaac ROS Manipulation Documentation <https://nvidia-isaac-ros.github.io/v/release-4.6/reference_workflows/isaac_for_manipulation/index.html>`_
+- `Isaac ROS Gear Assembly Tutorial <https://nvidia-isaac-ros.github.io/v/release-4.6/reference_workflows/isaac_for_manipulation/tutorials/sim_to_real/tutorial_gear_assembly.html>`_
 - RL Training Tutorial: :ref:`tutorial-run-rl-training`

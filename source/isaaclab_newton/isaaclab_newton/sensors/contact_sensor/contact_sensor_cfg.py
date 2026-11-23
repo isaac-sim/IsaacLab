@@ -7,7 +7,7 @@ import warnings
 from typing import TYPE_CHECKING
 
 from isaaclab.sensors.contact_sensor.contact_sensor_cfg import ContactSensorCfg as BaseContactSensorCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from .contact_sensor import ContactSensor
@@ -19,9 +19,9 @@ class ContactSensorCfg(BaseContactSensorCfg):
 
     :class:`~isaaclab.sensors.ContactSensorCfg` already resolves to this backend automatically under
     Newton physics (including its ``*_shape_prim_expr`` shape-level fields). Use this class directly
-    only to force the Newton implementation regardless of the active backend. It warns about and
-    disables base fields the Newton backend does not support, and can be built from a base config via
-    :meth:`from_base_cfg`.
+    only to force the Newton implementation regardless of the active backend. It warns about base
+    fields the Newton backend does not support and disables those that can be ignored, and can be
+    built from a base config via :meth:`from_base_cfg`.
     """
 
     class_type: type["ContactSensor"] | str = "{DIR}.contact_sensor:ContactSensor"
@@ -36,6 +36,7 @@ class ContactSensorCfg(BaseContactSensorCfg):
             warnings.warn(
                 "ContactSensorCfg: 'track_contact_points' requires filter objects on the Newton backend. Please set"
                 " 'filter_prim_paths_expr' or 'filter_shape_prim_expr'. Ignoring.",
+                UserWarning,
                 stacklevel=2,
             )
             self.track_contact_points = False
@@ -43,16 +44,19 @@ class ContactSensorCfg(BaseContactSensorCfg):
         if self.max_contact_data_count_per_prim is not None:
             warnings.warn(
                 "ContactSensorCfg: 'max_contact_data_count_per_prim' is not supported by the Newton backend. Ignoring.",
+                UserWarning,
                 stacklevel=2,
             )
             self.max_contact_data_count_per_prim = None
 
-        if self.track_friction_forces:
+        if self.track_pose:
+            # Kept enabled so that reading the pose raises instead of returning None.
             warnings.warn(
-                "ContactSensorCfg: 'track_friction_forces' is not supported by the Newton backend. Ignoring.",
+                "ContactSensorCfg: 'track_pose' is not supported by the Newton backend. Reading 'pos_w', 'quat_w' or"
+                " 'pose_w' raises NotImplementedError.",
+                UserWarning,
                 stacklevel=2,
             )
-            self.track_friction_forces = False
 
     @classmethod
     def from_base_cfg(cls, base_cfg: BaseContactSensorCfg, **kwargs) -> "ContactSensorCfg":
@@ -60,7 +64,8 @@ class ContactSensorCfg(BaseContactSensorCfg):
 
         Args:
             base_cfg: The base contact sensor configuration to copy from.
-            **kwargs: Newton-specific fields, e.g. ``filter_shape_prim_expr=["fingertip_.*"]``.
+            **kwargs: Newton-specific fields, e.g.
+                ``filter_shape_prim_expr=["{ENV_REGEX_NS}/Robot/fingertip_[^/]*/.*"]``.
 
         Returns:
             A new :class:`ContactSensorCfg` instance.

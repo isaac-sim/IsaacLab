@@ -9,16 +9,21 @@ Developer skills:
 - `developer/pr-workflow/`: prepare changes for review using Isaac Lab's PR, commit, changelog, and validation conventions.
 - `developer/changelog-fragments/`: add and validate package changelog fragments.
 - `developer/coding-style/`: apply Isaac Lab coding style, API design, docstring, type-hint, lazy export, and contribution conventions.
+- `developer/test-audit/`: gate new tests and audit existing ones for low-value, implementation-coupled, or duplicated coverage.
+- `developer/issue-audit/`: check one issue against current code and draft an evidence-backed resolution.
+- `developer/issue-backlog-triage/`: triage multiple issues and draft closing comments.
+- `developer/isaaclab-updating-environment-docs/`: synchronize the environment browser with registrations and presets.
 
 User skills:
 
-- `user/install-isaac-lab/`: install Isaac Lab following the current install docs — automatic uv setup, downloaded Isaac Sim package, source build, Isaac Lab wheel, legacy isaaclab.sh installer, or Docker — across Linux (x86_64, aarch64) and Windows 11.
+- `user/install-isaac-lab/`: install Isaac Lab following the current install docs — automatic or explicit uv environments, Isaac Sim source builds, uv-installed wheels, or Docker — across Linux (x86_64, aarch64) and Windows 11.
 - `user/migrate-from-isaac-gym/`: migrate Isaac Gym tasks, assets, and training workflows to Isaac Lab.
 - `user/migrate-2x-to-3x/`: migrate Isaac Lab 2.x projects to Isaac Lab 3.0 using the official migration guide.
-- `user/domain-randomization-events/`: implement domain randomization through Isaac Lab event terms.
+- `user/domain-randomization-events/`: implement fixed and adaptive domain randomization through event and curriculum terms.
 - `user/create-environments/`: create manager-based Isaac Lab environments by default, with direct environments for special cases.
 - `user/convert-direct-to-manager/`: convert validated direct Isaac Lab environments into manager-based task configurations.
 - `user/train-rl-agents/`: configure and run Isaac Lab reinforcement learning workflows.
+- `user/train-multi-gpu/`: launch and diagnose multi-GPU and multi-node training.
 - `user/debug-rl-training/`: diagnose RL rewards, task metrics, checkpoint compatibility, and training experiments.
 - `user/plan-manipulation-tasks/`: stage manipulation tasks through scene, reset, action, reward, and behavior gates.
 - `user/use-sensors-actuators/`: add sensors, sensor observations, and actuator models to tasks.
@@ -29,7 +34,7 @@ User skills:
 - `user/isaaclab-transferring-policies-sim-to-sim/`: validate bidirectional PhysX/Newton policy transfer and diagnose transfer gaps.
 - `user/setup-troubleshooting/`: route installation, verification, and setup issues to official docs and canonical commands.
 
-Planned user skills:
+Planned user skills (paths without descriptions are excluded from maintained-catalog validation):
 
 - `user/import-robot-urdf-mjcf/`
 
@@ -57,16 +62,16 @@ Use these current import paths before searching for alternatives:
 | Scene entity config | `from isaaclab.managers import SceneEntityCfg` |
 | Preset config | `from isaaclab_tasks.utils import PresetCfg` |
 | Simulation config | `from isaaclab.sim import SimulationCfg` |
-| PhysX physics config | `from isaaclab_physx.physics import PhysxCfg` |
+| PhysX physics config | `from isaaclab_isaacsim.physics import PhysxCfg` |
 | Newton physics config | `from isaaclab_newton.physics import NewtonCfg` |
 | Base contact sensor config | `from isaaclab.sensors import ContactSensorCfg` |
-| PhysX contact sensor config | `from isaaclab_physx.sensors import ContactSensorCfg as PhysXContactSensorCfg` |
+| PhysX contact sensor config | `from isaaclab_isaacsim.sensors import ContactSensorCfg as PhysXContactSensorCfg` |
 | Newton contact sensor config | `from isaaclab_newton.sensors import ContactSensorCfg as NewtonContactSensorCfg` |
 | Ray caster config | `from isaaclab.sensors import RayCasterCfg` |
 | Tiled camera config | `from isaaclab.sensors import TiledCameraCfg` |
 | Implicit actuator config | `from isaaclab.actuators import ImplicitActuatorCfg` |
 | Core schema fragments and base cfgs | `from isaaclab.sim import schemas` |
-| PhysX schema cfgs | `from isaaclab_physx.sim import schemas as physx_schemas` |
+| PhysX schema cfgs | `from isaaclab_isaacsim.sim import schemas as physx_schemas` |
 | Newton schema cfgs | `from isaaclab_newton.sim import schemas as newton_schemas` |
 
 ## Authoring Rules

@@ -23,7 +23,6 @@ from .prims import add_usd_reference
 from .queries import get_next_free_prim_path
 from .stage import get_current_stage
 
-# import logger
 logger = logging.getLogger(__name__)
 
 
@@ -333,7 +332,6 @@ def get_next_free_path(path: str) -> str:
 
     Args:
         path: The base prim path to check.
-        stage: The stage to check. Defaults to the current stage.
 
     Returns:
         A new path that is guaranteed to not exist on the current stage

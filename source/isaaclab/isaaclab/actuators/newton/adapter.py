@@ -12,11 +12,13 @@ and the per-step ``step`` / ``reset`` / ``finalize`` calls. The
 ``model.actuators`` itself.
 
 DR gain updates bypass the adapter — the articulation writes straight
-to controller arrays.
+to drive arrays.
 """
 
 from __future__ import annotations
 
+import warnings
+from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, TypeAlias
@@ -26,9 +28,10 @@ import torch
 import warp as wp
 from newton import Model
 from newton._src.utils.selection import FrequencyLayout
-from newton.actuators import Actuator, Clamping, Delay
+from newton.actuators import Actuator, ClampingBase, Delay, parse_actuator_prim
 from newton.selection import ArticulationView
 
+from ...utils import index_fill_
 from .kernels import (
     build_implicit_dof_mask,
     build_per_dof_env_mask_kernel,
@@ -37,7 +40,7 @@ from .kernels import (
 )
 
 if TYPE_CHECKING:
-    from isaaclab.actuators import ActuatorCollection
+    from .. import ActuatorCollection
 
 # ---------------------------------------------------------------------------
 # Abstract base — backend-independent logic
@@ -103,9 +106,14 @@ class NewtonActuatorAdapter:
 
         self._states_a = [act.state() for act in actuators]
         self._states_b = [act.state() for act in actuators]
+        # per-DOF reset masks of the stateful actuators, rewritten by every partial reset so a reset does not allocate
+        self._reset_dof_masks = [
+            None if state is None else wp.zeros(act.indices.shape[0], dtype=wp.bool, device=device)
+            for act, state in zip(actuators, self._states_a)
+        ]
 
         # Pre-clamp computed effort buffer. Each Newton actuator scatter-adds
-        # its raw controller output to ``sim_control.joint_computed_f`` when
+        # its raw drive output to ``sim_control.joint_computed_f`` when
         # ``control_computed_output_attr`` is set; we route that to this
         # buffer so the post-actuator telemetry kernel can report the actual
         # computed (pre-clamp) effort instead of mirroring ``joint_f``. The
@@ -131,8 +139,8 @@ class NewtonActuatorAdapter:
         """
         sim_control.joint_computed_f = self._computed_effort
 
-    def step(self, sim_state: Any, sim_control: Any, dt: float) -> None:
-        """Zero actuated DOFs, step all actuators, and swap state buffers.
+    def step(self, sim_state: Any, sim_control: Any, dt: float, *, swap_state: bool = True) -> None:
+        """Zero actuated DOFs, step all actuators, and advance state buffers.
 
         Args:
             sim_state: Object with ``joint_q``, ``joint_qd``, etc.
@@ -144,6 +152,9 @@ class NewtonActuatorAdapter:
                 :class:`~isaaclab.actuators.newton.physx_wrapper.PhysxActuatorWrapper`
                 on the PhysX backend.
             dt: Physics timestep [s].
+            swap_state: Swap state buffers after stepping. Set to ``False`` on the last step
+                of an odd-length graph to copy the output back into the input buffers instead,
+                keeping their addresses stable across replays.
         """
         # Zero before scatter-add (actuators accumulate into this buffer).
         self._computed_effort.zero_()
@@ -155,13 +166,20 @@ class NewtonActuatorAdapter:
             )
         for act, sa, sb in zip(self.actuators, self._states_a, self._states_b):
             act.step(sim_state, sim_control, sa, sb, dt=dt)
-        self._swap_state_buffers()
+        if swap_state:
+            self._swap_state_buffers()
+        else:
+            for sa, sb in zip(self._states_a, self._states_b):
+                if sa is not None:
+                    sa.assign(sb)
 
     def _swap_state_buffers(self) -> None:
         """Advance the actuator state ping-pong after an eager step or graph replay."""
         self._states_a, self._states_b = self._states_b, self._states_a
 
-    def reset(self, env_ids: Sequence[int] | torch.Tensor | None = None) -> None:
+    def reset(
+        self, env_ids: Sequence[int] | torch.Tensor | slice | None = None, env_mask: wp.array | None = None
+    ) -> None:
         """Reset actuator states for the given environments.
 
         Args:
@@ -169,14 +187,19 @@ class NewtonActuatorAdapter:
                 ``slice(None)``, which IsaacLab callers sometimes pass)
                 resets all environments. Otherwise expects a torch tensor
                 or sequence of int indices.
+            env_mask: Boolean environment mask. Shape is (num_envs,). Takes
+                precedence over ``env_ids`` and does not synchronize the device.
 
         Newton's :meth:`Actuator.State.reset` expects a per-DOF boolean
         mask of length ``num_actuators`` (= ``num_envs * dofs_per_actuator``),
         not a per-env mask — each entry gates the corresponding column of
-        the actuator's state buffers (delay queue, controller integral,
+        the actuator's state buffers (delay queue, drive integral,
         etc.). We therefore build a per-actuator per-DOF mask from the
         env mask before delegating to each state.
         """
+        if env_mask is not None:
+            self._reset_states(env_mask)
+            return
         if env_ids is None or env_ids == slice(None):
             for sa, sb in zip(self._states_a, self._states_b):
                 if sa is not None:
@@ -185,29 +208,21 @@ class NewtonActuatorAdapter:
                     sb.reset(None)
             return
 
-        if isinstance(env_ids, torch.Tensor):
-            if env_ids.numel() == 0:
-                return
-            idx = wp.from_torch(env_ids.to(device=self._device).contiguous().to(torch.int32), dtype=wp.int32)
-        else:
-            if len(env_ids) == 0:
-                return
-            idx = wp.array(list(env_ids), dtype=wp.int32, device=self._device)
+        num_envs = len(range(self._num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
+        if num_envs == 0:
+            return
         env_mask = wp.zeros(self._num_envs, dtype=wp.bool, device=self._device)
-        wp.launch(set_mask_kernel, dim=idx.shape[0], inputs=[env_mask, idx], device=self._device)
-
-        for act, sa, sb in zip(self.actuators, self._states_a, self._states_b):
-            per_dof_mask = wp.zeros(act.indices.shape[0], dtype=wp.bool, device=self._device)
-            wp.launch(
-                build_per_dof_env_mask_kernel,
-                dim=act.indices.shape[0],
-                inputs=[act.indices, env_mask, self._dof_offset, self.num_joints, per_dof_mask],
-                device=self._device,
+        if isinstance(env_ids, slice):
+            wp.to_torch(env_mask)[env_ids] = True
+        else:
+            # Torch indexed scalar assignment uploads True and synchronizes on CUDA.
+            indices = (
+                wp.from_torch(env_ids)
+                if isinstance(env_ids, torch.Tensor)
+                else wp.array(env_ids, dtype=wp.int32, device=self._device)
             )
-            if sa is not None:
-                sa.reset(per_dof_mask)
-            if sb is not None:
-                sb.reset(per_dof_mask)
+            wp.launch(set_mask_kernel, dim=num_envs, inputs=[env_mask, indices], device=self._device)
+        self._reset_states(env_mask)
 
     def bind_articulation(
         self,
@@ -252,7 +267,7 @@ class NewtonActuatorAdapter:
 
     @property
     def is_stateful(self) -> bool:
-        """``True`` when any actuator maintains delay or controller state."""
+        """``True`` when any actuator maintains delay or drive state."""
         return any(a.is_stateful() for a in self.actuators)
 
     @classmethod
@@ -303,6 +318,20 @@ class NewtonActuatorAdapter:
         )
         return cls(actuators, num_envs, num_joints, dof_offset=0, device=device)
 
+    def _reset_states(self, env_mask: wp.array) -> None:
+        """Reset the actuator states of the environments selected by a boolean mask of shape (num_envs,)."""
+        for act, sa, sb, per_dof_mask in zip(self.actuators, self._states_a, self._states_b, self._reset_dof_masks):
+            if per_dof_mask is None:
+                continue
+            wp.launch(
+                build_per_dof_env_mask_kernel,
+                dim=act.indices.shape[0],
+                inputs=[act.indices, env_mask, self._dof_offset, self.num_joints, per_dof_mask],
+                device=self._device,
+            )
+            sa.reset(per_dof_mask)
+            sb.reset(per_dof_mask)
+
 
 # ---------------------------------------------------------------------------
 # Component-addressed parameter access via Newton's selection API.
@@ -312,14 +341,15 @@ class NewtonActuatorAdapter:
 def read_group_parameter(collection: ActuatorCollection, name: str, component: str, attr: str) -> torch.Tensor:
     """Read one live Newton actuator parameter for a native group.
 
-    Group-scoped, user-ordered reads of the controller-owned storage. For raw
+    Group-scoped, user-ordered reads of the drive-owned storage. For raw
     component access, use the group's Newton actuator object (the collection
     mapping entry) directly.
 
     Args:
         collection: The articulation's actuator collection.
         name: Actuator group name.
-        component: Component kind: ``"controller"``, ``"delay"``, or ``"clamping"``.
+        component: Component kind: ``"drive"``, ``"delay"``, or ``"clamping"``.
+            ``"controller"`` is a deprecated alias for ``"drive"``.
         attr: Parameter name on that component (e.g. ``"kp"``, ``"max_effort"``).
 
     Returns:
@@ -347,19 +377,20 @@ def write_group_parameter(
     component: str,
     attr: str,
     values: torch.Tensor,
-    env_ids: torch.Tensor | None = None,
+    env_ids: torch.Tensor | slice | None = None,
     joint_ids: torch.Tensor | None = None,
 ) -> None:
     """Write one Newton actuator parameter for a native group.
 
-    Group-scoped, user-ordered writes that reach the controller-owned storage
+    Group-scoped, user-ordered writes that reach the drive-owned storage
     through Newton's selection API. For raw component access, use the group's
     Newton actuator object (the collection mapping entry) directly.
 
     Args:
         collection: The articulation's actuator collection.
         name: Actuator group name.
-        component: Component kind: ``"controller"``, ``"delay"``, or ``"clamping"``.
+        component: Component kind: ``"drive"``, ``"delay"``, or ``"clamping"``.
+            ``"controller"`` is a deprecated alias for ``"drive"``.
         attr: Parameter name on that component (e.g. ``"kp"``, ``"max_effort"``).
         values: New values, shape ``(len(env_ids), len(joint_ids))``. Units
             follow the addressed parameter.
@@ -377,11 +408,11 @@ def write_group_parameter(
     if joint_ids is not None:
         columns = columns[joint_ids.to(device, dtype=torch.long)]
     mask = None
-    env_rows: torch.Tensor | None = None
-    if env_ids is not None:
-        env_rows = env_ids.to(device, dtype=torch.long).unsqueeze(1)
+    env_rows: torch.Tensor | slice | None = None
+    if env_ids is not None and env_ids != slice(None):
+        env_rows = env_ids if isinstance(env_ids, slice) else env_ids[:, None]
         mask_torch = torch.zeros(collection.num_instances, dtype=torch.bool, device=device)
-        mask_torch[env_rows] = True
+        index_fill_(mask_torch, env_ids, True)
         mask = wp.from_torch(mask_torch, dtype=wp.bool)
     values = values.to(device)
     for actuator, owner in owners:
@@ -390,7 +421,7 @@ def write_group_parameter(
         if env_rows is None:
             current_torch[:, columns] = values.to(dtype=current_torch.dtype)
         else:
-            current_torch[env_rows, columns.unsqueeze(0)] = values.to(dtype=current_torch.dtype)
+            current_torch[env_rows, columns] = values.to(dtype=current_torch.dtype)
         view.set_actuator_parameter(actuator=actuator, component=owner, name=attr, values=current, mask=mask)
 
 
@@ -398,6 +429,15 @@ def _group_parameter_owners(
     collection: ActuatorCollection, name: str, component: str, attr: str
 ) -> list[tuple[Actuator, Any]]:
     """Resolve the component instances exposing ``attr`` for one native group."""
+    if component == "controller":
+        # stacklevel=3 points at the caller of read_group_parameter / write_group_parameter.
+        warnings.warn(
+            "The 'controller' actuator component is deprecated. Use 'drive' instead; "
+            "'controller' will be removed in 3.2.",
+            DeprecationWarning,
+            stacklevel=3,
+        )
+        component = "drive"
     if name not in collection._groups:
         raise KeyError(name)
     if collection._newton_selection is None or name not in collection._native_group_names:
@@ -418,7 +458,7 @@ def _group_parameter_owners(
 def resolve_actuator_component(actuator: Actuator, component: str, attr: str) -> Any | None:
     """Return the component instance that exposes ``attr`` on the addressed component kind.
 
-    ``component`` selects the actuator's ``"controller"``, ``"delay"``, or
+    ``component`` selects the actuator's ``"drive"``, ``"delay"``, or
     ``"clamping"`` entry; the returned object is what Newton's
     :meth:`~newton.selection.ArticulationView.get_actuator_parameter` and
     :meth:`~newton.selection.ArticulationView.set_actuator_parameter` take as
@@ -426,8 +466,8 @@ def resolve_actuator_component(actuator: Actuator, component: str, attr: str) ->
     on this actuator or does not expose ``attr``. Raises ``ValueError`` on
     unknown component names or ambiguous clamping matches.
     """
-    if component == "controller":
-        owner = actuator.controller
+    if component == "drive":
+        owner = actuator.drive
     elif component == "delay":
         owner = getattr(actuator, "delay", None)
     elif component == "clamping":
@@ -437,7 +477,7 @@ def resolve_actuator_component(actuator: Actuator, component: str, attr: str) ->
             raise ValueError(f"Ambiguous clamping parameter '{attr}': exposed by {names}.")
         owner = matches[0] if matches else None
     else:
-        raise ValueError(f"Unknown actuator component '{component}'. Expected 'controller', 'delay', or 'clamping'.")
+        raise ValueError(f"Unknown actuator component '{component}'. Expected 'drive', 'delay', or 'clamping'.")
     if owner is None or not hasattr(owner, attr):
         return None
     return owner
@@ -448,9 +488,8 @@ class LightArticulationView:
 
     The PhysX-family backends build Newton actuators from USD without a Newton
     :class:`~newton.Model`, so they cannot construct a real
-    :class:`~newton.selection.ArticulationView`. The view's actuator-parameter
-    section only consumes the placement attributes below, so this stand-in
-    provides them for the PhysX flat layout (one articulation per world,
+    :class:`~newton.selection.ArticulationView`. This stand-in provides the placement
+    attributes and DOF mapping cache for the PhysX flat layout (one articulation per world,
     identity joint order, per-world DOF stride equal to the joint count) and
     borrows the real implementations unchanged.
     """
@@ -460,6 +499,7 @@ class LightArticulationView:
         self.count_per_world = 1
         self.device = device
         self.full_mask = wp.ones(num_envs, dtype=wp.bool, device=device)
+        self._actuator_dof_mapping_cache = {}
         self.frequency_layouts = {
             Model.AttributeFrequency.JOINT_DOF: FrequencyLayout(
                 offset=0,
@@ -471,10 +511,10 @@ class LightArticulationView:
             )
         }
 
-    # The real implementations, unchanged: they only read the attributes above.
     get_actuator_parameter = ArticulationView.get_actuator_parameter
     set_actuator_parameter = ArticulationView.set_actuator_parameter
     _get_actuator_dof_mapping = ArticulationView._get_actuator_dof_mapping
+    _create_actuator_dof_mapping = ArticulationView._create_actuator_dof_mapping
     _resolve_world_mask = ArticulationView._resolve_world_mask
 
 
@@ -508,8 +548,8 @@ _ResolvedActuatorSpec: TypeAlias = tuple[int, type, dict[str, Any], list[_Resolv
 
 
 def _actuator_signature(
-    controller_class: type,
-    controller_arguments: dict[str, Any],
+    drive_class: type,
+    drive_arguments: dict[str, Any],
     component_arguments: list[_ResolvedComponent],
 ) -> tuple:
     """Build Newton's structural grouping key for a parsed actuator spec."""
@@ -528,10 +568,10 @@ def _actuator_signature(
     for comp_cls, resolved in component_arguments:
         if issubclass(comp_cls, Delay):
             has_delay = True
-        elif issubclass(comp_cls, Clamping):
+        elif issubclass(comp_cls, ClampingBase):
             clamping_key.append((comp_cls, shared_key(comp_cls, resolved)))
 
-    return (controller_class, has_delay, tuple(clamping_key), shared_key(controller_class, controller_arguments))
+    return (drive_class, has_delay, tuple(clamping_key), shared_key(drive_class, drive_arguments))
 
 
 def _tile_per_dof_arguments(
@@ -575,17 +615,13 @@ def _create_actuators_from_usd(
     ``indices`` array is therefore sufficient for all index roles
     (``indices``, ``pos_indices``, ``target_pos_indices``).
 
-    Joints with the same controller and clamping structure are merged into
+    Joints with the same drive and clamping structure are merged into
     one :class:`Actuator`. Scalar parameters (``kp``, ``kd``,
     ``saturation_effort``, delay, etc.) are packed per DOF. Parameters marked
     as ``SHARED_PARAMS`` (e.g. ``model_path``, ``lookup_positions``) remain
     part of the grouping key and are passed through directly.
     """
-    from collections import defaultdict  # noqa: PLC0415
-
-    from newton.actuators import parse_actuator_prim  # noqa: PLC0415
-
-    from pxr import Usd  # noqa: PLC0415
+    from pxr import Sdf, Usd  # noqa: PLC0415
 
     wp_device = wp.get_device(device)
 
@@ -598,7 +634,17 @@ def _create_actuators_from_usd(
 
     parsed_per_joint: dict[int, Any] = {}
     for prim in Usd.PrimRange(root_prim):
-        parsed = parse_actuator_prim(prim)
+        allow_unsafe_torch_checkpoint = False
+        if prim.GetTypeName() == "NewtonActuator":
+            # Newton 1.9 gates legacy Torch checkpoint imports; opt in only for authored Torch model paths.
+            model_path_attr = prim.GetAttribute("newton:modelPath")
+            model_path = model_path_attr.Get() if model_path_attr else None
+            if isinstance(model_path, Sdf.AssetPath):
+                model_path = model_path.path
+            allow_unsafe_torch_checkpoint = isinstance(model_path, str) and model_path.lower().endswith(
+                (".pt", ".pth", ".pt2")
+            )
+        parsed = parse_actuator_prim(prim, allow_unsafe_torch_checkpoints=allow_unsafe_torch_checkpoint)
         if parsed is None:
             continue
         target_name = parsed.target_path.rsplit("/", 1)[-1]
@@ -610,18 +656,18 @@ def _create_actuators_from_usd(
 
     groups: dict[tuple, list[_ResolvedActuatorSpec]] = defaultdict(list)
     for local_idx, parsed in sorted(parsed_per_joint.items()):
-        controller_arguments = parsed.controller_class.resolve_arguments(dict(parsed.controller_kwargs))
+        drive_arguments = parsed.drive_class.resolve_arguments(dict(parsed.drive_kwargs))
         component_arguments = [
             (comp_cls, comp_cls.resolve_arguments(comp_kwargs)) for comp_cls, comp_kwargs in parsed.component_specs
         ]
-        sig = _actuator_signature(parsed.controller_class, controller_arguments, component_arguments)
-        groups[sig].append((local_idx, parsed.controller_class, controller_arguments, component_arguments))
+        sig = _actuator_signature(parsed.drive_class, drive_arguments, component_arguments)
+        groups[sig].append((local_idx, parsed.drive_class, drive_arguments, component_arguments))
 
     actuators = []
     for grouped_specs in groups.values():
         local_indices = [spec[0] for spec in grouped_specs]
-        controller_class = grouped_specs[0][1]
-        resolved_controllers = [spec[2] for spec in grouped_specs]
+        drive_class = grouped_specs[0][1]
+        resolved_drives = [spec[2] for spec in grouped_specs]
         resolved_components = [spec[3] for spec in grouped_specs]
 
         flat_indices = np.array(
@@ -630,21 +676,20 @@ def _create_actuators_from_usd(
         )
         indices = wp.array(flat_indices, device=wp_device)
 
-        # Controller
-        shared_ctrl = getattr(controller_class, "SHARED_PARAMS", set())
-        ctrl_arguments = [
-            {key: value for key, value in resolved.items() if key not in shared_ctrl}
-            for resolved in resolved_controllers
+        # Drive
+        shared_drive = getattr(drive_class, "SHARED_PARAMS", set())
+        drive_arguments = [
+            {key: value for key, value in resolved.items() if key not in shared_drive} for resolved in resolved_drives
         ]
-        ctrl_shared = {key: value for key, value in resolved_controllers[0].items() if key in shared_ctrl}
-        controller = controller_class(
-            **_tile_per_dof_arguments(ctrl_arguments, num_envs, wp.float32, wp_device),
-            **ctrl_shared,
+        drive_shared = {key: value for key, value in resolved_drives[0].items() if key in shared_drive}
+        drive = drive_class(
+            **_tile_per_dof_arguments(drive_arguments, num_envs, wp.float32, wp_device),
+            **drive_shared,
         )
 
         # Components (delay + clampings)
         clamping_components = [
-            [(comp_cls, resolved) for comp_cls, resolved in components if issubclass(comp_cls, Clamping)]
+            [(comp_cls, resolved) for comp_cls, resolved in components if issubclass(comp_cls, ClampingBase)]
             for components in resolved_components
         ]
         delay_arguments = [
@@ -681,7 +726,7 @@ def _create_actuators_from_usd(
 
         actuator = Actuator(
             indices=indices,
-            controller=controller,
+            drive=drive,
             delay=delay,
             clamping=clampings if clampings else None,
             control_target_pos_attr="joint_target_pos",

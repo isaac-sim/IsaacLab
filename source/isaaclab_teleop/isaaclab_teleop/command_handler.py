@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Teleop command callback registry for IsaacTeleop-based teleoperation."""
+"""Teleop command callback registry for Isaac Capture-based teleoperation."""
 
 from __future__ import annotations
 

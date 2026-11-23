@@ -8,30 +8,40 @@
   .. autosummary::
 
     NewtonManager
+    NewtonBackend
+    NewtonCloneRecord
+    MjWarpActuatorBridge
     NewtonCfg
+    NewtonBackendCfg
+    NewtonBuilderCfg
     NewtonSoftContactCfg
     NewtonCollisionPipelineCfg
-    NewtonFeatherstoneManager
-    NewtonKaminoManager
-    NewtonMPMManager
-    NewtonMJWarpManager
-    NewtonVBDManager
     NewtonShapeCfg
+    NewtonSolver
+    MJWarpSolver
+    VBDSolver
+    XPBDSolver
+    FeatherstoneSolver
+    SteelSolver
+    KaminoSolver
+    MPMSolver
     NewtonSolverCfg
-    NewtonXPBDManager
     MJWarpSolverCfg
     VBDSolverCfg
     XPBDSolverCfg
     FeatherstoneSolverCfg
+    SteelSolverCfg
     KaminoCollisionDetectorCfg
     KaminoConstraintsCfg
-    KaminoDVICfg
-    KaminoDVISolverCfg
     KaminoDynamicsCfg
     KaminoFKCfg
     KaminoMaterialsCfg
     KaminoPADMMCfg
     KaminoPADMMSolverCfg
+    KaminoSCCCfg
+    KaminoSCCSolverCfg
+    KaminoDVICfg
+    KaminoDVISolverCfg
     MPMSolverCfg
     HydroelasticSDFCfg
 
@@ -45,6 +55,54 @@ Physics Manager
   :inherited-members:
   :show-inheritance:
 
+.. autofunction:: create_builder
+
+.. autoclass:: NewtonBackend
+  :members:
+  :exclude-members: __init__
+
+.. autoclass:: NewtonCloneRecord
+  :members:
+
+.. automodule:: isaaclab_newton.physics.newton_backend
+  :members: capture_graph
+
+.. currentmodule:: isaaclab_newton.physics
+
+Solvers
+-------
+
+.. autoclass:: NewtonSolver
+  :members:
+
+.. autoclass:: MJWarpSolver
+  :show-inheritance:
+
+.. autoclass:: VBDSolver
+  :show-inheritance:
+
+.. autoclass:: XPBDSolver
+  :show-inheritance:
+
+.. autoclass:: FeatherstoneSolver
+  :show-inheritance:
+
+.. autoclass:: SteelSolver
+  :show-inheritance:
+
+.. autoclass:: KaminoSolver
+  :show-inheritance:
+
+.. autoclass:: MPMSolver
+  :show-inheritance:
+
+Actuator Solver Access
+----------------------
+
+.. autoclass:: MjWarpActuatorBridge
+  :members:
+  :show-inheritance:
+
 Physics Configuration
 ---------------------
 
@@ -52,6 +110,18 @@ Physics Configuration
   :members:
   :show-inheritance:
   :exclude-members: __init__
+
+.. autoclass:: NewtonBackendCfg
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+.. autoclass:: NewtonBuilderCfg
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+.. autofunction:: create_newton_builder
 
 .. autoclass:: NewtonSoftContactCfg
   :members:
@@ -83,15 +153,24 @@ Physics Configuration
   :show-inheritance:
   :exclude-members: __init__
 
+.. autoclass:: SteelSolverCfg
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
 .. autoclass:: KaminoPADMMCfg
   :members:
   :show-inheritance:
   :exclude-members: __init__
 
-.. autoclass:: KaminoDVICfg
+.. autoclass:: KaminoSCCCfg
   :members:
   :show-inheritance:
   :exclude-members: __init__
+
+.. py:class:: KaminoDVICfg
+
+  Compatibility alias for :class:`KaminoSCCCfg`.
 
 .. autoclass:: KaminoDynamicsCfg
   :members:
@@ -123,10 +202,15 @@ Physics Configuration
   :show-inheritance:
   :exclude-members: __init__
 
-.. autoclass:: KaminoDVISolverCfg
+.. autoclass:: KaminoSCCSolverCfg
   :members:
   :show-inheritance:
   :exclude-members: __init__
+
+.. autoclass:: KaminoDVISolverCfg
+  :members: dynamics_solver_cfg
+  :inherited-members:
+  :show-inheritance:
 
 .. autoclass:: MPMSolverCfg
   :members:
@@ -148,35 +232,7 @@ Physics Configuration
   :show-inheritance:
   :exclude-members: __init__
 
-Solver Managers
----------------
+MPM Solver State
+----------------
 
-.. autoclass:: NewtonMJWarpManager
-  :members:
-  :inherited-members:
-  :show-inheritance:
-
-.. autoclass:: NewtonVBDManager
-  :members:
-  :inherited-members:
-  :show-inheritance:
-
-.. autoclass:: NewtonXPBDManager
-  :members:
-  :inherited-members:
-  :show-inheritance:
-
-.. autoclass:: NewtonFeatherstoneManager
-  :members:
-  :inherited-members:
-  :show-inheritance:
-
-.. autoclass:: NewtonKaminoManager
-  :members:
-  :inherited-members:
-  :show-inheritance:
-
-.. autoclass:: NewtonMPMManager
-  :members:
-  :inherited-members:
-  :show-inheritance:
+.. autofunction:: reset_mpm_solver_state

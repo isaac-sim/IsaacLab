@@ -10,15 +10,18 @@ This script searches for 4-element tuples/lists in Python files and flags those
 that haven't been modified compared to the main branch.
 
 Usage:
-    python tools/find_quaternions.py [--path PATH] [--show-all] [--check-identity]
+    python scripts/tools/find_quaternions.py [--path PATH] [--show-all] [--check-identity]
 """
 
 import argparse
 import ast
+import logging
 import re
 import subprocess
 import sys
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 def get_changed_files_from_base(base_ref="main"):
@@ -32,7 +35,7 @@ def get_changed_files_from_base(base_ref="main"):
         )
         return set(result.stdout.strip().split("\n"))
     except subprocess.CalledProcessError:
-        print(f"Warning: Could not get git diff from {base_ref}. Showing all potential quaternions.")
+        logger.warning(f"Could not get git diff from {base_ref}. Showing all potential quaternions.")
         return set()
 
 

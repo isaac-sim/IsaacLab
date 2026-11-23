@@ -5,15 +5,11 @@
 
 """Test dataset generation for Isaac Lab Mimic workflow."""
 
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
 import os
 import sys
 import tempfile
 
+import h5py
 import pytest
 from mimic_test_utils import run_script
 
@@ -22,7 +18,7 @@ from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 DATASETS_DOWNLOAD_DIR = tempfile.mkdtemp(suffix="_Isaac-Stack-Cube-Franka-IK-Rel-Mimic-v0")
 NUCLEUS_DATASET_PATH = os.path.join(ISAACLAB_NUCLEUS_DIR, "Tests", "Mimic", "dataset.hdf5")
 
-_SUBPROCESS_TIMEOUT = 5000
+_SUBPROCESS_TIMEOUT = 1500
 
 
 @pytest.fixture
@@ -135,6 +131,8 @@ def _run_generation(workflow_root: str, input_file: str, output_file: str, num_e
         str(num_envs),
         "--generation_num_trials",
         "1",
+        "--max_num_failures",
+        "10",
     ]
 
     result = run_script(command, timeout=_SUBPROCESS_TIMEOUT)
@@ -154,13 +152,8 @@ def _run_generation(workflow_root: str, input_file: str, output_file: str, num_e
         f"Could not find '{expected_output}' in output.\nstdout: {result.stdout}\nstderr: {result.stderr}"
     )
 
-
-def test_generate_dataset_franka_state(setup_test_environment):
-    """Test dataset generation for the state-based cube-stack environment (single env)."""
-    workflow_root = setup_test_environment
-    annotated_input_path = os.path.join(DATASETS_DOWNLOAD_DIR, "annotated_dataset.hdf5")
-    generated_output_path = os.path.join(DATASETS_DOWNLOAD_DIR, "generated_dataset.hdf5")
-    _run_generation(workflow_root, annotated_input_path, generated_output_path, num_envs=1)
+    with h5py.File(output_file) as dataset:
+        assert len(dataset["data"]) > 0, "The generated dataset contains no demonstrations."
 
 
 def test_generate_dataset_franka_state_multi_env(setup_test_environment):

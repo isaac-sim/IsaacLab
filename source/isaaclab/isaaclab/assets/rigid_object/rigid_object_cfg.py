@@ -5,8 +5,7 @@
 
 from typing import TYPE_CHECKING
 
-from isaaclab.utils.configclass import configclass
-
+from ...utils import configclass
 from ..asset_base_cfg import AssetBaseCfg
 
 if TYPE_CHECKING:
@@ -34,3 +33,6 @@ class RigidObjectCfg(AssetBaseCfg):
 
     init_state: InitialStateCfg = InitialStateCfg()
     """Initial state of the rigid object. Defaults to identity pose with zero velocity."""
+
+    mesh_variant_inertia_diagonal_offset: float = 0.0
+    """Diagonal inertia added when selecting a mesh variant [kg·m²]. Defaults to ``0.0``."""

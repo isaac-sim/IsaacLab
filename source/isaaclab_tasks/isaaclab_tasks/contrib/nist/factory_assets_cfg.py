@@ -3,45 +3,48 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
+from isaaclab_isaacsim.sim.schemas import PhysxArticulationCfg, PhysxCollisionCfg, PhysxRigidBodyCfg
+from isaaclab_newton.sim.schemas import (
+    MujocoRigidBodyCfg,
+    NewtonArticulationCfg,
+    NewtonCollisionCfg,
+    NewtonSDFCollisionCfg,
+)
 from isaaclab_newton.sim.spawners.materials import NewtonMaterialCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.actuators.actuator_cfg import ImplicitActuatorCfg
+from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 
-from isaaclab_tasks.contrib.nist.assembly_keypoints import NIST_BOARD_CFG
 from isaaclab_tasks.utils import PresetCfg, preset
 
+from .assembly_keypoints import NIST_BOARD_CFG
+
 ASSET_DIR = f"{ISAACLAB_NUCLEUS_DIR}/Factory"
+ROBOT_ASSET_DIR = ASSET_DIR
 
 
-ASSEMBLY_SOCKET_RIGID_BODY_PROPS_CFG = sim_utils.RigidBodyPropertiesCfg(
-    kinematic_enabled=True,
-    solver_position_iteration_count=192,
-    solver_velocity_iteration_count=1,
-)
+ASSEMBLY_SOCKET_RIGID_BODY_PROPS_CFG = [
+    sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
+    PhysxRigidBodyCfg(solver_position_iteration_count=192, solver_velocity_iteration_count=1),
+]
 
-ASSEMBLY_PLUG_RIGID_BODY_PROPS_CFG = sim_utils.RigidBodyPropertiesCfg(
-    solver_position_iteration_count=192,
-    solver_velocity_iteration_count=1,
-)
+ASSEMBLY_PLUG_RIGID_BODY_PROPS_CFG = [
+    PhysxRigidBodyCfg(solver_position_iteration_count=192, solver_velocity_iteration_count=1)
+]
 
 
 @configclass
 class _SocketCollisionPropsCfg(PresetCfg):
     """Backend-aware collision props for assembly sockets (bolts, holes, bases)."""
 
-    default = sim_utils.CollisionPropertiesCfg(contact_offset=0.0025, rest_offset=0.0)
-    newton_mjwarp = sim_utils.NewtonSDFCollisionPropertiesCfg(
-        rest_offset=0.0,
-        contact_gap=0.005,
-        sdf_max_resolution=256,
-        sdf_narrow_band_inner=-0.005,
-        sdf_narrow_band_outer=0.005,
-    )
+    default = [PhysxCollisionCfg(contact_offset=0.0025, rest_offset=0.0)]
+    newton_mjwarp = [PhysxCollisionCfg(rest_offset=0.0), NewtonCollisionCfg(contact_gap=0.005)]
     isaacsim_physx = default
     physx = isaacsim_physx
 
@@ -50,15 +53,8 @@ class _SocketCollisionPropsCfg(PresetCfg):
 class _PlugCollisionPropsCfg(PresetCfg):
     """Backend-aware collision props for assembly plugs (nuts, pegs, gears)."""
 
-    default = sim_utils.CollisionPropertiesCfg(contact_offset=0.0025, rest_offset=0.0)
-    newton_mjwarp = sim_utils.NewtonSDFCollisionPropertiesCfg(
-        contact_offset=0.0025,
-        rest_offset=0.0,
-        contact_gap=0.005,
-        sdf_max_resolution=256,
-        sdf_narrow_band_inner=-0.005,
-        sdf_narrow_band_outer=0.005,
-    )
+    default = [PhysxCollisionCfg(contact_offset=0.0025, rest_offset=0.0)]
+    newton_mjwarp = [PhysxCollisionCfg(contact_offset=0.0025, rest_offset=0.0), NewtonCollisionCfg(contact_gap=0.005)]
     isaacsim_physx = default
     physx = isaacsim_physx
 
@@ -67,15 +63,27 @@ ASSEMBLY_SOCKET_COLLISION_PROPS_CFG = _SocketCollisionPropsCfg()
 
 ASSEMBLY_PLUG_COLLISION_PROPS_CFG = _PlugCollisionPropsCfg()
 
+# Newton builds an SDF for every assembly collider; the PhysX presets keep the asset-authored cooking.
+ASSEMBLY_MESH_COLLISION_PROPS_CFG = preset(
+    default=None,
+    newton_mjwarp=NewtonSDFCollisionCfg(
+        sdf_max_resolution=256, sdf_narrow_band_inner=-0.005, sdf_narrow_band_outer=0.005
+    ),
+)
+
 # Newton materials must author friction; an omitted value resolves to zero and destabilizes contact.
 ASSEMBLY_CONTACT_MATERIAL_CFG = preset(
     default=None,
     newton_mjwarp=[
         UsdPhysicsRigidBodyMaterialCfg(static_friction=0.75, dynamic_friction=0.75),
-        NewtonMaterialCfg(contact_stiffness=2.56e6, contact_damping=3200.0),
+        NewtonMaterialCfg(contact_stiffness=1.6e5, contact_damping=800.0),
     ],
 )
 
+# Newton-only stiff contact material for the ROBOT colliders. Same friction-fragment
+# requirement as above (stiffness-only binding would zero mu). Friction 1.0 matches the
+# robot USD's authored value; the robot_material startup event overrides it at init.
+# (1e6, 2000) -> solref (1e-3, 1.0), damping-matched.
 ROBOT_CONTACT_MATERIAL_CFG = preset(
     default=None,
     newton_mjwarp=[
@@ -97,36 +105,47 @@ DOMELIGHT_CFG = AssetBaseCfg(
 
 
 FRANKA_ACTUATORS_CFG = {
-    "panda_shoulder": ImplicitActuatorCfg(  # type:ignore
-        joint_names_expr=["panda_joint[1-4]"],
-        effort_limit=87.0,
-        effort_limit_sim=870.0,
-        velocity_limit=2.175,
-        velocity_limit_sim=21.75,
-        stiffness=80.0,
-        damping=4.0,
-        armature=0.0,
+    # inspired by libfranka's joint_impedance_control.cpp
+    "panda_arm": ImplicitActuatorCfg(
+        joint_names_expr=["panda_joint[1-7]"],
+        joint_effort_limit={"panda_joint[1-4]": 87.0, "panda_joint[5-7]": 12.0},
+        actuator_velocity_limit={"panda_joint[1-4]": 2.175, "panda_joint[5-7]": 2.61},
+        joint_velocity_limit={"panda_joint[1-4]": 20.0, "panda_joint[5-7]": 25.0},
+        stiffness={
+            "panda_joint[1-4]": 600.0,
+            "panda_joint5": 250.0,
+            "panda_joint6": 150.0,
+            "panda_joint7": 50.0,
+        },
+        damping={
+            "panda_joint[1-4]": 50.0,
+            "panda_joint5": 30.0,
+            "panda_joint6": 25.0,
+            "panda_joint7": 15.0,
+        },
+        armature={
+            "panda_joint[1-2]": 0.6057,
+            "panda_joint[3-4]": 0.4625,
+            "panda_joint[5-7]": 0.2055,
+        },
     ),
-    "panda_forearm": ImplicitActuatorCfg(  # type:ignore
-        joint_names_expr=["panda_joint[5-7]"],
-        effort_limit=12.0,
-        effort_limit_sim=120.0,
-        velocity_limit=2.61,
-        velocity_limit_sim=26.1,
-        stiffness=80.0,
-        damping=4.0,
-        armature=0.0,
+    "panda_hand": ImplicitActuatorCfg(
+        joint_names_expr=["panda_finger_joint1"],
+        joint_effort_limit=70.0,
+        actuator_velocity_limit=0.2,
+        joint_velocity_limit=2.0,
+        stiffness=350.0,
+        damping=175.0,
+        armature=0.1,
     ),
-    "panda_hand": ImplicitActuatorCfg(  # type:ignore
-        joint_names_expr=["panda_finger_joint.*"],
-        effort_limit=40.0,
-        effort_limit_sim=400.0,
-        velocity_limit=0.2,
-        velocity_limit_sim=2.0,
-        stiffness=7500.0,
-        damping=173.0,
-        friction=0.1,
-        armature=0.0,
+    "panda_finger2_passive": ImplicitActuatorCfg(
+        joint_names_expr=["panda_finger_joint2"],
+        joint_effort_limit=1.0,
+        actuator_velocity_limit=0.2,
+        joint_velocity_limit=2.0,
+        stiffness=0.0,
+        damping=0.0,
+        armature=0.1,
     ),
 }
 
@@ -146,21 +165,20 @@ FRANKA_DEFAULT_STATE_CFG = ArticulationCfg.InitialStateCfg(
 )
 
 FRANKA_PANDA_PHYSX_CFG = ArticulationCfg(
-    prim_path="/World/envs/env_.*/Robot",
+    prim_path="{ENV_REGEX_NS}/Robot",
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ASSET_DIR}/franka_mimic.usd",
+        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/franka_panda.usda",
         activate_contact_sensors=True,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=True,
-            solver_position_iteration_count=192,
-            solver_velocity_iteration_count=1,
+        rigid_props=PhysxRigidBodyCfg(
+            disable_gravity=True, solver_position_iteration_count=192, solver_velocity_iteration_count=1
         ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=False,
-            solver_position_iteration_count=192,
-            solver_velocity_iteration_count=1,
-        ),
-        collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.005, rest_offset=0.0),
+        articulation_props=[
+            PhysxArticulationCfg(
+                enabled_self_collisions=False, solver_position_iteration_count=192, solver_velocity_iteration_count=1
+            ),
+            NewtonArticulationCfg(self_collision_enabled=False),
+        ],
+        collision_props=PhysxCollisionCfg(contact_offset=0.005, rest_offset=0.0),
     ),
     init_state=FRANKA_DEFAULT_STATE_CFG,
     actuators=FRANKA_ACTUATORS_CFG,
@@ -168,19 +186,20 @@ FRANKA_PANDA_PHYSX_CFG = ArticulationCfg(
 
 
 FRANKA_PANDA_NEWTON_CFG = ArticulationCfg(
-    prim_path="/World/envs/env_.*/Robot",
+    prim_path="{ENV_REGEX_NS}/Robot",
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ASSET_DIR}/franka_mimic.usd",
+        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/franka_panda.usda",
         activate_contact_sensors=True,
-        rigid_props=sim_utils.MujocoRigidBodyPropertiesCfg(gravcomp=1.0),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(enabled_self_collisions=False),
-        collision_props=sim_utils.CollisionPropertiesCfg(
-            contact_offset=0.005,
-            rest_offset=0.0,
-            mesh_collision_property=sim_utils.NewtonMeshCollisionPropertiesCfg(mesh_approximation_name="convexHull"),
-        ),
+        rigid_props=MujocoRigidBodyCfg(gravcomp=1.0),
+        articulation_props=[
+            PhysxArticulationCfg(enabled_self_collisions=False),
+            NewtonArticulationCfg(self_collision_enabled=False),
+        ],
+        collision_props=PhysxCollisionCfg(contact_offset=0.005, rest_offset=0.0),
+        mesh_collision_props=sim_utils.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="convexHull"),
         physics_material=ROBOT_CONTACT_MATERIAL_CFG,
-        joint_drive_props=sim_utils.JointDrivePropertiesCfg(ensure_drives_exist=True),
+        joint_drive_props=sim_utils.UsdPhysicsDriveCfg(),
+        ensure_drives_exist=True,
     ),
     init_state=FRANKA_DEFAULT_STATE_CFG,
     actuators=FRANKA_ACTUATORS_CFG,
@@ -191,19 +210,22 @@ TABLE_CFG = RigidObjectCfg(
     prim_path="{ENV_REGEX_NS}/Table",
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ASSET_DIR}/Mounts/UWPatVention/pat_vention.usd",
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
     ),
     init_state=RigidObjectCfg.InitialStateCfg(pos=(0.4, 0.0, -0.868), rot=(0.0, 0.0, -0.70711, 0.70711)),
 )
 
 x, y, z = NIST_BOARD_CFG.nist_board_center.pos
+
 # NIST Board
 NISTBOARD_CFG = RigidObjectCfg(
     prim_path="{ENV_REGEX_NS}/NistBoard",
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ASSET_DIR}/NIST/Taskboard/nistboard.usd",
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
-        scale=(1.0, 1.0, 0.5),
+        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
+        scale=(1.0, 1.0, 1.0),
+        physics_material=ASSEMBLY_CONTACT_MATERIAL_CFG,
+        make_uninstanceable=True,
     ),
     init_state=RigidObjectCfg.InitialStateCfg(pos=(0.65 - x, 0.0 - y, 0.0206 - z), rot=(0.0, 1.0, 0.0, 0.0)),
 )
@@ -212,12 +234,14 @@ NISTBOARD_CFG = RigidObjectCfg(
 def _assembly_asset_cfg(name: str, usd_file: str, mass: float, *, is_socket: bool) -> RigidObjectCfg:
     """Create one assembly asset from the shared socket or plug physics policy."""
     return RigidObjectCfg(
-        prim_path=f"/World/envs/env_.*/{name}",
+        prim_path=f"{{ENV_REGEX_NS}}/{name}",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ASSET_DIR}/NIST/{usd_file}",
             rigid_props=ASSEMBLY_SOCKET_RIGID_BODY_PROPS_CFG if is_socket else ASSEMBLY_PLUG_RIGID_BODY_PROPS_CFG,
-            mass_props=sim_utils.MassPropertiesCfg(mass=mass),
+            activate_contact_sensors=True,
+            mass_props=sim_utils.MassCfg(mass=mass),
             collision_props=ASSEMBLY_SOCKET_COLLISION_PROPS_CFG if is_socket else ASSEMBLY_PLUG_COLLISION_PROPS_CFG,
+            mesh_collision_props=ASSEMBLY_MESH_COLLISION_PROPS_CFG,
             physics_material=ASSEMBLY_CONTACT_MATERIAL_CFG,
         ),
     )
@@ -225,6 +249,12 @@ def _assembly_asset_cfg(name: str, usd_file: str, mass: float, *, is_socket: boo
 
 BOLT_M16_CFG = _assembly_asset_cfg("BOLT_M16", "bolt_m16.usd", 0.05, is_socket=True)
 NUT_M16_CFG = _assembly_asset_cfg("NUT_M16", "nut_m16.usd", 0.03, is_socket=False)
+BOLT_M12_CFG = _assembly_asset_cfg("BOLT_M12", "bolt_m12.usd", 0.05, is_socket=True)
+NUT_M12_CFG = _assembly_asset_cfg("NUT_M12", "nut_m12.usd", 0.03, is_socket=False)
+BOLT_M8_CFG = _assembly_asset_cfg("BOLT_M8", "bolt_m8.usd", 0.05, is_socket=True)
+NUT_M8_CFG = _assembly_asset_cfg("NUT_M8", "nut_m8.usd", 0.03, is_socket=False)
+BOLT_M4_CFG = _assembly_asset_cfg("BOLT_M4", "bolt_m4.usd", 0.05, is_socket=True)
+NUT_M4_CFG = _assembly_asset_cfg("NUT_M4", "nut_m4.usd", 0.03, is_socket=False)
 HOLE_16MM_CFG = _assembly_asset_cfg("HOLE_16MM", "round_hole_16mm.usd", 0.05, is_socket=True)
 ROD_16MM_CFG = _assembly_asset_cfg("ROD_16MM", "round_peg_16mm.usd", 0.019, is_socket=False)
 HOLE_12MM_CFG = _assembly_asset_cfg("HOLE_12MM", "round_hole_12mm.usd", 0.05, is_socket=True)
@@ -253,3 +283,13 @@ LARGE_GEAR_CFG = _assembly_asset_cfg("LARGE_GEAR", "gear_large.usd", 0.019, is_s
 MEDIUM_GEAR_CFG = _assembly_asset_cfg("MEDIUM_GEAR", "gear_medium.usd", 0.012, is_socket=False)
 SMALL_GEAR_CFG = _assembly_asset_cfg("SMALL_GEAR", "gear_small.usd", 0.019, is_socket=False)
 GEAR_BASE_CFG = _assembly_asset_cfg("GEAR_BASE", "gear_base.usd", 0.05, is_socket=True)
+USBA_PLUG_CFG = _assembly_asset_cfg("USB_A_PLUG", "usb_a_plug.usd", 0.05, is_socket=False)
+USBA_SOCKET_CFG = _assembly_asset_cfg("USB_A_Socket", "usb_a_socket.usd", 0.012, is_socket=True)
+WATERPROOF_SOCKET_CFG = _assembly_asset_cfg("WATERPROOF_SOCKET", "waterproof_socket.usd", 0.05, is_socket=True)
+WATERPROOF_PLUG_CFG = _assembly_asset_cfg("WATERPROOF_PLUG", "waterproof_plug.usd", 0.05, is_socket=False)
+DSUB_SOCKET_CFG = _assembly_asset_cfg("D_SUB_SOCKET", "dsub_socket.usd", 0.05, is_socket=True)
+DSUB_PLUG_CFG = _assembly_asset_cfg("D_SUB_PLUG", "dsub_plug.usd", 0.005, is_socket=False)
+BNC_SOCKET_CFG = _assembly_asset_cfg("BNC_SOCKET", "bnc_socket.usd", 0.05, is_socket=True)
+BNC_PLUG_CFG = _assembly_asset_cfg("BNC_PLUG", "bnc_plug.usd", 0.05, is_socket=False)
+RJ45_SOCKET_CFG = _assembly_asset_cfg("RJ45_SOCKET", "rj45_socket.usd", 0.05, is_socket=True)
+RJ45_PLUG_CFG = _assembly_asset_cfg("RJ45_PLUG", "rj45_plug.usd", 0.05, is_socket=False)

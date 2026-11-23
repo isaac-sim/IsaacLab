@@ -56,7 +56,7 @@ class OpenXRDevice(DeviceBase):
 
     * A dictionary with keys matching TrackingTarget enum values (HAND_LEFT, HAND_RIGHT, HEAD)
     * Each hand tracking entry contains a dictionary of joint poses
-    * Each joint pose is a 7D vector (x, y, z, qw, qx, qy, qz) in meters and quaternion units
+    * Each joint pose is a 7D vector (x, y, z, qx, qy, qz, qw): position [m] and xyzw quaternion
     * Joint names are defined in HAND_JOINT_NAMES from isaaclab_teleop.deprecated.openxr.common
     * Supported joints include palm, wrist, and joints for thumb, index, middle, ring and little fingers
 
@@ -129,9 +129,14 @@ class OpenXRDevice(DeviceBase):
             )
 
         if hasattr(carb, "settings"):
-            carb.settings.get_settings().set_float("/persistent/xr/render/nearPlane", self._xr_cfg.near_plane)
-            carb.settings.get_settings().set_string("/persistent/xr/anchorMode", "custom anchor")
-            carb.settings.get_settings().set_string("/xrstage/customAnchor", self._xr_anchor_headset_path)
+            settings = carb.settings.get_settings()
+            settings.set_float("/persistent/xr/render/nearPlane", self._xr_cfg.near_plane)
+            # Also write the ar/vr profile-specific settings: they default to 0.15 and
+            # take precedence over the generic path (see XrAnchorManager for details).
+            settings.set_float("/persistent/xr/profile/ar/render/nearPlane", self._xr_cfg.near_plane)
+            settings.set_float("/persistent/xr/profile/vr/render/nearPlane", self._xr_cfg.near_plane)
+            settings.set_string("/persistent/xr/anchorMode", "custom anchor")
+            settings.set_string("/xrstage/customAnchor", self._xr_anchor_headset_path)
 
         # Button binding support
         self.__button_subscriptions: dict[str, dict] = {}
@@ -261,8 +266,8 @@ class OpenXRDevice(DeviceBase):
                 - Right hand joint poses: Dictionary of 26 joints with position and orientation
                 - Head pose: Single 7-element array with position and orientation
 
-        Each pose is represented as a 7-element array: [x, y, z, qw, qx, qy, qz]
-        where the first 3 elements are position and the last 4 are quaternion orientation.
+        Each pose is represented as a 7-element array: [x, y, z, qx, qy, qz, qw]
+        where the first 3 elements are position [m] and the last 4 are an xyzw quaternion.
         """
         data = {}
 
@@ -312,12 +317,12 @@ class OpenXRDevice(DeviceBase):
         Args:
             hand_device: The OpenXR input device for a hand (/user/hand/left or /user/hand/right).
             previous_joint_poses: Dictionary mapping joint names to their previous poses.
-                Each pose is a 7-element array: [x, y, z, qw, qx, qy, qz].
+                Each pose is a 7-element array: [x, y, z, qx, qy, qz, qw].
 
         Returns:
             Updated dictionary of joint poses with the same structure as previous_joint_poses.
-            Each pose is represented as a 7-element numpy array: [x, y, z, qw, qx, qy, qz]
-            where the first 3 elements are position and the last 4 are quaternion orientation.
+            Each pose is represented as a 7-element NumPy array: [x, y, z, qx, qy, qz, qw]
+            where the first 3 elements are position [m] and the last 4 are an xyzw quaternion.
         """
         if hand_device is None:
             return previous_joint_poses
@@ -353,7 +358,8 @@ class OpenXRDevice(DeviceBase):
         """Calculate the head pose from OpenXR.
 
         Returns:
-            numpy.ndarray: 7-element array containing head position (xyz) and orientation (wxyz)
+            7-element array [x, y, z, qx, qy, qz, qw] containing head position [m]
+            and orientation as an xyzw quaternion.
         """
         head_device = XRCore.get_singleton().get_input_device("/user/head")
         if head_device:

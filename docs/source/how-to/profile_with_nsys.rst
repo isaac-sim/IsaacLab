@@ -1,9 +1,14 @@
+:orphan:
+
 Profiling Isaac Lab with Nsight Systems
 =======================================
 
 .. currentmodule:: isaaclab
 
-Isaac Lab supports CPU and GPU profiling via **NVIDIA Nsight Systems (nsys)** for runtime performance analysis. This can help identify GPU/CPU bottlenecks and determine the best configuration for your environments and tasks. Profiling adds modest runtime overhead and produces large output files, so it's best suited to targeted investigations rather than long unattended training runs.
+Use **NVIDIA Nsight Systems (nsys)** to find where your task spends CPU and GPU time.
+Capture a short run to investigate slow initialization, training, or rendering.
+Profiling adds overhead and can produce large trace files, so limit captures to
+the part of the run you need to inspect.
 
 Common Use Cases
 ----------------
@@ -47,18 +52,6 @@ The following command shows how to capture a profile for the ``Isaac-Cartpole`` 
              --python-functions-trace=scripts/benchmarks/nsys_trace.json \
              -o my_profile \
              uv run isaaclab train --rl_library rsl_rl \
-                 --task=Isaac-Cartpole \
-                 --max_iterations=3
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         nsys profile \
-             -t nvtx,cuda \
-             --python-functions-trace=scripts/benchmarks/nsys_trace.json \
-             -o my_profile \
-             ./isaaclab.sh train --rl_library rsl_rl \
                  --task=Isaac-Cartpole \
                  --max_iterations=3
 
@@ -124,6 +117,6 @@ Troubleshooting
 See Also
 --------
 
-- :doc:`simulation_performance` - broader simulation performance tuning tips.
+- :ref:`simulation-performance-troubleshooting` - checks for unexpectedly slow simulation or training.
 - `Nsight Systems User Guide <https://docs.nvidia.com/nsight-systems/UserGuide/index.html>`_ - official ``nsys`` documentation.
 - `NVTX Python package <https://nvtx.readthedocs.io/>`_ - the package nsys uses to emit NVTX ranges from Python.
