@@ -10,3 +10,5 @@
   boundary, preserving the completed physics transition, rewards, and task success labels.
 * Added a configurable minimum number of completed recorder steps for episode export,
   allowing demonstration collection to exclude empty reset-only episodes.
+* Added optional caller ownership of simulation-context cleanup in
+  :func:`~isaaclab.app.launch_simulation`, so failed input drains can retain borrowed resources.

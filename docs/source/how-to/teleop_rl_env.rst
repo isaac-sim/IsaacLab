@@ -216,9 +216,10 @@ The simple Cartpole attachment above uses neither helper. Both approaches attach
 Quest controller input
 ^^^^^^^^^^^^^^^^^^^^^^
 
-For Quest controllers, first prepare the Capture 1.7.93a1/OVXR environment described in
-:doc:`kitless_xr_source`, including its CloudXR prerequisites. The ``ovxr`` selection is a
-local installation step, not an extra already present in the default project. Then use:
+For Quest controllers, install the repository's ``ovxr`` extra as described in
+:doc:`kitless_xr_source` and complete its CloudXR prerequisites. This selection includes
+Capture 1.7.118rc1 and the standalone OVXR runtime on Linux x86-64 with Python 3.12;
+no local dependency edits are required. Then use:
 
 .. code-block:: bash
 
@@ -255,15 +256,15 @@ minutes, so the example permits a ten-minute startup. The task's ordinary episod
 still applies.
 
 The example package has focused configuration, tracking, and calibration checks. Run the
-full set in the prepared OVXR environment with test dependencies available:
+full set with the Capture SDK and test dependencies available:
 
 .. code-block:: bash
 
-   uv run --extra dev --extra ovxr --with-editable examples/teleop_franka \
+   uv run --extra test --extra teleop --with-editable examples/teleop_franka \
        python -m pytest examples/teleop_franka/tests/test_franka_teleop.py
 
-Using ``--extra teleop`` instead checks configuration compatibility and skips the two
-XR runtime tests that require Capture 1.7.93a1.
+These checks do not start an XR session or require a headset. A runtime trial uses the
+``ovxr`` selection shown above and separately qualifies rendering, streaming, and device input.
 
 Sharing input across action terms
 ---------------------------------
@@ -340,28 +341,38 @@ observation groups:
 
 .. code-block:: python
 
-   from isaaclab_ov.renderers import OVRTXRendererCfg
    from isaaclab_teleop import CLOUDXR_JS_ENV, OvLibrariesXrCfg, TeleopObservationCfg
 
    @configclass
    class ObservationsCfg:
        policy = PolicyCfg()
        operator = TeleopObservationCfg(
-           presentation=OvLibrariesXrCfg(cloudxr_env_file=CLOUDXR_JS_ENV),
-           renderer=OVRTXRendererCfg(),
+           presentation=OvLibrariesXrCfg(
+               cloudxr_env_file=CLOUDXR_JS_ENV,
+               desktop_mirror=None,
+           ),
        )
 
 The operator declaration describes presentation, not a tensor observation. It is excluded
 from observation spaces, policy inputs, history buffers, and recorder observations. The XR
 camera is strictly the operator's point of view. Use separate task cameras for visual IL.
 
-Playback reserves Hougant's OVXR renderer before constructing the environment, starts its
+An omitted ``renderer`` defaults to ``None``. Active XR playback resolves it to
+``OvxrRendererCfg`` before launch, so task discovery and inactive input do not import the
+optional native renderer. To customize rendering, supply an explicit ``OvxrRendererCfg``
+from ``isaaclab_teleop`` in an environment with the ``ovxr`` extra installed.
+The dedicated XR renderer owns its OVStage and OVRTX engine and does not require
+``ISAAC_LAB_OVRTX_USE_OVSTAGE=1``. Optional operator panels
+are declared in ``OvLibrariesXrCfg.camera_feeds`` and use this same renderer configuration;
+learning cameras use their own renderer configurations.
+
+Playback reserves the OVXR renderer before constructing the environment, starts its
 worker after the scene and Capture input are ready, and publishes complete scene states.
 The worker renders the headset independently of physics and policy inference. This path
 does not implement Capture as a Lab visualizer backend; the desktop visualizer remains
 an independent view. At the start of the next action-input preparation, the source publishes
-the preceding completed environment
-step before polling Capture. Ordinary updates are admitted according to render demand; they
+the preceding completed environment step before polling Capture. Ordinary updates are admitted
+according to render demand; they
 do not require the host to wait for a rendered frame.
 
 An environment reset marks presentation state as changed while the managers reset. The next
@@ -371,17 +382,15 @@ it does not wait for a rendered headset frame or couple headset rendering freque
 the physics loop. A reset followed by no further input polling leaves the previous XR
 snapshot visible until polling resumes.
 
-Shared playback selects host ownership of the environment. During normal close, the source
+The host owns the environment throughout the session. During normal close, the source
 drains Capture's input borrowers, then closes XR and waits for native resources and the render
 lease to retire on the render worker. Lab then closes the controllers, environment, native
 desktop windows, and remaining simulation resources on the host thread. A failed input drain
 or unproved XR retirement raises and retains the borrowed dependencies for cleanup; a stopped
 worker alone does not establish safe retirement.
 
-Use the Capture 1.7.93a1 installation described in :doc:`kitless_xr_source` and the prepared
-``ovxr`` dependency selection. The repository's default ``teleop`` extra still selects the
-older desktop/Kit Capture version; do not combine those dependency selections. With an
-XR-capable source declared in the task, use the same ``isaaclab play`` command under
+The repository's ``ovxr`` extra includes ``teleop`` and uses the same Capture version.
+With an XR-capable source declared in the task, use the same ``isaaclab play`` command under
 ``uv run --extra ovxr`` with ``--num_envs 1``. Capture's desktop mirror is optional and
 disabled by default. A Lab visualizer may show a separate view, for example with
 ``--viz newton_gl``; it does not have to match the headset camera. Use ``--viz none``
@@ -391,8 +400,10 @@ No legacy ``--xr`` or ``--ovxr`` flag is needed on this path.
 
 Learning cameras remain configured. A camera that resolves to the renderer leased by XR
 is rejected before startup unless it is an explicitly configured operator panel. Cameras
-using independent renderers may coexist. Operator panels cannot also be referenced by
-policy/critic observation terms or video recorders. Custom observation functions must also
+using independent renderers may coexist. Ordinary OVRTX cameras render on the simulation
+GPU; when they coexist with XR, ``OvxrRendererCfg.active_cuda_gpus`` must be unset or select
+only that GPU. Operator panels cannot also be referenced by policy/critic observation terms
+or video recorders. Custom observation functions must also
 respect this boundary; the validator checks explicit scene-entity references and cannot
 inspect arbitrary function bodies.
 

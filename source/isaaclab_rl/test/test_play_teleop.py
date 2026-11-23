@@ -17,8 +17,8 @@ import gymnasium as gym
 import h5py
 import pytest
 import torch
+from isaaclab_isaacsim.physics import PhysxCfg
 from isaaclab_newton.physics import NewtonCfg
-from isaaclab_physx.physics import PhysxCfg
 from isaaclab_teleop import CaptureTeleopSourceCfg, TeleopInputCfg, TeleopSample, TeleopSource, se3_keyboard_teleop_cfg
 from isaaclab_teleop.source import PlaybackStopped
 
@@ -32,8 +32,9 @@ from isaaclab.managers import (
     TerminationManager,
     TerminationTermCfg,
 )
+from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim import SimulationCfg
+from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.utils import configclass
 
 from isaaclab_rl.entrypoints import common, dispatch, simple_agents
@@ -298,6 +299,44 @@ def test_play_uses_configured_input_without_loading_a_policy(playback_task, monk
     assert env.input_source.close_calls == 1
     assert env.input_source.closed and env.closed
     assert sys.argv is original_argv
+
+
+def test_playback_retains_context_until_failed_input_drain_can_retry(monkeypatch):
+    """The real launcher must respect Capture's retained environment after a failed drain."""
+    cfg = _PlaybackCfg()
+    cfg.sim.physics = PhysicsCfg()
+    args = argparse.Namespace(frontend="torch", teleop=None, device="cpu")
+    state = {"context": None}
+    cleared = []
+
+    def clear():
+        cleared.append(state["context"])
+        state["context"] = None
+
+    monkeypatch.setattr(SimulationContext, "instance", lambda: state["context"])
+    monkeypatch.setattr(SimulationContext, "clear_instance", clear)
+    context = object()
+    env = _ActionSink(cfg)
+
+    def fail_drain():
+        raise RuntimeError("input drain failed")
+
+    with pytest.raises(RuntimeError, match="Failed to close 1 action input") as error:
+        with launch_playback(cfg, args) as configure_inputs:
+            state["context"] = context
+            configure_inputs(env)
+            monkeypatch.setattr(env.input_source, "close", fail_drain)
+
+    assert str(error.value.__cause__) == "input drain failed"
+    assert state["context"] is context
+    assert cleared == []
+    assert not env.closed
+    assert env.action_manager.get_input("controlled") is not None
+
+    monkeypatch.setattr(env.input_source, "close", lambda: None)
+    env.close()
+    assert env.closed
+    assert env.action_manager.get_input("controlled") is None
 
 
 def _success_after_two_steps(env):

@@ -101,7 +101,7 @@ class FrankaTeleopEnvCfg(FrankaReachEnvCfg):
                     application_name="IsaacLabFrankaReachXR",
                     session_mode="vr",
                     cloudxr_env_file=CLOUDXR_JS_ENV,
-                    desktop_mirror_enabled=False,
+                    desktop_mirror=None,
                 ),
                 # Initial RTX shader compilation can take several minutes.
                 startup_timeout_s=600.0,

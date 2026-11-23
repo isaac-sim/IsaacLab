@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import os
 import re
 from collections.abc import Callable, ItemsView, Iterator, Mapping
 from contextlib import contextmanager
@@ -21,7 +20,7 @@ from isaaclab.managers import ActionTermCfg, ObservationPresentationCfg, SceneEn
 from isaaclab.sensors import CameraCfg
 from isaaclab.utils import instantiate, validate
 from isaaclab.utils.images import sensor_key_for_gt_type
-from isaaclab.visualizers import ImageViewCfg, PerspectiveCameraCfg, SceneCameraCfg
+from isaaclab.visualizers import ImageViewCfg, SceneCameraCfg
 
 from .input import TeleopInput
 from .input_cfg import TeleopInputCfg
@@ -73,9 +72,7 @@ def _viewer_selects_camera(selector: str, camera: CameraCfg, env_template: str) 
 
 def _validate_presentation_viewers(env_cfg: Any, view: TeleopObservationCfg, cameras: dict[str, CameraCfg]) -> None:
     """Allow independent Lab views while excluding consumers of the leased XR cameras."""
-    from isaaclab_visualizers.newton import NewtonRTXBackendCfg
-
-    panels = {camera.name for camera in view.presentation.auxiliary_cameras}
+    panels = {camera.name for camera in view.presentation.camera_feeds}
     viewers = env_cfg.sim.visualizer_cfgs
     viewers = viewers if isinstance(viewers, list) else [viewers]
     for viewer in viewers:
@@ -111,22 +108,11 @@ def _validate_presentation_viewers(env_cfg: Any, view: TeleopObservationCfg, cam
                 f"Lab visualizer reads XR-owned panel cameras {sorted(selected & panels)}."
                 " Select an independently rendered scene camera or perspective view."
             )
-        # Before launch expands perspective sources into scene cameras, reject
-        # the same renderer conflict that the camera validation catches afterward.
-        perspective = sources is None or any(isinstance(source, PerspectiveCameraCfg) for source in sources)
-        backends = viewer.backend if isinstance(viewer.backend, list) else [viewer.backend]
-        if perspective and any(
-            isinstance(backend, NewtonRTXBackendCfg)
-            and type(backend.renderer_cfg) is type(view.renderer)
-            and backend.renderer_cfg == view.renderer
-            for backend in backends
-        ):
-            raise ValueError("Lab RTX perspective view shares the renderer leased by XR. Select a separate renderer.")
 
 
 def _validate_presentation_cameras(env_cfg: Any, view: TeleopObservationCfg) -> None:
     """Keep learning cameras intact and reject competing consumers of the XR renderer."""
-    panels = {camera.name: camera for camera in view.presentation.auxiliary_cameras}
+    panels = {camera.name: camera for camera in view.presentation.camera_feeds}
     cameras = {name: cfg for name, cfg in _items(env_cfg.scene) if isinstance(cfg, CameraCfg)}
     for name, panel in panels.items():
         camera = cameras.get(name)
@@ -190,7 +176,15 @@ def prepare_playback_config(env_cfg: ManagerBasedRLEnvCfg) -> Any:
     if isinstance(source_cfg, CaptureTeleopSourceCfg) and source_cfg.device.prepare_environment is not None:
         source_cfg.device.prepare_environment(env_cfg)
     view = presentation_config(env_cfg)
-    return (env_cfg, view.renderer) if view is not None else env_cfg
+    if view is None:
+        return env_cfg
+    if view.renderer is None:
+        # The dedicated renderer imports OVStage; ordinary task discovery and
+        # desktop input must not require the optional native XR dependencies.
+        from .ovxr_renderer import OvxrRendererCfg
+
+        view.renderer = OvxrRendererCfg()
+    return env_cfg, view.renderer
 
 
 def validate_playback(env_cfg: ManagerBasedRLEnvCfg) -> None:
@@ -216,8 +210,6 @@ def validate_playback(env_cfg: ManagerBasedRLEnvCfg) -> None:
         raise ValueError("XR playback currently requires num_envs=1 and env_ids=[0].")
     if env_cfg.sim.physics is None:
         raise ValueError("XR playback requires a task with non-Kit physics.")
-    if os.environ.get("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1").strip() != "1":
-        raise ValueError("XR playback requires ISAAC_LAB_OVRTX_USE_OVSTAGE=1.")
     _validate_presentation_cameras(env_cfg, view)
 
 
@@ -291,9 +283,7 @@ def activate_capture(env_cfg: ManagerBasedRLEnvCfg) -> Iterator[Callable[[gym.En
             from .ov_libraries_xr import OvLibrariesXrSession
             from .ovxr_presentation import OvxrPresentation
 
-            session = OvLibrariesXrSession.prepare(
-                env_cfg.sim, view.presentation, renderer_cfg=view.renderer, environment_owner="host"
-            )
+            session = OvLibrariesXrSession.prepare(env_cfg.sim, view.presentation, renderer_cfg=view.renderer)
             presentation = OvxrPresentation(
                 session, excluded_visual_meshes=input_cfg.source.device.xr_cfg.excluded_visual_meshes
             )

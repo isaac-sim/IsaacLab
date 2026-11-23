@@ -77,6 +77,11 @@ XR Camera Feedback
 Kitless OVXR Session
 --------------------
 
+Install the ``ovxr`` extra for the standalone XR runtime; see :ref:`kitless-xr`.
+The session uses the dedicated ``OvxrRendererCfg``. Optional operator panels are
+configured through ``OvLibrariesXrCfg.camera_feeds``; ``desktop_mirror=None`` disables
+Capture's desktop mirror. The host retains ownership of the environment.
+
 .. autoclass:: OvLibrariesXrCfg
     :members:
 
@@ -106,6 +111,9 @@ RL Environment Playback
 -----------------------
 
 See :ref:`teleop-rl-env` for standalone Capture input through ``isaaclab play``.
+``TeleopObservationCfg.renderer`` defaults to ``None``; active XR playback supplies
+``OvxrRendererCfg`` before launch. This defers optional native renderer imports until XR
+is selected. An explicit renderer configuration can customize the active XR runtime.
 
 .. autoclass:: TeleopInputCfg
     :members:

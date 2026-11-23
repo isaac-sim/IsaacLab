@@ -1,9 +1,7 @@
 * Added an Isaac Capture source for optional task action inputs in non-Kit runtimes, with desktop input
   or borrowed kitless XR presentation handles, without stepping or rendering simulation.
-* Added ``IsaacTeleopDevice.notify_reset()`` to notify retargeters of an environment reset without
-  emitting another reset command or masking a later operator reset during pipelined execution.
-  Withheld pre-reset action results until a post-notification request completed, using Capture's
-  public frame metadata and graph execution hooks without depending on its internal cache keys.
+* Reused ``IsaacTeleopDevice.notify_reset()`` after task resets so retargeters and pipelined
+  Capture input remain synchronized with the selected environment row.
 * Added shared Capture samples across task-selected action inputs and assets in one environment row,
   with one input owner, task-specific action adapters, and retryable input cleanup before controller teardown.
   Operator resets preserve Gym wrapper initialization and reset only the selected Lab environment row.
@@ -16,6 +14,5 @@
 * Acquired Capture samples through action input preparation and reused OVXR presentation
   publication at the next control-step boundary. Reset state must be admitted before
   accepting fresh input; the XR renderer continues on its independent thread.
-* Added explicit host-owned environment teardown for task playback: Capture input drains
+* Integrated task playback with host-owned environment teardown: Capture input drains
   first, the XR worker proves native retirement, then Lab closes the environment and windows.
-  Legacy entrypoints retain their existing worker-owned environment teardown.

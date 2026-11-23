@@ -15,7 +15,8 @@ from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_teleop.input_cfg import TeleopInputCfg
 from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg
 from isaaclab_teleop.observation_cfg import TeleopObservationCfg
-from isaaclab_teleop.ovxr_cfg import OvLibrariesXrCameraCfg, OvLibrariesXrCfg
+from isaaclab_teleop.ovxr_cfg import OvLibrariesXrCameraFeedCfg, OvLibrariesXrCfg
+from isaaclab_teleop.ovxr_renderer import OvxrRendererCfg
 from isaaclab_teleop.play_source_cfg import CaptureTeleopSourceCfg
 from isaaclab_teleop.playback import (
     activate_capture,
@@ -24,7 +25,7 @@ from isaaclab_teleop.playback import (
     validate_playback,
 )
 from isaaclab_teleop.source import TeleopSample, TeleopSource
-from isaaclab_visualizers.newton import NewtonGLBackendCfg, NewtonRTXBackendCfg
+from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
@@ -135,7 +136,7 @@ def _config(*, xr=False, num_envs=1):
         observations=SimpleNamespace(policy=ObservationGroupCfg()),
     )
     if xr:
-        cfg.observations.operator = TeleopObservationCfg()
+        cfg.observations.operator = TeleopObservationCfg(renderer=OvxrRendererCfg())
         cfg.sim.physics = object()
     return cfg
 
@@ -154,16 +155,15 @@ def xr_runtime(monkeypatch):
     monkeypatch.setattr(SimulationContext, "instance", lambda: current_context)
 
     class Xr:
-        def __init__(self, environment_owner):
-            self.environment_owner = environment_owner
+        def __init__(self):
             self.closed = False
 
         @classmethod
-        def prepare(cls, *args, environment_owner, **kwargs):
+        def prepare(cls, sim_cfg, presentation_cfg, renderer_cfg=None):
             nonlocal current_context
             events.append("xr_prepare")
             current_context = SimpleNamespace(clear_instance=clear_context)
-            result = cls(environment_owner)
+            result = cls()
             sessions.append(result)
             return result
 
@@ -237,7 +237,6 @@ def test_xr_preparation_is_transferred_to_source_before_environment_teardown(xr_
         activate(env)
         assert env.source.presentation.session is sessions[0]
         assert env.source.startup_timeout_s == 123.0
-        assert sessions[0].environment_owner == "host"
         assert events == ["xr_prepare", "env_open", "source_open"]
     assert events[-3:] == ["source_close", "xr_close", "env_close"]
 
@@ -333,6 +332,7 @@ def test_task_preparation_runs_before_renderer_selection():
         env_cfg.observations, "operator", view
     )
     assert prepare_playback_config(cfg) == (cfg, view.renderer)
+    assert isinstance(view.renderer, OvxrRendererCfg)
 
 
 def test_xr_preserves_learning_cameras_and_rejects_shared_renderer_consumers():
@@ -346,12 +346,14 @@ def test_xr_preserves_learning_cameras_and_rejects_shared_renderer_consumers():
     validate_playback(cfg)
     assert cfg.scene.learning_camera is original
     original.renderer_cfg = OVRTXRendererCfg()
+    validate_playback(cfg)
+    original.renderer_cfg = view.renderer
     with pytest.raises(ValueError, match="Learning camera.*shares"):
         validate_playback(cfg)
-    original.renderer_cfg = RendererCfg(class_type=object)
+    original.renderer_cfg = OVRTXRendererCfg()
     panel = CameraCfg(prim_path="/World/panel", width=8, height=8, spawn=None, renderer_cfg=view.renderer)
     cfg.scene.panel = panel
-    view.presentation = OvLibrariesXrCfg(auxiliary_cameras=(OvLibrariesXrCameraCfg(name="panel", camera_cfg=panel),))
+    view.presentation = OvLibrariesXrCfg(camera_feeds=(OvLibrariesXrCameraFeedCfg(name="panel", camera_cfg=panel),))
     cfg.observations.critic = ObservationGroupCfg()
     cfg.observations.critic.image = ObservationTermCfg(
         func=lambda env, nested: torch.zeros(1, 1), params={"nested": {"camera": [SceneEntityCfg("panel")]}}
@@ -378,22 +380,20 @@ def test_xr_allows_independent_lab_views_and_rejects_consumers_of_leased_cameras
     )
     cfg.sim.visualizer_cfgs = VisualizerCfg(backend=NewtonGLBackendCfg(), eye=(1.0, 2.0, 3.0))
     validate_playback(cfg)
-    assert not view.presentation.desktop_mirror_enabled
+    assert view.presentation.desktop_mirror is None
     assert cfg.sim.visualizer_cfgs.eye == (1.0, 2.0, 3.0)
 
-    cfg.sim.visualizer_cfgs = VisualizerCfg(backend=NewtonRTXBackendCfg())
-    with pytest.raises(ValueError, match="perspective view shares"):
-        validate_playback(cfg)
-    cfg.sim.visualizer_cfgs.backend.renderer_cfg = OVRTXRendererCfg(log_file_path="/tmp/independent-viewer.log")
+    cfg.sim.visualizer_cfgs = VisualizerCfg(backend=NewtonGLBackendCfg(initial_renderer="rtx"))
     validate_playback(cfg)
 
-    # An RTX viewer borrowing an independent sensor never uses its default
-    # perspective renderer, so that unused default must not reject the view.
-    cfg.sim.visualizer_cfgs = VisualizerCfg(backend=NewtonRTXBackendCfg(), view=ImageViewCfg(source="learning_camera"))
+    # A Lab viewer borrowing an independent sensor may coexist with XR.
+    cfg.sim.visualizer_cfgs = VisualizerCfg(
+        backend=NewtonGLBackendCfg(initial_renderer="rtx"), view=ImageViewCfg(source="learning_camera")
+    )
     validate_playback(cfg)
     panel = CameraCfg(prim_path="{ENV_REGEX_NS}/HeadCamera", width=8, height=8, spawn=None, renderer_cfg=view.renderer)
     cfg.scene.panel = panel
-    view.presentation = OvLibrariesXrCfg(auxiliary_cameras=(OvLibrariesXrCameraCfg(name="panel", camera_cfg=panel),))
+    view.presentation = OvLibrariesXrCfg(camera_feeds=(OvLibrariesXrCameraFeedCfg(name="panel", camera_cfg=panel),))
     cfg.sim.visualizer_cfgs.view.source = "panel"
     with pytest.raises(ValueError, match="XR-owned panel cameras"):
         validate_playback(cfg)

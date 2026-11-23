@@ -8,13 +8,15 @@
 from __future__ import annotations
 
 import math
-
-from isaaclab_ov.renderers import OVRTXRendererCfg
+from typing import TYPE_CHECKING
 
 from isaaclab.managers import ObservationPresentationCfg
 from isaaclab.utils import configclass
 
 from .ovxr_cfg import OvLibrariesXrCfg
+
+if TYPE_CHECKING:
+    from .ovxr_renderer import OvxrRendererCfg
 
 
 @configclass
@@ -33,8 +35,8 @@ class TeleopObservationCfg(ObservationPresentationCfg):
     presentation: OvLibrariesXrCfg = OvLibrariesXrCfg()
     """Stereo view, optional camera panels, and desktop mirror settings."""
 
-    renderer: OVRTXRendererCfg = OVRTXRendererCfg()
-    """Renderer leased exclusively to Capture's XR worker."""
+    renderer: OvxrRendererCfg | None = None
+    """Renderer leased exclusively to Capture's XR worker; None selects OvxrRendererCfg at playback launch."""
 
     startup_timeout_s: float = 30.0
     """Maximum wait [s] for the XR render worker to start."""
