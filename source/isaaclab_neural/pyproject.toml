@@ -19,13 +19,16 @@ requires-python = ">=3.12"
 # Only interpackage dependencies should go here.
 dependencies = [
     "isaaclab",
-    # The Cosmos3 client reaches its service through the Cosmos transport.
-    "isaaclab-experimental",
+    # The Cosmos3 client reaches its service through the Cosmos transport and shares the camera client's endpoint
+    # helpers.
+    "isaaclab_contrib",
+    "isaaclab_cosmos_server",
 ]
 
 [tool.uv.sources]
 isaaclab = { path = "../isaaclab", editable = true }
-isaaclab-experimental = { path = "../isaaclab_experimental", editable = true }
+isaaclab_contrib = { path = "../isaaclab_contrib", editable = true }
+isaaclab_cosmos_server = { path = "../isaaclab_cosmos_server", editable = true }
 
 [project.urls]
 Homepage = "https://github.com/isaac-sim/IsaacLab"

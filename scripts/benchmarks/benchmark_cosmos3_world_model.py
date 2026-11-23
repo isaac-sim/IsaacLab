@@ -21,7 +21,7 @@ import time
 
 import numpy as np
 import torch
-from isaaclab_experimental.cosmos.server.world_model import NUM_CONTROLS, Cosmos3Settings, Cosmos3WorldModel
+from isaaclab_cosmos_server.world_model import NUM_CONTROLS, Cosmos3Settings, Cosmos3WorldModel
 
 
 def main():

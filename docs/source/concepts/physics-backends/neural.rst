@@ -151,7 +151,7 @@ Cosmos3
 Cosmos3 runs in its own process, in the Cosmos Framework's environment, so Isaac Lab does not install the Framework.
 ``Cosmos3Model`` is the client: it reads the chunk length, frame rate and image size from the service, sends start
 images and controls, and receives frames. The service is the world-model counterpart of the Cosmos Transfer service
-(``source/isaaclab_experimental/docs/cosmos_transfer.md``) and uses the same transport.
+(``source/isaaclab_contrib/docs/cosmos_transfer.md``) and uses the same transport.
 
 In a server terminal, create the Framework environment at commit ``3a84cd3b67f60520f523e184fa7b82011bc75cb4`` of
 `cosmos-framework <https://github.com/NVIDIA/cosmos-framework>`_, install the Cosmos service package into it, and
@@ -161,7 +161,7 @@ start the service with a ``unified_v1`` checkpoint:
 
     cd "$COSMOS_FRAMEWORK_ROOT"
     uv sync --locked --all-extras --group=cu130-train
-    uv run --no-sync uv pip install --editable "$ISAAC_LAB_ROOT/source/isaaclab_experimental/isaaclab_experimental/cosmos"
+    uv run --no-sync uv pip install --editable "$ISAAC_LAB_ROOT/source/isaaclab_cosmos_server"
     export LD_LIBRARY_PATH=
     uv run --no-sync isaaclab-cosmos-world-model-server --checkpoint "$COSMOS3_CHECKPOINT"
 
