@@ -1795,16 +1795,16 @@ source = { editable = "source/isaaclab_assets" }
 dependencies = [
     { name = "isaaclab" },
     { name = "isaaclab-contrib" },
-    { name = "isaaclab-newton" },
     { name = "isaaclab-isaacsim" },
+    { name = "isaaclab-newton" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "isaaclab", editable = "source/isaaclab" },
     { name = "isaaclab-contrib", editable = "source/isaaclab_contrib" },
-    { name = "isaaclab-newton", editable = "source/isaaclab_newton" },
     { name = "isaaclab-isaacsim", editable = "source/isaaclab_isaacsim" },
+    { name = "isaaclab-newton", editable = "source/isaaclab_newton" },
 ]
 
 [[package]]
@@ -1840,9 +1840,9 @@ dependencies = [
     { name = "isaaclab-assets" },
     { name = "isaaclab-contrib" },
     { name = "isaaclab-experimental" },
+    { name = "isaaclab-isaacsim" },
     { name = "isaaclab-newton" },
     { name = "isaaclab-ov" },
-    { name = "isaaclab-isaacsim" },
     { name = "isaaclab-ppisp" },
     { name = "isaaclab-rl" },
     { name = "isaaclab-tasks" },
@@ -1854,7 +1854,6 @@ dependencies = [
     { name = "meshio" },
     { name = "newton", extra = ["sim"] },
     { name = "newton-usd-schemas" },
-    { name = "numba" },
     { name = "numpy" },
     { name = "onnx" },
     { name = "open3d", marker = "platform_machine == 'x86_64' or sys_platform == 'win32'" },
@@ -2075,11 +2074,11 @@ requires-dist = [
     { name = "isaaclab-dev", extras = ["sb3", "skrl", "rl-games", "rsl-rl", "viser", "rerun", "ov"], marker = "extra == 'all'" },
     { name = "isaaclab-dev", extras = ["test"], marker = "extra == 'dev'" },
     { name = "isaaclab-experimental", editable = "source/isaaclab_experimental" },
+    { name = "isaaclab-isaacsim", editable = "source/isaaclab_isaacsim" },
     { name = "isaaclab-mimic", marker = "extra == 'mimic'", editable = "source/isaaclab_mimic" },
     { name = "isaaclab-mimic", marker = "extra == 'teleop'", editable = "source/isaaclab_mimic" },
     { name = "isaaclab-newton", editable = "source/isaaclab_newton" },
     { name = "isaaclab-ov", editable = "source/isaaclab_ov" },
-    { name = "isaaclab-isaacsim", editable = "source/isaaclab_isaacsim" },
     { name = "isaaclab-ppisp", editable = "source/isaaclab_ppisp" },
     { name = "isaaclab-rl", editable = "source/isaaclab_rl" },
     { name = "isaaclab-tasks", editable = "source/isaaclab_tasks" },
@@ -2101,7 +2100,6 @@ requires-dist = [
     { name = "newton", extras = ["optix"], marker = "extra == 'optix'" },
     { name = "newton", extras = ["sim"], git = "https://github.com/newton-physics/newton.git?rev=d31603ff5e8389d1d6b2a5daef6ea2cb074c26ff" },
     { name = "newton-usd-schemas", specifier = ">=0.5.0" },
-    { name = "numba", specifier = ">=0.63.1" },
     { name = "numpy", specifier = ">=2" },
     { name = "numpydantic", marker = "extra == 'rlinf'", specifier = ">=1.7.0" },
     { name = "onnx", specifier = ">=1.18.0" },
@@ -2196,6 +2194,17 @@ requires-dist = [
 ]
 
 [[package]]
+name = "isaaclab-isaacsim"
+version = "13.2.0"
+source = { editable = "source/isaaclab_isaacsim" }
+dependencies = [
+    { name = "isaaclab" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
+
+[[package]]
 name = "isaaclab-mimic"
 version = "2.1.7"
 source = { editable = "source/isaaclab_mimic" }
@@ -2237,17 +2246,6 @@ requires-dist = [
     { name = "isaaclab", editable = "source/isaaclab" },
     { name = "ovstage", specifier = "==0.4.0.1794520352" },
 ]
-
-[[package]]
-name = "isaaclab-isaacsim"
-version = "13.2.0"
-source = { editable = "source/isaaclab_isaacsim" }
-dependencies = [
-    { name = "isaaclab" },
-]
-
-[package.metadata]
-requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-ppisp"
@@ -3533,21 +3531,6 @@ dependencies = [
 wheels = [
     { url = "https://files.pythonhosted.org/packages/61/1d/382ab0aadfdf75782899eea7bbc7fa42846ac850666614ba8211f913a6a6/nlopt-2.11.0-cp312-cp312-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:4c6b3d5f9dbfa2d049fc89611e8bb70e8ff2ebbea61c3d5e295783080fc06143", size = 389198, upload-time = "2026-07-17T06:50:47.223Z" },
     { url = "https://files.pythonhosted.org/packages/d0/0d/9f826469fdc6dd21f18c52dbe209b2c7a29b71d2b6bb21f494bcc7260085/nlopt-2.11.0-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:b7ea0d34cb00ed71fb032ff24a1b5599a61ca0101984c3fdfd954eca569e8ad2", size = 402848, upload-time = "2026-07-17T06:50:48.233Z" },
-]
-
-[[package]]
-name = "numba"
-version = "0.64.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "llvmlite" },
-    { name = "numpy" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/23/c9/a0fb41787d01d621046138da30f6c2100d80857bf34b3390dd68040f27a3/numba-0.64.0.tar.gz", hash = "sha256:95e7300af648baa3308127b1955b52ce6d11889d16e8cfe637b4f85d2fca52b1", size = 2765679, upload-time = "2026-02-18T18:41:20.974Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/9b/89/1a74ea99b180b7a5587b0301ed1b183a2937c4b4b67f7994689b5d36fc34/numba-0.64.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:f13721011f693ba558b8dd4e4db7f2640462bba1b855bdc804be45bbeb55031a", size = 3804087, upload-time = "2026-02-18T18:41:01.699Z" },
-    { url = "https://files.pythonhosted.org/packages/91/e1/583c647404b15f807410510fec1eb9b80cb8474165940b7749f026f21cbc/numba-0.64.0-cp312-cp312-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:e0b180b1133f2b5d8b3f09d96b6d7a9e51a7da5dda3c09e998b5bcfac85d222c", size = 3504309, upload-time = "2026-02-18T18:41:03.252Z" },
-    { url = "https://files.pythonhosted.org/packages/85/23/0fce5789b8a5035e7ace21216a468143f3144e02013252116616c58339aa/numba-0.64.0-cp312-cp312-win_amd64.whl", hash = "sha256:e63dc94023b47894849b8b106db28ccb98b49d5498b98878fac1a38f83ac007a", size = 2752740, upload-time = "2026-02-18T18:41:05.097Z" },
 ]
 
 [[package]]
