@@ -1,2 +1,3 @@
-* Added the picking drag arrow to the Newton visualizer's RTX view, drawn as thin meshes in the OVRTX scene. The model
-  overlays, such as joints, contacts, collision shapes, and wireframes, remain OpenGL only.
+* Added joint, contact, spring, center-of-mass, and inertia-box overlays to the Newton visualizer's RTX view. Newton's
+  line and arrow overlays are republished as thin meshes in the OVRTX scene. Collision shapes, visual meshes, edges,
+  and the gap and margin wireframes remain OpenGL only.
