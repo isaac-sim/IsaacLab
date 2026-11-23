@@ -38,7 +38,6 @@ pytestmark = [pytest.mark.integration, pytest.mark.rendering]
     [
         ("isaaclab_visualizers.kit", "KitBackendCfg", "KitVisualizer"),
         ("isaaclab_visualizers.newton", "NewtonGLBackendCfg", "NewtonGLVisualizer"),
-        ("isaaclab_visualizers.newton", "NewtonRTXBackendCfg", "NewtonRTXVisualizer"),
         ("isaaclab_visualizers.rerun", "RerunBackendCfg", "RerunVisualizer"),
         ("isaaclab_visualizers.viser", "ViserBackendCfg", "ViserVisualizer"),
     ],
@@ -71,6 +70,8 @@ def test_visualizer_cfg_camera_sources():
     assert (cfg.eye, cfg.focal_length, cfg.streaming_view) == ((1.0, 2.0, 3.0), 24.0, False)
     with pytest.raises(ValueError, match="at least one display source"):
         VisualizerCfg(cameras=[])
+    with pytest.raises(ValueError, match="at most one PerspectiveCameraCfg"):
+        VisualizerCfg(cameras=[PerspectiveCameraCfg(), PerspectiveCameraCfg(eye=(1.0, 1.0, 1.0))])
 
 
 def test_visualizer_cfg_validates_presentation():
@@ -84,10 +85,10 @@ def test_visualizer_cfg_validates_presentation():
     for fps in (0.0, -1.0, float("inf"), float("nan")):
         with pytest.raises(ValueError, match="WindowCfg.fps"):
             validate(WindowCfg(fps=fps))
-    cfg = VisualizerCfg(view=ImageViewCfg(source="camera"), backend=[VisualizerBackendCfg(visualizer_type="newton_gl")])
+    cfg = VisualizerCfg(view=ImageViewCfg(source="camera"), backend=[VisualizerBackendCfg(visualizer_type="newton")])
     validate(cfg)
     cfg.backend.append(VisualizerBackendCfg(visualizer_type="viser"))
-    with pytest.raises(ValueError, match="requires a Newton GL or RTX"):
+    with pytest.raises(ValueError, match="requires the Newton visualizer"):
         validate(cfg)
 
 

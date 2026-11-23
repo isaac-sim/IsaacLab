@@ -119,6 +119,7 @@ def test_all_extra_aggregates_curated_ov_rl_and_visualizer_extras(source_checkou
         "importers",
         "mimic",
         "teleop",
+        "ovxr",
         "tetrahedralization",
         "video",
         "optix",
@@ -230,6 +231,7 @@ def test_uv_run_declares_no_extra_conflicts(source_checkout_root: Path):
     tool_uv = _root_pyproject(source_checkout_root)["tool"]["uv"]
 
     assert "conflicts" not in tool_uv
+    assert "websockets>=17.3" in tool_uv["override-dependencies"]
     assert "fsspec>=2026.6.0" in tool_uv["override-dependencies"]
     assert "packaging>=20,<27" in tool_uv["override-dependencies"]
     assert "urllib3>=2.8.0" in tool_uv["override-dependencies"]

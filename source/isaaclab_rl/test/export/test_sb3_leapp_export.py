@@ -18,6 +18,8 @@ torch = pytest.importorskip("torch")
 stable_baselines3 = pytest.importorskip("stable_baselines3")
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 
+pytestmark = pytest.mark.kitless
+
 
 def _load_export_module() -> ModuleType:
     """Load the installed SB3 exporter."""
