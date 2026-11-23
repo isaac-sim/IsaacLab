@@ -14,6 +14,12 @@ Training a G1 Motion-Tracking Policy
 to follow a reference motion using RSL-RL PPO and Newton's MuJoCo Warp solver.
 Each run trains on one clip. The policy runs at 50 Hz, with physics and implicit PD at 200 Hz.
 
+.. raw:: html
+
+   <video autoplay loop muted playsinline controls preload="metadata" style="width:100%; display:block;">
+     <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/environments/previews/locomotion/g1_jump_and_turn.mp4" type="video/mp4">
+   </video>
+
 Prerequisites
 -------------
 

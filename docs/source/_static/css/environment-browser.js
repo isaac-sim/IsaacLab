@@ -412,6 +412,7 @@
     const taskPreviewVideoUrls = {
         "Isaac-Velocity-Flat-H2": "https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/environments/previews/locomotion/h2_flat.mp4",
         "Isaac-Velocity-Rough-H2": "https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/environments/previews/locomotion/h2_rough.mp4",
+        "Isaac-Motion-Tracking-G1": "https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/environments/previews/locomotion/g1_jump_and_turn.mp4",
     };
 
     const previewVideoUrl = (task) => {
