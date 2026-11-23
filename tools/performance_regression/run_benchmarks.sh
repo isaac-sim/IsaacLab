@@ -9,6 +9,7 @@ set -uo pipefail
 : "${CHECKOUT_ROOT:?}" "${BENCHMARK_OUTPUT:?}" "${SOURCE_REVISION_LAUNCHER:?}"
 : "${SOURCE_MANIFEST:?}" "${BENCHMARK_LEGS:?}" "${CI_IMAGE_TAG:?}" "${JIT_CACHE_ROOT:?}"
 : "${GITHUB_RUN_ID:?}" "${GITHUB_RUN_ATTEMPT:?}"
+BENCHMARK_ROLE="${BENCHMARK_ROLE:-}"
 
 install -d -m 0777 "${JIT_CACHE_ROOT}/warp" "${JIT_CACHE_ROOT}/nv"
 # Make restored cache files and folders writable inside Docker.
@@ -32,12 +33,20 @@ trap 'exit 143' TERM
 
 run_attempt() {
   local attempt="$1"
-  container="performance-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${leg}-${sample}-${attempt}"
+  local -a measurement_mounts=()
+  if [ -n "${PERF_MEASUREMENT_ROOT:-}" ]; then
+    measurement_mounts=(
+      -v "$PERF_MEASUREMENT_ROOT/source/isaaclab/isaaclab/benchmark:/workspace/isaaclab/source/isaaclab/isaaclab/benchmark:ro"
+      -v "$PERF_MEASUREMENT_ROOT/source/isaaclab/isaaclab/utils/timer.py:/workspace/isaaclab/source/isaaclab/isaaclab/utils/timer.py:ro"
+    )
+  fi
+  container="performance-regression-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${BENCHMARK_ROLE:+${BENCHMARK_ROLE}-}${leg}-${sample}-${attempt}"
   cleanup_container
   python3 "$SOURCE_REVISION_LAUNCHER" check --checkout-root "$CHECKOUT_ROOT" \
     --manifest "$SOURCE_MANIFEST" --output-dir "${BENCHMARK_OUTPUT}/${leg}/sample-${sample}" || return 1
   # Mount the selected checkout over the image's cached code.
-  timeout "${bench_timeout_s}" docker run --name "$container" --gpus all --network=host --ipc=host \
+  timeout "${bench_timeout_s}" docker run --name "$container" --gpus all --network=host \
+    --ipc=private --shm-size "$(df -B1 /dev/shm | awk 'NR==2 {print $2}')" \
     --user "$(id -u):$(id -g)" \
     -e HOME=/tmp/isaaclab-ci-home \
     -e XDG_CACHE_HOME=/tmp/isaaclab-ci-home/.cache \
@@ -50,6 +59,7 @@ run_attempt() {
     -v "${CHECKOUT_ROOT}/source:/workspace/isaaclab/source:rw" \
     -v "${CHECKOUT_ROOT}/scripts:/workspace/isaaclab/scripts:ro" \
     -v "${CHECKOUT_ROOT}/apps:/workspace/isaaclab/apps:ro" \
+    "${measurement_mounts[@]}" \
     -v "${SOURCE_REVISION_LAUNCHER}:/tmp/source_revision.py:ro" \
     -v "${SOURCE_MANIFEST}:/tmp/source-manifest.json:ro" \
     --entrypoint bash "$CI_IMAGE_TAG" -c \
@@ -90,7 +100,10 @@ run_attempt() {
 
 failed_legs=()
 while IFS='|' read -r leg task num_envs bench_timeout_s args; do
-  echo "::group::performance-smoke: ${leg}"
+  if [ -n "${PERF_MEASUREMENT_ROOT:-}" ]; then
+    bench_timeout_s=$((bench_timeout_s / 2))
+  fi
+  echo "::group::performance-regression: ${BENCHMARK_ROLE:+${BENCHMARK_ROLE}: }${leg}"
   install -d -m 0777 "${BENCHMARK_OUTPUT}/${leg}"
   leg_ok=true
   # Use separate runs for ASV because frames from one simulation are not independent samples.
@@ -116,6 +129,6 @@ while IFS='|' read -r leg task num_envs bench_timeout_s args; do
 done < "$BENCHMARK_LEGS"
 
 if [ "${#failed_legs[@]}" -gt 0 ]; then
-  echo "::error::performance-smoke: failed combination(s): ${failed_legs[*]}"
+  echo "::error::performance-regression: failed combination(s): ${failed_legs[*]}"
   exit 1
 fi

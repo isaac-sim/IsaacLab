@@ -436,7 +436,7 @@ def test_task_space_allocation_and_capture(device, first_property):
         control=control,
         solver=None,
         kinematics_dirty=False,
-        state_version=0,
+        timestamp=0,
         device=model.device,
         transforms_may_change_on_graph_replay=False,
     )
@@ -490,7 +490,7 @@ def test_world_hinged_root_has_no_base_dofs(device):
         control=control,
         solver=None,
         kinematics_dirty=False,
-        state_version=0,
+        timestamp=0,
         device=model.device,
         transforms_may_change_on_graph_replay=False,
     )

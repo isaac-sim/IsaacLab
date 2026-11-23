@@ -6,7 +6,7 @@
 """Backend-agnostic facade for coordinating groups of visual markers.
 
 The :class:`VisualizationMarkers` class is used to create a group of visual
-markers and visualize them through the active visualizer backends. The marker
+markers and visualize them through the active renderers and visualizers. The marker
 prototypes are configured with :class:`VisualizationMarkersCfg`, and individual
 marker instances can be updated by passing prototype indices and their
 translations, orientations, and scales.
@@ -160,10 +160,9 @@ class VisualizationMarkers:
         """Update markers in all initialized visualizer backends.
 
         .. note::
-            If the markers are hidden or no visualizer backend is active (e.g. when
-            running headless), the function returns without validating inputs or
-            updating marker state. This avoids unnecessary work while nothing
-            displays the markers.
+            If the markers are hidden or no marker backend has been initialized, the function
+            returns without validating inputs or updating marker state. A renderer or visualizer
+            can request a backend later; initialization is checked on each call.
 
         Whenever updating the markers, the input arrays must have the same
         number of elements in the first dimension. Backends generally require
@@ -263,7 +262,7 @@ class VisualizationMarkers:
         # Markers need the Kit (USD) backend to appear in any rendered frame: a native GUI window,
         # RTX sensor rendering, XR, headless offscreen video capture (``has_offscreen_render``), or
         # a Kit-pumping visualizer. Note that this deliberately does NOT use ``sim.is_rendering``,
-        # which is also true for non-Kit visualizers (e.g. ``newton_gl``) that never pump Kit's
+        # which is also true for non-Kit visualizers (e.g. ``newton``) that never pump Kit's
         # ``app.update()``. Standing up the Kit backend for such a visualizer leaves its raw USD
         # marker writes undigested by Fabric, which desyncs the point-instancer prototype table
         # (``FabricManager::initializePointInstancer mismatched prototypes``) and can crash the next
@@ -279,7 +278,7 @@ class VisualizationMarkers:
         )
         if needs_kit_backend:
             self._ensure_kit_backend(sim)
-        if any(
+        if sim.vis_marker_registry.has_consumers or any(
             viz.supports_markers() and not viz.pumps_app_update() and viz.cfg.enable_markers for viz in sim.visualizers
         ):
             self._ensure_newton_backend()

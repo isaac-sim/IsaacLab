@@ -262,6 +262,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             self.recorder_manager.record_post_reset(reset_env_ids)
 
         # -- handle episode reset requested from visualizer UI controls
+        manual_reset_ids = reset_env_ids[:0]
         if self.sim.consume_reset_request():
             completed_logs = self.extras["log"]
             # Only reset envs not already reset this step to avoid redundant resets.
@@ -277,6 +278,10 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
                 # A viewer interruption must not replace completed-episode metrics from this step.
                 self.extras["log"].update(completed_logs)
                 self.recorder_manager.record_post_reset(manual_reset_ids)
+
+        if len(reset_env_ids) > 0 or len(manual_reset_ids) > 0:
+            # Reset writes invalidate derived body poses used by observations and rewards.
+            self.sim.forward()
 
         self.command_manager.compute(dt=self.step_dt)
         if "interval" in self.event_manager.active_terms:

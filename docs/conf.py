@@ -293,6 +293,7 @@ autodoc_mock_imports = [
     "ipywidgets",
     "mpl_toolkits",
     "isaacteleop",
+    "isaaccapture",
     "scipy",
     "hydra",
     "hydra.core",
@@ -407,8 +408,8 @@ smv_remote_whitelist = r"^.*$"
 smv_branch_whitelist = os.getenv("SMV_BRANCH_WHITELIST", r"^(main|develop)$")
 # Whitelist pattern for tags (set to None to ignore all tags).
 # Matches vMAJOR.MINOR.PATCH with an optional pre-release suffix like -beta or -rc1,
-# so tags like v3.0.0-beta show up in the version selector.
-smv_tag_whitelist = os.getenv("SMV_TAG_WHITELIST", r"^v[1-9]\d*\.\d+\.\d+(-[A-Za-z0-9.]+)?$")
+# excluding the superseded v3.0.0 pre-releases.
+smv_tag_whitelist = os.getenv("SMV_TAG_WHITELIST", r"^(?!v3\.0\.0-)v[1-9]\d*\.\d+\.\d+(-[A-Za-z0-9.]+)?$")
 html_sidebars = {
     "**": ["navbar-logo.html", "versioning.html", "icon-links.html", "search-field.html", "sbt-sidebar-nav.html"]
 }
