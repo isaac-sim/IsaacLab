@@ -195,7 +195,6 @@ class Lidar(SensorBase):
 
         self._data: LidarData | None = None
         self._render_data = None
-        self._pose_update_registered = False
         self._local_pos: torch.Tensor | None = None
         self._local_quat: torch.Tensor | None = None
         self._pos_w: ProxyArray | None = None
@@ -314,10 +313,6 @@ class Lidar(SensorBase):
             {"points": self._data.points, "intensity": self._data.intensity, "valid": self._data.valid},
         )
 
-        if not self._pose_update_registered:
-            self._renderer.register_pose_update(self._push_renderer_pose)
-            self._pose_update_registered = True
-
         self._push_renderer_pose()
 
     def _invalidate_initialize_callback(self, event):
@@ -344,6 +339,7 @@ class Lidar(SensorBase):
         if self.cfg.update_period > 0.0 and not self._force_capture and not bool(env_mask.numpy().any()):
             return
 
+        self._push_renderer_pose()
         self._sim.render_context.render_into_lidar(
             self._renderer, self._render_data, self._sim.get_physics_step_count(), force=self._force_capture
         )

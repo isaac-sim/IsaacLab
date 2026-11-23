@@ -404,7 +404,6 @@ class OVRTXRenderer(BaseRenderer):
         self._device = str(self._warp_device)
         self._camera_render_data: list[OVRTXCameraRenderData] = []
         self._lidar_render_data: list[OVRTXLidarRenderData] = []
-        self._pose_updates: list[weakref.ref] = []
         self._sensor_capture_key: int | None = None
         self._sensor_capture_products: RenderProductSetOutputs | None = None
         self._published_cameras: set[OVRTXCameraRenderData] = set()
@@ -412,7 +411,6 @@ class OVRTXRenderer(BaseRenderer):
         # capture. A camera prepared after that capture renders again so its image matches.
         self._cameras_posed_for_capture: set[OVRTXCameraRenderData] = set()
         self._lidar_delta_time = 0.0
-        self._force_pose_wait = False
         self._lidar_sync_warned = False
         self._lidar_cuda_map_logged = False
         self._lidar_cpu_map_logged = False
@@ -1444,7 +1442,7 @@ class OVRTXRenderer(BaseRenderer):
             ).wait()
         else:
             operation = render_data.camera_writes.submit(binding, matrices, stream)
-            if self._force_pose_wait or not self.cfg.async_rendering:
+            if not self.cfg.async_rendering:
                 operation.wait()
 
     def update_camera_intrinsics(self, render_data: OVRTXCameraRenderData, intrinsics: wp.array, parameters: wp.array):
@@ -1493,15 +1491,6 @@ class OVRTXRenderer(BaseRenderer):
         if name not in self.meshes:
             self.meshes[name] = OVRTXMesh(self, f"/IsaacLabMeshes/{name.lstrip('/')}")
         self.meshes[name].update(*args, **kwargs)
-
-    def register_pose_update(self, callback) -> None:
-        """Remember a sensor pose callback invoked before a combined camera and lidar step."""
-        try:
-            ref = weakref.WeakMethod(callback)
-        except TypeError:
-            ref = weakref.ref(callback)
-
-        self._pose_updates.append(ref)
 
     def invalidate_sensor_capture(self) -> None:
         """Drop the cached combined capture so the next read renders again."""
@@ -1600,12 +1589,6 @@ class OVRTXRenderer(BaseRenderer):
             logger.warning("OVRTX lidar captures run synchronously, including cameras that share this renderer.")
             self._lidar_sync_warned = True
 
-        self._force_pose_wait = True
-        try:
-            self._update_registered_poses()
-        finally:
-            self._force_pose_wait = False
-
         products = set(self.backend.render_products)
 
         material_writer = self._visual_material_writer_ref() if self._visual_material_writer_ref is not None else None
@@ -1638,17 +1621,6 @@ class OVRTXRenderer(BaseRenderer):
         else:
             self._cameras_posed_for_capture.update(posed_now)
         self._publish_sensor_outputs(result, requested)
-
-    def _update_registered_poses(self) -> None:
-        """Call each live sensor pose callback. Dead sensors are dropped."""
-        live: list[weakref.ref] = []
-        for ref in self._pose_updates:
-            callback = ref()
-            if callback is None:
-                continue
-            live.append(ref)
-            callback()
-        self._pose_updates = live
 
     def _publish_prepared_cameras(
         self, cameras: Sequence[OVRTXCameraRenderData], products: RenderProductSetOutputs

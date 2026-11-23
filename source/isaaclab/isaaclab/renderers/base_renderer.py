@@ -199,14 +199,6 @@ class BaseRenderer(ABC):
         """
         pass
 
-    def register_pose_update(self, callback: Callable) -> None:
-        """Remember a callback that refreshes sensor poses before a shared capture.
-
-        A renderer that submits several sensors in one step calls the callback first, so a sensor
-        whose own update has not run yet still contributes its current pose. The default does nothing.
-        """
-        del callback
-
     def render_batch(self, render_data: Sequence[Any]) -> None:
         """Submit captures for a collection of cameras.
 
