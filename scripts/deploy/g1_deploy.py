@@ -11,17 +11,10 @@ Source the Isaac ROS environment before running.
 from __future__ import annotations
 
 import argparse
-import json
-import os
-import signal
-import subprocess
-import sys
 import tempfile
-import time
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-import numpy as np
 import yaml
 
 INPUTS = {
@@ -38,8 +31,6 @@ OUTPUTS = {
     "write:robot:write_joint_stiffness_to_sim_index": "kp",
     "write:robot:write_joint_damping_to_sim_index": "kd",
 }
-MAX_AGE = 0.2
-"""Maximum input/output age in seconds; the graph runs at 50 Hz."""
 
 
 def prepare_pipeline(pipeline: str, directory: Path) -> tuple[Path, dict]:
@@ -148,7 +139,7 @@ def prepare_hardware(directory: Path, interface: str, names: list[str]) -> tuple
     extra_joints = [n for n in names if n not in joints]
     if extra_joints:
         config["joint_state_broadcaster"]["ros__parameters"]["extra_joints"] = extra_joints
-    config["forward_joint_command_controller"]["ros__parameters"]["joint_command_topic"] = "/g1_policy/checked_commands"
+    config["forward_joint_command_controller"]["ros__parameters"]["joint_command_topic"] = "/g1_policy/joint_commands"
     config["freeze_controller"]["ros__parameters"].update(kp={".*": 0.0}, kd={".*": 3.0})
     config["safety_controller"]["ros__parameters"].update(
         blend_ratio=0.0,
@@ -165,12 +156,12 @@ def run_runtime(manifest: dict) -> int:
     """Compose official hardware, controllers, image conversion and inference nodes."""
     from ament_index_python.packages import get_package_share_directory
     from launch import LaunchDescription, LaunchService
-    from launch.actions import EmitEvent, GroupAction, IncludeLaunchDescription, RegisterEventHandler
+    from launch.actions import EmitEvent, IncludeLaunchDescription, RegisterEventHandler
     from launch.conditions import IfCondition
     from launch.event_handlers import OnProcessExit
     from launch.events import Shutdown
     from launch.launch_description_sources import PythonLaunchDescriptionSource
-    from launch_ros.actions import ComposableNodeContainer, Node, SetParameter
+    from launch_ros.actions import ComposableNodeContainer, Node
     from launch_ros.descriptions import ComposableNode
 
     description = {"robot_description": Path(manifest["urdf"]).read_text()}
@@ -232,21 +223,14 @@ def run_runtime(manifest: dict) -> int:
                     )
                 ),
                 load_stop,
-                GroupAction(
-                    [
-                        SetParameter(name="enable_topic", value="/g1_policy/enable"),
-                        SetParameter(name="enabled_on_start", value=False),
-                        SetParameter(name="reset_feedback_on_enable", value=True),
-                        IncludeLaunchDescription(
-                            PythonLaunchDescriptionSource(str(inference)),
-                            launch_arguments={
-                                "config_path": manifest["pipeline"],
-                                "namespace": "g1_policy",
-                                "publish_rate": "50.0",
-                                "source_to_topic": manifest["source_to_topic"],
-                            }.items(),
-                        ),
-                    ]
+                IncludeLaunchDescription(
+                    PythonLaunchDescriptionSource(str(inference)),
+                    launch_arguments={
+                        "config_path": manifest["pipeline"],
+                        "namespace": "g1_policy",
+                        "publish_rate": "50.0",
+                        "source_to_topic": manifest["source_to_topic"],
+                    }.items(),
                 ),
                 ComposableNodeContainer(
                     condition=IfCondition("true" if manifest["depth_name"] else "false"),
@@ -271,247 +255,35 @@ def run_runtime(manifest: dict) -> int:
     return int(result != 0 or bool(failed_processes))
 
 
-class InputWatchdog:
-    """Check policy inputs and outputs and request damping on a fault."""
-
-    def __init__(self, names: list[str], imu_topic: str, depth_name: str | None, motion: dict | None = None):
-        import rclpy
-        from controller_manager_msgs.srv import SwitchController
-        from geometry_msgs.msg import Twist
-        from isaac_ros_deploy_interfaces.msg import JointCommand
-        from isaac_ros_tensor_msgs.msg import TensorList
-        from rclpy.qos import qos_profile_sensor_data
-        from sensor_msgs.msg import Imu, JointState
-        from std_msgs.msg import Bool, Empty
-
-        self.node = rclpy.create_node("g1_policy_watchdog")
-        self.names, self.seen, self.enabled, self.fault = names, {}, False, None
-        self.required = ("joints", "imu", "motion") if motion else ("joints", "imu", "velocity", "depth")
-        self.started, self.last_output = time.monotonic(), None
-        self.pending, self.stopped = None, False
-        self._switch_type, self._bool = SwitchController, Bool
-        self.switch = self.node.create_client(SwitchController, "/controller_manager/switch_controller")
-        self.gate = self.node.create_publisher(Bool, "/g1_policy/enable", 1)
-        self.commands = self.node.create_publisher(JointCommand, "/g1_policy/checked_commands", 1)
-        self.node.create_subscription(JointState, "/joint_states", self.on_joints, qos_profile_sensor_data)
-        self.node.create_subscription(Imu, imu_topic, self.on_imu, qos_profile_sensor_data)
-        if motion:
-            self.node.create_subscription(
-                TensorList,
-                "/g1_policy/motion",
-                lambda msg: self.on_tensor(msg, "motion", motion["name"], motion["shape"][1:]),
-                1,
-            )
-        else:
-            self.node.create_subscription(Twist, "/cmd_vel", self.on_velocity, 1)
-            self.node.create_subscription(
-                TensorList,
-                "/g1_policy/depth_tensor",
-                lambda msg: self.on_tensor(msg, "depth", depth_name, [38, 64, 1]),
-                1,
-            )
-        self.node.create_subscription(JointCommand, "/g1_policy/joint_commands", self.on_output, 1)
-        self.node.create_subscription(Empty, "/g1_policy/stop", lambda _: self.stop("Operator stop"), 1)
-        self.node.create_timer(0.02, self.tick)
-
-    def receive(self, source: str, values, stamp=None):
-        if not np.isfinite(values).all():
-            self.stop(f"Non-finite {source}")
-            return False
-        if stamp is not None:
-            age = (self.node.get_clock().now().nanoseconds - stamp.sec * 10**9 - stamp.nanosec) / 1e9
-            if not -0.05 <= age <= MAX_AGE:
-                if self.enabled:
-                    self.stop(f"Stale or future-dated {source}")
-                return False
-        self.seen[source] = time.monotonic()
-        return True
-
-    def on_joints(self, msg):
-        if (
-            not set(self.names).issubset(msg.name)
-            or len(set(msg.name)) != len(msg.name)
-            or len(msg.position) != len(msg.name)
-            or len(msg.velocity) != len(msg.name)
-        ):
-            self.stop("Invalid joint state")
-            return
-        self.receive("joints", [*msg.position, *msg.velocity], msg.header.stamp)
-
-    def on_imu(self, msg):
-        q, v = msg.orientation, msg.angular_velocity
-        self.receive("imu", [q.x, q.y, q.z, q.w, v.x, v.y, v.z], msg.header.stamp)
-        norm = q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w
-        if abs(norm - 1.0) > 0.05 or 1.0 - 2.0 * (q.x * q.x + q.y * q.y) < (0.7 if self.enabled else 0.9):
-            self.stop("Robot is not upright or IMU orientation is invalid")
-
-    def on_velocity(self, msg):
-        self.receive(
-            "velocity", [msg.linear.x, msg.linear.y, msg.linear.z, msg.angular.x, msg.angular.y, msg.angular.z]
-        )
-
-    def on_tensor(self, msg, source: str, name: str, shape: list[int]):
-        if list(msg.names) != [name] or len(msg.tensors) != 1:
-            self.stop(f"Invalid {source} tensor name")
-            return
-        tensor = msg.tensors[0]
-        if (
-            list(tensor.shape) != shape
-            or (tensor.dtype_code, tensor.dtype_bits, tensor.dtype_lanes) != (2, 32, 1)
-            or tensor.byte_offset != 0
-            or len(tensor.data) != int(np.prod(shape)) * 4
-        ):
-            self.stop(f"Invalid {source} tensor layout")
-            return
-        self.receive(source, np.frombuffer(bytes(tensor.data), dtype=np.float32), msg.header.stamp)
-
-    def on_output(self, msg):
-        if self.fault or not self.enabled:
-            return
-        if list(msg.names) != self.names or any(len(v) != len(self.names) for v in (msg.position, msg.kp, msg.kd)):
-            self.stop("Invalid policy joint command layout")
-            return
-        if any(len(v) not in (0, len(self.names)) for v in (msg.velocity, msg.effort)) or min(*msg.kp, *msg.kd) < 0:
-            self.stop("Invalid policy velocity, effort or gains")
-            return
-        if not self.receive("output", [*msg.position, *msg.velocity, *msg.effort, *msg.kp, *msg.kd], msg.header.stamp):
-            return
-        self.tick()
-        if not self.fault:
-            if self.last_output is None:
-                self.node.get_logger().info(
-                    "Fresh policy output ready. Operator may now raise safety_controller blend_ratio."
-                )
-            self.last_output = time.monotonic()
-            self.commands.publish(msg)
-
-    def stop(self, reason: str):
-        if self.fault is None:
-            self.fault = reason
-            self.node.get_logger().error(f"{reason}; requesting damping. Restart to re-arm.")
-        self.gate.publish(self._bool(data=False))
-        if self.pending is None and not self.stopped and self.switch.service_is_ready():
-            request = self._switch_type.Request()
-            request.activate_controllers = ["freeze_controller"]
-            request.deactivate_controllers = ["forward_joint_command_controller", "safety_controller"]
-            request.strictness = request.BEST_EFFORT
-            request.timeout.sec = 2
-            self.pending = self.switch.call_async(request)
-        if self.pending is not None and self.pending.done():
-            try:
-                self.stopped = self.pending.result().ok
-            except Exception as error:
-                self.node.get_logger().error(f"Controller switch failed: {error}")
-            self.pending = None
-
-    def tick(self):
-        if self.fault:
-            self.stop(self.fault)
-            return
-        now = time.monotonic()
-        ready = all(now - self.seen.get(key, -np.inf) <= MAX_AGE for key in self.required)
-        if self.enabled and not ready:
-            self.stop("Robot or policy command input timed out")
-        elif self.enabled and now - (self.last_output or self.started) > (MAX_AGE if self.last_output else 60.0):
-            self.stop("Inference output timed out")
-        elif ready:
-            if not self.enabled:
-                self.enabled, self.started = True, now
-                self.node.get_logger().info("Inputs ready. Inference enabled; safety blend remains at zero.")
-            self.gate.publish(self._bool(data=True))
-        elif now - self.started > 120.0:
-            self.stop("Startup inputs did not become ready")
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--pipeline", help="Path to the LEAPP ONNX pipeline YAML.")
+    parser.add_argument("--pipeline", required=True, help="Path to the LEAPP ONNX pipeline YAML.")
     parser.add_argument("--interface", default="eth0", help="Robot Ethernet interface, passed to the official driver.")
     parser.add_argument(
         "--imu_topic", default="/imu_sensor_broadcaster/imu", help="Absolute pelvis-frame ROS IMU topic."
     )
-    parser.add_argument("--runtime", help=argparse.SUPPRESS)
     args = parser.parse_args()
-    if args.runtime:
-        return run_runtime(json.loads(Path(args.runtime).read_text()))
-    if not args.pipeline:
-        parser.error("--pipeline is required")
     if not args.imu_topic.startswith("/"):
         parser.error("--imu_topic must be an absolute ROS topic name")
-
-    import rclpy
-    from rclpy.signals import SignalHandlerOptions
-
-    shutdown_requested = False
-
-    def interrupted(signum, frame):
-        nonlocal shutdown_requested
-        shutdown_requested = True
-
-    signal.signal(signal.SIGINT, interrupted)
-    signal.signal(signal.SIGTERM, interrupted)
 
     with tempfile.TemporaryDirectory(prefix="g1_ros_deploy_") as temporary:
         directory = Path(temporary)
         pipeline, ports = prepare_pipeline(args.pipeline, directory)
         names = ports["state:robot:joint_pos"]["element_names"][-1]
         urdf, controllers = prepare_hardware(directory, args.interface, names)
-        manifest = directory / "runtime.json"
-        manifest.write_text(
-            json.dumps(
-                {
-                    "pipeline": str(pipeline),
-                    "urdf": str(urdf),
-                    "controllers": str(controllers),
-                    "depth_name": ports.get("state:depth_camera:output:distance_to_image_plane", {}).get("name"),
-                    "source_to_topic": ",".join(
-                        f"{ports[connection]['name']}:{args.imu_topic if kind.startswith('state/body/') else topic}"
-                        for connection, (kind, topic) in INPUTS.items()
-                        if connection in ports
-                    ),
-                }
-            )
+        return run_runtime(
+            {
+                "pipeline": str(pipeline),
+                "urdf": str(urdf),
+                "controllers": str(controllers),
+                "depth_name": ports.get("state:depth_camera:output:distance_to_image_plane", {}).get("name"),
+                "source_to_topic": ",".join(
+                    f"{ports[connection]['name']}:{args.imu_topic if kind.startswith('state/body/') else topic}"
+                    for connection, (kind, topic) in INPUTS.items()
+                    if connection in ports
+                ),
+            }
         )
-        rclpy.init(signal_handler_options=SignalHandlerOptions.NO)
-        watchdog = InputWatchdog(
-            names,
-            args.imu_topic,
-            ports.get("state:depth_camera:output:distance_to_image_plane", {}).get("name"),
-            ports.get("command:motion"),
-        )
-        process = subprocess.Popen(
-            [sys.executable, str(Path(__file__).resolve()), "--runtime", str(manifest)],
-            start_new_session=True,
-            env={**os.environ, "TMPDIR": temporary},
-        )
-        try:
-            while process.poll() is None and not watchdog.fault and not shutdown_requested:
-                rclpy.spin_once(watchdog.node, timeout_sec=0.02)
-            if process.poll() is not None:
-                raise RuntimeError(f"Isaac ROS runtime exited: {process.returncode}")
-        finally:
-            watchdog.stop("Deployment shutdown")
-            deadline = time.monotonic() + 3.0
-            while not watchdog.stopped and time.monotonic() < deadline:
-                rclpy.spin_once(watchdog.node, timeout_sec=0.02)
-            if not watchdog.stopped:
-                watchdog.node.get_logger().error(
-                    "Damping switch was not acknowledged; use the robot's independent stop."
-                )
-            else:
-                deadline = time.monotonic() + 1.5
-                while time.monotonic() < deadline:
-                    rclpy.spin_once(watchdog.node, timeout_sec=0.02)
-            if process.poll() is None:
-                os.killpg(process.pid, signal.SIGINT)
-                try:
-                    process.wait(timeout=10.0)
-                except subprocess.TimeoutExpired:
-                    os.killpg(process.pid, signal.SIGTERM)
-                    process.wait(timeout=5.0)
-            watchdog.node.destroy_node()
-            rclpy.shutdown()
-    return int(process.returncode != 0 or watchdog.fault not in ("Operator stop", "Deployment shutdown"))
 
 
 if __name__ == "__main__":
