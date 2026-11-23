@@ -269,8 +269,6 @@ class OVRTXBackend:
         )
         # Redirection may initialize the native library and must use the same settings.
         redirect_shader_cache(native_cfg)
-        self.next_camera_id = 0
-        self.next_lidar_id = 0
         if not cfg.use_ovstage:
             # Prepared by clone dispatch, consumed after camera overrides are authored.
             self.clone_copies: list[tuple[str, list[str]]] = []
@@ -311,7 +309,7 @@ class OVRTXCameraRenderData:
         self.render_var_keys = {
             source: f"/{render_scope_name}/Vars/{name}" for source, name in _RENDER_VAR_PRIM_NAMES.items()
         }
-        self.camera_xform_binding: AttributeBinding[wp.array] | ovstage.Query | None = None
+        self.xform_binding: AttributeBinding[wp.array] | ovstage.Query | None = None
         self.resources = contextlib.ExitStack()
         self.width = spec.cfg.width
         self.height = spec.cfg.height
@@ -321,7 +319,7 @@ class OVRTXCameraRenderData:
         self.num_rows = math.ceil(self.num_envs / self.num_cols)
         self.warp_buffers: dict[str, wp.array] = {}
         self.intrinsic_bindings: list[AttributeBinding] = []
-        self.camera_writes = _AsyncWriteBuffers[wp.array]()
+        self.pose_writes = _AsyncWriteBuffers[wp.array]()
         self.pending: tuple[Operation[PendingFetch[RenderProductSetOutputs]], dict | None] | None = None
         self.ready: tuple[Operation[PendingFetch[RenderProductSetOutputs]], dict | None] | None = None
         self.capture: dict[str, ProxyArray] = {}
@@ -338,11 +336,11 @@ class OVRTXCameraRenderData:
         """
         try:
             with self.resources:
-                self.camera_writes.close()
+                self.pose_writes.close()
         finally:
             self.pending = self.ready = None
             self.capture = {}
-            self.camera_xform_binding = None
+            self.xform_binding = None
             self.intrinsic_bindings.clear()
             self.warp_buffers.clear()
             self.renderer_info.clear()
@@ -402,11 +400,7 @@ class OVRTXRenderer(BaseRenderer):
         super().__init__(cfg, sim=sim)
         self._warp_device = wp.get_device(self._sim.device)
         self._device = str(self._warp_device)
-        self._camera_render_data: list[OVRTXCameraRenderData] = []
-        self._lidar_render_data: list[OVRTXLidarRenderData] = []
-        self._lidar_delta_time = 0.0
-        self._lidar_cuda_map_logged = False
-        self._lidar_cpu_map_logged = False
+        self._sensor_render_data: list[OVRTXCameraRenderData | OVRTXLidarRenderData] = []
         self.meshes: dict[str, OVRTXMesh] = {}
         self.markers: dict[Any, OVRTXMarkers] = {}
         self.marker_groups: Iterable = ()
@@ -683,7 +677,7 @@ class OVRTXRenderer(BaseRenderer):
         camera_paths, camera_partitions = self._resolve_environment_sensor_paths(
             list(spec.prim_paths), spec.num_instances, environment_order=False
         )
-        render_data = OVRTXCameraRenderData(spec, f"RenderCamera_{self.scene.next_camera_id}", camera_paths)
+        render_data = OVRTXCameraRenderData(spec, f"RenderScope_{self.scene.next_sensor_id}", camera_paths)
         scope, product_path = render_data.render_scope_name, render_data.render_product_path
         usd = build_camera_render_product_as_string(
             spec, render_data, device_id=self._warp_device.ordinal, enable_shadows=self.cfg.enable_shadows
@@ -711,9 +705,9 @@ class OVRTXRenderer(BaseRenderer):
                         is_array=True,
                         semantic=ovstage.AttributeSemantic.RELATIONSHIP_PATH_ID,
                     ).wait()
-                render_data.camera_xform_binding = render_data.resources.enter_context(self.scene.query(camera_paths))
+                render_data.xform_binding = render_data.resources.enter_context(self.scene.query(camera_paths))
                 self.scene.stage.write_attribute(
-                    render_data.camera_xform_binding,
+                    render_data.xform_binding,
                     "omni:resetXformStack",
                     ordinal=self.scene.ordinal,
                     tensors=np.full(spec.num_instances, True, dtype=np.bool_),
@@ -721,7 +715,7 @@ class OVRTXRenderer(BaseRenderer):
                 ).wait()
                 if camera_partitions:
                     self.scene.stage.write_attribute(
-                        render_data.camera_xform_binding,
+                        render_data.xform_binding,
                         "omni:scenePartition",
                         ordinal=self.scene.ordinal,
                         tensors=np.array(
@@ -739,13 +733,13 @@ class OVRTXRenderer(BaseRenderer):
                     attribute_name="camera",
                     tensors=[camera_paths],
                 )
-                render_data.camera_xform_binding = self.backend.renderer.bind_attribute(
+                render_data.xform_binding = self.backend.renderer.bind_attribute(
                     prim_paths=camera_paths,
                     attribute_name="omni:xform",
                     semantic=Semantic.XFORM_MAT4x4,
                     prim_mode=PrimMode.EXISTING_ONLY,
                 )
-                render_data.resources.callback(render_data.camera_xform_binding.unbind)
+                render_data.resources.callback(render_data.xform_binding.unbind)
                 self.backend.renderer.write_attribute(
                     prim_paths=camera_paths,
                     attribute_name="omni:resetXformStack",
@@ -758,7 +752,7 @@ class OVRTXRenderer(BaseRenderer):
                         camera_partitions,
                         semantic=Semantic.TOKEN_STRING,
                     )
-            render_data.camera_writes = _AsyncWriteBuffers(
+            render_data.pose_writes = _AsyncWriteBuffers(
                 wp.empty(spec.num_instances, wp.mat44d, device=self._device)
                 for _ in range(2 if self.cfg.async_rendering and not self._use_ovstage else 1)
             )
@@ -773,8 +767,8 @@ class OVRTXRenderer(BaseRenderer):
         except Exception:
             render_data.cleanup()
             raise
-        self.scene.next_camera_id += 1
-        self._camera_render_data.append(render_data)
+        self.scene.next_sensor_id += 1
+        self._sensor_render_data.append(render_data)
         self.backend.render_products.add(render_data.render_product_path)
         render_data.resources.callback(self.backend.render_products.discard, render_data.render_product_path)
         return render_data
@@ -808,7 +802,7 @@ class OVRTXRenderer(BaseRenderer):
                 f"OVRTX lidar '{prim_path}' expected {num_envs} prims in environment order, found {len(lidar_paths)}."
             )
 
-        scope = f"RenderLidar_{self.scene.next_lidar_id}"
+        scope = f"RenderScope_{self.scene.next_sensor_id}"
         render_data = OVRTXLidarRenderData(scope, lidar_paths, num_envs, spec.cfg.num_rays())
         update_period = float(spec.cfg.update_period)
         render_data.sample_dt = update_period if update_period > 0.0 else float(self._sim.get_physics_dt())
@@ -901,17 +895,10 @@ class OVRTXRenderer(BaseRenderer):
             render_data.cleanup()
             raise
 
-        self.scene.next_lidar_id += 1
-        self._lidar_render_data.append(render_data)
+        self.scene.next_sensor_id += 1
+        self._sensor_render_data.append(render_data)
         self.backend.render_products.add(product_path)
         render_data.resources.callback(self.backend.render_products.discard, product_path)
-
-        if render_data.sample_dt > 0.0:
-            self._lidar_delta_time = (
-                render_data.sample_dt
-                if self._lidar_delta_time <= 0.0
-                else min(self._lidar_delta_time, render_data.sample_dt)
-            )
         return render_data
 
     def set_outputs(
@@ -928,14 +915,11 @@ class OVRTXRenderer(BaseRenderer):
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.set_outputs`.
         """
         if isinstance(render_data, OVRTXLidarRenderData):
-            try:
-                points, intensity, valid = output_data["points"], output_data["intensity"], output_data["valid"]
-            except KeyError as error:
-                raise ValueError("Lidar outputs require 'points', 'intensity', and 'valid'.") from error
-            if any(str(buffer.device) != self._device for buffer in (points, intensity, valid)):
-                raise ValueError("Lidars sharing an OVRTX renderer must use the simulation device.")
-            render_data.points, render_data.intensity, render_data.valid = points, intensity, valid
+            render_data.points = output_data["points"]
+            render_data.intensity = output_data["intensity"]
+            render_data.valid = output_data["valid"]
             return
+
         render_data.warp_buffers = {
             name: proxy.warp for name, proxy in output_data.items() if name != str(RenderBufferKind.RGB)
         }
@@ -959,7 +943,6 @@ class OVRTXRenderer(BaseRenderer):
         camera_data: CameraData | None = None,
     ) -> None:
         """Publish this product's pixels, and copy matching metadata when a sensor requests it."""
-        # An asynchronous camera waits until ready names a completed capture.
         if self.cfg.async_rendering and not self._use_ovstage and render_data.ready is None:
             return
 
@@ -1183,7 +1166,8 @@ class OVRTXRenderer(BaseRenderer):
 
     def drain_pending_renders(self, cameras: Sequence[OVRTXCameraRenderData] | None = None) -> list[Exception]:
         """Complete native work without publishing observations into any camera."""
-        cameras = self._camera_render_data if cameras is None else cameras
+        if cameras is None:
+            cameras = [data for data in self._sensor_render_data if not isinstance(data, OVRTXLidarRenderData)]
         operations = {frame[0] for data in cameras for frame in (data.pending, data.ready) if frame is not None}
         errors = []
         for operation in operations:
@@ -1382,34 +1366,24 @@ class OVRTXRenderer(BaseRenderer):
             binding.write(points, data_access=DataAccess.ASYNC, cuda_stream=stream.cuda_stream or 1)
         self._geometry_timestamp = timestamp
 
-    def update_sensor(
+    def _write_sensor_pose(
         self,
-        render_data: OVRTXCameraRenderData | OVRTXLidarRenderData,
+        binding,
+        writes: _AsyncWriteBuffers,
         positions: ProxyArray,
         orientations: ProxyArray,
-        intrinsics: ProxyArray | None = None,
+        basis: wp.quatf,
     ) -> None:
-        """Update a camera or lidar world pose.
-
-        A camera uses the OpenGL basis. A lidar uses the identity basis, so the frame stays as authored.
-        Camera render data requires intrinsic matrices even though this pose write does not consume them.
-        """
-        if isinstance(render_data, OVRTXLidarRenderData):
-            self._update_lidar_pose(render_data, positions, orientations)
-            return
-        if intrinsics is None:
-            raise ValueError("OVRTX camera pose updates require intrinsic matrices.")
-        binding = render_data.camera_xform_binding
+        """Convert world poses into OVRTX matrices and write them to one xform binding."""
         if binding is None:
             return
+
         stream = self._warp_device.stream
-        matrices = render_data.camera_writes.acquire(stream)
-        # Isaac Lab cameras use +X forward and +Z up. OVRTX cameras use the OpenGL frame, -Z forward and +Y up.
-        opengl_camera_basis = wp.quatf(0.5, -0.5, -0.5, 0.5)
+        matrices = writes.acquire(stream)
         wp.launch(
             create_sensor_transforms_kernel,
             len(matrices),
-            [positions, orientations, opengl_camera_basis, matrices],
+            [positions, orientations, basis, matrices],
             device=self._device,
         )
         if self._use_ovstage:
@@ -1423,9 +1397,33 @@ class OVRTXRenderer(BaseRenderer):
                 cuda_stream=stream.cuda_stream or 1,
             ).wait()
         else:
-            operation = render_data.camera_writes.submit(binding, matrices, stream)
+            operation = writes.submit(binding, matrices, stream)
             if not self.cfg.async_rendering:
                 operation.wait()
+
+    def update_sensor(
+        self,
+        render_data: OVRTXCameraRenderData | OVRTXLidarRenderData,
+        positions: ProxyArray,
+        orientations: ProxyArray,
+        intrinsics: ProxyArray | None = None,
+    ) -> None:
+        """Update a camera or lidar world pose.
+
+        A camera uses the OpenGL basis. A lidar uses the identity basis, so the frame stays as authored.
+        Camera render data requires intrinsic matrices even though this pose write does not consume them.
+        """
+        # A lidar is already in the OVRTX frame. A camera uses +X forward and +Z up, while OVRTX uses
+        # the OpenGL frame, -Z forward and +Y up.
+        lidar_basis = wp.quatf(0.0, 0.0, 0.0, 1.0)
+        camera_basis = wp.quatf(0.5, -0.5, -0.5, 0.5)
+        self._write_sensor_pose(
+            render_data.xform_binding,
+            render_data.pose_writes,
+            positions,
+            orientations,
+            lidar_basis if isinstance(render_data, OVRTXLidarRenderData) else camera_basis,
+        )
 
     def update_camera_intrinsics(self, render_data: OVRTXCameraRenderData, intrinsics: wp.array, parameters: wp.array):
         """Publish calibration columns from GPU memory into the renderer-owned scene."""
@@ -1437,7 +1435,7 @@ class OVRTXRenderer(BaseRenderer):
         stream = wp.get_stream(parameters.device).cuda_stream or 1
         if self._use_ovstage:
             self.scene.stage.write_attributes(
-                render_data.camera_xform_binding,
+                render_data.xform_binding,
                 [
                     ovstage.WriteDesc(attribute=name, tensors=parameters[row], is_array=False, cuda_stream=stream)
                     for row, name in enumerate(_CAMERA_INTRINSIC_ATTRIBUTES)
@@ -1461,8 +1459,9 @@ class OVRTXRenderer(BaseRenderer):
         A lidar step submits lidar products only. Cameras on this renderer keep their own step.
         """
         if isinstance(render_data, OVRTXLidarRenderData):
-            self._capture_lidar(self._agreed_lidar_delta(render_data.sample_dt))
+            self._render_lidar(render_data.sample_dt)
             return
+
         self.render_batch((render_data,))
 
     def log_mesh(self, name: str, *args, **kwargs) -> None:
@@ -1471,58 +1470,7 @@ class OVRTXRenderer(BaseRenderer):
             self.meshes[name] = OVRTXMesh(self, f"/IsaacLabMeshes/{name.lstrip('/')}")
         self.meshes[name].update(*args, **kwargs)
 
-    def _update_lidar_pose(
-        self, render_data: OVRTXLidarRenderData, positions: ProxyArray, orientations: ProxyArray
-    ) -> None:
-        """Write lidar world poses. The lidar frame is used as authored, without a camera conversion."""
-        binding = render_data.xform_binding
-        if binding is None:
-            return
-
-        stream = self._warp_device.stream
-        matrices = render_data.pose_writes.acquire(stream)
-
-        # Lidar orientations are already in the OVRTX frame, so the kernel applies the identity basis.
-        lidar_basis = wp.quatf(0.0, 0.0, 0.0, 1.0)
-        wp.launch(
-            create_sensor_transforms_kernel,
-            len(matrices),
-            [positions, orientations, lidar_basis, matrices],
-            device=self._device,
-        )
-
-        if self._use_ovstage:
-            self.scene.stage.write_attribute(
-                binding,
-                "omni:xform",
-                ordinal=self.scene.ordinal,
-                tensors=xform_tensor_from_warp(matrices),
-                is_array=False,
-                semantic=ovstage.AttributeSemantic.MATRIX,
-                cuda_stream=stream.cuda_stream or 1,
-            ).wait()
-        else:
-            render_data.pose_writes.submit(binding, matrices, stream).wait()
-
-    def _cleanup_lidar(self, render_data: OVRTXLidarRenderData | None) -> None:
-        """Release one lidar product. Camera products registered on this renderer stay active."""
-        if render_data is None:
-            return
-        try:
-            render_data.cleanup()
-        finally:
-            if render_data in self._lidar_render_data:
-                self._lidar_render_data.remove(render_data)
-
-    def _agreed_lidar_delta(self, requested: float) -> float:
-        """Return the lidar sampling interval, in seconds."""
-        if self._lidar_delta_time > 0.0:
-            return self._lidar_delta_time
-        if requested > 0.0:
-            return float(requested)
-        return _RENDER_DELTA_TIME
-
-    def _capture_lidar(self, delta_time: float) -> None:
+    def _render_lidar(self, delta_time: float) -> None:
         """Submit registered lidar products and publish every point cloud.
 
         Camera products stay on the camera step. A lidar needs the point cloud immediately, so this
@@ -1530,10 +1478,15 @@ class OVRTXRenderer(BaseRenderer):
         """
         if not self._initialized_scene:
             raise RuntimeError("Scene not initialized. Call initialize() first.")
-        if self.backend is None or self.backend.renderer is None or not self._lidar_render_data:
+
+        lidars = [data for data in self._sensor_render_data if isinstance(data, OVRTXLidarRenderData)]
+        if self.backend is None or self.backend.renderer is None or not lidars:
             return
-        delta_time = self._agreed_lidar_delta(delta_time)
-        products = {data.render_product_path for data in self._lidar_render_data}
+
+        if delta_time <= 0.0:
+            delta_time = _RENDER_DELTA_TIME
+
+        products = {data.render_product_path for data in lidars}
 
         material_writer = self._visual_material_writer_ref() if self._visual_material_writer_ref is not None else None
         try:
@@ -1555,9 +1508,11 @@ class OVRTXRenderer(BaseRenderer):
                     if not primary_active:
                         raise
                     logger.warning("Error draining material writes after a failed render: %s", exc, exc_info=True)
+
         if self._use_ovstage:
             result = self.backend.renderer.step(render_products=products, delta_time=delta_time, ordinal=ordinal)
-        for data in self._lidar_render_data:
+
+        for data in lidars:
             self._publish_lidar_output(data, result)
 
     def _publish_lidar_output(self, render_data: OVRTXLidarRenderData, products: RenderProductSetOutputs) -> None:
@@ -1568,6 +1523,7 @@ class OVRTXRenderer(BaseRenderer):
         """
         if render_data.render_product_path not in products or not products[render_data.render_product_path].frames:
             raise RuntimeError(f"OVRTX returned no frame for lidar product {render_data.render_product_path!r}.")
+
         frames = products[render_data.render_product_path].frames
         frame = frames[-1]
         point_cloud = frame.render_vars.get(render_data.point_cloud_path)
@@ -1576,15 +1532,16 @@ class OVRTXRenderer(BaseRenderer):
                 f"OVRTX lidar frame has no point cloud at {render_data.point_cloud_path!r}. "
                 f"Available render vars: {list(frame.render_vars)}."
             )
+
         try:
             self._copy_mapped_lidar_point_cloud(point_cloud, render_data, Device.CUDA)
         except Exception as exc:
             message = str(exc).lower()
             if not ("failed to map" in message or "unpublish" in message or "point cloud was empty" in message):
                 raise
-            if not self._lidar_cpu_map_logged:
-                logger.info("OVRTX lidar point cloud is copied from the CPU map: %s", exc)
-                self._lidar_cpu_map_logged = True
+
+            logger.info("OVRTX lidar point cloud is copied from the CPU map: %s", exc)
+
             try:
                 self._copy_mapped_lidar_point_cloud(point_cloud, render_data, Device.CPU)
             except Exception as cpu_exc:
@@ -1618,6 +1575,7 @@ class OVRTXRenderer(BaseRenderer):
             return count
 
         mapped = point_cloud.map(device=device, sync_stream=0)
+
         try:
             if mapped.wait_event is not None:
                 mapped.wait()
@@ -1631,9 +1589,9 @@ class OVRTXRenderer(BaseRenderer):
                 mapped.unmap(stream=self._warp_device.stream.cuda_stream or 1)
             else:
                 mapped.unmap()
-        if device is Device.CUDA and not self._lidar_cuda_map_logged:
+
+        if device is Device.CUDA:
             logger.info("OVRTX lidar point cloud is mapped on CUDA.")
-            self._lidar_cuda_map_logged = True
 
     def render_batch(self, render_data: Sequence[OVRTXCameraRenderData]) -> None:
         """Render all requested camera products in one native submission.
@@ -1656,9 +1614,16 @@ class OVRTXRenderer(BaseRenderer):
 
         if not self._initialized_scene:
             raise RuntimeError("Scene not initialized. Call initialize() first.")
-        if self.backend.renderer is None or not self._camera_render_data:
+
+        if self.backend.renderer is None or not any(
+            not isinstance(data, OVRTXLidarRenderData) for data in self._sensor_render_data
+        ):
             return
-        products = self.backend.render_products - {data.render_product_path for data in self._lidar_render_data}
+
+        products = self.backend.render_products - {
+            data.render_product_path for data in self._sensor_render_data if isinstance(data, OVRTXLidarRenderData)
+        }
+
         material_writer = self._visual_material_writer_ref() if self._visual_material_writer_ref is not None else None
         try:
             if material_writer is not None:
@@ -1711,9 +1676,6 @@ class OVRTXRenderer(BaseRenderer):
         until :meth:`close`, so other cameras can continue rendering. A lidar product is released
         without removing camera products.
         """
-        if isinstance(render_data, OVRTXLidarRenderData):
-            self._cleanup_lidar(render_data)
-            return
         if render_data is None:
             return
         try:
@@ -1722,8 +1684,8 @@ class OVRTXRenderer(BaseRenderer):
             try:
                 render_data.cleanup()
             finally:
-                if render_data in self._camera_render_data:
-                    self._camera_render_data.remove(render_data)
+                if render_data in self._sensor_render_data:
+                    self._sensor_render_data.remove(render_data)
 
     def _remove_usd_reference(self, reference: int) -> None:
         """Publish removal of a private USD reference at the shared stage's current ordinal."""
@@ -1740,9 +1702,7 @@ class OVRTXRenderer(BaseRenderer):
                 resources.callback(self.geometry_resources.close)
                 for geometry in (*self.meshes.values(), *self.markers.values()):
                     resources.callback(geometry.close)
-                for render_data in tuple(self._camera_render_data):
-                    resources.callback(self.cleanup, render_data)
-                for render_data in tuple(self._lidar_render_data):
+                for render_data in self._sensor_render_data:
                     resources.callback(self.cleanup, render_data)
         finally:
             self._object_xform_binding = self._geometry_points_binding = None

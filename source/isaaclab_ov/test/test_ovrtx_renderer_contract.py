@@ -88,7 +88,7 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
 
     renderer.scene.commit = OvstageBackend.commit.__get__(renderer.scene)
     renderer.scene.query = OvstageBackend.query.__get__(renderer.scene)
-    renderer.scene.next_camera_id = 0
+    renderer.scene.next_sensor_id = 0
     renderer.scene.clone_copies = []
     renderer.scene.clone_env_paths = ["/World/envs/env_0", "/World/envs/env_1"]
     renderer.backend.attached = False
@@ -317,12 +317,12 @@ def test_ovrtx_render_submits_every_product_and_routes_requested_outputs(
         camera.render_product_path = f"/Render/Camera{index}"
         camera.warp_buffers = {str(RenderBufferKind.RGB_HDR): object(), str(RenderBufferKind.RGBA): object()}
         products[camera.render_product_path] = types.SimpleNamespace(frames=[object()])
-    renderer._camera_render_data = cameras
+    renderer._sensor_render_data = cameras
     other = OVRTXRenderer(OVRTXRendererCfg(enable_shadows=True), sim=SimulationContext.instance())
     other.backend = renderer.backend
-    other._camera_render_data = [types.SimpleNamespace(render_product_path="/Render/UnrequestedCamera")]
+    other._sensor_render_data = [types.SimpleNamespace(render_product_path="/Render/UnrequestedCamera")]
     renderer.backend.render_products.update(
-        camera.render_product_path for camera in (*cameras, *other._camera_render_data)
+        camera.render_product_path for camera in (*cameras, *other._sensor_render_data)
     )
     if missing_output == "product":
         del products[cameras[-1].render_product_path]
@@ -375,19 +375,17 @@ def test_lidar_and_camera_captures_use_separate_steps(monkeypatch):
     renderer._use_ovstage = False
     renderer._visual_material_writer_ref = None
     renderer._needs_transform_initialization = False
-    renderer._lidar_delta_time = 0.1
     cameras = [_make_ovrtx_camera_render_data() for _ in range(2)]
     products = {}
     for index, camera in enumerate(cameras):
         camera.render_product_path = f"/Render/Camera{index}"
         camera.warp_buffers = {}
         products[camera.render_product_path] = types.SimpleNamespace(frames=[object()])
-    renderer._camera_render_data = cameras
-    renderer.backend.render_products.update(camera.render_product_path for camera in cameras)
     lidar = OVRTXLidarRenderData("RenderLidar", ["/Lidar"], 1, 1)
     lidar.render_product_path = "/Render/Lidar"
     lidar.sample_dt = 0.1
-    renderer._lidar_render_data = [lidar]
+    renderer._sensor_render_data = [*cameras, lidar]
+    renderer.backend.render_products.update(camera.render_product_path for camera in cameras)
     renderer.backend.render_products.add("/Render/Lidar")
     products["/Render/Lidar"] = types.SimpleNamespace(frames=[object()])
     submissions = []
@@ -701,7 +699,7 @@ def test_async_cameras_publish_independently_with_capture_metadata_and_reset(mon
     renderer._initialized_scene = True
     renderer._visual_material_writer_ref = None
     cameras = [_make_ovrtx_camera_render_data() for _ in range(2)]
-    renderer._camera_render_data = cameras.copy()
+    renderer._sensor_render_data = cameras.copy()
     camera_data = []
     for index, camera in enumerate(cameras):
         camera.render_product_path = f"/Render/Camera{index}"
@@ -782,7 +780,7 @@ def test_async_cameras_publish_independently_with_capture_metadata_and_reset(mon
         capture(6, (1,))
     renderer.cleanup(cameras[1])
     assert all(operation.wait.called for operation in operations)
-    assert renderer._camera_render_data == []
+    assert renderer._sensor_render_data == []
 
 
 def test_ovrtx_set_outputs_wraps_caller_torch_zero_copy():
@@ -865,7 +863,7 @@ def test_ovrtx_process_frame_reads_authored_camera_render_vars(monkeypatch, use_
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._initialized_scene = True
     renderer._device = "cpu"
-    renderer.scene.next_camera_id = 0
+    renderer.scene.next_sensor_id = 0
     renderer.scene.clone_env_paths = ["/World/envs/env_0", "/World/envs/env_1"]
     renderer._use_ovstage = use_ovstage
     renderer.scene.ordinal = 1
@@ -1103,10 +1101,10 @@ def test_ovrtx_cleanup_releases_only_the_given_render_data(monkeypatch, cleanup_
     """Release only the given camera, even if its pending native operations fail."""
     events = []
     renderer = _make_renderer_with_backend(events, use_ovstage)
-    other_camera = renderer._camera_render_data[0]
+    other_camera = renderer._sensor_render_data[0]
     render_data = _make_ovrtx_camera_render_data()
     render_data.render_product_path = "/RenderCamera_0/RenderProduct_to_remove"
-    renderer._camera_render_data.append(render_data)
+    renderer._sensor_render_data.append(render_data)
     render_data.warp_buffers = {"rgba": wp.zeros((8, 16, 4), dtype=wp.uint8, device="cpu")}
     render_data.renderer_info = {"semantic_segmentation": {"idToLabels": {}}}
     if use_ovstage:
@@ -1149,7 +1147,7 @@ def test_ovrtx_cleanup_releases_only_the_given_render_data(monkeypatch, cleanup_
         else ["unbind:intrinsics", "unbind:pose"]
     )
     assert events == expected
-    assert renderer._camera_render_data == [other_camera]
+    assert renderer._sensor_render_data == [other_camera]
     assert render_data.camera_xform_binding is None
     assert render_data.intrinsic_bindings == []
     assert render_data.warp_buffers == {}
@@ -1173,7 +1171,7 @@ def test_pose_and_intrinsic_updates_target_the_given_camera(monkeypatch, stage_m
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._initialized_scene = True
     renderer._device = "cpu"
-    renderer.scene.next_camera_id = 0
+    renderer.scene.next_sensor_id = 0
     renderer.scene.clone_env_paths = ["/Lab/Cell0", "/Lab/Cell1"]
     renderer._use_ovstage = use_ovstage
     renderer.scene.ordinal = 1
@@ -1356,7 +1354,7 @@ def _make_renderer_with_backend(events: list[str], use_ovstage: bool) -> OVRTXRe
     renderer._setup_xform_bindings(SimulationContext.instance().stage)
     renderer._setup_geometry_bindings()
     render_data.renderer_info = {"rgb": object()}
-    renderer._camera_render_data.append(render_data)
+    renderer._sensor_render_data.append(render_data)
     renderer._output_id_color_buffers = {"semantic_segmentation": object()}
     renderer._initialized_scene = True
     return renderer

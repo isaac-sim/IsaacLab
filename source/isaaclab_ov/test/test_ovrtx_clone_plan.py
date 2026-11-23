@@ -107,7 +107,7 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
         write_attribute=lambda *args, **kwargs: None,
     )
     renderer._warp_device = SimpleNamespace(ordinal=0)
-    renderer.scene.next_camera_id = 0
+    renderer.scene.next_sensor_id = 0
     return renderer
 
 
@@ -372,7 +372,7 @@ def test_create_render_data_writes_combined_stage_on_the_simulation_device(tmp_p
     assert combined_layer.GetAttributeAtPath(render_data.render_product_path + ".deviceIds").default == [1]
     assert len(open_calls) == 1
     reference_text, reference_path = reference_calls[0]
-    assert reference_path == "/RenderCamera_0"
+    assert reference_path == "/RenderScope_0"
     reference_layer = Sdf.Layer.CreateAnonymous("reference.usda")
     assert reference_layer.ImportFromString(reference_text)
     assert reference_layer.defaultPrim == render_data.render_scope_name

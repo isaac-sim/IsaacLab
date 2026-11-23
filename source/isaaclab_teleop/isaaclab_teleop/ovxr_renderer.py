@@ -1170,8 +1170,8 @@ class OvxrRenderer(BaseRenderer):
             )
         if camera.render_data is not None:
             raise RuntimeError("Auxiliary camera render data already exists")
-        data = _OvxrPanelRenderData(spec, f"RenderCamera_{self.scene.next_camera_id}", self._device)
-        self.scene.next_camera_id += 1
+        data = _OvxrPanelRenderData(spec, f"RenderCamera_{self.scene.next_sensor_id}", self._device)
+        self.scene.next_sensor_id += 1
         camera.render_data = data
         self._camera_render_data.append(data)
         return data
