@@ -226,3 +226,31 @@ def test_real_coupler_constructs_resets_and_steps(
 
     solver.reset(state_1)
     assert solver.entry_output_state_valid() is False
+
+
+def test_fault_detection_uses_parent_and_entry_local_state_indices():
+    builder = ModelBuilder()
+    for _ in range(2):
+        builder.begin_world()
+        for _ in range(2):
+            body = builder.add_link(mass=1.0, inertia=wp.diag(wp.vec3(0.01)))
+            builder.add_articulation([builder.add_joint_revolute(-1, body)])
+        builder.end_world()
+    manager = _bind_coupler(
+        builder,
+        CouplerProxyCfg(
+            entries=[
+                CouplerEntryCfg(name="left", solver_cfg=XPBDSolverCfg(), bodies=[0, 2]),
+                CouplerEntryCfg(name="right", solver_cfg=XPBDSolverCfg(), bodies=[1, 3]),
+            ],
+            proxies=[],
+        ),
+    )
+    backend = manager.backend
+    wp.to_torch(backend.state_0.joint_q)[3] = float("nan")
+    assert backend.get_non_finite_worlds().numpy().tolist() == [False, True]
+    wp.to_torch(backend.state_0.joint_q)[3] = 0.0
+    backend.invalidate_fk()
+    backend.forward()
+    wp.to_torch(backend.solver_ops.native.entry_state("left").joint_q)[0] = float("inf")
+    assert backend.get_non_finite_worlds().numpy().tolist() == [True, False]

@@ -129,7 +129,8 @@ decimation (:meth:`~isaaclab_newton.physics.NewtonManager.handles_decimation`: t
 actions, or an articulation runs its Newton actuators in the step), and one physics step otherwise. Every physics step
 runs ``collide -> pre-actuator callbacks -> Newton actuators -> post-actuator callbacks -> substeps``, and post-step
 callbacks and sensors run once at the end.
-Every substep runs ``staged body forces -> state-force callbacks -> step``, and ``pre_step`` and ``post_step`` run
+Every substep runs ``staged body forces -> state-force callbacks -> step -> post-solver-substep callbacks -> force
+clearing``, and ``pre_step`` and ``post_step`` run
 around each physics step's substeps.
 
 :meth:`~isaaclab_newton.physics.NewtonManager.handle_actions` makes the action manager's ``apply_action`` and the
