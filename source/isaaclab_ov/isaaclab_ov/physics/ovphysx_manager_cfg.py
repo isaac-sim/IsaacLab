@@ -44,21 +44,23 @@ class OvPhysxCfg(PhysicsCfg):
     """Configuration for the ovphysx physics manager.
 
     PhysX scene-level parameters (solver iterations, GPU buffer sizes, etc.) are
-    read from the USD PhysicsScene prim.  Only ovphysx-specific settings that are
-    not captured in USD live here.
+    read from the USD PhysicsScene prim.  Before loading, the manager authors the
+    settings held here onto that prim, including the optional contact parameters
+    :attr:`bounce_threshold_velocity`, :attr:`friction_correlation_distance` and
+    :attr:`solve_articulation_contact_last`, which keep the stage value when ``None``.
     """
 
     class_type = "{DIR}.ovphysx_manager:OvPhysxManager"
 
     legacy_joint_friction_replacements: dict[str, tuple[float, float, float]] = {}
-    """Explicit OVPhysX 0.7 migration values for legacy USD joint friction.
+    """Explicit migration values for legacy USD joint friction.
 
     Keys are regular expressions matched against the complete joint name. Values are
     ``(static effort, dynamic effort, viscous coefficient)`` in SI units: N or N*m,
     and N*s/m or N*m*s/rad. These are calibrated replacement efforts, not converted
     legacy coefficients. Static effort must be at least dynamic effort.
 
-    Only the private OVPhysX 0.7 export is changed. Older runtimes ignore this mapping.
+    Only the private OVPhysX export is changed.
     Authored modern friction takes precedence. Unmatched nonzero legacy friction still
     raises an error; this mapping does not provide a global fallback for unknown assets.
     """
@@ -106,3 +108,24 @@ class OvPhysxCfg(PhysicsCfg):
 
     gpu_collision_stack_size: int = 2**26
     """GPU collision stack size in bytes."""
+
+    bounce_threshold_velocity: float | None = None
+    """Relative contact velocity below which contacts do not bounce [m/s].
+
+    ``None`` leaves the stage value. The ``PhysxSceneAPI`` schema default is 0, which sets no speed
+    threshold, so contact restitution alone decides whether a contact bounces.
+    Authored as ``physxScene:bounceThreshold``.
+    """
+    friction_correlation_distance: float | None = None
+    """Distance below which contact points merge into one friction anchor [m].
+
+    ``None`` leaves the stage value. The ``PhysxSceneAPI`` schema default is ``0.025 * tolerancesLength``,
+    which is 0.025 m on a meter-based stage. Authored as ``physxScene:frictionCorrelationDistance``.
+    """
+    solve_articulation_contact_last: bool | None = None
+    """Whether the solver resolves articulation contacts after other constraints.
+
+    Enable it so object contacts can stall position-driven grippers before they tunnel through a
+    grasp. ``None`` leaves the stage value. The ``PhysxSceneAPI`` schema default is off. Authored as
+    ``physxScene:solveArticulationContactLast``.
+    """

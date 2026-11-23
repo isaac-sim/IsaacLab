@@ -8,10 +8,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from importlib.metadata import PackageNotFoundError, version
 
 import pytest
-from packaging.version import Version
 
 from isaaclab.renderers.output_contract import RenderBufferKind
 
@@ -75,14 +73,6 @@ class RenderCase:
         return f"{prefix}{self.physics}-{self.renderer}-{suffix}.png"
 
 
-def _sdk_version_before(package: str, release: tuple[int, int]) -> bool:
-    """Keep the shared Kit case inventory importable without the optional OVRTX SDKs."""
-    try:
-        return Version(version(package)).release[:2] < release
-    except PackageNotFoundError:
-        return False
-
-
 _KIT_CASES = [
     RenderCase("physx", "isaac_rtx", RTX_AOVS),
     RenderCase("newton", "isaac_rtx", RTX_AOVS),
@@ -104,7 +94,8 @@ _KITLESS_CASES = [
     RenderCase("newton", "ovrtx", OVRTX_AOVS),
     RenderCase("ovphysx", "newton_warp", NEWTON_WARP_AOVS),
     RenderCase("newton", "newton_warp", NEWTON_WARP_AOVS),
-    *(RenderCase("ovphysx", "ovrtx", (aov,)) for aov in SIMPLE_SHADING_AOVS),
+    # Keep the pre-0.7 black background. None selects the default dome-light background in OVRTX 0.7+.
+    *(RenderCase("ovphysx", "ovrtx", (aov,), background_color=(0.0, 0.0, 0.0)) for aov in SIMPLE_SHADING_AOVS),
     RenderCase(
         "ovphysx",
         "ovrtx",
@@ -186,7 +177,11 @@ SPECIALIZED_KITLESS_CASES = tuple(
 # Cable instance segmentation crashes native OVRTX (NVBUG#6463802); exercise its other channels.
 _CABLE_AOVS = (RenderBufferKind.RGB, RenderBufferKind.ALBEDO, RenderBufferKind.DEPTH, RenderBufferKind.NORMALS)
 # Gaussian-splat scenes (see ``rendering_scene_cfgs``).
-_GAUSSIAN_RGB_DEPTH = (RenderBufferKind.RGB, RenderBufferKind.DISTANCE_TO_IMAGE_PLANE)
+_GAUSSIAN_COLOR_DEPTH = (
+    RenderBufferKind.RGB,
+    RenderBufferKind.RGB_HDR,
+    RenderBufferKind.DISTANCE_TO_IMAGE_PLANE,
+)
 GAUSSIAN_KIT_CASES = (
     RenderCase(
         "physx",
@@ -201,47 +196,41 @@ GAUSSIAN_KIT_CASES = (
             ),
         ),
     ),
+    RenderCase(
+        "physx",
+        "isaac_rtx",
+        (RenderBufferKind.RGB_HDR,),
+        scene="gaussian_splats_valiant_1env",
+        marks=(
+            pytest.mark.xfail(
+                reason="NVBUG 7071342: Valiant RTX HDR can mismatch the golden.",
+                raises=AssertionError,
+                strict=False,
+            ),
+        ),
+    ),
     RenderCase("physx", "isaac_rtx", (RenderBufferKind.DISTANCE_TO_IMAGE_PLANE,), scene="gaussian_splats_valiant_1env"),
-    RenderCase("newton", "newton_warp", _GAUSSIAN_RGB_DEPTH, scene="gaussian_splats_valiant_1env"),
+    RenderCase("newton", "newton_warp", _GAUSSIAN_COLOR_DEPTH, scene="gaussian_splats_valiant_1env"),
     *(
-        RenderCase(physics, renderer, _GAUSSIAN_RGB_DEPTH, scene="gaussian_splats_endeavor_4envs")
+        RenderCase(physics, renderer, _GAUSSIAN_COLOR_DEPTH, scene="gaussian_splats_endeavor_4envs")
         for physics, renderer in (("physx", "isaac_rtx"), ("newton", "newton_warp"))
     ),
 )
-# OVRTX 0.6 returns no finite splat depth, so these scenes are compared on RGB only.
+# OVRTX 0.6 returns no finite splat depth, so these scenes are compared on color only.
 GAUSSIAN_KITLESS_CASES = tuple(
     (stage, case)
     for case in (
         RenderCase(
             "newton",
             "ovrtx",
-            (RenderBufferKind.RGB,),
+            (RenderBufferKind.RGB, RenderBufferKind.RGB_HDR),
             scene="gaussian_splats_valiant_1env",
-            # A warm derived-data cache can hide this failure (XPASS).
-            # https://nvbugspro.nvidia.com/bug/7032910
-            marks=(
-                pytest.mark.xfail(
-                    reason="NVBUG 7032910: OVRTX can return near-black Valiant captures with a cold derived-data cache.",
-                    raises=AssertionError,
-                    strict=False,
-                ),
-            ),
         ),
         RenderCase(
             "newton",
             "ovrtx",
-            (RenderBufferKind.RGB,),
+            (RenderBufferKind.RGB, RenderBufferKind.RGB_HDR),
             scene="gaussian_splats_raspberry_4envs",
-            # Full-suite captures can be flat red on 0.6/0.3 even when the isolated case passes.
-            # The OVStage case passes with 0.7/0.4 (6.89% diff, SSIM 0.9754).
-            marks=(
-                pytest.mark.xfail(
-                    _sdk_version_before("ovrtx", (0, 7)) or _sdk_version_before("ovstage", (0, 4)),
-                    reason="OVRTX 0.6 / OVStage 0.3 can render Raspberry as flat red silhouettes; upgrade to 0.7/0.4.",
-                    raises=AssertionError,
-                    strict=False,
-                ),
-            ),
         ),
     )
     for stage in ("legacy", "ovstage")

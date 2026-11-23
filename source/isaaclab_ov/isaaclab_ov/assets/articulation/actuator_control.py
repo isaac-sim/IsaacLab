@@ -128,21 +128,25 @@ class OvPhysxActuatorControl(ArticulationActuatorControl):
 
     def submit_commands(self, collection: ActuatorCollection) -> None:
         articulation = self._articulation
-        # Submit the processed effort command, not telemetry that includes the implicit PD estimate.
-        # The native runtime similarly provides effort without the implicit-drive estimate.
         write_effort = articulation._can_write_effort
-        # position and velocity targets only for implicit actuators.
         write_pos = articulation._has_implicit_actuators and articulation._can_write_pos_target
         write_vel = articulation._has_implicit_actuators and articulation._can_write_vel_target
-        user_effort = collection._joint_effort_target_sim
         if self._actuator_runtime is not None:
+            # Native execution bypasses Lab's processed buffers and merges effort in the wrapper.
             user_effort = self._actuator_runtime.wrapper.joint_f_2d
+            user_pos_target = collection._joint_pos_target
+            user_vel_target = collection._joint_vel_target
+        else:
+            # Processed effort excludes the implicit-drive estimate reported in telemetry.
+            user_effort = collection._joint_effort_target_sim
+            user_pos_target = collection._joint_pos_target_sim
+            user_vel_target = collection._joint_vel_target_sim
         if articulation.data.has_joint_ordering:
             if write_effort or write_pos or write_vel:
                 ordering_kernels.launch_reorder_joint_targets_user_to_backend(
                     user_effort=user_effort,
-                    user_pos_target=collection._joint_pos_target,
-                    user_vel_target=collection._joint_vel_target,
+                    user_pos_target=user_pos_target,
+                    user_vel_target=user_vel_target,
                     backend_to_user=articulation.data.joint_ordering.backend_to_user,
                     write_effort=write_effort,
                     write_pos_target=write_pos,
@@ -159,8 +163,8 @@ class OvPhysxActuatorControl(ArticulationActuatorControl):
             vel_target = articulation._joint_vel_target_backend
         else:
             effort = user_effort
-            pos_target = collection._joint_pos_target
-            vel_target = collection._joint_vel_target
+            pos_target = user_pos_target
+            vel_target = user_vel_target
         if write_effort:
             articulation._root_view.set_attribute(TT.DOF_ACTUATION_FORCE, effort)
         if write_pos:

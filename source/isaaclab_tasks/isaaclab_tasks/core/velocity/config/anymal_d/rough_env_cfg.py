@@ -24,5 +24,6 @@ class AnymalDRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.scene.robot = replace(
             ANYMAL_D_CFG,
             prim_path="{ENV_REGEX_NS}/Robot",
+            spawn=replace(ANYMAL_D_CFG.spawn, variants={"Colliders": "minimal"}),
             init_state=replace(ANYMAL_D_CFG.init_state, pos=(0.0, 0.0, 0.65)),
         )

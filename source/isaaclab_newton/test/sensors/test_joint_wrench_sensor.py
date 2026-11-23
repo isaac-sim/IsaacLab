@@ -18,8 +18,8 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
+from isaaclab_isaacsim.sim.schemas import PhysxJointCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
-from isaaclab_physx.sim.schemas import PhysxJointCfg
 from joint_wrench_contract import test_joint_wrench_body_ordering, test_joint_wrench_frame  # noqa: F401
 
 from pxr import Usd, UsdPhysics

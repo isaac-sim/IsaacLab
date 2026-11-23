@@ -288,7 +288,7 @@ Contact-rich manipulation requires careful solver tuning. These parameters were 
 
 .. code-block:: python
 
-    from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
+    from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
 
     # Robot rigid body properties
     rigid_props=PhysxRigidBodyCfg(
@@ -308,7 +308,7 @@ Contact-rich manipulation requires careful solver tuning. These parameters were 
 
 .. code-block:: python
 
-    from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxCollisionCfg
+    from isaaclab_isaacsim.sim.schemas import PhysxArticulationCfg, PhysxCollisionCfg
 
     # Articulation properties
     articulation_props=PhysxArticulationCfg(

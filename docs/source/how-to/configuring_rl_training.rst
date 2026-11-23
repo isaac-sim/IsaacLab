@@ -100,7 +100,7 @@ dictionary, so you can manually specify alternate configuration instances.
 The Code Execution
 ------------------
 
-Since for the cartpole balancing task, RSL-RL library offers two configuration instances,
+Since the cartpole balancing task offers several RSL-RL configuration instances,
 we can use the ``--agent`` argument to specify the configuration instance to use.
 
 * Training with the standard PPO configuration:
@@ -149,6 +149,30 @@ Installed downstream tasks are discovered through the ``isaaclab.tasks`` entry-p
 Custom launchers can call ``isaaclab.cli.load_external_tasks()`` before looking up task IDs,
 as the built-in CLI and direct RL workers do. A package that fails to import is reported with a
 warning instead of stopping discovery.
+
+Training with SAC
+~~~~~~~~~~~~~~~~~
+
+Several tasks provide a SAC agent entry point next to their PPO agent: ``Isaac-Cartpole``, ``Isaac-Ant``,
+``Isaac-Humanoid``, ``Isaac-Open-Drawer-Franka``, ``Isaac-Reorient-Cube-Allegro``, and the flat and rough
+ANYmal-D and G1 velocity tasks. Their configurations use the FlashSAC recipe of RSL-RL, including residual BatchNorm
+networks, categorical critics, held exploration and return scaling, with settings tuned per task. The environment's
+rewards, commands and events are shared with its PPO agent. The G1 agents add left/right symmetry augmentation,
+which they share with the G1 PPO teacher.
+
+.. code-block:: bash
+
+   uv run isaaclab train --rl_library rsl_rl \
+      --task Isaac-Velocity-Flat-G1 --agent rsl_rl_sac_cfg_entry_point \
+      physics=newton_mjwarp visualizer=none
+
+The rough ANYmal-D and G1 agents were tuned with ``--num_envs 1024``.
+
+The actor's ``action_range`` specifies bounds in the raw coordinates accepted by the
+environment. ``clip_actions=None`` preserves that range.
+
+Use the same agent entry point with the playback and export commands. Published
+``pretrained`` checkpoints are PPO policies and cannot be loaded by ``OffPolicyRunner`` agents.
 
 .. _Stable-Baselines3: https://stable-baselines3.readthedocs.io/en/master/
 .. _RL-Games: https://github.com/Denys88/rl_games

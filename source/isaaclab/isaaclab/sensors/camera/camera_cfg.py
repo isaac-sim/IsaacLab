@@ -16,11 +16,12 @@ from ..sensor_base_cfg import SensorBaseCfg
 from .camera_isp import CameraISPMode
 
 if TYPE_CHECKING:
+    from ...utils.tensor_processors import TensorProcessorCfg
     from .camera import Camera
 
 # Default values for the RTX-flavored fields kept on :class:`CameraCfg` for
 # backward compatibility. These mirror the defaults on
-# :class:`~isaaclab_physx.renderers.IsaacRtxRendererCfg`.
+# :class:`~isaaclab_isaacsim.renderers.IsaacRtxRendererCfg`.
 _DEPRECATED_RENDERER_FIELD_DEFAULTS: dict = {
     "semantic_filter": "*:*",
     "colorize_semantic_segmentation": True,
@@ -29,6 +30,24 @@ _DEPRECATED_RENDERER_FIELD_DEFAULTS: dict = {
     "semantic_segmentation_mapping": {},
     "depth_clipping_behavior": "none",
 }
+
+
+@configclass
+class ExposureCfg:
+    """Camera exposure.
+
+    Isaac RTX and OVRTX apply the exposure authored on the camera prim to every color output of the camera.
+    The Newton Warp renderer applies no exposure, so it ignores this setting.
+    """
+
+    mode: Literal["default", "neutral"] = "default"
+    """Exposure behavior. Defaults to ``"default"``.
+
+    - ``"default"``: keep the exposure authored on the camera prim, or the renderer's own default.
+    - ``"neutral"``: disable automatic exposure and author unit exposure on the camera prims, so color outputs keep
+      the scene's linear radiance. Image processors that apply their own exposure, such as PPISP, require it on
+      Isaac RTX and OVRTX.
+    """
 
 
 @configclass
@@ -81,8 +100,14 @@ class CameraCfg(SensorBaseCfg):
 
     .. deprecated:: 4.6.22
         This field is RTX-specific. Set
-        :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.depth_clipping_behavior`
+        :attr:`~isaaclab_isaacsim.renderers.IsaacRtxRendererCfg.depth_clipping_behavior`
         on :attr:`renderer_cfg` instead.
+    """
+
+    render_on_demand: bool = False
+    """Whether the camera renders only when its data is read, even when the scene updates its sensors eagerly.
+
+    Defaults to False. A visualizer's viewer camera sets it, so that it renders only while its view is shown.
     """
 
     data_types: list[str] = ["rgb"]
@@ -134,7 +159,7 @@ class CameraCfg(SensorBaseCfg):
 
     .. deprecated:: 4.6.22
         This field is RTX-specific. Set
-        :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.semantic_filter` on
+        :attr:`~isaaclab_isaacsim.renderers.IsaacRtxRendererCfg.semantic_filter` on
         :attr:`renderer_cfg` instead.
     """
 
@@ -146,7 +171,7 @@ class CameraCfg(SensorBaseCfg):
 
     .. deprecated:: 4.6.22
         This field is RTX-specific. Set
-        :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.colorize_semantic_segmentation`
+        :attr:`~isaaclab_isaacsim.renderers.IsaacRtxRendererCfg.colorize_semantic_segmentation`
         on :attr:`renderer_cfg` instead.
     """
 
@@ -158,7 +183,7 @@ class CameraCfg(SensorBaseCfg):
 
     .. deprecated:: 4.6.22
         This field is RTX-specific. Set
-        :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.colorize_instance_id_segmentation`
+        :attr:`~isaaclab_isaacsim.renderers.IsaacRtxRendererCfg.colorize_instance_id_segmentation`
         on :attr:`renderer_cfg` instead.
     """
 
@@ -170,7 +195,7 @@ class CameraCfg(SensorBaseCfg):
 
     .. deprecated:: 4.6.22
         This field is RTX-specific. Set
-        :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.colorize_instance_segmentation`
+        :attr:`~isaaclab_isaacsim.renderers.IsaacRtxRendererCfg.colorize_instance_segmentation`
         on :attr:`renderer_cfg` instead.
     """
 
@@ -192,7 +217,7 @@ class CameraCfg(SensorBaseCfg):
 
     .. deprecated:: 4.6.22
         This field is RTX-specific. Set
-        :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.semantic_segmentation_mapping`
+        :attr:`~isaaclab_isaacsim.renderers.IsaacRtxRendererCfg.semantic_segmentation_mapping`
         on :attr:`renderer_cfg` instead.
     """
 
@@ -207,29 +232,24 @@ class CameraCfg(SensorBaseCfg):
     """Renderer configuration for camera sensor."""
 
     isp_cfg: Any | CameraISPMode | None = None
-    """Post-render ISP cfg applied by the renderer backend after it produces HDR output.
+    """PPISP coefficients or discovery mode. Defaults to None (no PPISP).
 
-    Defaults to ``None`` (ISP disabled). Auto-discovery is opt-in via a
-    :class:`CameraISPMode` sentinel — see below.
-
-    Accepted values:
-
-    * ``None`` — ISP disabled. No HDR AOV is requested and no RTX-side
-      tonemapping flags are flipped.
-    * A :class:`CameraISPMode` sentinel — camera construction walks the USD stage to
-      discover an ISP shader (e.g. via the :mod:`isaaclab_ppisp` package).
-    * A concrete ISP cfg dataclass (e.g. :class:`isaaclab_ppisp.PpispCfg`) — used directly.
-
-    The cfg applies once per Camera sensor batch. The PPISP Warp kernel takes
-    scalar coefficients, so every cloned view in a tiled batch shares the same
-    ISP configuration — there is no per-view ISP today.
-
-    Camera construction resolves the configuration and, for RTX renderers, neutralizes the
-    camera prim's exposure before the scene is cloned or imported. This also applies to existing
-    camera prims with ``spawn=None``; author their PPISP attributes before constructing the sensor.
-    Renderers receive the resolved configuration and apply PPISP to their HDR output. The PPISP
-    package is imported only when this option is enabled.
+    .. deprecated:: 3.2
+        Add ``isaaclab_ppisp.PpispProcessorCfg(isp_cfg=...)`` to :attr:`tensor_processors` instead. Camera
+        construction moves a non-None value there with a :class:`FutureWarning`.
     """
+
+    tensor_processors: list[TensorProcessorCfg] = []
+    """Processors that compute camera outputs from render outputs, run in order after each capture.
+    Defaults to an empty list.
+
+    Each ``func`` is a :class:`~isaaclab.utils.tensor_processors.TensorProcessor` class. See the camera sensor
+    documentation for inputs, outputs, ``env_mask``, asynchronous rendering, and ``prepare_camera``.
+    """
+
+    exposure: ExposureCfg = ExposureCfg()
+    """Camera exposure, authored on the camera prims before the scene is cloned. Defaults to the renderer's
+    exposure."""
 
     def __post_init__(self):
         """Forward deprecated RTX-flavored fields onto :attr:`renderer_cfg`.
@@ -261,17 +281,44 @@ class CameraCfg(SensorBaseCfg):
             setattr(self, field_name, default)
 
     def validate_config(self) -> None:
-        """Validate the requested data types against the selected renderer contract."""
+        """Validate the processors and the requested data types against the selected renderer contract."""
+        for processor_cfg in self.tensor_processors:
+            # Import strings become callable lazily; any other string fails only at the first capture.
+            if not callable(processor_cfg.func):
+                raise ValueError(
+                    "Camera tensor processor func must be a TensorProcessor class or an import string"
+                    f" 'module:Class', not {processor_cfg.func!r}."
+                )
         if self.renderer_cfg is None:
             return
         supported_specs = self.renderer_cfg.supported_output_types()
         if supported_specs is None:
             return
         supported = {str(kind) for kind in supported_specs}
-        unsupported = sorted(set(self.data_types) - supported)
+        produced: set[str] = set()
+        for processor_cfg in self.tensor_processors:
+            missing = sorted(set(processor_cfg.inputs) - produced - supported)
+            if missing:
+                name = getattr(processor_cfg.func, "__name__", str(processor_cfg.func))
+                raise ValueError(
+                    f"Camera tensor processor {name} reads {missing}, which no earlier processor produces and"
+                    f" renderer {type(self.renderer_cfg).__name__} does not render. Order the processors so the"
+                    " producer comes first, or select a renderer that supports the input."
+                )
+            produced.update(processor_cfg.outputs)
+        unsupported = sorted(set(_render_data_types(self)) - supported)
         if unsupported:
             raise ValueError(
                 f"Renderer {type(self.renderer_cfg).__name__} only supports data types {sorted(supported)}, "
                 f"but the camera is configured with unsupported types: {unsupported}. "
                 "Choose supported data types or select a different renderer."
             )
+
+
+def _render_data_types(cfg: CameraCfg) -> list[str]:
+    """Return the data types that no processor produces and the inputs that no earlier processor produces."""
+    produced, inputs = set(), []
+    for processor_cfg in cfg.tensor_processors:
+        inputs += [name for name in processor_cfg.inputs if name not in produced]
+        produced.update(processor_cfg.outputs)
+    return list(dict.fromkeys([name for name in cfg.data_types if name not in produced] + inputs))

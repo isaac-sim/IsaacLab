@@ -18,7 +18,7 @@ from isaaclab.app import add_launcher_args, launch_simulation
 parser = argparse.ArgumentParser(description="Newton block-and-tackle viewer dragging demo.")
 parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["newton_gl"])
+parser.set_defaults(visualizer=["newton"])
 args_cli = parser.parse_args()
 
 import newton
@@ -244,7 +244,6 @@ def _build_system(builder: newton.ModelBuilder) -> tuple[int, list[wp.transform]
         positions=straight_points,
         quaternions=straight_quaternions,
         radius=CABLE_RADIUS,
-        body_frame_origin="com",
         cfg=newton.ModelBuilder.ShapeConfig(density=10.0, ke=1.0e5, kd=0.0, mu=0.1, gap=CABLE_GAP),
         wrap_in_articulation=False,
         color=(0.82, 0.72, 0.46),

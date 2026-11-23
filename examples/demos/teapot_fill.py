@@ -142,7 +142,9 @@ parser.add_argument(
     help="SimReady catch-bowl USD used for both visualization and fluid collisions.",
 )
 add_launcher_args(parser)
-parser.add_argument("--visualizer", "--viz", choices=["newton_gl"], default="newton_gl", help="Visualizer backend.")
+parser.add_argument(
+    "--visualizer", "--viz", choices=["newton", "newton_gl"], default="newton", help="Visualizer backend."
+)
 args_cli = parser.parse_args()
 ROBOT_ENABLED = args_cli.robot == "rizon_sharpa"
 
@@ -548,10 +550,10 @@ def create_sim_cfg():
 
 def create_scene_cfg(container_usd: str, island_usd: str, bowl_usd: str):
     """Create the teapot-fill scene using declarative Isaac Lab assets."""
+    from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
     from isaaclab_newton.assets import MPMObjectCfg
     from isaaclab_newton.sim.schemas import NewtonCollisionCfg
     from isaaclab_newton.sim.spawners.mpm import MPMParticleMaterialCfg, MPMPointsCfg
-    from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
     import isaaclab.sim as sim_utils
     from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
@@ -725,7 +727,7 @@ def create_scene_cfg(container_usd: str, island_usd: str, bowl_usd: str):
             ),
             init_state=AssetBaseCfg.InitialStateCfg(pos=(*ROBOT_BASE_POS[:2], 0.5 * ROBOT_BASE_POS[2])),
         )
-        if {"kit", "newton_gl", "newton_rtx"}.intersection(args_cli.visualizer or []):
+        if {"kit", "newton", "newton_gl"}.intersection(args_cli.visualizer or []):
             cfg.room = AssetBaseCfg(
                 prim_path="/World/Room",
                 spawn=sim_utils.UsdFileCfg(

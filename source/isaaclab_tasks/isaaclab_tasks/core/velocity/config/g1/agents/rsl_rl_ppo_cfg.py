@@ -15,6 +15,59 @@ from isaaclab_rl.rsl_rl import (
     RslRlSymmetryCfg,
 )
 
+# left/right symmetry augmentation shared by the G1 PPO and SAC agents
+G1_SYMMETRY_CFG = RslRlSymmetryCfg(
+    use_data_augmentation=True,
+    use_mirror_loss=False,
+    data_augmentation_func="isaaclab_tasks.core.velocity.mdp.symmetry.g1:compute_symmetric_states",
+    mirror_loss_coeff=0.0,
+)
+
+
+@configclass
+class G1FlatPPORunnerCfg(RslRlOnPolicyRunnerCfg):
+    num_steps_per_env = 24
+    max_iterations = 1500
+    save_interval = 50
+    experiment_name = "g1_flat"
+    obs_groups = {"actor": ["policy"], "critic": ["policy"]}
+    actor = RslRlMLPModelCfg(
+        hidden_dims=[256, 128, 128],
+        activation="elu",
+        obs_normalization=False,
+        distribution_cfg=RslRlMLPModelCfg.GaussianDistributionCfg(init_std=1.0),
+    )
+    critic = RslRlMLPModelCfg(
+        hidden_dims=[256, 128, 128],
+        activation="elu",
+        obs_normalization=False,
+    )
+    algorithm = RslRlPpoAlgorithmCfg(
+        value_loss_coef=1.0,
+        use_clipped_value_loss=True,
+        clip_param=0.2,
+        entropy_coef=0.008,
+        num_learning_epochs=5,
+        num_mini_batches=4,
+        learning_rate=1.0e-3,
+        schedule="adaptive",
+        gamma=0.99,
+        lam=0.95,
+        desired_kl=0.01,
+        max_grad_norm=1.0,
+    )
+
+
+@configclass
+class G1RoughPPORunnerCfg(G1FlatPPORunnerCfg):
+    def __post_init__(self):
+        super().__post_init__()
+
+        self.max_iterations = 5000
+        self.experiment_name = "g1_rough"
+        self.actor.hidden_dims = [512, 256, 128]
+        self.critic.hidden_dims = [512, 256, 128]
+
 
 @configclass
 class G1RoughTeacherPPORunnerCfg(RslRlOnPolicyRunnerCfg):
@@ -48,27 +101,8 @@ class G1RoughTeacherPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         lam=0.95,
         desired_kl=0.01,
         max_grad_norm=1.0,
-        symmetry_cfg=RslRlSymmetryCfg(
-            use_data_augmentation=True,
-            use_mirror_loss=False,
-            data_augmentation_func="isaaclab_tasks.core.velocity.mdp.symmetry.g1:compute_symmetric_states",
-            mirror_loss_coeff=0.0,
-        ),
+        symmetry_cfg=G1_SYMMETRY_CFG,
     )
-
-
-@configclass
-class G1FlatPPORunnerCfg(G1RoughTeacherPPORunnerCfg):
-    max_iterations = 1500
-    save_interval = 50
-    experiment_name = "g1_flat"
-    obs_groups = {"actor": ["proprio"], "critic": ["proprio"]}
-
-    def __post_init__(self):
-        super().__post_init__()
-        self.actor.hidden_dims = [256, 128, 128]
-        self.critic.hidden_dims = [256, 128, 128]
-        self.algorithm.symmetry_cfg = None
 
 
 @configclass

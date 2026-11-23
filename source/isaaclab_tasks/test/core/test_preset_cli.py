@@ -52,7 +52,7 @@ def test_setup_preset_cli_passes_typed_tokens_verbatim(monkeypatch):
             "train.py",
             "--task=Foo-v0",
             "physics=newton_mjwarp",
-            "renderer=newton_renderer",
+            "renderer=newton_warp",
             "presets=albedo,depth",
             "env.sim.dt=0.001",
         ],
@@ -62,7 +62,7 @@ def test_setup_preset_cli_passes_typed_tokens_verbatim(monkeypatch):
     _, remaining = setup_preset_cli(_make_parser())
     assert remaining == [
         "physics=newton_mjwarp",
-        "renderer=newton_renderer",
+        "renderer=newton_warp",
         "presets=albedo,depth",
         "env.sim.dt=0.001",
     ]
@@ -71,7 +71,7 @@ def test_setup_preset_cli_passes_typed_tokens_verbatim(monkeypatch):
 @pytest.mark.parametrize("spelling", ["hydra", "flags", "equals"])
 def test_setup_preset_cli_namespace_carries_no_preset_attributes(monkeypatch, spelling):
     """Task selectors never leak into Kit arguments; explicit Kit settings stay untouched."""
-    selections = dict(physics="newton_mjwarp", renderer="newton_renderer", visualizer="newton_gl")
+    selections = dict(physics="newton_mjwarp", renderer="newton_warp", visualizer="newton")
     tokens = []
     for key, value in selections.items():
         if spelling == "flags":
@@ -138,7 +138,7 @@ def test_enumerate_task_presets_routes_by_target_match(monkeypatch):
         },
         "renderer": {
             "default": _RendVariant(),
-            "newton_renderer": _RendVariant(),
+            "newton_warp": _RendVariant(),
         },
         "sim": {
             "default": SimulationCfg(dt=1 / 60, physics=_PhysVariant()),
@@ -161,7 +161,7 @@ def test_enumerate_task_presets_routes_by_target_match(monkeypatch):
     result = enumerate_task_presets("Test")
     # All physics variants bucket to PHYSICS (including the wrapper-shaped ones).
     assert {"physx", "newton_mjwarp", "newton_kamino", "simulation_physx"} <= set(result[PresetTarget.PHYSICS])
-    assert "newton_renderer" in result[PresetTarget.RENDERER]
+    assert "newton_warp" in result[PresetTarget.RENDERER]
     # Primitive-typed variants land in DOMAIN.
     assert {"plain", "light", "heavy"} <= set(result[PresetTarget.DOMAIN])
     # 'default' is filtered out everywhere -- it's the fallback, not a selectable name.
@@ -269,3 +269,68 @@ def test_help_text_branch_strings(monkeypatch, capsys, build_key, expected_phras
 
     for phrase in expected_phrases:
         assert phrase in flat, f"Missing phrase: {phrase!r}"
+
+
+@pytest.mark.parametrize(
+    "task_name",
+    [
+        "IsaacContrib-PickPlace-GR1T2-Abs",
+        "IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs",
+        "IsaacContrib-PickPlace-Locomanipulation-G1-Abs",
+        "IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs",
+        "IsaacContrib-Stack-Cube-SO101-IK-Abs-v0",
+    ],
+)
+@pytest.mark.parametrize("physics", [None, "isaacsim_physx", "ovphysx", "newton_mjwarp"])
+def test_teleop_tasks_resolve_public_physics_selectors(monkeypatch, task_name, physics):
+    """Resolve registered tasks through the public flag parser before backend preparation."""
+    from isaaclab_isaacsim.physics import PhysxCfg
+    from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+    from isaaclab_ov.physics import OvPhysxCfg
+
+    import isaaclab_tasks  # noqa: F401 -- registers the public task IDs
+    from isaaclab_tasks.utils import parse_env_cfg
+    from isaaclab_tasks.utils.hydra import setup_preset_cli
+
+    arguments = ["--task", task_name]
+    if physics is not None:
+        arguments.extend(["--physics", physics])
+    _, selections = setup_preset_cli(_make_parser(), arguments)
+    cfg = parse_env_cfg(task_name, device="cpu", num_envs=1, overrides=selections)
+    expected_type = {None: PhysxCfg, "isaacsim_physx": PhysxCfg, "ovphysx": OvPhysxCfg, "newton_mjwarp": NewtonCfg}
+    assert isinstance(cfg.sim.physics, expected_type[physics])
+    assert cfg.scene.num_envs == 1 and cfg.sim.device == "cpu"
+    if "SO101" in task_name:
+        assert cfg.scene.robot.spawn.variants["Physics"] == ("physics" if physics == "newton_mjwarp" else "physx")
+    if physics == "newton_mjwarp":
+        assert isinstance(cfg.sim.physics.solver_cfg, MJWarpSolverCfg)
+    if physics == "ovphysx" and "SO101" in task_name:
+        # The OvPhysX selection keeps the task's Isaac Sim PhysX grasp tuning.
+        _, physx_selections = setup_preset_cli(_make_parser(), ["--task", task_name, "--physics", "isaacsim_physx"])
+        physx_cfg = parse_env_cfg(task_name, device="cpu", num_envs=1, overrides=physx_selections).sim.physics
+        for name in ("bounce_threshold_velocity", "friction_correlation_distance", "solve_articulation_contact_last"):
+            assert getattr(cfg.sim.physics, name) == getattr(physx_cfg, name), name
+
+
+@pytest.mark.parametrize("kit", [False, True])
+def test_so101_teleop_automatic_physx_selects_tuned_ovphysx_without_kit(kit):
+    """The ``physx`` selector resolves to the task's tuned OvPhysX config without Kit and to Isaac Sim PhysX with it."""
+    from isaaclab_isaacsim.physics import PhysxCfg
+    from isaaclab_ov.physics import OvPhysxCfg
+
+    from isaaclab.app import validate_launch
+
+    import isaaclab_tasks  # noqa: F401 -- registers the public task IDs
+    from isaaclab_tasks.utils import parse_env_cfg
+    from isaaclab_tasks.utils.hydra import setup_preset_cli
+
+    task_name = "IsaacContrib-Stack-Cube-SO101-IK-Abs-v0"
+
+    def resolve(physics):
+        _, selections = setup_preset_cli(_make_parser(), ["--task", task_name, "--physics", physics])
+        return parse_env_cfg(task_name, device="cpu", num_envs=1, overrides=selections)
+
+    cfg = resolve("physx")
+    validate_launch(cfg, {"visualizer": ["kit"]} if kit else {})
+    assert type(cfg.sim.physics) is (PhysxCfg if kit else OvPhysxCfg)
+    assert cfg.sim.physics == resolve("isaacsim_physx" if kit else "ovphysx").sim.physics

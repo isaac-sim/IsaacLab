@@ -60,7 +60,7 @@ The simulation selects the physics backend separately.
 
 For common USD properties, use the solver-common fragments from ``isaaclab.sim.schemas``, such as
 :class:`~sim.schemas.UsdPhysicsRigidBodyCfg` and :class:`~sim.schemas.UsdPhysicsDriveCfg`. Pass
-a backend's fragments from ``isaaclab_physx.sim.schemas.Physx*Cfg`` for PhysX tuning and
+a backend's fragments from ``isaaclab_isaacsim.sim.schemas.Physx*Cfg`` for PhysX tuning and
 ``isaaclab_newton.sim.schemas.Newton*Cfg`` / ``Mujoco*Cfg`` for Newton and MJWarp-specific
 settings alongside them in the same spawner field. See :ref:`schema-fragments` for
 the fragment API. The Cartpole below already has both PhysX and Newton articulation fragments;
@@ -239,6 +239,12 @@ property:
     +------------------------+------------------------+--------------------+
     | Override provided      | User's ActuatorCfg     | Same as ActuatorCfg|
     +------------------------+------------------------+--------------------+
+
+For an explicit actuator group with :ref:`native actuators <actuators-native>` (the default), the
+USD value of a gain, actuator limit, or delay is the one on the joint's ``NewtonActuator`` prim, and
+a joint without one gets zero gains and no delay; see
+:ref:`Existing USD actuators <actuators-usd-override>`. The table printed by the flag below reports
+joint properties only, not a USD actuator's values.
 
 
 Digging into USD can sometime be unconvinent, to help clarify what exact value is written, we designed a flag

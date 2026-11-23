@@ -57,6 +57,10 @@ Select ``newton_steel`` under ``physics=`` for tasks that offer the Steel solver
          This environment does not support RL training or playback. The command runs it with the
          zero-action agent instead.
        </p>
+       <p class="environment-non-rl-note environment-optix-note" data-optix-note role="status" hidden>
+         <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+         <code>newton_optix</code> requires an NVIDIA RTX GPU (RT cores) and a recent driver.
+       </p>
        <p class="environment-backend-warning" data-backend-warning role="status" hidden>
          This combination of physics, renderer, and preset can't launch. Choose a different option.
        </p>

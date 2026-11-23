@@ -31,7 +31,7 @@ import ast
 import enum
 import sys
 import warnings
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import is_dataclass
 from types import SimpleNamespace
 from typing import ClassVar
@@ -53,6 +53,7 @@ from isaaclab.utils import (
     update_from_dict,
     validate,
 )
+from isaaclab.utils.backend_utils import warn_kit_selector
 from isaaclab.visualizers import VisualizerBackendCfg, VisualizerCfg
 from isaaclab.visualizers.visualizer_cfg import migrate_visualizer_cfgs
 
@@ -64,6 +65,7 @@ _LEGACY_PRESET_ALIASES = {
     "kamino": "newton_kamino",
     "ovrtx_renderer": "ovrtx",
     "isaacsim_rtx_renderer": "isaacsim_rtx",
+    "newton_renderer": "newton_warp",
 }
 
 
@@ -120,7 +122,13 @@ def user_stacklevel() -> int:
     return level
 
 
-def _normalize_preset_name(name: str, known_names: set[str], aliases: Mapping[str, str] | None = None) -> str:
+def _normalize_preset_name(
+    name: str,
+    known_names: set[str],
+    aliases: Mapping[str, str] | None = None,
+    quiet: Collection[str] = (),
+    messages: Mapping[str, str] | None = None,
+) -> str:
     """Map a deprecated preset name to its replacement and emit a warning.
 
     Returns ``name`` unchanged when:
@@ -129,16 +137,39 @@ def _normalize_preset_name(name: str, known_names: set[str], aliases: Mapping[st
           value can flow into the unknown-preset error), or
         * ``name`` is itself a real field in ``known_names`` (a user-defined preset
           legitimately reusing the deprecated spelling shadows the alias).
+
+    No warning is emitted for names in ``quiet``, which are alternative spellings rather than deprecated ones.
+    ``messages`` replaces the default warning text of the names it lists.
     """
     replacement = (aliases or {}).get(name, _LEGACY_PRESET_ALIASES.get(name))
     if replacement is None or replacement not in known_names or name in known_names:
         return name
-    warnings.warn(
-        f"Preset '{name}' is deprecated. Use '{replacement}' instead.",
-        FutureWarning,
-        stacklevel=user_stacklevel(),
-    )
+    if name not in quiet:
+        warnings.warn(
+            (messages or {}).get(name) or f"Preset '{name}' is deprecated. Use '{replacement}' instead.",
+            FutureWarning,
+            stacklevel=user_stacklevel(),
+        )
     return replacement
+
+
+def _kit_selectors_in_use(env_cfg) -> set[str]:
+    """Names of the Kit selectors whose backend the resolved *env_cfg* uses.
+
+    A preset named like a Kit selector can change an unrelated field, so the warning follows the resolved backend.
+    """
+    from isaaclab_isaacsim.physics import PhysxCfg
+    from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
+
+    from isaaclab.app.sim_launcher import _walk_runtime_configs
+
+    nodes = _walk_runtime_configs(env_cfg)
+    in_use = set()
+    if any(isinstance(node, PhysxCfg) for node in nodes):
+        in_use.add("isaacsim_physx")
+    if any(isinstance(node, IsaacRtxRendererCfg) for node in nodes):
+        in_use.add("isaacsim_rtx")
+    return in_use
 
 
 @configclass
@@ -179,6 +210,18 @@ class PresetCfg:
 
     _aliases: ClassVar[dict[str, str]] = {}
 
+    _quiet_aliases: ClassVar[frozenset[str]] = frozenset()
+    _explicit_aliases: ClassVar[dict[str, str]] = {}
+    """Names that select a field only when chosen explicitly, e.g. ``visualizer=NAME``, never by a global preset such
+    as ``physics=NAME`` or ``presets=NAME``."""
+    """Names in :attr:`_aliases` that are alternative spellings, so selecting them does not warn."""
+
+    _alias_messages: ClassVar[dict[str, str]] = {}
+    """Warning texts that replace the default one for deprecated names in :attr:`_aliases`."""
+
+    _removed: ClassVar[dict[str, str]] = {}
+    """Names that were removed from this preset, each with a message that says what to use instead."""
+
     def __getattr__(self, name: str):
         """Alias a deprecated preset name to its replacement field.
 
@@ -191,11 +234,12 @@ class PresetCfg:
         replacement = self._aliases.get(name, _LEGACY_PRESET_ALIASES.get(name))
         fields = self.__dataclass_fields__
         if replacement is not None and replacement in fields and name not in fields:
-            warnings.warn(
-                f"Preset '{name}' is deprecated. Use '{replacement}' instead.",
-                FutureWarning,
-                stacklevel=user_stacklevel(),
-            )
+            if name not in self._quiet_aliases:
+                warnings.warn(
+                    self._alias_messages.get(name) or f"Preset '{name}' is deprecated. Use '{replacement}' instead.",
+                    FutureWarning,
+                    stacklevel=user_stacklevel(),
+                )
             return getattr(self, replacement)
         raise AttributeError(f"{type(self).__name__!s} object has no attribute {name!r}")
 
@@ -326,9 +370,17 @@ def _pick_alternative(
     fields = _preset_fields(preset_obj)
     field_names = set(fields)
     if explicit_name is not None:
-        explicit_name = _normalize_preset_name(explicit_name, field_names, preset_obj._aliases)
+        explicit_name = _normalize_preset_name(
+            explicit_name,
+            field_names,
+            {**preset_obj._aliases, **preset_obj._explicit_aliases},
+            preset_obj._quiet_aliases | preset_obj._explicit_aliases.keys(),
+            preset_obj._alias_messages,
+        )
         if explicit_name in fields:
             return fields[explicit_name]
+        if explicit_name in preset_obj._removed:
+            raise ValueError(f"Unknown preset '{explicit_name}' for {path}. {preset_obj._removed[explicit_name]}")
         avail = list(fields)
         hint = ""
         if explicit_name in _LEGACY_PRESET_ALIASES:
@@ -342,7 +394,9 @@ def _pick_alternative(
     match_value = None
     for name in selected:
         raw_name = name
-        name = _normalize_preset_name(raw_name, field_names)
+        name = _normalize_preset_name(
+            raw_name, field_names, preset_obj._aliases, preset_obj._quiet_aliases, preset_obj._alias_messages
+        )
         if name not in fields or name == match_name:
             continue
         val = fields[name]
@@ -407,7 +461,9 @@ def _resolve_active_presets(
                     consumed_selectors.add(matches)
             value = _pick_alternative(value, selected, path or "<root>", choice, consumed_selected, on_selected)
         if isinstance(value, tuple):
-            return tuple(resolve(child, f"{path}.{key}" if path else str(key)) for key, child in enumerate(value))
+            children = tuple(resolve(child, f"{path}.{key}" if path else str(key)) for key, child in enumerate(value))
+            # Keep the tuple when nothing in it changed, so that frozen parents are not reassigned.
+            return value if all(new is old for new, old in zip(children, value)) else children
         for key, child in _iter_cfg_items(value):
             resolved = resolve(child, f"{path}.{key}" if path else str(key))
             if resolved is child:
@@ -641,7 +697,7 @@ def register_task(
             "configuration."
         )
     if PresetTarget.VISUALIZER.matches in selectors.keys() - consumed_selectors:
-        from .presets import MultiBackendVisualizerCfg
+        from .presets import VISUALIZER_PRESET_FIELDS, MultiBackendVisualizerCfg
 
         env_cfg.sim.visualizer_cfgs = migrate_visualizer_cfgs(
             env_cfg.sim.visualizer_cfgs, env_cfg.sim.default_visualizer_cfg
@@ -654,9 +710,15 @@ def register_task(
             choices = MultiBackendVisualizerCfg()
             backends = viewer.backend if isinstance(viewer.backend, list) else [viewer.backend]
             for backend in backends:
-                vars(choices)[backend.visualizer_type] = backend
+                vars(choices)[VISUALIZER_PRESET_FIELDS.get(backend.visualizer_type, backend.visualizer_type)] = backend
             viewer.backend = resolve_presets(choices, overrides={"": selectors[PresetTarget.VISUALIZER.matches]})
         env_cfg.sim.visualizer_cfgs = viewers
+
+    # A deprecated Kit backend warns once its selection resolved, so a rejected choice reports only its own error.
+    kit_selectors = _kit_selectors_in_use(env_cfg)
+    for name in dict.fromkeys(global_presets):
+        if name in consumed_presets and name in kit_selectors:
+            warn_kit_selector(name, stacklevel=user_stacklevel() - 1)
 
     # apply play-mode overrides after preset resolution so they act on the resolved
     # config, and before scalar overrides so explicit user values still win
@@ -843,7 +905,7 @@ def enumerate_task_presets(task_name: str) -> dict[PresetTarget, list[str]] | No
     using the same logic that the CLI help-text renderer uses, so the returned
     view matches what ``--task=<name> --help`` shows at the command line.
 
-    This function is safe to call after :class:`~isaaclab_physx.app.KitLauncher` has
+    This function is safe to call after :class:`~isaaclab_isaacsim.app.KitLauncher` has
     booted (i.e. inside a running Isaac Sim session).
 
     Args:
@@ -885,10 +947,11 @@ def _enumerate_variants(task_name: str) -> dict[PresetTarget, list[str]]:
                 matched = next(iter(families))
             result[matched].add(name)
     if not result[PresetTarget.VISUALIZER]:
-        from .presets import MultiBackendVisualizerCfg
+        from .presets import VISUALIZER_PRESET_FIELDS, MultiBackendVisualizerCfg
 
+        spelling = {field: name for name, field in VISUALIZER_PRESET_FIELDS.items()}
         result[PresetTarget.VISUALIZER].update(
-            name for name in collect_presets(MultiBackendVisualizerCfg())[""] if name != "default"
+            spelling.get(name, name) for name in collect_presets(MultiBackendVisualizerCfg())[""] if name != "default"
         )
     return {target: sorted(names) for target, names in result.items()}
 
@@ -904,7 +967,10 @@ def task_run_overrides(run: tuple[str | None, str | None, str | None]) -> list[s
 def _launchable_env_cfg(task_name: str, run: tuple[str | None, str | None, str | None]):
     """Return the resolved and launch-scanned env config of *run*, or ``None`` if it is rejected."""
     try:
-        env_cfg, _ = resolve_task_config(task_name, None, overrides=task_run_overrides(run))
+        with warnings.catch_warnings():
+            # Enumerating every backend is not a user selecting the deprecated ones.
+            warnings.filterwarnings("ignore", message="Selecting '.*' runs on Isaac Sim")
+            env_cfg, _ = resolve_task_config(task_name, None, overrides=task_run_overrides(run))
         validate(env_cfg)
         validate_launch(env_cfg, {"livestream": 0})
     except ValueError:

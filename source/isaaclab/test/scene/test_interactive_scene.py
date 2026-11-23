@@ -12,7 +12,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 import torch
-from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
+from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
@@ -287,7 +287,7 @@ def test_empty_scene_leaves_clone_lifecycle_to_caller():
 @pytest.mark.parametrize("device", ["cuda:0"])
 def test_scene_registers_physx_replicator(device, setup_scene, monkeypatch):
     """Scenes always register the PhysX replicator, and all environments simulate correctly."""
-    physx_replicate_module = pytest.importorskip("isaaclab_physx.cloner.replicate")
+    physx_replicate_module = pytest.importorskip("isaaclab_isaacsim.cloner.replicate")
 
     register_calls: list = []
     real_get_iface = physx_replicate_module.get_physx_replicator_interface

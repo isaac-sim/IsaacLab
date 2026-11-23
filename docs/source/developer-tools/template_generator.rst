@@ -246,7 +246,7 @@ Copy the task name from the output, then run a quick smoke test:
 
 .. code-block:: bash
 
-   uv run isaaclab random_agent --task <TASK_NAME> --num_envs 16 --viz newton_gl
+   uv run isaaclab random_agent --task <TASK_NAME> --num_envs 16 --viz newton
 
 If the environment launches and the cart moves, the project is ready to edit.
 You can then train and play a policy with the same command surface used by
@@ -255,7 +255,7 @@ Isaac Lab itself:
 .. code-block:: bash
 
    uv run isaaclab train --rl_library rsl_rl --task <TASK_NAME>
-   uv run isaaclab play --rl_library rsl_rl --task <TASK_NAME> --checkpoint latest --viz newton_gl
+   uv run isaaclab play --rl_library rsl_rl --task <TASK_NAME> --checkpoint latest --viz newton
 
 Choose optional features and a simulation backend
 -------------------------------------------------
@@ -274,8 +274,8 @@ Pass each extra required by a command. For example:
    uv run --extra isaacsim isaaclab random_agent \
       --task <TASK_NAME> physics=isaacsim_physx
 
-   uv run --extra isaacsim --extra rerun isaaclab play \
-      --rl_library skrl --task <TASK_NAME> --viz rerun
+   uv run --extra isaacsim --extra viser isaaclab play \
+      --rl_library skrl --task <TASK_NAME> --viz viser
 
 Place ``--extra`` before ``isaaclab`` and repeat it when a command needs several
 features. The generated ``all`` extra forwards Isaac Lab's own ``all`` extra;

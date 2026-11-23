@@ -95,6 +95,18 @@ For USD assets, assign :class:`~sim.spawners.wrappers.MultiUsdFileCfg` to the
    :end-before: ##
    :dedent: 4
 
+To spawn SimReady props found by a search, assign :class:`~sim.spawners.wrappers.SimReadyUsdFileCfg`, a
+:class:`~sim.spawners.wrappers.MultiUsdFileCfg` whose USD paths come from
+:func:`~utils.assets.search_simready_usd_paths`. The search result is cached in a JSON file, and each prop's
+rigid body is moved onto the spawned prim so that all props share one rigid-body layout. The ``simready``
+object preset of the lift environments uses it, for example in the Kuka-Allegro lift environment:
+
+.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/lift/lift_env_cfg.py
+   :language: python
+   :start-at: simready = sim_utils.SimReadyUsdFileCfg(
+   :end-before: default = shapes
+   :dedent: 4
+
 Variant compatibility
 ~~~~~~~~~~~~~~~~~~~~~
 
@@ -121,6 +133,35 @@ variant because their batched Newton views currently require a uniform body layo
 
 For more detail on prototype assignment and replication, see :doc:`cloning`.
 
+Reset-time selection
+~~~~~~~~~~~~~~~~~~~~
+
+A rigid object's multi-asset spawner defines the variants and their IDs in list order. Clone composition chooses
+the initial variant for each world. A reset event can change it before writing the episode's pose and velocity:
+
+.. code-block:: python
+
+   part_cfg = RigidObjectCfg(
+       prim_path="{ENV_REGEX_NS}/Part",
+       spawn=sim_utils.MultiUsdFileCfg(usd_path=["small_part.usd", "large_part.usd"], static=False),
+   )
+
+Call ``scene["part"].write_mesh_variant_to_sim(variant_ids, env_ids)`` to select variants. A task with matching
+fixed and movable objects selects the same ID on both. Newton owns the selected IDs, geometry, and mass properties.
+
+Multi-asset spawning keeps its initial choice unless ``static=False`` is set. Reset-time selection uses Newton
+body variants with XPBD or MJWarp with external contacts and sleeping disabled, and at least two alternatives. Every
+alternative must contain one rigid body with the same fixed/free root-joint type and kinematic flags. Newton permits
+different shape types and counts, but shapes sharing a row need compatible collision groups. Select before
+randomizing contact materials because Newton restores the variant's materials. Initial world selections are applied
+after solver construction so MuJoCo compiles a shared layout even when alternatives differ in shape type or count.
+MJWarp with MuJoCo contacts rejects
+body variants when the solver initializes. Other physics backends keep the initial choice.
+
+With supported Newton physics, ``static=False`` authors every alternative under ``/World/IsaacLabPrototypes`` and
+clones the chosen source into each world. The source parent is hidden after cloning. The default ``static=True``
+authors each alternative at its first assigned world and uses the same source-to-destination clone pass.
+
 Run the example
 ---------------
 
@@ -142,7 +183,7 @@ The physics backend and visualizer are selected independently. Run one of these 
          uv run --extra isaacsim isaaclab example multi-asset \
              --physics newton_mjwarp --visualizer kit --num_envs 2048
 
-   .. tab-item:: Newton MJWarp with Newton GL
+   .. tab-item:: Newton MJWarp with Newton
 
       .. code-block:: bash
 

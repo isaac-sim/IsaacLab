@@ -43,7 +43,7 @@
 
 /source/isaaclab_ov/ @huidongc @rilei-nvidia @pbarejko @AntoineRichard @marcodiiga
 
-/source/isaaclab_physx/ @AntoineRichard @ooctipus @kellyguo11
+/source/isaaclab_isaacsim/ @AntoineRichard @ooctipus @kellyguo11
 /source/isaaclab_ppisp/ @moennen @pbarejko @kellyguo11
 /source/isaaclab_teleop/ @rwiltz @hougantc-nvda @kellyguo11
 /source/isaaclab_visualizers/ @matthewtrepte @StafaH @kellyguo11

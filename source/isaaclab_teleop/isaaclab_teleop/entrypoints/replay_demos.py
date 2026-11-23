@@ -82,8 +82,8 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         sys.argv = [sys.argv[0], *argv]
     parser = _build_parser()
     args_cli, hydra_args = setup_preset_cli(parser)
-    # the pause/resume keyboard is a Kit input device, so the Kit runtime is required
-    args_cli.require_kit = True
+    # The task's physics, cameras and visualizers decide whether Kit runs; the pause/resume keys work
+    # with any visualizer.
 
     # Call an external callback if requested.
     if args_cli.external_callback:
@@ -127,6 +127,9 @@ def compare_states(state_from_dataset, runtime_state, runtime_env_index) -> (boo
             for state_name in runtime_state[asset_type][asset_name].keys():
                 runtime_asset_state = runtime_state[asset_type][asset_name][state_name][runtime_env_index]
                 dataset_asset_state = state_from_dataset[asset_type][asset_name][state_name]
+                if len(dataset_asset_state.shape) == len(runtime_asset_state.shape) + 1:
+                    # Episode states keep their batch dimension (one row per recorded step).
+                    dataset_asset_state = dataset_asset_state[0]
                 if len(dataset_asset_state) != len(runtime_asset_state):
                     raise ValueError(f"State shape of {state_name} for asset {asset_name} don't match")
                 for i in range(len(dataset_asset_state)):

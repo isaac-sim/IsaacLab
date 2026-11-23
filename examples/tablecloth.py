@@ -43,7 +43,7 @@ parser.add_argument(
     help="Frame limit; zero completes all pulls and a final hold, negative runs forever.",
 )
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["newton_gl"])
+parser.set_defaults(visualizer=["newton"])
 args_cli = parser.parse_args()
 if not args_cli.device.startswith("cuda"):
     parser.error("This graph-captured example requires a CUDA device.")
@@ -1284,7 +1284,6 @@ def main() -> None:
     solver_cfg = VBDSolverCfg(
         iterations=10,
         friction_epsilon=1.0e-3,
-        rigid_compliant_alm=True,
         rigid_joint_linear_ke=1.0e7,
         rigid_joint_angular_ke=1.0e6,
         rigid_body_contact_buffer_size=256,

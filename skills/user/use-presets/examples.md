@@ -14,7 +14,7 @@ Use this when the environment has one supported physics setup and no user-select
 
 ```python
 from isaaclab.sim import SimulationCfg
-from isaaclab_physx.physics import PhysxCfg
+from isaaclab_isaacsim.physics import PhysxCfg
 
 
 class MySimpleEnvCfg:
@@ -35,7 +35,7 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_ov.physics import OvPhysxCfg
-from isaaclab_physx.physics import PhysxCfg
+from isaaclab_isaacsim.physics import PhysxCfg
 from isaaclab_tasks.utils import PresetCfg
 
 
@@ -98,7 +98,7 @@ For camera tasks that expose physics, renderer, and data-type variants, combine 
 
 ```bash
 uv run python scripts/environments/random_agent.py --task Isaac-Cartpole-Camera-Direct --num_envs 4 physics=isaacsim_physx renderer=isaacsim_rtx presets=rgb
-uv run python scripts/environments/random_agent.py --task Isaac-Cartpole-Camera-Direct --num_envs 4 physics=newton_mjwarp renderer=newton_renderer presets=depth
+uv run python scripts/environments/random_agent.py --task Isaac-Cartpole-Camera-Direct --num_envs 4 physics=newton_mjwarp renderer=newton_warp presets=depth
 ```
 
 Before using a name, list the task's exposed presets:

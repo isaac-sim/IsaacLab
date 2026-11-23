@@ -41,8 +41,9 @@ class ActuatorBaseCfg:
 
     The actuator's rated force/torque reflected at the joint. Explicit actuator models
     clip their computed effort with it; implicit actuators use it as the model-facing
-    limit for effort telemetry. If None, it defaults to the authored/USD joint effort
-    limit (explicit) or tracks the live solver limit (implicit). It is not a solver
+    limit for effort telemetry. If None, an explicit actuator defaults to the authored/USD joint
+    effort limit, or with ``use_newton_actuators`` to the limit of the joint's kept USD actuator when it
+    has the model's clamp, and an implicit actuator tracks the live solver limit. It is not a solver
     limit; that is :attr:`joint_effort_limit`.
 
     :class:`~isaaclab.actuators.RemotizedPDActuator` instead uses the
@@ -53,7 +54,8 @@ class ActuatorBaseCfg:
     """Velocity limit of the joints in the group. Defaults to None.
 
     This limit is used by the actuator model. If None, the limit is set to the value specified
-    in the USD joint prim.
+    in the USD joint prim. With ``use_newton_actuators``, a DC motor or neural actuator keeps the
+    velocity limit of the joint's USD actuator, and a new one has none; the Isaac Lab path requires a value.
 
     .. attention::
 
@@ -90,7 +92,9 @@ class ActuatorBaseCfg:
     the stiffness gets set into the physics engine directly. For explicit actuators, the stiffness is used
     by the actuator model to compute the joint efforts.
 
-    If None, the stiffness is set to the value from the USD joint prim.
+    If None, the stiffness is set to the value from the USD joint prim. With ``use_newton_actuators``, an
+    explicit actuator instead takes it from the joint's USD actuator, zero for a new one (see
+    :ref:`USD actuator overrides <actuators-usd-override>`).
     """
 
     damping: dict[str, float] | float | None = MISSING
@@ -100,7 +104,9 @@ class ActuatorBaseCfg:
     the damping gets set into the physics engine directly. For explicit actuators, the damping gain is used
     by the actuator model to compute the joint efforts.
 
-    If None, the damping is set to the value from the USD joint prim.
+    If None, the damping is set to the value from the USD joint prim. With ``use_newton_actuators``, an
+    explicit actuator instead takes it from the joint's USD actuator, zero for a new one (see
+    :ref:`USD actuator overrides <actuators-usd-override>`).
     """
 
     armature: dict[str, float] | float | None = None
