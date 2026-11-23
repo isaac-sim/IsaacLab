@@ -9,7 +9,7 @@ import math
 from dataclasses import MISSING
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
-from isaaclab_ov.renderers import OVRTXRendererCfg
+from isaaclab_newton.renderers import NewtonWarpRendererCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
@@ -40,7 +40,8 @@ def _camera(prim_path: str, focal_length: float, pos: tuple, rot: tuple, follow_
         data_types=["rgb"],
         update_period=0.0,
         update_latest_camera_pose=follow_link,
-        renderer_cfg=OVRTXRendererCfg(),
+        # The renderer that draws the objects selected as mesh variants.
+        renderer_cfg=NewtonWarpRendererCfg(),
         spawn=sim_utils.PinholeCameraCfg(
             focal_length=focal_length,
             focus_distance=28.0,
@@ -195,8 +196,6 @@ class VLABenchmarkEnvCfg(ManagerBasedRLEnvCfg):
             ),
             collision_cfg=NewtonCollisionPipelineCfg(broad_phase="sap"),
             num_substeps=2,
-            # The cameras render the USD stage with OVRTX, which does not draw Newton's visual shapes.
-            load_visual_shapes=False,
             # Thousands of small hull meshes: cuBQL takes about 0.1 s to build each one's BVH, LBVH a few ms.
             bvh_constructor_geometry="lbvh",
         ),
