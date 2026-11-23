@@ -431,16 +431,13 @@ class _CosmosInferenceStream:
 
     def step(
         self,
-        controls: list[np.ndarray] | list[torch.Tensor],
+        controls: list[np.ndarray],
         reset_rows: tuple[int, ...],
         seeds: tuple[int, ...],
         *,
         prompt: str | None | object = _KEEP_PROMPT,
-    ) -> list[np.ndarray] | list[torch.Tensor]:
+    ) -> list[np.ndarray]:
         """Generate uint8 THWC RGB from one initial frame or four subsequent frames.
-
-        NumPy controls (socket transport) return NumPy images. CUDA tensors on the model's device (CUDA IPC)
-        return CUDA tensors produced on the current stream, without host copies or synchronization.
 
         A full reset ``reset_rows=(0,)`` requires one new seed and a one-frame
         control. It closes the previous generation and VAE state before processing
@@ -463,14 +460,10 @@ class _CosmosInferenceStream:
         expected_shape = (expected_frames, *self._canvas)
         import torch
 
-        if len(controls) != 1 or not isinstance(controls[0], (np.ndarray, torch.Tensor)):
-            raise ValueError("Cosmos requires exactly one NumPy array or CUDA tensor of controls.")
+        if len(controls) != 1 or not isinstance(controls[0], np.ndarray):
+            raise ValueError("Cosmos requires exactly one NumPy array of controls.")
         control = controls[0]
-        on_device = isinstance(control, torch.Tensor)
-        if on_device and control.device != self._owner._device:
-            raise ValueError(f"Cosmos tensor controls must be on {self._owner._device}, got {control.device}.")
-        dtype_ok = control.dtype == (torch.uint8 if on_device else np.uint8)
-        if not dtype_ok or tuple(control.shape) != expected_shape:
+        if control.dtype != np.uint8 or tuple(control.shape) != expected_shape:
             raise ValueError(f"Cosmos controls must be uint8 THWC with shape {expected_shape}.")
         previous_frames = 0 if reset_rows else self._frame_count
         if previous_frames + expected_frames > self._max_episode_frames:
@@ -496,7 +489,7 @@ class _CosmosInferenceStream:
                 latent = self._model.encode(self._pixels(control))
                 self._next_control = latent[:, :, -1:].clone()
                 generated = next(self._iterator)["vision"].clone()
-                video = self._video(self._model.decode(generated), expected_frames, on_device)
+                video = self._video(self._model.decode(generated), expected_frames)
                 self._frame_count = previous_frames + expected_frames
                 return [video]
         except BaseException:
@@ -540,21 +533,21 @@ class _CosmosInferenceStream:
             self._cache_scope.enter_context(self._model.tokenizer_vision_gen.use_cached_encoder())
             self._cache_scope.enter_context(self._model.tokenizer_vision_gen.use_cached_decoder())
 
-    def _pixels(self, control: np.ndarray | torch.Tensor) -> torch.Tensor:
+    def _pixels(self, control: np.ndarray) -> torch.Tensor:
         """Return a uint8 THWC control chunk as the model's input, shape (1, C, T, H, W) in [-1, 1]."""
         import torch
 
-        pixels = control if isinstance(control, torch.Tensor) else torch.from_numpy(np.ascontiguousarray(control))
+        pixels = torch.from_numpy(np.ascontiguousarray(control))
         return pixels.permute(3, 0, 1, 2).unsqueeze(0).to(**self._model.tensor_kwargs).div(127.5).sub(1)
 
-    def _video(self, decoded: torch.Tensor, frames: int, on_device: bool) -> np.ndarray | torch.Tensor:
-        """Return decoded images of shape (1, 3, T, H, W) as a uint8 THWC chunk, a tensor or a NumPy array."""
+    def _video(self, decoded: torch.Tensor, frames: int) -> np.ndarray:
+        """Return decoded images of shape (1, 3, T, H, W) as a uint8 THWC NumPy chunk."""
         import torch
 
         if tuple(decoded.shape) != (1, 3, frames, *self._canvas[:2]):
             raise RuntimeError(f"Cosmos decoder returned unexpected shape {tuple(decoded.shape)}.")
         video = decoded[0].clamp(-1, 1).add(1).mul(127.5).round().to(torch.uint8).permute(1, 2, 3, 0).contiguous()
-        return video if on_device else video.cpu().numpy()
+        return video.cpu().numpy()
 
     def _close_episode(self) -> None:
         try:
@@ -613,12 +606,12 @@ class _CosmosBatchStream(_CosmosInferenceStream):
 
     def step(
         self,
-        controls: list[np.ndarray] | list[torch.Tensor],
+        controls: list[np.ndarray],
         reset_rows: tuple[int, ...],
         seeds: tuple[int, ...],
         *,
         prompt: list[str | None] | object = _KEEP_PROMPT,
-    ) -> list[np.ndarray] | list[torch.Tensor]:
+    ) -> list[np.ndarray]:
         """Generate uint8 THWC RGB for every view: one frame for starting views, four for the others.
 
         ``reset_rows`` restarts those views' episodes with ``seeds``; the other views continue. Restarting some
@@ -661,13 +654,10 @@ class _CosmosBatchStream(_CosmosInferenceStream):
         expected = [1 if not self._started or row in resets else MAX_CHUNK_FRAMES for row in range(num_views)]
         if len(controls) != num_views:
             raise ValueError(f"Cosmos requires one control chunk per view, {num_views} in total.")
-        on_device = isinstance(controls[0], torch.Tensor)
         for row, control in enumerate(controls):
-            if not isinstance(control, torch.Tensor if on_device else np.ndarray):
-                raise ValueError("Cosmos controls must be all NumPy arrays or all CUDA tensors.")
-            if on_device and control.device != self._owner._device:
-                raise ValueError(f"Cosmos tensor controls must be on {self._owner._device}, got {control.device}.")
-            if control.dtype != (torch.uint8 if on_device else np.uint8) or tuple(control.shape) != (
+            if not isinstance(control, np.ndarray):
+                raise ValueError("Cosmos controls must be NumPy arrays.")
+            if control.dtype != np.uint8 or tuple(control.shape) != (
                 expected[row],
                 *self._canvas,
             ):
@@ -714,7 +704,7 @@ class _CosmosBatchStream(_CosmosInferenceStream):
                 for row in range(num_views):
                     with self._view_vae(row):
                         decoded = self._model.decode(generated[row : row + 1])
-                    videos.append(self._video(decoded, expected[row], on_device))
+                    videos.append(self._video(decoded, expected[row]))
                 for row in range(num_views):
                     self._frames[row] = (0 if row in resets else self._frames[row]) + expected[row]
                 self._started = True

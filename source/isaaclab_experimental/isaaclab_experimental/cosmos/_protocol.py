@@ -51,8 +51,8 @@ DEFAULT_TIMEOUT_S = 600.0
 MAX_METADATA_BYTES = 64 * 1024
 """Largest JSON metadata of one message [bytes]. Prompts are the only long field; a longer message is rejected."""
 MAX_ARRAYS = 16
-"""Most image arrays in one message. A step sends one array per view, so the socket transport carries at most
-this many views; larger batches need CUDA IPC, which sends no arrays."""
+"""Most image arrays in one message. A step sends one array per view, so a session generates at most this many
+views; split larger batches across services."""
 MAX_ARRAY_BYTES = 256 * 1024 * 1024
 """Largest image payload of one message [bytes], checked before any buffer is allocated. :data:`MAX_ARRAYS` views
 of :data:`MAX_CHUNK_FRAMES` frames at the largest canvas need 79 MB."""

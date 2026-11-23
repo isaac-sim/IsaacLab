@@ -92,7 +92,7 @@ requests after model loading and warmup.
   less memory, especially with several environments, but remembers less of each episode.
 - `--device cuda:1` runs the model on another GPU; see [Cosmos on another GPU](#cosmos-on-another-gpu).
 - `--endpoint unix:///path/to/socket` or `--endpoint tcp://127.0.0.1:5556` serves another endpoint, for example TCP
-  for Isaac Lab on another machine; see [Endpoints and transports](#endpoints-and-transports).
+  for Isaac Lab on another machine; see [Endpoints](#endpoints).
 
 The server sets no episode length or view count: each camera session requests its own frame budget (see
 [Episode frame budget](#episode-frame-budget)) and number of views (see [Several environments](#several-environments)).
@@ -171,14 +171,13 @@ env_cfg.scene.base_camera = cosmos_camera(camera, model, near=0.6, far=1.9)
 | `near`, `far` | Depth shown white and black [m] (defaults 0.1 and 2.0) |
 | `control` | Other control processors instead of depth; see "Other controls" |
 | `CosmosModelCfg.endpoint` | Service endpoint, `unix:///path` or `tcp://host:port` (default: the service's default) |
-| `CosmosModelCfg.transport` | `"auto"`, `"cuda_ipc"` or `"socket"`: how images move to the service; see "Endpoints and transports" (default `"auto"`) |
 
 Choose `near` and `far` to cover the scene: the Kuka Allegro base camera sees the cube,
 hand and table between about 0.7 m and 1.8 m.
 
 Requirements:
 
-- The environment count is limited by GPU memory and the transport. Agent configurations with
+- The environment count is limited by GPU memory and the protocol's 16 views per service. Agent configurations with
   fixed minibatch sizes larger than the rollout (some rl_games configurations) need adjusting; RSL-RL works as
   configured.
 - The camera must publish only `rgb`, use a pinhole lens, and have no existing tensor processors. Rendering must be
@@ -341,7 +340,7 @@ mask when all views are fresh.
 `CosmosTransferProcessor` uses the shared image transfer processor (see [Image transfer](#image-transfer)) for
 queuing, resets, and publication, and `CosmosModelCfg` creates the client of the service.
 The client opens a generation session on its first control chunk. Requests carry
-JSON metadata over the endpoint and, with the `socket` transport, binary uint8 image arrays; generated arrays return to
+JSON metadata and binary uint8 image arrays over the endpoint; generated arrays return to
 the control tensor's original device.
 
 Each episode generates one initial frame, then updates in chunks of four captured
@@ -434,7 +433,7 @@ For a task without a Cosmos version, set `env_cfg.scene.num_envs = 2` and give `
 - Several environments need per-view VAE caches in the Framework runtime, and their independent resets need
   compiled inference. A service without the caches rejects the session when it opens; a service started with
   `--no-compile` stops the run with an error at the first independent reset.
-- With the socket transport, one step's image message carries at most 16 environments.
+- One step's image message carries at most 16 environments per service; [several services](#several-gpus) carry more.
 - Each environment's history (30 latent frames) takes GPU memory: the service needs about 47 GB of VRAM for one
   environment and about 9 GB more for each additional one, and Isaac Lab needs its own memory on top. When they do
   not fit on one GPU, give the service its own GPU (`--device cuda:1`) or a larger one, or let
@@ -504,57 +503,32 @@ for name in names:
   environments, the service needs independent resets (see [Several environments](#several-environments));
   [several services](#several-gpus) split the views as they split environments.
 
-## Endpoints and transports
+## Endpoints
 
-The **endpoint** is how Isaac Lab reaches the service; it carries the session's messages:
+The **endpoint** is how Isaac Lab reaches the service. It carries the session's messages, and with them the control
+images and generated images, which go through host memory:
 
 | Endpoint | Where it works |
 |---|---|
 | `unix:///path` (default on Linux, `/tmp/isaaclab-cosmos-<uid>.sock`) | Same machine. Only your user can open the socket; no network port is opened. |
 | `tcp://host:port` | Also from another machine, for example Isaac Lab on Windows. |
 
-The **transport** is how control images go to the service, and generated images come back:
-
-| Transport | Data path | Where it works |
-|---|---|---|
-| `cuda_ipc` | Shared GPU buffers, opened once per session, ordered by interprocess CUDA events. Image transfer between the camera and service needs no host copies. Each step sends only a small message on the endpoint. | Service on the same Linux machine, on the camera's GPU or on another GPU with direct access to it; see [Cosmos on another GPU](#cosmos-on-another-gpu). |
-| `socket` | Images go through host memory in the endpoint's messages. | Any endpoint. |
-
-`CosmosModelCfg.transport` defaults to `auto`: CUDA IPC when the service reports it, runs on this machine (the same
-boot ID), sees the camera's GPU, and uses that GPU or a GPU with direct access to it, the socket otherwise.
-`cuda_ipc` fails when it is unavailable instead of falling back. `status` lists the service's transports and the
-GPUs it can see. With the defaults on one Linux
-machine, image transport uses shared GPU buffers and the messages use the Unix socket, so no TCP is involved. CUDA
-IPC avoids the socket transport's 16-view protocol limit; available GPU memory still limits the batch size.
-
-Buffer ownership and release order are documented with `SharedChannel` in `cosmos/_cuda_ipc.py`.
-
 For Isaac Lab on another machine, start the service with `--endpoint tcp://127.0.0.1:5555` and forward that port,
 for example with `ssh -L 5555:localhost:5555 gpu-host`, or keep the Unix socket and forward it with
 `ssh -L 5555:/tmp/isaaclab-cosmos-<uid>.sock gpu-host`. Then set the camera's endpoint to `tcp://127.0.0.1:5555`;
-the protocol has no authentication, so do not open a public interface. `auto` sees from the boot ID that a tunneled
-service runs on another machine and uses the socket.
+the protocol has no authentication, so do not open a public interface.
 
 ### Cosmos on another GPU
 
 The service can run on another GPU of the same machine, which leaves the model's memory off the simulator's GPU.
-CUDA IPC then works when the two GPUs can access each other's memory directly, over NVLink or PCIe;
-`nvidia-smi topo -m` shows how they connect. Each process creates the buffer it writes on its own GPU, and the
-other process copies it between the GPUs without host memory. Without direct access, `auto` uses the socket and
-`cuda_ipc` fails. MIG instances have no direct access to each other. If the service cannot see the camera's GPU,
-the session is rejected even with `auto`; keep both GPUs visible to both processes.
-
-Both processes must see both GPUs, so do not narrow `CUDA_VISIBLE_DEVICES` to one GPU; select the model's GPU with
-`--device` instead:
+Select the model's GPU with `--device`:
 
 ```bash
 cd "$COSMOS_FRAMEWORK_ROOT"
 uv run --no-sync isaaclab-cosmos-server --checkpoint "$COSMOS_CHECKPOINT" --device cuda:1
 ```
 
-Isaac Lab keeps its own device, `cuda:0` by default. Set `env.cosmos.transport=cuda_ipc` (or
-`CosmosModelCfg.transport="cuda_ipc"` in a configuration) to require GPU-to-GPU transfer instead of a socket fallback. Each process also creates a CUDA
-context on the other GPU, which takes some memory there.
+Isaac Lab keeps its own device, `cuda:0` by default.
 
 ### Several GPUs
 
@@ -572,8 +546,7 @@ endpoint with the list of both:
 
 ```bash
 uv run isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Cosmos-Direct --rl_library rsl_rl --num_envs 4 \
-  env.cosmos.endpoint="['unix:///tmp/isaaclab-cosmos-gpu1.sock', 'unix:///tmp/isaaclab-cosmos-gpu2.sock']" \
-  env.cosmos.transport=cuda_ipc
+  env.cosmos.endpoint="['unix:///tmp/isaaclab-cosmos-gpu1.sock', 'unix:///tmp/isaaclab-cosmos-gpu2.sock']"
 ```
 
 The environments are split into contiguous shares of near-equal size, one per service in the order given:
@@ -603,8 +576,8 @@ recipe. A task whose prompt and settings were calibrated at another rate sets it
 ## Image transfer
 
 Cosmos is built on `isaaclab_experimental.image_transfer`, which connects an application-owned image-generation
-model to cameras through tensor processors. It does not load models, download assets, or select a network
-transport. `ImageTransferProcessorCfg` takes the model as its `backend`, and `DepthControlProcessorCfg` prepares
+model to cameras through tensor processors. It does not load models, download assets, or open network
+connections. `ImageTransferProcessorCfg` takes the model as its `backend`, and `DepthControlProcessorCfg` prepares
 the control:
 
 ```python
