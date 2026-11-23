@@ -64,6 +64,8 @@ The following wrappers are available in the ``isaaclab_rl`` extension:
 isaaclab_mimic extension
 ------------------------
 
+.. include:: /source/features/imitation-learning/_mimic_deprecation.include
+
 The following modules are available in the ``isaaclab_mimic`` extension:
 
 .. currentmodule:: isaaclab_mimic
