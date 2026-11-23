@@ -501,6 +501,24 @@ jobs:
       with:
         fetch-depth: 1
         lfs: true
+        # Diagnostic control: preserve the exact source used by the reported failing job.
+        ref: 1815972863fa60221a865c81b2879c9e79f8c626
+    - name: Apply the same stack probe to the original source snapshot
+      shell: bash
+      run: |
+        python3 - <<'PY'
+        from pathlib import Path
+        from urllib.request import urlopen
+
+        url = (
+            "https://raw.githubusercontent.com/kellyguo11/IsaacLab-public/"
+            "dd1a66f35ace4377a85d052b580f9e936e4f6ca6/"
+            "source/isaaclab/test/app/test_standalone_scripts.py"
+        )
+        with urlopen(url, timeout=30) as response:
+            source = response.read()
+        Path("source/isaaclab/test/app/test_standalone_scripts.py").write_bytes(source)
+        PY
     - uses: ./.github/actions/run-package-tests
       with:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
