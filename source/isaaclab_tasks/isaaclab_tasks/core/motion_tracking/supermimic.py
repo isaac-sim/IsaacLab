@@ -273,11 +273,10 @@ class MotionTrackingTask(DifferentiableTask):
         self.default_vel = data.default_joint_vel.torch[0].to(device).clone()
         self.limits = data.soft_joint_pos_limits.torch[0].to(device).clone()
         self.gravity = torch.tensor([0.0, 0.0, -1.0], device=device)
-        if len(owner.action_manager.active_terms) != 1 or not isinstance(
-            owner.action_manager.get_term(owner.action_manager.active_terms[0]), JointPositionAction
-        ):
+        action_terms = owner.action_manager.active_terms
+        action = owner.action_manager.get_term(action_terms[0]) if len(action_terms) == 1 else None
+        if not isinstance(action, JointPositionAction):
             raise ValueError("MotionTrackingTask requires one joint-position action term.")
-        action = owner.action_manager.get_term(owner.action_manager.active_terms[0])
         joint_ids = action._joint_ids
         self.action_joints = torch.as_tensor(
             range(self.num_joints) if isinstance(joint_ids, slice) else joint_ids, device=device

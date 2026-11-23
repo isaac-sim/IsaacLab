@@ -46,7 +46,6 @@ class G1MotionSuperMimicRunnerCfg(RslRlSuperMimicRunnerCfg):
     )
     algorithm = RslRlSuperMimicAlgorithmCfg(
         replay_buffer_capacity=4_096_000,
-        num_warmup_steps=64,
         num_world_model_warmup_iterations=0,
         num_world_model_updates=5,
         world_model_mirror_fraction=0.5,
@@ -55,7 +54,6 @@ class G1MotionSuperMimicRunnerCfg(RslRlSuperMimicRunnerCfg):
         learning_rate=4e-4,
         muon_models=("actor", "world_model"),
         actor_learning_rate_multiplier=4.0,
-        actor_learning_rate_decay_iterations=300,
         # episodes end with their clip, well before max_episode_length, so a normalized-return trigger never fires
         actor_learning_rate_decay_start=1400,
         # an exponential moving average with decay 0.995 per actor update
