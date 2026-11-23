@@ -151,3 +151,60 @@ Sim-to-real
 
 For G1 hardware deployment, see the
 `G1 LEAPP deployment guide <https://isaac-sim.github.io/IsaacLab/main/source/how-to/train_model_based.html#g1-leapp-deployment-adapter>`_.
+
+G1 LEAPP deployment adapter
+------------------------------
+
+Export a checkpoint and one reference clip to a LEAPP bundle:
+
+.. code-block:: bash
+
+   uv run --extra leapp isaaclab export \
+       --task Isaac-Motion-Tracking-GenCoord-G1 --rl_library model_based \
+       --checkpoint pretrained --export_save_path exported
+
+For a local checkpoint, pass its path and select one motion with ``--motion_dir``.
+The output directory contains an ONNX model, a pipeline YAML, initial feedback
+state, and ``motion.npz``. Keep these files together. The graph includes sensor
+preprocessing, observation history, normalization, motion inference and joint
+position scaling; it outputs joint targets and the checkpoint's PD gains.
+
+Install Isaac ROS and the G1 driver as described in the
+:doc:`visual locomotion deployment guide </source/policy_deployment/07_g1_sim2real/training_and_deploying_a_g1_visual_locomotion_policy>`.
+Then, in the ROS environment:
+
+.. code-block:: bash
+
+   python3 scripts/deploy/g1_deploy.py \
+       --pipeline exported/Isaac-Motion-Tracking-GenCoord-G1/Isaac-Motion-Tracking-GenCoord-G1.yaml \
+       --interface <iface>
+
+The launcher starts the reference publisher when ``motion.npz`` is beside the
+pipeline. Use ``--motion`` to select another exported clip with the same joint
+order. Follow the existing guide's IMU calibration and operator enable/stop
+procedure before engaging the controller.
+
+The actor first tracks the clip's initial pose with zero reference velocity.
+Start the motion after the robot is standing:
+
+.. code-block:: bash
+
+   ros2 service call /g1_policy/start_motion std_srvs/srv/Trigger '{}'
+
+The controller blends into motion over one second, plays the clip once, then
+blends back to tracking the final pose with zero reference velocity. The actor
+continues receiving joint and IMU feedback throughout; the history contains the
+blended action actually sent to the joint controller. Choose clips whose initial
+and final poses support standing. To return early to a stationary reference:
+
+.. code-block:: bash
+
+   ros2 service call /g1_policy/stand std_srvs/srv/Trigger '{}'
+
+The reference publisher sends a timestamped ``isaac_ros_tensor_msgs/msg/TensorList``
+on ``/g1_policy/motion`` at 50 Hz. Each float32 window has shape ``[10, 63]``:
+29 joint positions, 29 joint velocities, a WXYZ root quaternion and a blend weight
+per frame. Frames are spaced by five control steps, clamped at the clip boundary.
+The graph receives pelvis orientation in XYZW order, pelvis-frame angular
+velocity, and joint positions/velocities in the order declared in its YAML.
+At motion start the publisher aligns the reference heading to the pelvis IMU.

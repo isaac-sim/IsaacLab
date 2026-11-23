@@ -31,6 +31,7 @@ INPUTS = {
     "state:robot:root_ang_vel_b": ("state/body/angular_velocity", "/imu_sensor_broadcaster/imu"),
     "command:base_velocity": ("command/body/velocity", "/cmd_vel"),
     "state:depth_camera:output:distance_to_image_plane": ("tensor", "/g1_policy/depth_tensor"),
+    "command:motion": ("tensor", "/g1_policy/motion"),
 }
 OUTPUTS = {
     "write:robot:set_joint_position_target_index": "target/joint/position",
@@ -67,16 +68,29 @@ def prepare_pipeline(pipeline: str, directory: Path) -> tuple[Path, dict]:
                         spec["element_names"] = [[], ["lin_vel_x", "lin_vel_y", "ang_vel_z"]]
                 else:
                     spec["kind"] = OUTPUTS[connection]
-    if set(ports) != INPUTS.keys() | OUTPUTS.keys():
-        raise ValueError("Expected the G1 depth policy's six inputs and three joint outputs")
+    motion = "command:motion" in ports
+    expected_inputs = set(INPUTS) - (
+        {"command:base_velocity", "state:depth_camera:output:distance_to_image_plane"} if motion else {"command:motion"}
+    )
+    if set(ports) != expected_inputs | OUTPUTS.keys():
+        raise ValueError(
+            "Expected G1 joint/IMU inputs, depth and velocity or a motion command, and three joint outputs"
+        )
     names = ports["state:robot:joint_pos"]["element_names"][-1]
     for connection in ("state:robot:joint_pos", "state:robot:joint_vel", *OUTPUTS):
         spec = ports[connection]
         if spec.get("element_names", [[]])[-1] != names or spec["shape"] != [1, len(names)]:
             raise ValueError(f"Inconsistent joint layout: {connection}")
-    for connection, shape in zip(list(INPUTS)[2:], ([1, 4], [1, 3], [1, 3], [1, 38, 64, 1])):
-        if ports[connection]["shape"] != shape:
+    for connection, shape in zip(list(INPUTS)[2:6], ([1, 4], [1, 3], [1, 3], [1, 38, 64, 1])):
+        if connection in ports and ports[connection]["shape"] != shape:
             raise ValueError(f"Unsupported tensor shape: {connection}")
+    if motion:
+        spec = ports["command:motion"]
+        shape = spec["shape"]
+        if len(shape) < 2 or shape[0] != 1 or any(type(size) is not int or size <= 0 for size in shape):
+            raise ValueError("Motion commands require a fixed shape with batch size one")
+        if spec["dtype"] != "float32":
+            raise ValueError("Motion commands must use float32")
     if len(set(names)) != len(names):
         raise ValueError("Joint names must be unique")
     if len({spec["name"] for spec in ports.values()}) != len(ports):
@@ -152,6 +166,7 @@ def run_runtime(manifest: dict) -> int:
     from ament_index_python.packages import get_package_share_directory
     from launch import LaunchDescription, LaunchService
     from launch.actions import EmitEvent, GroupAction, IncludeLaunchDescription, RegisterEventHandler
+    from launch.conditions import IfCondition
     from launch.event_handlers import OnProcessExit
     from launch.events import Shutdown
     from launch.launch_description_sources import PythonLaunchDescriptionSource
@@ -234,6 +249,7 @@ def run_runtime(manifest: dict) -> int:
                     ]
                 ),
                 ComposableNodeContainer(
+                    condition=IfCondition("true" if manifest["depth_name"] else "false"),
                     package="rclcpp_components",
                     executable="component_container",
                     name="depth_tensor_container",
@@ -243,7 +259,7 @@ def run_runtime(manifest: dict) -> int:
                             package="isaac_ros_tensor_proc",
                             plugin="nvidia::isaac_ros::dnn_inference::ImageToTensorNode",
                             name="depth_to_tensor",
-                            parameters=[{"scale": False, "tensor_name": manifest["depth_name"]}],
+                            parameters=[{"scale": False, "tensor_name": manifest["depth_name"] or ""}],
                             remappings=[("image", "/g1_policy/depth/image"), ("tensor", "/g1_policy/depth_tensor")],
                         )
                     ],
@@ -258,7 +274,7 @@ def run_runtime(manifest: dict) -> int:
 class InputWatchdog:
     """Check policy inputs and outputs and request damping on a fault."""
 
-    def __init__(self, names: list[str], imu_topic: str, depth_name: str):
+    def __init__(self, names: list[str], imu_topic: str, depth_name: str | None, motion: dict | None = None):
         import rclpy
         from controller_manager_msgs.srv import SwitchController
         from geometry_msgs.msg import Twist
@@ -270,7 +286,7 @@ class InputWatchdog:
 
         self.node = rclpy.create_node("g1_policy_watchdog")
         self.names, self.seen, self.enabled, self.fault = names, {}, False, None
-        self.depth_name = depth_name
+        self.required = ("joints", "imu", "motion") if motion else ("joints", "imu", "velocity", "depth")
         self.started, self.last_output = time.monotonic(), None
         self.pending, self.stopped = None, False
         self._switch_type, self._bool = SwitchController, Bool
@@ -279,8 +295,21 @@ class InputWatchdog:
         self.commands = self.node.create_publisher(JointCommand, "/g1_policy/checked_commands", 1)
         self.node.create_subscription(JointState, "/joint_states", self.on_joints, qos_profile_sensor_data)
         self.node.create_subscription(Imu, imu_topic, self.on_imu, qos_profile_sensor_data)
-        self.node.create_subscription(Twist, "/cmd_vel", self.on_velocity, 1)
-        self.node.create_subscription(TensorList, "/g1_policy/depth_tensor", self.on_depth, 1)
+        if motion:
+            self.node.create_subscription(
+                TensorList,
+                "/g1_policy/motion",
+                lambda msg: self.on_tensor(msg, "motion", motion["name"], motion["shape"][1:]),
+                1,
+            )
+        else:
+            self.node.create_subscription(Twist, "/cmd_vel", self.on_velocity, 1)
+            self.node.create_subscription(
+                TensorList,
+                "/g1_policy/depth_tensor",
+                lambda msg: self.on_tensor(msg, "depth", depth_name, [38, 64, 1]),
+                1,
+            )
         self.node.create_subscription(JointCommand, "/g1_policy/joint_commands", self.on_output, 1)
         self.node.create_subscription(Empty, "/g1_policy/stop", lambda _: self.stop("Operator stop"), 1)
         self.node.create_timer(0.02, self.tick)
@@ -321,20 +350,20 @@ class InputWatchdog:
             "velocity", [msg.linear.x, msg.linear.y, msg.linear.z, msg.angular.x, msg.angular.y, msg.angular.z]
         )
 
-    def on_depth(self, msg):
-        if list(msg.names) != [self.depth_name] or len(msg.tensors) != 1:
-            self.stop("Invalid depth tensor name")
+    def on_tensor(self, msg, source: str, name: str, shape: list[int]):
+        if list(msg.names) != [name] or len(msg.tensors) != 1:
+            self.stop(f"Invalid {source} tensor name")
             return
         tensor = msg.tensors[0]
         if (
-            list(tensor.shape) != [38, 64, 1]
+            list(tensor.shape) != shape
             or (tensor.dtype_code, tensor.dtype_bits, tensor.dtype_lanes) != (2, 32, 1)
             or tensor.byte_offset != 0
-            or len(tensor.data) != 38 * 64 * 4
+            or len(tensor.data) != int(np.prod(shape)) * 4
         ):
-            self.stop("Invalid depth tensor layout")
+            self.stop(f"Invalid {source} tensor layout")
             return
-        self.receive("depth", np.frombuffer(bytes(tensor.data), dtype=np.float32), msg.header.stamp)
+        self.receive(source, np.frombuffer(bytes(tensor.data), dtype=np.float32), msg.header.stamp)
 
     def on_output(self, msg):
         if self.fault or not self.enabled:
@@ -380,9 +409,9 @@ class InputWatchdog:
             self.stop(self.fault)
             return
         now = time.monotonic()
-        ready = all(now - self.seen.get(key, -np.inf) <= MAX_AGE for key in ("joints", "imu", "velocity", "depth"))
+        ready = all(now - self.seen.get(key, -np.inf) <= MAX_AGE for key in self.required)
         if self.enabled and not ready:
-            self.stop("Robot, velocity command or depth input timed out")
+            self.stop("Robot or policy command input timed out")
         elif self.enabled and now - (self.last_output or self.started) > (MAX_AGE if self.last_output else 60.0):
             self.stop("Inference output timed out")
         elif ready:
@@ -434,17 +463,21 @@ def main() -> int:
                     "pipeline": str(pipeline),
                     "urdf": str(urdf),
                     "controllers": str(controllers),
-                    "depth_name": ports["state:depth_camera:output:distance_to_image_plane"]["name"],
+                    "depth_name": ports.get("state:depth_camera:output:distance_to_image_plane", {}).get("name"),
                     "source_to_topic": ",".join(
                         f"{ports[connection]['name']}:{args.imu_topic if kind.startswith('state/body/') else topic}"
                         for connection, (kind, topic) in INPUTS.items()
+                        if connection in ports
                     ),
                 }
             )
         )
         rclpy.init(signal_handler_options=SignalHandlerOptions.NO)
         watchdog = InputWatchdog(
-            names, args.imu_topic, ports["state:depth_camera:output:distance_to_image_plane"]["name"]
+            names,
+            args.imu_topic,
+            ports.get("state:depth_camera:output:distance_to_image_plane", {}).get("name"),
+            ports.get("command:motion"),
         )
         process = subprocess.Popen(
             [sys.executable, str(Path(__file__).resolve()), "--runtime", str(manifest)],
