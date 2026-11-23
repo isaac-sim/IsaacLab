@@ -97,6 +97,7 @@ class NewtonRecordingPanel:
         self._video_started: datetime | None = None
         self._video_frames = 0
         self._video_shape: tuple[int, int] | None = None
+        self._resize_reported = False
         self.screenshot_path = ""
         """File written by the latest screenshot."""
         self.video_include_hud = False
@@ -206,7 +207,7 @@ class NewtonRecordingPanel:
             imgui.separator()
             failed = any(
                 word in self._message
-                for word in ("failed", "Could not", "needs ffmpeg", "no policy", "stopped unexpectedly")
+                for word in ("failed", "Could not", "needs ffmpeg", "no policy", "stopped unexpectedly", "resized")
             )
             color = _GREEN if self._message.startswith("Saved") else _RED if failed else None
             if color is None:
@@ -253,6 +254,7 @@ class NewtonRecordingPanel:
             self._message = "Video needs ffmpeg: install it or the 'video' extra."
             return
         self._video_frames, self._video_shape = 0, None
+        self._resize_reported = False
         self._video_rate = self.video_fps or max(1, round(self._owner.cfg.window.fps))
         self._video_limit = round(self.video_length * self._video_rate) if self.video_length > 0 else None
         folder = resolve_output_dir(self.output_dir) / "video"
@@ -288,7 +290,11 @@ class NewtonRecordingPanel:
                 self._message = f"Could not start ffmpeg: {exc}"
                 return
         if frame.shape[:2] != self._video_shape:
-            return  # The window was resized mid-recording; skip frames the encoder cannot accept.
+            # The window was resized mid-recording; skip frames the encoder cannot accept, and say so once.
+            if not self._resize_reported:
+                self._resize_reported = True
+                self._message = "Window resized: video frames are skipped until it has the recorded size again."
+            return
         video = self._video
         try:
             video.stdin.write(np.ascontiguousarray(frame).tobytes())
@@ -299,8 +305,8 @@ class NewtonRecordingPanel:
             return
         self._video_frames += 1
         if self._video_limit is not None and self._video_frames >= self._video_limit:
-            self.stop_video()
-            self.save_video()  # A fixed length is meant to need no further clicks.
+            if self.stop_video():
+                self.save_video()  # A fixed length is meant to need no further clicks.
 
     def _finish_encoder(self, video: subprocess.Popen) -> bool:
         """Close the encoder, wait for it, and keep its clip only when it exited cleanly; returns whether it did."""
@@ -316,19 +322,24 @@ class NewtonRecordingPanel:
         self._video_temp.unlink(missing_ok=True)  # An earlier unsaved clip is kept.
         return False
 
-    def stop_video(self) -> None:
-        """End the capture. The clip stays in a temporary file until :meth:`save_video` keeps it."""
+    def stop_video(self) -> bool:
+        """End the capture. The clip stays in a temporary file until :meth:`save_video` keeps it.
+
+        Returns:
+            Whether this recording produced a new clip to save.
+        """
         video, self._video = self._video, None
         if video is None:
-            return
+            return False
         if video is True:
             self._message = "No frame was recorded."
-            return
+            return False
         if not self._finish_encoder(video):
             self._message = "ffmpeg failed; the video was discarded."
             logger.warning("[NewtonRecording] ffmpeg failed; the video recording was discarded.")
-            return
+            return False
         self._message = f"Stopped after {self._video_frames} frames. Press Save to keep the video."
+        return True
 
     def save_video(self) -> None:
         """Move the stopped video to its numbered file in the output folder."""
@@ -374,7 +385,15 @@ class NewtonRecordingPanel:
             jobs.append((self.screenshot_include_hud, self._write_screenshot))
         # Reading a frame with the HUD draws the HUD into the framebuffer, so the frames without it are read first.
         for include_hud, write in sorted(jobs, key=lambda job: job[0]):
-            write(owner._viewer.get_frame(render_ui=include_hud).numpy())
+            try:
+                frame = owner._viewer.get_frame(render_ui=include_hud).numpy()
+            except Exception as exc:  # A transient read failure must not abort the simulation loop.
+                logger.warning("[NewtonRecording] Reading the window frame failed: %s", exc)
+                self.stop_video()
+                self._screenshot_pending = False
+                self._message = f"Frame capture failed: {exc}. The recording was stopped."
+                return
+            write(frame)
 
     def request_screenshot(self) -> None:
         """Save the next rendered window frame, as a numbered PNG in the output folder."""

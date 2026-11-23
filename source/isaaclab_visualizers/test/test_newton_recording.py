@@ -393,3 +393,45 @@ def test_a_video_that_stopped_unexpectedly_is_shown_as_a_failure():
     panel._draw_message(imgui)
 
     imgui.push_style_color.assert_called_once_with(imgui.Col_.text, newton_recording._RED)
+
+
+def test_a_fixed_length_recording_whose_encode_failed_does_not_save_the_earlier_clip(tmp_path):
+    clip = tmp_path / ".earlier.mp4"
+    clip.write_bytes(b"clip")
+    panel = _recording_to(tmp_path, _Encoder(returncode=1))
+    panel._video_unsaved, panel._video_unsaved_frames = clip, 7
+    panel._video_shape, panel._video_limit = (4, 4), 1
+
+    panel._write_video_frame(np.zeros((4, 4, 3), np.uint8))
+
+    assert "ffmpeg failed" in panel._message and not panel.video_path  # not overwritten by a 'Saved' message
+    assert panel.unsaved_video and clip.exists()
+
+
+def test_a_window_resize_during_a_recording_is_reported_once(tmp_path):
+    panel = _recording_to(tmp_path, _Encoder())
+    panel._video_shape = (4, 4)
+
+    panel._write_video_frame(np.zeros((8, 8, 3), np.uint8))
+    panel._message = ""
+    panel._write_video_frame(np.zeros((8, 8, 3), np.uint8))
+
+    assert panel._video_frames == 0 and panel._message == ""  # reported on the first skipped frame only
+    panel._resize_reported = False
+    panel._write_video_frame(np.zeros((8, 8, 3), np.uint8))
+    assert "Window resized" in panel._message
+
+
+def test_a_failed_frame_read_stops_the_recording_instead_of_raising(tmp_path):
+    panel = _recording_to(tmp_path, _Encoder())
+
+    def unreadable(render_ui=False):
+        raise RuntimeError("GL read failed")
+
+    panel._owner._viewer.get_frame = unreadable
+    panel.request_screenshot()
+
+    panel.capture()
+
+    assert not panel.recording_video and "Frame capture failed" in panel._message
+    assert not panel._screenshot_pending
