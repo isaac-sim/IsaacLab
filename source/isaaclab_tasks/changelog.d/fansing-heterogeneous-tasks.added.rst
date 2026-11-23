@@ -5,5 +5,4 @@
   one of them with the success of all tasks evaluated together. The tasks load their assets from the HeteroTask
   dataset on Hugging Face, from its local Hugging Face cache when downloaded, or from the location in the
   ``VLA_BENCHMARKS_ASSETS_DIR`` environment variable, and use
-  :obj:`~isaaclab_assets.robots.franka.FRANKA_ROBOTIQ_GRIPPER_CFG` with the asset of the franka_robotiq dataset on
-  Hugging Face and the start pose and arm gains of the RoboLab DROID setup.
+  :obj:`~isaaclab_assets.robots.franka.FRANKA_ROBOTIQ_GRIPPER_CFG`.

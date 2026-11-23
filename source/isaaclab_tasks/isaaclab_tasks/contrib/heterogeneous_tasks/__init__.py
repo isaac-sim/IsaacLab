@@ -43,6 +43,5 @@ robot table and dome light texture. Taken from the environment variable of the s
 otherwise from the Hugging Face cache when it holds the dataset's fixed commit, which
 ``hf download LiFanxing/HeteroTask --repo-type dataset --revision <commit>`` puts there (``HF_HUB_CACHE`` selects the
 cache directory); otherwise from that commit on Hugging Face. A local copy avoids checking every cached remote file
-against the server on each run. The robot is that of :obj:`~isaaclab_assets.robots.franka.FRANKA_ROBOTIQ_GRIPPER_CFG`,
-with its asset from the ``LiFanxing/franka_robotiq`` dataset on Hugging Face.
+against the server on each run. The robot is that of :obj:`~isaaclab_assets.robots.franka.FRANKA_ROBOTIQ_GRIPPER_CFG`.
 """

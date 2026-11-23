@@ -11,4 +11,6 @@ from isaaclab_assets.robots.franka import FRANKA_ROBOTIQ_GRIPPER_CFG
 
 FRANKA_ROBOTIQ_CFG = clone(FRANKA_ROBOTIQ_GRIPPER_CFG)
 FRANKA_ROBOTIQ_CFG.prim_path = "{ENV_REGEX_NS}/robot"
+# The tasks arrange their furniture around the robot at the environment origin.
+FRANKA_ROBOTIQ_CFG.init_state.pos = (0.0, 0.0, 0.0)
 """Franka arm with a Robotiq 2F-85 gripper, at the environment origin."""

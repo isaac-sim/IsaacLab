@@ -27,7 +27,7 @@ from isaaclab.utils import configclass
 from . import VLA_BENCHMARKS_ASSETS_DIR
 from .config.franka.robot_cfg import FRANKA_ROBOTIQ_CFG
 
-GRIPPER_BODY = "robot/Gripper/Robotiq_2F_85/left_inner_finger"
+GRIPPER_BODY = "robot/Robotiq_2F_85_edit/Robotiq_2F_85/left_inner_finger"
 """Gripper link, relative to the environment prim, whose contacts decide whether an object is held."""
 
 
@@ -92,10 +92,10 @@ class VLABenchmarkSceneCfg(InteractiveSceneCfg):
     )
     # The wrist camera rides on the gripper, so its pose follows the simulated link.
     wrist_cam = _camera(
-        "{ENV_REGEX_NS}/robot/Gripper/Robotiq_2F_85/base_link/wrist_cam",
+        "{ENV_REGEX_NS}/robot/Robotiq_2F_85_edit/Robotiq_2F_85/base_link/wrist_cam",
         2.8,
-        (0.011, -0.031, -0.074),
-        (0.57, 0.576, -0.409, -0.42),
+        (-0.074, 0.031, 0.011),
+        (0.704, -0.692, -0.11, 0.114),
         follow_link=True,
     )
     contact = ContactSensorCfg(
