@@ -109,6 +109,7 @@ def test_recording_notifies_teleop_when_environment_zero_resets_itself(terminate
     [
         (["--xr", "--ovxr"], "mutually exclusive"),
         (["--ovxr_step_hz", "20"], "requires --ovxr"),
+        (["--ovxr_step_hz", "0"], "requires --ovxr"),
         (["--ovxr", "--ovxr_step_hz", "nan"], "finite and non-negative"),
         (["--ovxr_desktop_mirror"], "--ovxr_desktop_mirror requires --ovxr"),
         (["--ovxr_camera_feed", "head_cam"], "--ovxr_camera_feed requires --ovxr"),

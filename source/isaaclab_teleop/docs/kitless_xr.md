@@ -137,12 +137,14 @@ physics kernels. First runtime preparation and the first physics step can take
 longer than subsequent runs. Retain startup logs and distinguish stage/render
 preparation from client connection and active simulation.
 
-Use `--ovxr_step_hz 20` to cap live control at 20 updates per second while XR rendering
-runs independently. Time spent reading input, stepping physics and publishing
-the scene counts toward that interval. Slow steps do not cause catch-up steps.
-Omit the option or use zero for unthrottled control. Paused polling uses the
-environment action interval when no explicit rate is set. This option requires
-`--ovxr` and does not change physics dt or decimation.
+Live control runs at the environment step rate, `1 / (sim.dt * decimation)`, so simulation
+time passes at real time when the host keeps up and recorded demonstrations keep the
+operator's pace. XR rendering runs independently. Time spent reading input, stepping
+physics and publishing the scene counts toward that interval. Slow steps do not cause
+catch-up steps, so a host that cannot keep up runs slower than real time.
+Use `--ovxr_step_hz 20` to replace that rate with 20 updates per second, or zero for
+unthrottled control. Paused polling uses the environment action interval when the rate
+is zero. This option requires `--ovxr` and does not change physics dt or decimation.
 
 ## MCAP replay
 
