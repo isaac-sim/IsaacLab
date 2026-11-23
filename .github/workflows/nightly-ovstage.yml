@@ -86,7 +86,6 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 120
     needs: [build, config]
-    if: needs.build.result == 'success'
     env:
       USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_image != '' && github.ref_name == github.event.repository.default_branch }}
     steps:
