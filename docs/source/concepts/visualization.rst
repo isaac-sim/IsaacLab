@@ -662,6 +662,16 @@ streaming views, and renderer-based sensor data capture.
      </div>
    </div>
 
+.. _visualization-newton-recording:
+
+Newton Window Recording
+~~~~~~~~~~~~~~~~~~~~~~~
+
+The **Recording** section of the Newton visualizer saves two things: an ``mp4`` video of the window and a ``.png``
+screenshot of the window. Files go to the output
+folder set by :class:`~isaaclab_visualizers.newton.NewtonRecordingCfg`. Video and screenshots can include the HUD
+panels with their **Include HUD** options.
+
 .. _record_video_cli:
 
 Pass ``--video [SOURCE]`` on the command line for a quick recording, or define multiple

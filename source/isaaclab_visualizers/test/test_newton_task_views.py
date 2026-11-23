@@ -328,6 +328,21 @@ def test_a_free_view_records_the_rtx_window_instead_of_an_opengl_render():
     assert viz.current_image_view is rtx
 
 
+def test_capturing_a_view_the_window_does_not_show_stays_out_of_the_hud_recording():
+    shown, other = _view(TrackingCameraCfg(env_index=0)), _view(TrackingCameraCfg(env_index=1))
+    viz = _switchable([shown, other])
+    viz._viewer.camera.pos = Vec3(0.0, 0.0, 0.0)
+    viz._viewer.camera.pitch = viz._viewer.camera.yaw = 0.0
+    viz._viewer.set_camera = lambda *args: None
+    viz._viewer.world_offsets = None
+    seen = []
+    viz._capture_frame = lambda output: seen.append(viz._capturing_another_view)
+
+    viz._capture_view(other, None)
+
+    assert seen == [True] and not viz._capturing_another_view
+
+
 def test_the_camera_speed_slider_sets_the_free_cameras_keyboard_speed():
     free, tracking = _view(PerspectiveCameraCfg()), _view(TrackingCameraCfg(env_index=0))
     viz = _switchable([free, tracking])
@@ -353,7 +368,7 @@ def test_a_window_with_only_the_rtx_camera_draws_its_camera_controls():
 
     viz = _switchable([_rtx_view()])
     viz.current_image_view = viz._image_views[0]
-    viz._borrowing_view = False
+    viz._capturing_another_view = False
     viz._draw_appearance = viz._draw_navigation_controls = viz._draw_camera_info = lambda imgui: None
     imgui = Mock()
     imgui.is_item_hovered.return_value = False
@@ -369,7 +384,7 @@ def test_camera_view_controls_are_grouped_under_headers_in_order():
     from unittest.mock import Mock
 
     viz = _switchable([_view(PerspectiveCameraCfg()), _rtx_view()])
-    viz._borrowing_view = False
+    viz._capturing_another_view = False
     order = []
     viz._draw_appearance = lambda imgui: order.append("appearance")
     viz._draw_focal_length = lambda imgui: order.append("focal length")

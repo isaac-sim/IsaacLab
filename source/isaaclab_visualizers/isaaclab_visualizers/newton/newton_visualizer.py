@@ -60,6 +60,7 @@ from isaaclab_visualizers.newton.newton_overlay_meshes import OverlayMeshPublish
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
 
 from .newton_key_event_source import NewtonKeyEventSource
+from .newton_recording import NewtonRecordingPanel, hover_tooltip
 from .newton_rtx_appearance import SKY_TEXTURES, RtxAppearance
 
 logger = logging.getLogger(__name__)
@@ -122,12 +123,6 @@ def hud_warning(imgui: Any, text: str) -> None:
     imgui.push_style_color(imgui.Col_.text, imgui.ImVec4(1.0, 0.78, 0.25, 1.0))
     imgui.text_wrapped(text)
     imgui.pop_style_color()
-
-
-def hover_tooltip(imgui: Any, text: str) -> None:
-    """Show ``text`` while the last item is hovered, including when it is disabled."""
-    if imgui.is_item_hovered(imgui.HoveredFlags_.allow_when_disabled):
-        imgui.set_tooltip(text)
 
 
 def marker_tooltip(prim_path: str) -> str:
@@ -217,6 +212,7 @@ class NewtonViewerGL(ViewerGL):
     keyboard_frame_hook: Callable[[], object] | None = None
     """Called after every frame while a :class:`NewtonKeyEventSource` listens, to track ImGui keyboard ownership."""
     _owner = None
+    _recording_panel = None
     _show_stats = False
     """Whether the performance and model statistics overlay in the top-right corner is open."""
     image_matches_camera = False
@@ -355,9 +351,10 @@ class NewtonViewerGL(ViewerGL):
         2. **Camera View** (closed) — renderer (OpenGL or RTX), camera source, and renderer-specific options.
         3. **Scene** (closed) — visible environments, visualization markers (a toggle per marker group, shared with Kit
            and Viser), and visual overlays.
-        4. **Live Plots** (closed) — injected when :meth:`~NewtonGLVisualizer.add_live_plots` is called.
-        5. **Articulation Inspector** (closed) — Newton's articulation selection panel.
-        6. **Control Bindings** (closed) — the camera, keyboard, and mouse controls and what each one does.
+        4. **Recording** (closed) — video, screenshot, and their output settings.
+        5. **Live Plots** (closed) — injected when :meth:`~NewtonGLVisualizer.add_live_plots` is called.
+        6. **Articulation Inspector** (closed) — Newton's articulation selection panel.
+        7. **Control Bindings** (closed) — the camera, keyboard, and mouse controls and what each one does.
 
         The top-level Newton ``Pause / Step`` row is suppressed; pause/resume is handled by the Isaac Lab controls
         inside **Playback**.
@@ -418,6 +415,10 @@ class NewtonViewerGL(ViewerGL):
 
             # --- Scene ------------------------------------------------------
             viewer._draw_scene_controls(imgui)
+
+            # --- Recording --------------------------------------------------
+            if viewer._recording_panel is not None:
+                viewer._recording_panel.draw(imgui)
 
             # --- Live Plots -------------------------------------------------
             live_plots_cb = viewer._live_plots_callback
@@ -931,10 +932,10 @@ class NewtonVisualizerBase(BaseVisualizer):
     """Prim path of the viewer camera launch declared for this window; None accepts any viewer camera."""
     _rtx_arrows_pending = False
     _rtx_visibility_limited = False
+    _capturing_another_view = False
+    _warned_recording_stopped = False
     _rtx_switch: str | None = None
     """``"requested"`` once the HUD asked for RTX and showed the wait message, ``"loading"`` until its first frame."""
-    _borrowing_view = False
-    """Whether an off-screen capture has swapped the displayed view, so the window controls must not act on it."""
     _rtx_appearance: RtxAppearance | None = None
 
     # The OpenGL window overrides these; the standalone RTX window has no OpenGL view to switch to.
@@ -952,7 +953,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         self._runtime_headless = cfg.headless
         self._last_present_time = -math.inf
         self._last_render_step = -1
-        self._borrowing_view = False
+        self._capturing_another_view = False
         self._pending_mesh_submissions: dict[str, dict[str, Any]] = {}
         self._camera_keys_enabled = True
         self._overlay_publisher = None
@@ -1126,7 +1127,9 @@ class NewtonVisualizerBase(BaseVisualizer):
 
     def _draw_streaming_view_controls(self, imgui) -> None:
         """Choose one declared display source without reading the other sensors."""
-        if self._borrowing_view:  # an off-screen capture swapped the view; the window controls must not act on it
+        if (
+            self._capturing_another_view
+        ):  # an off-screen capture swapped the view; the window controls must not act on it
             return
         rtx_index = getattr(self, "rtx_view_index", None)
         # The OVRTX camera is chosen with the Renderer toggle, so the list holds only the other sources.
@@ -1859,7 +1862,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         camera = self._viewer.camera
         saved = (PygletVec3(camera.pos.x, camera.pos.y, camera.pos.z), camera.pitch, camera.yaw, camera.fov)
         try:
-            self._borrowing_view = True
+            self._capturing_another_view = True  # the HUD recording keeps the frames the window itself shows
             self.current_image_view = view
             if self._is_tracking_view(view):  # rendering may be paused, which leaves the camera where it was
                 self._apply_view_pose(view)
@@ -1872,7 +1875,7 @@ class NewtonVisualizerBase(BaseVisualizer):
             self._last_render_step = -1
             return self._capture_frame(output)
         finally:
-            self._borrowing_view = False
+            self._capturing_another_view = False
             self.current_image_view = current
             camera.fov = saved[3]
             self._viewer.set_camera(*saved[:3])
@@ -2036,6 +2039,8 @@ class NewtonVisualizerBase(BaseVisualizer):
 class NewtonGLVisualizer(NewtonVisualizerBase):
     """Newton model rendering, picking, and contact overlays used by the GL visualizer."""
 
+    _recording: NewtonRecordingPanel | None = None
+
     @property
     def visual_material_writer(self):
         """Return the shared Newton model color-writer factory."""
@@ -2141,6 +2146,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self._cfg_visible_env_ids = self._env_ids
         self._num_envs = num_envs
         self._viewer._owner = self
+        self._recording = self._viewer._recording_panel = NewtonRecordingPanel(self)
         self._apply_visible_worlds()
         self._viewer._paused = False
         self._viewer.picking_enabled = self._picking_enabled
@@ -2247,7 +2253,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             for name, arguments in self._pending_mesh_submissions.items():
                 viewer.log_mesh(name, **arguments)
             self._pending_mesh_submissions.clear()
-            if not viewer.is_paused() and not self._borrowing_view:  # a capture must not add plot samples
+            if not viewer.is_paused() and not self._capturing_another_view:  # a capture must not add plot samples
                 self._render_live_plots()
         finally:
             viewer.end_frame()
@@ -2255,6 +2261,15 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
                 self._rtx_switch = None
             if not viewer.is_running():
                 self._viewer_picking_binding.deactivate()
+        if self._recording is not None and not self._capturing_another_view:
+            if viewer.is_running():
+                self._recording.capture(paused=viewer.is_paused())
+            elif not self._warned_recording_stopped:
+                # A closed window has released its OpenGL resources; close() finishes the encoder instead.
+                self._warned_recording_stopped = True
+                logger.warning(
+                    "[NewtonVisualizer] The window closed, so the HUD recording stops here and is saved on exit."
+                )
         self._last_render_step = self._sim.get_physics_step_count()
         if self.current_image_view.camera is None:
             self.current_image_view.invalidate()
@@ -2525,9 +2540,13 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
                     self._overlay_publisher.hide_all(self._rtx_renderers)
                 except Exception:
                     logger.debug("[NewtonVisualizer] The overlay meshes could not be hidden.", exc_info=True)
-            if self._picking_enabled:
-                # Captured graphs retain neutral picking inputs until their last replay.
-                self._viewer_picking_binding.deactivate()
+            try:
+                if self._recording is not None:
+                    self._recording.close()
+            finally:
+                if self._picking_enabled:
+                    # Captured graphs retain neutral picking inputs until their last replay.
+                    self._viewer_picking_binding.deactivate()
         finally:
             self._viewer = self.backend = self._transform_mapping = None
             super().close()
