@@ -212,12 +212,11 @@ Explore the cluttered scene from the sensor docs through a :doc:`foveated camera
 Use WASD or the arrow keys to move and Q/E to lower or raise the camera.
 Pass ``--target power_drill`` to start with the retina pointed at the drill.
 
-The Newton viewers show the fisheye on a curved viewing sphere beside the foveated retina. The green lens
-boundary follows the camera mount. The blue gaze circle and sampling grid show the retina's coverage, with the
-surrounding scene faded. Texture and gaze overlays are clipped to the calibrated lens bounds, and retina samples
-outside those bounds are black. Left-drag on the sphere to aim the gaze at a visible point, or left-drag on the
-retina to turn the camera. I/K tilt the gaze and J/L pan it independently of the mount.
-Scroll to dolly the camera. Ctrl+scroll magnifies the retina and shrinks its coverage on the sphere.
+The Newton viewers show the foveated retina, and a panel shows the fisheye on a curved viewing sphere beside a
+magnified retina. The green lens boundary follows the camera mount. The blue gaze circle and sampling grid show the
+magnified retina's coverage, with the surrounding scene faded. Texture and gaze overlays are clipped to the calibrated
+lens bounds, and retina samples outside those bounds are black. I/K tilt the gaze and J/L pan it independently of the
+mount. O/U magnify the panel's retina and zoom back out, which shrinks or grows its coverage on the sphere.
 Press H to show or hide the viewer controls.
 
 .. code-block:: bash
