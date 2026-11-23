@@ -246,13 +246,12 @@ Compiled-stage cache
 
 OvPhysX 0.8 can store compiled physics stages in the cooked-collider cache
 directory. Large deformable scenes can attach faster with compiled-stage
-caching disabled. Isaac Lab opts out for deformable scenes by default and
-inherits the runtime mode for other scenes. Set
-``OvPhysxCfg(disable_compiled_stage_cache=True)`` to opt out for any scene, or
-set it to ``False`` to inherit the runtime mode even for deformables.
+caching disabled. Set ``OvPhysxCfg(disable_compiled_stage_cache=True)`` to opt
+out for a scene. The Franka cloth and soft-beam lift tasks set this option
+in their ``physics=ovphysx`` presets. The default inherits the runtime mode.
 
 The opt-out does not affect cooked-collider caching. Isaac Lab restores the
-process-wide compiled-stage cache setting after the attach task completes.
+process-wide compiled-stage cache setting after submitting the attach task.
 Code using the native OvPhysX API in the same process should avoid attaching
 a separate stage concurrently with an Isaac Lab attach.
 

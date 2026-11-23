@@ -66,8 +66,8 @@ _ATTACH_LOCK = Lock()
 @contextmanager
 def _compiled_stage_cache_for_attach(disable: bool) -> Iterator[None]:
     """Scope the runtime's process-wide cache mode to one Isaac Lab attachment."""
-    # Every Isaac Lab attachment takes the lock so inherited settings cannot pick up another
-    # attachment's override. The async attach task reads the mode before the wait completes.
+    # OvPhysX captures the cache mode at submission. Serialize submissions so an attachment
+    # that inherits the runtime mode cannot pick up another attachment's override.
     with _ATTACH_LOCK:
         if not disable:
             yield
@@ -371,7 +371,7 @@ class OvPhysxBackend:
                 operation = self.physx.attach_ovstage(self.scene.stage, read_ordinal=self.scene.ordinal - 1)
                 # Accepted attach failures can retain native ownership. Keep the stage for cleanup.
                 self.stage = self.scene.stage
-                self.physx.wait_task(operation)
+            self.physx.wait_task(operation)
         except Exception:
             if self.owns_scene and self.stage is None:
                 self.scene.close()
@@ -802,11 +802,7 @@ class OvPhysxManager(PhysicsManager):
         if not self._atexit_registered:
             atexit.register(self._close_at_exit)
             self._atexit_registered = True
-        disable_compiled_stage_cache = self._cfg.disable_compiled_stage_cache
-        if disable_compiled_stage_cache is None:
-            # Deformable assets require full-stage import even without a clone plan.
-            disable_compiled_stage_cache = self._requires_full_stage or bool(entries)
-        self.backend.load(stage_usda, disable_compiled_stage_cache=disable_compiled_stage_cache)
+        self.backend.load(stage_usda, disable_compiled_stage_cache=self._cfg.disable_compiled_stage_cache)
         logger.info("OvPhysxManager: attached OVStage to ovphysx (device=%s)", ovphysx_device)
 
         for source, targets, transforms, env_ids, _ in native_clones:

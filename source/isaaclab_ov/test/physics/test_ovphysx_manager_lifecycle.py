@@ -898,7 +898,7 @@ def test_load_scopes_compiled_stage_cache_opt_out(monkeypatch, manager_module, m
 
     def wait(task):
         assert task is receipt
-        assert mode == CompiledStageCacheMode.DISABLED
+        assert mode == CompiledStageCacheMode.READ_ONLY
         if fail:
             raise RuntimeError("attach failed")
 

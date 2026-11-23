@@ -75,11 +75,10 @@ class OvPhysxCfg(PhysicsCfg):
     purged between boots.
     """
 
-    disable_compiled_stage_cache: bool | None = None
+    disable_compiled_stage_cache: bool = False
     """Bypass the OvPhysX compiled-stage cache when attaching the stage.
 
-    Set to True to opt out for any scene, or False to inherit the runtime setting.
-    The default (None) opts out for deformable scenes and inherits for other scenes.
+    Defaults to False, which inherits the runtime setting.
     This does not disable the cooked-collider cache.
     """
 
