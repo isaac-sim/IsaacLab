@@ -8,7 +8,7 @@ import math
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.markers.config import FRAME_MARKER_CFG
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import FrameTransformerCfg, OffsetCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass, replace
 
 import isaaclab_tasks.contrib.deploy.mdp as mdp
 from isaaclab_tasks.contrib.deploy.reach.reach_env_cfg import ReachEnvCfg
@@ -38,7 +38,7 @@ class UR10eReachEnvCfg(ReachEnvCfg):
         self.events.joint_friction.params["asset_cfg"].joint_names = ["shoulder_.*", "elbow_.*", "wrist_.*"]
 
         # switch robot to ur10e
-        self.scene.robot = UR10e_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace(UR10e_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
         # The real UR10e robots polyscore software uses the "base" frame for reference
         # But the USD model and UR10e ROS interface uses the "base_link" frame
@@ -49,7 +49,7 @@ class UR10eReachEnvCfg(ReachEnvCfg):
         self.rewards.end_effector_keypoint_tracking_exp.params["asset_cfg"] = SceneEntityCfg("ee_frame_wrt_base_frame")
         self.scene.ee_frame_wrt_base_frame = FrameTransformerCfg(
             prim_path="{ENV_REGEX_NS}/Robot/base_link",
-            visualizer_cfg=FRAME_MARKER_CFG.replace(prim_path="/Visuals/FrameTransformer"),
+            visualizer_cfg=replace(FRAME_MARKER_CFG, prim_path="/Visuals/FrameTransformer"),
             source_frame_offset=OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(0.0, 0.0, 1.0, 0.0)),
             target_frames=[
                 FrameTransformerCfg.FrameCfg(

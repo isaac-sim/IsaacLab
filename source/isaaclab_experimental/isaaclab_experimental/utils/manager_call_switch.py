@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import logging
 import os
 from enum import IntEnum
 from typing import Any
@@ -16,6 +17,8 @@ from typing import Any
 from isaaclab.utils.timer import Timer
 
 from isaaclab_experimental.utils.warp_graph_cache import WarpGraphCache
+
+logger = logging.getLogger(__name__)
 
 
 class ManagerCallMode(IntEnum):
@@ -80,13 +83,13 @@ class ManagerCallSwitch:
         if cfg_source is None:
             cfg_source = os.environ.get(self.ENV_VAR)
         self._cfg = self._load_cfg(cfg_source)
-        print("[INFO] ManagerCallSwitch configuration:")
-        print(f"  - {self.DEFAULT_KEY}: {self._cfg[self.DEFAULT_KEY]}")
+        lines = [f"  - {self.DEFAULT_KEY}: {self._cfg[self.DEFAULT_KEY]}"]
         for manager_name in self.MANAGER_NAMES:
             mode = int(self.get_mode_for_manager(manager_name))
             cap = self._max_modes.get(manager_name)
             cap_str = f" (cap={cap})" if cap is not None else ""
-            print(f"  - {manager_name}: {mode}{cap_str}")
+            lines.append(f"  - {manager_name}: {mode}{cap_str}")
+        logger.info("ManagerCallSwitch configuration:\n" + "\n".join(lines))
 
     # ------------------------------------------------------------------
     # Graph management
@@ -116,15 +119,15 @@ class ManagerCallSwitch:
         * ``args`` (optional): Positional arguments tuple.
         * ``kwargs`` (optional): Keyword arguments dict.
         * ``output`` (optional): A ``Callable[[Any], Any]`` that transforms the raw
-          return value into the final output. For captured stages the raw value is
-          ``None``. When omitted, the raw return value is used as-is.
+          return value into the final output. For captured stages the raw value is the
+          value cached from the capture run. When omitted, the raw return value is used as-is.
 
         Args:
             stage: Stage identifier in the form ``"ManagerName_function_name"``.
             warp_call: Call spec for the warp path (eager or captured).
             stable_call: Call spec for the stable (torch) path. Defaults to ``None``.
-            timer: Whether to wrap execution in a :class:`Timer`. Defaults to ``True``
-                (controlled by the global :attr:`Timer.enable` class-level toggle).
+            timer: Whether to wrap execution in a :class:`Timer`. Defaults to ``False``
+                (timing is further gated by the global :attr:`Timer.enable` class-level toggle).
                 Pass a module-level flag like ``TIMER_ENABLED_STEP`` to make timing
                 conditional on that flag.
 

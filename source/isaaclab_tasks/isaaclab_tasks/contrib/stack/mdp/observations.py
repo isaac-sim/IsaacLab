@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Observation terms for the cube-stacking environments."""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Literal
@@ -324,7 +326,7 @@ def object_grasped(
 
     if hasattr(env.scene, "surface_grippers") and len(env.scene.surface_grippers) > 0:
         surface_gripper = env.scene.surface_grippers["surface_gripper"]
-        suction_cup_status = wp.to_torch(surface_gripper.state).view(-1, 1)  # 1: closed, 0: closing, -1: open
+        suction_cup_status = wp.to_torch(surface_gripper.state).view(-1)  # 1: closed, 0: closing, -1: open
         suction_cup_is_closed = (suction_cup_status == 1).to(torch.float32)
         grasped = torch.logical_and(suction_cup_is_closed, pose_diff < diff_threshold)
 
@@ -369,7 +371,7 @@ def object_stacked(
 
     if hasattr(env.scene, "surface_grippers") and len(env.scene.surface_grippers) > 0:
         surface_gripper = env.scene.surface_grippers["surface_gripper"]
-        suction_cup_status = wp.to_torch(surface_gripper.state).view(-1, 1)  # 1: closed, 0: closing, -1: open
+        suction_cup_status = wp.to_torch(surface_gripper.state).view(-1)  # 1: closed, 0: closing, -1: open
         suction_cup_is_open = (suction_cup_status == -1).to(torch.float32)
         stacked = torch.logical_and(suction_cup_is_open, stacked)
 
@@ -450,17 +452,19 @@ def object_abs_obs_in_base_frame(
     ee_frame_cfg: SceneEntityCfg = SceneEntityCfg("ee_frame"),
     robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ):
-    """
-    Object Abs observations (in base frame): remove the relative observations,
-    and add abs gripper pos and quat in robot base frame
-        cube_1 pos,
-        cube_1 quat,
-        cube_2 pos,
-        cube_2 quat,
-        cube_3 pos,
-        cube_3 quat,
-        gripper pos,
-        gripper quat,
+    """Absolute object and gripper poses in the robot base frame.
+
+    The observation concatenates the following components in order. Positions are in [m],
+    and orientations are xyzw quaternions:
+
+    - cube_1 position
+    - cube_1 quaternion
+    - cube_2 position
+    - cube_2 quaternion
+    - cube_3 position
+    - cube_3 quaternion
+    - gripper position
+    - gripper quaternion
     """
     cube_1: RigidObject = env.scene[cube_1_cfg.name]
     cube_2: RigidObject = env.scene[cube_2_cfg.name]

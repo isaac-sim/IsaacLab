@@ -69,7 +69,7 @@ def test_measure_latency_excludes_pending_work_before_operation() -> None:
     def operation() -> None:
         nonlocal now_ns, pending_ns
         now_ns += 20
-        pending_ns = 30
+        pending_ns += 30
 
     sample = measure_latency(operation=operation, synchronize=synchronize, clock_ns=lambda: now_ns)
 

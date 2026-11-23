@@ -4,9 +4,6 @@
 	"recommendations": [
 		"ms-python.python",
 		"ms-python.vscode-pylance",
-		"ban.spellright",
-		"ms-iot.vscode-ros",
-		"ms-python.black-formatter",
-		"ms-python.flake8",
+		"charliermarsh.ruff",
 	]
 }

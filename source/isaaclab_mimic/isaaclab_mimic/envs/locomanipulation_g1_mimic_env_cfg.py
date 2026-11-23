@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from isaaclab.envs.mimic_env_cfg import MimicEnvCfg, SubTaskConfig
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.contrib.locomanip_pick_place.locomanipulation_g1_env_cfg import (
     LocomanipulationG1EnvCfg,
@@ -14,6 +14,8 @@ from isaaclab_tasks.contrib.locomanip_pick_place.locomanipulation_g1_env_cfg imp
 @configclass
 class LocomanipulationG1MimicEnvCfg(LocomanipulationG1EnvCfg, MimicEnvCfg):
     """Configuration for G1 Locomanipulation Mimic environment."""
+
+    class_type: type | str = "{DIR}.locomanipulation_g1_mimic_env:LocomanipulationG1MimicEnv"
 
     def __post_init__(self):
         # Call parent post-init
@@ -30,7 +32,6 @@ class LocomanipulationG1MimicEnvCfg(LocomanipulationG1EnvCfg, MimicEnvCfg):
         self.datagen_config.generation_joint_pos = False
         self.datagen_config.generation_transform_first_robot_pose = False
         self.datagen_config.generation_interpolate_from_last_target_pose = True
-        self.datagen_config.max_num_failures = 25
         self.datagen_config.num_demo_to_render = 10
         self.datagen_config.num_fail_demo_to_render = 25
         self.datagen_config.seed = 1

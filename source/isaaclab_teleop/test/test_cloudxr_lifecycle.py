@@ -110,9 +110,10 @@ _install_stubs()
 from isaaclab_teleop.isaac_teleop_cfg import (  # noqa: E402
     CLOUDXR_AVP_ENV,
     CLOUDXR_JS_ENV,
+    CLOUDXR_STANDALONE_ENV,
     IsaacTeleopCfg,
 )
-from isaaclab_teleop.session_lifecycle import TeleopSessionLifecycle  # noqa: E402
+from isaaclab_teleop.session_lifecycle import TeleopSessionLifecycle, cloudxr_eula_accepted  # noqa: E402
 
 _restore_stubs()
 
@@ -150,6 +151,30 @@ def _make_lifecycle(
     )
 
 
+@pytest.mark.parametrize("entry", ["lifecycle", "device", "factory"])
+def test_positional_recording_options_preserve_public_constructor_contract(entry):
+    """Existing positional MCAP/debug/haptic arguments must not become XR handles.
+
+    Exercise all three public argument-binding boundaries without opening an XR
+    session. Native recording/playback correctness has a separate owner.
+    """
+    from isaaclab_teleop.isaac_teleop_device import IsaacTeleopDevice, create_isaac_teleop_device
+
+    cfg = _make_cfg()
+    if entry == "lifecycle":
+        lifecycle = TeleopSessionLifecycle(cfg, None, False, False, "capture.mcap", None, True, None)
+    elif entry == "device":
+        device = IsaacTeleopDevice(cfg, None, False, False, "capture.mcap", None, True, None)
+        lifecycle = device._session_lifecycle
+    else:
+        device = create_isaac_teleop_device(cfg, "cpu", None, None, False, False, "capture.mcap", None, True, None)
+        lifecycle = device._session_lifecycle
+    assert lifecycle._mcap_record_path == "capture.mcap"
+    assert lifecycle._mcap_replay_path is None
+    assert lifecycle._enable_debug_visualization is True
+    assert lifecycle._external_oxr_handles_provider is None
+
+
 # ============================================================================
 # Shipped .env profile paths
 # ============================================================================
@@ -158,35 +183,26 @@ def _make_lifecycle(
 class TestEnvProfilePaths:
     """Tests for the shipped .env profile path constants."""
 
-    def test_avp_env_is_absolute_path(self):
-        assert os.path.isabs(CLOUDXR_AVP_ENV)
-
-    def test_js_env_is_absolute_path(self):
-        assert os.path.isabs(CLOUDXR_JS_ENV)
-
-    def test_avp_env_file_exists(self):
-        assert Path(CLOUDXR_AVP_ENV).is_file(), f"Missing: {CLOUDXR_AVP_ENV}"
-
-    def test_js_env_file_exists(self):
-        assert Path(CLOUDXR_JS_ENV).is_file(), f"Missing: {CLOUDXR_JS_ENV}"
-
-    def test_avp_env_filename(self):
-        assert Path(CLOUDXR_AVP_ENV).name == "avp-cloudxr.env"
-
-    def test_js_env_filename(self):
-        assert Path(CLOUDXR_JS_ENV).name == "cloudxrjs-cloudxr.env"
-
-    def test_profiles_are_in_same_directory(self):
-        assert Path(CLOUDXR_AVP_ENV).parent == Path(CLOUDXR_JS_ENV).parent
+    @pytest.mark.parametrize(
+        ("env_file", "expected_name"),
+        [
+            (CLOUDXR_AVP_ENV, "avp-cloudxr.env"),
+            (CLOUDXR_JS_ENV, "cloudxrjs-cloudxr.env"),
+            (CLOUDXR_STANDALONE_ENV, "cloudxr-standalone.env"),
+        ],
+    )
+    def test_env_file_exists(self, env_file, expected_name):
+        assert Path(env_file).is_file(), f"Missing: {env_file}"
+        assert Path(env_file).name == expected_name
 
 
 # ============================================================================
-# IsaacTeleop execution config
+# Isaac Capture execution config
 # ============================================================================
 
 
 class TestRetargetingExecutionConfig:
-    """Tests for Isaac Lab's IsaacTeleop retargeting execution defaults."""
+    """Tests for Isaac Lab's Isaac Capture retargeting execution defaults."""
 
     def test_session_config_receives_deadline_paced_pipelined_retargeting(self):
         """An unset retargeting execution config resolves to the pipelined default at session start."""
@@ -216,6 +232,226 @@ class TestRetargetingExecutionConfig:
         assert resolved_execution.mode == "pipelined"
         assert resolved_execution.pacing.safety_margin_s == 0.025
 
+    @pytest.mark.parametrize(
+        ("replay", "kit", "expected"),
+        [(True, False, "sync"), (True, True, "pipelined"), (False, False, "pipelined")],
+    )
+    def test_only_a_kitless_replay_retargets_synchronously(self, monkeypatch, replay, kit, expected):
+        """A kitless MCAP replay consumes one recorded frame per step; live sessions and Kit keep the default."""
+        from isaaclab_teleop import session_lifecycle
+
+        monkeypatch.setattr(session_lifecycle, "has_kit", lambda: kit)
+        lifecycle = TeleopSessionLifecycle(_make_cfg(), mcap_replay_path="recording.mcap" if replay else None)
+        assert lifecycle._resolved_retargeting_execution().mode == expected
+
+    def test_a_task_execution_mode_overrides_the_kitless_replay_default(self, monkeypatch):
+        """An execution mode set by the task is used as given."""
+        from isaaclab_teleop import session_lifecycle
+
+        monkeypatch.setattr(session_lifecycle, "has_kit", lambda: False)
+        cfg = _make_cfg()
+        cfg.retargeting_execution = sys.modules["isaacteleop.teleop_session_manager"].RetargetingExecutionConfig(
+            mode="pipelined"
+        )
+        lifecycle = TeleopSessionLifecycle(cfg, mcap_replay_path="recording.mcap")
+        assert lifecycle._resolved_retargeting_execution() is cfg.retargeting_execution
+
+
+class TestExternalOpenXRHandles:
+    """Tests for borrowing OVXR-owned OpenXR handles without the Kit bridge."""
+
+    def test_provider_handles_are_passed_to_teleop_session(self):
+        handles = object()
+        lifecycle = TeleopSessionLifecycle(
+            _make_cfg(),
+            use_kit_xr_bridge=False,
+            external_oxr_handles_provider=lambda: handles,
+        )
+        lifecycle._pipeline = MagicMock()
+        lifecycle._teleop_control_pipeline = None
+        session_config_cls = MagicMock(return_value=MagicMock())
+        session_cls = MagicMock()
+        fake_tsm_module = sys.modules["isaacteleop.teleop_session_manager"]
+
+        with (
+            patch.object(fake_tsm_module, "TeleopSessionConfig", session_config_cls),
+            patch.object(fake_tsm_module, "TeleopSession", session_cls),
+        ):
+            assert lifecycle.try_start_session() is True
+
+        assert session_config_cls.call_args.kwargs["oxr_handles"] is handles
+
+    def test_provider_none_defers_session_creation(self):
+        lifecycle = TeleopSessionLifecycle(
+            _make_cfg(),
+            use_kit_xr_bridge=False,
+            external_oxr_handles_provider=lambda: None,
+        )
+        lifecycle._pipeline = MagicMock()
+        lifecycle._teleop_control_pipeline = None
+
+        assert lifecycle.try_start_session() is False
+        assert lifecycle.is_active is False
+
+
+@pytest.mark.parametrize("replay", [False, True])
+@pytest.mark.parametrize("rollback_fails", [False, True])
+@pytest.mark.parametrize("error_type", [RuntimeError, KeyboardInterrupt])
+def test_failed_session_entry_is_not_published_as_active(tmp_path, monkeypatch, replay, rollback_fails, error_type):
+    recording = tmp_path / "recording.mcap"
+    recording.touch()
+    replay_module = ModuleType("isaacteleop.deviceio_session")
+    replay_module.McapReplayConfig = MagicMock()
+    monkeypatch.setitem(sys.modules, replay_module.__name__, replay_module)
+    lifecycle = TeleopSessionLifecycle(
+        _make_cfg(),
+        use_kit_xr_bridge=False,
+        mcap_replay_path=str(recording) if replay else None,
+    )
+    lifecycle._pipeline = MagicMock()
+    startup_error = error_type("session entry failed")
+    session_cls = MagicMock()
+    session_cls.return_value.cleanup_failed = rollback_fails
+    session_cls.return_value.__enter__.side_effect = startup_error
+    fake_tsm_module = sys.modules["isaacteleop.teleop_session_manager"]
+    with patch.object(fake_tsm_module, "TeleopSession", session_cls):
+        with pytest.raises(error_type) as caught:
+            lifecycle.try_start_session()
+        assert caught.value is startup_error
+        assert not lifecycle.is_active
+        if rollback_fails:
+            assert lifecycle._session is session_cls.return_value
+            assert lifecycle.session_cleanup_failed
+            for operation in (lifecycle.try_start_session, lifecycle.step, lifecycle.stop):
+                with pytest.raises(error_type) as repeated:
+                    operation()
+                assert repeated.value is startup_error
+            assert session_cls.call_count == 1
+            session_cls.return_value.__exit__.assert_not_called()
+        else:
+            assert lifecycle._session is None
+            session_cls.return_value.__enter__.side_effect = None
+            assert lifecycle.try_start_session()
+            assert session_cls.call_count == 2
+            assert lifecycle._session is session_cls.return_value
+
+
+def test_device_failed_entry_stops_partial_session():
+    """Python does not call __exit__ when __enter__ fails after runtime launch."""
+    from isaaclab_teleop.isaac_teleop_device import IsaacTeleopDevice
+
+    startup_error = RuntimeError("pipeline construction failed")
+    cfg = _make_cfg()
+    cfg.pipeline_builder = MagicMock(side_effect=startup_error)
+    device = IsaacTeleopDevice(cfg, cloudxr_env_file="test.env", use_kit_xr_bridge=False)
+    launcher_class = MagicMock()
+    launcher = launcher_class.return_value
+    with (
+        patch.object(device._session_lifecycle, "_run_system_check"),
+        patch.object(sys.modules["isaacteleop.cloudxr"], "CloudXRLauncher", launcher_class),
+        patch.dict(os.environ, {"ISAACLAB_CXR_SKIP_AUTOLAUNCH": "0"}),
+        pytest.raises(RuntimeError) as caught,
+    ):
+        with device:
+            pytest.fail("entry must fail")
+    assert caught.value is startup_error
+    launcher.stop.assert_called_once()
+    assert device._session_lifecycle._cloudxr_launcher is None
+
+
+@pytest.mark.parametrize("body_error", [False, True])
+def test_device_anchor_cleanup_does_not_skip_session_stop(body_error):
+    from isaaclab_teleop.isaac_teleop_device import IsaacTeleopDevice
+
+    device = IsaacTeleopDevice(_make_cfg(), use_kit_xr_bridge=False)
+    cleanup_error = RuntimeError("anchor subscription cleanup failed")
+    primary = ValueError("body failed") if body_error else None
+    device._anchor_manager.cleanup = MagicMock(side_effect=cleanup_error)
+    device._session_lifecycle.stop = MagicMock()
+    try:
+        if primary is None:
+            with pytest.raises(RuntimeError) as caught:
+                device.__exit__(None, None, None)
+            assert caught.value is cleanup_error
+        else:
+            assert device.__exit__(type(primary), primary, None) is False
+            assert any("anchor subscription" in note for note in primary.__notes__)
+        device._session_lifecycle.stop.assert_called_once()
+    finally:
+        device._anchor_manager.cleanup = MagicMock()
+
+
+@pytest.mark.parametrize("error_type", [RuntimeError, KeyboardInterrupt])
+def test_ui_cleanup_failure_still_drains_session_and_runtime(error_type):
+    lifecycle = _make_lifecycle()
+    cleanup_error = error_type("UI cleanup failed")
+    lifecycle._retargeting_ui_ctx = MagicMock()
+    lifecycle._retargeting_ui_ctx.__exit__.side_effect = cleanup_error
+    session, launcher = MagicMock(), MagicMock()
+    lifecycle._session, lifecycle._cloudxr_launcher = session, launcher
+    with pytest.raises(error_type) as caught:
+        lifecycle.stop()
+    assert caught.value is cleanup_error
+    session.__exit__.assert_called_once()
+    launcher.stop.assert_called_once()
+    assert lifecycle._session is None
+    assert lifecycle._cloudxr_launcher is None
+
+
+@pytest.mark.parametrize("replay", [False, True])
+def test_session_cleanup_error_without_borrowed_handles_is_suppressed(replay):
+    """Kit "Stop AR" invalidates the handles, so a failed exit still releases the session and runtime."""
+    lifecycle = TeleopSessionLifecycle(_make_cfg(), mcap_replay_path="recording.mcap" if replay else None)
+    session, launcher = MagicMock(), MagicMock()
+    session.__exit__.side_effect = RuntimeError("XR_ERROR_HANDLE_INVALID")
+    lifecycle._session, lifecycle._cloudxr_launcher = session, launcher
+    lifecycle.stop()
+    session.__exit__.assert_called_once()
+    assert lifecycle._session is None
+    assert not lifecycle.session_cleanup_failed
+    launcher.stop.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "body_error,error_type,replay",
+    [
+        (False, RuntimeError, False),
+        (True, RuntimeError, False),
+        (False, KeyboardInterrupt, False),
+        (True, KeyboardInterrupt, False),
+        (False, ValueError, True),
+        (True, RuntimeError, True),
+    ],
+)
+def test_session_exit_failure_is_visible_and_retains_resources(body_error, error_type, replay):
+    """OVXR replay exit failures stay visible even though input borrows no OpenXR handles."""
+    lifecycle = TeleopSessionLifecycle(
+        _make_cfg(),
+        use_kit_xr_bridge=False,
+        external_oxr_handles_provider=None if replay else lambda: object(),
+        ovxr_session=replay,
+        mcap_replay_path="recording.mcap" if replay else None,
+    )
+    session, launcher = MagicMock(), MagicMock()
+    cleanup_error = error_type("native drain failed")
+    primary = ValueError("body failed") if body_error else None
+    session.__exit__.side_effect = cleanup_error
+    lifecycle._session, lifecycle._cloudxr_launcher = session, launcher
+    if primary is None:
+        with pytest.raises(error_type) as caught:
+            lifecycle.stop()
+        assert caught.value is cleanup_error
+    else:
+        try:
+            lifecycle.stop(type(primary), primary, None)
+        except BaseException as error:
+            pytest.fail(f"Cleanup replaced the original body failure with {error!r}")
+        assert any("native drain failed" in note for note in primary.__notes__)
+    assert lifecycle._session is session
+    assert lifecycle.session_cleanup_failed
+    assert lifecycle._cloudxr_launcher is launcher
+    launcher.stop.assert_not_called()
+
 
 # ============================================================================
 # _ensure_cloudxr_runtime
@@ -225,20 +461,12 @@ class TestRetargetingExecutionConfig:
 class TestEnsureCloudXRRuntime:
     """Tests for the ``_ensure_cloudxr_runtime`` method on TeleopSessionLifecycle."""
 
-    def test_skip_when_env_var_set(self):
-        """ISAACLAB_CXR_SKIP_AUTOLAUNCH=1 skips the launch entirely."""
+    @pytest.mark.parametrize("value", ["1", " 1 "])
+    def test_skip_when_env_var_set(self, value):
+        """ISAACLAB_CXR_SKIP_AUTOLAUNCH=1 skips the launch, even with auto-launch enabled; whitespace is stripped."""
         lifecycle = _make_lifecycle(cloudxr_env_file="/tmp/test.env")
 
-        with patch.dict(os.environ, {"ISAACLAB_CXR_SKIP_AUTOLAUNCH": "1"}):
-            lifecycle._ensure_cloudxr_runtime()
-
-        assert lifecycle._cloudxr_launcher is None
-
-    def test_skip_when_env_var_set_with_whitespace(self):
-        """Whitespace around the env var value is stripped before comparison."""
-        lifecycle = _make_lifecycle(cloudxr_env_file="/tmp/test.env")
-
-        with patch.dict(os.environ, {"ISAACLAB_CXR_SKIP_AUTOLAUNCH": " 1 "}):
+        with patch.dict(os.environ, {"ISAACLAB_CXR_SKIP_AUTOLAUNCH": value}):
             lifecycle._ensure_cloudxr_runtime()
 
         assert lifecycle._cloudxr_launcher is None
@@ -258,19 +486,6 @@ class TestEnsureCloudXRRuntime:
             lifecycle._ensure_cloudxr_runtime()
 
         assert lifecycle._cloudxr_launcher is not None
-
-    def test_skip_when_auto_launch_false(self):
-        """auto_launch_cloudxr=False skips the launch."""
-        lifecycle = _make_lifecycle(
-            cloudxr_env_file="/tmp/test.env",
-            auto_launch_cloudxr=False,
-        )
-
-        with patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("ISAACLAB_CXR_SKIP_AUTOLAUNCH", None)
-            lifecycle._ensure_cloudxr_runtime()
-
-        assert lifecycle._cloudxr_launcher is None
 
     def test_idempotency(self):
         """Calling _ensure_cloudxr_runtime twice does not create a second launcher."""
@@ -295,6 +510,7 @@ class TestEnsureCloudXRRuntime:
             patch.dict(sys.modules, {"isaacteleop.cloudxr": fake_module}),
         ):
             os.environ.pop("ISAACLAB_CXR_SKIP_AUTOLAUNCH", None)
+            os.environ.pop("ISAACLAB_CXR_ACCEPT_EULA", None)
             lifecycle._ensure_cloudxr_runtime()
 
         mock_cls.assert_called_once_with(
@@ -304,17 +520,61 @@ class TestEnsureCloudXRRuntime:
         )
         assert lifecycle._cloudxr_launcher is mock_cls.return_value
 
-    def test_env_var_takes_precedence_over_auto_launch(self):
-        """ISAACLAB_CXR_SKIP_AUTOLAUNCH=1 overrides auto_launch_cloudxr=True."""
-        lifecycle = _make_lifecycle(
-            cloudxr_env_file="/tmp/test.env",
-            auto_launch_cloudxr=True,
-        )
 
-        with patch.dict(os.environ, {"ISAACLAB_CXR_SKIP_AUTOLAUNCH": "1"}):
+# ============================================================================
+# CloudXR EULA acceptance
+# ============================================================================
+
+
+class TestCloudXREulaAcceptance:
+    """Tests for the ``ISAACLAB_CXR_ACCEPT_EULA`` opt-in."""
+
+    @staticmethod
+    def _accept_eula_passed_to_launcher() -> bool:
+        """Run ``_ensure_cloudxr_runtime`` and return the ``accept_eula`` it passed."""
+        mock_cls = MagicMock()
+        fake_module = MagicMock()
+        fake_module.CloudXRLauncher = mock_cls
+        lifecycle = _make_lifecycle(cloudxr_env_file="/etc/cxr.env")
+
+        with patch.dict(sys.modules, {"isaacteleop.cloudxr": fake_module}):
             lifecycle._ensure_cloudxr_runtime()
 
-        assert lifecycle._cloudxr_launcher is None
+        return mock_cls.call_args.kwargs["accept_eula"]
+
+    @pytest.mark.parametrize("value", ["1", " 1 ", "\t1\n", "y", "Y", "yes", "Yes", "YES"])
+    def test_accepts_affirmative_values(self, value):
+        """``y``/``yes``/``1`` accept the license, case- and whitespace-insensitively.
+
+        These are the spellings ``OMNI_KIT_ACCEPT_EULA`` takes, so a user who accepts the
+        Omniverse license the documented way can spell the CloudXR one the same.
+        """
+        with patch.dict(os.environ, {"ISAACLAB_CXR_ACCEPT_EULA": value}):
+            os.environ.pop("ISAACLAB_CXR_SKIP_AUTOLAUNCH", None)
+            assert cloudxr_eula_accepted() is True
+            assert self._accept_eula_passed_to_launcher() is True
+
+    @pytest.mark.parametrize("value", ["0", "n", "no", "true", "", "11", "1 1"])
+    def test_does_not_accept_for_other_values(self, value):
+        """Anything not affirmative leaves the interactive prompt in place."""
+        with patch.dict(os.environ, {"ISAACLAB_CXR_ACCEPT_EULA": value}):
+            os.environ.pop("ISAACLAB_CXR_SKIP_AUTOLAUNCH", None)
+            assert cloudxr_eula_accepted() is False
+            assert self._accept_eula_passed_to_launcher() is False
+
+    def test_does_not_accept_when_unset(self):
+        """Unset keeps the pre-existing behaviour."""
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("ISAACLAB_CXR_ACCEPT_EULA", None)
+            os.environ.pop("ISAACLAB_CXR_SKIP_AUTOLAUNCH", None)
+            assert cloudxr_eula_accepted() is False
+            assert self._accept_eula_passed_to_launcher() is False
+
+    def test_exported_from_package_root(self):
+        """``teleop_replay_agent.py`` imports the helper from the package root, not the submodule."""
+        import isaaclab_teleop
+
+        assert isaaclab_teleop.cloudxr_eula_accepted is cloudxr_eula_accepted
 
 
 # ============================================================================
@@ -358,11 +618,7 @@ class TestLifecycleCloudXRIntegration:
         lifecycle, mock_launcher = self._make_started_lifecycle()
         lifecycle.stop()
         mock_launcher.stop.assert_called_once()
-
-    def test_stop_clears_launcher_on_success(self):
-        """After a successful stop(), _cloudxr_launcher is set to None."""
-        lifecycle, mock_launcher = self._make_started_lifecycle()
-        lifecycle.stop()
+        # After a successful stop(), the launcher reference is cleared.
         assert lifecycle._cloudxr_launcher is None
 
     def test_stop_retains_launcher_on_runtime_error(self):
@@ -375,7 +631,7 @@ class TestLifecycleCloudXRIntegration:
         assert lifecycle._cloudxr_launcher is mock_launcher
 
     def test_start_without_cloudxr_env_file(self):
-        """start() works normally when no cloudxr_env_file is provided."""
+        """start() and stop() work normally when no cloudxr_env_file is provided."""
         lifecycle = _make_lifecycle(cloudxr_env_file=None)
 
         fake_teleop_modules = {
@@ -386,6 +642,9 @@ class TestLifecycleCloudXRIntegration:
         with patch.dict(sys.modules, fake_teleop_modules):
             lifecycle.start()
 
+        assert lifecycle._cloudxr_launcher is None
+
+        lifecycle.stop()
         assert lifecycle._cloudxr_launcher is None
 
     def test_start_with_auto_launch_disabled(self):
@@ -409,10 +668,25 @@ class TestLifecycleCloudXRIntegration:
 
         assert lifecycle._cloudxr_launcher is None
 
-    def test_stop_without_cloudxr_env_file(self):
-        """stop() does not error when no CloudXR launcher was created."""
+    @pytest.mark.parametrize(("preset", "expected"), [(None, "true"), ("false", "false")])
+    def test_start_silences_openxr_runtime_errors_unless_overridden(self, preset, expected):
+        """start() defaults OXR_NO_PRINTING to true and keeps a value the user already set."""
         lifecycle = _make_lifecycle(cloudxr_env_file=None)
-        lifecycle.stop()
+
+        fake_teleop_modules = {
+            "isaacteleop.retargeting_engine.deviceio_source_nodes": MagicMock(),
+            "isaacteleop.retargeting_engine.interface": MagicMock(),
+        }
+
+        with (
+            patch.dict(os.environ, {}, clear=False),
+            patch.dict(sys.modules, fake_teleop_modules),
+        ):
+            os.environ.pop("OXR_NO_PRINTING", None)
+            if preset is not None:
+                os.environ["OXR_NO_PRINTING"] = preset
+            lifecycle.start()
+            assert os.environ["OXR_NO_PRINTING"] == expected
 
 
 if __name__ == "__main__":

@@ -60,17 +60,15 @@ BRANCHING_MJWARP_BODY_NAMES = ("base", "left_upper", "left_tip", "right_upper", 
 _ORDERING_TRACE_FIELDS = (
     "joint_pos",
     "joint_vel",
-    "computed_torque",
-    "applied_torque",
-    "adapter_computed_effort",
+    "computed_effort",
+    "applied_effort",
     "adapter_applied_effort",
 )
 _ORDERING_TRACE_TOLERANCES = {
     "joint_pos": (2e-3, 1e-3),
     "joint_vel": (1e-2, 1e-2),
-    "computed_torque": (1e-3, 1e-3),
-    "applied_torque": (1e-3, 1e-3),
-    "adapter_computed_effort": (1e-3, 1e-3),
+    "computed_effort": (1e-3, 1e-3),
+    "applied_effort": (1e-3, 1e-3),
     "adapter_applied_effort": (1e-3, 1e-3),
 }
 

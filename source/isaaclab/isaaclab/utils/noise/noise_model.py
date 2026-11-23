@@ -5,10 +5,12 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 if TYPE_CHECKING:
     from . import noise_cfg
@@ -16,6 +18,26 @@ if TYPE_CHECKING:
 ##
 # Noise as functions.
 ##
+
+
+def _move_params_to_device(cfg: noise_cfg.NoiseCfg, data: torch.Tensor, *names: str) -> None:
+    """Move tensor-valued noise parameters onto the data device (once, on first call)."""
+    for name in names:
+        value = getattr(cfg, name)
+        if isinstance(value, torch.Tensor) and value.device != data.device:
+            setattr(cfg, name, value.to(data.device))
+
+
+def _apply_noise(data: torch.Tensor, noise: torch.Tensor | float, operation: str) -> torch.Tensor:
+    """Combine ``noise`` with ``data`` according to the configured operation."""
+    if operation == "add":
+        return data + noise
+    if operation == "scale":
+        return data * noise
+    if operation == "abs":
+        # always a new tensor: the noise may be a config parameter (e.g. the constant noise bias)
+        return torch.zeros_like(data) + noise
+    raise ValueError(f"Unknown operation in noise: {operation}")
 
 
 def constant_noise(data: torch.Tensor, cfg: noise_cfg.ConstantNoiseCfg) -> torch.Tensor:
@@ -28,19 +50,8 @@ def constant_noise(data: torch.Tensor, cfg: noise_cfg.ConstantNoiseCfg) -> torch
     Returns:
         The data modified by the noise parameters provided.
     """
-
-    # fix tensor device for bias on first call and update config parameters
-    if isinstance(cfg.bias, torch.Tensor):
-        cfg.bias = cfg.bias.to(device=data.device)
-
-    if cfg.operation == "add":
-        return data + cfg.bias
-    elif cfg.operation == "scale":
-        return data * cfg.bias
-    elif cfg.operation == "abs":
-        return torch.zeros_like(data) + cfg.bias
-    else:
-        raise ValueError(f"Unknown operation in noise: {cfg.operation}")
+    _move_params_to_device(cfg, data, "bias")
+    return _apply_noise(data, cfg.bias, cfg.operation)
 
 
 def uniform_noise(data: torch.Tensor, cfg: noise_cfg.UniformNoiseCfg) -> torch.Tensor:
@@ -54,21 +65,12 @@ def uniform_noise(data: torch.Tensor, cfg: noise_cfg.UniformNoiseCfg) -> torch.T
         The data modified by the noise parameters provided.
     """
 
-    # fix tensor device for n_max on first call and update config parameters
-    if isinstance(cfg.n_max, torch.Tensor):
-        cfg.n_max = cfg.n_max.to(data.device)
-    # fix tensor device for n_min on first call and update config parameters
-    if isinstance(cfg.n_min, torch.Tensor):
-        cfg.n_min = cfg.n_min.to(data.device)
-
-    if cfg.operation == "add":
-        return data + torch.rand_like(data) * (cfg.n_max - cfg.n_min) + cfg.n_min
-    elif cfg.operation == "scale":
-        return data * (torch.rand_like(data) * (cfg.n_max - cfg.n_min) + cfg.n_min)
-    elif cfg.operation == "abs":
-        return torch.rand_like(data) * (cfg.n_max - cfg.n_min) + cfg.n_min
-    else:
-        raise ValueError(f"Unknown operation in noise: {cfg.operation}")
+    if cfg.operation == "add" and not isinstance(cfg.n_min, torch.Tensor) and not isinstance(cfg.n_max, torch.Tensor):
+        if cfg.n_min == 0.0 and cfg.n_max == 0.0:
+            return data
+    _move_params_to_device(cfg, data, "n_min", "n_max")
+    noise = torch.rand_like(data) * (cfg.n_max - cfg.n_min) + cfg.n_min
+    return _apply_noise(data, noise, cfg.operation)
 
 
 def gaussian_noise(data: torch.Tensor, cfg: noise_cfg.GaussianNoiseCfg) -> torch.Tensor:
@@ -82,21 +84,9 @@ def gaussian_noise(data: torch.Tensor, cfg: noise_cfg.GaussianNoiseCfg) -> torch
         The data modified by the noise parameters provided.
     """
 
-    # fix tensor device for mean on first call and update config parameters
-    if isinstance(cfg.mean, torch.Tensor):
-        cfg.mean = cfg.mean.to(data.device)
-    # fix tensor device for std on first call and update config parameters
-    if isinstance(cfg.std, torch.Tensor):
-        cfg.std = cfg.std.to(data.device)
-
-    if cfg.operation == "add":
-        return data + cfg.mean + cfg.std * torch.randn_like(data)
-    elif cfg.operation == "scale":
-        return data * (cfg.mean + cfg.std * torch.randn_like(data))
-    elif cfg.operation == "abs":
-        return cfg.mean + cfg.std * torch.randn_like(data)
-    else:
-        raise ValueError(f"Unknown operation in noise: {cfg.operation}")
+    _move_params_to_device(cfg, data, "mean", "std")
+    noise = cfg.mean + cfg.std * torch.randn_like(data)
+    return _apply_noise(data, noise, cfg.operation)
 
 
 ##
@@ -119,7 +109,7 @@ class NoiseModel:
         self._num_envs = num_envs
         self._device = device
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         """Reset the noise model.
 
         This method can be implemented by derived classes to reset the noise model.
@@ -128,11 +118,15 @@ class NoiseModel:
         Args:
             env_ids: The environment ids to reset the noise model for. Defaults to None,
                 in which case all environments are considered.
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,). Takes precedence over
+                ``env_ids`` and does not synchronize the device. Defaults to None.
         """
         pass
 
     def __call__(self, data: torch.Tensor) -> torch.Tensor:
-        """Apply the noise to the data.
+        """Apply the noise without modifying the input data.
+
+        Implementations must use out-of-place operations or clone the input before modifying it.
 
         Args:
             data: The data to apply the noise to. Shape is (num_envs, ...).
@@ -155,10 +149,12 @@ class NoiseModelWithAdditiveBias(NoiseModel):
         # store the bias noise configuration
         self._bias_noise_cfg = noise_model_cfg.bias_noise_cfg
         self._bias = torch.zeros((num_envs, 1), device=self._device)
+        # zeros that the bias noise is applied to on reset; the noise functions never modify their input
+        self._zero_bias = torch.zeros_like(self._bias)
         self._num_components: int | None = None
         self._sample_bias_per_component = noise_model_cfg.sample_bias_per_component
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         """Reset the noise model.
 
         This method resets the bias term for the specified environments.
@@ -166,12 +162,19 @@ class NoiseModelWithAdditiveBias(NoiseModel):
         Args:
             env_ids: The environment ids to reset the noise model for. Defaults to None,
                 in which case all environments are considered.
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,). Takes precedence over
+                ``env_ids``. Defaults to None.
         """
+        if env_mask is not None:
+            # sample every bias and keep the selected ones, so the mask is never compacted on the host
+            bias = self._bias_noise_cfg.func(self._zero_bias, self._bias_noise_cfg)
+            torch.where(wp.to_torch(env_mask)[:, None], bias, self._bias, out=self._bias)
+            return
         # resolve the environment ids
         if env_ids is None:
             env_ids = slice(None)
-        # reset the bias term
-        self._bias[env_ids] = self._bias_noise_cfg.func(self._bias[env_ids], self._bias_noise_cfg)
+        # sample a fresh bias; applying the noise to the previous bias would accumulate it for the "add" operation
+        self._bias[env_ids] = self._bias_noise_cfg.func(self._zero_bias[env_ids], self._bias_noise_cfg)
 
     def __call__(self, data: torch.Tensor) -> torch.Tensor:
         """Apply bias noise to the data.
@@ -182,11 +185,11 @@ class NoiseModelWithAdditiveBias(NoiseModel):
         Returns:
             The data with the noise applied. Shape is the same as the input data.
         """
-        # if sample_bias_per_component, on first apply, expand bias to match last dim of data
         if self._sample_bias_per_component and self._num_components is None:
-            *_, self._num_components = data.shape
-            # expand bias from (num_envs,1) to (num_envs, num_components)
+            self._num_components = math.prod(data.shape[1:])
             self._bias = self._bias.repeat(1, self._num_components)
-            # now re-sample that expanded bias in-place
+            self._zero_bias = torch.zeros_like(self._bias)
             self.reset()
-        return super().__call__(data) + self._bias
+        # Keep the environment axis fixed while broadcasting over observation components.
+        bias_shape = data.shape if self._sample_bias_per_component else (self._num_envs,) + (1,) * (data.ndim - 1)
+        return super().__call__(data) + self._bias.view(bias_shape)

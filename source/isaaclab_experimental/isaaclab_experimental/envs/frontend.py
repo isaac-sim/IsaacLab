@@ -108,7 +108,7 @@ class WarpFrontend:
         """Construct the warp env for ``task_id`` from a stable env cfg.
 
         Args:
-            env_cfg: Stable env cfg. Manager-based cfgs are mutated in place.
+            env_cfg: Stable env cfg, adapted in place for the Warp runtime.
             task_id: Gym registration id, e.g. ``"Isaac-Cartpole"``.
             **construct_kwargs: Forwarded to the env constructor (``render_mode``, …).
 
@@ -138,8 +138,8 @@ class WarpFrontend:
     def _build_direct_env(cls, env_cfg: Any, task_id: str, **construct_kwargs: Any) -> gym.Env:
         """Construct a direct warp env.
 
-        Direct workflows aren't cfg-adapted: a hand-written warp env class
-        implements the task, constructed with the *stable* cfg. The class is
+        Direct task data stays stable, while the frontend selects the Warp scene
+        implementation and a hand-written Warp env class. The class is
         resolved by name from the mirrored experimental package (or an explicit
         ``warp_entry_point`` override); see :meth:`_resolve_direct_warp_class`.
         If name resolution finds nothing, the task itself must be a warp-native
@@ -155,9 +155,10 @@ class WarpFrontend:
         if env_class is None:
             # No warp twin by name: the task itself must be a warp-native registration.
             cls._assert_direct_warp_registration(task_id)
+        else:
+            cls._require_newton_physics(env_cfg, type(env_cfg).__name__)
+        if env_class is None:
             return gym.make(task_id, cfg=env_cfg, **construct_kwargs)
-        # Name-resolved warp class that implements this cfg: swap only the env class.
-        cls._require_newton_physics(env_cfg, type(env_cfg).__name__)
         return env_class(cfg=env_cfg, **construct_kwargs)
 
     # ------------------------------------------------------------------
@@ -171,12 +172,11 @@ class WarpFrontend:
         Idempotent: re-running on an already-adapted cfg is a no-op (the steps
         below skip warp-origin symbols and already-promoted entities).
 
-        Three steps, each independently testable:
+        Four steps, each independently testable (the fourth, :meth:`_swap_noise_cfgs`, replaces
+        stable observation-noise cfgs with their warp-native twins):
 
         1. :meth:`_require_newton_physics` — hard check that ``cfg.sim.physics``
-           is :class:`~isaaclab_newton.physics.NewtonCfg`. The user is
-           responsible for selecting the Newton variant of the task's
-           :class:`PresetCfg` via ``presets=newton_mjwarp``; we don't auto-inject.
+           is :class:`~isaaclab_newton.physics.NewtonCfg`.
         2. :meth:`_promote_scene_entity_cfgs` — replace stable
            :class:`~isaaclab.managers.SceneEntityCfg` instances under each
            term's ``params`` with the warp variant (which adds warp-cached
@@ -189,20 +189,46 @@ class WarpFrontend:
            unsafe under the warp managers' kernel-only signature.
         """
         label = type(cfg).__name__
+        from .mdp2_env_cfg import MDP2EnvCfg
+
+        if isinstance(cfg, MDP2EnvCfg):
+            raise FrontendIncompatibleError(f"{label} is an MDP2 task: it runs on MDP2Env, not the warp managers.")
         cls._require_newton_physics(cfg, label)
         cls._promote_scene_entity_cfgs(cfg)
         cls._swap_mdp(cfg, label)
         cls._swap_noise_cfgs(cfg, label)
 
+    @classmethod
+    def check_compatibility(cls, cfg: Any) -> str | None:
+        """Report whether ``cfg`` can run on the warp frontend, without raising.
+
+        Answers the question ``--frontend warp`` answers at env construction, but as a value
+        instead of an exception, so callers can survey many cfgs and report on all of them.
+        It runs :meth:`adapt_cfg` itself rather than re-deriving the rules, so the verdict
+        cannot drift from the real code path.
+
+        Args:
+            cfg: A stable manager-based env cfg with a concrete Newton physics configuration.
+
+        Returns:
+            ``None`` when the cfg adapts, otherwise the reason, listing every missing twin.
+
+        Note:
+            ``cfg`` is adapted in place when compatible, and may be left partially adapted
+            when not. Pass a freshly constructed cfg when only the verdict is wanted.
+        """
+        try:
+            cls.adapt_cfg(cfg)
+        except FrontendIncompatibleError as exc:
+            return str(exc)
+        return None
+
     @staticmethod
     def _require_newton_physics(cfg: Any, label: str) -> None:
         """Block unless ``cfg.sim.physics`` is :class:`NewtonCfg`.
 
-        The warp managers' assets read state through :class:`NewtonManager`;
-        a :class:`PhysxCfg` (or unresolved :class:`PresetCfg`) is a hard
-        incompatibility. The fix is to pass ``presets=newton_mjwarp`` on the CLI
-        so Hydra resolves the task's :class:`PresetCfg` wrapper to the Newton
-        field before construction.
+        The warp managers' assets read state through :class:`NewtonManager`, so
+        every other physics configuration is incompatible.
         """
         from isaaclab_newton.physics import NewtonCfg
 
@@ -211,8 +237,8 @@ class WarpFrontend:
             return
         raise FrontendIncompatibleError(
             f"warp env {label!r}: expected cfg.sim.physics to be NewtonCfg,"
-            f" got {type(physics).__name__!r}. Pass `presets=newton_mjwarp` on the CLI so"
-            f" Hydra resolves the task's PresetCfg wrapper to the Newton variant."
+            f" got {type(physics).__name__!r}. Select Newton while composing the task configuration"
+            " before constructing the environment."
         )
 
     @classmethod

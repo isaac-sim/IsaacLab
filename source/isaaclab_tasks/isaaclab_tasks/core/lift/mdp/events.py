@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Event terms for the lift tasks."""
+"""Event terms for the lift environments."""
 
 from __future__ import annotations
 
@@ -16,8 +16,11 @@ from tqdm import tqdm
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
+from isaaclab.envs.reset import ResetStateBuffer, ResetStateSampler, ResetStateSamplerCfg
 from isaaclab.managers import EventTermCfg, ManagerTermBase, ManagerTermBaseCfg, SceneEntityCfg
-from isaaclab.utils.math import quat_apply, random_orientation, sample_uniform
+from isaaclab.utils import replace
+from isaaclab.utils.math import quat_apply, quat_mul, random_orientation, sample_uniform, sample_uniform_from_ranges
+from isaaclab.utils.warp.memory import resolve_1d_mask
 
 from .utils import (
     collect_body_collision_meshes,
@@ -25,16 +28,15 @@ from .utils import (
     farthest_point_sampling,
     get_reset_state,
     sample_object_point_cloud,
-    set_reset_state,
 )
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from isaaclab.assets import Articulation, DeformableObject, RigidObject
-    from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
+    from isaaclab.assets import Articulation, CableObject, DeformableObject, RigidObject
+    from isaaclab.envs import ManagerBasedEnv
 
-    from .events_cfg import GraspTravelDistanceCfg, MeshClearanceCfg, SlabClearanceCfg, SuccessMonitorCfg
+    from .events_cfg import GraspTravelDistanceCfg, MeshClearanceCfg, SlabClearanceCfg
 
 
 def reset_joints_shared_offset(
@@ -61,12 +63,28 @@ def reset_joints_shared_offset(
     asset = env.scene[asset_cfg.name]
     default = asset.data.default_joint_pos.torch[env_ids][:, asset_cfg.joint_ids]
     limits = asset.data.soft_joint_pos_limits.torch[env_ids][:, asset_cfg.joint_ids]
-    offset = sample_uniform(position_range[0], position_range[1], (len(env_ids), 1), device=default.device)
+    offset = sample_uniform(position_range[0], position_range[1], (default.shape[0], 1), device=default.device)
     positions = (default + offset).clamp(limits[..., 0], limits[..., 1])
     asset.write_joint_position_to_sim_index(position=positions, joint_ids=asset_cfg.joint_ids, env_ids=env_ids)
     asset.write_joint_velocity_to_sim_index(
         velocity=torch.zeros_like(positions), joint_ids=asset_cfg.joint_ids, env_ids=env_ids
     )
+
+
+def reset_cable_state_uniform(
+    env: ManagerBasedEnv,
+    env_ids: torch.Tensor,
+    position_range: dict[str, tuple[float, float]],
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("cable"),
+) -> None:
+    """Reset a cable to its default shape with a uniformly sampled translation [m]."""
+    asset: CableObject = env.scene[asset_cfg.name]
+    segment_pose = asset.data.default_segment_pose_w.torch[env_ids].clone()
+    segment_velocity = asset.data.default_segment_velocity_w.torch[env_ids].clone()
+    offset = sample_uniform_from_ranges(position_range, ("x", "y", "z"), segment_pose.shape[0], device=asset.device)
+    segment_pose[..., :3] += offset.unsqueeze(1)
+    asset.write_segment_pose_to_sim_index(segment_pose=segment_pose, env_ids=env_ids)
+    asset.write_segment_velocity_to_sim_index(segment_velocity=segment_velocity, env_ids=env_ids)
 
 
 def reset_to_target(
@@ -102,6 +120,7 @@ def reset_to_target(
         target_cfg: Target body (e.g. the gripper palm) to spawn the asset at.
         asset_cfg: The asset to reset.
     """
+    env_ids = env.scene._ALL_INDICES[env_ids]
     picked = env_ids[torch.rand(len(env_ids), device=env.device) < probability]
     if len(picked) == 0:
         return
@@ -126,128 +145,142 @@ def reset_to_target(
     asset.write_root_velocity_to_sim_index(root_velocity=velocities, env_ids=picked)
 
 
-class SuccessMonitor:
-    """Per-slot success-rate table whose draws favor a target success rate.
+class reset_to_grasp(ManagerTermBase):
+    """Place selected object variants in aligned parallel-gripper pre-grasps."""
 
-    Each monitored slot — for the reset bank, one banked state — keeps a ring buffer of its most
-    recent episode outcomes. Sampling weights peak at :attr:`SuccessMonitorCfg.target_success_rate`,
-    so with the default target of one half the draw concentrates on the states the policy solves
-    about half the time and spends little on the ones it always solves or never solves.
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv) -> None:
+        super().__init__(cfg, env)
 
-    Slots are laid out as :paramref:`num_partitions` contiguous blocks of :paramref:`partition_size`
-    and every draw stays inside one partition. The reset bank needs this because a state harvested
-    in one asset-combination group cannot be replayed in another; callers with no such constraint
-    pass a single partition.
-    """
+        asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
+        gripper_cfg: SceneEntityCfg = cfg.params["gripper_cfg"]
+        target_cfg: SceneEntityCfg = cfg.params["target_cfg"]
+        self._asset = env.scene[asset_cfg.name]
+        self._gripper = env.scene[gripper_cfg.name]
+        self._target = env.scene[target_cfg.name]
+        self._target_body_ids = target_cfg.body_ids
 
-    def __init__(self, cfg: SuccessMonitorCfg, num_partitions: int, partition_size: int, device: str):
-        """Allocate the outcome table.
+        object_cfg = getattr(env.cfg.scene, asset_cfg.name)
+        plan = env.scene.clone_plan
+        object_prototypes = cloner.path.get_asset_prototypes(plan, object_cfg.prim_path)
+        if len(object_prototypes) == 0:
+            raise ValueError(f"Could not find clone-plan prototypes for asset '{asset_cfg.name}'.")
+
+        grasp_configs = cfg.params["grasp_configs"]
+        grasp_by_geometry = {_grasp_geometry(shape): index for index, (shape, _, _) in enumerate(grasp_configs)}
+        if len(grasp_by_geometry) != len(grasp_configs):
+            raise ValueError("reset_to_grasp requires one unambiguous pre-grasp per object geometry.")
+
+        variant_ids = np.full(env.num_envs, -1, dtype=np.int64)
+        for prototype_id in object_prototypes:
+            spawn = plan.asset_cfgs[prototype_id].spawn
+            shape = spawn.assets_cfg[0] if isinstance(spawn, sim_utils.MultiAssetSpawnerCfg) else spawn
+            geometry = _grasp_geometry(shape)
+            if geometry not in grasp_by_geometry:
+                raise ValueError(f"reset_to_grasp has no configured pre-grasp for object geometry {geometry}.")
+
+            world_ids, _ = cloner.query.get_asset_prototype_unique_world_index(plan.topology, int(prototype_id))
+            world_ids = world_ids[world_ids >= 0]
+            if (variant_ids[world_ids] >= 0).any():
+                raise ValueError(f"Multiple object variants are assigned to asset '{asset_cfg.name}' in one world.")
+            variant_ids[world_ids] = grasp_by_geometry[geometry]
+        if (variant_ids < 0).any():
+            raise ValueError(f"No object variant is assigned to asset '{asset_cfg.name}' in some worlds.")
+
+        self._variant_ids = torch.as_tensor(variant_ids, device=env.device)
+        self._gripper_joint_ids = self._gripper.find_joints(gripper_cfg.joint_names)[0]
+        self._gripper_joint_positions = torch.tensor([opening for _, opening, _ in grasp_configs], device=env.device)
+        self._asset_orientations = torch.tensor([orientation for _, _, orientation in grasp_configs], device=env.device)
+        self._offset_ranges = torch.tensor(
+            [cfg.params["pose_range"].get(axis, (0.0, 0.0)) for axis in ("x", "y", "z")], device=env.device
+        )
+        self._zero_joint_velocities = torch.zeros((env.num_envs, len(self._gripper_joint_ids)), device=env.device)
+        self._zero_root_velocities = torch.zeros((env.num_envs, 6), device=env.device)
+
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        env_ids: Sequence[int] | slice | torch.Tensor,
+        pose_range: dict[str, tuple[float, float]],
+        probability: float,
+        target_cfg: SceneEntityCfg,
+        gripper_cfg: SceneEntityCfg,
+        grasp_configs: list[tuple[sim_utils.SpawnerCfg, float, tuple[float, float, float, float]]],
+        asset_cfg: SceneEntityCfg = SceneEntityCfg("object"),
+    ) -> None:
+        """Reset a fraction of environments to configured pre-grasps.
 
         Args:
-            cfg: Monitor configuration.
-            num_partitions: Number of independently sampled blocks of slots.
-            partition_size: Slots per partition.
-            device: Device holding the table; slot ids passed in must live on it too.
+            env: The environment.
+            env_ids: Environments to reset.
+            pose_range: Object-position offsets in the target frame [m].
+            probability: Per-environment probability of applying the pre-grasp.
+            target_cfg: Body defining the pre-grasp frame.
+            gripper_cfg: Parallel gripper joints to pose.
+            grasp_configs: Shape configs paired with a finger opening [m or rad, depending on joint type]
+                and object orientation in the target frame in ``(x, y, z, w)`` order. Geometry, not list order,
+                associates each pre-grasp with its cloned object. Static values are cached at initialization.
+            asset_cfg: Object asset to reset.
         """
-        self.cfg = cfg
-        self.num_partitions = num_partitions
-        self.partition_size = partition_size
-        self.device = device
-
-        num_slots = num_partitions * partition_size
-        self.success_buf = torch.zeros((num_slots, cfg.monitored_history_len), device=device)
-        self.success_rate = torch.zeros(num_slots, device=device)
-        self.success_pointer = torch.zeros(num_slots, device=device, dtype=torch.long)
-        self.success_size = torch.zeros(num_slots, device=device, dtype=torch.long)
-
-    def get_success_rate(self) -> torch.Tensor:
-        """Return a copy of every slot's measured success rate, shape [num_slots]."""
-        return self.success_rate.clone()
-
-    def get_mean_success_rate(self) -> float:
-        """Return the success rate over the whole table, averaged across the slots that have episodes.
-
-        Slots with no episodes yet are left out rather than counted as failures, so the number
-        reports how well the policy does on the states it has actually been given and does not dip
-        just because the table is still filling.
-        """
-        measured = self.success_size > 0
-        if not bool(measured.any()):
-            return 0.0
-        return float(self.success_rate[measured].mean())
-
-    def success_update(self, slot_ids: torch.Tensor, success: torch.Tensor):
-        """Append episode outcomes to their slots' ring buffers and refresh the success rates.
-
-        Slots may repeat within one call, which happens whenever several environments replayed the
-        same banked state; the outcomes are appended in order and only the newest
-        :attr:`SuccessMonitorCfg.monitored_history_len` of them survive.
-
-        Args:
-            slot_ids: Slot each outcome belongs to, shape [num_outcomes].
-            success: Whether each episode succeeded, shape [num_outcomes].
-        """
-        if len(slot_ids) == 0:
+        env_ids = env.scene._ALL_INDICES[env_ids]
+        picked = env_ids[torch.rand(len(env_ids), device=env.device) < probability]
+        if len(picked) == 0:
             return
-        history = self.cfg.monitored_history_len
-        # group the outcomes by slot, stably so the newest stay last within each slot
-        order = torch.argsort(slot_ids, stable=True)
-        ordered_slots = slot_ids[order]
-        unique_slots, counts = torch.unique_consecutive(ordered_slots, return_counts=True)
 
-        # position of each outcome within its slot's append run, with anything beyond the ring's
-        # capacity given a negative position and dropped
-        starts = counts.cumsum(0) - counts
-        offset = torch.arange(len(ordered_slots), device=self.device) - starts.repeat_interleave(counts)
-        offset = offset - (counts - history).clamp(min=0).repeat_interleave(counts)
-        kept = offset >= 0
+        variant_ids = self._variant_ids[picked]
 
-        slots = ordered_slots[kept]
-        positions = (self.success_pointer[slots] + offset[kept]) % history
-        self.success_buf[slots, positions] = success[order][kept].to(dtype=self.success_buf.dtype)
+        target_pos = self._target.data.body_pos_w.torch[picked][:, self._target_body_ids, :].flatten(1)[:, :3]
+        target_quat = self._target.data.body_quat_w.torch[picked][:, self._target_body_ids, :].flatten(1)[:, :4]
+        local_offsets = sample_uniform(
+            self._offset_ranges[:, 0], self._offset_ranges[:, 1], (len(picked), 3), device=env.device
+        )
+        positions = target_pos + quat_apply(target_quat, local_offsets)
+        local_orientations = self._asset_orientations[variant_ids]
+        orientations = quat_mul(target_quat, local_orientations)
 
-        written = counts.clamp(max=history)
-        self.success_pointer[unique_slots] = (self.success_pointer[unique_slots] + written) % history
-        self.success_size[unique_slots] = (self.success_size[unique_slots] + written).clamp(max=history)
-        # unwritten ring entries are zero, so the row sum is the number of successes remembered
-        self.success_rate[:] = self.success_buf.sum(dim=1) / self.success_size.clamp(min=1)
+        joint_positions = self._gripper_joint_positions[variant_ids, None].expand(-1, len(self._gripper_joint_ids))
+        self._gripper.write_joint_position_to_sim_index(
+            position=joint_positions, joint_ids=self._gripper_joint_ids, env_ids=picked
+        )
+        self._gripper.write_joint_velocity_to_sim_index(
+            velocity=self._zero_joint_velocities[: len(picked)], joint_ids=self._gripper_joint_ids, env_ids=picked
+        )
+        self._gripper.set_joint_position_target_index(
+            target=joint_positions, joint_ids=self._gripper_joint_ids, env_ids=picked
+        )
+        self._asset.write_root_pose_to_sim_index(root_pose=torch.cat((positions, orientations), dim=-1), env_ids=picked)
+        self._asset.write_root_velocity_to_sim_index(
+            root_velocity=self._zero_root_velocities[: len(picked)], env_ids=picked
+        )
 
-    def target_weights(self) -> torch.Tensor:
-        """Return each slot's sampling weight, peaking at the target success rate.
 
-        The weight is the Beta density shape ``p^(a-1) * (1-p)^(b-1)`` with ``a = 1 + kappa * target``
-        and ``b = 1 + kappa * (1 - target)``, which places the mode at the target and flattens as
-        ``kappa`` shrinks.
+def _grasp_geometry(shape: sim_utils.SpawnerCfg) -> tuple:
+    """Identify parallel-gripper geometry independently of mesh authoring and prototype order."""
+    if isinstance(shape, (sim_utils.CuboidCfg, sim_utils.MeshCuboidCfg)):
+        return ("cuboid", *shape.size)
+    if isinstance(shape, (sim_utils.SphereCfg, sim_utils.MeshSphereCfg)):
+        return ("sphere", shape.radius)
+    if isinstance(shape, (sim_utils.CapsuleCfg, sim_utils.MeshCapsuleCfg)):
+        return ("capsule", shape.radius, shape.height, shape.axis)
+    raise ValueError(f"reset_to_grasp does not support shape {type(shape).__name__}.")
 
-        Returns:
-            Weights, shape [num_slots]. Unnormalized; :func:`torch.multinomial` normalizes them.
-        """
-        target = min(max(self.cfg.target_success_rate, 0.0), 1.0)
-        kappa = max(self.cfg.kappa, 0.0)
-        a = 1.0 + kappa * target
-        b = 1.0 + kappa * (1.0 - target)
 
-        # The offset avoids ``0 ** 0`` and, more importantly, floors the weight at the extremes:
-        # slots that always succeed, always fail, or have not been drawn at all stay in circulation
-        # instead of being starved for good, so their rates can still be revised.
-        eps = 1e-4
-        rate = self.success_rate
-        weights = ((rate + eps).pow(a - 1.0) * (1.0 - rate + eps).pow(b - 1.0)).clamp_min(eps)
-        # ``w ** (1/T)`` equals ``softmax(log(w) / T)`` up to the normalization the draw applies anyway
-        return weights.pow(1.0 / max(self.cfg.temperature, 1.0))
+@wp.kernel
+def _restore_root_origin(
+    mask: wp.array(dtype=wp.bool),
+    origins: wp.array(dtype=wp.vec3f),
+    pose: wp.array(dtype=wp.transformf),
+):
+    i = wp.tid()
+    if mask[i]:
+        pose[i] = wp.transformf(wp.transform_get_translation(pose[i]) + origins[i], wp.transform_get_rotation(pose[i]))
 
-    def sample_by_target_rate(self, partition_ids: torch.Tensor) -> torch.Tensor:
-        """Draw one slot per requested partition, preferring slots near the target success rate.
 
-        Args:
-            partition_ids: Partition to draw from for each sample, shape [num_samples].
-
-        Returns:
-            Slot ids, shape [num_samples].
-        """
-        weights = self.target_weights().view(self.num_partitions, self.partition_size)
-        slots = torch.multinomial(weights[partition_ids], 1).view(-1)
-        return partition_ids * self.partition_size + slots
+@wp.kernel
+def _requested_restore_mask(
+    selected: wp.array(dtype=wp.bool), invalid: wp.array(dtype=wp.bool), restored: wp.array(dtype=wp.bool)
+):
+    i = wp.tid()
+    restored[i] = selected[i] and not invalid[i]
 
 
 class conditional_reset(ManagerTermBase):
@@ -266,22 +299,18 @@ class conditional_reset(ManagerTermBase):
     reset from that point restores a banked sample to the requested environments.
 
     Given a :paramref:`diversity_feature` the prefill keeps the most spread-out states rather
-    than the first valid ones, and given a :paramref:`success_monitor` the restore is drawn by
+    than the first valid ones, and given a :paramref:`reset_sampler` the restore is drawn by
     each state's measured success rate rather than uniformly.
     """
 
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
-        self._prefilled = False
-        self._buffer = torch.empty(0, 0, device=env.device)
-        self._descriptor = torch.empty(0, 0, device=env.device)
-        self._reset_assets = list(env.scene.articulations) + list(env.scene.rigid_objects)
-        self._group = torch.empty(0, dtype=torch.long, device=env.device)
-        self._fill = torch.empty(0, dtype=torch.long, device=env.device)
-        self._monitor: SuccessMonitor | None = None
-        self._success_term = None
-        # bank row each environment is currently playing; -1 until its first restore
-        self._playing_row = torch.full((env.num_envs,), -1, dtype=torch.long, device=env.device)
+        self._sampler: ResetStateSampler | None = None
+        self._bank: ResetStateBuffer | None = None
+        self._success: wp.array | None = None
+        self._all_mask = wp.ones(env.num_envs, dtype=wp.bool, device=env.device)
+        self._mask = wp.empty_like(self._all_mask)
+        self._restore_mask = wp.empty_like(self._all_mask)
 
     def reset(self, env_ids: Sequence[int] | None = None):
         """Log how well the policy does across the bank, once a monitor is tracking it.
@@ -290,8 +319,12 @@ class conditional_reset(ManagerTermBase):
         about: it covers every state the policy is being restarted from, not just the episodes that
         happen to be ending now.
         """
-        if self._monitor is not None:
-            self._env.extras.setdefault("log", {})["Metrics/success_rate"] = self._monitor.get_mean_success_rate()
+        if self._success is not None:
+            measured = self._sampler.episode_counts.torch > 0
+            rates = self._sampler.success_rate.torch
+            self._env.extras.setdefault("log", {})["Metrics/success_rate"] = (
+                rates * measured
+            ).sum() / measured.sum().clamp_min(1)
 
     def __call__(
         self,
@@ -303,7 +336,7 @@ class conditional_reset(ManagerTermBase):
         max_prefill_iters: int | None = None,
         diversity_feature: ManagerTermBaseCfg | None = None,
         oversample_factor: float = 2.0,
-        success_monitor: SuccessMonitorCfg | None = None,
+        reset_sampler: ResetStateSamplerCfg | None = None,
         success_reward_term: str = "success",
     ):
         """Restore banked criterion-valid states, prefilling the bank on the first reset.
@@ -334,12 +367,49 @@ class conditional_reset(ManagerTermBase):
             oversample_factor: Candidates to harvest per banked state. Higher values give the
                 farthest-point pass more to choose from at a proportional prefill cost. Ignored
                 without :paramref:`diversity_feature`.
-            success_monitor: Optional :class:`SuccessMonitorCfg`. When given, banked states are drawn
-                by success rate instead of uniformly, and each state's outcomes are recorded as the
-                episodes started from it end.
+            reset_sampler: Optional shared reset sampler configuration. When given, banked states are
+                drawn from the configured scores and completed outcomes are recorded against their starts.
+                None draws uniformly without monitoring outcomes.
             success_reward_term: Reward term supplying the episode outcome, which must keep a sticky
                 per-environment ``succeeded`` buffer like :class:`success_reward` does. Only read
-                with :paramref:`success_monitor`.
+                with :paramref:`reset_sampler`.
+        """
+
+        if self._bank is None:
+            env_ids = self._prefill(
+                env,
+                terms=terms,
+                valid_criteria=valid_criteria,
+                buffer_size_per_group=buffer_size_per_group,
+                max_prefill_iters=max_prefill_iters,
+                diversity_feature=diversity_feature,
+                oversample_factor=oversample_factor,
+                reset_sampler=reset_sampler,
+                success_reward_term=success_reward_term,
+            )
+
+        mask = resolve_1d_mask(ids=env_ids, all_mask=self._all_mask, scratch_mask=self._mask)
+        # The viewer marks manual resets as terminated, but leaves this natural-outcome mask unchanged.
+        completed = wp.from_torch(env.reset_buf & (env.episode_length_buf > 0)) if self._success is not None else None
+        self.reset_mask(mask, completed=completed)
+
+    def _prefill(
+        self,
+        env: ManagerBasedEnv,
+        *,
+        terms: dict[str, EventTermCfg],
+        valid_criteria: dict[str, ManagerTermBaseCfg],
+        buffer_size_per_group: int,
+        max_prefill_iters: int | None,
+        diversity_feature: ManagerTermBaseCfg | None,
+        oversample_factor: float,
+        reset_sampler: ResetStateSamplerCfg | None,
+        success_reward_term: str,
+    ) -> torch.Tensor:
+        """Collect each asset group's valid starts and bind native replay once.
+
+        Generation perturbs every environment, so return all environment IDs for the
+        first restore, including when the caller requested only a partial reset.
         """
 
         def roll_once(roll_ids: torch.Tensor) -> torch.Tensor:
@@ -352,141 +422,199 @@ class conditional_reset(ManagerTermBase):
                 ok &= criterion.func(env, roll_ids, **criterion.params)
             return ok
 
-        if not self._prefilled:
-            # envs sharing a clone-mask column are clones of the same unique asset combination
-            mask = env.scene.clone_plan.clone_mask.to(device=env.device, dtype=torch.uint8)
-            self._group = torch.unique(mask.T, dim=0, return_inverse=True)[1]
-            num_groups = int(self._group.max().item()) + 1
-            # without a descriptor there is nothing to spread over, so harvesting extra is waste
-            harvest_size = buffer_size_per_group
-            if diversity_feature is not None:
-                harvest_size = round(buffer_size_per_group * oversample_factor)
-            self._fill = torch.zeros(num_groups, dtype=torch.long, device=env.device)
-            iteration = 0
+        # The plan already identifies the world prototype selected by each environment.
+        prototypes, group_ids = np.unique(env.scene.clone_plan.topology.world_prototype_layout, return_inverse=True)
+        groups = torch.as_tensor(group_ids, device=env.device)
+        num_groups = len(prototypes)
+        # without a descriptor there is nothing to spread over, so harvesting extra is waste
+        harvest_size = buffer_size_per_group
+        if diversity_feature is not None:
+            harvest_size = round(buffer_size_per_group * oversample_factor)
+        if buffer_size_per_group < 1 or harvest_size < buffer_size_per_group:
+            raise ValueError("Each group must harvest at least as many states as it retains, with at least one kept.")
+        capacity = num_groups * harvest_size
+        filled = [0] * num_groups
+        buffer = None
+        descriptor = None
+        reset_assets = list(env.scene.articulations) + list(env.scene.rigid_objects)
+        iteration = 0
 
-            # prefill ignores env_ids and rolls every environment: a partial first reset may
-            # not cover all groups, and a group with no rolled envs could never fill
-            all_ids = torch.arange(env.num_envs, device=env.device)
+        # prefill ignores env_ids and rolls every environment: a partial first reset may
+        # not cover all groups, and a group with no rolled envs could never fill
+        all_ids = torch.arange(env.num_envs, device=env.device)
 
-            with tqdm(
-                total=num_groups * harvest_size,
-                desc="Prefilling reset buffer",
-                unit="state",
-                dynamic_ncols=True,
-            ) as progress:
-                while not bool((self._fill >= harvest_size).all()):
-                    if max_prefill_iters is not None and iteration >= max_prefill_iters:
-                        short = torch.nonzero(self._fill < harvest_size).view(-1)
-                        counts = {int(group): int(self._fill[group]) for group in short}
-                        raise RuntimeError(
-                            "conditional_reset: could not fill the reset-state buffer for every asset-combination "
-                            f"group. Required {harvest_size} valid states per group, got {counts} after "
-                            f"{max_prefill_iters} prefill iterations."
-                        )
-                    iteration += 1
-                    valid_ids = all_ids[roll_once(all_ids)]
-                    for group in torch.unique(self._group[valid_ids]).tolist():
-                        filled = int(self._fill[group])
-                        remaining = harvest_size - filled
-                        if remaining <= 0:
-                            continue
-                        take = valid_ids[self._group[valid_ids] == group][:remaining]
-                        if len(take) == 0:
-                            continue
-                        state = get_reset_state(env, take, self._reset_assets, is_relative=True)
-                        if self._buffer.numel() == 0:
-                            capacity = num_groups * harvest_size
-                            self._buffer = torch.empty(
-                                capacity, state.shape[-1], device=state.device, dtype=state.dtype
-                            )
-                        row = group * harvest_size + filled
-                        self._buffer[row : row + len(take)] = state
-                        if diversity_feature is not None:
-                            # measured now: the next roll overwrites the states these describe
-                            feature = diversity_feature.func(env, take, **diversity_feature.params)
-                            if self._descriptor.numel() == 0:
-                                self._descriptor = torch.empty(
-                                    num_groups * harvest_size,
-                                    feature.shape[-1],
-                                    device=feature.device,
-                                    dtype=feature.dtype,
-                                )
-                            self._descriptor[row : row + len(take)] = feature
-                        self._fill[group] += len(take)
-                        progress.update(len(take))
-            if diversity_feature is not None:
-                self._keep_most_spread(num_groups, harvest_size, buffer_size_per_group)
-            if success_monitor is not None:
-                # one monitored slot per banked state, partitioned exactly like the bank
-                self._monitor = success_monitor.class_type(
-                    success_monitor, num_groups, buffer_size_per_group, env.device
-                )
-            self._prefilled = True
-            # drop the prefill-only terms/criteria so their device memory is freed
-            terms.clear()
-            valid_criteria.clear()
-            # the rolls above perturbed every environment, so the first reset restores a
-            # banked state to all of them, not just the requested subset
-            env_ids = all_ids
+        with tqdm(
+            total=capacity,
+            desc="Prefilling reset buffer",
+            unit="state",
+            dynamic_ncols=True,
+        ) as progress:
+            while min(filled) < harvest_size:
+                if max_prefill_iters is not None and iteration >= max_prefill_iters:
+                    counts = {group: count for group, count in enumerate(filled) if count < harvest_size}
+                    raise RuntimeError(
+                        "conditional_reset: could not fill the reset-state buffer for every asset-combination "
+                        f"group. Required {harvest_size} valid states per group, got {counts} after "
+                        f"{max_prefill_iters} prefill iterations."
+                    )
+                iteration += 1
+                valid_ids = all_ids[roll_once(all_ids)]
+                valid_groups = groups[valid_ids]
+                for group in valid_groups.unique().tolist():
+                    remaining = harvest_size - filled[group]
+                    if remaining == 0:
+                        continue
+                    take = valid_ids[valid_groups == group][:remaining]
+                    state = get_reset_state(env, take, reset_assets, is_relative=True)
+                    if buffer is None:
+                        buffer = state.new_empty((capacity, state.shape[-1]))
+                    row = group * harvest_size + filled[group]
+                    buffer[row : row + len(take)] = state
+                    if diversity_feature is not None:
+                        # measured now: the next roll overwrites the states these describe
+                        feature = diversity_feature.func(env, take, **diversity_feature.params)
+                        if descriptor is None:
+                            descriptor = feature.new_empty((capacity, feature.shape[-1]))
+                        descriptor[row : row + len(take)] = feature
+                    filled[group] += len(take)
+                    progress.update(len(take))
+        if descriptor is not None:
+            buffer = self._keep_most_spread(buffer, descriptor, num_groups, harvest_size, buffer_size_per_group)
+        self._initialize_replay(buffer, groups, num_groups, reset_sampler, success_reward_term)
+        # drop the prefill-only terms/criteria so their device memory is freed
+        terms.clear()
+        valid_criteria.clear()
+        # the rolls above perturbed every environment, so the first reset restores a
+        # banked state to all of them, not just the requested subset
+        return all_ids
 
-        groups = self._group[env_ids]
-        if self._monitor is None:
-            # ``rand * fill`` floors to a uniform draw in ``[0, fill)``.
-            donor = (torch.rand(len(env_ids), device=env_ids.device) * self._fill[groups]).long()
-            rows = groups * buffer_size_per_group + donor
-        else:
-            # credit before drawing: the outcome belongs to the row these environments were playing
-            self._credit_episodes(env, env_ids, self._monitor, success_reward_term)
-            rows = self._monitor.sample_by_target_rate(groups)
-            self._playing_row[env_ids] = rows
-        set_reset_state(env, self._buffer[rows], env_ids, self._reset_assets, is_relative=True)
-
-    def _keep_most_spread(self, num_groups: int, harvest_size: int, keep_size: int):
+    @staticmethod
+    def _keep_most_spread(
+        buffer: torch.Tensor, descriptor: torch.Tensor, num_groups: int, harvest_size: int, keep_size: int
+    ) -> torch.Tensor:
         """Thin each group's harvest down to the ``keep_size`` states most spread over the descriptor.
 
-        Rewrites the buffer with a ``keep_size`` stride so the draw at the end of :meth:`__call__`
-        addresses it unchanged, and frees the descriptors, which are prefill-only.
+        The returned buffer has a ``keep_size`` stride so each group stays contiguous.
         """
-        kept = torch.empty(
-            num_groups * keep_size, self._buffer.shape[-1], device=self._buffer.device, dtype=self._buffer.dtype
-        )
+        kept = buffer.new_empty((num_groups * keep_size, buffer.shape[-1]))
         for group in range(num_groups):
             start = group * harvest_size
-            feature = self._descriptor[start : start + harvest_size]
+            feature = descriptor[start : start + harvest_size]
             # rescale to unit span per axis, otherwise the axis with the widest numbers decides the
             # spread on its own and the others are covered only incidentally
             feature = feature / (feature.amax(dim=0) - feature.amin(dim=0)).clamp(min=1e-6)
             picked = start + farthest_point_sampling(feature, keep_size)
-            kept[group * keep_size : (group + 1) * keep_size] = self._buffer[picked]
-        self._buffer = kept
-        self._fill.fill_(keep_size)
-        self._descriptor = torch.empty(0, 0, device=self._descriptor.device)
+            kept[group * keep_size : (group + 1) * keep_size] = buffer[picked]
+        return kept
 
-    def _credit_episodes(
+    def _initialize_replay(
         self,
-        env: ManagerBasedRLEnv,
-        env_ids: torch.Tensor,
-        monitor: SuccessMonitor,
+        buffer: torch.Tensor,
+        groups: torch.Tensor,
+        num_groups: int,
+        cfg: ResetStateSamplerCfg | None,
         success_reward_term: str,
-    ):
-        """Record the outcome of the episode each environment just finished against the row it played.
+    ) -> None:
+        """Bind typed snapshots and full-environment scratch arrays before graph capture."""
+        env = self._env
+        success = None
+        if cfg is None:
+            cfg = ResetStateSamplerCfg(history_length=1, scores=[])
+        else:
+            success_term = env.reward_manager.get_term_cfg(success_reward_term).func
+            success = wp.from_torch(success_term.succeeded)
+        cfg = replace(cfg, seed=(cfg.seed + (env.cfg.seed or 0)) % 2**32)
+        self._sampler = ResetStateSampler(
+            cfg, env.num_envs, buffer.shape[0], env.device, group_ids=groups, num_groups=num_groups
+        )
+        self._origins = wp.from_torch(env.scene.env_origins, dtype=wp.vec3f)
+        self._restore_states: dict[str, dict[str, wp.array]] = {}
+        self._articulations = []
+        self._rigid_objects = []
+        states: dict[str, dict[str, wp.array]] = {}
+        offset = 0
+        for assets, articulation in ((env.scene.articulations, True), (env.scene.rigid_objects, False)):
+            for name, asset in assets.items():
+                fields = {
+                    "root_pose": wp.from_torch(buffer[:, offset : offset + 7].contiguous(), dtype=wp.transformf),
+                    "root_velocity": wp.from_torch(
+                        buffer[:, offset + 7 : offset + 13].contiguous(), dtype=wp.spatial_vectorf
+                    ),
+                }
+                offset += 13
+                if articulation:
+                    fields["joint_position"] = wp.from_torch(buffer[:, offset : offset + asset.num_joints].contiguous())
+                    offset += asset.num_joints
+                    fields["joint_velocity"] = wp.from_torch(buffer[:, offset : offset + asset.num_joints].contiguous())
+                    offset += asset.num_joints
+                states[name] = fields
+                output = {
+                    field: wp.empty((env.num_envs, *value.shape[1:]), dtype=value.dtype, device=env.device)
+                    for field, value in fields.items()
+                }
+                self._restore_states[name] = output
+                if articulation:
+                    zero_velocity = wp.zeros((env.num_envs, asset.num_joints), dtype=wp.float32, device=env.device)
+                    self._articulations.append((asset, output, zero_velocity))
+                else:
+                    self._rigid_objects.append((asset, output))
+        self._bank = ResetStateBuffer(states)
+        self._success = success
 
-        Reads the success flag of the reward term rather than recomputing it, and must therefore run
-        while the flag still describes the finished episode: reset events fire before the reward
-        manager resets its terms.
+    def reset_mask(
+        self,
+        mask: wp.array | None = None,
+        *,
+        state_ids: wp.array | None = None,
+        completed: wp.array | None = None,
+    ) -> None:
+        """Restore selected environments through the backend's mask writers.
+
+        Complete prefill through the ordinary event call first. Newton/MJWarp supports CUDA
+        graph capture of this method. Run it outside capture with OvPhysX or Kit-based PhysX.
+        The full-environment mask and optional explicit catalog IDs may change between graph
+        replays. Supply the full-environment ``completed`` mask for natural episode outcomes
+        before the task's reward buffer is cleared. Exclude zero-step and unfinished episodes
+        from this mask. None records no episode outcomes.
         """
-        if self._success_term is None:
-            self._success_term = env.reward_manager.get_term_cfg(success_reward_term).func
-            if not hasattr(self._success_term, "succeeded"):
-                raise TypeError(
-                    f"conditional_reset: reward term '{success_reward_term}' keeps no 'succeeded' buffer, so"
-                    " episode outcomes cannot be credited to the banked states. Point 'success_reward_term'"
-                    " at a term that keeps one, such as 'success_reward'."
-                )
-        played = self._playing_row[env_ids]
-        # an environment that has not been restored yet has no episode to credit
-        started = played >= 0
-        monitor.success_update(played[started], self._success_term.succeeded[env_ids][started])
+        if self._bank is None:
+            raise RuntimeError("Initialize conditional_reset through its event call before capturing reset_mask.")
+        mask = resolve_1d_mask(mask=mask, all_mask=self._all_mask, scratch_mask=self._mask)
+        if self._success is not None and completed is not None:
+            self._sampler.reset(mask, success=self._success, valid=completed, state_ids=state_ids)
+        else:
+            self._sampler.reset(mask, state_ids=state_ids)
+        if state_ids is not None:
+            wp.launch(
+                _requested_restore_mask,
+                self._env.num_envs,
+                [mask, self._sampler.invalid_requests.warp, self._restore_mask],
+                device=self._env.device,
+            )
+            mask = self._restore_mask
+        self._bank.get_state(self._sampler.indices, out=self._restore_states, mask=mask)
+        for asset, fields, zero_velocity in self._articulations:
+            wp.launch(
+                _restore_root_origin,
+                self._env.num_envs,
+                [mask, self._origins, fields["root_pose"]],
+                device=self._env.device,
+            )
+            asset.write_root_link_pose_to_sim_mask(root_pose=fields["root_pose"], env_mask=mask)
+            asset.write_root_com_velocity_to_sim_mask(root_velocity=fields["root_velocity"], env_mask=mask)
+            asset.write_joint_position_to_sim_mask(position=fields["joint_position"], env_mask=mask)
+            asset.write_joint_velocity_to_sim_mask(velocity=fields["joint_velocity"], env_mask=mask)
+            asset.actuators.target_command.set_position_mask(value=fields["joint_position"], env_mask=mask)
+            asset.actuators.target_command.set_velocity_mask(value=zero_velocity, env_mask=mask)
+        for asset, fields in self._rigid_objects:
+            wp.launch(
+                _restore_root_origin,
+                self._env.num_envs,
+                [mask, self._origins, fields["root_pose"]],
+                device=self._env.device,
+            )
+            asset.write_root_link_pose_to_sim_mask(root_pose=fields["root_pose"], env_mask=mask)
+            asset.write_root_com_velocity_to_sim_mask(root_velocity=fields["root_velocity"], env_mask=mask)
 
 
 class grasp_travel_distance(ManagerTermBase):
@@ -536,7 +664,7 @@ class grasp_travel_distance(ManagerTermBase):
         body_pos = self._robot.data.body_pos_w.torch[env_ids][:, self._body_ids]
         grasp = torch.linalg.norm(body_pos - object_pos[:, None, :], dim=-1).amax(dim=-1, keepdim=True)
         goal_pos = self._robot.data.root_pos_w.torch[env_ids] + quat_apply(
-            self._robot.data.root_quat_w.torch[env_ids], self._goal_center_b.expand(len(env_ids), 3)
+            self._robot.data.root_quat_w.torch[env_ids], self._goal_center_b.expand(object_pos.shape[0], 3)
         )
         travel = torch.linalg.norm(goal_pos - object_pos, dim=-1, keepdim=True)
         feature = torch.cat([grasp, travel], dim=-1)
@@ -685,7 +813,7 @@ class mesh_clearance(ManagerTermBase):
     Reset draws can place the object overlapping the arm; the solver resolves the overlap
     ballistically at episode birth. Checks both the object's surface point cloud against the
     robot's collision meshes and the robot's collision vertices against the object's collision
-    mesh with Warp signed-distance queries — the winding-number sign catches full containment.
+    mesh with Warp signed-distance queries; the winding-number sign catches full containment.
 
     The object point cloud comes from the same sampler as the point-cloud observation (per
     clone-plan prototype, geometry-keyed cache), so with the default count the cloud is
@@ -741,8 +869,13 @@ class mesh_clearance(ManagerTermBase):
         object_meshes = []
         env_object_mesh = np.zeros(env.num_envs, dtype=np.int32)
         mesh_by_path: dict[str, int] = {}
-        clone_plan = sim_utils.SimulationContext.instance().get_clone_plan()
-        for _, _, source_path, env_ids in cloner.query.iter_sources(clone_plan, self._object.cfg.prim_path):
+        plan = sim_utils.SimulationContext.instance().get_clone_plan()
+        source_paths = cloner.path.get_asset_prototype_paths(plan)
+        for index in cloner.path.get_asset_prototypes(plan, self._object.cfg.prim_path):
+            env_ids, _ = cloner.query.get_asset_prototype_unique_world_index(plan.topology, index)
+            if not len(env_ids):
+                continue
+            source_path = source_paths[index]
             if source_path not in mesh_by_path:
                 object_prim = sim_utils.get_current_stage().GetPrimAtPath(source_path)
                 object_mesh_by_id = collect_collision_meshes(object_prim, lambda prim: (0, object_prim))
@@ -779,6 +912,7 @@ class mesh_clearance(ManagerTermBase):
         self._max_dist = max(4.0 * cfg.min_clearance, 0.15)
 
     def __call__(self, env: ManagerBasedEnv, env_ids: torch.Tensor) -> torch.Tensor:
+        env_ids = env.scene._ALL_INDICES[env_ids]
         num = len(env_ids)
         out_min = wp.full(num, 1.0e6, dtype=wp.float32, device=env.device)
         wp.launch(
@@ -864,6 +998,7 @@ class slab_clearance(ManagerTermBase):
         self._env_origins = wp.from_torch(env.scene.env_origins.contiguous(), dtype=wp.vec3)
 
     def __call__(self, env: ManagerBasedEnv, env_ids: torch.Tensor) -> torch.Tensor:
+        env_ids = env.scene._ALL_INDICES[env_ids]
         num = len(env_ids)
         out_min = wp.full(num, 1.0e6, dtype=wp.float32, device=env.device)
         ids = wp.from_torch(env_ids.to(torch.int32).contiguous())
@@ -921,8 +1056,8 @@ def reset_deformable_over_support(
     deformable: DeformableObject = env.scene[asset_cfg.name]
     supports: tuple[RigidObject, RigidObject] = (env.scene[support_cfg[0].name], env.scene[support_cfg[1].name])
 
-    ranges = torch.tensor([position_range.get(key, (0.0, 0.0)) for key in ("x", "y", "z")], device=deformable.device)
-    offset = sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 3), device=deformable.device)
+    num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
+    offset = sample_uniform_from_ranges(position_range, ("x", "y", "z"), num_envs, device=deformable.device)
 
     nodal_state = deformable.data.default_nodal_state_w.torch[env_ids].clone()
     nodal_state[..., :3] += offset.unsqueeze(1)
@@ -933,7 +1068,7 @@ def reset_deformable_over_support(
         root_pose[:, :3] += env.scene.env_origins[env_ids]
         root_pose[:, :2] += offset[:, :2]
 
-    gap = sample_uniform(*clear_gap_range, (len(env_ids),), device=supports[0].device)
+    gap = sample_uniform(*clear_gap_range, (num_envs,), device=supports[0].device)
     center_y = 0.5 * (root_poses[0][:, 1] + root_poses[1][:, 1])
     thickness_neg = supports[0].cfg.spawn.size[1]
     thickness_pos = supports[1].cfg.spawn.size[1]

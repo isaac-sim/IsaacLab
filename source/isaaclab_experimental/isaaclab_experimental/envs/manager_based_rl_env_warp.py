@@ -13,6 +13,7 @@ so it can diverge (Warp-first / graph-friendly) without inheriting from the stab
 # needed to import for allowing type-hinting: np.ndarray | None
 from __future__ import annotations
 
+import logging
 import math
 import os
 from collections.abc import Sequence
@@ -26,12 +27,15 @@ import warp as wp
 from isaaclab.envs.common import VecEnvStepReturn
 from isaaclab.envs.manager_based_rl_env_cfg import ManagerBasedRLEnvCfg
 from isaaclab.managers import CommandManager
+from isaaclab.utils import index_fill_
 from isaaclab.utils.timer import Timer
 
 from isaaclab_experimental.utils.manager_call_switch import ManagerCallMode
 from isaaclab_experimental.utils.torch_utils import clone_obs_buffer
 
 from .manager_based_env_warp import ManagerBasedEnvWarp
+
+logger = logging.getLogger(__name__)
 
 DEBUG_TIMERS = os.environ.get("DEBUG_TIMERS", "0") == "1"
 """Enable outer step() timer. Set DEBUG_TIMERS=1 env var to enable."""
@@ -46,7 +50,7 @@ DEBUG_TIMER_RESET = os.environ.get("DEBUG_TIMER_RESET", "0") == "1"
 class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
     """The superclass for the manager-based workflow reinforcement learning-based environments.
 
-    This class inherits from :class:`ManagerBasedEnv` and implements the core functionality for
+    This class inherits from :class:`ManagerBasedEnvWarp` and implements the core functionality for
     reinforcement learning-based environments. It is designed to be used with any RL
     library. The class is designed to be used with vectorized environments, i.e., the
     environment is expected to be run in parallel with multiple sub-environments. The
@@ -129,7 +133,7 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         self.metadata["render_fps"] = 1 / self.step_dt
         self.has_rtx_sensors = self.sim.get_setting("/isaaclab/render/rtx_sensors")
 
-        print("[INFO]: Completed setting up the environment...")
+        logger.info("Completed setting up the environment...")
 
     """
     Properties.
@@ -164,7 +168,7 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         # and the reward manager needs to know the termination manager
         # -- command manager (stable impl — not routed through ManagerCallSwitch)
         self.command_manager = CommandManager(self.cfg.commands, self)
-        print("[INFO] Command Manager: ", self.command_manager)
+        logger.info(f"Command Manager: {self.command_manager}")
 
         # call the parent class to load the managers for observations and actions.
         super().load_managers()
@@ -174,15 +178,15 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         self.termination_manager = self._manager_call_switch.resolve_manager_class("TerminationManager")(
             self.cfg.terminations, self
         )
-        print("[INFO] Termination Manager: ", self.termination_manager)
+        logger.info(f"Termination Manager: {self.termination_manager}")
         # -- reward manager (experimental fork; Warp-compatible rewards)
         self.reward_manager = self._manager_call_switch.resolve_manager_class("RewardManager")(self.cfg.rewards, self)
-        print("[INFO] Reward Manager: ", self.reward_manager)
+        logger.info(f"Reward Manager: {self.reward_manager}")
         # -- curriculum manager
         self.curriculum_manager = self._manager_call_switch.resolve_manager_class("CurriculumManager")(
             self.cfg.curriculum, self
         )
-        print("[INFO] Curriculum Manager: ", self.curriculum_manager)
+        logger.info(f"Curriculum Manager: {self.curriculum_manager}")
 
         # setup the action and observation spaces for Gym
         self._configure_gym_env_spaces()
@@ -316,14 +320,7 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
             timer=DEBUG_TIMER_STEP,
         )
 
-        if len(self.recorder_manager.active_terms) > 0:
-            # update observations for recording if needed
-            self._manager_call_switch.call_stage(
-                stage="ObservationManager_compute_no_history",
-                warp_call={"fn": self.observation_manager.compute, "kwargs": {"return_cloned_output": False}},
-                timer=DEBUG_TIMER_STEP,
-            )
-            self.recorder_manager.record_post_step()
+        self.recorder_manager.record_post_step()
 
         # -- reset envs that terminated/timed-out and log the episode information
         # NOTE: Interim path (intentional).
@@ -395,20 +392,20 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         By convention, if mode is:
 
         - **human**: Render to the current display and return nothing. Usually for human consumption.
-        - **rgb_array**: Return a numpy.ndarray with shape (x, y, 3), representing RGB values for an
-          x-by-y pixel image, suitable for turning into a video.
+
+        .. note::
+            ``render_mode="rgb_array"`` is no longer supported.  Use
+            :class:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg` on
+            ``env_cfg.video_recorders`` instead.
 
         Args:
             recompute: Whether to force a render even if the simulator has already rendered the scene.
                 Defaults to False.
 
         Returns:
-            The rendered image as a numpy array if mode is "rgb_array". Otherwise, returns None.
+            None.
 
         Raises:
-            RuntimeError: If mode is set to "rgb_data" and simulation render mode does not support it.
-                In this case, the simulation render mode must be set to ``RenderMode.PARTIAL_RENDERING``
-                or ``RenderMode.FULL_RENDERING``.
             NotImplementedError: If an unsupported rendering mode is specified.
         """
         # run a rendering step of the simulator
@@ -416,38 +413,18 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         if not self.has_rtx_sensors and not recompute:
             self.sim.render()
         # decide the rendering mode
+        if self.render_mode == "rgb_array":
+            import warnings
+
+            warnings.warn(
+                "render_mode='rgb_array' is deprecated and will be removed in a future release. "
+                "Use VideoRecorderCfg on env_cfg.video_recorders to capture frames instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return None
         if self.render_mode == "human" or self.render_mode is None:
             return None
-        elif self.render_mode == "rgb_array":
-            # rendering requires a GUI or offscreen rendering (mirrors the stable env)
-            if not (self.sim.has_gui or self.sim.has_offscreen_render):
-                raise RuntimeError(
-                    f"Cannot render '{self.render_mode}' when the simulation render mode does not support"
-                    " rendering. Please set the simulation render mode to 'PARTIAL_RENDERING' or"
-                    " 'FULL_RENDERING'."
-                )
-            # create the annotator if it does not exist
-            if not hasattr(self, "_rgb_annotator"):
-                import omni.replicator.core as rep
-
-                # create render product from the main Kit viewport camera
-                _cam_prim_path = "/OmniverseKit_Persp"
-                _resolution = (1280, 720)
-                self._render_product = rep.create.render_product(_cam_prim_path, _resolution)
-                self._render_resolution = _resolution
-                # create rgb annotator -- used to read data from the render product
-                self._rgb_annotator = rep.AnnotatorRegistry.get_annotator("rgb", device="cpu")
-                self._rgb_annotator.attach([self._render_product])
-            # obtain the rgb data
-            rgb_data = self._rgb_annotator.get_data()
-            # convert to numpy array
-            rgb_data = np.frombuffer(rgb_data, dtype=np.uint8).reshape(*rgb_data.shape)
-            # return the rgb data
-            # note: initially the renerer is warming up and returns empty data
-            if rgb_data.size == 0:
-                return np.zeros((self._render_resolution[1], self._render_resolution[0], 3), dtype=np.uint8)
-            else:
-                return rgb_data[:, :, :3]
         else:
             raise NotImplementedError(
                 f"Render mode '{self.render_mode}' is not supported. Please use: {self.metadata['render_modes']}."
@@ -504,18 +481,18 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         """Reset environments based on specified indices.
 
         IMPORTANT:
-            This function always uses the **TerminationManager-produced Warp env mask** (`self.reset_buf`) to select
+            This function always uses the persistent Warp env mask (`self.reset_mask_wp`) to select
             which envs to reset. The ids/mask conversion is performed in `step()` before calling this function.
 
             In other words:
-            - If `env_mask` is provided, it **must** be `self.reset_buf` (Warp bool mask)
-            - If `env_mask` is not provided, this function will populate `self.reset_buf` from `env_ids`
+            - If `env_mask` is provided, it **must** be `self.reset_mask_wp` (Warp bool mask)
+            - If `env_mask` is not provided, this function will populate `self.reset_mask_wp` from `env_ids`
             - When `env_mask` is provided, `env_ids` **must** correspond to the same mask
 
         Args:
             env_ids: Environment indices to reset.
-            env_mask: Warp boolean env mask selecting envs to reset. Must be `self.reset_buf`.
-                If None, uses and populates `self.reset_buf` from `env_ids`.
+            env_mask: Warp boolean env mask selecting envs to reset. Must be `self.reset_mask_wp`.
+                If None, uses and populates `self.reset_mask_wp` from `env_ids`.
         """
         if env_mask is None:
             # Base `reset()` / `reset_to()` call-path provides only `env_ids`.
@@ -608,7 +585,7 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         recorder_info = self.recorder_manager.reset(env_ids=env_ids)
 
         # reset the episode length buffer
-        self.episode_length_buf[env_ids] = 0
+        index_fill_(self.episode_length_buf, env_ids, 0)
 
         # aggregate logging info
         log: dict[str, Any] = {}

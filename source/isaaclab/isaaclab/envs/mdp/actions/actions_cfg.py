@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 from isaaclab.controllers import DifferentialIKControllerCfg, OperationalSpaceControllerCfg
 from isaaclab.managers.action_manager import ActionTermCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from .binary_joint_actions import AbsBinaryJointPositionAction, BinaryJointPositionAction, BinaryJointVelocityAction
@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from .non_holonomic_actions import NonHolonomicAction
     from .surface_gripper_actions import SurfaceGripperBinaryAction
     from .task_space_actions import DifferentialInverseKinematicsAction, OperationalSpaceControllerAction
+    from .tendon_actions import FixedTendonPositionAction
 
 ##
 # Joint actions.
@@ -40,6 +41,33 @@ class JointActionCfg(ActionTermCfg):
     """Offset factor for the action (float or dict of regex expressions). Defaults to 0.0."""
     preserve_order: bool = False
     """Whether to preserve the order of the joint names in the action output. Defaults to False."""
+
+
+@configclass
+class FixedTendonPositionActionCfg(ActionTermCfg):
+    """Configuration for a position action over an articulation's fixed tendons.
+
+    See :class:`FixedTendonPositionAction` for more details.
+    """
+
+    class_type: type[FixedTendonPositionAction] | str = "{DIR}.tendon_actions:FixedTendonPositionAction"
+
+    tendon_names: list[str] = MISSING
+    """Fixed tendon names or regular expressions the motors drive, in action order."""
+    preserve_order: bool = False
+    """Whether to preserve the order of the tendon names in the action output. Defaults to False."""
+
+    scale: float | dict[str, float] = 1.0
+    """Scale mapping an action onto the tendon's commandable span. Defaults to 1.0.
+
+    A dictionary maps tendon-name regular expressions to their own scale, as for a joint term."""
+
+    offset: float | dict[str, float] = 0.0
+    """Offset applied to an action after scaling. Defaults to 0.0.
+
+    A joint action term rescales to each joint's own position limits, which is what a joint limit
+    is for. A tendon carries no equivalent limit on every backend, so its span is configured here.
+    """
 
 
 @configclass
@@ -267,6 +295,10 @@ class NonHolonomicActionCfg(ActionTermCfg):
 class DifferentialInverseKinematicsActionCfg(ActionTermCfg):
     """Configuration for inverse differential kinematics action term.
 
+    The :attr:`clip` ranges are matched against the task-space action names ``pos_x``, ``pos_y``,
+    ``pos_z`` and, for relative pose commands, ``rot_x``, ``rot_y``, ``rot_z``. The quaternion components
+    of absolute pose commands cannot be clipped.
+
     See :class:`DifferentialInverseKinematicsAction` for more details.
     """
 
@@ -297,6 +329,8 @@ class DifferentialInverseKinematicsActionCfg(ActionTermCfg):
     """Offset of target frame w.r.t. to the body frame. Defaults to None, in which case no offset is applied."""
     scale: float | tuple[float, ...] = 1.0
     """Scale factor for the action. Defaults to 1.0."""
+    offset: float | tuple[float, ...] = 0.0
+    """Offset applied to the scaled action in controller-specific units. Defaults to 0.0."""
     controller: DifferentialIKControllerCfg = MISSING
     """The configuration for the differential IK controller."""
 
@@ -304,6 +338,14 @@ class DifferentialInverseKinematicsActionCfg(ActionTermCfg):
 @configclass
 class OperationalSpaceControllerActionCfg(ActionTermCfg):
     """Configuration for operational space controller action term.
+
+    The :attr:`clip` ranges are matched against the task-space action names: ``pos_x``, ``pos_y``, ``pos_z``
+    and ``rot_x``, ``rot_y``, ``rot_z`` for a ``pose_rel`` target, ``force_x``, ``force_y``, ``force_z``,
+    ``torque_x``, ``torque_y``, ``torque_z`` for a ``wrench_abs`` target, and ``stiffness_<axis>`` and
+    ``damping_ratio_<axis>`` (``x``, ``y``, ``z``, ``rx``, ``ry``, ``rz``) for the variable impedance modes.
+    With both ``pose_abs`` and ``pose_rel`` targets, the pose components are prefixed with their target type
+    (``pose_abs_pos_x``, ``pose_rel_pos_x``, ...). The quaternion components of a ``pose_abs`` target cannot
+    be clipped. The controller limits on the impedance parameters are applied after clipping.
 
     See :class:`OperationalSpaceControllerAction` for more details.
     """

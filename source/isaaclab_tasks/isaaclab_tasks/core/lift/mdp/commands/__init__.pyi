@@ -3,9 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-__all__ = [
-    "DeformableUniformPoseCommandCfg",
-    "ObjectUniformPoseCommandCfg",
-]
+__all__ = ["CableUniformPoseCommandCfg", "DeformableUniformPoseCommandCfg", "ObjectUniformPoseCommandCfg"]
 
-from .pose_commands_cfg import DeformableUniformPoseCommandCfg, ObjectUniformPoseCommandCfg
+from .pose_commands_cfg import CableUniformPoseCommandCfg, DeformableUniformPoseCommandCfg, ObjectUniformPoseCommandCfg

@@ -5,11 +5,9 @@
 
 # Shared image config for CI workflows. Loaded by the `config` job in each
 # workflow via yq and exposed as job outputs (see e.g. .github/workflows/build.yaml).
-# The `nvidian/isaac-sim` mirror stopped receiving nightly develop builds on 2026-06-24
-# (frozen at 6.1.0-alpha.2). Both images use Isaac Sim's NGC org, which is current and
-# which the CI credential can reach.
+# Follow the Isaac Sim 6.3 release stream.
 isaacsim_image_name: nvcr.io/0947644777160149/internal/isaac-sim
-# Pinned to Isaac Sim commit 307e5486 for reproducible CI.
-isaacsim_image_tag: latest-develop@sha256:a13867a6403488a9e640288f96492e6ecd44c3a525b5b85793a2da68fdac48ad
+# Pin the multi-arch manifest list digest, not a per-architecture one: ARM CI pulls linux/arm64.
+isaacsim_image_tag: latest-release-6-3@sha256:d0f5582897c223ed072a6b6638ccbf3738162f0a959a0008c1efd2e7efa4ac8e
 isaaclab_image_name: nvcr.io/0947644777160149/internal/isaac-lab
 ovphysx_wheelhouse_image: ""

@@ -3,20 +3,27 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""IsaacTeleop session lifecycle management."""
+"""Isaac Capture session lifecycle management."""
 
 from __future__ import annotations
 
 import collections
+import dataclasses
 import json
 import logging
 import os
+import threading
 import time
-from collections.abc import Callable
+import weakref
+from collections.abc import Callable, Sequence
+from contextlib import ExitStack
 from typing import TYPE_CHECKING, Any, Protocol
 
 import numpy as np
 import torch
+
+from isaaclab.utils.version import has_kit
+from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 if TYPE_CHECKING:
     from isaacteleop.cloudxr import CloudXRLauncher
@@ -25,9 +32,66 @@ if TYPE_CHECKING:
     from isaacteleop.retargeting_engine_ui import MultiRetargeterTuningUIImGui
     from isaacteleop.teleop_session_manager import TeleopSession
 
+    from .teleop_message_processor import TeleopMessageProcessor
+
 from .control_events import _NO_OP_EVENTS, ControlEvents
 from .isaac_teleop_cfg import IsaacTeleopCfg
-from .teleop_message_processor import TeleopMessageProcessor
+
+# Opt-in acceptance of the NVIDIA CloudXR license, mirroring the ``OMNI_KIT_ACCEPT_EULA``
+# escape hatch Kit offers for the Omniverse license.
+_CXR_ACCEPT_EULA_ENV = "ISAACLAB_CXR_ACCEPT_EULA"
+# The spellings ``OMNI_KIT_ACCEPT_EULA`` and the CloudXR prompt itself both accept.
+_CXR_ACCEPT_EULA_VALUES = frozenset({"y", "yes", "1"})
+
+
+def cloudxr_eula_accepted() -> bool:
+    """Whether ``ISAACLAB_CXR_ACCEPT_EULA`` opts into the NVIDIA CloudXR license.
+
+    The CloudXR license is separate from the Omniverse one. Without this opt-in the
+    runtime prompts for it on stdin, which fails outright when no terminal is attached,
+    so headless, container and CI runs cannot start. ``y``, ``yes`` and ``1`` accept it,
+    case-insensitively and ignoring surrounding whitespace -- the spellings
+    ``OMNI_KIT_ACCEPT_EULA`` and the CloudXR prompt itself both take. Leaving the
+    variable unset, or setting any other value, keeps the interactive prompt.
+
+    Every CloudXR launch path shares this helper -- the session lifecycle here and the
+    process-scoped launcher in ``teleop_replay_agent.py`` -- so the variable behaves the
+    same whichever script starts the runtime.
+
+    Returns:
+        Whether the CloudXR license has been accepted up front.
+    """
+    return os.environ.get(_CXR_ACCEPT_EULA_ENV, "").strip().lower() in _CXR_ACCEPT_EULA_VALUES
+
+
+# The CloudXR runtime accepts at most one of these; setting both is rejected outright.
+_CXR_GPU_INDEX_ENV_VARS = ("NV_CXR_GPU_INDEX_CUDA", "NV_CXR_GPU_INDEX_VULKAN")
+
+
+def _env_file_pins_gpu_index(env_file: str | None) -> bool:
+    """Whether a CloudXR ``.env`` profile already selects a GPU index."""
+    if not env_file:
+        return False
+    try:
+        with open(env_file, encoding="utf-8") as handle:
+            lines = handle.readlines()
+    except OSError:
+        return False
+    return any(line.strip().split("=", 1)[0].strip() in _CXR_GPU_INDEX_ENV_VARS for line in lines)
+
+
+def _renderer_cuda_index() -> int | None:
+    """CUDA index the Kit renderer is pinned to, or ``None`` when it is not pinned or Kit is not running."""
+    if not has_kit():
+        return None
+    import carb
+
+    setting = carb.settings.get_settings().get("/renderer/multiGpu/activeCudaGpus")
+    if not setting:
+        return None
+    first = str(setting).split(",")[0].strip()
+    return int(first) if first.isdigit() else None
+
 
 if TYPE_CHECKING:
     from .haptic_feedback import HapticFeedbackCfg
@@ -120,8 +184,35 @@ def _execution_events_to_control(ee: ExecutionEvents) -> ControlEvents:
     return ControlEvents(is_active=is_active, should_reset=ee.reset)
 
 
+class _ControlKeyListener:
+    """Queues one visualizer window's key presses for :meth:`TeleopSessionLifecycle.drain_pressed_keys`.
+
+    Keeps that window's held keys, so key repeat is not a press and a focus loss on one window
+    leaves the others alone.
+    """
+
+    def __init__(self, pressed: list[int]) -> None:
+        self._pressed = pressed
+        self._held: set[int] = set()
+
+    def on_key(self, code: str, pressed: bool) -> None:
+        from isaacteleop.deviceio_trackers import evdev_code_from_w3c
+
+        evdev_code = evdev_code_from_w3c(code)
+        if evdev_code is None:
+            return
+        if not pressed:
+            self._held.discard(evdev_code)
+        elif evdev_code not in self._held:
+            self._held.add(evdev_code)
+            self._pressed.append(evdev_code)
+
+    def on_focus_lost(self) -> None:
+        self._held.clear()
+
+
 class TeleopSessionLifecycle:
-    """Manages the IsaacTeleop session lifecycle.
+    """Manages the Isaac Capture session lifecycle.
 
     This class is responsible for:
 
@@ -134,6 +225,7 @@ class TeleopSessionLifecycle:
     6. Building external inputs for pipeline leaf nodes (e.g. world-to-anchor transform)
     7. Stepping the session and extracting the flattened action tensor
     8. Managing the optional retargeting tuning UI
+    9. Feeding the pipeline's keyboards from the focused visualizer windows
     """
 
     WORLD_T_ANCHOR_INPUT_NAME = "world_T_anchor"
@@ -142,7 +234,7 @@ class TeleopSessionLifecycle:
 
     HAPTIC_FORCE_LEFT_INPUT_NAME = "_haptic_force_left"
     """Well-known name for the ValueInput leaf feeding the left-hand contact
-    force (a 1-taxel ``TactileVector``) into the haptic sink subgraph."""
+    force (a ``TactileVector`` of ``num_taxels`` values) into the haptic sink subgraph."""
 
     HAPTIC_FORCE_RIGHT_INPUT_NAME = "_haptic_force_right"
     """Well-known name for the ValueInput leaf feeding the right-hand contact force."""
@@ -155,12 +247,10 @@ class TeleopSessionLifecycle:
     Only chained when debug visualization is enabled."""
 
     HAND_LEFT_KEY = "hand_left"
-    """Pipeline output key for the left hand ``TensorGroup`` when the debug
-    outputs are chained (matches ``HandsSource.LEFT``)."""
+    """Pipeline output key for left-hand presence when ``HandsSource`` exists."""
 
     HAND_RIGHT_KEY = "hand_right"
-    """Pipeline output key for the right hand ``TensorGroup`` when the debug
-    outputs are chained (matches ``HandsSource.RIGHT``)."""
+    """Pipeline output key for right-hand presence when ``HandsSource`` exists."""
 
     _STEP_FAILURE_RESTART_COOLDOWN_S = 1.0
     """Minimum delay [s] before recreating the session after a step failure
@@ -180,11 +270,15 @@ class TeleopSessionLifecycle:
         mcap_replay_path: str | None = None,
         enable_debug_visualization: bool = False,
         haptic_cfg: HapticFeedbackCfg | None = None,
+        visualizers: Sequence[BaseVisualizer] = (),
+        *,
+        external_oxr_handles_provider: Callable[[], OpenXRSessionHandles | None] | None = None,
+        ovxr_session: bool = False,
     ):
         """Initialize the session lifecycle manager.
 
         Args:
-            cfg: Configuration for IsaacTeleop settings.
+            cfg: Configuration for Isaac Capture settings.
             cloudxr_env_file: Optional path to a CloudXR ``.env`` file.
                 When provided, the CloudXR runtime is launched automatically
                 during :meth:`start` (unless *auto_launch_cloudxr* is
@@ -201,6 +295,14 @@ class TeleopSessionLifecycle:
                 session through the CloudXR runtime, so teleop I/O works
                 headless without Kit XR rendering.  Ignored in replay mode
                 (which never touches the XR runtime).
+            external_oxr_handles_provider: Optional callback returning handles
+                borrowed from an external OVXR context. Requires
+                ``use_kit_xr_bridge=False`` and defers session creation while
+                the callback returns ``None``.
+            ovxr_session: Whether an application-owned OVXR context presents
+                the session, including replay without borrowed handles.  A
+                failed session exit is then reported and latched rather than
+                suppressed as Kit XR teardown.
             mcap_record_path: Optional path to an MCAP file the live teleop
                 session should be recorded into.  Mutually exclusive with
                 *mcap_replay_path*.  Debug-grade only -- see the Isaac Lab
@@ -220,6 +322,8 @@ class TeleopSessionLifecycle:
                 per-hand output vectors pushed via :meth:`push_haptic` are
                 rendered on the configured device (controller, glove, ...).
                 ``None`` disables haptics entirely.
+            visualizers: Live sequence of windows supplying keyboard input. Pass ``sim.visualizers``;
+                the default empty sequence disables window input.
 
         Raises:
             ValueError: If both *mcap_record_path* and *mcap_replay_path*
@@ -230,15 +334,21 @@ class TeleopSessionLifecycle:
                 "mcap_record_path and mcap_replay_path are mutually exclusive; "
                 "set at most one to switch the session between LIVE recording and REPLAY playback."
             )
+        if external_oxr_handles_provider is not None and use_kit_xr_bridge:
+            raise ValueError("An external OpenXR handle provider requires use_kit_xr_bridge=False")
+        if external_oxr_handles_provider is not None and mcap_replay_path is not None:
+            raise ValueError("An external OpenXR handle provider is incompatible with replay mode")
 
         self._cfg = cfg
         self._device = torch.device(cfg.sim_device)
         self._cloudxr_env_file = cloudxr_env_file
         self._auto_launch_cloudxr = auto_launch_cloudxr
         self._use_kit_xr_bridge = use_kit_xr_bridge
+        self._external_oxr_handles_provider = external_oxr_handles_provider
         self._mcap_record_path = mcap_record_path
         self._mcap_replay_path = mcap_replay_path
         self._is_replay = mcap_replay_path is not None
+        self._latches_exit_failures = ovxr_session or external_oxr_handles_provider is not None
         self._enable_debug_visualization = enable_debug_visualization
 
         # Haptic feedback (optional): when configured, start() builds a
@@ -255,6 +365,7 @@ class TeleopSessionLifecycle:
 
         # Session state (populated during start)
         self._session: TeleopSession | None = None
+        self._session_cleanup_error: BaseException | None = None
         self._pipeline = None
         self._teleop_control_pipeline = None
         self._message_processor: TeleopMessageProcessor | None = None
@@ -267,11 +378,26 @@ class TeleopSessionLifecycle:
         self._last_right_controller = None
         self._last_left_controller = None
         self._last_step_result: dict | None = None
+        self._last_control_events = _NO_OP_EVENTS
+        self._last_control_event_frame_id: int | None = None
         self._session_start_deferred_logged = False
         # Monotonic deadline gating session re-creation after a step failure
         self._restart_holdoff_until = 0.0
         # Fallback for host-initiated resets when no control pipeline is configured
         self._pending_reset = False
+        # Host notifications belong to the retargeting graph, not the control channel.
+        # The worker consumes them only when it actually executes that graph.
+        self._retargeter_reset_lock = threading.Lock()
+        self._retargeter_reset_pending = False
+        self._retargeter_reset_frame_id: int | None = None
+        self._retargeter_reset_cutoff_ns = 0
+        self._retargeter_last_submission_ns = 0
+
+        # Keep the supplied live sequence so windows initialized later can join the session.
+        self._visualizers = visualizers
+        self._keyboard_attachments: dict[BaseVisualizer, ExitStack] = {}
+        self._pipeline_keyboards: list[Any] | None = None  # found once per session
+        self._pressed_keys: list[int] = []
 
         # CloudXR runtime launcher (created in start if configured, stopped in stop)
         self._cloudxr_launcher: CloudXRLauncher | None = None
@@ -303,7 +429,7 @@ class TeleopSessionLifecycle:
                     )
             except (ImportError, ModuleNotFoundError):
                 logger.info(
-                    "isaacsim.kit.xr.teleop.bridge not available; IsaacTeleop will create its own OpenXR session"
+                    "isaacsim.kit.xr.teleop.bridge not available; Isaac Capture will create its own OpenXR session"
                 )
 
             try:
@@ -315,7 +441,7 @@ class TeleopSessionLifecycle:
                     self._on_xr_enabled_changed,
                 )
             except (ImportError, ModuleNotFoundError):
-                logger.info("carb.settings not available; IsaacTeleop will not be able to detect XR enabled state")
+                logger.info("carb.settings not available; Isaac Capture will not be able to detect XR enabled state")
 
         # Pre-shutdown is still wanted in replay mode so the MCAP writer/reader
         # gets a chance to flush before Kit tears down its event loop.
@@ -330,7 +456,7 @@ class TeleopSessionLifecycle:
             # app, and calling observe_event() on None aborts construction.
             dispatcher = get_eventdispatcher()
             if dispatcher is None:
-                logger.info("No Kit event dispatcher; IsaacTeleop will not clean up on Kit close")
+                logger.info("No Kit event dispatcher; Isaac Capture will not clean up on Kit close")
             else:
                 # Subscribe to Kit pre-shutdown so we tear down our session before XRCore
                 # tears down the OpenXR instance/session (XRCore uses order=0; lowest runs first).
@@ -338,16 +464,21 @@ class TeleopSessionLifecycle:
                 self._pre_shutdown_subscription = dispatcher.observe_event(
                     event_name=omni.kit.app.GLOBAL_EVENT_PRE_SHUTDOWN,
                     on_event=self._on_pre_shutdown,
-                    observer_name="IsaacTeleop session lifecycle",
+                    observer_name="Isaac Capture session lifecycle",
                     order=-100,
                 )
         except (ImportError, ModuleNotFoundError):
-            logger.info("omni.kit.app/carb.eventdispatcher not available; IsaacTeleop will not clean up on Kit close")
+            logger.info("omni.kit.app/carb.eventdispatcher not available; Isaac Capture will not clean up on Kit close")
 
     @property
     def is_active(self) -> bool:
         """Whether the teleop session is currently running."""
-        return self._session is not None
+        return self._session is not None and not self.session_cleanup_failed
+
+    @property
+    def session_cleanup_failed(self) -> bool:
+        """Whether native/session drain failed and further use is prohibited."""
+        return self._session_cleanup_error is not None
 
     @property
     def pipeline(self):
@@ -377,9 +508,11 @@ class TeleopSessionLifecycle:
     def last_step_result(self) -> dict | None:
         """Full pipeline output from the most recent :meth:`step`, or ``None``.
 
-        Contains at least ``"action"`` and the right-controller entry.  When
-        debug visualization was enabled at session start, :attr:`HAND_LEFT_KEY`
-        and :attr:`HAND_RIGHT_KEY` are included when a ``HandsSource`` exists.
+        Contains at least ``"action"`` and the right-controller entry.
+        :attr:`HAND_LEFT_KEY` and :attr:`HAND_RIGHT_KEY` are included whenever
+        a ``HandsSource`` exists; a user pipeline may explicitly provide those
+        outputs after applying a validity policy. Controller-left and visual
+        updates remain debug-only.
         """
         return self._last_step_result
 
@@ -392,19 +525,11 @@ class TeleopSessionLifecycle:
     def last_control_events(self) -> ControlEvents:
         """Control events from the most recent :meth:`step`.
 
-        When a ``teleop_control_pipeline`` is configured, derives
-        :class:`ControlEvents` from
-        ``session.last_context.execution_events``.  Otherwise returns a
-        default (no-op) :class:`ControlEvents`.
+        Reset is an edge-triggered event. In pipelined execution, multiple app
+        steps can return the same completed retargeting frame, so the event is
+        latched by returned frame ID and emitted only on its first return.
         """
-        if self._message_processor is None:
-            return _NO_OP_EVENTS
-        if self._session is None:
-            return _NO_OP_EVENTS
-        ctx = self._session.last_context
-        if ctx is None:
-            return _NO_OP_EVENTS
-        return _execution_events_to_control(ctx.execution_events)
+        return self._last_control_events
 
     def request_reset(self, pause: bool = False) -> None:
         """Schedule a reset for the next pipeline step.
@@ -428,6 +553,25 @@ class TeleopSessionLifecycle:
             self._message_processor.inject_reset(pause=pause)
         else:
             self._pending_reset = True
+
+    def notify_reset(self) -> None:
+        """Reset main-pipeline retargeters on their next execution without emitting a control event.
+
+        Unlike :meth:`request_reset`, this reports a reset the environment has
+        already performed. It leaves operator commands and execution state intact.
+        The notification survives dropped pipelined submissions; a worker consumes
+        it only while executing the main graph with post-notification external inputs.
+        Multiple pending notifications coalesce.
+        Call from the application thread after resetting the environment. Actions
+        from requests submitted before this notification are withheld until a newer
+        result arrives; operator control events remain available throughout.
+        """
+        with self._retargeter_reset_lock:
+            self._retargeter_reset_pending = True
+            self._retargeter_reset_cutoff_ns = max(time.monotonic_ns(), self._retargeter_last_submission_ns)
+            self._retargeter_reset_frame_id = (
+                self._session.last_step_info.submitted_frame_id if self._session is not None else None
+            )
 
     def request_start(self) -> None:
         """Locally drive the teleop state machine toward RUNNING (headset-free start).
@@ -471,6 +615,8 @@ class TeleopSessionLifecycle:
         "Start AR"), session creation is deferred and will be retried on each
         :meth:`step` call.
         """
+        if self._session_cleanup_error is not None:
+            raise self._session_cleanup_error
         # Measure the workstation before anything expensive starts. Any notice is
         # queued now and delivered when the client connects. The queue is not
         # cleared here: send_client_message promises that messages queued before
@@ -481,6 +627,10 @@ class TeleopSessionLifecycle:
         # Skipped in replay: there is no live operator to warn.
         if not self._is_replay:
             self._run_system_check()
+
+        # Silence the OpenXR runtime's per-call error messages in this process; set
+        # OXR_NO_PRINTING=false to see them again. Must be set before Kit loads the runtime.
+        os.environ.setdefault("OXR_NO_PRINTING", "true")
 
         # CloudXR is per-run, not per-mode: when the caller passes a profile
         # we spawn the runtime so a real client has something to attach to.
@@ -496,8 +646,12 @@ class TeleopSessionLifecycle:
         self._last_right_controller = None
         self._last_left_controller = None
         self._last_step_result = None
+        self._last_control_events = _NO_OP_EVENTS
+        self._last_control_event_frame_id = None
 
         self._pipeline = self._build_combined_pipeline(user_pipeline)
+        self._pressed_keys.clear()
+        self._pipeline_keyboards = None
 
         # Build the optional haptic sink. It reuses the button-controller
         # tracker so no additional ControllersSource (and thus no duplicate
@@ -534,6 +688,9 @@ class TeleopSessionLifecycle:
             self._retargeting_ui_ctx = MultiRetargeterTuningUIImGui(retargeters, title="Hand Retargeting Tuning")
             self._retargeting_ui = self._retargeting_ui_ctx.__enter__()
 
+        # A failed start never reaches the device's context-manager cleanup.
+        self._attach_keyboards()
+
     def stop(self, exc_type=None, exc_val=None, exc_tb=None) -> None:
         """Shut down the session and clean up resources.
 
@@ -541,26 +698,66 @@ class TeleopSessionLifecycle:
         context manager.  If the underlying OpenXR session was already torn
         down externally (e.g. "Stop AR"), cleanup errors are suppressed.
 
+        A retargeting UI failure does not skip session cleanup; it propagates
+        afterwards, or is attached to the caller's original exception. For an OVXR
+        session, including OVXR replay, a failed session exit is not suppressed:
+        it is reported the same way and latched, and the lifecycle prohibits
+        reuse or restart. The retained session reference does not prove native
+        drain; the application must not release borrowed resources or stop the
+        runtime after that failure.
+
         Args:
             exc_type: Exception type (for context manager protocol).
             exc_val: Exception value.
             exc_tb: Exception traceback.
         """
+        self._detach_keyboards()
+        self._pressed_keys.clear()
+
+        error = exc_val
+
+        def record_failure(cleanup_error: BaseException) -> None:
+            nonlocal error
+            if error is None:
+                error = cleanup_error
+            else:
+                error.add_note(f"Isaac Capture cleanup failed: {cleanup_error!r}")
+
         # Close the retargeting tuning UI first
+        # A UI failure must not prevent native/session cleanup.
         if self._retargeting_ui_ctx is not None:
-            self._retargeting_ui_ctx.__exit__(exc_type, exc_val, exc_tb)
-            self._retargeting_ui_ctx = None
-            self._retargeting_ui = None
+            try:
+                self._retargeting_ui_ctx.__exit__(exc_type, exc_val, exc_tb)
+            except BaseException as cleanup_error:
+                record_failure(cleanup_error)
+            else:
+                self._retargeting_ui_ctx = None
+                self._retargeting_ui = None
 
         if self._session is not None:
+            if self._session_cleanup_error is not None:
+                if self._session_cleanup_error is not exc_val:
+                    record_failure(self._session_cleanup_error)
+                if exc_val is None:
+                    raise error
+                return
             try:
                 self._session.__exit__(exc_type, exc_val, exc_tb)
-            except Exception as e:
+            except BaseException as e:
+                if self._latches_exit_failures:
+                    # OVXR replay failures are terminal; borrowed resources also require a proven drain.
+                    self._session_cleanup_error = e
+                    record_failure(e)
+                    if exc_val is None:
+                        raise error
+                    return
+                if not isinstance(e, Exception):
+                    raise
                 # The OpenXR session may have already been torn down externally
                 # (e.g. user clicked "Stop AR"), so destroying spaces/action
                 # sets will fail with XR_ERROR_HANDLE_INVALID.  This is
                 # expected and safe to suppress.
-                logger.debug(f"Suppressed error during IsaacTeleop session cleanup: {e}")
+                logger.debug(f"Suppressed error during Isaac Capture session cleanup: {e}")
             self._session = None
 
         # Always clear pipeline state (session may never have been created if
@@ -568,8 +765,15 @@ class TeleopSessionLifecycle:
         self._pipeline = None
         self._teleop_control_pipeline = None
         self._message_processor = None
+        with self._retargeter_reset_lock:
+            self._retargeter_reset_pending = False
+            self._retargeter_reset_frame_id = None
+            self._retargeter_reset_cutoff_ns = 0
+            self._retargeter_last_submission_ns = 0
         self._last_step_result = None
         self._last_left_controller = None
+        self._last_control_events = _NO_OP_EVENTS
+        self._last_control_event_frame_id = None
         self._haptic_sink = None
         self._haptic_tracker = None
         # Undelivered notices belong to the session that queued them; a later
@@ -585,7 +789,9 @@ class TeleopSessionLifecycle:
                 self._cloudxr_launcher = None
                 logger.info("CloudXR runtime stopped")
 
-        logger.info("IsaacTeleop session ended")
+        if exc_val is None and error is not None:
+            raise error
+        logger.info("Isaac Capture session ended")
 
     # ------------------------------------------------------------------
     # Pipeline construction and hand debug outputs
@@ -608,30 +814,152 @@ class TeleopSessionLifecycle:
             An ``OutputCombiner`` ready for ``TeleopSessionConfig``.
         """
         from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource
-        from isaacteleop.retargeting_engine.interface import OutputCombiner
+        from isaacteleop.retargeting_engine.interface import ComputeContext, OutputCombiner, RetargeterIO
+        from isaacteleop.retargeting_engine.interface.retargeter_core_types import ExecutionCache, GraphTime
+
+        # Forward every output the user pipeline declares, not just "action", so the
+        # device can read the others (e.g. the SpaceMouse buttons) from last_step_result.
+        pipeline_outputs: dict[str, Any] = {name: user_pipeline.output(name) for name in user_pipeline.output_types()}
 
         # Stored on self so start() can reuse this ControllersSource's tracker for
         # the haptic sink, avoiding a second controller action-set attachment.
         self._button_controllers = ControllersSource("_button_controllers")
-        pipeline_outputs: dict[str, Any] = {
-            "action": user_pipeline.output("action"),
-            self._CONTROLLER_RIGHT_KEY: self._button_controllers.output(ControllersSource.RIGHT),
-        }
+        pipeline_outputs[self._CONTROLLER_RIGHT_KEY] = self._button_controllers.output(ControllersSource.RIGHT)
+        self._chain_hand_presence_outputs(user_pipeline, pipeline_outputs)
         if self._enable_debug_visualization:
             pipeline_outputs[self._CONTROLLER_LEFT_KEY] = self._button_controllers.output(ControllersSource.LEFT)
-            self._chain_hand_debug_outputs(user_pipeline, pipeline_outputs)
-        return OutputCombiner(pipeline_outputs)
+        lifecycle = self
+        completed_caches: weakref.WeakSet[ExecutionCache] = weakref.WeakSet()
+
+        class _HostResetOutputCombiner(OutputCombiner):
+            """Deliver host notifications at Capture's public pipeline execution boundary.
+
+            Passing execution_events to TeleopSession.step would bypass operator
+            controls. Override the root pipeline's public execution methods so
+            the normal and shared-cache sink paths reset retargeters while
+            preserving the control context that Capture returns to the host.
+            """
+
+            def execute_pipeline(
+                self, inputs: dict[str, RetargeterIO], context: ComputeContext | None = None
+            ) -> RetargeterIO:
+                if context is None:
+                    context = ComputeContext()
+                return self.execute_pipeline_with_cache(ExecutionCache(inputs, context))
+
+            def execute_pipeline_with_cache(self, cache: ExecutionCache) -> RetargeterIO:
+                # Reusing this completed frame must not consume a newer notification.
+                # Track our executions without depending on Capture's internal cache keys.
+                if cache in completed_caches:
+                    return super().execute_pipeline_with_cache(cache)
+                # Lab stamps each request before capturing external transforms.
+                # An older queued request must not consume a newer reset and
+                # initialize stateful retargeters in the previous coordinate frame.
+                submission_ns = cache.context.graph_time.real_time_ns
+                with lifecycle._retargeter_reset_lock:
+                    reset = (
+                        lifecycle._retargeter_reset_pending and submission_ns > lifecycle._retargeter_reset_cutoff_ns
+                    )
+                    if reset:
+                        lifecycle._retargeter_reset_pending = False
+                # Preserve Capture's compute-time clock for retargeters and sinks;
+                # the host timestamp is only provenance for the admission check.
+                now_ns = time.monotonic_ns()
+                cache.context.graph_time = GraphTime(
+                    sim_time_ns=cache.context.graph_time.sim_time_ns, real_time_ns=now_ns
+                )
+                if not reset:
+                    result = super().execute_pipeline_with_cache(cache)
+                    completed_caches.add(cache)
+                    return result
+
+                context = cache.context
+                cache.context = dataclasses.replace(
+                    context, execution_events=dataclasses.replace(context.execution_events, reset=True)
+                )
+                try:
+                    result = super().execute_pipeline_with_cache(cache)
+                    completed_caches.add(cache)
+                    return result
+                except BaseException:
+                    with lifecycle._retargeter_reset_lock:
+                        lifecycle._retargeter_reset_pending = True
+                    raise
+                finally:
+                    # Capture publishes the original control context, so a host
+                    # notification cannot echo back as an operator reset command.
+                    cache.context = context
+
+        return _HostResetOutputCombiner(pipeline_outputs)
+
+    # ------------------------------------------------------------------
+    # Keyboards
+    # ------------------------------------------------------------------
+
+    def _attach_keyboards(self) -> None:
+        """Feed the pipeline's keyboards and the operator's key presses from the visualizer windows.
+
+        Called at start and on each step, since visualizer windows can open after the session starts;
+        windows already attached are skipped. While the pipeline has a keyboard, each visualizer's
+        keyboard camera movement is turned off.
+        """
+        if self._pipeline is None or self._is_replay:
+            return
+        if self._pipeline_keyboards is None:
+            from isaacteleop.retargeting_engine.deviceio_source_nodes import KeyboardSource, find_sources
+
+            self._pipeline_keyboards = find_sources(self._pipeline, KeyboardSource)
+        keyboards = self._pipeline_keyboards
+        for visualizer in self._visualizers:
+            # a visualizer without a window that reports keys has no source
+            source = visualizer.key_event_source
+            if source is None or visualizer in self._keyboard_attachments:
+                continue
+            # attached even if this fails, so a failing window is not retried every step
+            self._keyboard_attachments[visualizer] = ExitStack()
+            try:
+                with self._keyboard_attachments[visualizer] as attachments:
+                    for keyboard in keyboards:
+                        attachments.callback(keyboard.attach(source, capture=False).close)
+                    if keyboards:
+                        attachments.callback(visualizer.set_camera_keys_enabled, True)
+                        visualizer.set_camera_keys_enabled(False)
+                    listener = _ControlKeyListener(self._pressed_keys)
+                    attachments.callback(source.add_key_listener(listener.on_key, listener.on_focus_lost).close)
+                    self._keyboard_attachments[visualizer] = attachments.pop_all()
+            except Exception as e:
+                logger.warning(f"Keyboard input from {type(visualizer).__name__} is unavailable: {e}")
+                continue
+            logger.info(f"Isaac Capture keyboard input from {type(visualizer).__name__}")
+
+    def _detach_keyboards(self) -> None:
+        """Detach every visualizer window, releasing held keys and restoring keyboard camera movement."""
+        attachments, self._keyboard_attachments = self._keyboard_attachments, {}
+        for attachment in attachments.values():
+            try:
+                attachment.close()
+            except Exception as e:
+                logger.debug(f"Suppressed error detaching a visualizer keyboard: {e}")
+        self._pipeline_keyboards = None
+
+    def drain_pressed_keys(self) -> list[int]:
+        """Evdev codes of the keys pressed in the visualizer windows since the last call, in order.
+
+        Each press is returned once, whatever the retargeting execution mode; key repeat is not a
+        press. Presses from before the session started or stopped are dropped.
+        """
+        pressed = list(self._pressed_keys)
+        self._pressed_keys.clear()
+        return pressed
 
     @staticmethod
-    def _chain_hand_debug_outputs(user_pipeline, pipeline_outputs: dict) -> None:
-        """Auto-discover a ``HandsSource`` and chain its raw outputs.
+    def _chain_hand_presence_outputs(user_pipeline, pipeline_outputs: dict) -> None:
+        """Chain explicit filtered hand outputs or auto-discover raw source outputs.
 
-        Walks the leaf nodes of *user_pipeline*; if a ``HandsSource`` is
-        found, its raw (XR-anchor-frame) ``hand_left`` / ``hand_right``
-        outputs are added to *pipeline_outputs* so they appear in the step
-        result.  The anchor-to-world transform is applied on the Isaac Lab
-        side by the visualizer, so the markers stay world-frame correct even
-        when a ``target_T_world`` rebase is active in the pipeline.
+        A user pipeline may expose its own ``hand_left`` / ``hand_right``
+        outputs when validity or another application-neutral policy must be
+        applied before session safety observes presence. Otherwise walk the
+        leaf nodes and retain the legacy raw ``HandsSource`` behavior.
 
         Args:
             user_pipeline: The pipeline returned by ``pipeline_builder()``.
@@ -640,15 +968,23 @@ class TeleopSessionLifecycle:
         """
         from isaacteleop.retargeting_engine.deviceio_source_nodes import HandsSource
 
+        output_types = user_pipeline.output_types()
+        hand_keys = (TeleopSessionLifecycle.HAND_LEFT_KEY, TeleopSessionLifecycle.HAND_RIGHT_KEY)
+        if all(key in output_types for key in hand_keys):
+            for key in hand_keys:
+                pipeline_outputs[key] = user_pipeline.output(key)
+            logger.debug("Chained explicit pipeline hand-presence outputs")
+            return
+
         # HandsSource owns its HandTracker; the tracker API has no reverse
         # source-node lookup, so use the graph's public leaf discovery API.
         for leaf in user_pipeline.get_leaf_nodes():
             if isinstance(leaf, HandsSource):
                 pipeline_outputs[TeleopSessionLifecycle.HAND_LEFT_KEY] = leaf.output(HandsSource.LEFT)
                 pipeline_outputs[TeleopSessionLifecycle.HAND_RIGHT_KEY] = leaf.output(HandsSource.RIGHT)
-                logger.debug(f"Auto-discovered HandsSource '{leaf.name}'; chained hand debug outputs")
+                logger.debug(f"Auto-discovered HandsSource '{leaf.name}'; chained raw hand-presence outputs")
                 return
-        logger.info("No HandsSource found in the teleop pipeline; hand joint visualization unavailable")
+        logger.debug("No HandsSource found in the teleop pipeline; raw hand presence unavailable")
 
     # ------------------------------------------------------------------
     # Control pipeline construction
@@ -674,6 +1010,8 @@ class TeleopSessionLifecycle:
         import isaacteleop.deviceio as deviceio
         from isaacteleop.retargeting_engine.deviceio_source_nodes import MessageChannelSource
         from isaacteleop.teleop_session_manager import DefaultTeleopStateManager
+
+        from .teleop_message_processor import TeleopMessageProcessor
 
         # Build the source directly rather than via ``message_channel_config``:
         # the factory owns the outbound queue internally, and the lifecycle needs
@@ -893,6 +1231,10 @@ class TeleopSessionLifecycle:
         logger.info(f"Required extensions: {required_extensions}")
         return required_extensions
 
+    def required_openxr_extensions(self) -> tuple[str, ...]:
+        """Return extensions required by the fully built teleop graphs."""
+        return tuple(self._on_request_required_extensions())
+
     def _on_xr_enabled_changed(self, item, event_type):
         import carb.settings
 
@@ -905,12 +1247,12 @@ class TeleopSessionLifecycle:
     def _on_pre_shutdown(self, _event):
         """Called when Kit is closing; tear down the session but leave the
         pipeline intact so the main loop can exit via its own control flow
-        (``simulation_app.is_running()`` will go ``False``).
+        (the Kit app stops running).
 
         Full resource cleanup happens later when the context manager's
         ``__exit__`` calls :meth:`stop`.
         """
-        logger.info("Shutting down IsaacTeleop session due to Kit close")
+        logger.info("Shutting down Isaac Capture session due to Kit close")
         self._pre_shutdown_subscription = None
         self._teardown_dead_session()
 
@@ -927,22 +1269,27 @@ class TeleopSessionLifecycle:
         return self._try_start_session()
 
     def _resolved_retargeting_execution(self):
-        """Return the retargeting execution settings for the IsaacTeleop session.
+        """Return the retargeting execution settings for the Isaac Capture session.
 
         :attr:`~isaaclab_teleop.IsaacTeleopCfg.retargeting_execution` defaults to
         ``None`` so that constructing the config never requires the optional
         ``isaacteleop`` package. The default is resolved here, at session-start
         time, where ``isaacteleop`` is guaranteed to be importable.
+
+        A kitless MCAP replay retargets synchronously: every step consumes exactly the next
+        recorded frame, so the replay does not depend on how fast the application loop runs.
         """
         if self._cfg.retargeting_execution is not None:
             return self._cfg.retargeting_execution
 
         from isaacteleop.teleop_session_manager import DeadlinePacingConfig, RetargetingExecutionConfig
 
+        if self._is_replay and not has_kit():
+            return RetargetingExecutionConfig(mode="sync")
         return RetargetingExecutionConfig(mode="pipelined", pacing=DeadlinePacingConfig(safety_margin_s=0.025))
 
     def _try_start_session(self) -> bool:
-        """Attempt to create and start the IsaacTeleop session.
+        """Attempt to create and start the Isaac Capture session.
 
         In live mode with :attr:`_use_kit_xr_bridge` set, tries to acquire
         OpenXR handles from Kit's XR bridge.  If the handles are available,
@@ -964,6 +1311,8 @@ class TeleopSessionLifecycle:
             ``True`` if the session was successfully started (or was already
             running), ``False`` if session creation was deferred.
         """
+        if self._session_cleanup_error is not None:
+            raise self._session_cleanup_error
         if self._session is not None:
             return True
 
@@ -983,13 +1332,21 @@ class TeleopSessionLifecycle:
                 if not self._session_start_deferred_logged:
                     if self._kit_xr_session_is_active():
                         logger.info(
-                            "Kit XR session active but bridge handles incomplete; IsaacTeleop session creation deferred"
+                            "Kit XR session active but bridge handles incomplete; Isaac Capture session creation"
+                            " deferred"
                         )
                     else:
                         logger.info(
                             "OpenXR handles not yet available (waiting for XR session); "
-                            "IsaacTeleop session creation deferred"
+                            "Isaac Capture session creation deferred"
                         )
+                    self._session_start_deferred_logged = True
+                return False
+        elif self._external_oxr_handles_provider is not None:
+            oxr_handles = self._external_oxr_handles_provider()
+            if oxr_handles is None:
+                if not self._session_start_deferred_logged:
+                    logger.info("External OpenXR handles are not ready; Isaac Capture session creation deferred")
                     self._session_start_deferred_logged = True
                 return False
         else:
@@ -1022,13 +1379,14 @@ class TeleopSessionLifecycle:
         )
 
         # Create and enter the TeleopSession
-        self._session = TeleopSession(session_config)
-        self._session.__enter__()
+        session = TeleopSession(session_config)
+        self._enter_session(session)
+        self._session = session
 
         if self._mcap_record_path is not None:
-            logger.info(f"IsaacTeleop session started: {self._cfg.app_name} (recording to {self._mcap_record_path})")
+            logger.info(f"Isaac Capture session started: {self._cfg.app_name} (recording to {self._mcap_record_path})")
         else:
-            logger.info(f"IsaacTeleop session started: {self._cfg.app_name}")
+            logger.info(f"Isaac Capture session started: {self._cfg.app_name}")
         return True
 
     def _start_replay_session(self) -> bool:
@@ -1036,7 +1394,7 @@ class TeleopSessionLifecycle:
 
         Unlike the live path, replay never waits for Kit XR handles or
         pumps the OpenXR runtime: ``TeleopSession`` builds a
-        :class:`isacteleop.deviceio_session.ReplaySession` that feeds the
+        :class:`isaacteleop.deviceio_session.ReplaySession` that feeds the
         pipeline directly from the captured tracker stream.
 
         Returns:
@@ -1072,11 +1430,24 @@ class TeleopSessionLifecycle:
             sinks=[],
         )
 
-        self._session = TeleopSession(session_config)
-        self._session.__enter__()
+        session = TeleopSession(session_config)
+        self._enter_session(session)
+        self._session = session
 
-        logger.info(f"IsaacTeleop replay session started: {self._cfg.app_name} (replaying {self._mcap_replay_path})")
+        logger.info(f"Isaac Capture replay session started: {self._cfg.app_name} (replaying {self._mcap_replay_path})")
         return True
+
+    def _enter_session(self, session: TeleopSession) -> None:
+        """Latch Capture's explicit failed-rollback signal before releasing borrowed owners."""
+        try:
+            session.__enter__()
+        except BaseException as error:
+            # Capture also rolls back interrupts. Preserve its failed-drain
+            # signal without converting the original interrupt into an error.
+            if getattr(session, "cleanup_failed", False) is True:
+                self._session = session
+                self._session_cleanup_error = error
+            raise
 
     # ------------------------------------------------------------------
     # Stepping
@@ -1119,7 +1490,11 @@ class TeleopSessionLifecycle:
 
         Raises:
             RuntimeError: If called before :meth:`start`.
+            Exception: If an earlier session cleanup failed, or replay stepping
+                fails. A failed cleanup prohibits further use and restart.
         """
+        if self._session_cleanup_error is not None:
+            raise self._session_cleanup_error
         if self._pipeline is None:
             raise RuntimeError("TeleopSessionLifecycle.start() must be called before step()")
 
@@ -1132,8 +1507,18 @@ class TeleopSessionLifecycle:
             if not self._try_start_session():
                 return None
 
+        # Visualizer windows can open after the session starts.
+        self._attach_keyboards()
+
         # Build external inputs (e.g. world-to-anchor transform) if the
         # pipeline contains ValueInput leaf nodes.
+        from isaacteleop.retargeting_engine.interface.retargeter_core_types import GraphTime
+
+        with self._retargeter_reset_lock:
+            submission_ns = max(
+                time.monotonic_ns(), self._retargeter_last_submission_ns + 1, self._retargeter_reset_cutoff_ns + 1
+            )
+            self._retargeter_last_submission_ns = submission_ns
         external_inputs = self._build_external_inputs(anchor_world_matrix_fn, target_T_world)
 
         # When no control pipeline is configured, host-initiated resets use
@@ -1143,7 +1528,6 @@ class TeleopSessionLifecycle:
             from isaacteleop.retargeting_engine.interface.execution_events import ExecutionEvents, ExecutionState
 
             execution_events = ExecutionEvents(reset=True, execution_state=ExecutionState.RUNNING)
-            self._pending_reset = False
 
         # Execute one step of the teleop session.
         # If the underlying OpenXR session was destroyed externally (e.g.
@@ -1154,28 +1538,58 @@ class TeleopSessionLifecycle:
         try:
             result = self._session.step(
                 external_inputs=external_inputs,
+                graph_time=GraphTime(sim_time_ns=submission_ns, real_time_ns=submission_ns),
                 execution_events=execution_events,
             )
         except Exception as e:
             # The async retarget worker dies permanently on any pipeline
-            # exception, so session re-entry is the only recovery either way;
-            # what differs is the cause and the restart pacing.
-            if not self._is_replay and self._kit_xr_session_is_active():
+            # exception, so session re-entry is the only recovery; what differs
+            # is the cause and the restart pacing. Borrowed OVXR handles keep
+            # their attached action sets, so a new session cannot attach to them.
+            borrowed_handles = self._external_oxr_handles_provider is not None
+            if borrowed_handles:
+                pass  # Re-raised below after teardown; the entrypoint reports it.
+            elif not self._is_replay and self._kit_xr_session_is_active():
                 logger.warning(
-                    "IsaacTeleop retargeting step failed (pipeline error, XR session still active); "
+                    "Isaac Capture retargeting step failed (pipeline error, XR session still active); "
                     f"restarting the teleop session in {self._STEP_FAILURE_RESTART_COOLDOWN_S:.0f}s: {e}"
                 )
                 self._restart_holdoff_until = time.monotonic() + self._STEP_FAILURE_RESTART_COOLDOWN_S
             else:
-                logger.warning(f"IsaacTeleop session step failed (XR session likely torn down): {e}")
-            self._teardown_dead_session()
+                logger.warning(f"Isaac Capture session step failed (XR session likely torn down): {e}")
+            try:
+                self._teardown_dead_session()
+            except BaseException as cleanup_error:
+                if not self._latches_exit_failures:
+                    raise
+                # Failed drain retains the owner; never restart over live resources.
+                self._session_cleanup_error = e
+                e.add_note(f"Teleop session drain also failed: {cleanup_error!r}")
+                raise e from cleanup_error
+            if self._is_replay or borrowed_handles:
+                # Re-entering replay would silently rewind a failed recording, and
+                # re-entering a borrowed OVXR session would fail to attach its inputs.
+                raise
             return None
 
+        if execution_events is not None:
+            self._pending_reset = False
         self._last_step_result = result
+        self._update_control_events()
 
         # Store the controller TensorGroups for button polling / debug viz
         self._last_right_controller = result.get(self._CONTROLLER_RIGHT_KEY)
         self._last_left_controller = result.get(self._CONTROLLER_LEFT_KEY)
+
+        # Capture's public step API has one application-thread submitter. A frame
+        # newer than the reset's submission fence must have executed after the
+        # notification, even if intermediate submissions were dropped or reused.
+        with self._retargeter_reset_lock:
+            if self._retargeter_reset_frame_id is not None:
+                returned_frame_id = self._session.last_step_info.returned_frame_id
+                if returned_frame_id is None or returned_frame_id <= self._retargeter_reset_frame_id:
+                    return None
+                self._retargeter_reset_frame_id = None
 
         # Extract the flattened action array (DLPack-compatible) from
         # TensorReorderer and move to the simulation device.
@@ -1185,6 +1599,21 @@ class TeleopSessionLifecycle:
         )
 
         return action
+
+    def _update_control_events(self) -> None:
+        """Cache the control snapshot associated with the returned retargeting frame."""
+        if self._message_processor is None or self._session is None or self._session.last_context is None:
+            self._last_control_events = _NO_OP_EVENTS
+            return
+
+        events = _execution_events_to_control(self._session.last_context.execution_events)
+        step_info = getattr(self._session, "last_step_info", None)
+        frame_id = getattr(step_info, "returned_frame_id", None)
+        if frame_id is not None and frame_id == self._last_control_event_frame_id:
+            events = ControlEvents(is_active=events.is_active, should_reset=False)
+        else:
+            self._last_control_event_frame_id = frame_id
+        self._last_control_events = events
 
     # ------------------------------------------------------------------
     # Dead session teardown
@@ -1199,16 +1628,31 @@ class TeleopSessionLifecycle:
         resources are already gone), and the internal state is reset so that
         the deferred-start logic in :meth:`step` can re-acquire handles if
         the user restarts AR.
+
+        For an OVXR session, including OVXR replay, a failed exit propagates
+        instead and latches a terminal error. Replay cannot recover by restarting
+        from the beginning, and borrowed resources require a proven drain.
         """
         if self._session is not None:
             try:
                 self._session.__exit__(None, None, None)
-            except Exception as e:
+            except BaseException as e:
+                if self._latches_exit_failures:
+                    # Exit may already be terminal. Never infer successful drain from
+                    # a later no-op __exit__, or resume/restart after this failure.
+                    self._session_cleanup_error = e
+                    raise
+                if not isinstance(e, Exception):
+                    raise
                 logger.debug(f"Suppressed error tearing down dead session: {e}")
             self._session = None
+        with self._retargeter_reset_lock:
+            self._retargeter_reset_frame_id = None
         self._session_start_deferred_logged = False
         self._last_step_result = None
-        logger.info("IsaacTeleop session torn down after external XR shutdown")
+        self._last_control_events = _NO_OP_EVENTS
+        self._last_control_event_frame_id = None
+        logger.info("Isaac Capture session torn down after external XR shutdown")
 
     # ------------------------------------------------------------------
     # External input building
@@ -1294,6 +1738,11 @@ class TeleopSessionLifecycle:
         Auto-launch is skipped when ``auto_launch_cloudxr`` is ``False``
         or the ``ISAACLAB_CXR_SKIP_AUTOLAUNCH=1`` environment variable is
         set (the env var takes precedence).
+
+        The NVIDIA CloudXR license is separate from the Omniverse one and is
+        otherwise prompted for on stdin, which fails outright when no terminal
+        is attached. ``ISAACLAB_CXR_ACCEPT_EULA=1`` accepts it up front so
+        headless, container and CI runs can start.
         """
         if self._cloudxr_launcher is not None:
             return
@@ -1310,12 +1759,42 @@ class TeleopSessionLifecycle:
 
         from isaacteleop.cloudxr import CloudXRLauncher as _CloudXRLauncher
 
+        self._pin_cloudxr_to_render_device()
+
         self._cloudxr_launcher = _CloudXRLauncher(
             install_dir=str(Path.home() / ".cloudxr"),
             env_config=self._cloudxr_env_file,
-            accept_eula=False,
+            accept_eula=cloudxr_eula_accepted(),
         )
         logger.info("CloudXR runtime auto-launched")
+
+    def _pin_cloudxr_to_render_device(self) -> None:
+        """Point the CloudXR runtime at the GPU the frames are rendered on.
+
+        Left to itself the runtime takes the first Vulkan physical device. That
+        enumeration is unrelated to the CUDA ordering Isaac Lab selects the
+        simulation and renderer devices with, so on a multi-GPU host the
+        compositor routinely lands on a different card than the one holding the
+        rendered swapchain. Nothing reports an error -- the client connects, the
+        session starts and the encoder logs normal frame timings -- but the
+        headset only shows noise.
+
+        An explicit choice, in the process environment or in the
+        ``--cloudxr_env`` profile, is left untouched.
+        """
+        if any(name in os.environ for name in _CXR_GPU_INDEX_ENV_VARS):
+            return
+        if _env_file_pins_gpu_index(self._cloudxr_env_file):
+            return
+
+        index = _renderer_cuda_index()
+        if index is None and self._device.type == "cuda":
+            index = self._device.index
+        if index is None:
+            return
+
+        os.environ["NV_CXR_GPU_INDEX_CUDA"] = str(index)
+        logger.info("Pinned the CloudXR runtime to CUDA device %d", index)
 
     # ------------------------------------------------------------------
     # OpenXR handle acquisition
@@ -1336,7 +1815,7 @@ class TeleopSessionLifecycle:
         tick, which is why handle acquisition may be deferred by one frame.
 
         Headless mode is detected via the ``/isaaclab/xr/auto_start`` carb
-        setting which the :class:`~isaaclab.app.AppLauncher` stores after
+        setting which the :class:`~isaaclab_isaacsim.app.KitLauncher` stores after
         resolving the headless state from visualizer intent. In
         non-headless mode this is a no-op because Kit's profile system manages
         AR activation through the UI.
@@ -1395,7 +1874,7 @@ class TeleopSessionLifecycle:
         try:
             import omni.kit.xr.system.openxr as openxr
         except (ImportError, ModuleNotFoundError):
-            logger.info("omni.kit.xr.system.openxr not available; IsaacTeleop will create its own OpenXR session")
+            logger.info("omni.kit.xr.system.openxr not available; Isaac Capture will create its own OpenXR session")
             return None
 
         instance = openxr.get_instance_handle()

@@ -19,6 +19,7 @@ Do not use this skill when the direct environment still fails to construct, rese
 
 1. Keep the direct environment as a parity baseline until the manager-based task passes equivalent smoke tests.
 2. Read the task workflow overview, manager-based RL tutorial, and the closest direct/manager pair before proposing code.
+   If a new package scaffold is needed, follow the [environment-building skill](../create-environments/SKILL.md#scaffold-a-new-task) and select **Manager-based | single-agent** in `uv run isaaclab --new`. For an existing project, add the manager variant within its layout; generate any reference scaffold in a fresh directory to preserve the direct baseline.
 3. Split scene construction into an `InteractiveSceneCfg` subclass with assets, terrain, sensors, and lights.
 4. Move action application into action configs such as joint position, velocity, or effort action terms.
 5. Move observation assembly into `ObservationGroupCfg` and `ObservationTermCfg` entries, preserving block order and scaling unless the user accepts a policy interface change.
@@ -48,7 +49,7 @@ uv run --no-project python tools/skills/cli.py check
 
 ## Maintenance
 
-Keep this skill synchronized with `docs/source/overview/core-concepts/task_workflows.rst`, `docs/source/tutorials/03_envs/create_manager_rl_env.rst`, direct/manager paired examples under `source/isaaclab_tasks/isaaclab_tasks/core/`, and shared MDP terms under task-specific `mdp/` packages.
+Keep this skill synchronized with `docs/source/concepts/task_workflows.rst`, `docs/source/how-to/create_manager_rl_env.rst`, direct/manager paired examples under `source/isaaclab_tasks/isaaclab_tasks/core/`, and shared MDP terms under task-specific `mdp/` packages.
 
 ## References
 
@@ -56,9 +57,9 @@ Keep this skill synchronized with `docs/source/overview/core-concepts/task_workf
 - [Evaluations](evaluations.md)
 - [Environment building skill](../create-environments/SKILL.md)
 - [Isaac Gym migration skill](../migrate-from-isaac-gym/SKILL.md)
-- [Task workflows](../../../docs/source/overview/core-concepts/task_workflows.rst)
-- [Create manager-based RL environment tutorial](../../../docs/source/tutorials/03_envs/create_manager_rl_env.rst)
-- [Register Gym environment tutorial](../../../docs/source/tutorials/03_envs/register_rl_env_gym.rst)
+- [Task workflows](../../../docs/source/concepts/task_workflows.rst)
+- [Create manager-based RL environment tutorial](../../../docs/source/how-to/create_manager_rl_env.rst)
+- [Register Gym environment tutorial](../../../docs/source/how-to/register_rl_env_gym.rst)
 - [Ant direct environment](../../../source/isaaclab_tasks/isaaclab_tasks/core/locomotion/ant/ant_direct_env.py)
 - [Ant direct config](../../../source/isaaclab_tasks/isaaclab_tasks/core/locomotion/ant/ant_direct_env_cfg.py)
 - [Ant manager config](../../../source/isaaclab_tasks/isaaclab_tasks/core/locomotion/ant/ant_manager_env_cfg.py)

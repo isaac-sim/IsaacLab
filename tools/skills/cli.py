@@ -376,6 +376,20 @@ def validate_native_discovery(skills: list[Skill], native_roots: tuple[Path, ...
     return errors
 
 
+def validate_catalog(skills: list[Skill], root: Path) -> list[str]:
+    """Check that described catalog entries match maintained skills; planned entries have no description."""
+    catalog = root / "README.md"
+    if not catalog.is_file():
+        return [f"{_display_path(catalog)}: skill catalog does not exist"]
+    listed = set(re.findall(r"^- `((?:developer|user)/[^`]+?)/`:", catalog.read_text(encoding="utf-8"), re.MULTILINE))
+    discovered = {skill.root.relative_to(root).as_posix() for skill in skills}
+    errors = [f"{_display_path(catalog)}: missing skill catalog entry {path!r}" for path in sorted(discovered - listed)]
+    errors.extend(
+        f"{_display_path(catalog)}: stale skill catalog entry {path!r}" for path in sorted(listed - discovered)
+    )
+    return errors
+
+
 def validate_all(root: Path = SKILLS_ROOT) -> list[str]:
     errors: list[str] = []
     skills = iter_skills(root)
@@ -406,6 +420,7 @@ def validate_all(root: Path = SKILLS_ROOT) -> list[str]:
                     "does not match any registered skill name"
                 )
     if root.resolve() == SKILLS_ROOT.resolve():
+        errors.extend(validate_catalog(skills, root))
         errors.extend(validate_native_discovery(skills))
     return errors
 

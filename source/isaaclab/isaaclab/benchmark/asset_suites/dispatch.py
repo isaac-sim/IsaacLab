@@ -21,9 +21,9 @@ _PHYSICS_VARIANT_FAMILIES: dict[str, AssetPhysicsFamily] = {
     "ovphysx": "ovphysx",
 }
 _ASSET_ADAPTER_MODULES = {
-    "physx": "isaaclab_physx.benchmark.assets",
+    "physx": "isaaclab_isaacsim.benchmark.assets",
     "newton": "isaaclab_newton.benchmark.assets",
-    "ovphysx": "isaaclab_ovphysx.benchmark.assets",
+    "ovphysx": "isaaclab_ov.benchmark.assets",
 }
 
 

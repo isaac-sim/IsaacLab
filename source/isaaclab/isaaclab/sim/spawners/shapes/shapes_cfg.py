@@ -9,12 +9,13 @@ from collections.abc import Callable, Sequence
 from dataclasses import MISSING
 from typing import TYPE_CHECKING, Literal
 
-from isaaclab.sim.spawners import materials
-from isaaclab.sim.spawners.spawner_cfg import RigidObjectSpawnerCfg, SpawnerCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
+
+from .. import materials
+from ..spawner_cfg import RigidObjectSpawnerCfg, SpawnerCfg
 
 if TYPE_CHECKING:
-    from isaaclab.sim import schemas
+    from ... import schemas
 
 
 @configclass
@@ -24,8 +25,8 @@ class ShapeCfg(RigidObjectSpawnerCfg):
     visual_material_path: str = "material"
     """Path to the visual material to use for the prim. Defaults to "material".
 
-    If the path is relative, then it will be relative to the prim's path.
-    This parameter is ignored if `visual_material` is not None.
+    If the path is relative, then it will be relative to the geometry prim ``{prim_path}/geometry``.
+    This parameter is ignored if `visual_material` is None.
     """
     visual_material: materials.VisualMaterialCfg | None = None
     """Visual material properties.
@@ -37,8 +38,8 @@ class ShapeCfg(RigidObjectSpawnerCfg):
     physics_material_path: str = "material"
     """Path to the physics material to use for the prim. Defaults to "material".
 
-    If the path is relative, then it will be relative to the prim's path.
-    This parameter is ignored if `physics_material` is not None.
+    If the path is relative, then it will be relative to the geometry prim ``{prim_path}/geometry``.
+    This parameter is ignored if `physics_material` is None.
     """
     physics_material: (
         materials.RigidBodyMaterialBaseCfg

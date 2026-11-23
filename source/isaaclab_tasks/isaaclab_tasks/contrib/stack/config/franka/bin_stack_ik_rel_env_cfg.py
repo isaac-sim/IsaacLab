@@ -5,7 +5,7 @@
 
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass, replace
 
 from . import bin_stack_joint_pos_env_cfg
 
@@ -22,7 +22,9 @@ class FrankaBinStackEnvCfg(bin_stack_joint_pos_env_cfg.FrankaBinStackEnvCfg):
         super().__post_init__()
 
         # Set Franka as robot
-        self.scene.robot = FRANKA_PANDA_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        robot_variants = self.scene.robot.spawn.variants
+        self.scene.robot = replace(FRANKA_PANDA_HIGH_PD_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot.spawn.variants = robot_variants
 
         # Set actions for the specific robot type (franka)
         self.actions.arm_action = DifferentialInverseKinematicsActionCfg(

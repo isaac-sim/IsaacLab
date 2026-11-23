@@ -3,27 +3,48 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Deprecated IO descriptor data models and export helpers.
+
+.. deprecated:: 3.0
+   IO descriptors will be removed in Isaac Lab 3.2. Use the LEAPP export
+   workflow for supported RSL-RL/PyTorch deployments.
+"""
+
 from __future__ import annotations
 
+import warnings
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Concatenate, ParamSpec, TypeVar
 
-from isaaclab.utils.configclass import configclass
+from ...utils import configclass
 
 if TYPE_CHECKING:
     import torch
 
-    from isaaclab.assets.articulation import Articulation
-    from isaaclab.envs import ManagerBasedEnv
+    from ...assets.articulation import Articulation
+    from .. import ManagerBasedEnv
 
 import dataclasses
 import functools
 import inspect
 
 
+def _warn_io_descriptors_deprecated(*, stacklevel: int = 2) -> None:
+    """Warn that IO descriptors are deprecated."""
+    warnings.warn(
+        "IO descriptors are deprecated and will be removed in Isaac Lab 3.2. "
+        "Use the LEAPP export workflow for supported RSL-RL/PyTorch deployments.",
+        FutureWarning,
+        stacklevel=stacklevel,
+    )
+
+
 @configclass
 class GenericActionIODescriptor:
     """Generic action IO descriptor.
+
+    .. deprecated:: 3.0
+       IO descriptors will be removed in Isaac Lab 3.2.
 
     This descriptor is used to describe the action space of a policy.
     It can be extended as needed to add more information about the action term that is being described.
@@ -82,6 +103,9 @@ class GenericActionIODescriptor:
 class GenericObservationIODescriptor:
     """Generic observation IO descriptor.
 
+    .. deprecated:: 3.0
+       IO descriptors will be removed in Isaac Lab 3.2.
+
     This descriptor is used to describe the observation space of a policy.
     It can be extended as needed to add more information about the observation term that is being described.
     """
@@ -123,65 +147,72 @@ def generic_io_descriptor(
 ) -> Callable[[Callable[Concatenate[ManagerBasedEnv, P], R]], Callable[Concatenate[ManagerBasedEnv, P], R]]:
     """Decorator factory for generic IO descriptors.
 
+    .. deprecated:: 3.0
+       IO descriptors will be removed in Isaac Lab 3.2.
+
     This decorator can be used in different ways:
 
     1. The default decorator has all the information I need for my use case:
 
-       ..code-block:: python
-            @generic_io_descriptor(GenericIODescriptor(description="..", dtype=".."))
-            def my_func(env: ManagerBasedEnv, *args, **kwargs):
-            ...
+       .. code-block:: python
 
-       ..note:: If description is not set, the function's docstring is used to populate it.
+            @generic_io_descriptor(GenericObservationIODescriptor(description="..", dtype=".."))
+            def my_func(env: ManagerBasedEnv, *args, **kwargs): ...
+
+       .. note:: If description is not set, the function's docstring is used to populate it.
 
     2. I need to add more information to the descriptor:
 
-       ..code-block:: python
+       .. code-block:: python
+
             @generic_io_descriptor(description="..", new_var_1="a", new_var_2="b")
-            def my_func(env: ManagerBasedEnv, *args, **kwargs):
-                ...
+            def my_func(env: ManagerBasedEnv, *args, **kwargs): ...
 
     3. I need to add a hook to the descriptor:
 
-       ..code-block:: python
-            def record_shape(tensor: torch.Tensor, desc: GenericIODescriptor, **kwargs):
+       .. code-block:: python
+
+            def record_shape(tensor: torch.Tensor, desc: GenericObservationIODescriptor, **kwargs):
                 desc.shape = (tensor.shape[-1],)
 
-        @generic_io_descriptor(description="..", new_var_1="a", new_var_2="b", on_inspect=[record_shape, record_dtype])
-        def my_func(env: ManagerBasedEnv, *args, **kwargs):
-            ...
 
-        ..note::
+            @generic_io_descriptor(
+                description="..", new_var_1="a", new_var_2="b", on_inspect=[record_shape, record_dtype]
+            )
+            def my_func(env: ManagerBasedEnv, *args, **kwargs): ...
 
-            The hook is called after the function is called, if and only if the `inspect` flag is set when
-            calling the function.
+       .. note::
 
-            For example:
+           The hook is called after the function is called, if and only if the ``inspect`` flag is set when
+           calling the function.
 
-            ..code-block:: python
-                my_func(env, inspect=True)
+           For example:
+
+           .. code-block:: python
+
+               my_func(env, inspect=True)
 
     4. I need to add a hook to the descriptor and this hook will write to a variable that is not part of
        the base descriptor.
 
-       ..code-block:: python
+       .. code-block:: python
 
-            def record_joint_names(output: torch.Tensor, descriptor: GenericIODescriptor, **kwargs):
+            def record_joint_names(output: torch.Tensor, descriptor: GenericObservationIODescriptor, **kwargs):
                 asset: Articulation = kwargs["env"].scene[kwargs["asset_cfg"].name]
                 joint_ids = kwargs["asset_cfg"].joint_ids
                 if joint_ids == slice(None, None, None):
-                joint_ids = list(range(len(asset.joint_names)))
+                    joint_ids = list(range(len(asset.joint_names)))
                 descriptor.joint_names = [asset.joint_names[i] for i in joint_ids]
+
 
             @generic_io_descriptor(
                 new_var_1="a",
                 new_var_2="b",
                 on_inspect=[record_shape, record_dtype, record_joint_names],
             )
-            def my_func(env: ManagerBasedEnv, *args, **kwargs):
-                ...
+            def my_func(env: ManagerBasedEnv, *args, **kwargs): ...
 
-       ..note::
+       .. note::
 
             The hook can access all the variables in the wrapped function's signature. While it is useful,
             the user should be careful to access only existing variables.

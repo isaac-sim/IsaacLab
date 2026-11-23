@@ -7,7 +7,7 @@ from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
 from isaaclab.managers.action_manager import ActionTermCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from ..mdp.actions import AgileBasedLowerBodyAction
@@ -32,7 +32,7 @@ class AgileBasedLowerBodyActionCfg(ActionTermCfg):
     """The path to the policy model."""
 
     policy_output_offset: float = 0.0
-    """Offsets the output of the policy."""
+    """Unused. The action term offsets the policy output by the articulation's default joint positions instead."""
 
     policy_output_scale: float = 1.0
     """Scales the output of the policy."""

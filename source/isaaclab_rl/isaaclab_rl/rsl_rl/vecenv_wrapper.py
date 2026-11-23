@@ -2,6 +2,9 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+
+"""Vectorized environment wrapper for the RSL-RL library."""
+
 from __future__ import annotations
 
 import contextlib
@@ -11,6 +14,8 @@ import gymnasium as gym
 import torch
 from rsl_rl.env import VecEnv
 from tensordict import TensorDict
+
+from ..utils.env_types import check_env_type
 
 if TYPE_CHECKING:
     from isaaclab.envs import (
@@ -47,33 +52,7 @@ class RslRlVecEnvWrapper(VecEnv):
         Raises:
             ValueError: When the environment is not an instance of :class:`ManagerBasedRLEnv` or :class:`DirectRLEnv`.
         """
-        # check that input is valid
-        # NOTE: import here (not at module level) to avoid loading heavy env classes before Isaac Sim is initialized.
-        from isaaclab.envs import DirectRLEnv, ManagerBasedEnv, ManagerBasedRLEnv
-
-        try:
-            from isaaclab_experimental.envs import DirectRLEnvWarp, ManagerBasedEnvWarp, ManagerBasedRLEnvWarp
-        except ImportError:
-            DirectRLEnvWarp = None
-            ManagerBasedEnvWarp = None
-            ManagerBasedRLEnvWarp = None
-
-        allowed_types = (ManagerBasedRLEnv, ManagerBasedEnv, DirectRLEnv)
-        if DirectRLEnvWarp is not None:
-            allowed_types += (DirectRLEnvWarp,)
-        if ManagerBasedEnvWarp is not None:
-            allowed_types += (ManagerBasedEnvWarp,)
-        if ManagerBasedRLEnvWarp is not None:
-            allowed_types += (ManagerBasedRLEnvWarp,)
-
-        if not isinstance(env.unwrapped, allowed_types):
-            raise ValueError(
-                "The environment must be inherited from ManagerBasedRLEnv / DirectRLEnv / DirectRLEnvWarp /"
-                " ManagerBasedRLEnvWarp. Environment type:"
-                f" {type(env)}"
-            )
-
-        # initialize the wrapper
+        check_env_type(env, allow_manager_based_env=True)
         self.env = env
         self.clip_actions = clip_actions
 
@@ -179,12 +158,15 @@ class RslRlVecEnvWrapper(VecEnv):
             actions = torch.clamp(actions, -self.clip_actions, self.clip_actions)
         # record step information
         obs_dict, rew, terminated, truncated, extras = self.env.step(actions)
+        extras = dict(extras)
+        if "final_obs" in extras:
+            extras["final_obs"] = TensorDict(extras["final_obs"], batch_size=[self.num_envs])
         # compute dones for compatibility with RSL-RL
         dones = (terminated | truncated).to(dtype=torch.long)
         # move time out information to the extras dict
         # this is only needed for infinite horizon tasks
         if not self.unwrapped.cfg.is_finite_horizon:
-            extras["time_outs"] = truncated
+            extras["time_outs"] = truncated & ~terminated
         # return the step information
         return TensorDict(obs_dict, batch_size=[self.num_envs]), rew, dones, extras
 

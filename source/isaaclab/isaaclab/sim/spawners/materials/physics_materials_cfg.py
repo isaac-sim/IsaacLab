@@ -10,12 +10,13 @@ from collections.abc import Callable
 from dataclasses import MISSING
 from typing import ClassVar
 
-from isaaclab.sim.schemas.schemas_cfg import SchemaFragment
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
-# Names that moved out of this submodule into ``isaaclab_physx.sim.spawners.materials.physics_materials_cfg``.
+from ...schemas.schemas_cfg import SchemaFragment
+
+# Names that moved out of this submodule into ``isaaclab_isaacsim.sim.spawners.materials.physics_materials_cfg``.
 # Resolved lazily so callers using ``from isaaclab.sim.spawners.materials.physics_materials_cfg
-# import RigidBodyMaterialCfg`` continue to work without importing ``isaaclab_physx`` at module
+# import RigidBodyMaterialCfg`` continue to work without importing ``isaaclab_isaacsim`` at module
 # load time.
 _PHYSX_FORWARDS = frozenset(
     {
@@ -32,12 +33,12 @@ _PHYSX_FORWARDS = frozenset(
 def __getattr__(name):
     if name in _PHYSX_FORWARDS:
         try:
-            from isaaclab_physx.sim.spawners.materials import physics_materials_cfg as _physx_mat_cfg
+            from isaaclab_isaacsim.sim.spawners.materials import physics_materials_cfg as _physx_mat_cfg
         except ImportError as e:
             raise ImportError(
                 f"'isaaclab.sim.spawners.materials.physics_materials_cfg.{name}' has moved to"
-                " 'isaaclab_physx.sim.spawners.materials.physics_materials_cfg'. Install the"
-                " isaaclab_physx extension or update your import. This forwarding shim is scheduled"
+                " 'isaaclab_isaacsim.sim.spawners.materials.physics_materials_cfg'. Install the"
+                " isaaclab_isaacsim extension or update your import. This forwarding shim is scheduled"
                 " for removal in 4.0."
             ) from e
         return getattr(_physx_mat_cfg, name)
@@ -114,7 +115,7 @@ class RigidBodyMaterialBaseCfg(PhysicsMaterialCfg):
     Contains the friction, restitution, and density fields from the `UsdPhysics.MaterialAPI`_ that
     are common across all simulation backends. For properties in the ``physxMaterial`` namespace
     (compliant-contact spring and combine modes), use
-    :class:`~isaaclab_physx.sim.spawners.materials.PhysxRigidBodyMaterialCfg`.
+    :class:`~isaaclab_isaacsim.sim.spawners.materials.PhysxRigidBodyMaterialCfg`.
 
     See :meth:`spawn_rigid_body_material` for more information.
 
@@ -156,9 +157,9 @@ class RigidBodyMaterialFragment(SchemaFragment):
     physics-material schemas. The fragments author single namespaces onto that prim: the
     solver-common ``physics:*`` friction/restitution/density
     (:class:`UsdPhysicsRigidBodyMaterialCfg`) and any backend-specific namespace (e.g. PhysX
-    ``physxMaterial:*`` via :class:`~isaaclab_physx.sim.spawners.materials.PhysxMaterialCfg`).
+    ``physxMaterial:*`` via :class:`~isaaclab_isaacsim.sim.spawners.materials.PhysxMaterialCfg`).
     The defining ``UsdPhysics.MaterialAPI`` anchor is applied by the family writer
-    (:func:`~isaaclab.sim.spawners.materials.spawn_rigid_body_material_from_fragments`).
+    (:func:`~isaaclab.sim.spawners.materials.spawn_physics_material_from_fragments`).
     """
 
     pass
@@ -193,6 +194,61 @@ class UsdPhysicsRigidBodyMaterialCfg(RigidBodyMaterialFragment):
     Participates in mass computation via material binding when no explicit rigid-body mass or
     density takes precedence.
     """
+
+
+@configclass
+class DeformableMaterialFragment(SchemaFragment):
+    """Marker base for deformable physics-material fragments; widens the ``physics_material`` slot.
+
+    Deformable material fragments never imply the ``UsdPhysics.MaterialAPI`` anchor; each
+    fragment applies its own schema when it owns one.
+    """
+
+    pass
+
+
+@configclass
+class OmniPhysicsDeformableMaterialCfg(DeformableMaterialFragment):
+    """``omniphysics:*`` deformable-material attributes from ``OmniPhysicsDeformableMaterialAPI``."""
+
+    _usd_namespace: ClassVar[str | None] = "omniphysics"
+    _usd_applied_schema: ClassVar[str | None] = "OmniPhysicsDeformableMaterialAPI"
+
+    density: float | None = None
+    """The material density [kg/m^3]."""
+
+    static_friction: float | None = None
+    """The static friction coefficient."""
+
+    dynamic_friction: float | None = None
+    """The dynamic friction coefficient."""
+
+    youngs_modulus: float | None = None
+    """The Young's modulus defining the body's stiffness [Pa]."""
+
+    poissons_ratio: float | None = None
+    """The Poisson's ratio defining the body's volume preservation."""
+
+
+@configclass
+class OmniPhysicsSurfaceDeformableMaterialCfg(DeformableMaterialFragment):
+    """``omniphysics:*`` surface-deformable-material attributes from
+    ``OmniPhysicsSurfaceDeformableMaterialAPI``."""
+
+    _usd_namespace: ClassVar[str | None] = "omniphysics"
+    _usd_applied_schema: ClassVar[str | None] = "OmniPhysicsSurfaceDeformableMaterialAPI"
+
+    surface_thickness: float | None = None
+    """The thickness of the deformable surface [m]."""
+
+    surface_stretch_stiffness: float | None = None
+    """The stretch stiffness of the deformable surface [Pa]. Zero means solver-derived."""
+
+    surface_shear_stiffness: float | None = None
+    """The shear stiffness of the deformable surface [Pa]. Zero means solver-derived."""
+
+    surface_bend_stiffness: float | None = None
+    """The bend stiffness of the deformable surface [Pa]. Zero means solver-derived."""
 
 
 @configclass

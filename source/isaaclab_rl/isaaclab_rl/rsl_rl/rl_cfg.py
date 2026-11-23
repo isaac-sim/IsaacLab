@@ -5,10 +5,11 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import MISSING
 from typing import Literal
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from .rnd_cfg import RslRlRndCfg
 from .symmetry_cfg import RslRlSymmetryCfg
@@ -16,6 +17,26 @@ from .symmetry_cfg import RslRlSymmetryCfg
 #########################
 # Model configurations #
 #########################
+
+
+@configclass
+class RslRlResidualMLPCfg:
+    """Configuration of the residual BatchNorm network used by FlashSAC."""
+
+    class_name: str = "ResidualMLP"
+    """The network class resolved by RSL-RL."""
+
+    hidden_dim: int = 256
+    """Width of the residual stream."""
+
+    num_blocks: int = 2
+    """Number of residual blocks."""
+
+    expansion: int = 4
+    """Width multiplier inside each residual block."""
+
+    batch_norm_momentum: float = 0.01
+    """Momentum of the BatchNorm running statistics."""
 
 
 @configclass
@@ -57,6 +78,9 @@ class RslRlMLPModelCfg:
         std_type: Literal["scalar", "log"] = "scalar"
         """The parameterization type of the output distribution's standard deviation. Default is scalar."""
 
+        std_range: tuple[float, float] = (1e-6, 1e6)
+        """The (min, max) range the output distribution's standard deviation is clamped to. Default is (1e-6, 1e6)."""
+
     @configclass
     class HeteroscedasticGaussianDistributionCfg(GaussianDistributionCfg):
         """Configuration for the heteroscedastic Gaussian output distribution."""
@@ -64,33 +88,37 @@ class RslRlMLPModelCfg:
         class_name: str = "HeteroscedasticGaussianDistribution"
         """The distribution class name. Default is HeteroscedasticGaussianDistribution."""
 
-    stochastic: bool = MISSING
-    """Whether the model output is stochastic.
+    @configclass
+    class SquashedGaussianDistributionCfg(DistributionCfg):
+        """Reparameterized Gaussian with scalar or per-action lower and upper bounds."""
 
-    For rsl-rl >= 5.0.0, this configuration is is deprecated. Please use `distribution_cfg` instead and set it to None
-    for deterministic output or to a valid configuration class, e.g., `GaussianDistributionCfg` for stochastic output.
-    """
+        class_name: str = "SquashedGaussianDistribution"
+        """The distribution class resolved by RSL-RL."""
 
-    init_noise_std: float = MISSING
-    """The initial noise standard deviation for the model.
+        action_range: tuple[float | list[float], float | list[float]] = (-1.0, 1.0)
+        """Lower and upper bounds in the environment's raw action coordinates."""
 
-    For rsl-rl >= 5.0.0, this configuration is is deprecated. Please use `distribution_cfg` instead and use the
-    `init_std` field of the distribution configuration to specify the initial noise standard deviation.
-    """
+        std_range: tuple[float, float] = (math.exp(-5.0), math.exp(2.0))
+        """Clamping bounds for the Gaussian standard deviation before squashing."""
 
-    noise_std_type: Literal["scalar", "log"] = "scalar"
-    """The type of noise standard deviation for the model. Defaults to scalar.
+        init_std: float | None = None
+        """Initial Gaussian standard deviation; None keeps the network's initialization."""
 
-    For rsl-rl >= 5.0.0, this configuration is is deprecated. Please use `distribution_cfg` instead and use the
-    `std_type` field of the distribution configuration to specify the type of noise standard deviation.
-    """
 
-    state_dependent_std: bool = False
-    """Whether to use state-dependent standard deviation for the policy. Defaults to False.
+@configclass
+class RslRlResidualMLPModelCfg(RslRlMLPModelCfg):
+    """MLP model with an optional residual network implementation."""
 
-    For rsl-rl >= 5.0.0, this configuration is is deprecated. Please use `distribution_cfg` instead and use
-    the `HeteroscedasticGaussianDistributionCfg` if state-dependent standard deviation is desired.
-    """
+    network_cfg: RslRlResidualMLPCfg | None = None
+    """Optional network implementation; None keeps the standard MLP."""
+
+
+@configclass
+class RslRlQMLPModelCfg(RslRlResidualMLPModelCfg):
+    """State-action critic using the same configurable networks as the actor."""
+
+    class_name: str = "QMLPModel"
+    """The critic model class resolved by RSL-RL."""
 
 
 @configclass
@@ -214,6 +242,9 @@ class RslRlPpoAlgorithmCfg:
     share_cnn_encoders: bool = False
     """Whether to share the CNN networks between actor and critic, in case CNNModels are used. Defaults to False."""
 
+    use_mixed_precision: bool = False
+    """Whether to run the policy update in bfloat16 autocast. Defaults to False."""
+
     rnd_cfg: RslRlRndCfg | None = None
     """The RND configuration. Defaults to None, in which case RND is not used."""
 
@@ -236,6 +267,12 @@ class RslRlBaseRunnerCfg:
     device: str = "cuda:0"
     """The device for the rl-agent. Defaults to cuda:0."""
 
+    compute_final_obs: bool = False
+    """Whether the environment must capture pre-reset observations."""
+
+    torch_compile_mode: Literal["default", "max-autotune-no-cudagraphs"] | None = None
+    """The :func:`torch.compile` mode for actor and critic. Defaults to None (disabled)."""
+
     num_steps_per_env: int = MISSING
     """The number of steps per environment per update."""
 
@@ -248,13 +285,6 @@ class RslRlBaseRunnerCfg:
 
     max_iterations: int = MISSING
     """The maximum number of iterations."""
-
-    empirical_normalization: bool = MISSING
-    """This parameter is deprecated and will be removed in the future.
-
-    For rsl-rl < 4.0.0, use `actor_obs_normalization` and `critic_obs_normalization` of the policy instead.
-    For rsl-rl >= 4.0.0, use `obs_normalization` of the model instead.
-    """
 
     obs_groups: dict[str, list[str]] = MISSING
     """A mapping from observation groups to observation sets.
@@ -345,70 +375,3 @@ class RslRlOnPolicyRunnerCfg(RslRlBaseRunnerCfg):
 
     algorithm: RslRlPpoAlgorithmCfg = MISSING
     """The algorithm configuration."""
-
-    policy: RslRlPpoActorCriticCfg = MISSING
-    """The policy configuration.
-
-    For rsl-rl >= 4.0.0, this configuration is is deprecated. Please use `actor` and `critic` model configurations
-    instead.
-    """
-
-
-#############################
-# Deprecated configurations #
-#############################
-
-
-@configclass
-class RslRlPpoActorCriticCfg:
-    """Configuration for the PPO actor-critic networks.
-
-    For rsl-rl >= 4.0.0, this configuration is deprecated. Please use `RslRlMLPModelCfg` instead.
-    """
-
-    class_name: str = "ActorCritic"
-    """The policy class name. Defaults to ActorCritic."""
-
-    init_noise_std: float = MISSING
-    """The initial noise standard deviation for the policy."""
-
-    noise_std_type: Literal["scalar", "log"] = "scalar"
-    """The type of noise standard deviation for the policy. Defaults to scalar."""
-
-    state_dependent_std: bool = False
-    """Whether to use state-dependent standard deviation for the policy. Defaults to False."""
-
-    actor_obs_normalization: bool = MISSING
-    """Whether to normalize the observation for the actor network."""
-
-    critic_obs_normalization: bool = MISSING
-    """Whether to normalize the observation for the critic network."""
-
-    actor_hidden_dims: list[int] = MISSING
-    """The hidden dimensions of the actor network."""
-
-    critic_hidden_dims: list[int] = MISSING
-    """The hidden dimensions of the critic network."""
-
-    activation: str = MISSING
-    """The activation function for the actor and critic networks."""
-
-
-@configclass
-class RslRlPpoActorCriticRecurrentCfg(RslRlPpoActorCriticCfg):
-    """Configuration for the PPO actor-critic networks with recurrent layers.
-
-    For rsl-rl >= 4.0.0, this configuration is deprecated. Please use `RslRlRNNModelCfg` instead.
-    """
-
-    class_name: str = "ActorCriticRecurrent"
-    """The policy class name. Defaults to ActorCriticRecurrent."""
-
-    rnn_type: str = MISSING
-    """The type of RNN to use. Either "lstm" or "gru"."""
-
-    rnn_hidden_dim: int = MISSING
-    """The dimension of the RNN layers."""
-
-    rnn_num_layers: int = MISSING
-    """The number of RNN layers."""

@@ -6,28 +6,41 @@
 __all__ = [
     "ActuatorBase",
     "ActuatorBaseCfg",
+    "ActuatorTargetCommand",
+    "ActuatorCollection",
+    "ActuatorControl",
+    "ActuatorOutputCommand",
     "ActuatorNetLSTM",
     "ActuatorNetMLP",
     "ActuatorNetLSTMCfg",
     "ActuatorNetMLPCfg",
+    "BamActuatorCfg",
+    "BamMotorCfg",
     "DCMotor",
+    "DelayedImplicitActuator",
     "DelayedPDActuator",
     "IdealPDActuator",
     "ImplicitActuator",
     "RemotizedPDActuator",
     "DCMotorCfg",
+    "DelayedImplicitActuatorCfg",
     "DelayedPDActuatorCfg",
     "IdealPDActuatorCfg",
     "ImplicitActuatorCfg",
     "RemotizedPDActuatorCfg",
+    "resolve_joint_parameter",
 ]
 
-from .actuator_base import ActuatorBase
+from .actuator_bam_cfg import BamActuatorCfg, BamMotorCfg
+from .actuator_base import ActuatorBase, resolve_joint_parameter
 from .actuator_base_cfg import ActuatorBaseCfg
+from .actuator_collection import ActuatorCollection, ActuatorTargetCommand, ActuatorOutputCommand
+from .actuator_control import ActuatorControl
 from .actuator_net import ActuatorNetLSTM, ActuatorNetMLP
 from .actuator_net_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg
 from .actuator_pd import (
     DCMotor,
+    DelayedImplicitActuator,
     DelayedPDActuator,
     IdealPDActuator,
     ImplicitActuator,
@@ -35,6 +48,7 @@ from .actuator_pd import (
 )
 from .actuator_pd_cfg import (
     DCMotorCfg,
+    DelayedImplicitActuatorCfg,
     DelayedPDActuatorCfg,
     IdealPDActuatorCfg,
     ImplicitActuatorCfg,

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import inspect
 import logging
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, cast
 
@@ -27,11 +28,11 @@ try:
 except ImportError as e:
     raise ImportError("LEAPP package is required for policy deployment testing. Install with: pip install leapp") from e
 
-from isaaclab.managers import CommandManager, EventManager
-from isaaclab.scene import InteractiveScene
-from isaaclab.sim import SimulationContext
-from isaaclab.sim.utils.stage import use_stage
-from isaaclab.utils.configclass import resolve_cfg_presets
+from ..managers import CommandManager, EventManager
+from ..scene import InteractiveScene
+from ..sim import SimulationContext
+from ..sim.utils.stage import use_stage
+from ..utils import validate
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +44,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class StateInputSpec:
-    """Read a property from a scene entity's data object."""
+    """Read a data property, using dots for mapping entries such as ``output.rgb``."""
 
     entity_name: str
     property_name: str
@@ -72,28 +73,28 @@ class WriteOutputSpec:
 # ══════════════════════════════════════════════════════════════════
 
 
-def _resolve_joint_ids(element_names: list | None, entity: Any) -> list[int] | None:
-    """Convert ``element_names[0]`` joint names to integer joint indices.
+def _resolve_joint_ids(description: dict, entity: Any) -> list[int] | None:
+    """Resolve ordered element-axis joint names, including legacy bundle labels.
 
     Args:
-        element_names: LEAPP element-name metadata for the tensor, or ``None``
-            when the tensor does not define named elements.
+        description: LEAPP tensor description containing axes or legacy element names.
         entity: Scene entity that may provide ``joint_names`` and
             ``find_joints()`` for name-to-index resolution.
 
     Returns:
-        Joint indices matching ``element_names[0]``, or ``None`` when no
+        Joint indices matching the named element axis, or ``None`` when no
         slicing is needed because all joints are selected, the tensor is not
         joint-indexed, or the entity does not support joint lookup.
     """
-    if element_names is None or not hasattr(entity, "find_joints"):
+    if not hasattr(entity, "find_joints"):
         return None
 
-    # leapp tensor semantics will always store the array in a nested list of lists.
-    # NOTE: this is added in explicitly to handle partial joint application. currently
-    # this environment does not handle element reordering yet. Thus, this function
-    # is specialized to handle joints, hence reading index 0.
-    joint_names = element_names[0]
+    axes = description.get("axes")
+    if axes is not None:
+        joint_names = next((axis.get("names") for axis in axes if axis and axis.get("kind") == "element"), None)
+    else:
+        element_names = description.get("element_names")
+        joint_names = element_names[0] if element_names else None
     if not isinstance(joint_names, list) or not joint_names:
         return None
     entity_joint_names = list(entity.joint_names)
@@ -164,10 +165,8 @@ class LeappDeploymentEnv:
             cfg: A ``ManagerBasedRLEnvCfg`` (or compatible) task config.
             leapp_yaml_path: Path to the LEAPP ``.yaml`` pipeline description.
         """
-
         cfg.scene.num_envs = 1
-        cfg.validate()
-        resolve_cfg_presets(cfg)
+        validate(cfg)
         self.cfg = cfg
         self._is_closed = False
         self._leapp_yaml_path = leapp_yaml_path
@@ -182,7 +181,6 @@ class LeappDeploymentEnv:
 
         with use_stage(self.sim.stage):
             self.scene = InteractiveScene(cfg.scene)
-            self.scene.initialize_renderers()
         with use_stage(self.sim.stage):
             self.sim.reset()
         self.scene.update(dt=self.physics_dt)
@@ -263,7 +261,7 @@ class LeappDeploymentEnv:
                 if conn_type == "state":
                     entity_name, prop_name = parts[1], parts[2]
                     entity = self.scene[entity_name]
-                    jids = _resolve_joint_ids(desc.get("element_names"), entity)
+                    jids = _resolve_joint_ids(desc, entity)
                     self._input_mapping[key] = StateInputSpec(
                         entity_name=entity_name,
                         property_name=prop_name,
@@ -295,7 +293,7 @@ class LeappDeploymentEnv:
                 if conn_type == "write":
                     entity_name, method_name = parts[1], parts[2]
                     entity = self.scene[entity_name]
-                    jids = _resolve_joint_ids(desc.get("element_names"), entity)
+                    jids = _resolve_joint_ids(desc, entity)
                     value_param = _first_param_name(getattr(entity, method_name))
                     self._output_mapping[key] = WriteOutputSpec(
                         entity_name=entity_name,
@@ -319,7 +317,10 @@ class LeappDeploymentEnv:
         for key, spec in self._input_mapping.items():
             if isinstance(spec, StateInputSpec):
                 entity = self.scene[spec.entity_name]
-                value = getattr(entity.data, spec.property_name).torch
+                value = entity.data
+                for part in spec.property_name.split("."):
+                    value = value[part] if isinstance(value, Mapping) else getattr(value, part)
+                value = value.torch
                 if spec.joint_ids is not None:
                     value = value[:, spec.joint_ids]
                 inputs[key] = value
@@ -374,7 +375,7 @@ class LeappDeploymentEnv:
                 self.sim.render()
 
         if getattr(self.cfg, "wait_for_textures", False) and self.has_rtx_sensors:
-            assets_loading = getattr(self.sim.physics_manager, "assets_loading", None)
+            assets_loading = getattr(self.sim.backend_manager, "assets_loading", None)
             if callable(assets_loading):
                 while assets_loading():
                     self.sim.render()

@@ -7,16 +7,20 @@
 
 from __future__ import annotations
 
+import warnings
 from abc import ABC, abstractmethod
 
-from isaaclab.utils.leapp import (
-    POSE7_ELEMENT_NAMES,
-    QUAT_XYZW_ELEMENT_NAMES,
-    XYZ_ELEMENT_NAMES,
-    InputKindEnum,
+from ...utils.leapp import (
+    Axis,
+    AxisKind,
+    Kind,
+    body_pose_axes_resolver,
+    body_quat_axes_resolver,
+    body_xyz_axes_resolver,
+    body_xyz_history_axes_resolver,
     leapp_tensor_semantics,
 )
-from isaaclab.utils.warp import ProxyArray
+from ...utils.warp import ProxyArray
 
 
 class BaseContactSensorData(ABC):
@@ -24,11 +28,23 @@ class BaseContactSensorData(ABC):
 
     This base class defines the interface for contact sensor data. Backend-specific
     implementations should inherit from this class and provide the actual data storage.
+
+    :attr:`net_forces_w` is the total contact force (normal + friction). Newton, OVPhysX, and
+    Isaac Sim PhysX 6.2 or later report this quantity even when
+    :attr:`ContactSensorCfg.track_friction_forces` is False. Isaac Sim PhysX 6.1 returns
+    :attr:`net_normal_forces_w` and warns. The same applies to :attr:`net_forces_w_history`,
+    :attr:`force_matrix_w`, and :attr:`force_matrix_w_history`.
+
+    :attr:`friction_forces_w` is the aggregate friction force. Newton, OVPhysX, and Isaac Sim
+    PhysX 6.2 or later report this as :attr:`net_friction_forces_w`. Isaac Sim PhysX 6.1 only
+    provides filtered friction, so it returns :attr:`friction_force_matrix_w` and warns.
     """
+
+    _body_names: list[str] | None = None
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names=POSE7_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSE, axes_resolver=body_pose_axes_resolver)
     def pose_w(self) -> ProxyArray | None:
         """Pose of the sensor origin in world frame.
 
@@ -38,7 +54,7 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSITION, axes_resolver=body_xyz_axes_resolver)
     def pos_w(self) -> ProxyArray | None:
         """Position of the sensor origin in world frame.
 
@@ -51,7 +67,7 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names=QUAT_XYZW_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.FRAME_ORIENTATION, axes_resolver=body_quat_axes_resolver)
     def quat_w(self) -> ProxyArray | None:
         """Orientation of the sensor origin in world frame.
 
@@ -64,20 +80,23 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.VECTOR3D, element_names=XYZ_ELEMENT_NAMES)
-    def net_forces_w(self) -> ProxyArray | None:
-        """The net normal contact forces in world frame.
+    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes_resolver=body_xyz_axes_resolver)
+    def net_normal_forces_w(self) -> ProxyArray | None:
+        """The net normal contact forces [N] in world frame.
 
         Shape is (num_instances, num_sensors), dtype = wp.vec3f. In torch this resolves to
         (num_instances, num_sensors, 3).
+
+        The net total contact force is the sum of this quantity and
+        :attr:`net_friction_forces_w`.
         """
         raise NotImplementedError
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.VECTOR3D, element_names=XYZ_ELEMENT_NAMES)
-    def net_forces_w_history(self) -> ProxyArray | None:
-        """History of net normal contact forces.
+    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes_resolver=body_xyz_history_axes_resolver)
+    def net_normal_forces_w_history(self) -> ProxyArray | None:
+        """History of net normal contact forces [N].
 
         Shape is (num_instances, history_length, num_sensors), dtype = wp.vec3f. In torch this resolves to
         (num_instances, history_length, num_sensors, 3).
@@ -86,22 +105,25 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.VECTOR3D, element_names=XYZ_ELEMENT_NAMES)
-    def force_matrix_w(self) -> ProxyArray | None:
-        """Normal contact forces filtered between sensor and filtered bodies.
+    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes_resolver=body_xyz_axes_resolver)
+    def normal_force_matrix_w(self) -> ProxyArray | None:
+        """Normal contact forces [N] filtered between sensor and filtered bodies.
 
         Shape is (num_instances, num_sensors, num_filter_shapes), dtype = wp.vec3f. In torch this resolves to
         (num_instances, num_sensors, num_filter_shapes, 3).
 
         None if :attr:`ContactSensorCfg.filter_prim_paths_expr` is empty.
+
+        The total contact force matrix is the sum of this quantity and
+        :attr:`friction_force_matrix_w`.
         """
         raise NotImplementedError
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.VECTOR3D, element_names=XYZ_ELEMENT_NAMES)
-    def force_matrix_w_history(self) -> ProxyArray | None:
-        """History of filtered contact forces.
+    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes_resolver=body_xyz_history_axes_resolver)
+    def normal_force_matrix_w_history(self) -> ProxyArray | None:
+        """History of filtered normal contact forces [N].
 
         Shape is (num_instances, history_length, num_sensors, num_filter_shapes), dtype = wp.vec3f.
         In torch this resolves to (num_instances, history_length, num_sensors, num_filter_shapes, 3).
@@ -112,7 +134,7 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSITION, axes_resolver=body_xyz_axes_resolver)
     def contact_pos_w(self) -> ProxyArray | None:
         """Average position of contact points.
 
@@ -125,12 +147,12 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.VECTOR3D, element_names=XYZ_ELEMENT_NAMES)
-    def friction_forces_w(self) -> ProxyArray | None:
-        """Sum of friction forces.
+    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes_resolver=body_xyz_axes_resolver)
+    def net_friction_forces_w(self) -> ProxyArray | None:
+        """The net friction contact forces [N] in world frame.
 
-        Shape is (num_instances, num_sensors, num_filter_shapes), dtype = wp.vec3f. In torch this resolves to
-        (num_instances, num_sensors, num_filter_shapes, 3).
+        Shape is (num_instances, num_sensors), dtype = wp.vec3f. In torch this resolves to
+        (num_instances, num_sensors, 3).
 
         None if :attr:`ContactSensorCfg.track_friction_forces` is False.
         """
@@ -138,7 +160,151 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics()
+    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes_resolver=body_xyz_history_axes_resolver)
+    def net_friction_forces_w_history(self) -> ProxyArray | None:
+        """History of net friction contact forces [N] in world frame.
+
+        Shape is (num_instances, history_length, num_sensors), dtype = wp.vec3f. In torch this resolves to
+        (num_instances, history_length, num_sensors, 3).
+
+        None if :attr:`ContactSensorCfg.track_friction_forces` is False.
+        """
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes_resolver=body_xyz_axes_resolver)
+    def friction_force_matrix_w(self) -> ProxyArray | None:
+        """Friction contact forces [N] filtered between sensor and filtered bodies.
+
+        Shape is (num_instances, num_sensors, num_filter_shapes), dtype = wp.vec3f. In torch this resolves to
+        (num_instances, num_sensors, num_filter_shapes, 3).
+
+        None if :attr:`ContactSensorCfg.track_friction_forces` is False or no filter objects are configured.
+        """
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes_resolver=body_xyz_history_axes_resolver)
+    def friction_force_matrix_w_history(self) -> ProxyArray | None:
+        """History of filtered friction contact forces [N].
+
+        Shape is (num_instances, history_length, num_sensors, num_filter_shapes), dtype = wp.vec3f.
+        In torch this resolves to (num_instances, history_length, num_sensors, num_filter_shapes, 3).
+
+        None if :attr:`ContactSensorCfg.track_friction_forces` is False or no filter objects are configured.
+        """
+        raise NotImplementedError
+
+    @property
+    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes_resolver=body_xyz_axes_resolver)
+    def net_forces_w(self) -> ProxyArray | None:
+        """The net total contact forces [N] in world frame.
+
+        Shape is (num_instances, num_sensors), dtype = wp.vec3f. In torch this resolves to
+        (num_instances, num_sensors, 3).
+
+        This is the sum of :attr:`net_normal_forces_w` and :attr:`net_friction_forces_w`.
+        Newton, OVPhysX, and Isaac Sim PhysX 6.2 or later include friction even when
+        :attr:`ContactSensorCfg.track_friction_forces` is False. Isaac Sim PhysX 6.1 returns
+        :attr:`net_normal_forces_w` and warns.
+        """
+        warnings.warn(
+            "Isaac Sim PhysX 6.1 does not return a total contact force. Returning"
+            " 'net_normal_forces_w'. Upgrade to Isaac Sim 6.2 or later for total forces.",
+            UserWarning,
+            stacklevel=2,
+        )
+        return self.net_normal_forces_w
+
+    @property
+    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes_resolver=body_xyz_history_axes_resolver)
+    def net_forces_w_history(self) -> ProxyArray | None:
+        """History of net total contact forces [N] in world frame.
+
+        Shape is (num_instances, history_length, num_sensors), dtype = wp.vec3f. In torch this resolves to
+        (num_instances, history_length, num_sensors, 3).
+
+        Isaac Sim PhysX 6.1 returns :attr:`net_normal_forces_w_history` and warns.
+        """
+        warnings.warn(
+            "Isaac Sim PhysX 6.1 does not return a total contact force. Returning"
+            " 'net_normal_forces_w_history'. Upgrade to Isaac Sim 6.2 or later for total forces.",
+            UserWarning,
+            stacklevel=2,
+        )
+        return self.net_normal_forces_w_history
+
+    @property
+    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes_resolver=body_xyz_axes_resolver)
+    def force_matrix_w(self) -> ProxyArray | None:
+        """Total filtered contact forces [N] between sensor and filtered bodies.
+
+        Shape is (num_instances, num_sensors, num_filter_shapes), dtype = wp.vec3f. In torch this resolves to
+        (num_instances, num_sensors, num_filter_shapes, 3).
+
+        This is the sum of :attr:`normal_force_matrix_w` and :attr:`friction_force_matrix_w`.
+        Newton, OVPhysX, and Isaac Sim PhysX 6.2 or later include friction even when
+        :attr:`ContactSensorCfg.track_friction_forces` is False. Isaac Sim PhysX 6.1 returns
+        :attr:`normal_force_matrix_w` and warns.
+
+        None if :attr:`ContactSensorCfg.filter_prim_paths_expr` is empty.
+        """
+        warnings.warn(
+            "Isaac Sim PhysX 6.1 does not return a total contact force. Returning"
+            " 'normal_force_matrix_w'. Upgrade to Isaac Sim 6.2 or later for total forces.",
+            UserWarning,
+            stacklevel=2,
+        )
+        return self.normal_force_matrix_w
+
+    @property
+    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes_resolver=body_xyz_history_axes_resolver)
+    def force_matrix_w_history(self) -> ProxyArray | None:
+        """History of total filtered contact forces [N].
+
+        Shape is (num_instances, history_length, num_sensors, num_filter_shapes), dtype = wp.vec3f.
+        In torch this resolves to (num_instances, history_length, num_sensors, num_filter_shapes, 3).
+
+        Isaac Sim PhysX 6.1 returns :attr:`normal_force_matrix_w_history` and warns.
+
+        None if :attr:`ContactSensorCfg.filter_prim_paths_expr` is empty.
+        """
+        warnings.warn(
+            "Isaac Sim PhysX 6.1 does not return a total contact force. Returning"
+            " 'normal_force_matrix_w_history'. Upgrade to Isaac Sim 6.2 or later for total forces.",
+            UserWarning,
+            stacklevel=2,
+        )
+        return self.normal_force_matrix_w_history
+
+    @property
+    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes_resolver=body_xyz_axes_resolver)
+    def friction_forces_w(self) -> ProxyArray | None:
+        """The net total friction contact forces [N] in world frame.
+
+        Shape is (num_instances, num_sensors), dtype = wp.vec3f. In torch this resolves to
+        (num_instances, num_sensors, 3).
+
+        This is the same quantity as :attr:`net_friction_forces_w` on Newton, OVPhysX, and Isaac
+        Sim PhysX 6.2 or later. Isaac Sim PhysX 6.1 only provides filtered friction, so it
+        returns :attr:`friction_force_matrix_w` and warns.
+
+        None if :attr:`ContactSensorCfg.track_friction_forces` is False.
+        """
+        warnings.warn(
+            "Isaac Sim PhysX 6.1 does not return an aggregate friction force; it only provides"
+            " filtered friction. Returning 'friction_force_matrix_w'. Upgrade to Isaac Sim 6.2"
+            " or later for aggregate friction.",
+            UserWarning,
+            stacklevel=2,
+        )
+        return self.friction_force_matrix_w
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(kind="time/duration", axes=[Axis(AxisKind.SYSTEM), Axis(AxisKind.ELEMENT)])
     def last_air_time(self) -> ProxyArray | None:
         """Time spent in air before last contact.
 
@@ -150,7 +316,7 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics()
+    @leapp_tensor_semantics(kind="time/duration", axes=[Axis(AxisKind.SYSTEM), Axis(AxisKind.ELEMENT)])
     def current_air_time(self) -> ProxyArray | None:
         """Time spent in air since last detach.
 
@@ -162,7 +328,7 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics()
+    @leapp_tensor_semantics(kind="time/duration", axes=[Axis(AxisKind.SYSTEM), Axis(AxisKind.ELEMENT)])
     def last_contact_time(self) -> ProxyArray | None:
         """Time spent in contact before last detach.
 
@@ -174,7 +340,7 @@ class BaseContactSensorData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics()
+    @leapp_tensor_semantics(kind="time/duration", axes=[Axis(AxisKind.SYSTEM), Axis(AxisKind.ELEMENT)])
     def current_contact_time(self) -> ProxyArray | None:
         """Time spent in contact since last contact.
 

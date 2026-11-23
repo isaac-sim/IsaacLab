@@ -18,6 +18,7 @@ import torch
 
 import isaaclab.utils.math as math_utils
 from isaaclab.managers import ManagerTermBase, SceneEntityCfg
+from isaaclab.utils.images import normalize_depth
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
@@ -121,8 +122,8 @@ class ImageLatentObservation(ManagerTermBase):
             env: The manager-based RL environment instance.
 
         Raises:
-            KeyError: If required params ("sensor_cfg", "data_type") are missing.
-            RuntimeError: If the specified camera sensor is not found in the scene.
+            KeyError: If required params ("sensor_cfg", "data_type") are missing, or if
+                the specified camera sensor is not found in the scene's sensor dictionary.
         """
         super().__init__(cfg, env)
         self.camera_sensor: TiledCamera | Camera | RayCasterCamera | MultiMeshRayCasterCamera = env.scene.sensors[
@@ -168,41 +169,35 @@ class ImageLatentObservation(ManagerTermBase):
             env: The manager-based environment providing scene and device information.
             sensor_cfg: Scene entity config for the camera sensor (unused, already set in __init__).
             data_type: Data type to extract from the sensor (unused, already set in __init__).
-            convert_perspective_to_orthogonal: Whether to convert perspective to orthogonal depth
-                (unused, already set in __init__).
-            normalize: Whether to normalize images (unused, already set in __init__).
 
         Returns:
             torch.Tensor: Latent representations from the VAE model.
                 Shape is determined by the VAE architecture (typically (num_envs, latent_dim)).
 
         Raises:
-            ValueError: If data_type is "distance_to_image_plane" but normalize is False,
-                or if an unsupported data_type is encountered with normalize=True.
+            ValueError: If normalization is enabled for a data type other than
+                "distance_to_image_plane".
             RuntimeError: If the VAE model inference fails or tensors have incompatible shapes.
 
         Notes:
             - Images are converted to float16 before passing to the VAE for efficiency.
-            - Infinity values in depth images are clamped to 10.0 during normalization.
+            - Invalid (NaN or infinite) depth values are set to 10.0 during normalization.
             - Very small depth values (< 0.02) are set to -1.0 to indicate invalid regions.
             - The parameters (sensor_cfg, data_type, etc.) are ignored here as they are
             already stored during initialization. They are included in the signature only
             to satisfy the observation manager's parameter validation.
         """
-        images = self.camera_sensor.data.output[self.data_type].clone()
+        images = self.camera_sensor.data.output[self.data_type].torch
 
         if (self.data_type == "distance_to_camera") and self.convert_perspective_to_orthogonal:
             images = math_utils.orthogonalize_perspective_depth(images, self.camera_sensor.data.intrinsic_matrices)
 
         if self.normalize:
-            if self.data_type == "distance_to_image_plane":
-                images[images == float("inf")] = 10.0
-                images[images == -float("inf")] = 10.0
-                images[images > 10.0] = 10.0
-                images = images / 10.0
-                images[images < 0.02] = -1.0
-            else:
+            if self.data_type != "distance_to_image_plane":
                 raise ValueError(f"Image data type: {self.data_type} not supported")
+            # the VAE was trained on depth scaled over 10 m, with pixels nearer than 0.2 m marked invalid
+            images = normalize_depth(images, invalid_value=10.0, max_depth=10.0)
+            images[images < 0.02] = -1.0
 
         vae_model = self._get_model(env.device)
         with torch.no_grad():

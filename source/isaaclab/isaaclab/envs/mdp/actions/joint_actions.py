@@ -14,14 +14,13 @@ import torch
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.articulation import Articulation
 from isaaclab.managers.action_manager import ActionTerm
+from isaaclab.utils import index_fill_
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv
-    from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
-
+    from ... import ManagerBasedEnv
+    from ...utils.io_descriptors import GenericActionIODescriptor
     from . import actions_cfg
 
-# import logger
 logger = logging.getLogger(__name__)
 
 
@@ -170,20 +169,21 @@ class JointAction(ActionTerm):
     def process_actions(self, actions: torch.Tensor):
         # store the raw actions
         self._raw_actions[:] = actions
-        # apply the affine transformations
-        self._processed_actions = self._raw_actions * self._scale + self._offset
+        # apply the affine transformations in place: a recorded apply_actions reads this buffer
+        self._processed_actions[:] = self._raw_actions * self._scale
+        self._processed_actions.add_(self._offset)
         # clip actions
         if self.cfg.clip is not None:
-            self._processed_actions = torch.clamp(
-                self._processed_actions, min=self._clip[:, :, 0], max=self._clip[:, :, 1]
-            )
+            self._processed_actions.clamp_(min=self._clip[:, :, 0], max=self._clip[:, :, 1])
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
-        self._raw_actions[env_ids] = 0.0
+        index_fill_(self._raw_actions, env_ids, 0.0)
 
 
 class JointPositionAction(JointAction):
     """Joint action term that applies the processed actions to the articulation's joints as position commands."""
+
+    is_graphable = True
 
     cfg: actions_cfg.JointPositionActionCfg
     """The configuration of the action term."""
@@ -236,6 +236,8 @@ class RelativeJointPositionAction(JointAction):
 class JointVelocityAction(JointAction):
     """Joint action term that applies the processed actions to the articulation's joints as velocity commands."""
 
+    is_graphable = True
+
     cfg: actions_cfg.JointVelocityActionCfg
     """The configuration of the action term."""
 
@@ -253,6 +255,8 @@ class JointVelocityAction(JointAction):
 
 class JointEffortAction(JointAction):
     """Joint action term that applies the processed actions to the articulation's joints as effort commands."""
+
+    is_graphable = True
 
     cfg: actions_cfg.JointEffortActionCfg
     """The configuration of the action term."""

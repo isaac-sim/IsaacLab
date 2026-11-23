@@ -78,7 +78,7 @@ def _survival_rate_kernel(
 class survival_success_rate(ManagerTermBase):
     """Tracks episode survival as the success metric (Warp-first).
 
-    Twin of :class:`isaaclab_tasks.core.cartpole.mdp.rewards.survival_success_rate`.
+    Twin of :class:`isaaclab.envs.mdp.rewards.survival_success_rate`.
     Returns zero reward (pure metric tracking). On reset, computes the fraction of
     just-reset environments that timed out (survived the full episode) entirely
     on-device and exposes it as ``Metrics/success_rate`` through the reward

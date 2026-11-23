@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 import warp as wp
 
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.utils.warp.math import quat_error_magnitude
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
@@ -145,12 +146,7 @@ def _orientation_command_error_kernel(
     des_w = root_quat_w[i] * des_b
     # current ee orientation
     cur_w = body_quat_w[i, body_idx]
-    # shortest-path error: angle of q_err = cur^-1 * des
-    q_err = wp.quat_inverse(cur_w) * des_w
-    # error magnitude = 2 * acos(|w|)  (w component of the error quaternion)
-    qw = wp.abs(q_err[3])
-    qw = wp.clamp(qw, 0.0, 1.0)
-    out[i] = 2.0 * wp.acos(qw)
+    out[i] = quat_error_magnitude(cur_w, des_w)
 
 
 def orientation_command_error(env: ManagerBasedRLEnv, out, command_name: str, asset_cfg: SceneEntityCfg) -> None:

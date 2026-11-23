@@ -12,15 +12,16 @@ import torch
 import trimesh
 import warp as wp
 
+from isaaclab.test.utils import resolve_test_sim_device
 from isaaclab.utils.math import matrix_from_quat, quat_from_euler_xyz, random_orientation
-from isaaclab.utils.warp.ops import convert_to_warp_mesh, raycast_dynamic_meshes, raycast_single_mesh
+from isaaclab.utils.warp.ops import convert_to_warp_mesh, raycast_dynamic_meshes, raycast_mesh, raycast_single_mesh
 
 pytestmark = pytest.mark.integration
 
 
 @pytest.fixture(scope="module")
 def device():
-    return "cuda" if torch.cuda.is_available() else "cpu"
+    return resolve_test_sim_device() if torch.cuda.is_available() else "cpu"
 
 
 @pytest.fixture
@@ -100,11 +101,53 @@ def test_raycast_multi_cubes(device, trimesh_box, rays):
     assert torch.equal(mesh_ids, torch.tensor([[0, 1]], dtype=torch.int32, device=device))
 
 
+@pytest.mark.parametrize("leading_shape", [(), (2,), (1, 2), (2, 3, 1)])
+def test_raycast_mesh_preserves_ray_shape_and_order(device, single_mesh, leading_shape):
+    """All outputs preserve the input ray layout, including singleton axes and staggered depths."""
+    mesh, _ = single_mesh
+    num_rays = int(np.prod(leading_shape))
+    indices = torch.arange(num_rays, device=device)
+    xy = torch.tensor([[0.0, -0.35], [0.25, 0.35]], device=device)[indices % 2]
+    starts = torch.cat((xy, (-5.0 - 0.5 * indices).unsqueeze(-1)), dim=-1)
+    directions = torch.tensor([0.0, 0.0, 1.0], device=device).expand(num_rays, 3)
+    hits, distances, normals, face_ids = raycast_mesh(
+        starts.reshape(*leading_shape, 3),
+        directions.reshape(*leading_shape, 3),
+        mesh,
+        return_distance=True,
+        return_normal=True,
+        return_face_id=True,
+    )
+    expected_hits = torch.cat((xy, torch.full((num_rays, 1), -0.5, device=device)), dim=-1)
+    torch.testing.assert_close(hits, expected_hits.reshape(*leading_shape, 3))
+    torch.testing.assert_close(distances, (4.5 + 0.5 * indices).reshape(leading_shape))
+    torch.testing.assert_close(
+        normals, torch.tensor([0.0, 0.0, -1.0], device=device).expand(num_rays, 3).reshape(*leading_shape, 3)
+    )
+    torch.testing.assert_close(
+        face_ids, torch.tensor([3, 8], dtype=torch.int32, device=device)[indices % 2].reshape(leading_shape)
+    )
+
+
+@pytest.mark.parametrize(
+    "direction_shape", [(1, 3), (3, 3), (2, 4), (1, 2, 3)], ids=["fewer", "surplus", "trailing", "layout"]
+)
+def test_raycast_mesh_rejects_mismatched_directions(device, single_mesh, rays, direction_shape):
+    """Reject unsafe or ambiguous layouts before flattening or launching the native query."""
+    mesh, _ = single_mesh
+    starts = rays[0].reshape(2, 3)
+    directions = torch.zeros(direction_shape, device=device)
+    directions[..., -1] = 1.0
+    with pytest.raises(ValueError, match="identical shapes"):
+        raycast_mesh(starts, directions, mesh)
+
+
 def test_raycast_single_cube(device, single_mesh, rays):
     """Test raycasting against a single cube."""
     ray_starts, ray_directions, expected_ray_hits = rays
     _, single_mesh_id = single_mesh
 
+    # check the mesh-id implementation
     ray_hits, ray_distance, ray_normal, ray_face_id = raycast_single_mesh(
         ray_starts,
         ray_directions,

@@ -6,17 +6,15 @@
 __all__ = [
     "RslRlDistillationAlgorithmCfg",
     "RslRlDistillationRunnerCfg",
-    "RslRlDistillationStudentTeacherCfg",
-    "RslRlDistillationStudentTeacherRecurrentCfg",
-    "export_policy_as_jit",
-    "export_policy_as_onnx",
-    "handle_deprecated_rsl_rl_cfg",
     "RslRlBaseRunnerCfg",
     "RslRlCNNModelCfg",
     "RslRlMLPModelCfg",
+    "RslRlQMLPModelCfg",
+    "RslRlResidualMLPCfg",
+    "RslRlResidualMLPModelCfg",
+    "RslRlSacAlgorithmCfg",
+    "RslRlSacRunnerCfg",
     "RslRlOnPolicyRunnerCfg",
-    "RslRlPpoActorCriticCfg",
-    "RslRlPpoActorCriticRecurrentCfg",
     "RslRlPpoAlgorithmCfg",
     "RslRlRNNModelCfg",
     "RslRlRndCfg",
@@ -24,24 +22,19 @@ __all__ = [
     "RslRlVecEnvWrapper",
 ]
 
-from .distillation_cfg import (
-    RslRlDistillationAlgorithmCfg,
-    RslRlDistillationRunnerCfg,
-    RslRlDistillationStudentTeacherCfg,
-    RslRlDistillationStudentTeacherRecurrentCfg,
-)
-from .exporter import export_policy_as_jit, export_policy_as_onnx
+from .distillation_cfg import RslRlDistillationAlgorithmCfg, RslRlDistillationRunnerCfg
 from .rl_cfg import (
     RslRlBaseRunnerCfg,
     RslRlCNNModelCfg,
     RslRlMLPModelCfg,
+    RslRlQMLPModelCfg,
+    RslRlResidualMLPCfg,
+    RslRlResidualMLPModelCfg,
     RslRlOnPolicyRunnerCfg,
-    RslRlPpoActorCriticCfg,
-    RslRlPpoActorCriticRecurrentCfg,
     RslRlPpoAlgorithmCfg,
     RslRlRNNModelCfg,
 )
 from .rnd_cfg import RslRlRndCfg
+from .sac_cfg import RslRlSacAlgorithmCfg, RslRlSacRunnerCfg
 from .symmetry_cfg import RslRlSymmetryCfg
-from .utils import handle_deprecated_rsl_rl_cfg
 from .vecenv_wrapper import RslRlVecEnvWrapper

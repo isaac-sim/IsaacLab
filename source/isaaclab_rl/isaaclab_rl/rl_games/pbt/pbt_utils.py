@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Checkpoint, argument, and reporting helpers for Population-Based Training."""
+
 import datetime
 import os
 import random
@@ -16,6 +18,8 @@ from rl_games.algos_torch.torch_ext import safe_filesystem_op, safe_save
 
 
 class DistributedArgs:
+    """Distributed launch arguments forwarded to a restarted policy process."""
+
     def __init__(self, args_cli):
         self.distributed = args_cli.distributed
         self.nproc_per_node = int(os.environ.get("WORLD_SIZE", 1))
@@ -31,20 +35,20 @@ class DistributedArgs:
 
 
 class EnvArgs:
+    """Environment arguments forwarded to a restarted policy process."""
+
     def __init__(self, args_cli):
         self.task = args_cli.task
         self.seed = args_cli.seed if args_cli.seed is not None else -1
         self.num_envs = args_cli.num_envs
 
     def get_args_list(self) -> list[str]:
-        list = []
-        list.append(f"--task={self.task}")
-        list.append(f"--seed={self.seed}")
-        list.append(f"--num_envs={self.num_envs}")
-        return list
+        return [f"--task={self.task}", f"--seed={self.seed}", f"--num_envs={self.num_envs}"]
 
 
 class RenderingArgs:
+    """Video recording arguments forwarded to a restarted policy process."""
+
     def __init__(self, args_cli):
         self.video = args_cli.video
         self.video_length = args_cli.video_length
@@ -58,6 +62,8 @@ class RenderingArgs:
 
 
 class WandbArgs:
+    """Weights and Biases arguments forwarded to a restarted policy process."""
+
     def __init__(self, args_cli):
         self.enabled = args_cli.track
         self.project_name = args_cli.wandb_project_name
@@ -177,13 +183,9 @@ def load_pbt_ckpts(workspace_dir, cur_policy_id, num_policies, pbt_iteration) ->
         pbt_checkpoint_files = sorted([f for f in os.listdir(policy_dir) if f.endswith(".yaml")], reverse=True)
         for pbt_checkpoint_file in pbt_checkpoint_files:
             iteration = int(pbt_checkpoint_file.split(".")[0])
-
-            # current local time
-            now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            ctime_ts = os.path.getctime(os.path.join(policy_dir, pbt_checkpoint_file))
-            created_str = datetime.datetime.fromtimestamp(ctime_ts).strftime("%Y-%m-%d %H:%M:%S")
-
             if iteration <= pbt_iteration:
+                ctime_ts = os.path.getctime(os.path.join(policy_dir, pbt_checkpoint_file))
+                created_str = datetime.datetime.fromtimestamp(ctime_ts).strftime("%Y-%m-%d %H:%M:%S")
                 with open(os.path.join(policy_dir, pbt_checkpoint_file)) as fobj:
                     now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     print(

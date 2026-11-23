@@ -65,6 +65,8 @@ runs:
 
     - name: Setup docker config and login to nvcr.io
       uses: ./.github/actions/_lib/setup-docker-config
+      with:
+        base-image-ref: ${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}
 
     ##### 2: Host disk snapshot (pre) #####
 
@@ -166,16 +168,59 @@ runs:
           BUILD_ARGS+=( --cache-to "${{ inputs.cache-to }}" )
         fi
 
-        BUILDER_NAME="docker-build-${{ github.run_id }}-${{ github.job }}"
-        docker buildx create --use --driver docker-container --name "${BUILDER_NAME}" \
-          || docker buildx use "${BUILDER_NAME}"
-        trap 'docker buildx rm "${BUILDER_NAME}" || true' EXIT
+        # Registry cache export needs a docker-container builder, whose image must
+        # then be exported and loaded into the daemon. Callers without a registry
+        # cache (ARM, which has no ECR) build in the daemon itself instead, so the
+        # image, layer cache and uv cache mount stay on the runner. A containerd
+        # image store still compresses new layers; zstd level 1 is several times
+        # faster than the default gzip for the multi-GB venv layer.
+        if [ -n "${{ inputs.cache-from }}${{ inputs.cache-to }}" ]; then
+          BUILDER_NAME="docker-build-${{ github.run_id }}-${{ github.job }}"
+          docker buildx create --driver docker-container --name "${BUILDER_NAME}" \
+            || true
+          trap 'docker buildx rm "${BUILDER_NAME}" || true' EXIT
+          BUILD_ARGS+=( --builder "${BUILDER_NAME}" --load )
+        else
+          BUILD_ARGS+=(
+            --builder default
+            --provenance=false
+            --output "type=image,name=${{ inputs.image-tag }},compression=zstd,compression-level=1"
+          )
+        fi
 
         echo "🔵 Building ${{ inputs.image-tag }}..."
-        docker buildx build --load "${BUILD_ARGS[@]}" "${{ inputs.context-path }}"
+        docker buildx build "${BUILD_ARGS[@]}" "${{ inputs.context-path }}"
         echo "was-built=true" >> "$GITHUB_OUTPUT"
 
-    ##### 6: Tag built image with local deps-tag #####
+    ##### 6: Layer the CI pytest harness onto the built image #####
+
+    # Kept out of the tracked Dockerfiles, which build local dev containers and
+    # ship via publish-images.yaml. Only on a real build; cache hits have it.
+
+    - name: Layer CI test dependencies
+      if: steps.build.outputs.was-built == 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+        # Install as root, then restore the image's default user. Disable the
+        # build-time cache so it cannot leave root-owned files in the runtime
+        # user's uv cache when both users share HOME.
+        image_user="$(docker image inspect --format '{{.Config.User}}' "${{ inputs.image-tag }}")"
+        # Dockerfile on stdin (no context to stage). Quoted heredoc so the
+        # shell leaves ISAACLAB_PATH and IMAGE_USER for Docker to expand; the
+        # image tag is an action input, substituted before bash ever runs.
+        docker build --platform "${{ inputs.platform }}" \
+          --build-arg "IMAGE_USER=${image_user:-root}" \
+          -t "${{ inputs.image-tag }}" - <<'DOCKERFILE'
+        FROM ${{ inputs.image-tag }}
+        ARG IMAGE_USER
+        USER root
+        RUN uv pip install --no-cache --python ${VIRTUAL_ENV}/bin/python \
+              pytest pytest-mock junitparser flaky "coverage>=7.6.1"
+        USER ${IMAGE_USER}
+        DOCKERFILE
+
+    ##### 7: Tag built image with local deps-tag #####
 
     # Runs only when a real build happened (not on cache hits). Populates the
     # deps-tag so the next build with identical deps short-circuits at step 4.
@@ -191,7 +236,7 @@ runs:
           echo "🟠 LOCAL_DEPS_TAG not set, skipping local deps-cache tag"
         fi
 
-    ##### 7: Evict stale local deps-cache tags (>14d) — opt-in #####
+    ##### 8: Evict stale local deps-cache tags (>14d) — opt-in #####
 
     - name: Evict stale local deps-cache tags (>14d)
       if: always() && inputs.evict-stale-cache == 'true'
@@ -214,7 +259,7 @@ runs:
           --format '{{.CreatedAt}}|{{.Repository}}:{{.Tag}}' 2>/dev/null)
         echo "🔵 Evicted ${evicted} deps tag(s) older than ${TTL_DAYS}d"
 
-    ##### 8: Host disk snapshot (post) #####
+    ##### 9: Host disk snapshot (post) #####
 
     - name: Host disk snapshot (post)
       if: always()

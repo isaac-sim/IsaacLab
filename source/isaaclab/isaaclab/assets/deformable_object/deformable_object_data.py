@@ -7,12 +7,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from isaaclab.utils.backend_utils import FactoryBase
-
+from ...utils.backend_utils import FactoryBase
 from .base_deformable_object_data import BaseDeformableObjectData
 
 if TYPE_CHECKING:
-    from isaaclab_physx.assets.deformable_object.deformable_object_data import (
+    from isaaclab_isaacsim.assets.deformable_object.deformable_object_data import (
         DeformableObjectData as PhysXDeformableObjectData,
     )
 

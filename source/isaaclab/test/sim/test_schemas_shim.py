@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Tests that the forwarding shims resolve the PhysX cfgs that were relocated to
-:mod:`isaaclab_physx`. Covers both the schema cfgs (in :mod:`isaaclab.sim.schemas`) and the
+:mod:`isaaclab_isaacsim`. Covers both the schema cfgs (in :mod:`isaaclab.sim.schemas`) and the
 material cfgs (in :mod:`isaaclab.sim.spawners.materials`).
 
 These tests do not require Isaac Sim — only Python import semantics.
@@ -13,9 +13,9 @@ These tests do not require Isaac Sim — only Python import semantics.
 import warnings
 
 import pytest
+from isaaclab_isaacsim.sim.schemas import schemas_cfg as physx_cfg
+from isaaclab_isaacsim.sim.spawners.materials import physics_materials_cfg as physx_mat_cfg
 from isaaclab_newton.sim.schemas import schemas_cfg as newton_cfg
-from isaaclab_physx.sim.schemas import schemas_cfg as physx_cfg
-from isaaclab_physx.sim.spawners.materials import physics_materials_cfg as physx_mat_cfg
 
 import isaaclab.sim as sim_utils
 import isaaclab.sim.schemas as schemas
@@ -53,18 +53,9 @@ FORWARDED_NAMES = [
     "PhysxSpatialTendonPropertiesCfg",
 ]
 
+# Deprecated forwarded names that ``test_schemas_deprecation.py`` does not already cover.
 DEPRECATED_FORWARDED_NAMES = [
-    "RigidBodyPropertiesCfg",
-    "JointDrivePropertiesCfg",
-    "CollisionPropertiesCfg",
     "DeformableBodyPropertiesCfg",
-    "ArticulationRootPropertiesCfg",
-    "MeshCollisionPropertiesCfg",
-    "ConvexHullPropertiesCfg",
-    "ConvexDecompositionPropertiesCfg",
-    "TriangleMeshPropertiesCfg",
-    "TriangleMeshSimplificationPropertiesCfg",
-    "SDFMeshPropertiesCfg",
     "FixedTendonPropertiesCfg",
     "SpatialTendonPropertiesCfg",
 ]
@@ -100,7 +91,7 @@ NEWTON_FORWARDED_NAMES = [
 @pytest.mark.parametrize("name", FORWARDED_NAMES)
 def test_schemas_shim_resolves_to_physx_class(name):
     """``isaaclab.sim.schemas.<name>`` resolves to the same class object as the one in
-    ``isaaclab_physx.sim.schemas.schemas_cfg``."""
+    ``isaaclab_isaacsim.sim.schemas.schemas_cfg``."""
     assert getattr(schemas, name) is getattr(physx_cfg, name)
 
 
@@ -120,7 +111,7 @@ def test_schemas_cfg_submodule_shim_resolves_to_physx_class(name):
 @pytest.mark.parametrize("name", FORWARDED_MATERIAL_NAMES)
 def test_materials_shim_resolves_to_physx_class(name):
     """``isaaclab.sim.spawners.materials.<name>`` resolves to the same class object as the
-    one in ``isaaclab_physx.sim.spawners.materials.physics_materials_cfg``."""
+    one in ``isaaclab_isaacsim.sim.spawners.materials.physics_materials_cfg``."""
     assert getattr(materials, name) is getattr(physx_mat_cfg, name)
 
 
@@ -155,14 +146,6 @@ def test_sim_namespace_material_shim_resolves_to_physx_class(name):
     assert getattr(sim_utils, name) is getattr(physx_mat_cfg, name)
 
 
-def test_deprecated_alias_emits_deprecation_warning():
-    """Instantiating ``RigidBodyPropertiesCfg`` via the shim still emits ``DeprecationWarning``."""
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        schemas.RigidBodyPropertiesCfg()
-    assert any(issubclass(w.category, DeprecationWarning) for w in caught)
-
-
 @pytest.mark.parametrize("name", DEPRECATED_FORWARDED_NAMES)
 def test_deprecated_aliases_emit_deprecation_warning(name):
     """Instantiating each deprecated forwarded alias via the shim emits exactly one
@@ -173,6 +156,7 @@ def test_deprecated_aliases_emit_deprecation_warning(name):
         cls()
     deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
     assert len(deprecations) == 1, f"{name}: expected one DeprecationWarning, got {len(deprecations)}"
+    assert "3.2" in str(deprecations[0].message)
 
 
 @pytest.mark.parametrize("name", DEPRECATED_FORWARDED_MATERIAL_NAMES)
@@ -183,15 +167,7 @@ def test_deprecated_material_aliases_emit_deprecation_warning(name):
         getattr(materials, name)()
     deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
     assert len(deprecations) == 1, f"{name}: expected one DeprecationWarning, got {len(deprecations)}"
-    assert "5.0" in str(deprecations[0].message)
-
-
-def test_new_class_does_not_emit_deprecation_warning():
-    """Instantiating ``PhysxRigidBodyPropertiesCfg`` directly does NOT emit ``DeprecationWarning``."""
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        schemas.PhysxRigidBodyPropertiesCfg()
-    assert not any(issubclass(w.category, DeprecationWarning) for w in caught)
+    assert "3.2" in str(deprecations[0].message)
 
 
 def test_new_material_class_does_not_emit_deprecation_warning():

@@ -229,6 +229,16 @@ class TerminationManager(ManagerBase):
         """The terminated signal (reaching a terminal state). Shape is (num_envs,)."""
         return self._terminated_wp
 
+    @property
+    def term_dones_wp(self) -> wp.array:
+        """The per-term done signals. Shape is (num_envs, num_terms).
+
+        Columns follow the order of :attr:`active_terms`. Reward terms that aggregate a
+        subset of terminations (e.g. :class:`~isaaclab_experimental.envs.mdp.is_terminated_term`)
+        read this buffer directly instead of the per-term views.
+        """
+        return self._term_dones_wp
+
     """
     Operations.
     """
@@ -248,7 +258,7 @@ class TerminationManager(ManagerBase):
                 If provided, takes precedence over ``env_ids``.
 
         Returns:
-            A dictionary containing the information to log under the "Termination/{term_name}" key.
+            A dictionary containing the information to log under the "Episode_Termination/{term_name}" key.
         """
         # Mask-first path: captured callers must provide env_mask.
         if env_mask is None or not isinstance(env_mask, wp.array):

@@ -24,33 +24,32 @@ if TYPE_CHECKING:
     import isaacsim.gui.components
     import omni.ui
 
-# import logger
 logger = logging.getLogger(__name__)
 
 
 class ImagePlot(UIWidgetWrapper):
     """An image plot widget to display live data.
 
-    It has the following Layout where the mode frame is only useful for depth images:
-    +-------------------------------------------------------+
-    |                  containing_frame                     |
-    |+-----------------------------------------------------+|
-    |                   main_plot_frame                     |
-    ||+---------------------------------------------------+||
-    |||                    plot_frames                    |||
-    |||                                                   |||
-    |||                                                   |||
-    |||               (Image Plot Data)                   |||
-    |||                                                   |||
-    |||                                                   |||
-    |||+-------------------------------------------------+|||
-    |||                   mode_frame                      |||
-    |||                                                   |||
-    |||    [Dropdown: Mode Selection]                     |||
-    |||    [Collapsible: Manual Normalization Options]    |||
-    ||+---------------------------------------------------+||
-    |+-----------------------------------------------------+|
-    +-------------------------------------------------------+
+    The mode frame in the following layout is only useful for depth images:
+
+    .. code-block:: text
+
+       +-------------------------------------------------------+
+       |                  containing_frame                     |
+       |+-----------------------------------------------------+|
+       |                   main_plot_frame                     |
+       ||+---------------------------------------------------+||
+       |||                    plot_frames                    |||
+       |||                                                   |||
+       |||               (Image Plot Data)                   |||
+       |||                                                   |||
+       |||+-------------------------------------------------+|||
+       |||                   mode_frame                      |||
+       |||    [Dropdown: Mode Selection]                     |||
+       |||    [Collapsible: Manual Normalization Options]    |||
+       ||+---------------------------------------------------+||
+       |+-----------------------------------------------------+|
+       +-------------------------------------------------------+
 
     """
 
@@ -62,10 +61,7 @@ class ImagePlot(UIWidgetWrapper):
         min_value: float = 0.0,
         max_value: float = 1.0,
     ):
-        """Create an XY plot UI Widget with axis scaling, legends, and support for multiple plots.
-
-        Overlapping data is most accurately plotted when centered in the frame with reasonable axis scaling.
-        Pressing down the mouse gives the x and y values of each function at an x coordinate.
+        """Create an image plot UI widget that displays a live image.
 
         Args:
             image: Image to display
@@ -74,7 +70,6 @@ class ImagePlot(UIWidgetWrapper):
             min_value: Minimum value for manual normalization/colorization. Defaults to 0.0.
             max_value: Maximum value for manual normalization/colorization. Defaults to 1.0.
         """
-
         self._curr_mode = "None"
 
         self._has_built = False

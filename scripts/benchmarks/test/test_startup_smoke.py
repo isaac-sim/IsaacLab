@@ -24,7 +24,10 @@ def test_startup_writes_startup_bundle(tmp_path):
     whitelist.write_text('python_imports:\n  - "*isaaclab_tasks*importer:_walk_packages"\n')
 
     cmd = [
-        str(ROOT / "isaaclab.sh"),
+        "uv",
+        "run",
+        "--no-sync",
+        "isaaclab",
         "-p",
         "scripts/benchmarks/startup.py",
         "--task",

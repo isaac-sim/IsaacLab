@@ -5,10 +5,11 @@
 
 """Test curriculum-based environment parameter modification."""
 
-from isaaclab.app import AppLauncher
+from isaaclab.test.utils import launch_test_simulation
 
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
+launch_test_simulation()
+
+from types import SimpleNamespace
 
 import pytest
 import torch
@@ -24,7 +25,8 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.test.env_cfgs import EmptyManagerCfg
 from isaaclab.test.integration_scene_cfgs import CartpoleTestSceneCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.test.utils import DeviceScope, test_devices
+from isaaclab.utils import configclass
 
 pytestmark = pytest.mark.integration
 
@@ -126,7 +128,8 @@ class CurriculumTestEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.render_interval = self.decimation
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+# Curriculum address resolution and cfg mutation are device independent, so one device covers them.
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
 def test_curriculum_modify_env_param(device):
     """Ensure curriculum terms apply correctly after the fallback and replacement."""
     # new USD stage
@@ -162,3 +165,14 @@ def test_curriculum_modify_env_param(device):
             env.step(actions)
 
     env.close()
+
+
+def test_modify_env_param_indexes_into_dict_values():
+    """An indexed address part resolves through a dictionary key, e.g. ``params.ranges[1].high``."""
+    env = SimpleNamespace(params={"ranges": [SimpleNamespace(high=1.0), SimpleNamespace(high=2.0)]})
+    cfg = CurrTerm(func=mdp.modify_env_param, params={"address": "params.ranges[1].high"})
+    term = mdp.modify_env_param(cfg, env)
+
+    term(env, None, "params.ranges[1].high", modify_fn=lambda env, env_ids, value: value * 10)
+
+    assert env.params["ranges"][1].high == 20.0

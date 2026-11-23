@@ -7,23 +7,23 @@
 
 import dataclasses
 
-import isaaclab_physx.sim.schemas as physx_schemas
+import isaaclab_isaacsim.sim.schemas as physx_schemas
 import pytest
+from isaaclab_isaacsim.sim.schemas import (
+    OmniPhysicsDeformableBodyPropertiesCfg,
+    PhysxDeformableBodyPropertiesCfg,
+)
+from isaaclab_isaacsim.sim.schemas.schemas_cfg import PhysXDeformableBodyPropertiesCfg
+from isaaclab_isaacsim.sim.spawners.materials import (
+    PhysxDeformableBodyMaterialCfg,
+    PhysXDeformableMaterialCfg,
+    PhysxSurfaceDeformableBodyMaterialCfg,
+)
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import (
     NewtonDeformableBodyMaterialCfg,
     NewtonDeformableMaterialCfg,
     NewtonSurfaceDeformableBodyMaterialCfg,
-)
-from isaaclab_physx.sim.schemas import (
-    OmniPhysicsDeformableBodyPropertiesCfg,
-    PhysxDeformableBodyPropertiesCfg,
-)
-from isaaclab_physx.sim.schemas.schemas_cfg import PhysXDeformableBodyPropertiesCfg
-from isaaclab_physx.sim.spawners.materials import (
-    PhysxDeformableBodyMaterialCfg,
-    PhysXDeformableMaterialCfg,
-    PhysxSurfaceDeformableBodyMaterialCfg,
 )
 
 import isaaclab.sim.schemas as schemas
@@ -74,6 +74,7 @@ def test_common_deformable_material_cfg_has_no_backend_fields():
     _assert_no_property_prefix_field(SurfaceDeformableBodyMaterialBaseCfg)
 
 
+@pytest.mark.filterwarnings("ignore:PhysxDeformableBodyPropertiesCfg is deprecated:DeprecationWarning")
 def test_physx_deformable_cfgs_use_core_schema_and_material_functions():
     """PhysX deformable cfgs own PhysX fields while schema and material functions stay in core."""
     props = PhysxDeformableBodyPropertiesCfg()
@@ -108,6 +109,7 @@ def test_physx_deformable_cfgs_use_core_schema_and_material_functions():
     assert type(surface_material)._usd_applied_schema == "PhysxSurfaceDeformableMaterialAPI"
 
 
+@pytest.mark.filterwarnings("ignore:NewtonDeformableBodyPropertiesCfg is deprecated:DeprecationWarning")
 def test_newton_deformable_cfgs_use_core_schema_and_material_functions():
     """Newton deformable cfgs own Newton fields while schema and material functions stay in core."""
     props = NewtonDeformableBodyPropertiesCfg()

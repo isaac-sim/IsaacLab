@@ -42,7 +42,6 @@ class CartpoleResNetJobCfg(vision_cfg.ResNetCameraJob):
     def __init__(self, cfg: dict = {}):
         cfg = util.populate_isaac_ray_cfg_args(cfg)
         cfg["runner_args"]["--task"] = tune.choice(["Isaac-Cartpole-Camera"])
-        cfg["runner_args"]["--agent"] = "rl_games_feature_cfg_entry_point"
         cfg["hydra_args"]["presets"] = "resnet18"
         super().__init__(cfg)
 
@@ -51,7 +50,6 @@ class CartpoleTheiaJobCfg(vision_cfg.TheiaCameraJob):
     def __init__(self, cfg: dict = {}):
         cfg = util.populate_isaac_ray_cfg_args(cfg)
         cfg["runner_args"]["--task"] = tune.choice(["Isaac-Cartpole-Camera"])
-        cfg["runner_args"]["--agent"] = "rl_games_feature_cfg_entry_point"
         cfg["hydra_args"]["presets"] = "theia_tiny"
         super().__init__(cfg)
 

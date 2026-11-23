@@ -5,6 +5,7 @@
 
 __all__ = [
     "mdp",
+    "reset",
     "ui",
     "VecEnvObs",
     "VecEnvStepReturn",
@@ -12,6 +13,7 @@ __all__ = [
     "DirectMARLEnvCfg",
     "DirectRLEnv",
     "DirectRLEnvCfg",
+    "LeappDeploymentEnv",
     "ManagerBasedEnv",
     "ManagerBasedEnvCfg",
     "ManagerBasedRLEnv",
@@ -29,13 +31,14 @@ __all__ = [
     "MimicEnvCfg",
 ]
 
-from . import mdp, ui
+from . import mdp, reset, ui
 from .common import VecEnvObs, VecEnvStepReturn, ViewerCfg
 from .utils.video_recorder_cfg import VideoRecorderCfg
 from .direct_marl_env import DirectMARLEnv
 from .direct_marl_env_cfg import DirectMARLEnvCfg
 from .direct_rl_env import DirectRLEnv
 from .direct_rl_env_cfg import DirectRLEnvCfg
+from .leapp_deployment_env import LeappDeploymentEnv
 from .manager_based_env import ManagerBasedEnv
 from .manager_based_env_cfg import ManagerBasedEnvCfg
 from .manager_based_rl_env import ManagerBasedRLEnv

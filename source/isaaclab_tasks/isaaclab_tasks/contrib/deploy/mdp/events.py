@@ -39,9 +39,6 @@ class randomize_gear_type(ManagerTermBase):
         """
         super().__init__(cfg, env)
 
-        # Extract gear types from config (required parameter)
-        if "gear_types" not in cfg.params:
-            raise ValueError("'gear_types' parameter is required in randomize_gear_type configuration")
         self.gear_types: list[str] = cfg.params["gear_types"]
 
         # Create gear type mapping (shared across all terms)
@@ -76,7 +73,7 @@ class randomize_gear_type(ManagerTermBase):
         """
         # Randomly select gear type for each environment
         # Use the parameter passed to __call__ (not self.gear_types) to allow runtime overrides
-        for env_id in env_ids.tolist():
+        for env_id in range(env.num_envs)[env_ids] if isinstance(env_ids, slice) else env_ids.tolist():
             chosen_gear = random.choice(gear_types)
             self._current_gear_type[env_id] = chosen_gear
             self._current_gear_type_indices[env_id] = self.gear_type_map[chosen_gear]
@@ -109,32 +106,42 @@ class set_robot_to_grasp_pose(ManagerTermBase):
         """Initialize the set robot to grasp pose term.
 
         Args:
-            cfg: Event term configuration
+            cfg: Event term configuration. Its params must provide robot_asset_cfg and
+                the following entries, which are cached for subsequent calls:
+
+                - gear_offsets_grasp: Dictionary with gear_small, gear_medium, and
+                  gear_large keys, each containing a local grasp offset [x, y, z] [m].
+                  Offsets are rotated by the gear orientation composed with grasp_rot_offset.
+                - end_effector_body_name: Robot end-effector body name.
+                - num_arm_joints: Number of arm joints preceding the finger joints.
+                - grasp_rot_offset: Rotation offset as an xyzw quaternion.
+                - gripper_joint_setter_func: Callable that sets gripper joint positions
+                  from joint positions, environment indices, finger joint indices, and width.
             env: Environment instance
         """
         super().__init__(cfg, env)
 
         # Get robot asset configuration
-        self.robot_asset_cfg: SceneEntityCfg = cfg.params.get("robot_asset_cfg", SceneEntityCfg("robot"))
+        self.robot_asset_cfg: SceneEntityCfg = cfg.params["robot_asset_cfg"]
         self.robot_asset: Articulation = env.scene[self.robot_asset_cfg.name]
 
         # Get robot-specific parameters from environment config (all required)
         # Validate required parameters
-        if "end_effector_body_name" not in cfg.params:
+        if cfg.params["end_effector_body_name"] is None:
             raise ValueError(
                 "'end_effector_body_name' parameter is required in set_robot_to_grasp_pose configuration. "
                 "Example: 'wrist_3_link'"
             )
-        if "num_arm_joints" not in cfg.params:
+        if cfg.params["num_arm_joints"] is None:
             raise ValueError(
                 "'num_arm_joints' parameter is required in set_robot_to_grasp_pose configuration. Example: 6 for UR10e"
             )
-        if "grasp_rot_offset" not in cfg.params:
+        if cfg.params["grasp_rot_offset"] is None:
             raise ValueError(
                 "'grasp_rot_offset' parameter is required in set_robot_to_grasp_pose configuration. "
                 "It should be a quaternion [x, y, z, w]. Example: [0.707, 0.707, 0.0, 0.0]"
             )
-        if "gripper_joint_setter_func" not in cfg.params:
+        if cfg.params["gripper_joint_setter_func"] is None:
             raise ValueError(
                 "'gripper_joint_setter_func' parameter is required in set_robot_to_grasp_pose configuration. "
                 "It should be a function to set gripper joint positions."
@@ -145,7 +152,7 @@ class set_robot_to_grasp_pose(ManagerTermBase):
         self.gripper_joint_setter_func = cfg.params["gripper_joint_setter_func"]
 
         # Pre-cache gear grasp offsets as tensors (required parameter)
-        if "gear_offsets_grasp" not in cfg.params:
+        if cfg.params["gear_offsets_grasp"] is None:
             raise ValueError(
                 "'gear_offsets_grasp' parameter is required in set_robot_to_grasp_pose configuration. "
                 "It should be a dict with keys 'gear_small', 'gear_medium', 'gear_large' mapping to [x, y, z] offsets."
@@ -233,6 +240,16 @@ class set_robot_to_grasp_pose(ManagerTermBase):
             rot_threshold: Rotation convergence threshold
             max_iterations: Maximum IK iterations
             pos_randomization_range: Optional position randomization range
+            gear_offsets_grasp: Unused call argument, default None. Required in cfg.params
+                at initialization; maps each gear type to its local grasp offset [m].
+            end_effector_body_name: Unused call argument, default None. The required
+                end-effector body name is cached from cfg.params at initialization.
+            num_arm_joints: Unused call argument, default None. The required arm joint
+                count is cached from cfg.params at initialization.
+            grasp_rot_offset: Unused call argument, default None. The required xyzw
+                rotation offset is cached from cfg.params at initialization.
+            gripper_joint_setter_func: Unused call argument, default None. The required
+                gripper joint setter is cached from cfg.params at initialization.
         """
         # Check if gear type manager exists
         if not hasattr(env, "_gear_type_manager"):
@@ -244,7 +261,7 @@ class set_robot_to_grasp_pose(ManagerTermBase):
         gear_type_manager: randomize_gear_type = env._gear_type_manager
 
         # Slice buffers for current batch size
-        num_reset_envs = len(env_ids)
+        num_reset_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
         gear_type_indices = self.gear_type_indices[:num_reset_envs]
         local_env_indices = self.local_env_indices[:num_reset_envs]
         gear_grasp_offsets = self.gear_grasp_offsets_buffer[:num_reset_envs]
@@ -295,7 +312,7 @@ class set_robot_to_grasp_pose(ManagerTermBase):
                 range_list_pos = [pos_randomization_range.get(key, (0.0, 0.0)) for key in pos_keys]
                 ranges_pos = torch.tensor(range_list_pos, device=env.device)
                 rand_pos_offsets = math_utils.sample_uniform(
-                    ranges_pos[:, 0], ranges_pos[:, 1], (len(env_ids), 3), device=env.device
+                    ranges_pos[:, 0], ranges_pos[:, 1], (num_reset_envs, 3), device=env.device
                 )
                 gear_grasp_offsets = gear_grasp_offsets + rand_pos_offsets
 
@@ -332,7 +349,7 @@ class set_robot_to_grasp_pose(ManagerTermBase):
             jacobians = self.robot_asset.data.body_link_jacobian_w.torch.clone()
             jacobian = jacobians[env_ids, self.jacobi_body_idx, :, self.robot_asset.num_base_dofs :]
 
-            delta_dof_pos = fc._get_delta_dof_pos(
+            delta_dof_pos = fc.get_delta_dof_pos(
                 delta_pose=delta_hand_pose,
                 ik_method="dls",
                 jacobian=jacobian,
@@ -373,7 +390,9 @@ class set_robot_to_grasp_pose(ManagerTermBase):
 
         # Get gear types for all environments
         all_gear_types = gear_type_manager.get_all_gear_types()
-        for row_idx, env_id in enumerate(env_ids.tolist()):
+        for row_idx, env_id in enumerate(
+            range(env.num_envs)[env_ids] if isinstance(env_ids, slice) else env_ids.tolist()
+        ):
             gear_key = all_gear_types[env_id]
             hand_grasp_width = self.hand_grasp_width[gear_key]
             self.gripper_joint_setter_func(joint_pos, [row_idx], self.finger_joints, hand_grasp_width)
@@ -383,7 +402,9 @@ class set_robot_to_grasp_pose(ManagerTermBase):
         self.robot_asset.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=env_ids)
 
         # Set gripper to closed position
-        for row_idx, env_id in enumerate(env_ids.tolist()):
+        for row_idx, env_id in enumerate(
+            range(env.num_envs)[env_ids] if isinstance(env_ids, slice) else env_ids.tolist()
+        ):
             gear_key = all_gear_types[env_id]
             hand_close_width = self.hand_close_width[gear_key]
             self.gripper_joint_setter_func(joint_pos, [row_idx], self.finger_joints, hand_close_width)
@@ -444,8 +465,9 @@ class randomize_gears_and_base_pose(ManagerTermBase):
         pose_keys = ["x", "y", "z", "roll", "pitch", "yaw"]
         range_list_pose = [pose_range.get(key, (0.0, 0.0)) for key in pose_keys]
         ranges_pose = torch.tensor(range_list_pose, device=device)
+        num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
         rand_pose_samples = math_utils.sample_uniform(
-            ranges_pose[:, 0], ranges_pose[:, 1], (len(env_ids), 6), device=device
+            ranges_pose[:, 0], ranges_pose[:, 1], (num_envs, 6), device=device
         )
 
         orientations_delta = math_utils.quat_from_euler_xyz(
@@ -455,9 +477,7 @@ class randomize_gears_and_base_pose(ManagerTermBase):
         # Shared velocity samples
         range_list_vel = [velocity_range.get(key, (0.0, 0.0)) for key in pose_keys]
         ranges_vel = torch.tensor(range_list_vel, device=device)
-        rand_vel_samples = math_utils.sample_uniform(
-            ranges_vel[:, 0], ranges_vel[:, 1], (len(env_ids), 6), device=device
-        )
+        rand_vel_samples = math_utils.sample_uniform(ranges_vel[:, 0], ranges_vel[:, 1], (num_envs, 6), device=device)
 
         # Prepare poses for all assets
         positions_by_asset = {}
@@ -480,11 +500,11 @@ class randomize_gears_and_base_pose(ManagerTermBase):
         range_list_gear = [gear_pos_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z"]]
         ranges_gear = torch.tensor(range_list_gear, device=device)
         rand_gear_offsets = math_utils.sample_uniform(
-            ranges_gear[:, 0], ranges_gear[:, 1], (len(env_ids), 3), device=device
+            ranges_gear[:, 0], ranges_gear[:, 1], (num_envs, 3), device=device
         )
 
         # Get gear type indices directly as tensor
-        num_reset_envs = len(env_ids)
+        num_reset_envs = num_envs
         gear_type_indices = self.gear_type_indices[:num_reset_envs]
         all_gear_type_indices = gear_type_manager.get_all_gear_type_indices()
         gear_type_indices[:] = all_gear_type_indices[env_ids]

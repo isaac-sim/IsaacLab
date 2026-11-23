@@ -95,7 +95,8 @@ def _resources() -> Resources:
 
 
 def _minimal_play_bundle() -> PlayBundle:
-    return PlayBundle(
+    # Built through the public builder; ``video_path`` is omitted to exercise its None default.
+    return builders.build_play_bundle(
         run=_run_identity(),
         versions=_versions(),
         hardware=_hardware(),
@@ -105,7 +106,6 @@ def _minimal_play_bundle() -> PlayBundle:
         reward=MeanStd(mean=1823.4, std=44.0, peak=1980.0),
         ep_length=MeanStd(mean=987.0, std=12.0, peak=1000.0),
         checkpoint_path="logs/rsl_rl/ant/2026-04-22_13-15-00/model_499.pt",
-        video_path=None,
     )
 
 
@@ -128,30 +128,6 @@ def test_play_bundle_round_trip(tmp_path):
     assert "learning" not in data
 
 
-def test_build_play_bundle_passes_fields_through():
-    """build_play_bundle forwards every field unchanged onto the PlayBundle."""
-    reward = MeanStd(mean=12.0, std=1.0, peak=15.0)
-    ep_length = MeanStd(mean=100.0, std=5.0, peak=120.0)
-    b = builders.build_play_bundle(
-        run=_run_identity(),
-        versions=_versions(),
-        hardware=_hardware(),
-        runtime=_runtime(),
-        resources=_resources(),
-        success_rate=0.7,
-        reward=reward,
-        ep_length=ep_length,
-        checkpoint_path="/tmp/m.pt",
-    )
-    assert isinstance(b, PlayBundle)
-    assert b.run.framework == "rsl_rl"
-    assert b.success_rate == pytest.approx(0.7)
-    assert b.reward is reward
-    assert b.ep_length is ep_length
-    assert b.checkpoint_path == "/tmp/m.pt"
-    assert b.video_path is None
-
-
 class _PlayEnv:
     """Minimal fake env: env 0 finishes a 2-step episode on the 2nd step, env 1 never finishes."""
 
@@ -161,11 +137,13 @@ class _PlayEnv:
     def __init__(self):
         self.unwrapped = self
         self._calls = 0
+        self.inference_mode_enabled = False
 
     def reset(self):
         return torch.zeros(2, 3), {}
 
     def step(self, actions):
+        self.inference_mode_enabled = torch.is_inference_mode_enabled()
         self._calls += 1
         dones = torch.tensor([True, False]) if self._calls == 2 else torch.tensor([False, False])
         extras = {"log": {"Episode_Reward/success": torch.tensor(1.0)}}
@@ -184,3 +162,4 @@ def test_run_play_loop_aggregates_episodes():
     assert reward.mean == pytest.approx(2.0)
     assert ep_length.mean == pytest.approx(2.0)
     assert success_rate == pytest.approx(1.0)
+    assert env.inference_mode_enabled

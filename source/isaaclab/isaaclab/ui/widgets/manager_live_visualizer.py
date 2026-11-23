@@ -6,17 +6,15 @@
 from __future__ import annotations
 
 import logging
-import weakref
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
 import numpy
 
-from isaaclab.managers import ManagerBase
-from isaaclab.sim import SimulationContext
-from isaaclab.ui.live_plots.manager_live_plots import DirectScalarLivePlots, ManagerLivePlots
-from isaaclab.utils.configclass import configclass
-
+from ...managers import ManagerBase
+from ...sim import SimulationContext
+from ...utils import configclass
+from ..live_plots.manager_live_plots import DirectScalarLivePlots, ManagerLivePlots
 from .image_plot import ImagePlot
 from .line_plot import LiveLinePlot
 from .ui_visualizer_base import UiVisualizerBase
@@ -24,7 +22,6 @@ from .ui_visualizer_base import UiVisualizerBase
 if TYPE_CHECKING:
     import omni.ui
 
-# import logger
 logger = logging.getLogger(__name__)
 
 
@@ -64,7 +61,6 @@ class ManagerLiveVisualizer(UiVisualizerBase):
                 :meth:`~isaaclab.managers.manager_base.ManagerBase.get_active_iterable_terms` method.
             cfg: The configuration file used to select desired manager terms to be plotted.
         """
-
         self._manager = manager
         self.debug_vis = cfg.debug_vis
         self._env_idx: int = 0
@@ -173,7 +169,6 @@ class ManagerLiveVisualizer(UiVisualizerBase):
 
     def _debug_vis_callback(self, event):
         """Callback for the debug visualization event."""
-
         if not SimulationContext.instance().is_playing():
             # Visualizers have not been created yet.
             return
@@ -223,14 +218,15 @@ class ManagerLiveVisualizer(UiVisualizerBase):
         if debug_vis:
             # if enabled create a subscriber for the post update event if it doesn't exist
             if not hasattr(self, "_debug_vis_handle") or self._debug_vis_handle is None:
-                app_interface = omni.kit.app.get_app_interface()
-                self._debug_vis_handle = app_interface.get_post_update_event_stream().create_subscription_to_pop(
-                    lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)
-                )
+                sim_ctx = SimulationContext.instance()
+                if sim_ctx is not None:
+                    self._debug_vis_handle = sim_ctx.vis_marker_registry.add_debug_vis_callback(self)
         else:
             # if disabled remove the subscriber if it exists
-            if self._debug_vis_handle is not None:
-                self._debug_vis_handle.unsubscribe()
+            sim_ctx = SimulationContext.instance()
+            if sim_ctx is not None:
+                sim_ctx.vis_marker_registry.clear_debug_vis_callback(self)
+            else:
                 self._debug_vis_handle = None
 
             self._vis_frame.visible = False
@@ -303,7 +299,7 @@ class EnvLiveVisualizer:
         self._prepare_terms()
 
     def _prepare_terms(self):
-        self._manager_visualizers: dict[str, ManagerLiveVisualizer] = dict()
+        self._manager_visualizers: dict[str, ManagerLiveVisualizer] = {}
 
         # check if config is dict already
         if isinstance(self.cfg, dict):
@@ -393,13 +389,14 @@ class DirectScalarLiveVisualizer(UiVisualizerBase):
 
         if debug_vis:
             if not hasattr(self, "_debug_vis_handle") or self._debug_vis_handle is None:
-                app_interface = omni.kit.app.get_app_interface()
-                self._debug_vis_handle = app_interface.get_post_update_event_stream().create_subscription_to_pop(
-                    lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)
-                )
+                sim_ctx = SimulationContext.instance()
+                if sim_ctx is not None:
+                    self._debug_vis_handle = sim_ctx.vis_marker_registry.add_debug_vis_callback(self)
         else:
-            if self._debug_vis_handle is not None:
-                self._debug_vis_handle.unsubscribe()
+            sim_ctx = SimulationContext.instance()
+            if sim_ctx is not None:
+                sim_ctx.vis_marker_registry.clear_debug_vis_callback(self)
+            else:
                 self._debug_vis_handle = None
             self._vis_frame.visible = False
             return

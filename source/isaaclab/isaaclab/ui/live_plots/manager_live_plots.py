@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 if TYPE_CHECKING:
-    from isaaclab.managers import ManagerBase
+    from ...managers import ManagerBase
 
 logger = logging.getLogger(__name__)
 

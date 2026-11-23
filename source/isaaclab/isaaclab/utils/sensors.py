@@ -5,7 +5,6 @@
 
 import logging
 
-# import logger
 logger = logging.getLogger(__name__)
 
 
@@ -20,7 +19,8 @@ def convert_camera_intrinsics_to_usd(
         width: Width of the image (in pixels).
         height: Height of the image (in pixels).
         focal_length: Perspective focal length (in cm) used to calculate pixel size. Defaults to None,
-            in which case, the focal length will be calculated as 1 / width.
+            in which case the pixel size is set to ``1 / width`` and the returned focal length is
+            ``(f_x + f_y) / (2 * width)``.
 
     Returns:
         A dictionary of USD camera parameters for focal_length, horizontal_aperture, vertical_aperture,
@@ -37,7 +37,7 @@ def convert_camera_intrinsics_to_usd(
         logger.warning("Camera non square pixels are not supported by Omniverse. The average of f_x and f_y are used.")
 
     # warn about aperture offsets
-    if abs((c_x - float(width) / 2) > 1e-4 or (c_y - float(height) / 2) > 1e-4):
+    if abs(c_x - float(width) / 2) > 1e-4 or abs(c_y - float(height) / 2) > 1e-4:
         logger.warning(
             "Camera aperture offsets are not supported by Omniverse. c_x and c_y will be half of width and height"
         )

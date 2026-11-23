@@ -7,8 +7,7 @@ import warnings
 from dataclasses import MISSING
 from typing import Literal
 
-from isaaclab.utils.configclass import configclass
-
+from ...utils import configclass
 from ..sub_terrain_cfg import SubTerrainBaseCfg
 
 """
@@ -174,7 +173,7 @@ class MeshStarTerrainCfg(SubTerrainBaseCfg):
     function: str = "{DIR}.mesh_terrains:star_terrain"
 
     num_bars: int = MISSING
-    """The number of bars per-side the star. Must be greater than 2."""
+    """The number of bars per-side the star. Must be at least 2."""
 
     bar_width_range: tuple[float, float] = MISSING
     """The minimum and maximum width of the bars in the star (in m)."""
@@ -184,6 +183,19 @@ class MeshStarTerrainCfg(SubTerrainBaseCfg):
 
     platform_width: float = 1.0
     """The width of the cylindrical platform at the center of the terrain. Defaults to 1.0."""
+
+
+@configclass
+class MeshFileTerrainCfg(SubTerrainBaseCfg):
+    """Configuration for a terrain loaded from a mesh file."""
+
+    function: str = "{DIR}.mesh_terrains:mesh_file_terrain"
+
+    mesh_path: str = MISSING
+    """The path to the mesh file, in any format that ``trimesh`` can load (for example, OBJ, STL, or PLY).
+
+    The mesh must be Z-up with coordinates in meters, and its footprint should fit within :attr:`size`.
+    """
 
 
 @configclass
@@ -229,7 +241,7 @@ class MeshRepeatedObjectsTerrainCfg(SubTerrainBaseCfg):
     """
 
     platform_width: float = 1.0
-    """The width of the cylindrical platform at the center of the terrain. Defaults to 1.0."""
+    """The width of the square platform at the center of the terrain. Defaults to 1.0."""
 
     platform_height: float = -1.0
     """The height of the platform. Defaults to -1.0.
@@ -241,7 +253,9 @@ class MeshRepeatedObjectsTerrainCfg(SubTerrainBaseCfg):
         if self.max_height_noise is not None:
             warnings.warn(
                 "MeshRepeatedObjectsTerrainCfg: max_height_noise:float is deprecated and support will be removed in the"
-                " future. Use abs_height_noise:list[float] instead."
+                " future. Use abs_height_noise:list[float] instead.",
+                FutureWarning,
+                stacklevel=2,
             )
             self.abs_height_noise = (-self.max_height_noise, self.max_height_noise)
 
@@ -303,7 +317,7 @@ class MeshRepeatedCylindersTerrainCfg(MeshRepeatedObjectsTerrainCfg):
         """Configuration for repeated cylinder."""
 
         radius: float = MISSING
-        """The radius of the pyramids (in m)."""
+        """The radius of the cylinders (in m)."""
         max_yx_angle: float = 0.0
         """The maximum angle along the y and x axis. Defaults to 0.0."""
         degrees: bool = True

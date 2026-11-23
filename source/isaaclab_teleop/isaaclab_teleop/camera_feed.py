@@ -12,6 +12,7 @@ import logging
 import math
 import time
 from collections import Counter
+from collections.abc import Sequence
 from contextlib import suppress
 from copy import deepcopy
 from dataclasses import dataclass
@@ -20,16 +21,108 @@ from typing import TYPE_CHECKING, Any
 
 import torch
 
-from isaaclab.utils.version import get_isaac_sim_version
+from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 
 from .isaac_teleop_cfg import XrCameraFeedCfg, XrCameraFeedLayoutCfg
 
 if TYPE_CHECKING:
-    from isaaclab.sensors import Camera
+    from isaaclab.sensors import Camera, CameraCfg
+
+    from .ovxr_cfg import OvLibrariesXrCameraFeedCfg
+    from .ovxr_renderer import OvxrRendererCfg
 
 logger = logging.getLogger(__name__)
 
 _DLSS_EXEC_MODES = frozenset({"performance", "balanced", "quality", "auto", "rtxaa", "manual"})
+
+
+def select_ovxr_camera_feeds(
+    env_cfg: Any, names: Sequence[str], renderer_cfg: OvxrRendererCfg
+) -> list[tuple[str, CameraCfg, XrCameraFeedCfg]]:
+    """Validate selected camera feeds and assign their shared renderer before launch.
+
+    Selection order is retained. Each name must identify a scene camera and exactly
+    one enabled feed. Validation completes before any camera configuration changes.
+
+    Args:
+        env_cfg: Environment configuration containing ``scene`` cameras and ``isaac_teleop`` feeds.
+        names: Up to three distinct scene camera names, in panel order.
+        renderer_cfg: Shared renderer configuration assigned to the selected cameras in place.
+
+    Returns:
+        Camera names and the original camera/feed configuration objects, in selection order.
+        These are references to ``env_cfg``, not copies.
+
+    Raises:
+        ValueError: If names repeat, exceed the panel limit, or do not resolve to one camera
+            and exactly one enabled feed each.
+    """
+    from isaaclab.sensors import CameraCfg
+
+    if len(names) > 3 or len(names) != len(set(names)):
+        raise ValueError("Select up to three unique OVXR camera feeds")
+    selected = []
+    for name in names:
+        camera = getattr(env_cfg.scene, name, None)
+        if not isinstance(camera, CameraCfg):
+            raise ValueError(f"OVXR camera feed {name!r} is not a configured CameraCfg")
+        feeds = [feed for feed in env_cfg.isaac_teleop.xr_camera_feeds if feed.enabled and feed.camera_name == name]
+        if len(feeds) != 1:
+            raise ValueError(f"OVXR camera feed {name!r} must have exactly one enabled XrCameraFeedCfg")
+        selected.append((name, camera, feeds[0]))
+    for _name, camera, _feed in selected:
+        camera.renderer_cfg = renderer_cfg
+    return selected
+
+
+def resolve_ovxr_camera_configs(
+    selected: Sequence[tuple[str, CameraCfg, XrCameraFeedCfg]],
+    layout: XrCameraFeedLayoutCfg,
+    *,
+    max_fps: float,
+) -> tuple[OvLibrariesXrCameraFeedCfg, ...]:
+    """Resolve selected feeds into OVXR panels without creating native resources.
+
+    A feed's positive update cap limits the caller's rate; zero leaves that rate
+    unchanged.
+
+    Args:
+        selected: Camera/feed references returned by :func:`select_ovxr_camera_feeds`.
+        layout: Head-locked panel layout, including spacing and panel dimensions in metres.
+        max_fps: Maximum panel update rate in frames per second; must be finite and positive.
+
+    Returns:
+        Panel configurations in selection order. Layout and feed configuration are not mutated.
+        Each panel contains a copied camera configuration. Equivalent renderer configurations
+        still select the same shared renderer; session preparation takes a further snapshot.
+
+    Raises:
+        ValueError: If the layout, feed or rate is invalid or unsupported.
+    """
+    from .ovxr_cfg import OvLibrariesXrCameraFeedCfg
+
+    _validate_layout_cfg(layout)
+    if selected and layout.placement != "head_locked":
+        raise ValueError("Kitless XR camera quads require head_locked placement")
+    for _name, _camera, feed in selected:
+        _XrCameraFeedManager._validate_cfg(feed, layout.placement)
+    feeds = _layout_feed_cfgs(
+        [feed for _name, _camera, feed in selected],
+        [(camera.width, camera.height) for _name, camera, _feed in selected],
+        layout,
+    )
+    cameras = []
+    for (name, camera, _feed), feed in zip(selected, feeds, strict=True):
+        cameras.append(
+            OvLibrariesXrCameraFeedCfg(
+                name=name,
+                camera_cfg=camera,
+                max_fps=min(max_fps, feed.max_update_hz) if feed.max_update_hz > 0.0 else max_fps,
+                panel_width_m=feed.panel_width_m,
+                position=(float(feed.offset_m[0]), float(feed.offset_m[1]), -float(feed.distance_m)),
+            )
+        )
+    return tuple(cameras)
 
 
 @lru_cache(maxsize=1)
@@ -90,21 +183,51 @@ def _prepare_camera_feed_cfgs(env_cfg: Any, cfgs: list[XrCameraFeedCfg]) -> list
     return prepared
 
 
-def _apply_ray_reconstruction_compatibility(cfgs: list[XrCameraFeedCfg]) -> None:
-    """Resolve the effective PiP Ray Reconstruction policy for this runtime."""
-    if not any(cfg.enable_dlss_ray_reconstruction is True for cfg in cfgs):
-        return
-    isaac_sim_version = get_isaac_sim_version()
-    if (isaac_sim_version.major, isaac_sim_version.minor) >= (6, 1):
-        return
-    for cfg in cfgs:
-        if cfg.enable_dlss_ray_reconstruction is True:
-            cfg.enable_dlss_ray_reconstruction = False
-    logger.warning(
-        "DLSS Ray Reconstruction was requested for XR camera PiP, but Isaac Sim %s predates responsive "
-        "denoising. Falling back to classic DLSS for the selected feeds.",
-        isaac_sim_version,
-    )
+def _isaac_rtx_configs(camera_cfg: Any) -> list[Any]:
+    renderer = camera_cfg.renderer_cfg
+    candidates = (renderer, getattr(renderer, "default", None), getattr(renderer, "isaacsim_rtx", None))
+    return list({id(cfg): cfg for cfg in candidates if getattr(cfg, "renderer_type", None) == "isaac_rtx"}.values())
+
+
+def _validate_scene_partition_configs(env_cfg: Any, feeds: list[XrCameraFeedCfg]) -> list[Any]:
+    """Reject camera policies that defeat isolation or partition the XR world."""
+    from isaaclab.sensors import CameraCfg
+
+    selected = {feed.camera_name for feed in feeds}
+    renderers = {}
+    for name, camera in vars(env_cfg.scene).items():
+        if not isinstance(camera, CameraCfg):
+            continue
+        configs = _isaac_rtx_configs(camera)
+        if name in selected and not configs:
+            raise ValueError(f"Isolated XR camera PiP requires an Isaac RTX renderer for {name!r}.")
+        for cfg in configs:
+            if name not in selected and cfg.enable_scene_partitioning:
+                raise ValueError(
+                    f"Camera {name!r} must set enable_scene_partitioning=False when isolated XR PiP is enabled."
+                )
+            settings = cfg.global_settings
+            visibility = settings.show_all_partitions_by_default
+            for key, value in (settings.carb_settings or {}).items():
+                if key.startswith("/"):
+                    path = key
+                elif "_" in key:
+                    path = "/" + key.replace("_", "/")
+                else:
+                    path = "/" + key.replace(".", "/")
+                if path == ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING:
+                    visibility = value
+                    if value is None:
+                        raise ValueError(
+                            f"Camera {name!r} cannot clear showAllPartitionsByDefault for isolated XR PiP."
+                        )
+            if visibility is not None and visibility is not False:
+                raise ValueError(
+                    f"Camera {name!r} overrides showAllPartitionsByDefault; isolated XR PiP requires False."
+                )
+            if name in selected:
+                renderers[id(cfg)] = cfg
+    return list(renderers.values())
 
 
 class XrCameraFeedSession:
@@ -112,7 +235,15 @@ class XrCameraFeedSession:
 
     Use :meth:`prepare` before constructing the environment, then call
     :meth:`bind` with the constructed environment before entering the session.
+    Close prepared sessions even when environment construction fails, for
+    example with :func:`contextlib.closing` around preparation and construction.
     """
+
+    # Kit visibility is process-wide; camera overrides are shared by configuration identity.
+    _partition_users = 0
+    _partition_settings = None
+    _partition_previous = None
+    _partition_renderer_state: dict[int, tuple[Any, bool, int]] = {}
 
     def __init__(
         self,
@@ -128,6 +259,9 @@ class XrCameraFeedSession:
         self._requires_responsive_denoising = requires_responsive_denoising
         self._manager = None
         self._bound = False
+        self._partition_renderers = []
+        self._partition_prepared = False
+        self._partition_active = False
 
     @classmethod
     def prepare(
@@ -139,8 +273,11 @@ class XrCameraFeedSession:
     ) -> XrCameraFeedSession:
         """Prepare task-configured camera feeds before constructing the environment.
 
+        Isolated feeds acquire temporary camera configuration overrides. The caller must
+        arrange :meth:`close` on every exit, including failures before :meth:`bind`.
+
         Args:
-            env_cfg: Environment configuration containing the IsaacTeleop and scene settings.
+            env_cfg: Environment configuration containing the Isaac Capture and scene settings.
             enabled: Whether XR camera feeds are enabled for this run.
             camera_rendering_enabled: Whether external camera rendering is enabled.
 
@@ -168,13 +305,16 @@ class XrCameraFeedSession:
         if int(env_cfg.scene.num_envs) != 1:
             raise ValueError("XR camera PiP supports exactly one environment; set --num_envs 1 or disable PiP feeds.")
         cfgs = _prepare_camera_feed_cfgs(env_cfg, requested)
-        _apply_ray_reconstruction_compatibility(cfgs)
-        return cls(
+        session = cls(
             cfgs,
             teleop_cfg.xr_camera_feed_layout,
             presenter,
             requires_responsive_denoising=any(cfg.enable_dlss_ray_reconstruction is True for cfg in cfgs),
         )
+        if teleop_cfg.xr_camera_feed_layout.use_scene_partition:
+            session._partition_renderers = _validate_scene_partition_configs(env_cfg, cfgs)
+            session._prepare_scene_partition()
+        return session
 
     @property
     def enabled(self) -> bool:
@@ -189,6 +329,9 @@ class XrCameraFeedSession:
     def bind(self, env: Any) -> XrCameraFeedSession:
         """Bind the prepared feeds to a constructed environment.
 
+        Acquire the global isolation setting after renderer initialization and
+        before creating panels, preserving its current value for cleanup.
+
         Args:
             env: Constructed environment containing the selected scene cameras.
 
@@ -200,6 +343,9 @@ class XrCameraFeedSession:
         self._bound = True
         try:
             if self.enabled:
+                if self._layout_cfg.use_scene_partition:
+                    self._prepare_scene_partition()
+                    self._enable_scene_partition()
                 self._manager = _XrCameraFeedManager(env, self._cfgs, self._layout_cfg, self._presenter)
         except Exception:
             self.close()
@@ -218,11 +364,74 @@ class XrCameraFeedSession:
 
         Render-product policy authored while binding persists for the selected
         camera render product's lifetime.
+        Camera configuration is restored after the last prepared session closes;
+        the global setting's bind-time value is restored after the last bound
+        session closes, unless changed externally.
         """
-        if self._manager is not None:
-            self._manager.close()
+        try:
+            if self._manager is not None:
+                self._manager.close()
+        finally:
             self._manager = None
-        self._bound = False
+            self._bound = False
+            cls = XrCameraFeedSession
+            if self._partition_prepared:
+                self._partition_prepared = False
+                for cfg in self._partition_renderers:
+                    _, previous, count = cls._partition_renderer_state[id(cfg)]
+                    if count > 1:
+                        cls._partition_renderer_state[id(cfg)] = (cfg, previous, count - 1)
+                    else:
+                        if cfg.enable_scene_partitioning is False:
+                            cfg.enable_scene_partitioning = previous
+                        del cls._partition_renderer_state[id(cfg)]
+            if self._partition_active:
+                self._partition_active = False
+                cls._partition_users -= 1
+                if not cls._partition_users:
+                    try:
+                        if cls._partition_settings.get(ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING) is False:
+                            cls._partition_settings.set(
+                                ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING, cls._partition_previous
+                            )
+                    finally:
+                        cls._partition_settings = cls._partition_previous = None
+
+    def _prepare_scene_partition(self) -> None:
+        # Camera construction authors environment partitions, so configure it early.
+        if self._partition_prepared:
+            return
+        cls = XrCameraFeedSession
+        for cfg in self._partition_renderers:
+            _, previous, count = cls._partition_renderer_state.get(id(cfg), (cfg, cfg.enable_scene_partitioning, 0))
+            cls._partition_renderer_state[id(cfg)] = (cfg, previous, count + 1)
+            cfg.enable_scene_partitioning = False
+        self._partition_prepared = True
+
+    def _enable_scene_partition(self) -> None:
+        from isaaclab.app.settings_manager import get_settings_manager
+
+        if self._partition_active:
+            return
+        cls = XrCameraFeedSession
+        if (
+            cls._partition_users
+            and cls._partition_settings.get(ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING) is not False
+        ):
+            raise RuntimeError(
+                "showAllPartitionsByDefault was overridden while isolated XR PiP was active; isolation requires False."
+            )
+        if not cls._partition_users:
+            settings = get_settings_manager()
+            previous = settings.get(ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING)
+            if type(previous) is not bool:
+                raise RuntimeError("Isolated XR PiP requires the Kit showAllPartitionsByDefault setting.")
+            # Kit can reset startup settings during the first simulation reset.
+            # Acquire isolation only at bind, after initialization and before creating panels.
+            settings.set(ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING, False)
+            cls._partition_settings, cls._partition_previous = settings, previous
+        cls._partition_users += 1
+        self._partition_active = True
 
     def __enter__(self) -> XrCameraFeedSession:
         if not self._bound:
@@ -250,6 +459,8 @@ def _centered_positions(sizes: list[float], gap: float) -> list[float]:
 
 
 def _validate_layout_cfg(layout_cfg: XrCameraFeedLayoutCfg) -> None:
+    if type(layout_cfg.use_scene_partition) is not bool:
+        raise TypeError("XR camera feed layout use_scene_partition must be a bool.")
     if layout_cfg.mode not in {"manual", "horizontal", "vertical", "grid"}:
         raise ValueError(f"Unknown XR camera feed layout mode {layout_cfg.mode!r}.")
     if layout_cfg.placement not in {"viewer_start", "head_locked", "world"}:
@@ -319,6 +530,7 @@ class _PanelDescriptor:
     placement: str
     world_position_m: tuple[float, float, float] | None
     world_orientation_xyzw: tuple[float, float, float, float]
+    use_scene_partition: bool = False
 
 
 def _panel_descriptor(cfg: XrCameraFeedCfg, layout_cfg: XrCameraFeedLayoutCfg) -> _PanelDescriptor:
@@ -330,6 +542,7 @@ def _panel_descriptor(cfg: XrCameraFeedCfg, layout_cfg: XrCameraFeedLayoutCfg) -
         placement=layout_cfg.placement,
         world_position_m=None if layout_cfg.world_position_m is None else tuple(layout_cfg.world_position_m),
         world_orientation_xyzw=tuple(layout_cfg.world_orientation_xyzw),
+        use_scene_partition=layout_cfg.use_scene_partition,
     )
 
 
@@ -380,6 +593,7 @@ class _XrCameraFeedManager:
                         _panel_descriptor(cfg, self._layout_cfg),
                         width=int(fallback_image.shape[1]),
                         height=int(fallback_image.shape[0]),
+                        env_prim_path=self._env.scene.env_prim_paths[0],
                     )
                 except Exception:
                     if image_source is not None:
@@ -416,7 +630,10 @@ class _XrCameraFeedManager:
         camera = sensors[cfg.camera_name]
         if not isinstance(camera, _camera_type()):
             raise TypeError(f"XR camera feed {cfg.camera_name!r} did not resolve to an Isaac Lab Camera.")
-        return camera, self._image_from_output(cfg, camera.data.output)
+        image = self._image_from_output(cfg, camera.data.output)
+        if self._layout_cfg.use_scene_partition:
+            self._presenter.validate_camera_partition(cfg.camera_name, camera)
+        return camera, image
 
     def _image_from_output(self, cfg: XrCameraFeedCfg, output: Any) -> torch.Tensor:
         if output is None or "rgba" not in output:
@@ -454,6 +671,7 @@ class _XrCameraFeedManager:
                     _panel_descriptor(feed.cfg, self._layout_cfg),
                     width=int(fallback_image.shape[1]),
                     height=int(fallback_image.shape[0]),
+                    env_prim_path=self._env.scene.env_prim_paths[0],
                 )
         except Exception:
             if camera_changed and replacement_source is not None:

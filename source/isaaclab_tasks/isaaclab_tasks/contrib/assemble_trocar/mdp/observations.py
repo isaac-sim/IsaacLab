@@ -17,13 +17,15 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab_tasks.contrib.assemble_trocar.config import (
-    G1_29DOF_BODY_JOINT_INDICES,
-    G1_DEX3_JOINT_INDICES,
-)
+from isaaclab_tasks.contrib.assemble_trocar.config import G1_29DOF_BODY_JOINT_NAMES, G1_DEX3_JOINT_NAMES
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
+
+
+def _joint_ids(env: ManagerBasedRLEnv, names: list[str], device) -> torch.Tensor:
+    ids, _ = env.scene["robot"].find_joints(names, preserve_order=True)
+    return torch.tensor(ids, dtype=torch.long, device=device)
 
 
 # Observation cache: index tensors + preallocated output buffers (body joints)
@@ -41,16 +43,17 @@ _body_obs_cache = {
 
 def get_robot_body_joint_states(env: ManagerBasedRLEnv) -> torch.Tensor:
     """Return body joint states as a single tensor: [pos(29) | vel(29) | torque(29)]."""
-    robot_data = env.scene["robot"].data
+    robot = env.scene["robot"]
+    robot_data = robot.data
     joint_pos = robot_data.joint_pos.torch
     joint_vel = robot_data.joint_vel.torch
-    joint_torque = robot_data.applied_torque.torch
+    joint_torque = robot.actuators.applied_effort.torch
     device = joint_pos.device
     batch = joint_pos.shape[0]
 
     global _body_obs_cache
     if _body_obs_cache["device"] != device or _body_obs_cache["idx_t"] is None:
-        _body_obs_cache["idx_t"] = torch.tensor(G1_29DOF_BODY_JOINT_INDICES, dtype=torch.long, device=device)
+        _body_obs_cache["idx_t"] = _joint_ids(env, G1_29DOF_BODY_JOINT_NAMES, device)
         _body_obs_cache["device"] = device
         _body_obs_cache["batch"] = None
 
@@ -99,7 +102,7 @@ def get_robot_dex3_joint_states(env: ManagerBasedRLEnv) -> torch.Tensor:
 
     global _dex3_obs_cache
     if _dex3_obs_cache["device"] != device or _dex3_obs_cache["idx_t"] is None:
-        _dex3_obs_cache["idx_t"] = torch.tensor(G1_DEX3_JOINT_INDICES, dtype=torch.long, device=device)
+        _dex3_obs_cache["idx_t"] = _joint_ids(env, G1_DEX3_JOINT_NAMES, device)
         _dex3_obs_cache["device"] = device
         _dex3_obs_cache["batch"] = None
 

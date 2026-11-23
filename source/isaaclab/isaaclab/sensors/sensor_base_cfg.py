@@ -3,12 +3,15 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
-from isaaclab.utils.configclass import configclass
+from ..utils import configclass
 
 if TYPE_CHECKING:
+    from ..cloner import ReplicateContext
     from .sensor_base import SensorBase
 
 
@@ -16,16 +19,19 @@ if TYPE_CHECKING:
 class SensorBaseCfg:
     """Configuration parameters for a sensor."""
 
-    class_type: type["SensorBase"] = MISSING
+    class_type: type[SensorBase] = MISSING
     """The associated sensor class.
 
     The class should inherit from :class:`isaaclab.sensors.sensor_base.SensorBase`.
     """
 
-    cloning_contexts: tuple[str | type, ...] | None = ("isaaclab.cloner:UsdReplicateContext",)
-    """Cloning contexts for this sensor. Defaults to USD-only cloning.
+    cloning_contexts: tuple[type[ReplicateContext] | str, ...] | None = ()
+    """Cloning contexts for this sensor. Defaults to no explicit cloning context.
 
-    Sensors carry no physics of their own; see :attr:`~isaaclab.assets.AssetBaseCfg.cloning_contexts`.
+    Sensors carry no physics of their own. When the sensor has a spawner, USD replication is
+    added automatically under Kit. Listing :class:`~isaaclab.cloner.UsdReplicateContext`
+    explicitly forces USD replication without Kit; see
+    :attr:`~isaaclab.assets.AssetBaseCfg.cloning_contexts`.
     """
 
     prim_path: str = MISSING
@@ -35,7 +41,7 @@ class SensorBaseCfg:
         The expression can contain the environment namespace regex ``{ENV_REGEX_NS}`` which
         will be replaced with the environment namespace.
 
-        Example: ``{ENV_REGEX_NS}/Robot/sensor`` will be replaced with ``/World/envs/env_.*/Robot/sensor``.
+        Example: ``{ENV_REGEX_NS}/Robot/sensor`` will be replaced with ``/World/envs/env_[^/]+/Robot/sensor``.
 
     """
 

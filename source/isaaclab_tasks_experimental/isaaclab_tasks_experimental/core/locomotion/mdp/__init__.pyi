@@ -13,6 +13,8 @@ __all__ = [
     "progress_reward",
     "joint_pos_limits_penalty_ratio",
     "power_consumption",
+    "terminated_penalty",
+    "survival_success_rate",
 ]
 
 # Forward stable MDP terms and experimental Warp-first overrides lazily, then
@@ -25,5 +27,7 @@ from .rewards import (
     move_to_target_bonus,
     power_consumption,
     progress_reward,
+    survival_success_rate,
+    terminated_penalty,
     upright_posture_bonus,
 )

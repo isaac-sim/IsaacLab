@@ -9,11 +9,15 @@ import torch
 
 
 class EpisodeData:
-    """Class to store episode data."""
+    """An episode's tensor data and playback cursors.
+
+    Data leaves are tensors with a leading sample dimension. Collection belongs to the recorder
+    manager; this container holds snapshots or loaded datasets without accumulating samples.
+    """
 
     def __init__(self) -> None:
         """Initializes episode data class."""
-        self._data = dict()
+        self._data = {}
         self._next_action_index = 0
         self._next_state_index = 0
         self._next_joint_target_index = 0
@@ -83,47 +87,11 @@ class EpisodeData:
 
     def is_empty(self):
         """Check if the episode data is empty."""
-        return not bool(self._data)
-
-    def add(self, key: str, value: torch.Tensor | dict, clone: bool = True):
-        """Add a key-value pair to the dataset.
-
-        The key can be nested by using the "/" character.
-        For example: "obs/joint_pos".
-
-        Args:
-            key: The key name.
-            value: The corresponding value of tensor type or of dict type.
-            clone: Whether to clone the tensor value before storing it in the episode data.
-        """
-        # check datatype
-        if isinstance(value, dict):
-            for sub_key, sub_value in value.items():
-                self.add(f"{key}/{sub_key}", sub_value, clone=clone)
-            return
-
-        stored = value.clone() if (clone and isinstance(value, torch.Tensor)) else value
-        sub_keys = key.split("/")
-        current_dataset_pointer = self._data
-        for sub_key_index in range(len(sub_keys)):
-            if sub_key_index == len(sub_keys) - 1:
-                # Add value to the final dict layer
-                # Use lists to prevent slow tensor copy during concatenation
-                if sub_keys[sub_key_index] not in current_dataset_pointer:
-                    current_dataset_pointer[sub_keys[sub_key_index]] = [stored]
-                else:
-                    current_dataset_pointer[sub_keys[sub_key_index]].append(stored)
-                break
-            # key index
-            if sub_keys[sub_key_index] not in current_dataset_pointer:
-                current_dataset_pointer[sub_keys[sub_key_index]] = dict()
-            current_dataset_pointer = current_dataset_pointer[sub_keys[sub_key_index]]
+        return not self._data
 
     def get_initial_state(self) -> torch.Tensor | None:
         """Get the initial state from the dataset."""
-        if "initial_state" not in self._data:
-            return None
-        return self._data["initial_state"]
+        return self._data.get("initial_state")
 
     def get_action(self, action_index) -> torch.Tensor | None:
         """Get the action of the specified index from the dataset."""
@@ -144,26 +112,7 @@ class EpisodeData:
         """Get the state of the specified index from the dataset."""
         if "states" not in self._data:
             return None
-
-        states = self._data["states"]
-
-        def get_state_helper(states, state_index) -> dict | torch.Tensor | None:
-            if isinstance(states, dict):
-                output_state = dict()
-                for key, value in states.items():
-                    output_state[key] = get_state_helper(value, state_index)
-                    if output_state[key] is None:
-                        return None
-            elif isinstance(states, torch.Tensor):
-                if state_index >= len(states):
-                    return None
-                output_state = states[state_index, None]
-            else:
-                raise ValueError(f"Invalid state type: {type(states)}")
-            return output_state
-
-        output_state = get_state_helper(states, state_index)
-        return output_state
+        return _index_nested(self._data["states"], state_index, keep_dim=True)
 
     def get_next_state(self) -> dict | None:
         """Get the next state from the dataset."""
@@ -176,26 +125,7 @@ class EpisodeData:
         """Get the joint target of the specified index from the dataset."""
         if "joint_targets" not in self._data:
             return None
-
-        joint_targets = self._data["joint_targets"]
-
-        def get_joint_target_helper(joint_targets, joint_target_index) -> dict | torch.Tensor | None:
-            if isinstance(joint_targets, dict):
-                output_joint_targets = dict()
-                for key, value in joint_targets.items():
-                    output_joint_targets[key] = get_joint_target_helper(value, joint_target_index)
-                    if output_joint_targets[key] is None:
-                        return None
-            elif isinstance(joint_targets, torch.Tensor):
-                if joint_target_index >= len(joint_targets):
-                    return None
-                output_joint_targets = joint_targets[joint_target_index]
-            else:
-                raise ValueError(f"Invalid joint target type: {type(joint_targets)}")
-            return output_joint_targets
-
-        output_joint_targets = get_joint_target_helper(joint_targets, joint_target_index)
-        return output_joint_targets
+        return _index_nested(self._data["joint_targets"], joint_target_index, keep_dim=False)
 
     def get_next_joint_target(self) -> dict | torch.Tensor | None:
         """Get the next joint target from the dataset."""
@@ -204,14 +134,22 @@ class EpisodeData:
             self._next_joint_target_index += 1
         return joint_target
 
-    def pre_export(self):
-        """Prepare data for export by converting lists to tensors."""
 
-        def pre_export_helper(data):
-            for key, value in data.items():
-                if isinstance(value, list):
-                    data[key] = torch.stack(value)
-                elif isinstance(value, dict):
-                    pre_export_helper(value)
+def _index_nested(data: dict | torch.Tensor, index: int, keep_dim: bool) -> dict | torch.Tensor | None:
+    """Select ``index`` along the first dimension of every tensor in a (nested) dict.
 
-        pre_export_helper(self._data)
+    Returns None when the index is out of range for any tensor. With ``keep_dim`` the selected
+    slice keeps a leading dimension of size one.
+    """
+    if isinstance(data, dict):
+        output = {}
+        for key, value in data.items():
+            output[key] = _index_nested(value, index, keep_dim)
+            if output[key] is None:
+                return None
+        return output
+    if isinstance(data, torch.Tensor):
+        if index >= len(data):
+            return None
+        return data[index, None] if keep_dim else data[index]
+    raise ValueError(f"Invalid data type: {type(data)}")

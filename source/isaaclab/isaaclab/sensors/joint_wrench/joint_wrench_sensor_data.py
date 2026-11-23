@@ -9,14 +9,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from isaaclab.utils.backend_utils import FactoryBase
-
+from ...utils.backend_utils import FactoryBase
 from .base_joint_wrench_sensor_data import BaseJointWrenchSensorData
 
 if TYPE_CHECKING:
+    from isaaclab_isaacsim.sensors.joint_wrench import JointWrenchSensorData as PhysXJointWrenchSensorData
     from isaaclab_newton.sensors.joint_wrench import JointWrenchSensorData as NewtonJointWrenchSensorData
-    from isaaclab_ovphysx.sensors.joint_wrench import JointWrenchSensorData as OvPhysxJointWrenchSensorData
-    from isaaclab_physx.sensors.joint_wrench import JointWrenchSensorData as PhysXJointWrenchSensorData
+    from isaaclab_ov.sensors.joint_wrench import JointWrenchSensorData as OvPhysxJointWrenchSensorData
 
 
 class JointWrenchSensorData(FactoryBase, BaseJointWrenchSensorData):

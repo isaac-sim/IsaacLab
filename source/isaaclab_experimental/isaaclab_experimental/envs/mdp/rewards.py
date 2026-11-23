@@ -18,17 +18,15 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import warp as wp
-from isaaclab_newton.kernels.state_kernels import (
-    body_ang_vel_from_root,
-    body_lin_vel_from_root,
-    rotate_vec_to_body_frame,
-)
 
-from isaaclab_experimental.managers import SceneEntityCfg
+from isaaclab.utils.warp.math import body_ang_vel_from_root, body_lin_vel_from_root, rotate_vec_to_body_frame
+
+from isaaclab_experimental.managers import ManagerTermBase, SceneEntityCfg
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedRLEnv
+    from isaaclab.managers.manager_term_cfg import RewardTermCfg
 
 
 """
@@ -66,6 +64,62 @@ def is_terminated(env: ManagerBasedRLEnv, out) -> None:
         inputs=[env.termination_manager.terminated_wp, out],
         device=env.device,
     )
+
+
+@wp.kernel
+def _is_terminated_term_kernel(
+    term_dones: wp.array(dtype=wp.bool, ndim=2),
+    term_mask: wp.array(dtype=wp.bool),
+    time_outs: wp.array(dtype=wp.bool),
+    out: wp.array(dtype=wp.float32),
+):
+    """Sum the selected termination columns, zeroed on episodic timeouts."""
+    i = wp.tid()
+    count = float(0.0)
+    for t in range(term_mask.shape[0]):
+        if term_mask[t] and term_dones[i, t]:
+            count += 1.0
+    out[i] = wp.where(time_outs[i], 0.0, count)
+
+
+class is_terminated_term(ManagerTermBase):
+    """Penalize termination for specific terms that don't correspond to episodic timeouts.
+
+    Warp-first override of :class:`isaaclab.envs.mdp.rewards.is_terminated_term`.
+
+    The parameters are as follows:
+
+    * attr:`term_keys`: The termination terms to penalize. This can be a string, a list of strings
+      or regular expressions. Default is ".*" which penalizes all terminations.
+
+    The reward is the number of active selected termination terms, or 0 when the episode ended on
+    an episodic timeout.
+    """
+
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+        # resolve the selection once, as a per-column mask over the termination manager's terms
+        selected = set(env.termination_manager.find_terms(cfg.params["term_keys"]))
+        self._term_mask_wp = wp.array(
+            [name in selected for name in env.termination_manager.active_terms],
+            dtype=wp.bool,
+            device=env.device,
+        )
+
+    def __call__(
+        self, env: ManagerBasedRLEnv, out: wp.array(dtype=wp.float32), term_keys: str | list[str] = ".*"
+    ) -> None:
+        wp.launch(
+            kernel=_is_terminated_term_kernel,
+            dim=env.num_envs,
+            inputs=[
+                env.termination_manager.term_dones_wp,
+                self._term_mask_wp,
+                env.termination_manager.time_outs_wp,
+                out,
+            ],
+            device=env.device,
+        )
 
 
 """
@@ -149,6 +203,43 @@ def flat_orientation_l2(env: ManagerBasedRLEnv, out, asset_cfg: SceneEntityCfg =
     )
 
 
+@wp.kernel
+def _base_height_l2_kernel(
+    root_pose_w: wp.array(dtype=wp.transformf),
+    ray_hits_w: wp.array(dtype=wp.vec3f, ndim=2),
+    target_height: float,
+    out: wp.array(dtype=wp.float32),
+):
+    i = wp.tid()
+    height_sum = float(0.0)
+    hit_count = int(0)
+    if ray_hits_w:
+        for ray in range(ray_hits_w.shape[1]):
+            height = ray_hits_w[i, ray][2]
+            if wp.isfinite(height):
+                height_sum += height
+                hit_count += 1
+    error = wp.transform_get_translation(root_pose_w[i])[2] - target_height - height_sum / float(wp.max(hit_count, 1))
+    out[i] = error * error
+
+
+def base_height_l2(
+    env: ManagerBasedRLEnv,
+    out: wp.array(dtype=wp.float32),
+    target_height: float,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    sensor_cfg: SceneEntityCfg | None = None,
+) -> None:
+    """Penalize squared base-height error from ``target_height`` [m], relative to finite terrain hits."""
+    ray_hits = env.scene[sensor_cfg.name].data.ray_hits_w if sensor_cfg is not None else None
+    wp.launch(
+        _base_height_l2_kernel,
+        dim=env.num_envs,
+        inputs=[env.scene[asset_cfg.name].data.root_link_pose_w, ray_hits, target_height, out],
+        device=env.device,
+    )
+
+
 """
 Joint penalties.
 """
@@ -174,7 +265,7 @@ def joint_torques_l2(env: ManagerBasedRLEnv, out, asset_cfg: SceneEntityCfg = Sc
     wp.launch(
         kernel=_sum_sq_masked_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.applied_torque.warp, asset_cfg.joint_mask, out],
+        inputs=[asset.actuators.applied_effort.warp, asset_cfg.joint_mask, out],
         device=env.device,
     )
 
@@ -377,7 +468,7 @@ def undesired_contacts(env: ManagerBasedRLEnv, out, threshold: float, sensor_cfg
     wp.launch(
         kernel=_undesired_contacts_kernel,
         dim=env.num_envs,
-        inputs=[contact_sensor.data.net_forces_w_history.warp, sensor_cfg.body_ids_wp, threshold, out],
+        inputs=[contact_sensor.data.net_normal_forces_w_history.warp, sensor_cfg.body_ids_wp, threshold, out],
         device=env.device,
     )
 

@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_rl.rsl_rl import RslRlMLPModelCfg, RslRlOnPolicyRunnerCfg, RslRlPpoAlgorithmCfg
 
@@ -13,7 +13,7 @@ class HandoverPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     """RSL-RL PPO configuration for the single-agent view of Shadow Hand handover."""
 
     num_steps_per_env = 16
-    max_iterations = 5000
+    max_iterations = 3500
     save_interval = 250
     experiment_name = "handover"
     obs_groups = {"actor": ["policy"], "critic": ["policy"]}

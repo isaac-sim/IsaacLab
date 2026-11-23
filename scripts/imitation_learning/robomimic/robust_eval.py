@@ -24,13 +24,10 @@ Args:
     disable_fabric: Whether to disable fabric and use USD I/O operations.
 """
 
-"""Launch Isaac Sim Simulator first."""
-
 import argparse
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import add_launcher_args, launch_simulation
 
-# add argparse arguments
 parser = argparse.ArgumentParser(description="Evaluate robomimic policy for Isaac Lab environment.")
 parser.add_argument(
     "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
@@ -58,16 +55,12 @@ parser.add_argument(
     "--norm_factor_max", type=float, default=None, help="Optional: maximum value of the normalization factor."
 )
 
-# append AppLauncher cli args
-AppLauncher.add_app_launcher_args(parser)
-# parse the arguments
-args_cli = parser.parse_args()
-
-# launch omniverse app
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
-
-"""Rest everything follows."""
+add_launcher_args(parser)
+# parse the arguments, forwarding unrecognized ones as Hydra-style task config overrides.
+# ``overrides`` must be passed explicitly to the config parser: this script keeps its own flags in
+# ``sys.argv`` rather than stripping them, so letting Hydra fall back to reading ``sys.argv`` makes it
+# reject them.
+args_cli, hydra_overrides = parser.parse_known_args()
 
 import copy
 import os
@@ -79,6 +72,8 @@ import robomimic.utils.file_utils as FileUtils
 import robomimic.utils.torch_utils as TorchUtils
 import torch
 
+from isaaclab.envs.utils._manual_success import _prepare_success_term
+
 from isaaclab_tasks.utils import parse_env_cfg
 
 
@@ -88,9 +83,9 @@ def rollout(policy, env: gym.Env, success_term, horizon: int, device: torch.devi
     Args:
         policy: The robomimic policy to evaluate.
         env: The environment to evaluate in.
+        success_term: The success termination term, evaluated each step to detect task success.
         horizon: The step horizon of each rollout.
         device: The device to run the policy on.
-        args_cli: Command line arguments containing normalization factors.
 
     Returns:
         terminated: Whether the rollout terminated successfully.
@@ -111,7 +106,7 @@ def rollout(policy, env: gym.Env, success_term, horizon: int, device: torch.devi
             # Process image observations for robomimic inference
             for image_name in env.cfg.image_obs_list:
                 if image_name in obs_dict["policy"].keys():
-                    # Convert from chw uint8 to hwc normalized float
+                    # Convert from hwc uint8 to chw normalized float
                     image = torch.squeeze(obs_dict["policy"][image_name])
                     image = image.permute(2, 0, 1).clone().float()
                     image = image / 255.0
@@ -163,6 +158,7 @@ def evaluate_model(
         model_path: Path to the model checkpoint.
         env: The environment to evaluate in.
         device: The device to run the policy on.
+        success_term: The success termination term, evaluated each step to detect task success.
         num_rollouts: Number of rollouts to perform.
         horizon: Step horizon of each rollout.
         seed: Random seed to use.
@@ -213,7 +209,13 @@ def evaluate_model(
 def main() -> None:
     """Run evaluation of trained policies from robomimic with Isaac Lab environment."""
     # Parse configuration
-    env_cfg = parse_env_cfg(args_cli.task, device=args_cli.device, num_envs=1, use_fabric=not args_cli.disable_fabric)
+    env_cfg = parse_env_cfg(
+        args_cli.task,
+        device=args_cli.device,
+        num_envs=1,
+        use_fabric=not args_cli.disable_fabric,
+        overrides=hydra_overrides,
+    )
 
     # Set observations to dictionary mode for Robomimic
     env_cfg.observations.policy.concatenate_terms = False
@@ -225,12 +227,19 @@ def main() -> None:
     env_cfg.recorders = None
 
     # Extract success checking function
-    success_term = env_cfg.terminations.success
-    env_cfg.terminations.success = None
+    success_term = _prepare_success_term(env_cfg)
 
     # Set evaluation settings
     env_cfg.eval_mode = True
 
+    # Launch the runtime the task needs. Camera rendering is only enabled for tasks that declare Kit
+    # camera sensors, so policies trained on low-dimensional observations do not pay for the RTX renderer.
+    with launch_simulation(env_cfg, args_cli):
+        evaluate_models(env_cfg, success_term)
+
+
+def evaluate_models(env_cfg, success_term) -> None:
+    """Create the environment and evaluate every checkpoint under each evaluation setting."""
     # Create environment
     env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
 
@@ -322,7 +331,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    # run the main function
     main()
-    # close sim app
-    simulation_app.close()

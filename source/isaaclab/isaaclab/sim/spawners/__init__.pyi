@@ -8,11 +8,13 @@ __all__ = [
     "RigidObjectSpawnerCfg",
     "DeformableObjectSpawnerCfg",
     "spawn_from_mjcf",
+    "spawn_from_mesh",
     "spawn_from_urdf",
     "spawn_from_usd",
     "spawn_from_usd_with_compliant_contact_material",
     "spawn_ground_plane",
     "GroundPlaneCfg",
+    "MeshFileCfg",
     "MjcfFileCfg",
     "UrdfFileCfg",
     "UsdFileCfg",
@@ -29,6 +31,7 @@ __all__ = [
     "CableMaterialCfg",
     "PhysicsMaterialCfg",
     "RigidBodyMaterialCfg",
+    "RigidBodyMaterialBaseCfg",
     "DeformableBodyMaterialBaseCfg",
     "DeformableBodyMaterialCfg",
     "SurfaceDeformableBodyMaterialBaseCfg",
@@ -37,6 +40,7 @@ __all__ = [
     "spawn_preview_surface",
     "GlassMdlCfg",
     "MdlFileCfg",
+    "PbrMdlCfg",
     "PreviewSurfaceCfg",
     "VisualMaterialCfg",
     "spawn_mesh_capsule",
@@ -53,13 +57,11 @@ __all__ = [
     "MeshRectangleCfg",
     "MeshSphereCfg",
     "spawn_camera",
-    "spawn_sensor_frame",
     "FisheyeCameraCfg",
     "OpenCvDistortionCfg",
     "OpenCvFisheyeDistortionCfg",
     "OpenCvPinholeDistortionCfg",
     "PinholeCameraCfg",
-    "SensorFrameCfg",
     "spawn_cable",
     "spawn_capsule",
     "spawn_cone",
@@ -77,16 +79,19 @@ __all__ = [
     "spawn_multi_usd_file",
     "MultiAssetSpawnerCfg",
     "MultiUsdFileCfg",
+    "SimReadyUsdFileCfg",
 ]
 
 from .spawner_cfg import SpawnerCfg, RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg
 from .from_files import (
     spawn_from_mjcf,
+    spawn_from_mesh,
     spawn_from_urdf,
     spawn_from_usd,
     spawn_from_usd_with_compliant_contact_material,
     spawn_ground_plane,
     GroundPlaneCfg,
+    MeshFileCfg,
     MjcfFileCfg,
     UrdfFileCfg,
     UsdFileCfg,
@@ -107,6 +112,7 @@ from .materials import (
     CableMaterialCfg,
     PhysicsMaterialCfg,
     RigidBodyMaterialCfg,
+    RigidBodyMaterialBaseCfg,
     DeformableBodyMaterialBaseCfg,
     DeformableBodyMaterialCfg,
     SurfaceDeformableBodyMaterialBaseCfg,
@@ -115,6 +121,7 @@ from .materials import (
     spawn_preview_surface,
     GlassMdlCfg,
     MdlFileCfg,
+    PbrMdlCfg,
     PreviewSurfaceCfg,
     VisualMaterialCfg,
 )
@@ -135,13 +142,11 @@ from .meshes import (
 )
 from .sensors import (
     spawn_camera,
-    spawn_sensor_frame,
     FisheyeCameraCfg,
     OpenCvDistortionCfg,
     OpenCvFisheyeDistortionCfg,
     OpenCvPinholeDistortionCfg,
     PinholeCameraCfg,
-    SensorFrameCfg,
 )
 from .shapes import (
     spawn_cable,
@@ -158,4 +163,4 @@ from .shapes import (
     ShapeCfg,
     SphereCfg,
 )
-from .wrappers import spawn_multi_asset, spawn_multi_usd_file, MultiAssetSpawnerCfg, MultiUsdFileCfg
+from .wrappers import spawn_multi_asset, spawn_multi_usd_file, MultiAssetSpawnerCfg, MultiUsdFileCfg, SimReadyUsdFileCfg

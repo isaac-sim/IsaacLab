@@ -13,11 +13,7 @@ import torch
 import warp as wp
 from isaaclab_experimental.envs import DirectRLEnvWarp
 
-import isaaclab.sim as sim_utils
-from isaaclab import cloner
-from isaaclab.assets import Articulation  # , RigidObject
-from isaaclab.markers import VisualizationMarkers
-from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
+from isaaclab.utils.warp.math import quat_error_magnitude
 
 if TYPE_CHECKING:
     from isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_direct_env_cfg import AllegroHandEnvCfg
@@ -169,7 +165,7 @@ def reset_hand(
 
             delta_max = upper_limits[env_id, dof_id] - default_joint_pos[env_id, dof_id]
             delta_min = lower_limits[env_id, dof_id] - default_joint_pos[env_id, dof_id]
-            rand_delta = delta_min + (delta_max - delta_min) * 0.5 * dof_pos_noise
+            rand_delta = delta_min + (delta_max - delta_min) * 0.5 * (dof_pos_noise + wp.float32(1.0))
             pos = default_joint_pos[env_id, dof_id] + reset_dof_pos_noise * rand_delta
 
             dof_vel_noise = wp.randf(rng_state[env_id], wp.float32(-1.0), wp.float32(1.0))
@@ -264,7 +260,7 @@ def get_dones(
     max_success_reached = False
     if max_consecutive_success > 0:
         # Reset progress (episode length buf) on goal envs if max_consecutive_success > 0
-        rot_dist = rotation_distance(object_rot, goal_rot[env_id])
+        rot_dist = quat_error_magnitude(object_rot, goal_rot[env_id])
         if wp.abs(rot_dist) <= success_tolerance:
             episode_length_buf[env_id] = 0
         max_success_reached = successes[env_id] >= wp.float32(max_consecutive_success)
@@ -470,7 +466,7 @@ def compute_rewards(
     obj_rot = wp.transform_get_rotation(object_pose[env_id])
 
     goal_dist = wp.length(obj_pos - target_pos[env_id])
-    rot_dist = rotation_distance(obj_rot, target_rot[env_id])
+    rot_dist = quat_error_magnitude(obj_rot, target_rot[env_id])
 
     dist_rew = goal_dist * dist_reward_scale
     rot_rew = wp.float32(1.0) / (wp.abs(rot_dist) + rot_eps) * rot_reward_scale
@@ -539,22 +535,13 @@ def randomize_rotation(rand0: wp.float32, rand1: wp.float32, x_axis: wp.vec3f, y
     return wp.quat_from_axis_angle(x_axis, rand0 * wp.pi) * wp.quat_from_axis_angle(y_axis, rand1 * wp.pi)
 
 
-@wp.func
-def rotation_distance(object_rot: wp.quatf, target_rot: wp.quatf) -> wp.float32:
-    # Orientation alignment for the cube in hand and goal cube
-    quat_diff = object_rot * wp.quat_inverse(target_rot)
-    # Match Torch env convention: uses indices [1:4] for the vector part (see `rotation_distance` in Torch env).
-    v_norm = wp.sqrt(quat_diff[1] * quat_diff[1] + quat_diff[2] * quat_diff[2] + quat_diff[3] * quat_diff[3])
-    v_norm = wp.min(v_norm, wp.float32(1.0))
-    return wp.float32(2.0) * wp.asin(v_norm)
-
-
 class ReorientDirectWarpEnv(DirectRLEnvWarp):
     cfg: AllegroHandEnvCfg  # | ShadowHandEnvCfg
 
     # def __init__(self, cfg: AllegroHandEnvCfg | ShadowHandEnvCfg, render_mode: str | None = None, **kwargs):
     def __init__(self, cfg: AllegroHandEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
+        self.hand, self.object, self.goal_markers = [self.scene[name] for name in ("robot", "object", "goal_object")]
 
         # ---------------------------------------------------------------------
         # Constants
@@ -628,9 +615,6 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
         goal_rot[:, 3] = 1.0  # (x, y, z, w)
         self.goal_rot.assign(wp.from_torch(goal_rot, dtype=wp.quatf))
 
-        # initialize goal marker
-        self.goal_markers = VisualizationMarkers(self.cfg.goal_object_cfg)
-
         # Reduction buffers for consecutive_successes update (Warp-only).
         self._num_resets = wp.zeros(1, dtype=wp.float32, device=self.device)
         self._finished_cons_successes = wp.zeros(1, dtype=wp.float32, device=self.device)
@@ -679,23 +663,6 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
         self.torch_reset_terminated = wp.to_torch(self.reset_terminated)
         self.torch_reset_time_outs = wp.to_torch(self.reset_time_outs)
         self.torch_episode_length_buf = self.episode_length_buf  # already a torch tensor via wp.to_torch
-
-    def _setup_scene(self):
-        # add hand, in-hand object, and goal object
-        self.hand = Articulation(self.cfg.robot_cfg)
-        self.object = Articulation(self.cfg.object_cfg)
-        # add ground plane
-        spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
-        src, dest = "/World/envs/env_0", "/World/envs/env_{}"
-        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing, device=self.device)[0]
-        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, self.device, pos)
-        cloner.replicate(plan, stage=self.scene.stage)
-        # add articulation to scene - we must register to scene to randomize with EventManager
-        self.scene.articulations["robot"] = self.hand
-        self.scene.articulations["object"] = self.object
-        # add lights
-        light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
-        light_cfg.func("/World/Light", light_cfg)
 
     def _pre_physics_step(self, actions: wp.array) -> None:
         # Store actions in a persistent Warp buffer (analogous to `actions.clone()` in the Torch env).
@@ -909,7 +876,11 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
 
     def _post_step_visualize(self) -> None:
         """Update goal markers outside CUDA graph scope."""
-        self.goal_markers.visualize(wp.to_torch(self.goal_pos_w), wp.to_torch(self.goal_rot))
+        self.goal_markers.visualize(
+            wp.to_torch(self.goal_pos_w),
+            wp.to_torch(self.goal_rot),
+            environment_ids=self.scene._ALL_INDICES,
+        )
 
     def _compute_intermediate_values(self):
         # data for hand/object (Warp version of the Torch env's `_compute_intermediate_values`)

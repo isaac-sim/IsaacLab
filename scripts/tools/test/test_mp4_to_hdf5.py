@@ -80,6 +80,29 @@ def temp_videos_dir():
     os.rmdir(temp_dir)
 
 
+def _write_small_demo_and_video(directory, num_steps, num_video_frames, size=(32, 32)):
+    """Write a tiny HDF5 file with one demo and an MP4 with ``num_video_frames`` frames; returns their paths."""
+    height, width = size
+    hdf5_path = os.path.join(directory, "in.h5")
+    with h5py.File(hdf5_path, "w") as h5f:
+        demo_group = h5f.create_group("data/demo_0")
+        obs_group = demo_group.create_group("obs")
+        demo_group.create_dataset("actions", data=np.random.rand(num_steps, 7).astype(np.float32))
+        obs_group.create_dataset("eef_pos", data=np.random.rand(num_steps, 3).astype(np.float32))
+        obs_group.create_dataset("eef_quat", data=np.random.rand(num_steps, 4).astype(np.float32))
+        obs_group.create_dataset("gripper_pos", data=np.random.rand(num_steps, 1).astype(np.float32))
+        obs_group.create_dataset("table_cam", data=np.zeros((num_steps, height, width, 3), dtype=np.uint8))
+        obs_group.create_dataset("wrist_cam", data=np.zeros((num_steps, height, width, 3), dtype=np.uint8))
+        demo_group.attrs["num_samples"] = num_steps
+
+    video_path = os.path.join(directory, "demo_0_table_cam.mp4")
+    video = cv2.VideoWriter(video_path, cv2.VideoWriter_fourcc(*"mp4v"), 30, (width, height))
+    for _ in range(num_video_frames):
+        video.write(np.full((height, width, 3), 100, dtype=np.uint8))
+    video.release()
+    return hdf5_path, video_path
+
+
 @pytest.fixture
 def temp_output_file():
     """Create temporary output file."""
@@ -138,6 +161,31 @@ class TestMP4ToHDF5:
 
             # Check attributes
             assert f_out["data/demo_2"].attrs["num_samples"] == 10
+
+    @pytest.mark.parametrize("num_video_frames", [6, 14])
+    def test_process_video_and_demo_frame_count_mismatch(self, tmp_path, num_video_frames):
+        """Test that a video shorter or longer than the demo yields a demo with one consistent length."""
+        num_steps = 10
+        expected = min(num_steps, num_video_frames)
+        hdf5_path, video_path = _write_small_demo_and_video(str(tmp_path), num_steps, num_video_frames)
+
+        with h5py.File(hdf5_path, "r") as f_in, h5py.File(str(tmp_path / "out.h5"), "w") as f_out:
+            with pytest.warns(UserWarning, match="frames but the demo has"):
+                process_video_and_demo(f_in, f_out, video_path, 0, 1)
+
+            demo = f_out["data/demo_1"]
+            assert demo.attrs["num_samples"] == expected
+            assert demo["actions"].shape[0] == expected
+            for key in ("eef_pos", "eef_quat", "gripper_pos", "table_cam", "wrist_cam"):
+                assert demo["obs"][key].shape[0] == expected
+
+    def test_process_video_and_demo_empty_video(self, tmp_path):
+        """Test that a video without readable frames raises an error."""
+        hdf5_path, video_path = _write_small_demo_and_video(str(tmp_path), 10, 0)
+
+        with h5py.File(hdf5_path, "r") as f_in, h5py.File(str(tmp_path / "out.h5"), "w") as f_out:
+            with pytest.raises(ValueError, match="No frames could be read"):
+                process_video_and_demo(f_in, f_out, video_path, 0, 1)
 
     def test_main_function(self, temp_hdf5_file, temp_videos_dir, temp_output_file):
         """Test the main function."""

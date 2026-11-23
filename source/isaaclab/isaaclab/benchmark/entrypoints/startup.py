@@ -24,6 +24,9 @@ Usage example::
         --task Isaac-Cartpole-Direct \\
         --num_envs 16 \\
         presets=newton_mjwarp
+
+Use ``isaaclab benchmark startup_multigpu`` to profile rank 0 while every GPU launches
+concurrently; see :mod:`isaaclab.benchmark.entrypoints.multigpu`.
 """
 
 from __future__ import annotations
@@ -36,10 +39,13 @@ if TYPE_CHECKING:
 import argparse
 import cProfile
 import importlib.util
+import logging
 import os
 import sys
 import time
 from datetime import datetime, timezone
+
+logger = logging.getLogger(__name__)
 
 _PHASE_ORDER = ("python_imports", "task_config", "app_launch", "env_creation", "first_step")
 _VALID_PHASES = set(_PHASE_ORDER)
@@ -55,6 +61,7 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
         Parsed arguments and the remaining Hydra overrides.
     """
     from isaaclab.app import add_launcher_args
+    from isaaclab.benchmark.distributed import add_distributed_arg
 
     from isaaclab_tasks.utils import setup_preset_cli
 
@@ -86,6 +93,7 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
         default=None,
         help="Path to YAML file with per-phase fnmatch patterns. Overrides --top_n for listed phases.",
     )
+    add_distributed_arg(parser)
     add_launcher_args(parser)
 
     args, remaining = setup_preset_cli(parser, argv)
@@ -111,31 +119,30 @@ def _load_whitelist(path: str | None) -> dict[str, list[str]]:
         with open(path) as whitelist_file:
             raw = yaml.safe_load(whitelist_file)
     except OSError as exc:
-        print(f"[ERROR] Cannot read whitelist config '{path}': {exc}")
+        logger.error(f"Cannot read whitelist config '{path}': {exc}")
         sys.exit(1)
     except yaml.YAMLError as exc:
-        print(f"[ERROR] Invalid YAML in whitelist config '{path}': {exc}")
+        logger.error(f"Invalid YAML in whitelist config '{path}': {exc}")
         sys.exit(1)
 
     if raw is None:
         return {}
     if not isinstance(raw, dict):
-        print(
-            f"[ERROR] Whitelist config must be a YAML mapping (got {type(raw).__name__})."
+        logger.error(
+            f"Whitelist config must be a YAML mapping (got {type(raw).__name__})."
             " Expected format: phase_name: [pattern, ...]"
         )
         sys.exit(1)
 
     unknown = set(raw) - _VALID_PHASES
     if unknown:
-        print(
-            f"[WARNING] Whitelist config contains unknown phase(s): {unknown}. "
-            f"Valid phases: {_VALID_PHASES}. Check for typos."
+        logger.warning(
+            f"Whitelist config contains unknown phase(s): {unknown}. Valid phases: {_VALID_PHASES}. Check for typos."
         )
     for phase_name, patterns in raw.items():
         if not isinstance(patterns, list) or not all(isinstance(pattern, str) for pattern in patterns):
-            print(
-                f"[ERROR] Whitelist phase '{phase_name}' must be a list of strings, "
+            logger.error(
+                f"Whitelist phase '{phase_name}' must be a list of strings, "
                 f"got {type(patterns).__name__}. Check YAML formatting (use '- pattern' syntax)."
             )
             sys.exit(1)
@@ -151,8 +158,7 @@ def _isaaclab_source_prefixes() -> list[str]:
         "isaaclab_mimic",
         "isaaclab_newton",
         "isaaclab_ov",
-        "isaaclab_ovphysx",
-        "isaaclab_physx",
+        "isaaclab_isaacsim",
         "isaaclab_rl",
         "isaaclab_tasks",
         "isaaclab_tasks_experimental",
@@ -190,11 +196,14 @@ def _timer_totals(since: dict[str, float] | None = None) -> dict[str, float]:
     return {name: seconds for name, seconds in elapsed.items() if seconds > 1e-6}
 
 
-def run(argv: list[str]) -> BenchmarkResult:
+def run(argv: list[str]) -> BenchmarkResult | None:
     """Run the startup benchmark and write the selected formatter outputs.
 
     Args:
         argv: Command-line arguments excluding the script path.
+
+    Returns:
+        Completed startup result, or ``None`` on a distributed rank other than global rank 0.
     """
     start_utc = datetime.now(timezone.utc).isoformat()
     imports_profile = cProfile.Profile()
@@ -208,6 +217,7 @@ def run(argv: list[str]) -> BenchmarkResult:
 
     from isaaclab.app import launch_simulation
     from isaaclab.benchmark import BaseIsaacLabBenchmark, BenchmarkResult, builders, capture, console, stepping
+    from isaaclab.benchmark.distributed import DistributedContext
     from isaaclab.benchmark.profiling import parse_cprofile_stats
     from isaaclab.benchmark.schema import CProfileFunction, StartupPhase
 
@@ -231,6 +241,7 @@ def run(argv: list[str]) -> BenchmarkResult:
     whitelist = _load_whitelist(args.whitelist_config)
     if args.top_n is None:
         args.top_n = 5 if whitelist else 30
+    distributed = DistributedContext.from_env(args.distributed, workflow="startup")
 
     app_launch_profile = cProfile.Profile()
     app_launch_time_begin = time.perf_counter_ns()
@@ -244,7 +255,9 @@ def run(argv: list[str]) -> BenchmarkResult:
 
         if args.num_envs is not None:
             env_cfg.scene.num_envs = args.num_envs
-        if args.device is not None:
+        # A distributed launch already pinned this rank to its own GPU; honoring --device here
+        # would move every rank onto the same one.
+        if args.device is not None and not distributed.enabled:
             env_cfg.sim.device = args.device
         if args.seed is not None:
             env_cfg.seed = args.seed
@@ -275,7 +288,8 @@ def run(argv: list[str]) -> BenchmarkResult:
             first_step_time_begin = time.perf_counter_ns()
             first_step_profile.enable()
             try:
-                env.step(actions)
+                with torch.inference_mode():
+                    env.step(actions)
             finally:
                 first_step_profile.disable()
 
@@ -283,6 +297,11 @@ def run(argv: list[str]) -> BenchmarkResult:
                 torch.cuda.synchronize()
             first_step_time_end = time.perf_counter_ns()
             end_utc = capture.now_utc_iso()
+
+            # Every rank profiles its own startup so the ranks contend as they would in a real
+            # distributed launch, but only rank 0 reports.
+            if not distributed.is_main:
+                return None
 
             # Ordered chronologically: the bundle and the console summary preserve this order.
             phase_profiles: dict[str, tuple[cProfile.Profile, float]] = {
@@ -311,7 +330,7 @@ def run(argv: list[str]) -> BenchmarkResult:
                     ],
                 )
 
-            cfg = capture.run_config_from_presets(hydra_args, env_cfg=env_cfg)
+            cfg = capture.run_config_from_env_cfg(env_cfg)
             stamp = end_utc.translate(str.maketrans("", "", ":-"))[:15]
             seed = args.seed if args.seed is not None else 0
             run_id = capture.synth_run_id(None, cfg.physics_backend, args.task, seed, stamp)
@@ -332,18 +351,24 @@ def run(argv: list[str]) -> BenchmarkResult:
                 formatter_type=args.benchmark_formatter,
                 output_path=args.output_path,
                 use_recorders=True,
-                output_prefix=f"benchmark_startup_{args.task}",
+                output_prefix=f"benchmark_startup{'_multigpu' if distributed.enabled else ''}_{args.task}",
                 workflow_metadata={
                     "metadata": [
                         {"name": "task", "data": args.task},
                         {"name": "seed", "data": args.seed},
                         {"name": "num_envs", "data": args.num_envs},
                         {"name": "top_n", "data": args.top_n},
-                        {"name": "presets", "data": ",".join(cfg.presets)},
+                        {"name": "world_size", "data": distributed.world_size},
                     ]
                 },
             )
             benchmark.update_manual_recorders()
+
+            extra: dict[str, float | int | str | bool] = {
+                f"env_creation.{name}_s": seconds for name, seconds in env_creation_detail.items()
+            }
+            if distributed.enabled:
+                extra.update(distributed.bundle_metadata(workload_scope="rank0"))
 
             bundle = builders.build_startup_bundle(
                 run=run_identity,
@@ -352,7 +377,7 @@ def run(argv: list[str]) -> BenchmarkResult:
                 phases=phases,
                 top_n=args.top_n,
                 whitelist=args.whitelist_config,
-                extra={f"env_creation.{name}_s": seconds for name, seconds in env_creation_detail.items()},
+                extra=extra,
             )
             benchmark.attach_bundle(bundle)
             output_paths = benchmark.finalize()

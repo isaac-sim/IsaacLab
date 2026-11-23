@@ -97,7 +97,12 @@ class GaitReward(ManagerTermBase):
         """Initialize the term.
 
         Args:
-            cfg: The configuration of the reward.
+            cfg: Reward configuration. Its params must contain std (kernel denominator
+                for squared timing errors [s²]), max_err (timing-error cap [s]),
+                velocity_threshold (horizontal base speed threshold [m/s]),
+                synced_feet_pair_names (exactly two pairs of foot names), asset_cfg
+                (robot scene entity), and sensor_cfg (contact sensor scene entity).
+                All six are read once at initialization.
             env: The RL environment instance.
         """
         super().__init__(cfg, env)
@@ -135,6 +140,15 @@ class GaitReward(ManagerTermBase):
 
         Args:
             env: The RL environment instance.
+            std: Unused call argument; the kernel denominator is cached from cfg.params.
+            max_err: Unused call argument; the timing-error cap is cached from cfg.params.
+            velocity_threshold: Unused call argument; the base speed threshold is cached
+                from cfg.params.
+            synced_feet_pair_names: Unused call argument; the two pairs of foot names
+                are resolved from cfg.params at initialization.
+            asset_cfg: Unused call argument; the robot is resolved from cfg.params at initialization.
+            sensor_cfg: Unused call argument; the contact sensor is resolved from cfg.params at initialization.
+
         Returns:
             The reward value.
         """
@@ -245,7 +259,7 @@ def foot_slip_penalty(
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
 
     # check if contact force is above threshold
-    net_contact_forces = contact_sensor.data.net_forces_w_history.torch
+    net_contact_forces = contact_sensor.data.net_normal_forces_w_history.torch
     is_contact = (
         torch.max(torch.linalg.norm(net_contact_forces[:, :, sensor_cfg.body_ids], dim=-1), dim=1)[0] > threshold
     )
@@ -278,7 +292,7 @@ def joint_torques_penalty(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> 
     """Penalize joint torques on the articulation."""
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-    return torch.linalg.norm((asset.data.applied_torque.torch), dim=1)
+    return torch.linalg.norm(asset.actuators.applied_effort.torch, dim=1)
 
 
 def joint_velocity_penalty(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:

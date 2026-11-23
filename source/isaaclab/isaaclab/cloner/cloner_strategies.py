@@ -3,44 +3,31 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import torch
+import numpy as np
 
 
-def random(combinations: torch.Tensor, num_clones: int, device: str) -> torch.Tensor:
-    """Randomly assign prototypes to environments.
-
-    Each environment is assigned a random prototype combination sampled uniformly from
-    :attr:`combinations`.
+def random(weights: np.ndarray, num_clones: int) -> np.ndarray:
+    """Randomly assign world prototypes according to their weights.
 
     Args:
-        combinations: Tensor of shape (num_combos, num_prototypes) containing all possible
-            prototype combinations.
+        weights: Relative sampling weights, one per world prototype.
         num_clones: Number of environments to assign combinations to.
-        device: Torch device on which the output tensor is allocated.
 
     Returns:
-        Tensor of shape (num_clones, num_prototypes) containing the chosen prototype
-        combination for each environment.
+        Integer array of shape [num_clones] selecting a world prototype per environment.
     """
-    chosen = combinations[torch.randint(len(combinations), (num_clones,), device=device)]
-    return chosen
+    return np.random.choice(len(weights), size=num_clones, p=weights / weights.sum())
 
 
-def sequential(combinations: torch.Tensor, num_clones: int, device: str) -> torch.Tensor:
-    """Deterministically assign prototypes to environments in round-robin fashion.
-
-    Each environment is assigned a prototype combination based on its index modulo the
-    number of available combinations.
+def sequential(weights: np.ndarray, num_clones: int) -> np.ndarray:
+    """Assign contiguous world groups using evenly spaced samples of the weighted distribution.
 
     Args:
-        combinations: Tensor of shape (num_combos, num_prototypes) containing all possible
-            prototype combinations.
+        weights: Relative sampling weights, one per world prototype.
         num_clones: Number of environments to assign combinations to.
-        device: Torch device on which the output tensor is allocated.
 
     Returns:
-        Tensor of shape (num_clones, num_prototypes) containing the chosen prototype
-        combination for each environment.
+        Integer array of shape [num_clones] selecting a world prototype per environment.
     """
-    chosen = combinations[torch.arange(num_clones, device=device) % len(combinations)]
-    return chosen
+    samples = (np.arange(num_clones) + 0.5) / max(num_clones, 1)
+    return np.searchsorted(np.cumsum(weights) / weights.sum(), samples, side="right")

@@ -7,12 +7,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from isaaclab.utils.backend_utils import FactoryBase
-
+from ...utils.backend_utils import FactoryBase
 from .base_rigid_object_data import BaseRigidObjectData
 
 if TYPE_CHECKING:
-    from isaaclab_physx.assets.rigid_object.rigid_object_data import RigidObjectData as PhysXRigidObjectData
+    from isaaclab_isaacsim.assets.rigid_object.rigid_object_data import RigidObjectData as PhysXRigidObjectData
 
 
 class RigidObjectData(FactoryBase):

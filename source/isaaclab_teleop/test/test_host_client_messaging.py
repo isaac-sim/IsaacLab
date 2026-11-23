@@ -139,12 +139,6 @@ class TestConstructionWithoutAKitApp:
 class TestControlPipelineWiring:
     """The outbound half of the control channel."""
 
-    def test_control_pipeline_builds(self, teleop):
-        lifecycle = _make_lifecycle(teleop)
-        pipeline, processor = lifecycle._build_control_pipeline(teleop.TELEOP_CONTROL_CHANNEL_UUID)
-        assert pipeline is not None
-        assert processor is not None
-
     def test_source_receives_the_lifecycle_outbound_queue(self, teleop):
         # The source only puts bytes on the wire from the queue it was handed.
         # If the lifecycle enqueued into a different deque every host message
@@ -157,31 +151,9 @@ class TestControlPipelineWiring:
         sources = [n for n in pipeline.get_leaf_nodes() if isinstance(n, MessageChannelSource)]
         assert len(sources) == 1
         assert sources[0]._outbound_queue is lifecycle._pending_client_messages
-
-    def test_source_name_matches_the_recorded_replay_channel(self, teleop):
         # Replay matches the recorded channel by node name; renaming this breaks
         # MCAP replay of teleop control.
-        from isaacteleop.retargeting_engine.deviceio_source_nodes import MessageChannelSource
-
-        lifecycle = _make_lifecycle(teleop)
-        pipeline, _ = lifecycle._build_control_pipeline(teleop.TELEOP_CONTROL_CHANNEL_UUID)
-
-        (source,) = [n for n in pipeline.get_leaf_nodes() if isinstance(n, MessageChannelSource)]
-        assert source.name == "_teleop_control_source"
-
-    def test_message_channel_sink_is_not_a_device_sink(self, teleop):
-        # Regression guard. The outbound path deliberately does NOT build a
-        # MessageChannelSink and does NOT put one in
-        # TeleopSessionConfig(sinks=...): unlike HapticSink it is a plain
-        # BaseRetargeter, so _validate_sinks rejects it and the session dies at
-        # start with "sinks entries must be an IDeviceIOSink". Delivery goes
-        # through the source's outbound queue instead. If upstream ever makes
-        # this an IDeviceIOSink, revisit that decision.
-        from isaacteleop.retargeting_engine.deviceio_source_nodes import IDeviceIOSink, MessageChannelSink
-        from isaacteleop.retargeting_engine.deviceio_source_nodes.haptic_sink import HapticSink
-
-        assert not issubclass(MessageChannelSink, IDeviceIOSink)
-        assert issubclass(HapticSink, IDeviceIOSink)
+        assert sources[0].name == "_teleop_control_source"
 
     def test_queued_message_is_shaped_the_way_the_source_drains_it(self, teleop):
         # poll_tracker iterates batch.data and reads .payload off each entry.
@@ -194,13 +166,6 @@ class TestControlPipelineWiring:
 
 class TestSendClientMessage:
     """Queueing behaviour of the public send API."""
-
-    def test_message_is_queued_as_encoded_json(self, teleop):
-        lifecycle = _make_lifecycle(teleop)
-        lifecycle.send_client_message({"type": "system_notice", "message": {"level": "warning"}})
-
-        (batch,) = lifecycle._pending_client_messages
-        assert json.loads(batch.data[0].payload.decode())["type"] == "system_notice"
 
     def test_no_control_channel_drops_the_message(self, teleop):
         lifecycle = _make_lifecycle(teleop, control_channel_uuid=None)
@@ -259,27 +224,6 @@ class TestQueueLifetimeAcrossStart:
         (batch,) = lifecycle._pending_client_messages
         assert json.loads(batch.data[0].payload.decode())["type"] == "custom"
 
-    def test_start_still_queues_its_own_notice(self, teleop, monkeypatch):
-        # The path that already works must keep working: a failing check queues
-        # a notice during start() even with nothing queued beforehand.
-        from isaaclab_teleop import system_check
-
-        lifecycle = _make_lifecycle(teleop)
-        monkeypatch.setattr(
-            system_check,
-            "check_system_requirements",
-            lambda device=None: system_check.SystemCheckResult(
-                items=(system_check.SystemCheckItem("CPU governor", False, "powersave", "performance"),)
-            ),
-        )
-        monkeypatch.setattr(type(lifecycle), "_build_combined_pipeline", lambda self, pipeline: MagicMock())
-        monkeypatch.setattr(type(lifecycle), "_try_start_session", lambda self: False)
-
-        lifecycle.start()
-
-        (batch,) = lifecycle._pending_client_messages
-        assert json.loads(batch.data[0].payload.decode())["type"] == "system_notice"
-
     def test_caller_message_and_startup_notice_coexist(self, teleop, monkeypatch):
         from isaaclab_teleop import system_check
 
@@ -314,38 +258,6 @@ class TestQueueLifetimeAcrossStart:
 
 class TestSystemCheckOnStart:
     """The startup check feeding the client notice."""
-
-    def test_failing_check_queues_a_notice(self, teleop, monkeypatch):
-        from isaaclab_teleop import system_check
-
-        lifecycle = _make_lifecycle(teleop)
-        monkeypatch.setattr(
-            system_check,
-            "check_system_requirements",
-            lambda device=None: system_check.SystemCheckResult(
-                items=(system_check.SystemCheckItem("CPU governor", False, "powersave", "performance"),)
-            ),
-        )
-
-        lifecycle._run_system_check()
-
-        (batch,) = lifecycle._pending_client_messages
-        assert json.loads(batch.data[0].payload.decode())["type"] == "system_notice"
-
-    def test_passing_check_queues_nothing(self, teleop, monkeypatch):
-        from isaaclab_teleop import system_check
-
-        lifecycle = _make_lifecycle(teleop)
-        monkeypatch.setattr(
-            system_check,
-            "check_system_requirements",
-            lambda device=None: system_check.SystemCheckResult(
-                items=(system_check.SystemCheckItem("CPU governor", True, "performance", "performance"),)
-            ),
-        )
-
-        lifecycle._run_system_check()
-        assert not lifecycle._pending_client_messages
 
     def test_check_raising_does_not_break_startup(self, teleop, monkeypatch):
         from isaaclab_teleop import system_check

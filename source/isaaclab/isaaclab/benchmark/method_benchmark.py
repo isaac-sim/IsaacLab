@@ -48,6 +48,7 @@ Example usage:
 
 from __future__ import annotations
 
+import gc
 import inspect
 import logging
 import statistics
@@ -139,7 +140,7 @@ class MethodBenchmarkRunner(BaseIsaacLabBenchmark):
         Args:
             benchmark_name: Name of the benchmark (used in output files).
             config: Benchmark configuration.
-            backend_type: Output backend type ("json", "osmo", "omni_perf").
+            backend_type: Output backend type ("json", "osmo", "omniperf", "summary").
             output_path: Directory to write output files.
             use_recorders: Whether to collect hardware/version info.
             physics_variant: Exact physics backend selector, when applicable.
@@ -194,7 +195,6 @@ class MethodBenchmarkRunner(BaseIsaacLabBenchmark):
             benchmarks: List of benchmark definitions to run.
             target_object: Object containing the methods to benchmark.
         """
-
         print(f"\nBenchmarking {len(benchmarks)} methods...")
         print(f"Config: {self._config.num_iterations} iterations, {self._config.warmup_steps} warmup steps")
         print(
@@ -302,6 +302,9 @@ class MethodBenchmarkRunner(BaseIsaacLabBenchmark):
     ) -> dict:
         """Collect synchronized latency samples for one workload.
 
+        Automatic cyclic garbage collection is suspended during sampling and its
+        previous state is restored afterwards, including when a workload fails.
+
         Args:
             workload_name: Name included in contextual failures.
             prepare: Untimed callable that prepares one operation.
@@ -320,26 +323,32 @@ class MethodBenchmarkRunner(BaseIsaacLabBenchmark):
                 self._sync_device()
 
         times: list[float] = []
-        for iteration in range(self._config.num_iterations):
-            try:
-                prepare()
-            except Exception as e:
-                raise RuntimeError(f"{workload_name} failed during timed preparation iteration {iteration}") from e
+        gc_enabled = gc.isenabled()
+        gc.disable()
+        try:
+            for iteration in range(self._config.num_iterations):
+                try:
+                    prepare()
+                except Exception as e:
+                    raise RuntimeError(f"{workload_name} failed during timed preparation iteration {iteration}") from e
 
-            if self._config.device.startswith("cuda"):
-                self._sync_device()
+                if self._config.device.startswith("cuda"):
+                    self._sync_device()
 
-            start_time = time.perf_counter_ns()
-            try:
-                operation()
-            except Exception as e:
-                raise RuntimeError(f"{workload_name} failed during timed iteration {iteration}") from e
+                start_time = time.perf_counter_ns()
+                try:
+                    operation()
+                except Exception as e:
+                    raise RuntimeError(f"{workload_name} failed during timed iteration {iteration}") from e
 
-            if self._config.device.startswith("cuda"):
-                self._sync_device()
+                if self._config.device.startswith("cuda"):
+                    self._sync_device()
 
-            end_time = time.perf_counter_ns()
-            times.append((end_time - start_time) / 1e3)
+                end_time = time.perf_counter_ns()
+                times.append((end_time - start_time) / 1e3)
+        finally:
+            if gc_enabled:
+                gc.enable()
 
         return {
             "mean": statistics.mean(times),
@@ -437,7 +446,6 @@ class MethodBenchmarkRunner(BaseIsaacLabBenchmark):
         Returns:
             Dict with timing results, or None if property not found.
         """
-        # Check if property exists
         if inspect.getattr_static(target_data, prop_name, None) is None:
             return None
 

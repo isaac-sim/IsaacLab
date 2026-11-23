@@ -14,6 +14,7 @@ from isaaclab.devices.device_base import DeviceBase
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import FRAME_MARKER_CFG
+from isaaclab.utils import clone, replace
 
 
 class Se3AbsRetargeter(RetargeterBase):
@@ -29,19 +30,11 @@ class Se3AbsRetargeter(RetargeterBase):
     - Optional visualization of the target end-effector pose
     """
 
-    def __init__(
-        self,
-        cfg: Se3AbsRetargeterCfg,
-    ):
+    def __init__(self, cfg: Se3AbsRetargeterCfg):
         """Initialize the retargeter.
 
         Args:
-            bound_hand: The hand to track (DeviceBase.TrackingTarget.HAND_LEFT or DeviceBase.TrackingTarget.HAND_RIGHT)
-            zero_out_xy_rotation: If True, zero out rotation around x and y axes
-            use_wrist_rotation: If True, use wrist rotation instead of finger average
-            use_wrist_position: If True, use wrist position instead of pinch position
-            enable_visualization: If True, visualize the target pose in the scene
-            device: The device to place the returned tensor on ('cpu' or 'cuda')
+            cfg: The retargeter configuration.
         """
         super().__init__(cfg)
         if cfg.bound_hand not in [DeviceBase.TrackingTarget.HAND_LEFT, DeviceBase.TrackingTarget.HAND_RIGHT]:
@@ -57,9 +50,9 @@ class Se3AbsRetargeter(RetargeterBase):
         # Initialize visualization if enabled
         self._enable_visualization = cfg.enable_visualization
         if cfg.enable_visualization:
-            frame_marker_cfg = FRAME_MARKER_CFG.copy()
+            frame_marker_cfg = clone(FRAME_MARKER_CFG)
             frame_marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
-            self._goal_marker = VisualizationMarkers(frame_marker_cfg.replace(prim_path="/Visuals/ee_goal"))
+            self._goal_marker = VisualizationMarkers(replace(frame_marker_cfg, prim_path="/Visuals/ee_goal"))
             self._goal_marker.set_visibility(True)
             self._visualization_pos = np.zeros(3)
             self._visualization_rot = np.array([0.0, 0.0, 0.0, 1.0])  # xyzw format
@@ -164,8 +157,20 @@ class Se3AbsRetargeterCfg(RetargeterCfg):
     """Configuration for absolute position retargeter."""
 
     zero_out_xy_rotation: bool = True
+    """Whether to retain only yaw before applying a fixed 180-degree rotation about the tool X axis.
+    Defaults to True.
+    """
+
     use_wrist_rotation: bool = False
+    """If True, use the wrist rotation instead of the finger average. Defaults to False."""
+
     use_wrist_position: bool = True
+    """If True, use the wrist position instead of the pinch position. Defaults to True."""
+
     enable_visualization: bool = False
+    """If True, visualize the target pose in the scene. Defaults to False."""
+
     bound_hand: DeviceBase.TrackingTarget = DeviceBase.TrackingTarget.HAND_RIGHT
+    """The hand to track (``HAND_LEFT`` or ``HAND_RIGHT``). Defaults to ``HAND_RIGHT``."""
+
     retargeter_type: type[RetargeterBase] = Se3AbsRetargeter

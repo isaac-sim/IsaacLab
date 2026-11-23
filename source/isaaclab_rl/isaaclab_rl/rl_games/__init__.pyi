@@ -10,7 +10,8 @@ __all__ = [
     "RlGamesGpuEnv",
     "RlGamesVecEnvWrapper",
     "make_concat_plan",
+    "register_rl_games_env",
 ]
 
 from .pbt import MultiObserver, PbtAlgoObserver, PbtCfg
-from .rl_games import RlGamesGpuEnv, RlGamesVecEnvWrapper, make_concat_plan
+from .rl_games import RlGamesGpuEnv, RlGamesVecEnvWrapper, make_concat_plan, register_rl_games_env

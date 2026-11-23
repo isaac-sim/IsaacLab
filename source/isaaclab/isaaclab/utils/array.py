@@ -8,6 +8,7 @@
 # needed to import for allowing type-hinting: torch.device | str | None
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Union
 
 import numpy as np
@@ -34,13 +35,45 @@ The keys are the name of the backend ("numpy", "torch", "warp") and the values a
 TENSOR_TYPE_CONVERSIONS = {
     "numpy": {wp.array: lambda x: x.numpy(), torch.Tensor: lambda x: x.detach().cpu().numpy()},
     "torch": {wp.array: lambda x: wp.torch.to_torch(x), np.ndarray: lambda x: torch.from_numpy(x)},
-    "warp": {np.array: lambda x: wp.array(x), torch.Tensor: lambda x: wp.torch.from_torch(x)},
+    "warp": {np.ndarray: lambda x: wp.array(x), torch.Tensor: lambda x: wp.torch.from_torch(x)},
 }
 """A nested dictionary containing the conversion functions for each backend.
 
 The keys of the outer dictionary are the name of target backend ("numpy", "torch", "warp"). The keys of the
 inner dictionary are the source backend (``np.ndarray``, ``torch.Tensor``, ``wp.array``).
 """
+
+
+def index_fill_(
+    data: torch.Tensor, indices: Sequence[int] | torch.Tensor | slice | None, value: float | int | bool, dim: int = 0
+) -> None:
+    """Fill selected entries in place without synchronizing device-resident integer indices.
+
+    Slices fill a view; integer indices use :meth:`torch.Tensor.index_fill_`. Assigning a Python
+    scalar through integer tensor indexing instead uploads the scalar and synchronizes CUDA.
+    Host indices still require an upload; int32 indices require a device-side cast to int64.
+
+    Args:
+        data: Tensor to modify, including non-contiguous views.
+        indices: Integer indices, a one-dimensional boolean mask, or a slice along ``dim``.
+            None fills the entire array.
+        value: Scalar value to write.
+        dim: Dimension selected by ``indices``. Defaults to zero.
+    """
+    if indices is None:
+        data.fill_(value)
+    elif isinstance(indices, slice):
+        selection = [slice(None)] * data.ndim
+        selection[dim] = indices
+        data[tuple(selection)].fill_(value)
+    else:
+        indices = torch.as_tensor(indices, device=data.device)
+        if indices.dtype == torch.bool:
+            shape = [1] * data.ndim
+            shape[dim] = -1
+            data.masked_fill_(indices.reshape(shape), value)
+        else:
+            data.index_fill_(dim, indices.to(dtype=torch.long), value)
 
 
 def convert_to_torch(

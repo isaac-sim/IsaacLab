@@ -11,26 +11,33 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 
-from isaaclab.utils.leapp import (
-    POSE6_ELEMENT_NAMES,
-    POSE7_ELEMENT_NAMES,
-    QUAT_XYZW_ELEMENT_NAMES,
-    XYZ_ELEMENT_NAMES,
-    InputKindEnum,
-    body_pose6_resolver,
-    body_pose_resolver,
-    body_quat_resolver,
-    body_xyz_resolver,
-    joint_names_resolver,
+from ...utils.buffers import TimestampedBuffer
+from ...utils.leapp import (
+    ANGULAR_VELOCITY_COMPONENT_AXIS,
+    LINEAR_VELOCITY_COMPONENT_AXIS,
+    POSE7_COMPONENT_AXIS,
+    QUAT_XYZW_COMPONENT_AXIS,
+    TWIST_COMPONENT_AXIS,
+    XYZ_COMPONENT_AXIS,
+    Axis,
+    AxisKind,
+    ExpressionFrame,
+    Kind,
+    body_angular_velocity_axes_resolver,
+    body_linear_velocity_axes_resolver,
+    body_pose6_axes_resolver,
+    body_pose_axes_resolver,
+    body_quat_axes_resolver,
+    body_twist_axes_resolver,
+    body_xyz_axes_resolver,
+    joint_axes_resolver,
     leapp_tensor_semantics,
 )
-from isaaclab.utils.warp import ProxyArray
-
+from ...utils.warp import ProxyArray
 from . import ordering_kernels
 
 if TYPE_CHECKING:
-    from isaaclab.utils.buffers import TimestampedBufferWarp
-
+    from ...actuators import ActuatorCollection
     from .ordering import ArticulationNameMap
 
 
@@ -64,6 +71,70 @@ class BaseArticulationData(ABC):
         """
         # Set the parameters
         self.device = device
+        self._actuator_collection: ActuatorCollection | None = None
+        self._joint_pos_target = None
+        self._joint_vel_target = None
+        self._joint_effort_target = None
+        self._joint_pos_target_ta: ProxyArray | None = None
+        self._joint_vel_target_ta: ProxyArray | None = None
+        self._joint_effort_target_ta: ProxyArray | None = None
+        self._body_joint_wrench = TimestampedBuffer()
+        self._body_joint_wrench_ta: ProxyArray | None = None
+
+    def bind_actuator_collection(self, actuators: ActuatorCollection) -> None:
+        """Bind collection-owned command and telemetry aliases plus actuator compatibility projections."""
+        self._actuator_collection = actuators
+        self._joint_pos_target = actuators.target_command.position.warp
+        self._joint_vel_target = actuators.target_command.velocity.warp
+        self._joint_effort_target = actuators.target_command.effort.warp
+        self._computed_torque = actuators.computed_effort.warp
+        self._applied_torque = actuators.applied_effort.warp
+        self._soft_joint_vel_limits = actuators._soft_joint_vel_limits
+        self._joint_pos_target_ta = actuators.target_command.position
+        self._joint_vel_target_ta = actuators.target_command.velocity
+        self._joint_effort_target_ta = actuators.target_command.effort
+        self._computed_torque_ta = actuators.computed_effort
+        self._applied_torque_ta = actuators.applied_effort
+        self._soft_joint_vel_limits_ta = ProxyArray(self._soft_joint_vel_limits)
+
+    def _get_actuator_collection_proxy(self, name: str, buffer_name: str, proxy_name: str) -> ProxyArray:
+        collection = self._actuator_collection
+        if collection is not None:
+            command_field = {
+                "joint_pos_target": "position",
+                "joint_vel_target": "velocity",
+                "joint_effort_target": "effort",
+            }.get(name)
+            collection_field = {
+                "computed_torque": "computed_effort",
+                "applied_torque": "applied_effort",
+            }.get(name, name)
+            replacement = f"command.{command_field}" if command_field is not None else collection_field
+            warnings.warn(
+                f"ArticulationData.{name} is deprecated. Use articulation.actuators.{replacement} instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return (
+                getattr(collection.target_command, command_field)
+                if command_field is not None
+                else getattr(collection, collection_field)
+            )
+
+        warnings.warn(
+            f"ArticulationData.{name} is deprecated.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        buffer = getattr(self, buffer_name)
+        if buffer is None:
+            buffer = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
+            setattr(self, buffer_name, buffer)
+        proxy = getattr(self, proxy_name)
+        if proxy is None:
+            proxy = ProxyArray(buffer)
+            setattr(self, proxy_name, proxy)
+        return proxy
 
     @abstractmethod
     def update(self, dt: float) -> None:
@@ -187,7 +258,7 @@ class BaseArticulationData(ABC):
             backend_rows = tuple(int(backend_id) - 1 for backend_id in body_user_to_backend if int(backend_id) != 0)
         return wp.array(backend_rows, dtype=wp.int32, device=self.device)
 
-    def _fetch_body_com_pose_b_backend(self, buf: TimestampedBufferWarp) -> None:
+    def _fetch_body_com_pose_b_backend(self, buf: TimestampedBuffer) -> None:
         """Read the current backend-order static body COM pose into ``buf`` when stale.
 
         Backend hook for :meth:`_ensure_body_com_pose_b_current` and
@@ -298,77 +369,70 @@ class BaseArticulationData(ABC):
     ##
 
     @property
-    @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.COMMAND_JOINT_POSITION)
+    @leapp_tensor_semantics(is_setpoint=True, kind=Kind.JOINT_POSITION, axes_resolver=joint_axes_resolver)
     def joint_pos_target(self) -> ProxyArray:
-        """Joint position targets commanded by the user.
+        """Joint position targets commanded by the user [m or rad, depending on joint type].
 
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
+        .. deprecated:: 3.0.0
+            Use ``articulation.actuators.target_command.position`` instead.
 
-        For an implicit actuator model, the targets are directly set into the simulation.
-        For an explicit actuator model, the targets are used to compute the joint torques (see :attr:`applied_torque`),
-        which are then set into the simulation.
+        Shape is (num_instances, num_joints), dtype = wp.float32.
         """
-        raise NotImplementedError
+        return self._get_actuator_collection_proxy("joint_pos_target", "_joint_pos_target", "_joint_pos_target_ta")
 
     @property
-    @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.COMMAND_JOINT_VELOCITY)
+    @leapp_tensor_semantics(is_setpoint=True, kind=Kind.JOINT_VELOCITY, axes_resolver=joint_axes_resolver)
     def joint_vel_target(self) -> ProxyArray:
-        """Joint velocity targets commanded by the user.
+        """Joint velocity targets commanded by the user [m/s or rad/s, depending on joint type].
 
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
+        .. deprecated:: 3.0.0
+            Use ``articulation.actuators.target_command.velocity`` instead.
 
-        For an implicit actuator model, the targets are directly set into the simulation.
-        For an explicit actuator model, the targets are used to compute the joint torques (see :attr:`applied_torque`),
-        which are then set into the simulation.
+        Shape is (num_instances, num_joints), dtype = wp.float32.
         """
-        raise NotImplementedError
+        return self._get_actuator_collection_proxy("joint_vel_target", "_joint_vel_target", "_joint_vel_target_ta")
 
     @property
-    @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.COMMAND_JOINT_TORQUES)
+    @leapp_tensor_semantics(is_setpoint=True, kind=Kind.JOINT_EFFORT, axes_resolver=joint_axes_resolver)
     def joint_effort_target(self) -> ProxyArray:
-        """Joint effort targets commanded by the user.
+        """Joint effort targets commanded by the user [N or N·m, depending on joint type].
 
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
+        .. deprecated:: 3.0.0
+            Use ``articulation.actuators.target_command.effort`` instead.
 
-        For an implicit actuator model, the targets are directly set into the simulation.
-        For an explicit actuator model, the targets are used to compute the joint torques (see :attr:`applied_torque`),
-        which are then set into the simulation.
+        Shape is (num_instances, num_joints), dtype = wp.float32.
         """
-        raise NotImplementedError
+        return self._get_actuator_collection_proxy(
+            "joint_effort_target", "_joint_effort_target", "_joint_effort_target_ta"
+        )
 
     ##
     # Joint commands -- Explicit actuators.
     ##
 
     @property
-    @abstractmethod
-    @leapp_tensor_semantics(kind="state/joint/computed_torque")
+    @leapp_tensor_semantics(kind=Kind.JOINT_EFFORT, axes_resolver=joint_axes_resolver)
     def computed_torque(self) -> ProxyArray:
-        """Joint torques computed from the actuator model (before clipping).
+        """Computed actuator torques before clipping [N or N·m, depending on joint type].
 
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
+        .. deprecated:: 3.0.0
+            Use ``articulation.actuators.computed_effort`` instead.
 
-        This quantity is the raw torque output from the actuator mode, before any clipping is applied.
-        It is exposed for users who want to inspect the computations inside the actuator model.
-        For instance, to penalize the learning agent for a difference between the computed and applied torques.
+        Shape is (num_instances, num_joints), dtype = wp.float32.
         """
-        raise NotImplementedError
+        return self._get_actuator_collection_proxy("computed_torque", "_computed_torque", "_computed_torque_ta")
 
     @property
-    @abstractmethod
-    @leapp_tensor_semantics(kind="state/joint/applied_torque")
+    @leapp_tensor_semantics(kind=Kind.JOINT_EFFORT, axes_resolver=joint_axes_resolver)
     def applied_torque(self) -> ProxyArray:
-        """Joint torques applied from the actuator model (after clipping).
+        """Actuator torques applied after clipping [N or N·m, depending on joint type].
 
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
+        .. deprecated:: 3.0.0
+            Use ``articulation.actuators.applied_effort`` instead.
 
-        These torques are set into the simulation, after clipping the :attr:`computed_torque` based on the
-        actuator model.
+        Shape is (num_instances, num_joints), dtype = wp.float32.
         """
-        raise NotImplementedError
+        return self._get_actuator_collection_proxy("applied_torque", "_applied_torque", "_applied_torque_ta")
 
     ##
     # Joint properties.
@@ -378,11 +442,10 @@ class BaseArticulationData(ABC):
     @abstractmethod
     @leapp_tensor_semantics(const=True)
     def joint_stiffness(self) -> ProxyArray:
-        """Joint stiffness provided to the simulation.
+        """Solver joint-drive stiffness [N/m or N·m/rad, depending on joint type].
 
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
-
-        In the case of explicit actuators, the value for the corresponding joints is zero.
+        Shape is (num_instances, num_joints), dtype = wp.float32. Explicit
+        actuator joints report zero because their model owns the gains.
         """
         raise NotImplementedError
 
@@ -390,11 +453,10 @@ class BaseArticulationData(ABC):
     @abstractmethod
     @leapp_tensor_semantics(const=True)
     def joint_damping(self) -> ProxyArray:
-        """Joint damping provided to the simulation.
+        """Solver joint-drive damping [N·s/m or N·m·s/rad, depending on joint type].
 
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
-
-        In the case of explicit actuators, the value for the corresponding joints is zero.
+        Shape is (num_instances, num_joints), dtype = wp.float32. Explicit
+        actuator joints report zero because their model owns the gains.
         """
         raise NotImplementedError
 
@@ -487,27 +549,17 @@ class BaseArticulationData(ABC):
         raise NotImplementedError
 
     @property
-    @abstractmethod
     @leapp_tensor_semantics(const=True)
     def soft_joint_vel_limits(self) -> ProxyArray:
-        """Soft joint velocity limits for all joints.
+        """Actuator-resolved soft joint velocity limits [m/s or rad/s, depending on joint type].
 
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
+        Shape is (num_instances, num_joints), dtype = wp.float32.
 
-        These are obtained from the actuator model. It may differ from :attr:`joint_vel_limits` if the actuator model
-        has a variable velocity limit model. For instance, in a variable gear ratio actuator model.
+        These values are produced by the actuator model and can differ from :attr:`joint_vel_limits` for a
+        state-dependent velocity-limit model, such as one with a variable gear ratio. They are compatibility outputs;
+        the solver velocity limits remain :attr:`joint_vel_limits`.
         """
-        raise NotImplementedError
-
-    @property
-    @abstractmethod
-    @leapp_tensor_semantics(const=True)
-    def gear_ratio(self) -> ProxyArray:
-        """Gear ratio for relating motor torques to applied Joint torques.
-
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
-        """
-        raise NotImplementedError
+        return self._soft_joint_vel_limits_ta
 
     ##
     # Fixed tendon properties.
@@ -633,7 +685,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names=POSE7_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSE, axes=[Axis(AxisKind.SYSTEM), POSE7_COMPONENT_AXIS])
     def root_link_pose_w(self) -> ProxyArray:
         """Root link pose ``[pos, quat]`` in simulation world frame.
 
@@ -646,7 +698,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names=POSE6_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.FRAME_TWIST, axes=[Axis(AxisKind.SYSTEM), TWIST_COMPONENT_AXIS])
     def root_link_vel_w(self) -> ProxyArray:
         """Root link velocity ``[lin_vel, ang_vel]`` in simulation world frame.
 
@@ -659,7 +711,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names=POSE7_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSE, axes=[Axis(AxisKind.SYSTEM), POSE7_COMPONENT_AXIS])
     def root_com_pose_w(self) -> ProxyArray:
         """Root center of mass pose ``[pos, quat]`` in simulation world frame.
 
@@ -672,7 +724,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names=POSE6_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.FRAME_TWIST, axes=[Axis(AxisKind.SYSTEM), TWIST_COMPONENT_AXIS])
     def root_com_vel_w(self) -> ProxyArray:
         """Root center of mass velocity ``[lin_vel, ang_vel]`` in simulation world frame.
 
@@ -722,16 +774,20 @@ class BaseArticulationData(ABC):
     @abstractmethod
     @leapp_tensor_semantics(const=True)
     def body_inertia(self) -> ProxyArray:
-        """Flattened body inertia in the world frame.
+        """Flattened body inertia about each body's center of mass, expressed in the body link frame.
 
         Shape is (num_instances, num_bodies, 9), dtype = wp.float32. In torch this resolves to
         (num_instances, num_bodies, 9).
+
+        All backends express the tensors in the body link frame, so they can be non-diagonal. To express the
+        inertia in world coordinates, reshape each tensor to (3, 3) and compute ``R @ I @ R.transpose(-1, -2)``,
+        where ``R`` is the rotation matrix from :attr:`body_link_quat_w`.
         """
         raise NotImplementedError
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names_resolver=body_pose_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSE, axes_resolver=body_pose_axes_resolver)
     def body_link_pose_w(self) -> ProxyArray:
         """Body link pose ``[pos, quat]`` in simulation world frame.
 
@@ -745,7 +801,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names_resolver=body_pose6_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_TWIST, axes_resolver=body_twist_axes_resolver)
     def body_link_vel_w(self) -> ProxyArray:
         """Body link velocity ``[lin_vel, ang_vel]`` in simulation world frame.
 
@@ -759,7 +815,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names_resolver=body_pose_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSE, axes_resolver=body_pose_axes_resolver)
     def body_com_pose_w(self) -> ProxyArray:
         """Body center of mass pose ``[pos, quat]`` in simulation world frame.
 
@@ -773,7 +829,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names_resolver=body_pose6_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_TWIST, axes_resolver=body_twist_axes_resolver)
     def body_com_vel_w(self) -> ProxyArray:
         """Body center of mass velocity ``[lin_vel, ang_vel]`` in simulation world frame.
 
@@ -808,7 +864,25 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ACC, element_names_resolver=body_pose6_resolver)
+    @leapp_tensor_semantics(kind="state/body/wrench")
+    def body_joint_wrench(self) -> ProxyArray:
+        """Incoming joint reaction wrench ``[force, torque]`` for each body.
+
+        Shape is (num_instances, num_bodies), dtype = ``wp.spatial_vectorf``. In torch this
+        resolves to (num_instances, num_bodies, 6). Entries follow :attr:`body_names`.
+        Force [N] and torque [N*m] are expressed in the child-side joint frame, with torque
+        referenced at the child-side joint anchor. This is not the applied actuator effort.
+
+        Newton requires :attr:`ArticulationCfg.enable_joint_wrench` before simulation startup.
+        Its free and world-fixed root entries are zero; loop-closing constraints are excluded.
+        PhysX and OVPhysX include the backend's root reaction. Values describe the last physics
+        step, so step the simulation after resetting or writing state before reading them.
+        """
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    @leapp_tensor_semantics(kind=Kind.FRAME_ACCELERATION, axes_resolver=body_pose6_axes_resolver)
     def body_com_acc_w(self) -> ProxyArray:
         """Acceleration of all bodies center of mass ``[lin_acc, ang_acc]``.
 
@@ -821,7 +895,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names_resolver=body_pose_resolver)
+    @leapp_tensor_semantics(kind="state/body/com_pose_b", axes_resolver=body_pose_axes_resolver)
     def body_com_pose_b(self) -> ProxyArray:
         """Center of mass pose ``[pos, quat]`` of all bodies in their respective body's link frames.
 
@@ -838,6 +912,7 @@ class BaseArticulationData(ABC):
     ##
 
     @property
+    @leapp_tensor_semantics(kind="state/body/link_jacobian")
     def body_link_jacobian_w(self) -> ProxyArray:
         """Per-body geometric Jacobian referenced at each body's link origin in world frame.
 
@@ -866,6 +941,7 @@ class BaseArticulationData(ABC):
         raise NotImplementedError(f"{type(self).__name__} does not implement body_link_jacobian_w.")
 
     @property
+    @leapp_tensor_semantics(kind="state/body/com_jacobian")
     def body_com_jacobian_w(self) -> ProxyArray:
         """Per-body geometric Jacobian referenced at each body's center of mass in world frame.
 
@@ -884,6 +960,7 @@ class BaseArticulationData(ABC):
         raise NotImplementedError(f"{type(self).__name__} does not implement body_com_jacobian_w.")
 
     @property
+    @leapp_tensor_semantics(kind="state/joint/mass_matrix")
     def mass_matrix(self) -> ProxyArray:
         """Per-env generalized mass matrix ``M(q)`` in joint space.
 
@@ -894,10 +971,15 @@ class BaseArticulationData(ABC):
         ``M(q)`` is symmetric positive-definite. ``M[i, j]`` is the coefficient
         relating DoF ``j``'s acceleration to the inertial torque on DoF ``i`` in
         ``M(q) q_ddot + C(q, q_dot) q_dot + g(q) = tau``.
+
+        The joint armature (:attr:`joint_armature`) is included on the diagonal of the
+        joint DoFs, so ``M(q)`` is the joint-space inertia the solver integrates. The
+        floating-base DoFs carry no armature.
         """
         raise NotImplementedError(f"{type(self).__name__} does not implement mass_matrix.")
 
     @property
+    @leapp_tensor_semantics(kind="state/joint/gravity_compensation")
     def gravity_compensation_forces(self) -> ProxyArray:
         """Per-env gravity compensation torques ``g(q)`` in joint space.
 
@@ -918,7 +1000,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.JOINT_POSITION, element_names_resolver=joint_names_resolver)
+    @leapp_tensor_semantics(kind=Kind.JOINT_POSITION, axes_resolver=joint_axes_resolver)
     def joint_pos(self) -> ProxyArray:
         """Joint positions of all joints.
 
@@ -929,7 +1011,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.JOINT_VELOCITY, element_names_resolver=joint_names_resolver)
+    @leapp_tensor_semantics(kind=Kind.JOINT_VELOCITY, axes_resolver=joint_axes_resolver)
     def joint_vel(self) -> ProxyArray:
         """Joint velocities of all joints.
 
@@ -940,7 +1022,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind="state/joint/acceleration", element_names_resolver=joint_names_resolver)
+    @leapp_tensor_semantics(kind="state/joint/acceleration", axes_resolver=joint_axes_resolver)
     def joint_acc(self) -> ProxyArray:
         """Joint acceleration of all joints.
 
@@ -955,7 +1037,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.VECTOR3D, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.VECTOR3D, axes=[Axis(AxisKind.SYSTEM), XYZ_COMPONENT_AXIS])
     def projected_gravity_b(self) -> ProxyArray:
         """Projection of the gravity direction on base frame.
 
@@ -979,7 +1061,11 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(
+        kind=Kind.FRAME_LINEAR_VELOCITY,
+        axes=[Axis(AxisKind.SYSTEM), LINEAR_VELOCITY_COMPONENT_AXIS],
+        expressed_in=ExpressionFrame.SELF,
+    )
     def root_link_lin_vel_b(self) -> ProxyArray:
         """Root link linear velocity in base frame.
 
@@ -992,7 +1078,11 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(
+        kind=Kind.FRAME_ANGULAR_VELOCITY,
+        axes=[Axis(AxisKind.SYSTEM), ANGULAR_VELOCITY_COMPONENT_AXIS],
+        expressed_in=ExpressionFrame.SELF,
+    )
     def root_link_ang_vel_b(self) -> ProxyArray:
         """Root link angular velocity in base frame.
 
@@ -1005,7 +1095,11 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(
+        kind=Kind.FRAME_LINEAR_VELOCITY,
+        axes=[Axis(AxisKind.SYSTEM), LINEAR_VELOCITY_COMPONENT_AXIS],
+        expressed_in=ExpressionFrame.SELF,
+    )
     def root_com_lin_vel_b(self) -> ProxyArray:
         """Root center of mass linear velocity in base frame.
 
@@ -1018,7 +1112,11 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(
+        kind=Kind.FRAME_ANGULAR_VELOCITY,
+        axes=[Axis(AxisKind.SYSTEM), ANGULAR_VELOCITY_COMPONENT_AXIS],
+        expressed_in=ExpressionFrame.SELF,
+    )
     def root_com_ang_vel_b(self) -> ProxyArray:
         """Root center of mass angular velocity in base frame.
 
@@ -1035,7 +1133,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSITION, axes=[Axis(AxisKind.SYSTEM), XYZ_COMPONENT_AXIS])
     def root_link_pos_w(self) -> ProxyArray:
         """Root link position in simulation world frame.
 
@@ -1047,7 +1145,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names=QUAT_XYZW_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.FRAME_ORIENTATION, axes=[Axis(AxisKind.SYSTEM), QUAT_XYZW_COMPONENT_AXIS])
     def root_link_quat_w(self) -> ProxyArray:
         """Root link orientation (x, y, z, w) in simulation world frame.
 
@@ -1059,7 +1157,9 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(
+        kind=Kind.FRAME_LINEAR_VELOCITY, axes=[Axis(AxisKind.SYSTEM), LINEAR_VELOCITY_COMPONENT_AXIS]
+    )
     def root_link_lin_vel_w(self) -> ProxyArray:
         """Root linear velocity in simulation world frame.
 
@@ -1071,7 +1171,9 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(
+        kind=Kind.FRAME_ANGULAR_VELOCITY, axes=[Axis(AxisKind.SYSTEM), ANGULAR_VELOCITY_COMPONENT_AXIS]
+    )
     def root_link_ang_vel_w(self) -> ProxyArray:
         """Root link angular velocity in simulation world frame.
 
@@ -1083,7 +1185,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSITION, axes=[Axis(AxisKind.SYSTEM), XYZ_COMPONENT_AXIS])
     def root_com_pos_w(self) -> ProxyArray:
         """Root center of mass position in simulation world frame.
 
@@ -1095,7 +1197,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names=QUAT_XYZW_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.FRAME_ORIENTATION, axes=[Axis(AxisKind.SYSTEM), QUAT_XYZW_COMPONENT_AXIS])
     def root_com_quat_w(self) -> ProxyArray:
         """Root center of mass orientation (x, y, z, w) in simulation world frame.
 
@@ -1107,7 +1209,9 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(
+        kind=Kind.FRAME_LINEAR_VELOCITY, axes=[Axis(AxisKind.SYSTEM), LINEAR_VELOCITY_COMPONENT_AXIS]
+    )
     def root_com_lin_vel_w(self) -> ProxyArray:
         """Root center of mass linear velocity in simulation world frame.
 
@@ -1119,7 +1223,9 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(
+        kind=Kind.FRAME_ANGULAR_VELOCITY, axes=[Axis(AxisKind.SYSTEM), ANGULAR_VELOCITY_COMPONENT_AXIS]
+    )
     def root_com_ang_vel_w(self) -> ProxyArray:
         """Root center of mass angular velocity in simulation world frame.
 
@@ -1131,7 +1237,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names_resolver=body_xyz_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSITION, axes_resolver=body_xyz_axes_resolver)
     def body_link_pos_w(self) -> ProxyArray:
         """Positions of all bodies in simulation world frame.
 
@@ -1144,7 +1250,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names_resolver=body_quat_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_ORIENTATION, axes_resolver=body_quat_axes_resolver)
     def body_link_quat_w(self) -> ProxyArray:
         """Orientation (x, y, z, w) of all bodies in simulation world frame.
 
@@ -1157,7 +1263,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names_resolver=body_xyz_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_LINEAR_VELOCITY, axes_resolver=body_linear_velocity_axes_resolver)
     def body_link_lin_vel_w(self) -> ProxyArray:
         """Linear velocity of all bodies in simulation world frame.
 
@@ -1170,7 +1276,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names_resolver=body_xyz_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_ANGULAR_VELOCITY, axes_resolver=body_angular_velocity_axes_resolver)
     def body_link_ang_vel_w(self) -> ProxyArray:
         """Angular velocity of all bodies in simulation world frame.
 
@@ -1183,7 +1289,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names_resolver=body_xyz_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSITION, axes_resolver=body_xyz_axes_resolver)
     def body_com_pos_w(self) -> ProxyArray:
         """Positions of all bodies in simulation world frame.
 
@@ -1196,7 +1302,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names_resolver=body_quat_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_ORIENTATION, axes_resolver=body_quat_axes_resolver)
     def body_com_quat_w(self) -> ProxyArray:
         """Orientation (x, y, z, w) of the principal axes of inertia of all bodies in simulation world frame.
 
@@ -1209,7 +1315,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names_resolver=body_xyz_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_LINEAR_VELOCITY, axes_resolver=body_linear_velocity_axes_resolver)
     def body_com_lin_vel_w(self) -> ProxyArray:
         """Linear velocity of all bodies in simulation world frame.
 
@@ -1222,7 +1328,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names_resolver=body_xyz_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_ANGULAR_VELOCITY, axes_resolver=body_angular_velocity_axes_resolver)
     def body_com_ang_vel_w(self) -> ProxyArray:
         """Angular velocity of all bodies in simulation world frame.
 
@@ -1235,7 +1341,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_ACCELERATION, element_names_resolver=body_xyz_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_LINEAR_ACCELERATION, axes_resolver=body_xyz_axes_resolver)
     def body_com_lin_acc_w(self) -> ProxyArray:
         """Linear acceleration of all bodies in simulation world frame.
 
@@ -1248,7 +1354,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_ACCELERATION, element_names_resolver=body_xyz_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_ANGULAR_ACCELERATION, axes_resolver=body_xyz_axes_resolver)
     def body_com_ang_acc_w(self) -> ProxyArray:
         """Angular acceleration of all bodies in simulation world frame.
 
@@ -1261,7 +1367,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names_resolver=body_xyz_resolver)
+    @leapp_tensor_semantics(kind="state/body/com_position_b", axes_resolver=body_xyz_axes_resolver)
     def body_com_pos_b(self) -> ProxyArray:
         """Center of mass position of all of the bodies in their respective link frames.
 
@@ -1274,7 +1380,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names_resolver=body_quat_resolver)
+    @leapp_tensor_semantics(kind="state/body/com_orientation_b", axes_resolver=body_quat_axes_resolver)
     def body_com_quat_b(self) -> ProxyArray:
         """Orientation (x, y, z, w) of the principal axes of inertia of all of the bodies in their respective link
         frames.
@@ -1312,115 +1418,127 @@ class BaseArticulationData(ABC):
     """
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names=POSE7_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSE, axes=[Axis(AxisKind.SYSTEM), POSE7_COMPONENT_AXIS])
     def root_pose_w(self) -> ProxyArray:
         """Shorthand for :attr:`root_link_pose_w`."""
         return self.root_link_pose_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSITION, axes=[Axis(AxisKind.SYSTEM), XYZ_COMPONENT_AXIS])
     def root_pos_w(self) -> ProxyArray:
         """Shorthand for :attr:`root_link_pos_w`."""
         return self.root_link_pos_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names=QUAT_XYZW_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.FRAME_ORIENTATION, axes=[Axis(AxisKind.SYSTEM), QUAT_XYZW_COMPONENT_AXIS])
     def root_quat_w(self) -> ProxyArray:
         """Shorthand for :attr:`root_link_quat_w`."""
         return self.root_link_quat_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names=POSE6_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=Kind.FRAME_TWIST, axes=[Axis(AxisKind.SYSTEM), TWIST_COMPONENT_AXIS])
     def root_vel_w(self) -> ProxyArray:
         """Shorthand for :attr:`root_com_vel_w`."""
         return self.root_com_vel_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(
+        kind=Kind.FRAME_LINEAR_VELOCITY, axes=[Axis(AxisKind.SYSTEM), LINEAR_VELOCITY_COMPONENT_AXIS]
+    )
     def root_lin_vel_w(self) -> ProxyArray:
         """Shorthand for :attr:`root_com_lin_vel_w`."""
         return self.root_com_lin_vel_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(
+        kind=Kind.FRAME_ANGULAR_VELOCITY, axes=[Axis(AxisKind.SYSTEM), ANGULAR_VELOCITY_COMPONENT_AXIS]
+    )
     def root_ang_vel_w(self) -> ProxyArray:
         """Shorthand for :attr:`root_com_ang_vel_w`."""
         return self.root_com_ang_vel_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(
+        kind=Kind.FRAME_LINEAR_VELOCITY,
+        axes=[Axis(AxisKind.SYSTEM), LINEAR_VELOCITY_COMPONENT_AXIS],
+        expressed_in=ExpressionFrame.SELF,
+    )
     def root_lin_vel_b(self) -> ProxyArray:
         """Shorthand for :attr:`root_com_lin_vel_b`."""
         return self.root_com_lin_vel_b
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names=XYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(
+        kind=Kind.FRAME_ANGULAR_VELOCITY,
+        axes=[Axis(AxisKind.SYSTEM), ANGULAR_VELOCITY_COMPONENT_AXIS],
+        expressed_in=ExpressionFrame.SELF,
+    )
     def root_ang_vel_b(self) -> ProxyArray:
         """Shorthand for :attr:`root_com_ang_vel_b`."""
         return self.root_com_ang_vel_b
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names_resolver=body_pose_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSE, axes_resolver=body_pose_axes_resolver)
     def body_pose_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_link_pose_w`."""
         return self.body_link_pose_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names_resolver=body_xyz_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_POSITION, axes_resolver=body_xyz_axes_resolver)
     def body_pos_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_link_pos_w`."""
         return self.body_link_pos_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names_resolver=body_quat_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_ORIENTATION, axes_resolver=body_quat_axes_resolver)
     def body_quat_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_link_quat_w`."""
         return self.body_link_quat_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names_resolver=body_pose6_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_TWIST, axes_resolver=body_twist_axes_resolver)
     def body_vel_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_vel_w`."""
         return self.body_com_vel_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names_resolver=body_xyz_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_LINEAR_VELOCITY, axes_resolver=body_linear_velocity_axes_resolver)
     def body_lin_vel_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_lin_vel_w`."""
         return self.body_com_lin_vel_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names_resolver=body_xyz_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_ANGULAR_VELOCITY, axes_resolver=body_angular_velocity_axes_resolver)
     def body_ang_vel_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_ang_vel_w`."""
         return self.body_com_ang_vel_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ACC, element_names_resolver=body_pose6_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_ACCELERATION, axes_resolver=body_pose6_axes_resolver)
     def body_acc_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_acc_w`."""
         return self.body_com_acc_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_ACCELERATION, element_names_resolver=body_xyz_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_LINEAR_ACCELERATION, axes_resolver=body_xyz_axes_resolver)
     def body_lin_acc_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_lin_acc_w`."""
         return self.body_com_lin_acc_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_ACCELERATION, element_names_resolver=body_xyz_resolver)
+    @leapp_tensor_semantics(kind=Kind.FRAME_ANGULAR_ACCELERATION, axes_resolver=body_xyz_axes_resolver)
     def body_ang_acc_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_ang_acc_w`."""
         return self.body_com_ang_acc_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names_resolver=body_xyz_resolver)
+    @leapp_tensor_semantics(kind="state/body/com_position_b", axes_resolver=body_xyz_axes_resolver)
     def com_pos_b(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_pos_b`."""
         return self.body_com_pos_b
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names_resolver=body_quat_resolver)
+    @leapp_tensor_semantics(kind="state/body/com_orientation_b", axes_resolver=body_quat_axes_resolver)
     def com_quat_b(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_quat_b`."""
         return self.body_com_quat_b

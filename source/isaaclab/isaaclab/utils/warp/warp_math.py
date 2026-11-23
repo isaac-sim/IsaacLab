@@ -95,29 +95,17 @@ def convert_camera_frame_orientation_convention_wp(
             ``dst`` to write. If ``None`` all N elements are written sequentially.
         device: Warp device string. Defaults to ``src.device``.
     """
+    dev = device or src.device
     if origin == target:
         if indices is None:
             wp.copy(dst, src)
-        else:
-            # scatter copy: dst[indices[i]] = src[i]
-            wp.launch(
-                _convert_camera_orientation_indexed_kernel,
-                dim=indices.shape[0],
-                inputs=[src, dst, indices, wp.quatf(0.0, 0.0, 0.0, 1.0)],
-                device=device or src.device,
-            )
-        return
-
-    q_const = _CAMERA_ORIENTATION_CONST[(origin, target)]
-    dev = device or src.device
+            return
+        q_const = wp.quat_identity()
+    else:
+        q_const = _CAMERA_ORIENTATION_CONST[(origin, target)]
 
     if indices is None:
-        wp.launch(
-            _convert_camera_orientation_all_kernel,
-            dim=src.shape[0],
-            inputs=[src, dst, q_const],
-            device=dev,
-        )
+        wp.launch(_convert_camera_orientation_all_kernel, dim=src.shape[0], inputs=[src, dst, q_const], device=dev)
     else:
         wp.launch(
             _convert_camera_orientation_indexed_kernel,

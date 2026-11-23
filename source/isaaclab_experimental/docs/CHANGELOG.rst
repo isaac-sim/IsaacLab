@@ -1,6 +1,239 @@
 Changelog
 ---------
 
+.. towncrier release notes start
+
+3.1.0 (2026-11-19)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :mod:`isaaclab_experimental.mdp2`, an experimental MDP that compiles declarative task configs into an
+  immutable :class:`~isaaclab_experimental.mdp2.MDP` with :class:`~isaaclab_experimental.mdp2.MDPBuilder`, and runs
+  it through the functional :func:`~isaaclab_experimental.mdp2.startup`,
+  :func:`~isaaclab_experimental.mdp2.apply_actions`, :func:`~isaaclab_experimental.mdp2.evaluate`,
+  :func:`~isaaclab_experimental.mdp2.reset`, and :func:`~isaaclab_experimental.mdp2.observe`. A
+  :class:`~isaaclab_experimental.mdp2.TaskCfg` binds terms to scene fields and to the MDP's own fields
+  (:attr:`~isaaclab_experimental.mdp2.commands`, :attr:`~isaaclab_experimental.mdp2.quantities`,
+  :attr:`~isaaclab_experimental.mdp2.last_action`, :func:`~isaaclab_experimental.mdp2.term_state`) as actions,
+  observations, rewards, terminations, commands, startup, reset, and interval events, and
+  :class:`~isaaclab_experimental.mdp2.Quantity` uses that terms share. The builder can describe, validate, and
+  reorder the schedule within each phase, and reports every error at once.
+* Added term backends: batched Torch hooks, and Warp hooks that are either ``wp.func`` s for one world, fused into a
+  few generated kernels per runtime function, or functions that launch kernels themselves. A Warp MDP runs the Torch
+  hooks of terms without Warp ones between its kernels. Terms may keep per-world or shared
+  :class:`~isaaclab_experimental.mdp2.State`, filled once by an ``init`` hook and optionally persistent across
+  episodes, and random terms draw from per-world streams that are bitwise identical on both backends. Python hooks
+  may take scene entities bound as inputs, such as ``inputs={"robot": robot}``, to call their methods, and keep host
+  objects in ``cache``; terms with ``capturable=False`` run on the host between the CUDA graphs.
+* Added :meth:`~isaaclab_experimental.mdp2.MDPBuilder.replicate`, and task lists in
+  :class:`~isaaclab_experimental.envs.MDP2EnvCfg` with ``task_worlds``, to run different task configs in different
+  worlds of one scene. Uses the configs share run once, the others only in their worlds, reward weights are per
+  world, uses that the configs define differently share their state, and actions and observations are padded to the
+  widest config.
+* Added :class:`~isaaclab_experimental.envs.MDP2Env` and :class:`~isaaclab_experimental.envs.MDP2RLEnv`, which run an
+  MDP2 task on a Newton interactive scene with the Gym interface of the manager-based environments. Resets are masks
+  over the worlds, so every step after the first replays as CUDA graphs, physics included, on both backends: one
+  graph, or graphs around the work that cannot be captured. A step is the list ``step`` of built-in work
+  (:class:`~isaaclab_experimental.envs.Step`, and :class:`~isaaclab_experimental.envs.ResetStep` for resets), into
+  which :class:`~isaaclab_experimental.envs.Stage` s insert user work anywhere, and ``verify_capture`` checks that captured steps compute what uncaptured ones do.
+  Reset events write scene fields in place, including fixed-base root poses and gravity, and the scene commits them
+  before an event that reads derived fields, such as body poses, or that takes an entity they wrote. A
+  commit tells the solver which worlds changed where a field is its own state, and passes the writes through the
+  assets' ``write_*_to_sim_mask`` methods otherwise, such as for ball joints and joint velocities, whose writers keep
+  joint accelerations right. Fields that the simulation computes are
+  read-only.
+  ``extras["log"]`` holds per-term episode statistics and logged quantities, and with ``compute_final_obs``,
+  ``extras["final_obs"]`` holds the observations of the worlds that ended before their reset, which the generated
+  kernels write as they observe. A world that terminates is not truncated. Articulations must have implicit, ideal
+  PD, or DC motor actuators, whose resets can be replayed in CUDA graphs. ``MDP2RLEnvCfg.play_mode`` caps the worlds and
+  removes observation noise for the play scripts, as MDP1 does.
+* Added :mod:`isaaclab_experimental.mdp2.mdp`, built-in terms with the names of their MDP1 counterparts: joint, root,
+  and command observations with noise, clipping, scaling, and history; velocity tracking, regularization, contact,
+  and air-time rewards; terminations; velocity, heading, and pose commands; joint and root reset and push events;
+  startup randomization of mass, center of mass, inertia, material, actuator gains, and joint parameters; and the
+  :data:`~isaaclab_experimental.mdp2.mdp.difficulty_scheduler` curriculum.
+
+Changed
+^^^^^^^
+
+* Changed ``isaaclab_experimental`` to depend on ``isaaclab_newton``, which
+  :class:`~isaaclab_experimental.envs.MDP2Env` uses to capture its steps as CUDA graphs.
+
+
+3.0.0 (2026-11-11)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Removed ``InteractiveSceneWarp``. :class:`~isaaclab.scene.InteractiveScene` now resets every asset
+  and sensor from ``env_mask``; the Warp environments use it directly.
+
+
+2.0.0 (2026-11-03)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Removed the implicit observation computation before Warp RL post-step recorder callbacks.
+  Capture runs before automatic reset. Custom terms needing observations must request them explicitly
+  from the observation manager; ``env.obs_buf`` is no longer refreshed for recorder dispatch.
+
+
+1.0.0 (2026-10-29)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Reused core Warp mask resolution and selected memory writes in environment and joint-action paths.
+* **Breaking:** Import ``resolve_1d_mask`` from ``isaaclab.utils.warp.memory``; the experimental re-export has been removed.
+
+
+0.3.1 (2026-10-28)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the Warp observation manager to skip the group-level
+  :attr:`~isaaclab.managers.ObservationGroupCfg.history_newest_first` setting when parsing observation terms,
+  matching the stable observation manager.
+
+
+0.3.0 (2026-10-27)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Reused core Warp mathematics in observation, reward, and termination terms instead of importing solver-owned equations.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated ``ObservationTermCfg.modifiers`` in favor of ``ObservationTermCfg.tensor_processors``.
+  Retained the legacy field with a targeted warning and forwarding during manager initialization.
+  Setting both fields now raises ``ValueError`` to prevent silently overriding either pipeline.
+* Deprecated ``isaaclab_experimental.utils.modifiers``, ``ModifierBase``, and ``ModifierCfg`` in favor of
+  ``isaaclab_experimental.utils.tensor_processors``, ``TensorProcessor``, and ``TensorProcessorCfg``.
+  Preserved legacy imports and serialized callable paths with an import-time deprecation warning.
+
+
+0.2.7 (2026-10-10)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Warp observation manager initialization failing on the group-level ``history_order`` setting.
+
+
+0.2.6 (2026-10-03)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed ``[INFO]`` messages printed by the Warp environments and the manager call switch to
+  ``logger.info``.
+
+
+0.2.5 (2026-10-01)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Used resolved callable defaults when constructing manager terms instead of duplicating defaults in constructors.
+
+
+0.2.4 (2026-09-30)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added the Warp implementation of ``base_height_l2``, restoring Warp frontend support for
+  Unitree Go2 tasks with the base-height reward enabled.
+
+
+0.2.3 (2026-09-28)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Used the shared indexed fill operation for environment and circular-buffer resets.
+* Changed ``seed()`` of the Warp environments to no longer seed Replicator; the Replicator event terms seed it
+  with ``env.cfg.seed``.
+* Changed ``render()`` with ``render_mode="rgb_array"`` in the Warp environments to warn and return ``None``,
+  matching the core environments. Use ``VideoRecorderCfg`` on ``env_cfg.video_recorders`` to capture frames.
+
+
+0.2.2 (2026-09-20)
+~~~~~~~~~~~~~~~~~~
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated the Warp-specific IO descriptor APIs. They remain available for
+  compatibility and will be removed in Isaac Lab 3.2. LEAPP is the recommended
+  alternative for supported RSL-RL/PyTorch deployments but does not currently
+  replace Warp-first descriptor export.
+
+
+0.2.1 (2026-08-14)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the Warp-frontend ``ActionTerm``, ``CommandTerm`` and ``DirectRLEnvWarp`` debug
+  visualization toggles to register their callbacks through the simulation context's visualization
+  marker registry instead of the deprecated Kit ``IApp.get_post_update_event_stream`` API, matching
+  their non-experimental counterparts.
+
+Fixed
+^^^^^
+
+* Fixed debug visualization failing in kitless mode. Enabling it raised
+  ``ModuleNotFoundError: No module named 'omni.kit'`` because ``omni.kit.app`` was imported inside
+  the toggle. The registry path has no Kit dependency.
+
+* Fixed ``CommandTerm.set_debug_vis`` raising ``AttributeError`` whenever a command term
+  implemented debug visualization. It guarded on ``SimulationContext.has_omniverse_visualizer()``,
+  which does not exist, so the call failed before any callback was registered.
+
+
+0.2.0 (2026-08-13)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added Warp MDP twins for :class:`~isaaclab.envs.mdp.is_terminated_term` and
+  :func:`~isaaclab.envs.mdp.pose_command_success`, so ``Isaac-Reach-Franka`` and
+  ``Isaac-Reach-UR10`` run under ``--frontend warp``.
+* Added :meth:`~isaaclab_experimental.envs.frontend.WarpFrontend.check_compatibility`, which
+  reports why an environment configuration cannot run on the Warp frontend instead of raising,
+  so several configurations can be surveyed in one pass.
+* Added :attr:`~isaaclab_experimental.managers.TerminationManager.term_dones_wp`, exposing the
+  per-term done buffer to reward terms that aggregate a subset of termination terms.
+
+Fixed
+^^^^^
+
+* Fixed the Warp :func:`~isaaclab_experimental.envs.mdp.pose_command_success` twin disagreeing
+  with the stable term's orientation error for non-unit quaternions, by computing the angle as
+  ``2*atan2(|xyz|, |w|)`` instead of ``2*acos(|w|)``. Both arguments scale with the quaternion,
+  so the angle is now norm-invariant and environments near the configured
+  ``orientation_success_threshold`` are classified the same way as on the stable path.
+
+
 0.1.5 (2026-07-29)
 ~~~~~~~~~~~~~~~~~~
 

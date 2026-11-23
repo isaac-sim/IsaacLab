@@ -34,22 +34,27 @@ class reset_when_gear_dropped(ManagerTermBase):
         """Initialize the reset when gear dropped term.
 
         Args:
-            cfg: Termination term configuration
+            cfg: Termination term configuration. Its params must provide robot_asset_cfg,
+                gear_offsets_grasp, end_effector_body_name, and grasp_rot_offset, which
+                are cached for subsequent calls. gear_offsets_grasp maps gear_small,
+                gear_medium, and gear_large to local grasp offsets [x, y, z] [m]. These
+                offsets are rotated by the gear orientation composed with the xyzw
+                quaternion grasp_rot_offset. end_effector_body_name selects the robot body.
             env: Environment instance
         """
         super().__init__(cfg, env)
 
         # Get robot asset configuration
-        self.robot_asset_cfg: SceneEntityCfg = cfg.params.get("robot_asset_cfg", SceneEntityCfg("robot"))
+        self.robot_asset_cfg: SceneEntityCfg = cfg.params["robot_asset_cfg"]
         self.robot_asset: Articulation = env.scene[self.robot_asset_cfg.name]
 
         # Validate required parameters
-        if "end_effector_body_name" not in cfg.params:
+        if cfg.params["end_effector_body_name"] is None:
             raise ValueError(
                 "'end_effector_body_name' parameter is required in reset_when_gear_dropped configuration. "
                 "Example: 'wrist_3_link'"
             )
-        if "grasp_rot_offset" not in cfg.params:
+        if cfg.params["grasp_rot_offset"] is None:
             raise ValueError(
                 "'grasp_rot_offset' parameter is required in reset_when_gear_dropped configuration. "
                 "It should be a quaternion [x, y, z, w]. Example: [0.707, 0.707, 0.0, 0.0]"
@@ -58,7 +63,7 @@ class reset_when_gear_dropped(ManagerTermBase):
         self.end_effector_body_name = cfg.params["end_effector_body_name"]
 
         # Pre-cache gear grasp offsets as tensors (required parameter)
-        if "gear_offsets_grasp" not in cfg.params:
+        if cfg.params["gear_offsets_grasp"] is None:
             raise ValueError(
                 "'gear_offsets_grasp' parameter is required in reset_when_gear_dropped configuration. "
                 "It should be a dict with keys 'gear_small', 'gear_medium', 'gear_large' mapping to [x, y, z] offsets."
@@ -139,6 +144,12 @@ class reset_when_gear_dropped(ManagerTermBase):
             env: Environment instance
             distance_threshold: Maximum allowed distance between gear grasp point and gripper
             robot_asset_cfg: Configuration for the robot asset (unused, kept for compatibility)
+            gear_offsets_grasp: Unused call argument, default None. The required gear
+                grasp offsets [m] are cached from cfg.params at initialization.
+            end_effector_body_name: Unused call argument, default None. The required
+                end-effector body name is cached from cfg.params at initialization.
+            grasp_rot_offset: Unused call argument, default None. The required xyzw
+                rotation offset is cached from cfg.params at initialization.
 
         Returns:
             Boolean tensor indicating which environments should be reset
@@ -204,22 +215,25 @@ class reset_when_gear_orientation_exceeds_threshold(ManagerTermBase):
         """Initialize the reset when gear orientation exceeds threshold term.
 
         Args:
-            cfg: Termination term configuration
+            cfg: Termination term configuration. Its params must provide robot_asset_cfg,
+                end_effector_body_name, and grasp_rot_offset, which are cached for
+                subsequent calls. end_effector_body_name selects the robot body;
+                grasp_rot_offset is an xyzw quaternion composed with the gear orientation.
             env: Environment instance
         """
         super().__init__(cfg, env)
 
         # Get robot asset configuration
-        self.robot_asset_cfg: SceneEntityCfg = cfg.params.get("robot_asset_cfg", SceneEntityCfg("robot"))
+        self.robot_asset_cfg: SceneEntityCfg = cfg.params["robot_asset_cfg"]
         self.robot_asset: Articulation = env.scene[self.robot_asset_cfg.name]
 
         # Validate required parameters
-        if "end_effector_body_name" not in cfg.params:
+        if cfg.params["end_effector_body_name"] is None:
             raise ValueError(
                 "'end_effector_body_name' parameter is required in reset_when_gear_orientation_exceeds_threshold"
                 " configuration. Example: 'wrist_3_link'"
             )
-        if "grasp_rot_offset" not in cfg.params:
+        if cfg.params["grasp_rot_offset"] is None:
             raise ValueError(
                 "'grasp_rot_offset' parameter is required in reset_when_gear_orientation_exceeds_threshold"
                 " configuration. It should be a quaternion [x, y, z, w]. Example: [0.707, 0.707, 0.0, 0.0]"
@@ -275,6 +289,10 @@ class reset_when_gear_orientation_exceeds_threshold(ManagerTermBase):
             pitch_threshold_deg: Maximum allowed pitch angle deviation in degrees
             yaw_threshold_deg: Maximum allowed yaw angle deviation in degrees
             robot_asset_cfg: Configuration for the robot asset (unused, kept for compatibility)
+            end_effector_body_name: Unused call argument, default None. The required
+                end-effector body name is cached from cfg.params at initialization.
+            grasp_rot_offset: Unused call argument, default None. The required xyzw
+                rotation offset is cached from cfg.params at initialization.
 
         Returns:
             Boolean tensor indicating which environments should be reset

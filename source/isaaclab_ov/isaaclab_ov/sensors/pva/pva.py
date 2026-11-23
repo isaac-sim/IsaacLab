@@ -1,0 +1,226 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+from __future__ import annotations
+
+import math
+from typing import TYPE_CHECKING, ClassVar
+
+import torch
+import warp as wp
+
+import isaaclab.utils.math as math_utils
+from isaaclab.sensors.pva import BasePva
+from isaaclab.sensors.pva.kernels import make_pva_update
+from isaaclab.sim.utils.queries import path_expr_to_glob
+
+import isaaclab_ov.tensor_types as TT
+from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
+
+from .pva_data import PvaData
+
+if TYPE_CHECKING:
+    from isaaclab.sensors.pva import PvaCfg
+
+
+class Pva(BasePva):
+    """The OVPhysX Pose Velocity Acceleration (PVA) sensor.
+
+    The sensor reports world-frame pose, body-frame linear and angular velocities,
+    body-frame linear and angular accelerations, and projected gravity. Unlike the
+    :class:`~isaaclab.sensors.imu.BaseImu` sensor, linear acceleration here is the
+    coordinate acceleration of the sensor frame (zero at rest, ``-g`` in freefall)
+    and does not include the gravity bias.
+
+    The sensor can be attached to any prim path with a rigid ancestor in its tree.
+    If the provided path is not a rigid body, the closest rigid-body ancestor is
+    used for simulation queries. The fixed transform from that ancestor to the
+    target prim is computed once during initialization and composed with the
+    configured sensor offset.
+
+    .. note::
+
+        Linear and angular accelerations are read from the solver and transported from the
+        body center of mass to the sensor frame. They are kinematic: unlike the IMU, the PVA
+        sensor applies no gravity bias.
+    """
+
+    cfg: PvaCfg
+    """The configuration parameters."""
+
+    __backend_name__: str = "ovphysx"
+    """The name of the backend for the PVA sensor."""
+
+    supported_data_types: ClassVar[frozenset[str]] = frozenset(
+        {"pose", "velocity", "acceleration", "projected_gravity"}
+    )
+
+    def __init__(self, cfg: PvaCfg):
+        """Initializes the PVA sensor.
+
+        Args:
+            cfg: The configuration parameters.
+        """
+        super().__init__(cfg)
+        self._data = PvaData(self.cfg.data_types)
+        self._update_kernel = make_pva_update(self._data.data_types)
+        self._rigid_parent_expr: str | None = None
+        self._root_view: OvPhysxView | None = None
+
+    def __str__(self) -> str:
+        """Returns: A string containing information about the instance."""
+        return (
+            f"Pva sensor @ '{self.cfg.prim_path}': \n"
+            f"\tbinding pattern   : {self._rigid_parent_expr}\n"
+            f"\tupdate period (s) : {self.cfg.update_period}\n"
+            f"\tnumber of sensors : {self._num_bodies}\n"
+        )
+
+    """
+    Properties
+    """
+
+    @property
+    def num_instances(self) -> int:
+        return self._num_bodies
+
+    """
+    Implementation.
+    """
+
+    def _initialize_impl(self):
+        """Initializes the sensor handles and internal buffers.
+
+        - If the target prim path is a rigid body, bind directly to it.
+        - Otherwise find the closest rigid-body ancestor, cache the fixed transform
+          from that ancestor to the target prim, and bind to the ancestor pattern.
+        """
+        super()._initialize_impl()
+
+        physx_instance = self._backend_manager.get_physx_instance()
+        if physx_instance is None:
+            raise RuntimeError("OvPhysxManager has not been initialized yet.")
+
+        self._rigid_parent_expr, fixed_pos_b, fixed_quat_b = self._resolve_rigid_body_ancestor_expr()
+
+        # Translate the regex-style path expression to an ovphysx fnmatch glob.
+        pattern = path_expr_to_glob(self._rigid_parent_expr)
+
+        self._root_view = OvPhysxView(physx_instance, pattern=pattern, device=self._device)
+        self._num_bodies = self._root_view.binding_for(TT.RIGID_BODY_POSE).count
+
+        self._check_env_count(self._num_bodies, pattern)
+
+        # PVA reports projected gravity as the unit direction vector (not the bias the IMU uses).
+        # The scene value can change at runtime, so it is refreshed on every update.
+        self._gravity_w: tuple[float, float, float] | None = None
+        self._gravity_vec_w = wp.vec3f(0.0, 0.0, -1.0)
+        self._refresh_gravity_vec()
+
+        self._initialize_buffers_impl()
+
+        # Compose the configured offset with the fixed ancestor->target transform (done once).
+        if fixed_pos_b is not None and fixed_quat_b is not None:
+            fixed_p = torch.tensor(fixed_pos_b, device=self._device).repeat(self._num_bodies, 1)
+            fixed_q = torch.tensor(fixed_quat_b, device=self._device).repeat(self._num_bodies, 1)
+
+            cfg_p = wp.to_torch(self._offset_pos_b).clone()
+            cfg_q = wp.to_torch(self._offset_quat_b).clone()
+
+            composed_p = fixed_p + math_utils.quat_apply(fixed_q, cfg_p)
+            composed_q = math_utils.quat_mul(fixed_q, cfg_q)
+
+            self._offset_pos_b = wp.from_torch(composed_p.contiguous(), dtype=wp.vec3f)
+            self._offset_quat_b = wp.from_torch(composed_q.contiguous(), dtype=wp.quatf)
+
+    def _invalidate_initialize_callback(self, event) -> None:
+        """Drop the OVPhysX view when physics stops."""
+        super()._invalidate_initialize_callback(event)
+        # Drop the view (and the bindings it caches) so a stale/destroyed handle is not held
+        # across the reset; ``_initialize_impl`` rebuilds a fresh view on the next play.
+        self._root_view = None
+
+    def _refresh_gravity_vec(self):
+        """Refresh the cached gravity buffer when the scene gravity changed.
+
+        Scene gravity is runtime-mutable (see
+        :func:`~isaaclab.envs.mdp.events.randomize_physics_scene_gravity`), so the buffer is
+        re-filled in place rather than reallocated: consumers (and any recorded launch) hold
+        the array pointer, and a fresh allocation would freeze the sensor on the old value.
+        """
+        if "projected_gravity" not in self._data.data_types:
+            return
+        gravity = self._backend_manager.get_gravity()
+        gravity = (float(gravity[0]), float(gravity[1]), float(gravity[2]))
+        if gravity == self._gravity_w:
+            return
+        self._gravity_w = gravity
+        # Mirrors ``math_utils.normalize``: the norm is clamped to eps, so zero scene gravity
+        # yields a zero direction instead of NaNs.
+        scale = 1.0 / max(math.sqrt(gravity[0] ** 2 + gravity[1] ** 2 + gravity[2] ** 2), 1.0e-9)
+        self._gravity_vec_w = wp.vec3f(gravity[0] * scale, gravity[1] * scale, gravity[2] * scale)
+
+    def _update_buffers_impl(self, env_mask: wp.array | None = None):
+        """Fills the buffers of the sensor data."""
+        env_mask = self._resolve_indices_and_mask(None, env_mask)
+        self._refresh_gravity_vec()
+
+        # ``OvPhysxView.read_into`` fills the structured-dtype buffer in place via a
+        # cached float32 reinterpret; no manual float32 alias is needed.
+        self._backend_manager.update_kinematics()
+        self._root_view.read_into(TT.RIGID_BODY_POSE, self._transforms)
+        if self._data.data_types & {"velocity", "acceleration"}:
+            self._root_view.read_into(TT.RIGID_BODY_VELOCITY, self._velocities)
+            # COM binding is CPU-resident; stage it only when transport needs a lever arm.
+            self._root_view.read_into(TT.RIGID_BODY_COM_POSE, self._coms_read_view)
+            if self._coms_read_view is not self._coms_buffer:
+                wp.copy(self._coms_buffer, self._coms_read_view)
+        if "acceleration" in self._data.data_types:
+            self._root_view.read_into(TT.RIGID_BODY_ACCELERATION, self._accelerations)
+
+        wp.launch(
+            self._update_kernel,
+            dim=self._num_envs,
+            inputs=[
+                env_mask,
+                self._transforms,
+                self._velocities,
+                self._accelerations,
+                self._coms_buffer,
+                self._offset_pos_b,
+                self._offset_quat_b,
+                self._gravity_vec_w,
+                self._data.pose_w.warp,
+                self._data._velocity_b,
+                self._data._acceleration_b,
+                self._data._gravity_b,
+            ],
+            device=self._device,
+        )
+
+    def _initialize_buffers_impl(self):
+        """Create buffers for storing data."""
+        self._data.create_buffers(num_envs=self._num_bodies, device=self._device)
+
+        self._offset_pos_b = wp.full(
+            self._num_envs, wp.vec3f(*self.cfg.offset.pos), dtype=wp.vec3f, device=self._device
+        )
+        self._offset_quat_b = wp.full(
+            self._num_envs, wp.quatf(*self.cfg.offset.rot), dtype=wp.quatf, device=self._device
+        )
+
+        # Structured-dtype buffers filled in place by :meth:`OvPhysxView.read_into`.
+        self._transforms = wp.zeros(self._num_bodies, dtype=wp.transformf, device=self._device)
+        self._velocities = self._accelerations = self._coms_buffer = self._coms_read_view = None
+        if self._data.data_types & {"velocity", "acceleration"}:
+            self._velocities = wp.zeros(self._num_bodies, dtype=wp.spatial_vectorf, device=self._device)
+            self._coms_buffer = wp.zeros(self._num_bodies, dtype=wp.transformf, device=self._device)
+            self._coms_read_view = (
+                self._coms_buffer
+                if self._device == "cpu"
+                else wp.zeros(self._num_bodies, dtype=wp.transformf, device="cpu", pinned=True)
+            )
+        if "acceleration" in self._data.data_types:
+            self._accelerations = wp.zeros(self._num_bodies, dtype=wp.spatial_vectorf, device=self._device)

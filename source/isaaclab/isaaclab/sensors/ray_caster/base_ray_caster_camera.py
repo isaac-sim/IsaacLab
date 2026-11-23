@@ -14,11 +14,10 @@ import warp as wp
 
 from pxr import UsdGeom
 
-import isaaclab.utils.math as math_utils
-from isaaclab.sensors.camera import CameraData
-from isaaclab.utils.warp import ProxyArray
-from isaaclab.utils.warp.kernels import raycast_mesh_masked_kernel
-
+from ...utils import math as math_utils
+from ...utils.warp import ProxyArray
+from ...utils.warp.kernels import raycast_mesh_masked_kernel
+from ..camera import CameraData
 from ..sensor_base import SensorBase
 from . import kernels as ray_caster_kernels
 from .base_ray_caster import BaseRayCaster
@@ -111,7 +110,7 @@ class BaseRayCasterCamera(BaseRayCaster):
         return (self.cfg.pattern_cfg.height, self.cfg.pattern_cfg.width)
 
     @property
-    def frame(self) -> torch.tensor:
+    def frame(self) -> torch.Tensor:
         """Frame number when the measurement took place."""
         return self._frame
 
@@ -151,6 +150,7 @@ class BaseRayCasterCamera(BaseRayCaster):
         env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
         # reset the timestamps
         SensorBase.reset(self, env_mask=env_mask)
+        self._invalidate_buffers(env_mask)
         # reset the data through the same Warp path used by updates.
         # note: this recomputation is useful if one performs events such as randomizations on the camera poses.
         self._update_ray_infos(env_mask)
@@ -175,6 +175,9 @@ class BaseRayCasterCamera(BaseRayCaster):
         See :meth:`isaaclab.utils.math.convert_camera_frame_orientation_convention` for more details
         on the conventions.
 
+        Call this method after simulation initialization, for example after resetting the simulation,
+        so the sensor's physics-ready callback has run.
+
         Args:
             positions: The cartesian coordinates (in meters). Shape is (N, 3).
                 Defaults to None, in which case the camera position in not changed.
@@ -182,9 +185,6 @@ class BaseRayCasterCamera(BaseRayCaster):
                 Defaults to None, in which case the camera orientation in not changed.
             env_ids: A sensor ids to manipulate. Defaults to None, which means all sensor indices.
             convention: The convention in which the poses are fed. Defaults to "ros".
-
-        Raises:
-            RuntimeError: If the camera prim is not set. Need to call :meth:`initialize` method first.
         """
         # resolve env_ids for compact source arrays and env mask for output refresh
         if env_ids is None or isinstance(env_ids, slice):
@@ -195,9 +195,7 @@ class BaseRayCasterCamera(BaseRayCaster):
         else:
             self._target_env_ids_torch = torch.as_tensor(env_ids, dtype=torch.int32, device=self._device).reshape(-1)
             env_ids_wp = wp.from_torch(self._target_env_ids_torch, dtype=wp.int32)
-            self._reset_mask.zero_()
-            self._reset_mask_torch[self._target_env_ids_torch.to(dtype=torch.long)] = True
-            env_mask = self._reset_mask
+            env_mask = self._resolve_indices_and_mask(env_ids_wp)
             count = self._target_env_ids_torch.numel()
             use_env_ids = True
 
@@ -252,14 +250,16 @@ class BaseRayCasterCamera(BaseRayCaster):
     ):
         """Set the poses of the camera from the eye position and look-at target position.
 
+        Call this method after simulation initialization, for example after resetting the simulation,
+        so the sensor's physics-ready callback has run.
+
         Args:
             eyes: The positions of the camera's eye. Shape is (N, 3).
             targets: The target locations to look at. Shape is (N, 3).
             env_ids: A sensor ids to manipulate. Defaults to None, which means all sensor indices.
 
         Raises:
-            RuntimeError: If the camera prim is not set. Need to call :meth:`initialize` method first.
-            NotImplementedError: If the stage up-axis is not "Y" or "Z".
+            ValueError: If the stage up-axis is not "Y" or "Z".
         """
         # get up axis of current stage
         up_axis = UsdGeom.GetStageUpAxis(self.stage)
@@ -365,13 +365,13 @@ class BaseRayCasterCamera(BaseRayCaster):
         self._update_ray_infos(env_mask)
 
         # Determine whether to compute normals.
-        need_normal = int("normals" in self.cfg.data_types)
+        need_normal = "normals" in self.cfg.data_types
 
         # Fill ray hit, distance, and optional normal buffers with inf before raycasting.
         wp.launch(
             ray_caster_kernels.fill_ray_hits_distance_inf_kernel,
             dim=(self._num_envs, self.num_rays),
-            inputs=[env_mask, bool(need_normal)],
+            inputs=[env_mask, need_normal],
             outputs=[self.ray_hits_w.warp, self._ray_distance_wp, self._ray_normal_w],
             device=self._device,
         )
@@ -388,7 +388,7 @@ class BaseRayCasterCamera(BaseRayCaster):
                 self._ray_directions_w,
                 float(ray_caster_kernels.CAMERA_RAYCAST_MAX_DIST),
                 int(True),  # return_distance: always needed for depth output
-                need_normal,
+                int(need_normal),
                 self.ray_hits_w.warp,
                 self._ray_distance_wp,
                 self._ray_normal_w,
@@ -434,7 +434,7 @@ class BaseRayCasterCamera(BaseRayCaster):
                 device=self._device,
             )
 
-        if "normals" in self.cfg.data_types:
+        if need_normal:
             wp.launch(
                 ray_caster_kernels.copy_vec3_2d_to_image3_masked_kernel,
                 dim=(self._num_envs, self.num_rays),
@@ -446,14 +446,12 @@ class BaseRayCasterCamera(BaseRayCaster):
         # Debug visualization can be toggled before ray buffers are initialized.
         if not hasattr(self, "ray_hits_w"):
             return
-        # filter out missed rays (inf values) before visualizing
-        ray_hits_flat = self.ray_hits_w.torch.reshape(-1, 3)
-        valid_mask = ~torch.isinf(ray_hits_flat).any(dim=-1)
-        viz_points = ray_hits_flat[valid_mask]
-        # if no valid hits, skip
-        if viz_points.shape[0] == 0:
-            return
-        self.ray_visualizer.visualize(viz_points)
+        self._update_outdated_buffers()
+        # drop missed rays (inf) before visualizing
+        viz_points = self.ray_hits_w.torch.reshape(-1, 3)
+        viz_points = viz_points[~torch.isinf(viz_points).any(dim=-1)]
+        if viz_points.shape[0] > 0:
+            self.ray_visualizer.visualize(viz_points)
 
     def _check_supported_data_types(self, cfg: RayCasterCameraCfg):
         """Checks if the data types are supported by the ray-caster camera."""

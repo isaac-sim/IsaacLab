@@ -7,40 +7,70 @@ from __future__ import annotations
 
 import importlib
 import logging
+import warnings
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from isaaclab.renderers.renderer_cfg import RendererCfg
+    from ..renderers.renderer_cfg import RendererCfg
+    from ..sim import SimulationContext
 
 logger = logging.getLogger(__name__)
+
+_BACKEND_PACKAGES = {"ovphysx": "isaaclab_ov", "physx": "isaaclab_isaacsim"}
+"""Packages hosting backends whose name is not ``isaaclab_<backend>``."""
+
+KIT_SELECTOR_REPLACEMENTS = {
+    "isaacsim_physx": "'ovphysx' or 'newton_mjwarp'",
+    "isaacsim_rtx": "'ovrtx' or 'newton_renderer'",
+}
+"""Selectors that run on Isaac Sim (Kit), mapped to the Kit-free alternatives that replace them."""
+
+
+def warn_kit_selector(name: str, stacklevel: int = 2) -> None:
+    """Warn that selecting ``name`` runs on Isaac Sim (Kit), which is deprecated.
+
+    The selector keeps working. Names outside :data:`KIT_SELECTOR_REPLACEMENTS` are ignored.
+
+    Args:
+        name: Selected physics, renderer, or preset name.
+        stacklevel: Stack level of the warning, relative to the caller of this function.
+    """
+    replacement = KIT_SELECTOR_REPLACEMENTS.get(name)
+    if replacement is not None:
+        warnings.warn(
+            f"Selecting '{name}' runs on Isaac Sim (Kit), which is deprecated in 3.1 and removed in 3.2. "
+            f"Use {replacement} instead.",
+            FutureWarning,
+            stacklevel=stacklevel + 1,
+        )
 
 
 def get_default_renderer_cfg() -> RendererCfg:
     """Return the default :class:`~isaaclab.renderers.renderer_cfg.RendererCfg` for cameras.
 
-    Lazily imports :mod:`isaaclab_physx.renderers` and returns a new
-    :class:`~isaaclab_physx.renderers.IsaacRtxRendererCfg` instance.
+    Lazily imports :mod:`isaaclab_isaacsim.renderers` and returns a new
+    :class:`~isaaclab_isaacsim.renderers.IsaacRtxRendererCfg` instance.
 
     Returns:
         A new default Isaac RTX renderer configuration.
 
     Raises:
-        ImportError: If :mod:`isaaclab_physx.renderers` cannot be imported or does not
+        ImportError: If :mod:`isaaclab_isaacsim.renderers` cannot be imported or does not
             expose ``IsaacRtxRendererCfg``.
     """
     try:
-        renderers_mod = importlib.import_module("isaaclab_physx.renderers")
+        renderers_mod = importlib.import_module("isaaclab_isaacsim.renderers")
     except ImportError as e:
         raise ImportError(
-            "The default camera renderer configuration requires the optional 'isaaclab_physx' "
-            "package (import 'isaaclab_physx.renderers'). Install isaaclab_physx or set "
+            "The default camera renderer configuration requires the optional 'isaaclab_isaacsim' "
+            "package (import 'isaaclab_isaacsim.renderers'). Install isaaclab_isaacsim or set "
             "CameraCfg.renderer_cfg explicitly."
         ) from e
     try:
         default_cls = renderers_mod.IsaacRtxRendererCfg
     except AttributeError as e:
         raise ImportError(
-            "Module 'isaaclab_physx.renderers' is available but does not define 'IsaacRtxRendererCfg'."
+            "Module 'isaaclab_isaacsim.renderers' is available but does not define 'IsaacRtxRendererCfg'."
         ) from e
     return default_cls()
 
@@ -52,9 +82,7 @@ class FactoryBase:
         """Initializes a new factory subclass."""
         super().__init_subclass__(**kwargs)
         cls._registry = {}
-        # Determine the module subpath for dynamic loading.
-        # e.g., if factory is in 'isaaclab.assets.articulation.articulation',
-        # the subpath becomes 'assets.articulation'.
+        # Map e.g. isaaclab.assets.articulation.articulation to assets.articulation.
         module_parts = cls.__module__.split(".")
         if module_parts[0] != "isaaclab":
             raise ImportError(f"Factory class {cls.__name__} must be defined within the 'isaaclab' package.")
@@ -70,29 +98,29 @@ class FactoryBase:
         logger.info(f"Registered backend {name!r} for factory {cls.__name__}.")
 
     @classmethod
-    def _get_backend(cls, *args, **kwargs) -> str:
+    def _get_backend(cls, *args, sim: SimulationContext | None = None, **kwargs) -> str:
         """Return active backend name for this factory.
 
-        Falls back to ``"physx"`` for backward compatibility when no simulation
-        context is initialized yet.
+        Falls back to ``"newton"`` when no simulation context is initialized yet.
         """
         # Import lazily to avoid import cycles at module load time.
-        from isaaclab.sim.simulation_context import SimulationContext
+        from ..sim.simulation_context import SimulationContext
 
-        manager_name = SimulationContext.instance().physics_manager.__name__.lower()
-        if manager_name.startswith("newton"):
+        sim_context = sim if sim is not None else SimulationContext.instance()
+        if sim_context is None:
             return "newton"
-        if manager_name.startswith("ovphysx"):
-            return "ovphysx"
-        if manager_name.startswith("physx"):
-            return "physx"
-        else:
-            raise ValueError(f"Unknown physics manager: {manager_name}")
+
+        return sim_context.backend_manager.backend_name
+
+    @classmethod
+    def _get_package_name(cls, backend: str) -> str:
+        """Return the package that hosts a given backend key."""
+        return _BACKEND_PACKAGES.get(backend, f"isaaclab_{backend}")
 
     @classmethod
     def _get_module_name(cls, backend: str) -> str:
         """Return module path that hosts backend implementation for a given backend key."""
-        return f"isaaclab_{backend}.{cls._module_subpath}"
+        return f"{cls._get_package_name(backend)}.{cls._module_subpath}"
 
     @classmethod
     def resolve_class(cls, *args, **kwargs) -> type:
@@ -111,13 +139,11 @@ class FactoryBase:
         # If backend is not in registry, try to import it and register the class.
         # This is done to only import the module once.
         if backend not in cls._registry:
-            # Construct the module name from the backend and the determined subpath.
             module_name = cls._get_module_name(backend)
             try:
                 module = importlib.import_module(module_name)
                 class_name = getattr(cls, "_backend_class_names", {}).get(backend, cls.__name__)
                 module_class = getattr(module, class_name)
-                # Manually register the class
                 cls.register(backend, module_class)
 
             except ImportError as e:
@@ -131,7 +157,7 @@ class FactoryBase:
         try:
             impl = cls._registry[backend]
         except KeyError:
-            available = list(cls.get_registry_keys())
+            available = cls.get_registry_keys()
             raise ValueError(
                 f"Unknown backend {backend!r} for {cls.__name__}. "
                 f"A module was found at '{module_name}', but it did not contain a class with the name {class_name!r}.\n"
@@ -142,10 +168,9 @@ class FactoryBase:
     def __new__(cls, *args, **kwargs):
         """Create a new instance of an implementation based on the backend."""
         impl = cls.resolve_class(*args, **kwargs)
-        # Return an instance of the chosen class.
         return impl(*args, **kwargs)
 
     @classmethod
     def get_registry_keys(cls) -> list[str]:
         """Returns a list of registered backend names."""
-        return list(cls._registry.keys())
+        return list(cls._registry)

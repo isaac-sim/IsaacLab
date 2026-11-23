@@ -6,7 +6,8 @@
 
 import os
 
-from isaaclab_physx.physics import PhysxCfg
+from isaaclab_isaacsim.physics import PhysxCfg
+from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.devices.device_base import DevicesCfg
@@ -15,7 +16,7 @@ from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
 from isaaclab.envs.mdp.actions.rmpflow_actions_cfg import RMPFlowActionCfg
 from isaaclab.sensors import CameraCfg, FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import clone, configclass
 
 from isaaclab_tasks.contrib.stack import mdp
 from isaaclab_tasks.utils.presets import (
@@ -154,13 +155,13 @@ class RmpFlowGalbotLeftArmCubeStackVisuomotorEnvCfg(RmpFlowGalbotLeftArmCubeStac
             if cam is None:
                 continue
             renderer_type = getattr(getattr(cam, "renderer_cfg", None), "renderer_type", None)
-            if renderer_type == "newton_warp":
+            if renderer_type in ("newton_warp", "newton_optix"):
                 unsupported = set(cam.data_types) - warp_supported
                 if unsupported:
                     raise ValueError(
                         f"Warp renderer only supports data types {sorted(warp_supported)}, "
                         f"but '{cam_attr}' is configured with unsupported types: {sorted(unsupported)}. "
-                        "Choose a compatible preset, e.g. presets=newton_renderer,rgb128."
+                        "Choose a compatible preset, e.g. presets=newton_warp,rgb128."
                     )
 
     def __post_init__(self):
@@ -174,7 +175,7 @@ class RmpFlowGalbotLeftArmCubeStackVisuomotorEnvCfg(RmpFlowGalbotLeftArmCubeStac
             height=256,
             width=256,
             data_types=["rgb", "distance_to_image_plane"],
-            renderer_cfg=MultiBackendRendererCfg(),
+            renderer_cfg=MultiBackendRendererCfg(default=IsaacRtxRendererCfg(), isaacsim_rtx=IsaacRtxRendererCfg()),
             spawn=sim_utils.PinholeCameraCfg(
                 focal_length=18.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1.0e5)
             ),
@@ -187,7 +188,7 @@ class RmpFlowGalbotLeftArmCubeStackVisuomotorEnvCfg(RmpFlowGalbotLeftArmCubeStac
             height=256,
             width=256,
             data_types=["rgb", "distance_to_image_plane"],
-            renderer_cfg=MultiBackendRendererCfg(),
+            renderer_cfg=MultiBackendRendererCfg(default=IsaacRtxRendererCfg(), isaacsim_rtx=IsaacRtxRendererCfg()),
             spawn=sim_utils.PinholeCameraCfg(
                 focal_length=18.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1.0e5)
             ),
@@ -201,7 +202,7 @@ class RmpFlowGalbotLeftArmCubeStackVisuomotorEnvCfg(RmpFlowGalbotLeftArmCubeStac
             height=256,
             width=256,
             data_types=["rgb", "distance_to_image_plane"],
-            renderer_cfg=MultiBackendRendererCfg(),
+            renderer_cfg=MultiBackendRendererCfg(default=IsaacRtxRendererCfg(), isaacsim_rtx=IsaacRtxRendererCfg()),
             spawn=sim_utils.PinholeCameraCfg(
                 focal_length=18.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1.0e5)
             ),
@@ -215,14 +216,14 @@ class RmpFlowGalbotLeftArmCubeStackVisuomotorEnvCfg(RmpFlowGalbotLeftArmCubeStac
             height=256,
             width=256,
             data_types=["rgb", "distance_to_image_plane"],
-            renderer_cfg=MultiBackendRendererCfg(),
+            renderer_cfg=MultiBackendRendererCfg(default=IsaacRtxRendererCfg(), isaacsim_rtx=IsaacRtxRendererCfg()),
             spawn=sim_utils.PinholeCameraCfg(
                 focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1.0e5)
             ),
             offset=CameraCfg.OffsetCfg(pos=(1.0, 0.0, 0.6), rot=(0.5963, 0.5963, -0.3799, -0.3799), convention="ros"),
         )
 
-        marker_right_camera_cfg = FRAME_MARKER_CFG.copy()
+        marker_right_camera_cfg = clone(FRAME_MARKER_CFG)
         marker_right_camera_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
         marker_right_camera_cfg.prim_path = "/Visuals/FrameTransformerRightCamera"
 
@@ -242,7 +243,7 @@ class RmpFlowGalbotLeftArmCubeStackVisuomotorEnvCfg(RmpFlowGalbotLeftArmCubeStac
             ],
         )
 
-        marker_left_camera_cfg = FRAME_MARKER_CFG.copy()
+        marker_left_camera_cfg = clone(FRAME_MARKER_CFG)
         marker_left_camera_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
         marker_left_camera_cfg.prim_path = "/Visuals/FrameTransformerLeftCamera"
 

@@ -8,11 +8,23 @@ from collections.abc import Sequence
 import torch
 
 import isaaclab.utils.math as PoseUtils
-from isaaclab.envs import ManagerBasedRLMimicEnv
+from isaaclab.envs import ManagerBasedRLEnvCfg, ManagerBasedRLMimicEnv
+
+from isaaclab_tasks.contrib.teleop_physics_cfg import prepare_humanoid_teleop_environment
 
 
 class PickPlaceGR1T2MimicEnv(ManagerBasedRLMimicEnv):
     """GR1T2 Pick Place Mimic environment."""
+
+    def __init__(self, cfg: ManagerBasedRLEnvCfg, render_mode: str | None = None, **kwargs):
+        """Prepare the selected physics backend before constructing the environment.
+
+        Like the teleoperation task's entry point, this prepares the GR1T2 pick-place tasks. The
+        exhaust-pipe and nut-pour tasks that share this environment declare no backend preparation.
+        """
+        if hasattr(cfg, "backend_preparation"):
+            prepare_humanoid_teleop_environment(cfg)
+        super().__init__(cfg, render_mode, **kwargs)
 
     def get_robot_eef_pose(self, eef_name: str, env_ids: Sequence[int] | None = None) -> torch.Tensor:
         """
@@ -123,7 +135,7 @@ class PickPlaceGR1T2MimicEnv(ManagerBasedRLMimicEnv):
         Extracts the gripper actuation part from a sequence of env actions (compatible with env.step).
 
         Args:
-            actions: environment actions. The shape is (num_envs, num steps in a demo, action_dim).
+            actions: Environment actions for one demonstration. Shape is (num_steps, action_dim).
 
         Returns:
             A dictionary of torch.Tensor gripper actions. Key to each dict is an eef_name.
