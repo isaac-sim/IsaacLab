@@ -130,21 +130,18 @@ class ObservationsCfg:
         """Physical robot state for model-based learning."""
 
         state = ObsTerm(func=mdp.motion_state)
-        enable_corruption = False
 
     @configclass
     class GoalCfg(ObsGroup):
         """Current reference frame."""
 
         frame = ObsTerm(func=mdp.motion_frame, params={"command_name": "motion"})
-        enable_corruption = False
 
     @configclass
     class ContextCfg(ObsGroup):
         """Privileged body masses."""
 
         mass = ObsTerm(func=mdp.body_mass)
-        enable_corruption = False
 
     @configclass
     class LabelsCfg(ObsGroup):
@@ -154,7 +151,6 @@ class ObservationsCfg:
             func=mdp.self_collision_events,
             params={"sensor_cfg": SceneEntityCfg("self_collision"), "threshold": 10.0},
         )
-        enable_corruption = False
 
     state = preset(default=None, state_obs=StateCfg())
     goal = preset(default=None, state_obs=GoalCfg())
