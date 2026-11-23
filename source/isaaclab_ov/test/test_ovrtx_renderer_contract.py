@@ -11,7 +11,7 @@ import importlib.util
 import sys
 import types
 from builtins import ExceptionGroup
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, call
 
 import numpy as np
 import pytest
@@ -63,6 +63,22 @@ _SPAWN = PinholeCameraCfg(
     horizontal_aperture=20.955,
     clipping_range=(0.1, 1.0e5),
 )
+_SPLIT_IMAGE_SIZE = 64
+_SPLIT_CUBE_SIZE = 1.0
+_SPLIT_FAR_CUBE_X = 10.0
+_SPLIT_CUBES = (
+    ("near", 0.0, "near_cube", (0.8, 0.1, 0.1)),
+    ("far", _SPLIT_FAR_CUBE_X, "far_cube", (0.1, 0.8, 0.1)),
+)
+_SPLIT_CAMERA_POSITIONS = (
+    (0.0, 0.0, 5.0),
+    (0.45, 0.45, 6.0),
+    (0.3, -0.1, 7.0),
+    (0.45, 0.2, 8.0),
+    (_SPLIT_FAR_CUBE_X, 0.0, 9.0),
+)
+# Tolerances (atol, rtol) of the color means. HDR color scales with the camera exposure, so its tolerance is relative.
+_SPLIT_COLOR_MEAN_TOLERANCES = {"rgb": (8.0, 0.0), "rgba": (8.0, 0.0), "rgb_hdr": (0.0, 0.05)}
 
 
 def _make_camera_cfg(data_types: list[str]) -> CameraCfg:
@@ -412,6 +428,51 @@ def test_ovrtx_render_batch_empty_sequence_does_not_require_initialized_backend(
     renderer.render_batch([])
 
 
+@pytest.mark.parametrize("mode", ["sync", "ovstage", "async"])
+@pytest.mark.parametrize("failed_frame", [True, False], ids=["failed-frame", "other-error"])
+def test_ovrtx_failed_frame_error_names_the_render_product_split(mode, failed_frame):
+    """A failed frame gets one note about the render product split. Other step errors stay unchanged."""
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._initialized_scene = True
+    renderer._visual_material_writer_ref = None
+    renderer._use_ovstage = mode == "ovstage"
+    renderer.cfg.async_rendering = mode == "async"
+    renderer.scene.ordinal = 1
+    renderer.scene.stage = types.SimpleNamespace(advance_write_floor=lambda *, ordinal: MagicMock())
+    unsplit = _make_ovrtx_camera_render_data()
+    cfg = _make_camera_cfg(["rgb"])
+    cfg.max_envs_per_render_product = 1
+    wrist_paths = [f"/World/envs/env_{i}/Wrist" for i in range(2)]
+    split = OVRTXCameraRenderData(CameraRenderSpec(cfg, "cpu", 2, tuple(wrist_paths), 2), "RenderCamera_1", wrist_paths)
+    renderer._camera_render_data = [unsplit, split]
+    for camera in renderer._camera_render_data:
+        renderer.backend.render_products.update(camera.render_product_paths)
+    reason = "The renderer failed to produce a frame (render_products='...')." if failed_frame else "device lost"
+    error = RuntimeError(f"Operation 'step' failed:\n  {reason}")
+    operation = MagicMock()
+    operation.wait.side_effect = error
+    renderer.backend.renderer = types.SimpleNamespace(
+        step=MagicMock(side_effect=error), step_async=lambda **kwargs: operation
+    )
+
+    # Under asynchronous rendering, the step failure surfaces when read_output waits for the frame.
+    with pytest.raises(RuntimeError) as raised:
+        renderer.render(unsplit)
+        renderer.read_output(unsplit)
+    assert raised.value is error
+    if mode == "async":
+        # The drain gets the same error object again. The note must not repeat.
+        assert renderer.drain_pending_renders() == [error]
+    notes = getattr(error, "__notes__", [])
+    if failed_frame:
+        assert len(notes) == 1
+        assert "CameraCfg.max_envs_per_render_product" in notes[0]
+        assert "'/World/envs/env_0/Camera' (2 environments)" in notes[0]
+        assert "Wrist" not in notes[0]
+    else:
+        assert notes == []
+
+
 @pytest.mark.integration
 @pytest.mark.rendering
 @pytest.mark.parametrize(
@@ -424,7 +485,10 @@ def test_ovrtx_render_batch_empty_sequence_does_not_require_initialized_backend(
     ids=["legacy", "ovstage", "async-mesh", "async-particles", "async-cable"],
 )
 def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, capfd, use_ovstage, asynchronous, geometry):
-    """Cameras preserve independent captures, GPU input lifetimes, and reset/cleanup boundaries."""
+    """Cameras preserve independent captures, GPU input lifetimes, and reset/cleanup boundaries.
+
+    In the asynchronous rows, the second camera is a split sensor with two render products.
+    """
     from ovrtx import PrimMode
 
     from pxr import Gf, Usd, UsdGeom, UsdLux
@@ -538,6 +602,10 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, capfd, use
                 ["rgb", "distance_to_image_plane"] if index == 0 else ["rgb", "distance_to_image_plane", "normals"]
             )
             cfg.height, cfg.width = height, width
+            # One environment per render product splits the second camera in the asynchronous rows.
+            split = asynchronous and index == 1
+            if split:
+                cfg.max_envs_per_render_product = 1
             spec = CameraRenderSpec(
                 cfg=cfg,
                 device="cuda:0",
@@ -548,6 +616,7 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, capfd, use
                 ),
             )
             rd = renderer.create_render_data(spec)
+            assert len(rd.products) == (2 if split else 1)
             data = CameraData.allocate(
                 data_types=cfg.data_types,
                 height=height,
@@ -676,6 +745,248 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, capfd, use
     # The default log level keeps native cloning quiet; lower levels print a warning per attribute of every cloned
     # environment, over a million lines at 8192 environments.
     assert "has no valid data" not in capfd.readouterr().out
+
+
+def _assert_split_outputs_match(
+    reference: dict[str, ProxyArray], outputs: dict[str, ProxyArray], names: list[str]
+) -> None:
+    """Check that the outputs ``names`` equal those of ``reference`` in each environment.
+
+    Path tracing and DLSS depend on the pixel position in the atlas. So color outputs match only in the mean of
+    each environment and channel. Other float outputs match per pixel, apart from rounding.
+    """
+    for name in names:
+        expected, actual = reference[name].torch, outputs[name].torch
+        if name in _SPLIT_COLOR_MEAN_TOLERANCES:
+            expected, actual = expected.float().mean(dim=(1, 2)), actual.float().mean(dim=(1, 2))
+            atol, rtol = _SPLIT_COLOR_MEAN_TOLERANCES[name]
+        else:
+            atol, rtol = 1e-4 if expected.is_floating_point() else 0, 0
+        torch.testing.assert_close(actual, expected, atol=atol, rtol=rtol, msg=lambda detail: f"{name}: {detail}")
+
+
+def _segmentation_key(pixel: torch.Tensor) -> int | tuple[int, ...]:
+    """Return the label map key of a segmentation pixel: the raw ID, or the RGBA color of a colorized output."""
+    return int(pixel[0]) if pixel.numel() == 1 else tuple(pixel.tolist())
+
+
+@pytest.mark.integration
+@pytest.mark.rendering
+@pytest.mark.parametrize(
+    "use_ovstage, colorize_semantic, colorize_instance, simple_shading_types",
+    [
+        pytest.param(
+            False, True, False, ("simple_shading_constant_diffuse", "simple_shading_diffuse_mdl"), id="legacy"
+        ),
+        pytest.param(True, False, True, ("simple_shading_full_mdl",), id="ovstage"),
+    ],
+)
+def test_ovrtx_split_sensor_outputs_match_single_product(
+    monkeypatch, use_ovstage, colorize_semantic, colorize_instance, simple_shading_types
+):
+    """A sensor split into render products gives the outputs of one render product, in environment order.
+
+    Each camera kind has two sensors: one with ``"all"``, so one render product, and one that the camera
+    configuration splits. The cameras of environments 0 to 3 see different parts of the near cube, so a swap of two
+    environments changes every output, also the mean colors. Only the camera of environment 4 sees the far cube, so
+    only the last render product of the split sees it.
+
+    The colorize settings apply to every sensor of a renderer, and each renderer start and stop costs seconds. So
+    the two rows swap the colorize values. Simple shading is a data type of a camera, so the rows spread the three
+    simple shading types over their camera kinds.
+    """
+    import ovrtx
+
+    from pxr import Gf, Usd, UsdGeom, UsdLux
+
+    from isaaclab.cloner import make_clone_plan, replicate
+    from isaaclab.scene_data import SceneDataProvider
+    from isaaclab.sim import add_labels
+    from isaaclab.utils.math import convert_camera_frame_orientation_convention
+
+    if not torch.cuda.is_available():
+        pytest.skip("OVRTX rendering requires CUDA")
+    num_envs = len(_SPLIT_CAMERA_POSITIONS)
+    SimulationContext.instance().device = "cuda:0"
+    monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", str(int(use_ovstage)))
+    env_template = "/Lab/Cells/Cell{}" if use_ovstage else "/World/envs/env_{}"
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
+    UsdGeom.SetStageMetersPerUnit(stage, 1.0)
+    UsdLux.DomeLight.Define(stage, "/World/Light").CreateIntensityAttr(1000.0)
+    for index in range(1 if use_ovstage else num_envs):
+        UsdGeom.Xform.Define(stage, env_template.format(index))
+    # A render product has at most one simple shading type, and simple shading excludes rgb. So each simple shading
+    # type needs a camera kind of its own.
+    camera_kinds = [
+        [
+            "rgb",
+            "rgb_hdr",
+            "albedo",
+            "normals",
+            "motion_vectors",
+            "distance_to_image_plane",
+            "depth",
+            "distance_to_camera",
+            "semantic_segmentation",
+            "instance_segmentation",
+        ],
+        *([data_type] for data_type in simple_shading_types),
+    ]
+    # One camera prim per sensor, so each sensor owns the pose binding of the prims it renders. Each kind has two
+    # sensors.
+    for index in range(2 * len(camera_kinds)):
+        camera = UsdGeom.Camera.Define(stage, env_template.format(0) + f"/cam{index}")
+        camera.CreateProjectionAttr("orthographic")
+        camera.CreateHorizontalApertureAttr(12.0)
+        camera.CreateVerticalApertureAttr(12.0)
+        camera.AddTranslateOp().Set(Gf.Vec3d(*_SPLIT_CAMERA_POSITIONS[0]))
+    for name, x, label, color in _SPLIT_CUBES:
+        cube = UsdGeom.Cube.Define(stage, env_template.format(0) + f"/{name}")
+        cube.CreateSizeAttr(_SPLIT_CUBE_SIZE)
+        cube.CreateDisplayColorAttr([color])
+        cube.AddTranslateOp().Set(Gf.Vec3d(x, 0, 0))
+        add_labels(cube.GetPrim(), [label])
+
+    submissions = []
+
+    def record_products(native_step):
+        def step(renderer, render_products, *args, **kwargs):
+            submissions.append(set(render_products))
+            return native_step(renderer, render_products, *args, **kwargs)
+
+        return step
+
+    # Both the legacy and the ovstage path render each frame with step.
+    monkeypatch.setattr(ovrtx.Renderer, "step", record_products(ovrtx.Renderer.step))
+    cfg = OVRTXRendererCfg(
+        colorize_semantic_segmentation=colorize_semantic, colorize_instance_segmentation=colorize_instance
+    )
+    renderer = SimulationContext.instance().get_or_create_backend(cfg)
+    renderer._sdp = SceneDataProvider(
+        types.SimpleNamespace(transform_paths=[], geometry_timestamp=0, get_geometry_batches=lambda _format: [])
+    )
+    plan = make_clone_plan(
+        (AssetBaseCfg(prim_path=env_template.format("[^/]+"), cloning_contexts=renderer.cfg.cloning_contexts),),
+        ((0,),),
+        num_envs,
+        positions=np.zeros((num_envs, 3), dtype=np.float32),
+        env_template=env_template,
+    )
+    SimulationContext.instance().plan = plan
+    replicate(plan)
+
+    positions = torch.tensor(_SPLIT_CAMERA_POSITIONS, device="cuda:0")
+    # The identity orientation of the OpenGL convention looks down the z axis, at the cubes.
+    quats = convert_camera_frame_orientation_convention(
+        torch.tensor([[0.0, 0, 0, 1.0]] * num_envs, device="cuda:0"), origin="opengl", target="world"
+    )
+    # The center pixel of each camera sees the top of a cube on the ground.
+    center = _SPLIT_IMAGE_SIZE // 2
+    expected_depth = positions[:, 2] - _SPLIT_CUBE_SIZE / 2
+    cameras = []
+
+    def add_camera(data_types, max_envs):
+        camera_cfg = _make_camera_cfg(data_types)
+        camera_cfg.height = camera_cfg.width = _SPLIT_IMAGE_SIZE
+        camera_cfg.max_envs_per_render_product = max_envs
+        spec = CameraRenderSpec(
+            cfg=camera_cfg,
+            device="cuda:0",
+            num_instances=num_envs,
+            view_count=num_envs,
+            camera_prim_paths=tuple(
+                env_template.format(i) + f"/cam{len(cameras)}" for i in range(1 if use_ovstage else num_envs)
+            ),
+        )
+        rd = renderer.create_render_data(spec)
+        data = CameraData.allocate(
+            data_types=data_types,
+            height=_SPLIT_IMAGE_SIZE,
+            width=_SPLIT_IMAGE_SIZE,
+            num_views=num_envs,
+            device="cuda:0",
+            supported_specs=renderer.supported_output_types(),
+        )
+        renderer.set_outputs(rd, data.output)
+        renderer.update_camera(
+            rd,
+            ProxyArray(wp.from_torch(positions, dtype=wp.vec3f)),
+            ProxyArray(wp.from_torch(quats, dtype=wp.quatf)),
+            None,
+        )
+        cameras.append((rd, data))
+        return rd, data
+
+    def render(sensors):
+        renderer.render_batch([rd for rd, _ in sensors])
+        for rd, data in sensors:
+            renderer.read_output(rd, data)
+
+    def check_depth(data):
+        depth = data.output["distance_to_image_plane"].torch[:, center, center, 0]
+        torch.testing.assert_close(depth, expected_depth, atol=0.02, rtol=0)
+
+    def check_labels(reference, split):
+        # The split sensor takes its label maps from its first render product. That product does not see the far
+        # cube, but a label map lists the labels of the whole scene.
+        (near_name, _, near_label, _), (far_name, _, far_label, _) = _SPLIT_CUBES
+        # Semantic IDs map to the class label, instance IDs to the prim path of the instance.
+        for output, (near_text, far_text) in (
+            ("semantic_segmentation", (near_label, far_label)),
+            ("instance_segmentation", (f"/{near_name}", f"/{far_name}")),
+        ):
+            assert split.info[output] == reference.info[output], output
+            id_to_labels = split.info[output]["idToLabels"]
+            labels = [
+                str(id_to_labels.get(_segmentation_key(pixel)))
+                for pixel in split.output[output].torch[:, center, center]
+            ]
+            expected = [near_text] * (num_envs - 1) + [far_text]
+            assert all(text in label for text, label in zip(expected, labels)), (output, labels)
+
+    def check_outputs(pairs):
+        for (_, reference), (split_rd, split) in pairs:
+            _assert_split_outputs_match(reference.output, split.output, split_rd.data_types)
+        (_, reference), (_, split) = pairs[0]
+        check_depth(reference)
+        check_depth(split)
+        check_labels(reference, split)
+
+    try:
+        renderer.prepare_stage(stage, num_envs)
+        pairs = [tuple(add_camera(data_types, max_envs) for max_envs in ("all", 2)) for data_types in camera_kinds]
+        for (single, _), (split, _) in pairs:
+            assert single.render_product_paths == (f"/{single.render_scope_name}/RenderProduct",)
+            assert [product.num_envs for product in split.products] == [2, 2, 1]
+        assert renderer.backend.render_products == {path for rd, _ in cameras for path in rd.render_product_paths}
+
+        render(cameras)
+        assert submissions and all(submitted == renderer.backend.render_products for submitted in submissions)
+        check_outputs(pairs)
+
+        # Clear every buffer that the split sensors write. A render product that the next frame does not write then
+        # keeps zeros.
+        for _, (split_rd, _) in pairs:
+            for buffer in split_rd.warp_buffers.values():
+                buffer.zero_()
+        render(cameras)
+        check_outputs(pairs)
+
+        # Cleanup discards every render product of the sensor. The remaining sensors do not render again here.
+        # The multi-camera test checks rendering after a cleanup.
+        while cameras:
+            rd, _ = cameras.pop()
+            renderer.cleanup(rd)
+            assert not _camera_scope_exists(renderer, rd.render_scope_name, use_ovstage)
+            assert renderer.backend.render_products == {
+                path for other, _ in cameras for path in other.render_product_paths
+            }
+    finally:
+        renderer.close()
+        SimulationContext.instance().close_backend(renderer.backend)
+        if use_ovstage:
+            SimulationContext.instance().close_backend(renderer.scene)
 
 
 @pytest.mark.parametrize("batch", [False, True], ids=["lazy", "batched"])
@@ -925,6 +1236,100 @@ def test_ovrtx_process_frame_reads_authored_camera_render_vars(monkeypatch, use_
             for env, value in enumerate(values):
                 np.testing.assert_array_equal(buffers[output].numpy()[env], value)
         render_data.cleanup()
+
+
+@pytest.mark.parametrize("use_ovstage", [False, True])
+def test_ovrtx_process_frame_stitches_split_frames_in_env_order(monkeypatch, use_ovstage):
+    """A split sensor registers one product per environment range and writes each product's frame into that range."""
+    from .test_ovrtx_annotator_utils import _encode_identifier_map
+
+    num_envs = 5
+    camera_paths = [f"/World/envs/env_{i}/cam" for i in range(num_envs)]
+    renderer = _make_mocked_scene_renderer(monkeypatch, use_ovstage, [f"/World/envs/env_{i}" for i in range(num_envs)])
+    renderer.cfg.colorize_semantic_segmentation = False
+    renderer.scene.paths.intern_path.side_effect = lambda path: types.SimpleNamespace(raw_id=camera_paths.index(path))
+    renderer.scene.paths.intern_token.side_effect = lambda token: types.SimpleNamespace(
+        raw_id=int(token.removeprefix("env_"))
+    )
+    monkeypatch.setattr(renderer, "_map_render_var_to_dlpack", contextlib.nullcontext)
+
+    cfg = _make_camera_cfg(["rgba", "depth", "semantic_segmentation"])
+    cfg.max_envs_per_render_product = 2
+    render_data = renderer.create_render_data(CameraRenderSpec(cfg, "cpu", num_envs, tuple(camera_paths), num_envs))
+    paths = render_data.render_product_paths
+    assert paths == tuple(f"/RenderCamera_0/RenderProduct_{k}" for k in range(3))
+    assert renderer.backend.render_products == set(paths)
+    slices = [camera_paths[0:2], camera_paths[2:4], camera_paths[4:5]]
+    if use_ovstage:
+        queried = [c.args[0] for c in renderer.scene.paths.create_path_list_from_strings.call_args_list]
+        assert queried[:3] == [[path] for path in paths]
+        writes = [c for c in renderer.scene.stage.write_attribute.call_args_list if c.args[1] == "camera"]
+        assert [c.kwargs["tensors"].tolist() for c in writes] == [[0, 1], [2, 3], [4]]
+    else:
+        assert renderer.backend.renderer.write_array_attribute.call_args_list == [
+            call(prim_paths=[path], attribute_name="camera", tensors=[cameras])
+            for path, cameras in zip(paths, slices, strict=True)
+        ]
+
+    # Products 0 and 1 hold two environments side by side, the last product holds one. Every product
+    # carries the scene-wide label map, which is decoded once from the first product.
+    def semantic_map(entries):
+        render_var = MagicMock()
+        encoded = _encode_identifier_map(entries)
+        render_var.map.side_effect = lambda **kwargs: contextlib.nullcontext(encoded)
+        return render_var
+
+    entries = [((2, 0, 0, 0), "class: label2;"), ((3, 0, 0, 0), "class: label3;")]
+    frames = []
+    for value, shape in zip((2, 3, 4), ((8, 32), (8, 32), (8, 16)), strict=True):
+        render_vars = {
+            render_data.render_var_keys["LdrColor"]: wp.full((*shape, 4), value, dtype=wp.uint8, device="cpu"),
+            render_data.render_var_keys["DistanceToImagePlaneSD"]: wp.full(
+                (*shape, 1), float(value), dtype=wp.float32, device="cpu"
+            ),
+            render_data.render_var_keys["SemanticSegmentation"]: wp.full(
+                (*shape, 1), value, dtype=wp.uint32, device="cpu"
+            ),
+            render_data.render_var_keys["SemanticIdMap"]: semantic_map(entries),
+        }
+        frames.append(types.SimpleNamespace(render_vars=render_vars))
+    buffers = {
+        "rgba": wp.zeros((num_envs, 8, 16, 4), dtype=wp.uint8, device="cpu"),
+        "depth": wp.zeros((num_envs, 8, 16, 1), dtype=wp.float32, device="cpu"),
+        "semantic_segmentation": wp.zeros((num_envs, 8, 16, 1), dtype=wp.int32, device="cpu"),
+    }
+    renderer._process_render_frames(render_data, frames, buffers)
+    # The first product gives its labels and its raw tensors from one mapping of each label map.
+    id_map_key = render_data.render_var_keys["SemanticIdMap"]
+    assert [frame.render_vars[id_map_key].map.call_count for frame in frames] == [1, 1, 1]
+    expected = np.array([2, 2, 3, 3, 4]).reshape(num_envs, 1, 1, 1)
+    for output in buffers.values():
+        np.testing.assert_array_equal(output.numpy(), np.broadcast_to(expected, output.shape))
+    labels = render_data.renderer_info["semantic_segmentation"]["idToLabels"]
+    assert {key: value for key, value in labels.items() if key >= 2} == {2: {"class": "label2"}, 3: {"class": "label3"}}
+    # The same entries in another order give other raw bytes but the same labels, so the sensor does not raise.
+    frames[1].render_vars[render_data.render_var_keys["SemanticIdMap"]] = semantic_map(entries[::-1])
+    renderer._process_render_frames(render_data, frames, buffers)
+    # A product whose label map differs would give wrong labels for its IDs, so the sensor raises.
+    frames[2].render_vars[render_data.render_var_keys["SemanticIdMap"]] = semantic_map(entries[:1])
+    with pytest.raises(
+        RuntimeError, match="different SemanticIdMap for render product '/RenderCamera_0/RenderProduct_2'"
+    ) as error:
+        renderer._process_render_frames(render_data, frames, buffers)
+    assert 'max_envs_per_render_product to "all"' in str(error.value)
+    # A map that only a later product returns would leave the IDs of the sensor without labels, so the sensor raises.
+    del frames[0].render_vars[id_map_key]
+    with pytest.raises(
+        RuntimeError, match="different SemanticIdMap for render product '/RenderCamera_0/RenderProduct_1'"
+    ):
+        renderer._process_render_frames(render_data, frames, buffers)
+    # No product returns a map, so the sensor gives no labels, as one render product does.
+    for frame in frames[1:]:
+        del frame.render_vars[id_map_key]
+    renderer._process_render_frames(render_data, frames, buffers)
+    assert "semantic_segmentation" not in render_data.renderer_info
+    render_data.cleanup()
+    assert renderer.backend.render_products == set()
 
 
 def test_launch_extract_all_tiles_rejects_wider_output_channels():
