@@ -1457,10 +1457,10 @@ class OVRTXRenderer(BaseRenderer):
     def render(self, render_data: OVRTXCameraRenderData | OVRTXLidarRenderData) -> None:
         """Submit one camera or lidar capture.
 
-        A lidar step submits lidar products only. Cameras on this renderer keep their own step.
+        A lidar step submits that lidar's product only. Other lidars and cameras keep their own steps.
         """
         if isinstance(render_data, OVRTXLidarRenderData):
-            self._render_lidar(render_data.sample_dt)
+            self._render_lidar(render_data)
             return
 
         self.render_batch((render_data,))
@@ -1471,9 +1471,11 @@ class OVRTXRenderer(BaseRenderer):
             self.meshes[name] = OVRTXMesh(self, f"/IsaacLabMeshes/{name.lstrip('/')}")
         self.meshes[name].update(*args, **kwargs)
 
-    def _render_lidar(self, delta_time: float) -> None:
-        """Submit registered lidar products and publish every point cloud.
+    def _render_lidar(self, render_data: OVRTXLidarRenderData) -> None:
+        """Submit one lidar product and publish its point cloud.
 
+        The capture submits and publishes only this lidar. Another lidar's pose is written when that
+        lidar captures, so including it here would replace its buffers with a scan from a stale pose.
         Camera products stay on the camera step. A lidar needs the point cloud immediately, so this
         submission waits.
         """
@@ -1481,13 +1483,17 @@ class OVRTXRenderer(BaseRenderer):
             raise RuntimeError("Scene not initialized. Call initialize() first.")
 
         lidars = [data for data in self._sensor_render_data if isinstance(data, OVRTXLidarRenderData)]
-        if self.backend is None or self.backend.renderer is None or not lidars:
+        if self.backend is None or self.backend.renderer is None or render_data not in lidars:
             return
 
+        delta_time = render_data.sample_dt
         if delta_time <= 0.0:
             delta_time = _RENDER_DELTA_TIME
 
+        # The first step initializes GPU transforms from authored poses and must not advance any
+        # lidar clock. The capture itself includes only the lidar whose pose was just written.
         products = {data.render_product_path for data in lidars}
+        requested = {render_data.render_product_path}
 
         material_writer = self._visual_material_writer_ref() if self._visual_material_writer_ref is not None else None
         try:
@@ -1499,7 +1505,7 @@ class OVRTXRenderer(BaseRenderer):
             if self._use_ovstage:
                 ordinal = self.scene.commit()
             else:
-                result = self.backend.renderer.step(render_products=products, delta_time=delta_time)
+                result = self.backend.renderer.step(render_products=requested, delta_time=delta_time)
         finally:
             if material_writer is not None:
                 primary_active = sys.exc_info()[0] is not None
@@ -1511,10 +1517,9 @@ class OVRTXRenderer(BaseRenderer):
                     logger.warning("Error draining material writes after a failed render: %s", exc, exc_info=True)
 
         if self._use_ovstage:
-            result = self.backend.renderer.step(render_products=products, delta_time=delta_time, ordinal=ordinal)
+            result = self.backend.renderer.step(render_products=requested, delta_time=delta_time, ordinal=ordinal)
 
-        for data in lidars:
-            self._publish_lidar_output(data, result)
+        self._publish_lidar_output(render_data, result)
 
     def _publish_lidar_output(self, render_data: OVRTXLidarRenderData, products: RenderProductSetOutputs) -> None:
         """Split one lidar product's point cloud.

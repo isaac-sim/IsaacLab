@@ -369,7 +369,7 @@ def test_ovrtx_render_submits_every_product_and_routes_requested_outputs(
 
 
 def test_lidar_and_camera_captures_use_separate_steps(monkeypatch):
-    """A camera step omits lidar products, and a lidar step does not publish cameras."""
+    """A camera step omits lidar products, and a lidar step publishes only the requested lidar."""
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._initialized_scene = True
     renderer._use_ovstage = False
@@ -384,10 +384,15 @@ def test_lidar_and_camera_captures_use_separate_steps(monkeypatch):
     lidar = OVRTXLidarRenderData("RenderLidar", ["/Lidar"], 1, 1)
     lidar.render_product_path = "/Render/Lidar"
     lidar.sample_dt = 0.1
-    renderer._sensor_render_data = [*cameras, lidar]
+    other_lidar = OVRTXLidarRenderData("RenderLidarOther", ["/LidarOther"], 1, 1)
+    other_lidar.render_product_path = "/Render/LidarOther"
+    other_lidar.sample_dt = 0.2
+    renderer._sensor_render_data = [*cameras, lidar, other_lidar]
     renderer.backend.render_products.update(camera.render_product_path for camera in cameras)
     renderer.backend.render_products.add("/Render/Lidar")
+    renderer.backend.render_products.add("/Render/LidarOther")
     products["/Render/Lidar"] = types.SimpleNamespace(frames=[object()])
+    products["/Render/LidarOther"] = types.SimpleNamespace(frames=[object()])
     submissions = []
     processed = []
 
