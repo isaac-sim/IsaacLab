@@ -187,9 +187,10 @@ overrides:
 | Prompt per environment | `env.cosmos.prompt="['<text>', '<text>']"` |
 | Prompt files | `env.cosmos.prompt_files="['prompts/*.json']"` |
 | Service endpoint | `env.cosmos.endpoint=<url>` |
+| Transport | `env.cosmos.transport=socket` |
 
 For example, `isaaclab train --task IsaacContrib-Reorient-Cube-Shadow-Camera-Cosmos-Direct
 env.cosmos.prompt="A Shadow Hand turning a red cube."`. Omitted options keep the task's values, and the overrides
 keep its image size, tensor processors, and feature-extractor supervision. For prompt lists and files, see
-[A different prompt per episode](cosmos_transfer.md#a-different-prompt-per-episode); for endpoints,
-see [Endpoints](cosmos_transfer.md#endpoints).
+[A different prompt per episode](cosmos_transfer.md#a-different-prompt-per-episode); for endpoints and transports,
+see [Endpoints and transports](cosmos_transfer.md#endpoints-and-transports).

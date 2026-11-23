@@ -1819,12 +1819,14 @@ source = { editable = "source/isaaclab_cosmos_server" }
 dependencies = [
     { name = "lazy-loader" },
     { name = "numpy" },
+    { name = "warp-lang" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "lazy-loader", specifier = ">=0.4" },
     { name = "numpy", specifier = ">=2" },
+    { name = "warp-lang", specifier = ">=1.17.0" },
 ]
 
 [[package]]

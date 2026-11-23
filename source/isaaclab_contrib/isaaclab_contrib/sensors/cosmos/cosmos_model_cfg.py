@@ -116,5 +116,13 @@ class CosmosModelCfg(BackendCfg):
     whose prompt and settings were calibrated at another rate sets that rate here; it need not equal the camera's
     capture rate."""
 
+    transport: Literal["auto", "cuda_ipc", "socket"] = "auto"
+    """How images move between the camera and the service. ``"cuda_ipc"`` keeps them on the GPU through shared
+    device memory; it needs the service on the same Linux machine, on the camera's GPU or on another GPU that both
+    processes can see and that can access the camera's GPU directly (NVLink or PCIe peer access). ``"socket"`` sends
+    images through host memory in the endpoint's messages, which also works across machines. ``"auto"`` (default)
+    uses CUDA IPC when the service supports it, runs on this machine, and its GPU qualifies, and the socket otherwise.
+    The endpoint carries the small step messages in both cases."""
+
     timeout: float = DEFAULT_TIMEOUT_S
     """Maximum wait per network operation [s], including the first generation."""

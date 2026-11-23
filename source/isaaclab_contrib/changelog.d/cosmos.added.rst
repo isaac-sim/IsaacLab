@@ -10,7 +10,8 @@
   queuing controls. :class:`~isaaclab_contrib.sensors.cosmos.DepthControlProcessorCfg` prepares depth controls.
 * Added :class:`~isaaclab_contrib.sensors.cosmos.CosmosModelCfg` settings: one prompt per environment, or prompt files
   read with :func:`~isaaclab_contrib.sensors.cosmos.read_prompt_files`; several cameras sharing one session; several
-  services, one per GPU, each generating a share of the environments; and ``fps``, the frame rate the model is told.
+  services, one per GPU, each generating a share of the environments; the transport, CUDA IPC through Warp or the
+  socket; and ``fps``, the frame rate the model is told.
 * Added single-frame Cosmos generation, ``CosmosModelCfg.generation_mode="single_frame"``, which generates each image
   from the current capture alone, with no history. ``decision_interval`` and ``augmentation_probability`` generate
   once per action chunk or for a share of the captures and publish the rendered ``rgb`` otherwise, and each

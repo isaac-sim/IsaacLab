@@ -17,10 +17,12 @@ maintainers = [{name = "Isaac Lab Project Developers"}]
 keywords = ["robotics", "simulation", "cosmos", "world model"]
 requires-python = ">=3.12"
 # The service runs in Cosmos Framework's environment, which provides the model and its Torch and CUDA stack, without
-# Isaac Lab. Isaac Lab installs this package too, for the protocol its camera client uses.
+# Isaac Lab. Isaac Lab installs this package too, for the protocol its camera client uses. Warp shares GPU buffers
+# between the two processes and works beside either Torch build.
 dependencies = [
     "numpy>=2",
     "lazy-loader>=0.4",
+    "warp-lang>=1.17.0",
 ]
 
 [project.scripts]

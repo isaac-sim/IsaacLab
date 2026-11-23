@@ -15,13 +15,14 @@ import threading
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 import numpy as np
 
 from .protocol import (
     DEFAULT_ENDPOINT,
     MAX_ARRAYS,
+    MAX_CHUNK_FRAMES,
     SEED_LIMIT,
     ProtocolError,
     disable_nagle,
@@ -29,6 +30,9 @@ from .protocol import (
     receive_message,
     send_message,
 )
+
+if TYPE_CHECKING:
+    import torch
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -84,6 +88,8 @@ def serve(model: _Model | Callable[[], _Model], endpoint: str = DEFAULT_ENDPOINT
             if resource is None:
                 resource = model()
             state = _ServiceState(resource)
+            transports = state.executor.submit(_transports, resource).result()
+            state.transports, state.gpu_uuid, state.visible_gpus = transports
             if warmup:
                 _LOGGER.info("Cosmos warming up; the first compilation can take several minutes.")
                 state.executor.submit(resource.warmup).result()
@@ -160,15 +166,18 @@ def _bind_private_unix_socket(listener: socket.socket, path: str) -> None:
 
 
 class _Stream(Protocol):
-    """A generation session stepped with the host arrays a camera sends; each step returns host arrays."""
+    """A generation session stepped with host arrays (socket) or CUDA views of the shared buffer (CUDA IPC).
+
+    Each step returns images of the same kind as its controls.
+    """
 
     def step(
         self,
-        controls: list[np.ndarray],
+        controls: list[np.ndarray] | list[torch.Tensor],
         reset_rows: tuple[int, ...],
         seeds: tuple[int, ...],
         **episode: object,
-    ) -> list[np.ndarray]: ...
+    ) -> list[np.ndarray] | list[torch.Tensor]: ...
 
     def close(self) -> None: ...
 
@@ -200,6 +209,23 @@ class _ServiceState:
         self.ownership_lock = threading.Lock()
         self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="cosmos-inference")
         self.owner: object | None = None
+        self.transports: list[str] = ["socket"]
+        self.gpu_uuid: str | None = None
+        self.visible_gpus: list[str] = []
+
+
+def _transports(model: _Model) -> tuple[list[str], str | None, list[str]]:
+    """Return the offered transports and, for CUDA IPC, the UUID of the model's GPU and the UUIDs of the GPUs this
+    service can see, one of which must be the camera's.
+
+    The device is read from its ``cuda:N`` name, so a service without Torch starts with the socket transport.
+    """
+    from . import ipc
+
+    kind, _, index = str(model.capabilities.get("device", "cpu")).partition(":")
+    if kind != "cuda" or not ipc.available():
+        return ["socket"], None, []
+    return ["socket", "cuda_ipc"], ipc.gpu_uuid(int(index or 0)), ipc.visible_gpus()
 
 
 def _run_inference(state: _ServiceState, function, *args, **kwargs):
@@ -222,6 +248,8 @@ def _handle_connection(
 ) -> None:
     token = object()
     stream: _Stream | None = None
+    channel = None
+    camera_released = False
     image_shape: tuple[int, int, int] | None = None
     num_views = 0
     try:
@@ -240,7 +268,12 @@ def _handle_connection(
                     {
                         "ok": True,
                         "ready": not state.stopping.is_set(),
-                        "capabilities": state.model.capabilities,
+                        "capabilities": {
+                            **state.model.capabilities,
+                            "transports": state.transports,
+                            "gpu_uuid": state.gpu_uuid,
+                            "visible_gpus": state.visible_gpus,
+                        },
                         "session_active": active,
                         "model_active": getattr(state.model, "active", True),
                     },
@@ -262,14 +295,19 @@ def _handle_connection(
                         "width",
                         "max_episode_frames",
                         "fps",
-                    },
+                    }
+                    | ({"transport", "ipc"} if "transport" in metadata else set()),
                     arrays,
                 )
                 if stream is not None:
                     raise RuntimeError("This connection already has a Cosmos generation session.")
+                transport = metadata.pop("transport", "socket")
+                handles = metadata.pop("ipc", None)
+                if transport not in state.transports:
+                    raise ValueError(f"This Cosmos service does not offer the {transport} transport.")
                 arguments = _open_arguments(metadata)
-                if arguments["num_views"] > MAX_ARRAYS:
-                    raise ValueError(f"A Cosmos step message carries at most {MAX_ARRAYS} views.")
+                if transport == "socket" and arguments["num_views"] > MAX_ARRAYS:
+                    raise ValueError(f"The socket transport carries at most {MAX_ARRAYS} views; use CUDA IPC.")
                 with state.ownership_lock:
                     if state.owner is not None:
                         raise RuntimeError(
@@ -281,14 +319,25 @@ def _handle_connection(
                 stream = _run_inference(state, state.model.open_stream, **arguments)
                 image_shape = (arguments["height"], arguments["width"], 3)
                 num_views = arguments["num_views"]
-                send_message(connection, {"ok": True})
+                reply = {"ok": True}
+                if transport == "cuda_ipc":
+                    channel = _run_inference(state, _open_channel, state.model, num_views, image_shape, handles)
+                    # The camera opens the generated-image buffer and event this service writes on its own GPU.
+                    reply["ipc"] = channel.handles
+                send_message(connection, reply)
             elif operation == "step":
                 fields = {"op", "version", "reset_rows", "seeds"} | ({"prompt"} if "prompt" in metadata else set())
-                _check_fields(metadata, fields, arrays, allow_arrays=True)
+                fields |= {"frames"} if channel is not None else set()
+                _check_fields(metadata, fields, arrays, allow_arrays=channel is None)
                 if stream is None:
                     raise RuntimeError("Open a Cosmos generation session before sending controls.")
                 resets, seeds = _reset_arguments(metadata, num_views)
                 episode = _episode_arguments(metadata, resets)
+                if channel is not None:
+                    frames = _channel_frames(metadata["frames"], num_views)
+                    _run_inference(state, _step_channel, stream, channel, frames, resets, seeds, episode)
+                    send_message(connection, {"ok": True})
+                    continue
                 if len(arrays) != num_views or any(array.shape[1:] != image_shape for array in arrays):
                     raise ValueError("Cosmos controls must hold one chunk per view at the configured image size.")
                 generated = _run_inference(state, stream.step, arrays, resets, seeds, **episode)
@@ -299,6 +348,9 @@ def _handle_connection(
                 if stream is not None:
                     _run_inference(state, stream.close)
                     stream = None
+                if channel is not None:
+                    _run_inference(state, channel.close)
+                    channel = None
                 with state.ownership_lock:
                     if state.owner is token:
                         state.owner = None
@@ -314,10 +366,11 @@ def _handle_connection(
                     "Unknown Cosmos operation; expected status, open, step, close, offload, activate, or shutdown."
                 )
     except ConnectionError:
-        # The camera disconnected; its session closes below.
-        pass
+        # The camera disconnected. It releases the output buffer first, and a process's mappings end with it. The
+        # service's own shutdown also ends the connection, which confirms nothing.
+        camera_released = not state.stopping.is_set()
     except TimeoutError:
-        # An idle camera learns at its next request that the session ended.
+        # An idle camera learns at its next request that the session ended, while it still has its buffers open.
         with suppress(OSError):
             send_message(connection, {"ok": False, "error": "The Cosmos session was idle too long and closed."})
     except OSError:
@@ -332,15 +385,26 @@ def _handle_connection(
         try:
             if stream is not None:
                 state.executor.submit(stream.close).result()
+            if channel is not None:
+                state.executor.submit(channel.close_opened).result()
         except Exception:
             _LOGGER.exception("Failed to close Cosmos generation state after a client disconnected.")
         finally:
             with state.ownership_lock:
                 if state.owner is token:
                     state.owner = None
-            with connections_lock:
-                connections.discard(connection)
-            connection.close()
+            try:
+                if channel is not None:
+                    # The camera may still have the output buffer open; it releases it before disconnecting. Without
+                    # that confirmation, the buffer stays allocated until this service exits.
+                    with suppress(OSError):
+                        connection.settimeout(_IDLE_TIMEOUT_S)
+                    released = camera_released or _await_disconnect(connection, state.stopping)
+                    state.executor.submit(channel.close, peer_released=released).result()
+            finally:
+                with connections_lock:
+                    connections.discard(connection)
+                connection.close()
 
 
 def _change_residency(state: _ServiceState, token: object, operation: str) -> None:
@@ -365,6 +429,86 @@ def _change_residency(state: _ServiceState, token: object, operation: str) -> No
                     state.owner = None
 
 
+def _await_disconnect(connection: socket.socket, stopping: threading.Event) -> bool:
+    """Wait until the camera closes the connection, discarding anything it still sends, up to the idle timeout.
+
+    Returns:
+        Whether the camera closed the connection, which confirms that it released this service's buffers. An idle
+        timeout or the service's own shutdown confirms nothing.
+    """
+    try:
+        while connection.recv(65536):
+            pass
+    except ConnectionError:
+        # The camera's process reset the connection; its mappings end with it.
+        pass
+    except OSError:
+        return False
+    return not stopping.is_set()
+
+
+def _open_channel(model: _Model, num_views: int, image_shape: tuple[int, int, int], handles: object):
+    """Create the output buffer and event on the model's GPU and open the camera's (inference thread).
+
+    Buffers hold one row per view. The camera's controls stay on its GPU, which can be another GPU with direct
+    access to the model's.
+    """
+    import torch
+
+    from . import ipc
+
+    if (
+        not isinstance(handles, dict)
+        or set(handles) != {"gpu_uuid", "control", "control_ready"}
+        or not all(isinstance(value, str) for value in handles.values())
+    ):
+        raise ProtocolError("A CUDA IPC session needs the camera's gpu_uuid, control and control_ready handles.")
+    device = torch.device(model.capabilities["device"])
+    camera = ipc.device_by_uuid(handles["gpu_uuid"])
+    if camera is None:
+        raise ValueError(
+            f"This Cosmos service cannot see the camera's GPU {handles['gpu_uuid']}; keep that GPU visible to the "
+            "service and select the model's GPU with --device."
+        )
+    if not ipc.can_access_peer(camera, device.index or 0):
+        raise ValueError("The camera's GPU and the Cosmos service's GPU cannot access each other's memory directly.")
+    channel = ipc.SharedChannel(device, (num_views, MAX_CHUNK_FRAMES, *image_shape), writes="output")
+    try:
+        channel.open(torch.device("cuda", camera), {name: handles[name] for name in ("control", "control_ready")})
+    except Exception:
+        channel.close()
+        raise
+    return channel
+
+
+def _step_channel(stream: _Stream, channel, frames: list[int], resets, seeds, episode: dict) -> None:
+    """Generate from the camera's shared controls into the shared output, ordered by events (inference thread)."""
+    import torch
+
+    device = channel.output.device
+    channel.control_ready.wait()
+    # On the camera's GPU this reads the controls in place; from another GPU it copies them between the GPUs.
+    controls = [channel.control.tensor[view, :count].to(device) for view, count in enumerate(frames)]
+    generated = stream.step(controls, resets, seeds, **episode)
+    if (
+        not isinstance(generated, list)
+        or len(generated) != len(frames)
+        or any(
+            not isinstance(images, torch.Tensor)
+            or images.dtype != torch.uint8
+            or tuple(images.shape) != tuple(control.shape)
+            for images, control in zip(generated, controls)
+        )
+    ):
+        raise ValueError("Cosmos must return uint8 THWC RGB matching each view's control chunk.")
+    for view, (images, count) in enumerate(zip(generated, frames)):
+        channel.output.tensor[view, :count].copy_(images)
+    channel.output_ready.record()
+    # A GPU fault must reach the client as an error reply; its stream would otherwise wait on output_ready forever.
+    # This waits in the service process only; the camera's process does not synchronize.
+    torch.cuda.current_stream(channel.output.device).synchronize()
+
+
 def _episode_arguments(metadata: dict, resets: tuple[int, ...]) -> dict:
     """Return a step's episode settings: a reset may bring a new appearance prompt; the weights stay loaded."""
     if "prompt" not in metadata:
@@ -378,6 +522,17 @@ def _episode_arguments(metadata: dict, resets: tuple[int, ...]) -> dict:
     ):
         raise ValueError("Cosmos prompt must be a string or None, or one per reset view.")
     return {"prompt": prompt}
+
+
+def _channel_frames(frames: object, num_views: int) -> list[int]:
+    """Return one frame count per view of a CUDA IPC step."""
+    if (
+        not isinstance(frames, list)
+        or len(frames) != num_views
+        or any(type(count) is not int or not 1 <= count <= MAX_CHUNK_FRAMES for count in frames)
+    ):
+        raise ValueError(f"Cosmos chunks hold 1 to {MAX_CHUNK_FRAMES} frames for each view.")
+    return frames
 
 
 def _check_generated(generated: object, arrays: list[np.ndarray]) -> None:

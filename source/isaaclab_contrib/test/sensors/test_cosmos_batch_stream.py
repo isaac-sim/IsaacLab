@@ -192,7 +192,7 @@ def test_a_single_frame_client_generates_through_the_service_on_the_server_strea
     stream.close()
     seeds = tuple(range(5, 5 + views))
     with _served(owner) as endpoint:
-        cfg = CosmosModelCfg(endpoint=endpoint, generation_mode="single_frame", timeout=30)
+        cfg = CosmosModelCfg(endpoint=endpoint, generation_mode="single_frame", transport="socket", timeout=30)
         client = CosmosModel(cfg)
         try:
             session = client.open_stream(num_views=views, seeds=seeds)

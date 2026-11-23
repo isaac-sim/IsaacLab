@@ -118,6 +118,7 @@ def test_the_shadow_hand_task_options_are_set_with_overrides(task):
             "env.scene.num_envs=2",
             f"env.cosmos.prompt={prompts}",
             "env.cosmos.endpoint=tcp://127.0.0.1:5556",
+            "env.cosmos.transport=socket",
         ),
     )
     env_cfg.validate()
@@ -126,6 +127,7 @@ def test_the_shadow_hand_task_options_are_set_with_overrides(task):
     assert env_cfg.scene.num_envs == 2 and len(chain) == 2
     assert chain[1].backend.prompt == ["A kitchen.", "A lab."]
     assert chain[1].backend.endpoint == "tcp://127.0.0.1:5556"
+    assert chain[1].backend.transport == "socket"
     assert chain[1].backend.max_episode_frames == 601
     assert env_cfg.cosmos is chain[1].backend
     assert camera.update_period == 0.0
