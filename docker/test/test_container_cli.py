@@ -69,19 +69,33 @@ def test_both_orders_parse_to_the_same_arguments(argv: list[str], monkeypatch: p
     assert (args.command, args.profile) == ("build", "kitless")
 
 
-@pytest.mark.parametrize("running, expect_start", [(False, True), (True, False)])
+X11_OVERLAY = (["x11.yaml"], {"DISPLAY": ":1"})
+"""What ``x11_check`` returns when X11 forwarding is enabled: compose files and environment variables."""
+
+
+@pytest.mark.parametrize(
+    "running, x11_outputs, overlay_at_start",
+    [
+        (False, None, ([], {})),
+        (False, X11_OVERLAY, X11_OVERLAY),
+        (True, X11_OVERLAY, None),
+    ],
+)
 def test_enter_starts_the_container_only_when_it_is_down(
-    running: bool, expect_start: bool, monkeypatch: pytest.MonkeyPatch
+    running: bool, x11_outputs, overlay_at_start, monkeypatch: pytest.MonkeyPatch
 ):
-    """``enter`` brings a stopped container up, and leaves a running one alone."""
+    """``enter`` brings a stopped container up with the X11 overlay ``start`` would apply, and leaves a
+    running one alone."""
     module = _container_module()
 
     interface = MagicMock()
     interface.is_container_running.return_value = running
     interface.add_yamls = []
     interface.environ = {}
+    started_with = []
+    interface.start.side_effect = lambda: started_with.append((list(interface.add_yamls), dict(interface.environ)))
     monkeypatch.setattr(module, "ContainerInterface", MagicMock(return_value=interface))
-    monkeypatch.setattr(module.x11_utils, "x11_check", MagicMock(return_value=None))
+    monkeypatch.setattr(module.x11_utils, "x11_check", MagicMock(return_value=x11_outputs))
     monkeypatch.setattr(module.x11_utils, "x11_refresh", MagicMock())
     monkeypatch.setattr(module.shutil, "which", MagicMock(return_value="/usr/bin/docker"))
 
@@ -89,7 +103,7 @@ def test_enter_starts_the_container_only_when_it_is_down(
         argparse.Namespace(command="enter", profile="kitless", files=None, env_files=None, suffix=None, info=False)
     )
 
-    assert interface.start.called is expect_start
+    assert started_with == ([] if overlay_at_start is None else [overlay_at_start])
     assert interface.enter.called
 
 
