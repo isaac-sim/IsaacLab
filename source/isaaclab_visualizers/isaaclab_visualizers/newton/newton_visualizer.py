@@ -1015,10 +1015,13 @@ class NewtonVisualizerBase(BaseVisualizer):
             try:
                 camera = view.camera
                 renderer = self._sim.get_or_create_backend(camera.cfg.renderer_cfg)
+                # The viewer camera has one view, so it has one render product. The unpacking fails if it has more,
+                # because the controls would change only the first one.
+                (product,) = camera._render_data.products
                 self._rtx_appearance = RtxAppearance(
                     self._sim.stage,
                     renderer,
-                    camera._render_data.render_product_path,
+                    product.path,
                     camera.cfg.background_color,
                 )
             except Exception:
