@@ -7,12 +7,20 @@ Foveated Camera
 
 A :class:`~sensors.FoveatedCamera` samples densely at its fixation and sparsely in the periphery.
 The `fovi <https://nblauch.github.io/fovi>`__ library places the viewing rays. Moving the gaze rotates them
-relative to the physical camera's mount. The :ref:`demo <demo-foveated-camera>` lets you explore the scene below
-by moving the camera and steering its gaze; the bracketed options render the retina with OVRTX:
+relative to the physical camera's mount. The ``foveated-camera`` example lets you explore the scene below by moving
+the camera and steering its gaze; the bracketed options render the retina with OVRTX, whose first frame can take
+several minutes with a cold shader cache:
 
 .. code-block:: bash
 
-   uv run --extra fovi [--extra ovrtx] isaaclab demo foveated-camera [renderer=ovrtx]
+   uv run --extra fovi [--extra ovrtx] isaaclab example foveated-camera [renderer=ovrtx]
+
+The Newton viewer shows the retina. A panel shows the fisheye on a curved viewing sphere beside a magnified retina:
+the green lens boundary follows the camera mount, and the blue gaze circle and sampling grid show the magnified
+retina's coverage. Use WASD or the arrow keys to move and Q/E to lower or raise the camera. I/K tilt the gaze and J/L
+pan it; O/U magnify the panel's retina and zoom back out; H shows or hides the viewer controls. Pass
+``--target power_drill`` to start fixating the drill, or ``env.scene.eye.cmf_a_deg=1000`` for a matched, nearly
+uniform retina.
 
 .. figure:: ../_static/overview/sensors/foveated_camera_overview.jpg
    :alt: A retina behind a 180-degree fisheye lens on the viewing sphere, and its rendered images at two fixations.

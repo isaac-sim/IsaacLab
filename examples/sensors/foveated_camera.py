@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Explore the docs scene through a foveated camera.
+"""Explore a cluttered scene through the experimental foveated camera.
 
 The viewer shows the camera's retina; a panel shows the gaze on the viewing sphere beside a magnified retina.
 Use WASD or the arrow keys to move, and Q/E to lower or raise the camera.
@@ -13,10 +13,10 @@ Use --target to choose where the retina looks at launch.
 
 .. code-block:: bash
 
-    uv run --extra fovi isaaclab demo foveated-camera
-    uv run --extra fovi --extra ovrtx isaaclab demo foveated-camera renderer=ovrtx --viz newton_gl
+    uv run --extra fovi isaaclab example foveated-camera
+    uv run --extra fovi --extra ovrtx isaaclab example foveated-camera renderer=ovrtx --viz newton_gl
     # A large CMF constant gives the matched non-foveated retina, for comparison:
-    uv run --extra fovi isaaclab demo foveated-camera env.scene.eye.cmf_a_deg=1000
+    uv run --extra fovi isaaclab example foveated-camera env.scene.eye.cmf_a_deg=1000
 """
 
 from __future__ import annotations
@@ -190,7 +190,7 @@ class FoveatedSceneCfg(InteractiveSceneCfg):
 
 
 @configclass
-class FoveatedDemoCfg(ManagerBasedEnvCfg):
+class FoveatedExampleCfg(ManagerBasedEnvCfg):
     """A static scene; physics initializes it but never advances."""
 
     decimation = 1
@@ -337,7 +337,7 @@ def camera_comparison(
 
 
 def newton_window(visualizer):
-    """The window of a Newton visualizer, which shows the demo's panel. Isaac Lab's Newton raycast example reaches it
+    """The window of a Newton visualizer, which shows the example's panel. Isaac Lab's Newton raycast example reaches it
     the same way."""
     return visualizer._viewer
 
@@ -346,11 +346,11 @@ def main() -> None:
     """Render the docs scene and let the viewer drive the camera."""
     # Config-only registration reuses the standard preset and Hydra override resolver.
     gym.register(
-        "FoveatedCameraDemo",
+        "FoveatedCameraExample",
         entry_point="isaaclab.envs:ManagerBasedEnv",
-        kwargs={"env_cfg_entry_point": FoveatedDemoCfg},
+        kwargs={"env_cfg_entry_point": FoveatedExampleCfg},
     )
-    cfg, _ = resolve_task_config("FoveatedCameraDemo", None, overrides=overrides)
+    cfg, _ = resolve_task_config("FoveatedCameraExample", None, overrides=overrides)
     if cfg.scene.eye.renderer_cfg.renderer_type == "ovrtx":
         print("Starting OVRTX. The first frame can take several minutes with a cold shader cache.", flush=True)
     with launch_simulation(cfg, args_cli):
