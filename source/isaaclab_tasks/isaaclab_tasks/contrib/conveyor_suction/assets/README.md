@@ -1,1 +1,0 @@
-Original procedural paper, shipping-label and concrete textures, authored for this task under BSD-3-Clause. The scene authors their visual surfaces without rigid-body or collision schemas. No external photographs, brand assets, fonts or network materials are needed at runtime.

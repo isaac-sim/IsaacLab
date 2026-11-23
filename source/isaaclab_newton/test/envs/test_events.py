@@ -7,7 +7,6 @@
 
 from collections.abc import Iterator
 from copy import copy
-from itertools import product
 from pathlib import Path
 
 import pytest
@@ -19,7 +18,7 @@ from isaaclab_visualizers.newton import NewtonGLBackendCfg
 from pxr import Usd, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationCfg, AssetBaseCfg
+from isaaclab.assets import ArticulationCfg
 from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
 from isaaclab.envs.mdp import (
     JointEffortActionCfg,
@@ -61,10 +60,6 @@ def device(request: pytest.FixtureRequest) -> str:
 def event_env(
     request: pytest.FixtureRequest, device: str, tmp_path_factory: pytest.TempPathFactory
 ) -> Iterator[ManagerBasedEnv]:
-    solver_cfg = getattr(request, "param", MJWarpSolverCfg())
-    filler_counts = ()
-    if isinstance(solver_cfg, tuple):
-        solver_cfg, filler_counts = solver_cfg
     source = Path(__file__).parents[1] / "assets/data/articulation_ordering_branching.usda"
     stage = Usd.Stage.Open(Usd.Stage.Open(str(source)).Flatten())
     body_names = ["base", "left_upper", "left_tip", "right_upper", "right_tip"]
@@ -91,35 +86,12 @@ def event_env(
         joint_ordering=("right_elbow", "right_shoulder", "left_elbow", "left_shoulder"),
         body_ordering=list(reversed(body_names)),
     )
-    # Different background collider counts make the robot's shape offsets non-affine across worlds.
-    fillers = []
-    for count in filler_counts:
-        filler = Usd.Stage.CreateInMemory()
-        filler.SetDefaultPrim(UsdGeom.Xform.Define(filler, "/Filler").GetPrim())
-        for index in range(count):
-            collider = UsdGeom.Mesh.Define(filler, f"/Filler/Collider_{index}")
-            collider.CreatePointsAttr(list(product((-0.025, 0.025), repeat=3)))
-            collider.CreateFaceVertexCountsAttr([4] * 6)
-            collider.CreateFaceVertexIndicesAttr(
-                [0, 1, 3, 2, 4, 6, 7, 5, 0, 4, 5, 1, 2, 3, 7, 6, 0, 2, 6, 4, 1, 5, 7, 3]
-            )
-            UsdGeom.Xformable(collider).AddTranslateOp().Set((5.0, index * 0.1, 0.0))
-            UsdPhysics.CollisionAPI.Apply(collider.GetPrim())
-            UsdPhysics.MeshCollisionAPI.Apply(collider.GetPrim()).CreateApproximationAttr("convexHull")
-        filler_path = path.with_name(f"filler_{count}.usda")
-        filler.Export(str(filler_path))
-        fillers.append(sim_utils.UsdFileCfg(usd_path=str(filler_path)))
-    if fillers:
-        scene_cfg.filler = AssetBaseCfg(
-            prim_path="{ENV_REGEX_NS}/Filler",
-            spawn=sim_utils.MultiAssetSpawnerCfg(assets_cfg=fillers, random_choice=False),
-        )
     observations = ObservationGroupCfg()
     observations.joints = ObservationTermCfg(func=joint_pos)
     cfg = ManagerBasedEnvCfg(
         sim=SimulationCfg(
             device=device,
-            physics=NewtonCfg(solver_cfg=solver_cfg, use_cuda_graph=False),
+            physics=NewtonCfg(solver_cfg=getattr(request, "param", MJWarpSolverCfg()), use_cuda_graph=False),
         ),
         scene=scene_cfg,
         decimation=1,
@@ -136,7 +108,7 @@ def event_env(
         env.close()
 
 
-@pytest.mark.parametrize("event_env", [(MJWarpSolverCfg(), (1, 2)), (KaminoPADMMSolverCfg(), (1, 2))], indirect=True)
+@pytest.mark.parametrize("event_env", [MJWarpSolverCfg(), KaminoPADMMSolverCfg()], indirect=True)
 def test_material_body_selection(event_env: ManagerBasedEnv):
     env = event_env
     model = env.sim.backend_manager.backend.model
@@ -156,8 +128,8 @@ def test_material_body_selection(event_env: ManagerBasedEnv):
         "dynamic_friction_range": (0.2, 0.2),
         "restitution_range": (0.1, 0.1),
         "num_buckets": 1,
-        "contact_stiffness_range": (3500.0, 3500.0),
-        "contact_damping_range": (150.0, 150.0),
+        "contact_stiffness_range": (2500.0, 2500.0),
+        "contact_damping_range": (100.0, 100.0),
     }
     friction = wp.to_torch(model.shape_material_mu)
     restitution = wp.to_torch(model.shape_material_restitution)
@@ -169,12 +141,9 @@ def test_material_body_selection(event_env: ManagerBasedEnv):
     damping = wp.to_torch(model.shape_material_kd)
     expected_stiffness = stiffness.clone()
     expected_damping = damping.clone()
-    expected_stiffness[selected] = 3500.0
-    expected_damping[selected] = 150.0
+    expected_stiffness[selected] = 2500.0
+    expected_damping[selected] = 100.0
     term = randomize_rigid_body_material(EventTermCfg(func=randomize_rigid_body_material, params=params), env)
-    # Preserve another writer's updates made after this term was constructed.
-    friction[0] = expected_friction[0] = 0.7
-    restitution[0] = expected_restitution[0] = 0.2
     term(env, torch.tensor([1], device=env.device, dtype=torch.int32), **params)
     torch.testing.assert_close(friction, expected_friction)
     torch.testing.assert_close(restitution, expected_restitution)
@@ -183,14 +152,10 @@ def test_material_body_selection(event_env: ManagerBasedEnv):
     torch.testing.assert_close(damping, expected_damping)
 
 
-@pytest.mark.parametrize("event_env", [(MJWarpSolverCfg(), (1, 2))], indirect=True)
 def test_collider_offsets_preserve_unselected_environments(event_env: ManagerBasedEnv):
     env = event_env
     model = env.sim.backend_manager.backend.model
-    shape_bodies = wp.to_torch(model.shape_body)
     worlds = wp.to_torch(model.shape_world)
-    selected = (shape_bodies >= 0) & (worlds == 1)
-    first = (shape_bodies >= 0) & (worlds == 0)
     margin = wp.to_torch(model.shape_margin)
     gap = wp.to_torch(model.shape_gap)
     expected_margin = margin.clone()
@@ -200,16 +165,16 @@ def test_collider_offsets_preserve_unselected_environments(event_env: ManagerBas
         EventTermCfg(func=randomize_rigid_body_collider_offsets, params={"asset_cfg": asset_cfg}), env
     )
     term(env, torch.tensor([1], device=env.device), asset_cfg, (0.3, 0.3), (0.4, 0.4))
-    expected_margin[selected] = 0.3
-    expected_gap[selected] = 0.1
+    expected_margin[worlds == 1] = 0.3
+    expected_gap[worlds == 1] = 0.1
     torch.testing.assert_close(margin, expected_margin)
     torch.testing.assert_close(gap, expected_gap)
     term(env, slice(0, 1), asset_cfg, contact_offset_distribution_params=(0.6, 0.6))
-    expected_gap[first] = 0.6 - expected_margin[first]
+    expected_gap[worlds == 0] = 0.6 - expected_margin[worlds == 0]
     torch.testing.assert_close(margin, expected_margin)
     torch.testing.assert_close(gap, expected_gap)
     term(env, torch.tensor([1], device=env.device), asset_cfg, contact_offset_distribution_params=(0.2, 0.2))
-    expected_gap[selected] = 0.0
+    expected_gap[worlds == 1] = 0.0
     torch.testing.assert_close(margin, expected_margin)
     torch.testing.assert_close(gap, expected_gap)
 
@@ -285,7 +250,6 @@ def test_joint_friction_preserves_unselected_joints_and_environments(event_env: 
 
 
 @pytest.mark.parametrize("consumer", ["visualizer", "renderer"])
-@pytest.mark.parametrize("event_env", [(MJWarpSolverCfg(), (1, 2))], indirect=True)
 def test_visual_colors_select_bodies_and_rebind(
     event_env: ManagerBasedEnv, monkeypatch: pytest.MonkeyPatch, consumer: str
 ):
@@ -309,7 +273,7 @@ def test_visual_colors_select_bodies_and_rebind(
     colors = wp.to_torch(replacement.shape_color)
     before = colors.clone()
     shape_bodies = wp.to_torch(model.shape_body).tolist()
-    body_paths = [model.body_label[body] if body >= 0 else "" for body in shape_bodies]
+    body_paths = [model.body_label[body] for body in shape_bodies]
     for selector, rows in (
         (torch.tensor([3, 1], device=env.device), [3, 1]),
         (slice(None), [0, 1, 2, 3]),

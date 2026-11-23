@@ -14,8 +14,6 @@
 # No USD files allowed in the repo
 **/*.usd
 **/*.usda
-!source/isaaclab_tasks/isaaclab_tasks/contrib/conveyor_franka/assets/*.usda
-!source/isaaclab_tasks/isaaclab_tasks/contrib/conveyor_suction/assets/*.usda
 **/*.usdc
 **/*.usdz
 

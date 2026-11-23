@@ -138,13 +138,13 @@ class VisualMaterialWriter:
 def _write_shape_colors(
     colors: wp.array2d(dtype=wp.vec3f),
     env_ids: wp.array(dtype=wp.int32),
-    shape_ids: wp.array2d(dtype=wp.int32),
+    shape_ids: wp.array(dtype=wp.int32),
     body_rows: wp.array(dtype=wp.int32),
-    shape_colors: wp.array(dtype=wp.vec3f),
+    shape_colors: wp.array2d(dtype=wp.vec3f),
 ):
     env_row, shape_row = wp.tid()
     color = colors[env_row, body_rows[shape_row]]
-    shape_colors[shape_ids[env_ids[env_row], shape_row]] = wp.vec3f(
+    shape_colors[env_ids[env_row], shape_ids[shape_row]] = wp.vec3f(
         _linear_to_srgb(color[0]), _linear_to_srgb(color[1]), _linear_to_srgb(color[2])
     )
 
@@ -163,36 +163,36 @@ class VisualShapeColorWriter:
                 shape_ids.extend(shapes)
                 shape_body_rows.extend([body_rows[body_name]] * len(shapes))
         self.device = torch.device(wp.device_to_torch(model.device))
-        layout = view.frequency_layouts[Model.AttributeFrequency.SHAPE]
-        shape_rows = layout.get_absolute_indices(view.world_count, view.count_per_world)[:, 0, shape_ids]
-        self._shape_ids = wp.array(shape_rows, dtype=wp.int32, device=model.device)
+        self._shape_ids = wp.array(shape_ids, dtype=wp.int32, device=model.device)
         self._body_rows = wp.array(shape_body_rows, dtype=wp.int32, device=model.device)
+        self._view = view
         self.rebind(model)
 
     @property
     def model(self) -> Model:
-        return self._model
+        return self._view.model
 
     def rebind(self, model: Model) -> None:
         """Rebind the shape-color buffer after Newton replaces its model."""
-        self._model = model
+        self._view.model = model
+        self._shape_colors = self._view.get_attribute("shape_color", model)[:, 0]
 
     def __call__(self, colors: torch.Tensor, env_ids: torch.Tensor) -> None:
         """Write colors shaped ``[len(env_ids), body_count, 3]`` with one launch."""
-        if len(self._body_rows) and env_ids.numel():
+        if len(self._shape_ids) and env_ids.numel():
             stream = (
                 wp.stream_from_torch(torch.cuda.current_stream(self.device)) if self.device.type == "cuda" else None
             )
             with wp.ScopedStream(stream, sync_enter=False):
                 wp.launch(
                     _write_shape_colors,
-                    dim=(env_ids.numel(), len(self._body_rows)),
+                    dim=(env_ids.numel(), len(self._shape_ids)),
                     inputs=[
                         wp.from_torch(colors, dtype=wp.vec3f),
                         wp.from_torch(env_ids, dtype=wp.int32),
                         self._shape_ids,
                         self._body_rows,
-                        self.model.shape_color,
+                        self._shape_colors,
                     ],
                     device=self.model.device,
                 )
