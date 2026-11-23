@@ -13,7 +13,7 @@ from isaaclab.sensors import CameraCfg
 from isaaclab.utils.tensor_processors import TensorProcessor, TensorProcessorCfg
 
 from isaaclab_contrib.sensors.cosmos import (
-    CosmosModelCfg,
+    CosmosClientCfg,
     CosmosTransferProcessorCfg,
     cosmos_camera,
 )
@@ -46,7 +46,7 @@ def _camera(width, height, **kwargs):
 def test_cosmos_camera_renders_a_canvas_with_the_same_view_and_publishes_the_original_size(size, canvas, bounds):
     """The canvas keeps the camera's aspect ratio; the published crop sees what the camera saw."""
     width, height = size
-    camera = cosmos_camera(_camera(width, height), CosmosModelCfg(), near=0.2, far=1.5)
+    camera = cosmos_camera(_camera(width, height), CosmosClientCfg(), near=0.2, far=1.5)
     chain = camera.tensor_processors
 
     assert (camera.width, camera.height) == canvas
@@ -85,7 +85,7 @@ def test_cosmos_camera_takes_any_processors_that_write_the_control(render_output
     from isaaclab.sensors.camera.camera_cfg import _render_data_types
 
     control = _processor(inputs=[render_output])
-    camera = cosmos_camera(_camera(64, 64), CosmosModelCfg(), control=[control])
+    camera = cosmos_camera(_camera(64, 64), CosmosClientCfg(), control=[control])
     chain = camera.tensor_processors
 
     assert chain[0].func is TensorProcessor and chain[0].inputs == [render_output]
@@ -96,27 +96,27 @@ def test_cosmos_camera_takes_any_processors_that_write_the_control(render_output
 
     unrelated = _processor(outputs=["mask"])
     with pytest.raises(ValueError, match="'control' buffer"):
-        cosmos_camera(_camera(64, 64), CosmosModelCfg(), control=[unrelated])
+        cosmos_camera(_camera(64, 64), CosmosClientCfg(), control=[unrelated])
     # The depth range belongs to the default depth control only.
     with pytest.raises(ValueError, match="near and far set the default depth control"):
-        cosmos_camera(_camera(64, 64), CosmosModelCfg(), control=[control], near=0.2)
+        cosmos_camera(_camera(64, 64), CosmosClientCfg(), control=[control], near=0.2)
 
 
 def test_cosmos_camera_drops_the_isp_of_the_image_it_replaces():
     """An ISP processes the rendered rgb, which the Cosmos camera no longer renders."""
-    camera = cosmos_camera(_camera(64, 64).replace(isp_cfg="ppisp"), CosmosModelCfg())
+    camera = cosmos_camera(_camera(64, 64).replace(isp_cfg="ppisp"), CosmosClientCfg())
     assert camera.isp_cfg is None
 
 
 def test_cosmos_camera_rejects_cameras_it_cannot_reproduce():
     with pytest.raises(ValueError, match="only 'rgb'"):
-        cosmos_camera(_camera(64, 64).replace(data_types=["rgb", "depth"]), CosmosModelCfg())
+        cosmos_camera(_camera(64, 64).replace(data_types=["rgb", "depth"]), CosmosClientCfg())
     existing = _processor(outputs=["rgb"])
     with pytest.raises(ValueError, match="already has tensor processors"):
-        cosmos_camera(_camera(64, 64, tensor_processors=[existing]), CosmosModelCfg())
+        cosmos_camera(_camera(64, 64, tensor_processors=[existing]), CosmosClientCfg())
     with pytest.raises(ValueError, match="fisheye"):
-        cosmos_camera(_camera(64, 64, spawn=sim_utils.FisheyeCameraCfg()), CosmosModelCfg())
+        cosmos_camera(_camera(64, 64, spawn=sim_utils.FisheyeCameraCfg()), CosmosClientCfg())
     # Calibrated intrinsics take precedence over the aperture the canvas widens.
     calibrated = sim_utils.PinholeCameraCfg(distortion=sim_utils.OpenCvPinholeDistortionCfg())
     with pytest.raises(ValueError, match="uncalibrated pinhole"):
-        cosmos_camera(_camera(64, 64, spawn=calibrated), CosmosModelCfg())
+        cosmos_camera(_camera(64, 64, spawn=calibrated), CosmosClientCfg())

@@ -9,7 +9,7 @@ import json
 
 import pytest
 
-from isaaclab_contrib.sensors.cosmos import CosmosModel, CosmosModelCfg, read_prompt_files
+from isaaclab_contrib.sensors.cosmos import CosmosClient, CosmosClientCfg, read_prompt_files
 
 pytestmark = pytest.mark.unit
 
@@ -39,8 +39,8 @@ def test_prompt_files_replace_the_text_prompt_and_a_prompt_is_never_read_as_a_pa
     (tmp_path / "blue.json").write_text(json.dumps({"subjects": "A blue cube."}), encoding="utf-8")
     path_like = str(tmp_path / "red.txt")
 
-    from_files = CosmosModel(CosmosModelCfg(prompt="A lab.", prompt_files=str(tmp_path / "*"), max_episode_frames=13))
-    as_text = CosmosModel(CosmosModelCfg(prompt=path_like, max_episode_frames=13))
+    from_files = CosmosClient(CosmosClientCfg(prompt="A lab.", prompt_files=str(tmp_path / "*"), max_episode_frames=13))
+    as_text = CosmosClient(CosmosClientCfg(prompt=path_like, max_episode_frames=13))
 
     assert from_files._cfg.prompt == ['{"subjects": "A blue cube."}', "A red cube."]
     assert as_text._cfg.prompt == path_like

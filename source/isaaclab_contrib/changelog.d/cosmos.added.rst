@@ -9,14 +9,14 @@
   base seed or a list with one seed per view), and shares one model per configuration through the simulation
   context. It requires an explicit capture ``env_mask`` and rejects asynchronous camera calls before queuing
   controls. :class:`~isaaclab_contrib.sensors.image_transfer.DepthControlProcessorCfg` prepares depth controls.
-* Added :class:`~isaaclab_contrib.sensors.cosmos.CosmosModelCfg` settings: one prompt per environment, or prompt files
+* Added :class:`~isaaclab_contrib.sensors.cosmos.CosmosClientCfg` settings: one prompt per environment, or prompt files
   read with :func:`~isaaclab_contrib.sensors.cosmos.read_prompt_files`; several cameras sharing one session; several
   services, one per GPU, each generating a share of the environments; the transport, CUDA IPC through Warp or the
   socket; and ``fps``, the frame rate the model is told.
-* Added single-frame Cosmos generation, ``CosmosModelCfg.generation_mode="single_frame"``, which generates each image
+* Added single-frame Cosmos generation, ``CosmosClientCfg.generation_mode="single_frame"``, which generates each image
   from the current capture alone, with no history. ``decision_interval`` and ``augmentation_probability`` generate
   once per action chunk or for a share of the captures and publish the rendered ``rgb`` otherwise, and each
-  environment's episode moves to its next prompt. ``CosmosModel.offload`` and ``activate`` move a service's weights
+  environment's episode moves to its next prompt. ``CosmosClient.offload`` and ``activate`` move a service's weights
   to host memory and back between rollouts.
 * Added ``python -m isaaclab_contrib.sensors.cosmos.cli status``, which reports whether a running Cosmos service is
   ready and has an active camera session, and its ``offload`` and ``activate`` commands.

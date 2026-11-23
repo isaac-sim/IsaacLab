@@ -16,7 +16,7 @@ from isaaclab.utils import configclass
 from ..image_transfer import ImageTransferProcessorCfg
 
 if TYPE_CHECKING:
-    from .cosmos_model_cfg import CosmosModelCfg
+    from .cosmos_client_cfg import CosmosClientCfg
     from .cosmos_processor import CosmosTransferProcessor
 
 
@@ -34,7 +34,7 @@ class CosmosTransferProcessorCfg(ImageTransferProcessorCfg):
     """Captures required for subsequent chunks."""
 
     camera: str = ""
-    """Scene name of the processor's camera, one of :attr:`CosmosModelCfg.cameras` when cameras share a session.
+    """Scene name of the processor's camera, one of :attr:`CosmosClientCfg.cameras` when cameras share a session.
     Defaults to empty, for a camera with its own session."""
 
     image_size: tuple[int, int] | None = None
@@ -56,7 +56,7 @@ class CosmosTransferProcessorCfg(ImageTransferProcessorCfg):
         self.inputs = inputs
 
 
-def publishes_rendered_rgb(backend: CosmosModelCfg) -> bool:
+def publishes_rendered_rgb(backend: CosmosClientCfg) -> bool:
     """Whether single-frame generation can skip a capture and publish the rendered ``rgb`` instead."""
     return getattr(backend, "generation_mode", None) == "single_frame" and (
         backend.decision_interval != 1 or backend.augmentation_probability != 1

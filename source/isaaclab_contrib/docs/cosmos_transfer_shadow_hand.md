@@ -178,7 +178,7 @@ configurations, so the Cosmos client is imported only when one is selected. Both
   is the cube pose of the step its image appeared, kept until that image changes. An environment showing black
   after a reset is left out of the loss until its next image.
 
-The task's Cosmos settings are `env.cosmos`, the camera's own `CosmosModelCfg`, set with ordinary Isaac Lab
+The task's Cosmos settings are `env.cosmos`, the camera's own `CosmosClientCfg`, set with ordinary Isaac Lab
 overrides:
 
 | Option | Override |

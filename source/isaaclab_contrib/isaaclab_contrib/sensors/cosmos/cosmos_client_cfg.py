@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Configuration for the Cosmos image-transfer backend."""
+"""Configuration of the Cosmos client."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
-    from .cosmos_model import CosmosModel
+    from .cosmos_client import CosmosClient
 
 
 def episode_frame_budget(env_cfg: Any, update_period: float) -> tuple[int, int, int]:
@@ -42,14 +42,14 @@ def episode_frame_budget(env_cfg: Any, update_period: float) -> tuple[int, int, 
 
 
 @configclass
-class CosmosModelCfg(BackendCfg):
+class CosmosClientCfg(BackendCfg):
     """Settings for a camera's resident Cosmos service connection.
 
     Use with :class:`~isaaclab_contrib.sensors.cosmos.CosmosTransferProcessorCfg` after the processors that write the
     control image, as :func:`~isaaclab_contrib.sensors.cosmos.cosmos_camera` arranges.
     """
 
-    class_type: type[CosmosModel] | str = "{DIR}.cosmos_model:CosmosModel"
+    class_type: type[CosmosClient] | str = "{DIR}.cosmos_client:CosmosClient"
     """Client resource constructor. The model framework runs in the service's environment."""
 
     endpoint: str | list[str] = DEFAULT_ENDPOINT
@@ -76,12 +76,12 @@ class CosmosModelCfg(BackendCfg):
     list; they are read when the camera's Cosmos client is created."""
 
     cameras: tuple[str, ...] = ()
-    """Scene names of the cameras that share one session, each configured with this model. Defaults to none, which
+    """Scene names of the cameras that share one session, each configured with this client. Defaults to none, which
     gives each camera its own session. With several, every capture generates all their environments as one batch:
     camera ``k``'s environment ``v`` is view ``k * num_envs + v``, which selects its prompt as above; a camera's view
     takes its environment's seed, so all cameras of an environment share it. Views of different cameras are generated
     independently and need not agree with each other. The cameras need the same canvas and capture rate: pass
-    each to :func:`~isaaclab_contrib.sensors.cosmos.cosmos_camera` with this model, one ``canvas`` and its scene
+    each to :func:`~isaaclab_contrib.sensors.cosmos.cosmos_camera` with this client, one ``canvas`` and its scene
     name."""
 
     max_episode_frames: int | None = None
@@ -97,7 +97,7 @@ class CosmosModelCfg(BackendCfg):
     generates each image independently from the current capture's control alone, with no history, for workloads
     that need no temporal consistency, such as a policy that observes once per action chunk. Its images do not
     repeat between updates, a reset view is black only until its next capture, and the service can offload its
-    weights while the session stays open (see :meth:`CosmosModel.offload`). Cameras sharing a session
+    weights while the session stays open (see :meth:`CosmosClient.offload`). Cameras sharing a session
     (:attr:`cameras`) need ``"autoregressive"``."""
 
     decision_interval: int = 1

@@ -30,7 +30,7 @@ class CosmosTransferProcessor(ImageTransferProcessor):
     latest generated image. This specialization validates the Cosmos frame cadence before opening
     the camera's generation stream, and joins its camera's views to a session shared with other cameras.
 
-    With :attr:`CosmosModelCfg.generation_mode` ``"single_frame"``, each generation instead makes one image per view
+    With :attr:`CosmosClientCfg.generation_mode` ``"single_frame"``, each generation instead makes one image per view
     from the current capture's control, at every ``decision_interval``-th capture of the camera and with
     probability ``augmentation_probability``; the other captures publish the camera's rendered ``rgb``. Resets do
     not move this schedule, and only the views a capture selects publish a new image.

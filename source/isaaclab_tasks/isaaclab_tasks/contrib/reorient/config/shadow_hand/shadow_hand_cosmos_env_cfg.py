@@ -10,7 +10,7 @@ from __future__ import annotations
 from isaaclab.utils import configclass
 
 from isaaclab_contrib.sensors.cosmos import (
-    CosmosModelCfg,
+    CosmosClientCfg,
     CosmosTransferProcessorCfg,
     cosmos_camera,
     episode_frame_budget,
@@ -27,7 +27,7 @@ from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_e
     ShadowHandTiledCameraCfg,
 )
 
-_COSMOS_MODEL_CFG = CosmosModelCfg(
+_COSMOS_CLIENT_CFG = CosmosClientCfg(
     prompt=(
         "A close-up overhead view of a robotic Shadow Hand reorienting a small colored cube, "
         "with realistic metallic fingers, natural lighting, and a dark background."
@@ -38,7 +38,7 @@ _COSMOS_BASE_CAMERA_CFG = ShadowHandTiledCameraCfg().rgb.replace(height=640, wid
 
 # The camera looks down from 1.0 m above the hand, so 1.5 m keeps the hand and cube in the depth range and turns
 # everything farther black.
-SHADOW_HAND_COSMOS_CAMERA_CFG = cosmos_camera(_COSMOS_BASE_CAMERA_CFG, _COSMOS_MODEL_CFG, near=0.1, far=1.5)
+SHADOW_HAND_COSMOS_CAMERA_CFG = cosmos_camera(_COSMOS_BASE_CAMERA_CFG, _COSMOS_CLIENT_CFG, near=0.1, far=1.5)
 """Camera rendering depth that Cosmos turns into the published ``rgb``; captures every environment step."""
 
 
@@ -103,12 +103,12 @@ class _ShadowHandCosmosTaskCfg:
     """The Cosmos settings, validation and playback scene shared by the Direct and Manager-based tasks."""
 
     @property
-    def cosmos(self) -> CosmosModelCfg:
+    def cosmos(self) -> CosmosClientCfg:
         """The camera's Cosmos settings; overrides such as ``env.cosmos.prompt=...`` set them on the camera."""
         return _cosmos_transfer(self).backend
 
     @cosmos.setter
-    def cosmos(self, settings: CosmosModelCfg):
+    def cosmos(self, settings: CosmosClientCfg):
         # configclass copies properties like fields when it copies a configuration, which needs a setter.
         _cosmos_transfer(self).backend = settings
 

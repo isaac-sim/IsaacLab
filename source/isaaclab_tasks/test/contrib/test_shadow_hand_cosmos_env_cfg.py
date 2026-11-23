@@ -12,7 +12,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from isaaclab_contrib.sensors.cosmos import CosmosModelCfg, cosmos_camera, episode_frame_budget
+from isaaclab_contrib.sensors.cosmos import CosmosClientCfg, cosmos_camera, episode_frame_budget
 
 from isaaclab_tasks.utils import parse_env_cfg, resolve_task_config
 
@@ -53,11 +53,11 @@ def test_cosmos_camera_puts_cosmos_on_the_policy_camera_of_an_unmodified_task():
     """The Kuka Allegro camera task gets Cosmos with its 64 x 64 observation kept, as the guide shows."""
     env_cfg = parse_env_cfg(KUKA_TASK, overrides=(KUKA_PRESETS, "env.scene.num_envs=1"))
     camera = env_cfg.scene.base_camera
-    model = CosmosModelCfg(
+    client = CosmosClientCfg(
         prompt=["A lab.", "A kitchen."],
         max_episode_frames=episode_frame_budget(env_cfg, camera.update_period)[2],
     )
-    env_cfg.scene.base_camera = cosmos_camera(camera, model, near=0.6, far=1.9)
+    env_cfg.scene.base_camera = cosmos_camera(camera, client, near=0.6, far=1.9)
     env_cfg.validate()
     camera = env_cfg.scene.base_camera
     chain = camera.tensor_processors
@@ -91,12 +91,12 @@ def test_named_cameras_share_one_session_at_one_canvas_and_keep_their_sizes():
     env_cfg = parse_env_cfg(KUKA_TASK, overrides=(KUKA_DUO_PRESETS, "env.scene.num_envs=1"))
     env_cfg.scene.wrist_camera = env_cfg.scene.wrist_camera.replace(width=128)
     names = ("base_camera", "wrist_camera")
-    model = CosmosModelCfg(
+    client = CosmosClientCfg(
         cameras=names,
         max_episode_frames=episode_frame_budget(env_cfg, env_cfg.scene.base_camera.update_period)[2],
     )
     for name in names:
-        setattr(env_cfg.scene, name, cosmos_camera(getattr(env_cfg.scene, name), model, canvas=(640, 640), name=name))
+        setattr(env_cfg.scene, name, cosmos_camera(getattr(env_cfg.scene, name), client, canvas=(640, 640), name=name))
     env_cfg.validate()
 
     for name, size in (("base_camera", (64, 64)), ("wrist_camera", (64, 128))):

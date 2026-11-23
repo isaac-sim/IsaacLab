@@ -37,9 +37,9 @@ from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils.tensor_processors import TensorProcessorCfg
 from isaaclab.utils.warp import ProxyArray
 
-from isaaclab_contrib.sensors.cosmos import CosmosModel, CosmosModelCfg, CosmosTransferProcessorCfg
-from isaaclab_contrib.sensors.cosmos import cosmos_model as cosmos_model_module
-from isaaclab_contrib.sensors.cosmos.cosmos_model import split_views
+from isaaclab_contrib.sensors.cosmos import CosmosClient, CosmosClientCfg, CosmosTransferProcessorCfg
+from isaaclab_contrib.sensors.cosmos import cosmos_client as cosmos_client_module
+from isaaclab_contrib.sensors.cosmos.cosmos_client import split_views
 from isaaclab_contrib.sensors.image_transfer import DepthControlProcessorCfg
 from isaaclab_contrib.sensors.image_transfer import image_transfer as processor_module
 
@@ -203,7 +203,7 @@ def _running_service(kind: str = "tcp"):
 
 
 def _client(endpoint):
-    return CosmosModel(CosmosModelCfg(max_episode_frames=13, endpoint=endpoint, prompt="A camera view", timeout=2))
+    return CosmosClient(CosmosClientCfg(max_episode_frames=13, endpoint=endpoint, prompt="A camera view", timeout=2))
 
 
 def _controls():
@@ -218,10 +218,10 @@ def _proxy(tensor: torch.Tensor) -> ProxyArray:
 def _single_frame_processor(endpoint, num_views=1, *, seed=0, image_size=None, **backend):
     """Return a single-frame Cosmos processor and its camera buffers: controls of 10 and rendered rgb of 50.
 
-    ``backend`` sets further :class:`CosmosModelCfg` fields.
+    ``backend`` sets further :class:`CosmosClientCfg` fields.
     """
-    model = CosmosModelCfg(endpoint=endpoint, generation_mode="single_frame", timeout=2, **backend)
-    cfg = CosmosTransferProcessorCfg(backend=model, seed=seed, image_size=image_size)
+    client = CosmosClientCfg(endpoint=endpoint, generation_mode="single_frame", timeout=2, **backend)
+    cfg = CosmosTransferProcessorCfg(backend=client, seed=seed, image_size=image_size)
     cfg.validate_config()
     buffers = {
         "control": _proxy(torch.full((num_views, 1, 2, 3), 10, dtype=torch.uint8)),
@@ -371,8 +371,8 @@ def test_camera_client_closes_sessions_and_keeps_the_model_resident(cosmos_servi
 def test_a_prompt_list_cycles_per_episode_over_one_session(cosmos_service):
     """Each finished episode moves to the next prompt; a reset before the first update keeps the prompt."""
     prompts = ["A bright warehouse.", "A wooden kitchen."]
-    client = CosmosModel(
-        CosmosModelCfg(max_episode_frames=13, endpoint=cosmos_service.endpoint, prompt=prompts, timeout=2)
+    client = CosmosClient(
+        CosmosClientCfg(max_episode_frames=13, endpoint=cosmos_service.endpoint, prompt=prompts, timeout=2)
     )
     stream = client.open_stream(num_views=1, seeds=(7,))
     first, update = _controls(), _controls().expand(4, -1, -1, -1).contiguous()
@@ -393,9 +393,9 @@ def test_a_prompt_list_cycles_per_episode_over_one_session(cosmos_service):
 
 def test_prompt_lists_must_hold_text_and_the_service_changes_prompts_only_at_resets(cosmos_service):
     with pytest.raises(ValueError, match="nonempty"):
-        CosmosModel(CosmosModelCfg(max_episode_frames=13, prompt=["", "Two"]))
+        CosmosClient(CosmosClientCfg(max_episode_frames=13, prompt=["", "Two"]))
     with pytest.raises(ValueError, match="nonempty"):
-        CosmosModel(CosmosModelCfg(max_episode_frames=13, prompt=[]))
+        CosmosClient(CosmosClientCfg(max_episode_frames=13, prompt=[]))
     with protocol.connect(cosmos_service.endpoint, timeout=2) as connection:
         protocol.send_message(connection, _open_request(prompt="A lab."))
         protocol.check_reply(protocol.receive_message(connection)[0])
@@ -409,8 +409,8 @@ def test_prompt_lists_must_hold_text_and_the_service_changes_prompts_only_at_res
 def test_single_frame_sessions_restart_every_view_with_new_seeds_and_per_view_prompts(cosmos_service):
     """Each image is a one-frame episode; a view's new environment episode moves the view to its next prompt."""
     prompts = ["A bright warehouse.", "A wooden kitchen.", "A night street."]
-    client = CosmosModel(
-        CosmosModelCfg(endpoint=cosmos_service.endpoint, prompt=prompts, generation_mode="single_frame", timeout=2)
+    client = CosmosClient(
+        CosmosClientCfg(endpoint=cosmos_service.endpoint, prompt=prompts, generation_mode="single_frame", timeout=2)
     )
     # Adjacent seeds, as a camera's processor gives them: view v starts from seed + v, each reset adds num_views.
     stream = client.open_stream(num_views=2, seeds=(0, 1))
@@ -426,7 +426,7 @@ def test_single_frame_sessions_restart_every_view_with_new_seeds_and_per_view_pr
 
     assert session.settings["max_episode_frames"] == 1
     assert session.settings["prompt"] == prompts[:2]
-    image_seed = cosmos_model_module._image_seed
+    image_seed = cosmos_client_module._image_seed
     # The session opens with the first images' seeds, so the first step restarts no view; later steps restart all.
     assert session.settings["seeds"] == (0, 1)
     assert [(rows, seeds) for _, rows, seeds in session.steps] == [
@@ -445,8 +445,8 @@ def test_single_frame_view_alone_on_its_service_takes_its_next_prompt_as_text(co
     """A one-view service session takes one prompt, also when the camera's other views are on another service."""
     first, second = cosmos_services
     prompts = ["A lab.", "A kitchen.", "A field."]
-    client = CosmosModel(
-        CosmosModelCfg(
+    client = CosmosClient(
+        CosmosClientCfg(
             endpoint=[first.endpoint, second.endpoint], prompt=prompts, generation_mode="single_frame", timeout=2
         )
     )
@@ -466,24 +466,24 @@ def test_single_frame_view_alone_on_its_service_takes_its_next_prompt_as_text(co
 
 def test_single_frame_settings_are_validated():
     with pytest.raises(ValueError, match="need single_frame"):
-        CosmosModel(CosmosModelCfg(max_episode_frames=13, decision_interval=4))
+        CosmosClient(CosmosClientCfg(max_episode_frames=13, decision_interval=4))
     with pytest.raises(ValueError, match="need autoregressive"):
-        CosmosModel(CosmosModelCfg(generation_mode="single_frame", cameras=("left", "right")))
+        CosmosClient(CosmosClientCfg(generation_mode="single_frame", cameras=("left", "right")))
     with pytest.raises(ValueError, match=r"\[0, 1\]"):
-        CosmosModel(CosmosModelCfg(generation_mode="single_frame", augmentation_probability=1.5))
+        CosmosClient(CosmosClientCfg(generation_mode="single_frame", augmentation_probability=1.5))
     # Single-frame images are one-frame episodes, so no episode budget is needed.
-    CosmosModel(CosmosModelCfg(generation_mode="single_frame")).close()
+    CosmosClient(CosmosClientCfg(generation_mode="single_frame")).close()
 
 
 def test_validation_makes_rgb_an_input_exactly_when_single_frame_can_skip_captures():
     """The inputs follow the generation settings at each validation; autoregressive generation never reads rgb."""
-    cfg = CosmosTransferProcessorCfg(backend=CosmosModelCfg(generation_mode="single_frame", decision_interval=2))
+    cfg = CosmosTransferProcessorCfg(backend=CosmosClientCfg(generation_mode="single_frame", decision_interval=2))
     cfg.validate_config()
     assert cfg.inputs == ["control", "rgb"]
     cfg.backend.decision_interval = 1
     cfg.validate_config()
     assert cfg.inputs == ["control"]
-    autoregressive = CosmosTransferProcessorCfg(backend=CosmosModelCfg(max_episode_frames=13))
+    autoregressive = CosmosTransferProcessorCfg(backend=CosmosClientCfg(max_episode_frames=13))
     autoregressive.validate_config()
     assert autoregressive.inputs == ["control"]
 
@@ -491,8 +491,8 @@ def test_validation_makes_rgb_an_input_exactly_when_single_frame_can_skip_captur
 @pytest.mark.parametrize("mode,budget", [("single_frame", None), ("autoregressive", 13)])
 def test_views_reset_before_the_first_step_open_the_session_with_their_episode_seeds(cosmos_service, mode, budget):
     """The first step's resets become the session's opening seeds, and the step itself restarts no view."""
-    cfg = CosmosModelCfg(endpoint=cosmos_service.endpoint, generation_mode=mode, max_episode_frames=budget, timeout=2)
-    client = CosmosModel(cfg)
+    cfg = CosmosClientCfg(endpoint=cosmos_service.endpoint, generation_mode=mode, max_episode_frames=budget, timeout=2)
+    client = CosmosClient(cfg)
     stream = client.open_stream(num_views=2, seeds=(0, 1))
     stream.step([_controls(), _controls()], reset_rows=(1,), seeds=(7,))
     session = cosmos_service.resource.streams[0]
@@ -505,7 +505,7 @@ def test_views_reset_before_the_first_step_open_the_session_with_their_episode_s
 def test_single_frame_processor_generates_at_decision_points_and_publishes_rendered_rgb_otherwise(
     cosmos_service, no_sim
 ):
-    backend = CosmosModelCfg(
+    backend = CosmosClientCfg(
         endpoint=cosmos_service.endpoint, generation_mode="single_frame", decision_interval=2, timeout=2
     )
     cfg = CosmosTransferProcessorCfg(backend=backend)
@@ -521,7 +521,7 @@ def test_single_frame_processor_generates_at_decision_points_and_publishes_rende
         published += [int(processor(buffers, env_mask=mask)["rgb"].torch.float().mean()) for _ in range(2)]
         session = cosmos_service.resource.streams[0]
         assert published == [127, 50, 127, 50, 127]
-        second = cosmos_model_module._image_seed(0, 1)
+        second = cosmos_client_module._image_seed(0, 1)
         assert second != 1
         # The session opens with the first image's seed; each later image restarts the view with its own.
         assert session.settings["seeds"] == (0,)
@@ -639,7 +639,7 @@ def test_offload_and_activate_through_the_session_owner_or_an_idle_service(cosmo
 
     # A learner can keep its session offloaded for longer than the service's idle timeout.
     monkeypatch.setattr(service_module, "_IDLE_TIMEOUT_S", 0.5)
-    single = CosmosModel(CosmosModelCfg(endpoint=endpoint, generation_mode="single_frame", timeout=2))
+    single = CosmosClient(CosmosClientCfg(endpoint=endpoint, generation_mode="single_frame", timeout=2))
     stream = single.open_stream(num_views=1, seeds=(1,))
     stream.step([_controls()], reset_rows=(), seeds=())
     # Another connection cannot move the weights of a session it does not own.
@@ -708,8 +708,8 @@ def test_failed_generation_is_not_retried_and_releases_the_session(cosmos_servic
 
 def test_camera_postprocessing_publishes_rgb_from_the_connected_service(cosmos_service, no_sim):
     """Cosmos consumes masked captures; missing masks cannot start generation or contaminate a later chunk."""
-    model = CosmosModelCfg(max_episode_frames=13, endpoint=cosmos_service.endpoint, timeout=2)
-    cfgs = [DepthControlProcessorCfg(near=1.0, far=9.0), CosmosTransferProcessorCfg(backend=model)]
+    client = CosmosClientCfg(max_episode_frames=13, endpoint=cosmos_service.endpoint, timeout=2)
+    cfgs = [DepthControlProcessorCfg(near=1.0, far=9.0), CosmosTransferProcessorCfg(backend=client)]
     buffers = {"distance_to_image_plane": _proxy(torch.tensor([1.0, 9.0]).reshape(1, 1, 2, 1))}
     processors = []
     mask = wp.ones(1, dtype=wp.bool, device="cpu")
@@ -788,18 +788,18 @@ class LazyCamera:
 
 def _camera_group(cosmos_service, monkeypatch, image_size=None):
     """A front and a wrist camera of two environments, sharing one session through their simulation's model."""
-    cfg = CosmosModelCfg(
+    cfg = CosmosClientCfg(
         max_episode_frames=13,
         endpoint=cosmos_service.endpoint,
         prompt=["Front 0.", "Front 1.", "Wrist 0.", "Wrist 1."],
         timeout=2,
         cameras=("front", "wrist"),
     )
-    model = CosmosModel(cfg)
+    model = CosmosClient(cfg)
     sim = SimpleNamespace(get_or_create_backend=lambda backend: model)
     monkeypatch.setattr(processor_module, "SimulationContext", SimpleNamespace(instance=lambda: sim))
     cameras = {name: LazyCamera(cfg, name, value, image_size) for name, value in (("front", 10), ("wrist", 20))}
-    monkeypatch.setattr(cosmos_model_module, "_scene_cameras", lambda: cameras)
+    monkeypatch.setattr(cosmos_client_module, "_scene_cameras", lambda: cameras)
 
     # The service echoes each view's control, so every camera can be checked for its own views.
     monkeypatch.setattr(TransportStream, "echo", True)
@@ -952,7 +952,7 @@ def test_a_camera_that_misses_a_shared_capture_fails_the_session_for_every_camer
 def test_incompatible_cosmos_cadence_is_rejected_before_opening_a_session(cosmos_service, no_sim):
     """A generic one-frame update must not open a Cosmos session that cannot consume it."""
     cfg = CosmosTransferProcessorCfg(
-        backend=CosmosModelCfg(max_episode_frames=13, endpoint=cosmos_service.endpoint, timeout=2),
+        backend=CosmosClientCfg(max_episode_frames=13, endpoint=cosmos_service.endpoint, timeout=2),
         update_frames=1,
     )
     with pytest.raises(ValueError, match="Cosmos requires initial_frames=1 and update_frames=4"):
@@ -1007,7 +1007,7 @@ def test_transport_keeps_images_on_gpus_that_can_access_each_other(
     # service_gpu is this process's index of the service's GPU, or None when this process cannot see it.
     monkeypatch.setattr(ipc, "device_by_uuid", lambda uuid: service_gpu if uuid == _IPC_SERVICE["gpu_uuid"] else None)
     monkeypatch.setattr(ipc, "can_access_peer", lambda index, peer_index: index == peer_index or peer)
-    stream = CosmosModel(CosmosModelCfg(max_episode_frames=13, transport=transport)).open_stream(
+    stream = CosmosClient(CosmosClientCfg(max_episode_frames=13, transport=transport)).open_stream(
         num_views=1, seeds=(1,)
     )
     stream._exchange = lambda metadata, arrays=(): ({"ok": True, "capabilities": capabilities}, [])
@@ -1102,7 +1102,7 @@ def test_the_camera_frees_its_control_buffer_only_after_the_service_releases_it(
         close_opened=lambda: released.append("output"),
         close=lambda *, peer_released: released.append(("control", peer_released)),
     )
-    stream = CosmosModel(CosmosModelCfg(max_episode_frames=13)).open_stream(num_views=1, seeds=(1,))
+    stream = CosmosClient(CosmosClientCfg(max_episode_frames=13)).open_stream(num_views=1, seeds=(1,))
 
     def exchange(metadata, arrays=()):
         if metadata["op"] == failure:
@@ -1156,7 +1156,7 @@ def test_a_rejected_open_frees_the_control_buffer_and_a_dropped_one_keeps_it(
     def drop(self, metadata, arrays=()):
         raise ConnectionError("Cosmos connection closed")
 
-    stream_type = cosmos_model_module._CosmosStream
+    stream_type = cosmos_client_module._CosmosStream
     monkeypatch.setattr(ipc, "SharedChannel", Channel)
     monkeypatch.setattr(ipc, "gpu_uuid", lambda index: _CAMERA_GPU)
     monkeypatch.setattr(stream_type, "_select_transport", lambda self, device: "cuda_ipc")
@@ -1304,7 +1304,8 @@ def test_cuda_ipc_round_trip_keeps_controls_and_images_on_the_gpu(device):
     service = subprocess.Popen([sys.executable, "-c", _GPU_SERVICE, endpoint, device], env={**os.environ})
     try:
         _wait_until_ready(endpoint, timeout=60, poll=1, stopped=lambda: service.poll() is not None)
-        client = CosmosModel(CosmosModelCfg(max_episode_frames=13, endpoint=endpoint, transport="cuda_ipc", timeout=10))
+        cfg = CosmosClientCfg(max_episode_frames=13, endpoint=endpoint, transport="cuda_ipc", timeout=10)
+        client = CosmosClient(cfg)
         stream = client.open_stream(num_views=1, seeds=(7,))
         first = torch.full((1, 4, 6, 3), 10, dtype=torch.uint8, device="cuda:0")
         update = torch.arange(4 * 4 * 6 * 3, device="cuda:0").remainder(256).to(torch.uint8).view(4, 4, 6, 3)
@@ -1315,7 +1316,8 @@ def test_cuda_ipc_round_trip_keeps_controls_and_images_on_the_gpu(device):
         client.close()
 
         # Two views share the buffers row by row; view 1 restarts with one frame while view 0 sends four.
-        client = CosmosModel(CosmosModelCfg(max_episode_frames=13, endpoint=endpoint, transport="cuda_ipc", timeout=10))
+        cfg = CosmosClientCfg(max_episode_frames=13, endpoint=endpoint, transport="cuda_ipc", timeout=10)
+        client = CosmosClient(cfg)
         stream = client.open_stream(num_views=2, seeds=(7, 8))
         stream.step([first, first + 1], (), ())
         images = stream.step([update, first + 2], (1,), (9,))
@@ -1346,10 +1348,10 @@ def test_views_keep_their_prompts_seeds_frames_and_resets_on_one_service_or_spli
 ):
     """Each service generates its share of three views as one batch; view 2 restarts with one frame."""
     prompts = ["A lab.", "A kitchen.", "A field."]
-    cfg = CosmosModelCfg(
+    cfg = CosmosClientCfg(
         max_episode_frames=13, endpoint=[service.endpoint for service in cosmos_services], prompt=prompts, timeout=2
     )
-    client = CosmosModel(cfg)
+    client = CosmosClient(cfg)
     stream = client.open_stream(num_views=3, seeds=(1, 2, 3))
     stream.step([_controls() + view for view in range(3)], (), ())
     update = [(_controls() + view).expand(4, -1, -1, -1).contiguous() for view in range(2)]
@@ -1374,8 +1376,8 @@ def test_views_keep_their_prompts_seeds_frames_and_resets_on_one_service_or_spli
 @pytest.mark.parametrize("failing", [0, 1])
 def test_a_failing_service_closes_every_session_of_the_camera(cosmos_services, failing):
     """The other service may already have advanced its views, so no session stays open for a retry."""
-    cfg = CosmosModelCfg(max_episode_frames=13, endpoint=[service.endpoint for service in cosmos_services], timeout=2)
-    client = CosmosModel(cfg)
+    cfg = CosmosClientCfg(max_episode_frames=13, endpoint=[service.endpoint for service in cosmos_services], timeout=2)
+    client = CosmosClient(cfg)
     stream = client.open_stream(num_views=2, seeds=(1, 2))
     stream.step([_controls(), _controls()], (), ())
     cosmos_services[failing].resource.fail = True

@@ -20,7 +20,7 @@ from isaaclab.utils import replace
 from isaaclab.utils.tensor_processors import TensorProcessorCfg
 
 from ..image_transfer import DepthControlProcessorCfg
-from .cosmos_model_cfg import CosmosModelCfg
+from .cosmos_client_cfg import CosmosClientCfg
 from .cosmos_processor_cfg import CosmosTransferProcessorCfg
 
 logger = logging.getLogger(__name__)
@@ -39,7 +39,7 @@ DEPTH_FAR = 2.0
 
 def cosmos_camera(
     camera: CameraCfg,
-    model: CosmosModelCfg,
+    client: CosmosClientCfg,
     *,
     control: Sequence[TensorProcessorCfg] | None = None,
     near: float | None = None,
@@ -60,7 +60,7 @@ def cosmos_camera(
 
     Args:
         camera: Pinhole camera publishing only ``rgb``, for example a task's policy camera.
-        model: Cosmos service connection and prompt.
+        client: Cosmos service connection and prompt.
         control: Processors that write the ``control`` buffer from the camera's render outputs: uint8 images of
             shape (N, H, W, 3) at the canvas size, for example a processor reading ``semantic_segmentation`` or
             the rendered ``rgb``. Defaults to None, which uses
@@ -69,7 +69,7 @@ def cosmos_camera(
         far: Depth rendered black [m] by the default depth control. Defaults to None, which uses 2.0 m.
         canvas: Cosmos canvas ``(height, width)`` from the service's supported canvases. Defaults to None, which
             selects the canvas closest to the camera's aspect ratio. Cameras sharing a session need one canvas.
-        name: Scene name of the camera, one of :attr:`CosmosModelCfg.cameras` when cameras share a session.
+        name: Scene name of the camera, one of :attr:`CosmosClientCfg.cameras` when cameras share a session.
 
     Returns:
         The Cosmos camera configuration.
@@ -97,7 +97,7 @@ def cosmos_camera(
         ]
     elif near is not None or far is not None:
         raise ValueError("near and far set the default depth control; set the range on the control processors.")
-    transfer = CosmosTransferProcessorCfg(backend=model, camera=name, image_size=image_size)
+    transfer = CosmosTransferProcessorCfg(backend=client, camera=name, image_size=image_size)
     if not any(transfer.inputs[0] in cfg.outputs for cfg in control):
         raise ValueError(f"The control processors must write the {transfer.inputs[0]!r} buffer Cosmos reads.")
     return replace(
