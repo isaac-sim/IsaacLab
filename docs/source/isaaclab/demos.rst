@@ -208,7 +208,8 @@ For full MDL minimal shading, select ``renderer=isaacsim_rtx presets=minimal``.
 Foveated camera
 ---------------
 
-Explore the cluttered scene from the sensor docs through a :doc:`foveated camera </source/concepts/sensors/foveated_camera>`.
+Explore the cluttered scene of the :doc:`foveated camera </source/experimental-features/foveated_camera>` docs
+through the experimental camera.
 Use WASD or the arrow keys to move and Q/E to lower or raise the camera.
 Pass ``--target power_drill`` to start with the retina pointed at the drill.
 

@@ -137,15 +137,8 @@ that legacy renderer; use Newton Warp or OVRTX for new Newton and kit-less workl
 Render a foveated camera
 ------------------------
 
-A :doc:`foveated camera </source/concepts/sensors/foveated_camera>` (``fovi`` extra) renders a retina-like image,
-dense where its gaze points, with the same renderer configurations as a regular camera: Newton Warp casts one ray per
-retinal sample, and OVRTX and Isaac RTX render through a lens lookup texture on the camera prim. Select the renderer
-with ``renderer=`` as for any camera:
-
-.. code-block:: bash
-
-   uv run --extra fovi isaaclab demo foveated-camera renderer=newton_warp
-   uv run --extra fovi --extra ovrtx isaaclab demo foveated-camera renderer=ovrtx
+The experimental :doc:`foveated camera </source/experimental-features/foveated_camera>` (``fovi`` extra) uses the
+same renderer configurations as a regular camera.
 
 Overriding Specific Rendering Settings
 --------------------------------------

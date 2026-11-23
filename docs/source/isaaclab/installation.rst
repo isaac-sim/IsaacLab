@@ -443,8 +443,8 @@ have dedicated commands below.
    * - ``mimic`` / ``teleop``
      - Isaac Lab Mimic / XR teleoperation. The wheel's ``mimic`` extra does not include Robomimic.
    * - ``fovi``
-     - The :doc:`foveated camera </source/concepts/sensors/foveated_camera>` (``isaaclab_fovi``), with the
-       `fovi <https://pypi.org/project/fovi/>`__ sampling library.
+     - The experimental :doc:`foveated camera </source/experimental-features/foveated_camera>`
+       (``isaaclab_fovi``), with the `fovi <https://pypi.org/project/fovi/>`__ sampling library.
    * - ``tetrahedralization`` / ``video``
      - Mesh tetrahedralization / video recording.
    * - ``leapp``

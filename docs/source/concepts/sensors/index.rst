@@ -19,9 +19,6 @@ Choose a sensor
    * - :doc:`camera`
      - Renderer-produced color, depth, normals, motion, and segmentation images
      - Vision observations and synthetic data
-   * - :doc:`foveated_camera`
-     - Retina-like images, dense where the gaze points and sparse in the periphery
-     - Active vision; requires the ``fovi`` extra
    * - :doc:`ray_caster`
      - First collision locations for configurable ray patterns
      - Terrain sensing, lidar-style queries, and ray-cast cameras
@@ -72,7 +69,6 @@ Warp array.
    :hidden:
 
    camera
-   foveated_camera
    ray_caster
    contact_sensor
    frame_transformer

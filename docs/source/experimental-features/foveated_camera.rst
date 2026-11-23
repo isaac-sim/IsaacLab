@@ -14,7 +14,7 @@ by moving the camera and steering its gaze; the bracketed options render the ret
 
    uv run --extra fovi [--extra ovrtx] isaaclab demo foveated-camera [renderer=ovrtx]
 
-.. figure:: ../../_static/overview/sensors/foveated_camera_overview.jpg
+.. figure:: ../_static/overview/sensors/foveated_camera_overview.jpg
    :alt: A retina behind a 180-degree fisheye lens on the viewing sphere, and its rendered images at two fixations.
 
    A foveated retina behind a 180° fisheye lens, path-traced with OVRTX. Each pair shows the retina's rays on the
