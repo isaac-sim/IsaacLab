@@ -17,7 +17,7 @@ Each run trains on one clip. The policy runs at 50 Hz, with physics and implicit
 .. raw:: html
 
    <video autoplay loop muted playsinline controls preload="metadata" style="width:100%; display:block;">
-     <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/environments/previews/locomotion/g1_cr7.mp4" type="video/mp4">
+     <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/environments/previews/locomotion/g1_jump_and_turn.mp4" type="video/mp4">
    </video>
 
 Prerequisites

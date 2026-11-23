@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Homogeneous Factory scene with reset-selectable assembly pairs."""
+"""Homogeneous NIST scene with reset-selectable assembly pairs."""
 
 from __future__ import annotations
 
@@ -18,16 +18,16 @@ from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.utils import resolve_presets
 
-from . import factory_assets_cfg as assets
+from . import nist_assets_cfg as assets
 from .assembly_variants import ASSEMBLY_VARIANTS
-from .factory_presets import RobotArticulationCfg
+from .nist_presets import RobotArticulationCfg
 
 
 def _paired_clone_strategy(weights: np.ndarray, num_clones: int) -> np.ndarray:
     """Start each world with matching fixed and held assembly variants."""
     count = len(ASSEMBLY_VARIANTS)
     if weights.size != count * count:
-        raise ValueError("Factory variants expect one fixed/held prototype pair per assembly combination.")
+        raise ValueError("NIST variants expect one fixed/held prototype pair per assembly combination.")
     paired = np.arange(count, dtype=np.int32) * (count + 1)
     return paired[cloner.sequential(weights[paired], num_clones)]
 
@@ -41,7 +41,7 @@ def _variant_spawner(configs: tuple[RigidObjectCfg, ...]) -> sim_utils.MultiAsse
 
 
 @configclass
-class FactoryVariantSceneCfg(InteractiveSceneCfg):
+class NISTSceneCfg(InteractiveSceneCfg):
     """One scene layout shared by every assembly variant."""
 
     num_envs: int = 4096

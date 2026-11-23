@@ -34,7 +34,6 @@
             ["Isaac-Lift-Soft-Franka-Camera", "rsl_rl", "isaacsim_physx,newton_mjwarp_vbd_proxy", "isaacsim_rtx,newton_warp,ovrtx", "ik,joint", "environment-previews/franka_lift_soft.jpg", false, {"*": ["joint"]}, {}, "tetrahedralization", null, ["||", "||ik", "||joint", "|isaacsim_rtx|", "|isaacsim_rtx|ik", "|isaacsim_rtx|joint", "|newton_warp|", "|newton_warp|ik", "|newton_warp|joint", "|ovrtx|", "|ovrtx|ik", "|ovrtx|joint", "isaacsim_physx||", "isaacsim_physx||ik", "isaacsim_physx||joint", "isaacsim_physx|isaacsim_rtx|", "isaacsim_physx|isaacsim_rtx|ik", "isaacsim_physx|isaacsim_rtx|joint", "isaacsim_physx|newton_warp|", "isaacsim_physx|newton_warp|ik", "isaacsim_physx|newton_warp|joint", "newton_mjwarp_vbd_proxy||", "newton_mjwarp_vbd_proxy||ik", "newton_mjwarp_vbd_proxy||joint", "newton_mjwarp_vbd_proxy|isaacsim_rtx|", "newton_mjwarp_vbd_proxy|isaacsim_rtx|ik", "newton_mjwarp_vbd_proxy|isaacsim_rtx|joint", "newton_mjwarp_vbd_proxy|newton_warp|", "newton_mjwarp_vbd_proxy|newton_warp|ik", "newton_mjwarp_vbd_proxy|newton_warp|joint", "newton_mjwarp_vbd_proxy|ovrtx|", "newton_mjwarp_vbd_proxy|ovrtx|ik", "newton_mjwarp_vbd_proxy|ovrtx|joint"]],
             ["Isaac-Motion-Tracking-G1", "rsl_rl", "", "", ""],
             ["Isaac-Open-Drawer-Franka-Direct", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_mjwarp,newton_steel,ovphysx", "", "", "environment-previews/franka_open_drawer.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||", "newton_mjwarp||", "newton_steel||", "ovphysx||"]],
-            ["Isaac-Motion-Tracking-G1", "rsl_rl", "", "", "", ""],
             ["Isaac-Open-Drawer-Franka", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_mjwarp,newton_steel,ovphysx", "", "", "environment-previews/franka_open_drawer.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||", "newton_mjwarp||", "newton_steel||", "ovphysx||"]],
             ["Isaac-Pendulum-MARL-Direct", "rl_games,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", "environment-previews/cart_double_pendulum.jpg", false, {}, {"skrl": "MAPPO"}, "", null, ["||", "isaacsim_physx||", "newton_kamino||", "newton_mjwarp||", "ovphysx||"]],
             ["Isaac-Reach-Franka", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_mjwarp,newton_steel,ovphysx", "", "diffik,diffik_abs,hold,joint_pos,minimal,newton_ik", "environment-previews/franka_reach.jpg", true, {"*": ["joint_pos"]}, {}, "", ["joint_pos", "minimal"], ["||", "||diffik", "||diffik_abs", "||hold", "||joint_pos", "||minimal", "||newton_ik", "isaacsim_physx||", "isaacsim_physx||diffik", "isaacsim_physx||diffik_abs", "isaacsim_physx||hold", "isaacsim_physx||joint_pos", "isaacsim_physx||minimal", "newton_mjwarp||", "newton_mjwarp||diffik", "newton_mjwarp||diffik_abs", "newton_mjwarp||hold", "newton_mjwarp||joint_pos", "newton_mjwarp||minimal", "newton_mjwarp||newton_ik", "newton_steel||", "newton_steel||diffik", "newton_steel||diffik_abs", "newton_steel||hold", "newton_steel||joint_pos", "newton_steel||minimal", "newton_steel||newton_ik", "ovphysx||", "ovphysx||diffik", "ovphysx||diffik_abs", "ovphysx||hold", "ovphysx||joint_pos", "ovphysx||minimal"]],
@@ -84,11 +83,9 @@
             ["IsaacContrib-DrLegs-HoldPose", "rsl_rl", "isaacsim_physx,newton_kamino", "", "", "environment-previews/dr_legs.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||", "newton_kamino||"]],
             ["IsaacContrib-DrLegs-Walk", "rsl_rl", "isaacsim_physx,newton_kamino", "", "", "environment-previews/dr_legs.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||", "newton_kamino||"]],
             ["IsaacContrib-ExhaustPipe-GR1T2-Pink-IK-Abs", "", "", "", "", "environment-previews/gr1_exhaust_pipe.jpg"],
-            ["IsaacContrib-Factory-Franka", "rsl_rl", "isaacsim_physx", "", "accumulator,bnc,choice,dsub,gear_mesh_large,gear_mesh_medium,gear_mesh_small,nut_thread_m12,nut_thread_m16,nut_thread_m4,nut_thread_m8,peg_insert_12mm,peg_insert_16mm,peg_insert_4mm,peg_insert_8mm,rj45,rod_insert_12mm,rod_insert_16mm,rod_insert_4mm,rod_insert_8mm,usba,waterproof", "environment-previews/factory_franka_nist.jpg", false, {}, {}, "", null, ["||", "||accumulator", "||bnc", "||choice", "||dsub", "||gear_mesh_large", "||gear_mesh_medium", "||gear_mesh_small", "||nut_thread_m12", "||nut_thread_m16", "||nut_thread_m4", "||nut_thread_m8", "||peg_insert_12mm", "||peg_insert_16mm", "||peg_insert_4mm", "||peg_insert_8mm", "||rj45", "||rod_insert_12mm", "||rod_insert_16mm", "||rod_insert_4mm", "||rod_insert_8mm", "||usba", "||waterproof", "isaacsim_physx||", "isaacsim_physx||accumulator", "isaacsim_physx||bnc", "isaacsim_physx||choice", "isaacsim_physx||dsub", "isaacsim_physx||gear_mesh_large", "isaacsim_physx||gear_mesh_medium", "isaacsim_physx||gear_mesh_small", "isaacsim_physx||nut_thread_m12", "isaacsim_physx||nut_thread_m16", "isaacsim_physx||nut_thread_m4", "isaacsim_physx||nut_thread_m8", "isaacsim_physx||peg_insert_12mm", "isaacsim_physx||peg_insert_16mm", "isaacsim_physx||peg_insert_4mm", "isaacsim_physx||peg_insert_8mm", "isaacsim_physx||rj45", "isaacsim_physx||rod_insert_12mm", "isaacsim_physx||rod_insert_16mm", "isaacsim_physx||rod_insert_4mm", "isaacsim_physx||rod_insert_8mm", "isaacsim_physx||usba", "isaacsim_physx||waterproof"]],
             ["IsaacContrib-Factory-GearMesh-Direct", "rl_games", "", "", "", "environment-previews/gear_mesh.jpg"],
             ["IsaacContrib-Factory-NutThread-Direct", "rl_games", "", "", "", "environment-previews/nut_thread.jpg"],
             ["IsaacContrib-Factory-PegInsert-Direct", "rl_games", "", "", "", "environment-previews/peg_insert.jpg"],
-            ["IsaacContrib-Factory-Variant-Franka", "rsl_rl", "", "", "", "environment-previews/factory_franka_nist.jpg"],
             ["IsaacContrib-Forge-GearMesh-Direct", "rl_games", "", "", "", "environment-previews/gear_mesh.jpg"],
             ["IsaacContrib-Forge-NutThread-Direct", "rl_games", "", "", "", "environment-previews/nut_thread.jpg"],
             ["IsaacContrib-Forge-PegInsert-Direct", "rl_games", "", "", "", "environment-previews/peg_insert.jpg"],
@@ -103,6 +100,7 @@
             ["IsaacContrib-Lift-Cube-Franka-IK-Rel", "", "", "", "", "environment-previews/franka_lift.jpg"],
             ["IsaacContrib-Lift-Cube-OpenArm", "rl_games,rsl_rl", "", "", "", "environment-previews/openarm_uni_lift.jpg"],
             ["IsaacContrib-Multitask-Manipulation", "rsl_rl", "", "", "", "environment-previews/multitask_manipulation.jpg"],
+            ["IsaacContrib-NIST-Franka", "rsl_rl", "", "", "", "environment-previews/nist_franka.jpg"],
             ["IsaacContrib-Navigation-3DObstacles-ARL-Robot-1", "rl_games,rsl_rl,skrl", "", "", "", "environments/previews/drone_arl/arl_robot_1_navigation.jpg"],
             ["IsaacContrib-Navigation-Flat-AnymalC", "rsl_rl,skrl", "", "", "", "environment-previews/anymal_c_nav.jpg"],
             ["IsaacContrib-NutPour-GR1T2-Pink-IK-Abs", "", "", "", "", "environment-previews/gr1_nut_pour.jpg"],
@@ -234,7 +232,7 @@
         if (/Velocity|Navigation|TrackPosition|Locomanip|Humanoid/.test(task)) {
             return "locomotion";
         }
-        if (/Lift|Reach|Reorient|Drawer|Handover|Keyboard|Assemble|Assembly|Factory|Forge|Stack|PickPlace|Place|Particle|Cabinet|Gear|Trocar/.test(task)) {
+        if (/Lift|Reach|Reorient|Drawer|Handover|Keyboard|Assemble|Assembly|Factory|NIST|Forge|Stack|PickPlace|Place|Particle|Cabinet|Gear|Trocar/.test(task)) {
             return "manipulation";
         }
         return "classic";
@@ -412,7 +410,7 @@
     const taskPreviewVideoUrls = {
         "Isaac-Velocity-Flat-H2": "https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/environments/previews/locomotion/h2_flat.mp4",
         "Isaac-Velocity-Rough-H2": "https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/environments/previews/locomotion/h2_rough.mp4",
-        "Isaac-Motion-Tracking-G1": "https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/environments/previews/locomotion/g1_cr7.mp4",
+        "Isaac-Motion-Tracking-G1": "https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/environments/previews/locomotion/g1_jump_and_turn.mp4",
     };
 
     const previewVideoUrl = (task) => {

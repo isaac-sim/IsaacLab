@@ -231,7 +231,7 @@ def test_physics_names_for_docs_infers_physx_from_default():
 def test_collect_environment_doc_rows_reports_curated_mjwarp_support():
     # Exercise every explicit stack-task exclusion plus representative supported and guarded rows.
     expected = {
-        "IsaacContrib-Factory-Franka": False,
+        "IsaacContrib-NIST-Franka": False,
         "IsaacContrib-Place-Mug-Agibot-Left-Arm-RmpFlow": False,
         "IsaacContrib-Stack-Cube-Bin-Franka-IK-Rel-Mimic": False,
         "IsaacContrib-Stack-Cube-BlueGreen-Franka-IK-Rel": False,
