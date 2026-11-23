@@ -458,7 +458,7 @@ class InteractiveScene:
     """
 
     def close(self) -> None:
-        """Release scene-owned surface-gripper callbacks before stopping the simulation."""
+        """Release scene-owned surface-gripper callbacks before destroying the physics backend."""
         for gripper in self._surface_grippers.values():
             gripper.close()
 
