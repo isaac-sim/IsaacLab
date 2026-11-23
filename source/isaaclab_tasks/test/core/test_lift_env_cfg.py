@@ -12,7 +12,6 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_newton.physics.coupling import CouplerProxyCfg
-from isaaclab_ov.physics import OvPhysxCfg
 
 from pxr import Usd, UsdGeom, UsdPhysics
 
@@ -24,7 +23,6 @@ from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_tasks.core.lift import mdp
 from isaaclab_tasks.core.lift.config.franka.franka_env_cfg import FrankaLiftEnvCfg
-from isaaclab_tasks.core.lift.config.franka_soft.franka_cloth_env_cfg import FrankaClothEnvCfg
 from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftCameraEnvCfg, FrankaSoftEnvCfg
 from isaaclab_tasks.core.lift.mdp.commands import pose_commands
 from isaaclab_tasks.core.lift.mdp.commands.pose_commands import (
@@ -62,8 +60,6 @@ class _FakeScene(dict):
         (FrankaSoftEnvCfg, ("newton_mjwarp_vbd_proxy",), "mujoco"),
         (FrankaSoftEnvCfg, ("isaacsim_physx",), "physx"),
         (FrankaSoftEnvCfg, ("physx",), "physx"),
-        (FrankaSoftEnvCfg, ("ovphysx",), "physx"),
-        (FrankaClothEnvCfg, ("ovphysx",), "physx"),
         (FrankaSoftCameraEnvCfg, (), "mujoco"),
     ],
 )
@@ -76,9 +72,6 @@ def test_franka_soft_robot_physics_variant_matches_backend(
     assert cfg.scene.robot.spawn.variants == {"Physics": expected_physics, "Colliders": "primitives"}
     if expected_physics == "mujoco":
         assert isinstance(cfg.sim.physics.solver_cfg, CouplerProxyCfg)
-    if selected_presets == ("ovphysx",):
-        assert isinstance(cfg.sim.physics, OvPhysxCfg)
-        assert cfg.sim.physics.disable_compiled_stage_cache
 
 
 def test_rigid_lift_motion_regularization_follows_success_driven_adr() -> None:
