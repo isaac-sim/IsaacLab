@@ -45,6 +45,7 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.assemble_trocar_cosmos_env_cfg:G1AssembleTrocarCosmosEnvCfg",
+        "rlinf_runner_context": f"{__name__}.assemble_trocar_rlinf:cosmos_rollout_residency",
     },
 )
 
@@ -54,5 +55,6 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.assemble_trocar_cosmos_env_cfg:G1AssembleTrocarCosmosEvalEnvCfg",
+        "rlinf_runner_context": f"{__name__}.assemble_trocar_rlinf:cosmos_rollout_residency",
     },
 )

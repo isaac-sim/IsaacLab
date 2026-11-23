@@ -441,6 +441,99 @@ def test_single_frame_sessions_restart_every_view_with_new_seeds_and_per_view_pr
     assert session.episode_prompts == ["<kept>", "<kept>", "<kept>", [prompts[1], prompts[1]]]
 
 
+@pytest.mark.parametrize("by_seed", [True, False], ids=["per-image", "per-episode"])
+def test_trocar_chunks_preserve_global_view_prompts_and_partial_resets(cosmos_services, by_seed):
+    from isaaclab_experimental.cosmos.tasks.assemble_trocar_grid import TrocarCosmosModel, TrocarCosmosModelCfg
+
+    bank = ["room A", "room B", "room C"]
+    cfg = TrocarCosmosModelCfg(
+        generation_mode="single_frame",
+        endpoint=[s.endpoint for s in cosmos_services],
+        transport="socket",
+        max_batch_chunk=2,
+        prompt=bank,
+        single_frame_prompt_by_seed=by_seed,
+    )
+    client = TrocarCosmosModel(cfg)
+    controls = [_controls() + row for row in range(5)]
+    stream = client.open_stream(5, (5, 6, 7, 8, 9))
+    try:
+        for resets, seeds, episodes in [((), (), ()), ((), (), ()), ((2,), (21,), (2,))]:
+            stream.step(controls, resets, seeds, episodes)
+        for service, indices in zip(cosmos_services, ([0, 1, 2], [3, 4]), strict=True):
+            sessions = service.resource.streams
+            per_capture = (len(indices) + 1) // 2
+            assert [s.settings["num_views"] for s in sessions[:per_capture]] == ([2, 1] if len(indices) == 3 else [2])
+            for capture in range(3):
+                observed = []
+                for session in sessions[capture * per_capture : (capture + 1) * per_capture]:
+                    prompt = session.settings["prompt"]
+                    observed.extend(
+                        zip(
+                            session.steps[0][0],
+                            session.settings["seeds"],
+                            [prompt] if isinstance(prompt, str) else prompt,
+                            strict=True,
+                        )
+                    )
+                    assert session.closed.is_set()
+                for row, (control, seed, prompt) in zip(indices, observed, strict=True):
+                    np.testing.assert_array_equal(control, controls[row].numpy())
+                    if capture == 0 or (row == 2 and capture == 2):
+                        assert seed == (21 if capture else 5 + row)
+                    else:
+                        assert seed != 5 + row
+                    episode = 2 if row == 2 and capture == 2 else 0
+                    assert prompt == bank[(seed if by_seed else row + episode) % len(bank)]
+    finally:
+        client.close()
+
+
+def test_trocar_rlinf_pages_services_between_rollout_and_update(cosmos_services, monkeypatch):
+    from gymnasium.envs.registration import load_env_creator, registry
+    from isaaclab_experimental.cosmos import tasks  # noqa: F401
+
+    from isaaclab.utils import instantiate
+
+    from isaaclab_tasks.utils import parse_env_cfg
+
+    task = "IsaacContrib-Assemble-Trocar-G129-Dex3-Cosmos"
+    context = load_env_creator(registry[task].kwargs["rlinf_runner_context"])
+    overrides = [f"env.cosmos.endpoint={json.dumps([s.endpoint for s in cosmos_services])}"]
+    cfg = SimpleNamespace(env=SimpleNamespace(train=SimpleNamespace(init_params=SimpleNamespace(id=task))), runner={})
+    finished = threading.Event()
+    env = SimpleNamespace(interact=lambda: SimpleNamespace(wait=finished.set))
+
+    def active():
+        return [s.resource.active for s in cosmos_services]
+
+    actor = SimpleNamespace(run_training=lambda: (finished.is_set(), active()))
+    runner = SimpleNamespace(cfg=cfg, env=env, actor=actor)
+    with context(runner, overrides), ExitStack() as cleanup:
+        assert active() == [False, False]
+        with monkeypatch.context() as proc:
+            for key, value in {
+                "RLINF_CONFIG_FILE": "cfg.yaml",
+                "WORKER_NAME": "env-1",
+                "RANK": "1",
+                "WORLD_SIZE": "2",
+            }.items():
+                proc.setenv(key, value)
+            client = instantiate(parse_env_cfg(task, overrides=overrides).cosmos)
+        cleanup.callback(client.close)
+        stream = client.open_stream(1, (7,))
+        stream.step([_controls()], (), ())  # A worker's warmup can capture before the first rollout.
+        assert active() == [False, True]
+        assert [len(s.resource.streams) for s in cosmos_services] == [0, 1]
+        runner.env.interact()
+        assert active() == [True, True]
+        assert runner.actor.run_training() == (True, [False, False])
+        runner.env.interact()
+        stream.step([_controls()], (), ())
+        assert active() == [True, True]
+        assert [len(s.resource.streams) for s in cosmos_services] == [0, 2]
+
+
 def test_single_frame_view_alone_on_its_service_takes_its_next_prompt_as_text(cosmos_services):
     """A one-view service session takes one prompt, also when the camera's other views are on another service."""
     first, second = cosmos_services

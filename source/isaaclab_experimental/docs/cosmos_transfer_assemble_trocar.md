@@ -123,3 +123,13 @@ CUDA_VISIBLE_DEVICES=0 uv run --no-sync isaaclab train --rl_library rlinf \
 ```
 
 Omit `--task` to use the recipe's rendered-camera training and evaluation environments.
+
+Single-frame training keeps Cosmos on the GPU throughout rollout collection and moves it to CPU
+before each PPO update. Set `env.cosmos_offload_during_update=false` when the service has a dedicated
+GPU. Autoregressive sessions and training configurations that overlap simulation with optimization
+keep their models resident.
+
+Each service processes up to 16 environment grids per request. For a smaller inference batch,
+append `env.cosmos.max_batch_chunk=4`. For two RLinf environment workers, for example, append
+`'env.cosmos.endpoint=["tcp://gpu0:5555","tcp://gpu1:5555"]'`. List one endpoint per worker, in
+rank order, using addresses reachable from both the training driver and the assigned worker.

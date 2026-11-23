@@ -11,6 +11,7 @@ import argparse
 import logging
 import os
 import re
+from contextlib import nullcontext
 from datetime import datetime
 from pathlib import Path
 
@@ -65,6 +66,7 @@ def run(argv: list[str]) -> None:
     # rlinf reads RLINF_EXT_MODULE and RLINF_CONFIG_FILE at import time, so it is imported after the setup above
     import rlinf  # noqa: F401
     import torch.multiprocessing as mp
+    from gymnasium.envs.registration import load_env_creator, registry
     from hydra import compose, initialize_config_dir
     from hydra.core.global_hydra import GlobalHydra
     from omegaconf import OmegaConf, open_dict
@@ -165,5 +167,10 @@ def run(argv: list[str]) -> None:
     )
 
     runner = EmbodiedRunner(cfg=cfg, actor=actor_group, rollout=rollout_group, env=env_group)
-    runner.init_workers()
-    runner.run()
+    spec = registry.get(task_id)
+    context = nullcontext()
+    if spec and (entry_point := spec.kwargs.get("rlinf_runner_context")):
+        context = load_env_creator(entry_point)(runner, args_cli.env_overrides)
+    with context:
+        runner.init_workers()
+        runner.run()

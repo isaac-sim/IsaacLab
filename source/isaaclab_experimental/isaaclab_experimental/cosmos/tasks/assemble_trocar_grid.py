@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+import os
+from contextlib import closing
 from dataclasses import MISSING
 from itertools import count
 
@@ -17,12 +19,29 @@ from isaaclab.sim import BackendCfg, SimulationContext
 from isaaclab.utils import configclass
 from isaaclab.utils.warp import ProxyArray
 
-from ..client.cosmos_model import CosmosModel, _CameraGroup, _CameraStream
+from ..client.cosmos_model import (
+    CosmosModel,
+    _CameraGroup,
+    _CameraStream,
+    _CosmosStream,
+    _validate_resets,
+    service_endpoints,
+    split_views,
+)
 from ..client.cosmos_model_cfg import CosmosModelCfg
 from ..client.cosmos_processor import CosmosTransferProcessor
 from ..client.cosmos_processor_cfg import CosmosTransferProcessorCfg
 
 TROCAR_COSMOS_CAMERAS = ("front_camera", "left_wrist_camera", "right_wrist_camera")
+
+
+@configclass
+class TrocarCosmosModelCfg(CosmosModelCfg):
+    """Cosmos settings for the trocar camera grid."""
+
+    class_type: type | str = "{DIR}.assemble_trocar_grid:TrocarCosmosModel"
+    max_batch_chunk: int = 16
+    """Maximum number of single-frame environment grids generated together on each service."""
 
 
 @configclass
@@ -96,6 +115,93 @@ class TrocarGridProcessor(CosmosTransferProcessor):
             pixels = torch.where(self.foreground_mask().unsqueeze(-1), pixels, torch.cat(generated).to(pixels.device))
         torch.where(self._captured, pixels, self._output, out=self._output)
         self._resize()
+
+
+class TrocarCosmosModel(CosmosModel):
+    """Generate independent trocar grids in bounded batches using the native service."""
+
+    def __init__(self, cfg: TrocarCosmosModelCfg):
+        # RLinf exports the environment worker's rank to its simulator subprocess.
+        super().__init__(cfg)
+        self._rlinf_worker = "RLINF_CONFIG_FILE" in os.environ and "WORKER_NAME" in os.environ
+        if cfg.generation_mode == "single_frame" and self._rlinf_worker and int(os.environ["WORLD_SIZE"]) > 1:
+            endpoints = service_endpoints(cfg.endpoint)
+            self._cfg = self._cfg.replace(endpoint=endpoints[int(os.environ["RANK"]) % len(endpoints)])
+
+    def _open_session(self, num_views: int, seeds: tuple[int, ...]):
+        if self._cfg.generation_mode == "autoregressive":
+            return super()._open_session(num_views, seeds)
+        if type(self._cfg.max_batch_chunk) is not int or self._cfg.max_batch_chunk < 1:
+            raise ValueError("Trocar max_batch_chunk must be a positive integer.")
+        if not self._rlinf_worker and num_views <= self._cfg.max_batch_chunk * len(
+            service_endpoints(self._cfg.endpoint)
+        ):
+            return super()._open_session(num_views, seeds)
+        with self._lock:
+            if self._closed:
+                raise RuntimeError("Cosmos client model is closed.")
+            stream = _GridBatches(self, seeds, self._cfg.max_batch_chunk)
+            self._streams.add(stream)
+            return stream
+
+
+class _GridBatches(_CosmosStream):
+    """Keep native per-view seed and prompt state across short-lived single-frame service sessions."""
+
+    def __init__(self, model: CosmosModel, seeds: tuple[int, ...], batch_size: int):
+        self._endpoints = service_endpoints(model._cfg.endpoint)
+        self._shares = split_views(len(seeds), len(self._endpoints))
+        super().__init__(model, self._endpoints[0], seeds, range(len(seeds)), batched=len(seeds) > 1)
+        self._batch_size = batch_size
+        self._prompts = self._session_prompt()
+
+    def step(
+        self,
+        controls: list[torch.Tensor],
+        reset_rows: tuple[int, ...],
+        seeds: tuple[int, ...],
+        episodes: tuple[int, ...] | None = None,
+    ) -> list[torch.Tensor]:
+        """Generate one grid per environment and preserve their order across replicas."""
+        with self._lock:
+            if self._closed:
+                raise RuntimeError("Trocar grid stream is closed.")
+            try:
+                if len(controls) != len(self._seeds):
+                    raise ValueError("Expected one trocar grid per environment.")
+                _validate_resets(reset_rows, seeds, episodes, len(controls))
+                return self._generate_batches(controls, reset_rows, seeds, episodes)
+            except Exception:
+                self._release(notify=False)
+                raise
+
+    def _generate_batches(
+        self,
+        controls: list[torch.Tensor],
+        reset_rows: tuple[int, ...],
+        seeds: tuple[int, ...],
+        episodes: tuple[int, ...] | None,
+    ) -> list[torch.Tensor]:
+        # Advance the camera's native single-frame schedule once, independent of batch boundaries.
+        frame = self._single_frame_step([1] * len(controls), reset_rows, seeds, episodes)
+        self._prompts = frame.get("prompt", self._prompts)
+        # Initialization and evaluation can capture outside the training rollout.
+        self._model.activate()
+        images = list(controls)
+        for start in range(0, len(self._shares[0]), self._batch_size):
+            slices = [share[start : start + self._batch_size] for share in self._shares]
+            rows = [row for share in slices for row in share]
+            endpoints = [endpoint for endpoint, share in zip(self._endpoints, slices, strict=True) if share]
+            prompts = [self._prompts[i] for i in rows] if isinstance(self._prompts, list) else self._prompts
+            settings = self._cfg.replace(endpoint=endpoints, prompt=prompts, single_frame_prompt_by_seed=False)
+            batch_seeds = tuple(frame["seeds"][i] for i in rows)
+            # Closing the session releases its buffers and lets the RLinf driver page the idle service.
+            with closing(CosmosModel(settings)) as client:
+                stream = client.open_stream(len(rows), batch_seeds)
+                generated = stream.step([controls[i] for i in rows], (), ())
+                for row, image in zip(rows, generated, strict=True):
+                    images[row] = image
+        return images
 
 
 class _GridCameraGroup(_CameraGroup):

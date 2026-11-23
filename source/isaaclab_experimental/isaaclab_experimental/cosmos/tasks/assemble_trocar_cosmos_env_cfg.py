@@ -25,7 +25,7 @@ from isaaclab_tasks.contrib.assemble_trocar.g129_dex3_env_cfg import (
 from isaaclab_experimental.image_transfer import DepthControlProcessor, DepthControlProcessorCfg, depth_to_control
 
 from .. import CosmosModelCfg, CosmosTransferProcessorCfg, cosmos_camera, episode_frame_budget
-from .assemble_trocar_grid import TROCAR_COSMOS_CAMERAS, TrocarGridProcessorCfg
+from .assemble_trocar_grid import TROCAR_COSMOS_CAMERAS, TrocarCosmosModelCfg, TrocarGridProcessorCfg
 from .prompts.assemble_trocar import TROCAR_GRID_PROMPTS, TROCAR_PROMPTS
 
 
@@ -101,7 +101,7 @@ def _cosmos_scene() -> AssembleTrocarSceneCfg:
     for name, label in (("robot", "robot"), ("tray", "tray"), ("trocar_1", "trocar"), ("trocar_2", "trocar_device")):
         getattr(scene, name).spawn.semantic_tags = [("class", label)]
     scene.scene.spawn.func = _spawn_labelled_room
-    model = CosmosModelCfg(
+    model = TrocarCosmosModelCfg(
         generation_mode="single_frame",
         decision_interval=16,
         augmentation_probability=0.5,
@@ -129,6 +129,8 @@ class G1AssembleTrocarCosmosEnvCfg(G1AssembleTrocarEnvCfg):
     """
 
     scene: AssembleTrocarSceneCfg = _cosmos_scene()
+    cosmos_offload_during_update: bool = True
+    """Page the single-frame services to CPU while the RLinf actor updates its weights."""
 
     @property
     def cosmos(self) -> CosmosModelCfg:
