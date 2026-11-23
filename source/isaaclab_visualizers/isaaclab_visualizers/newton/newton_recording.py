@@ -89,6 +89,9 @@ class NewtonRecordingPanel:
         self._video_temp: Path | None = None
         self._video_unsaved: Path | None = None
         """Finished clip that stays in a temporary file until :meth:`save_video` keeps it."""
+        self._video_unsaved_frames = 0
+        self._video_unsaved_started: datetime | None = None
+        self._video_count = 0
         self._video: subprocess.Popen | bool | None = None
         """The encoder, ``True`` while recording has started but the first frame has not arrived, or None."""
         self._video_started: datetime | None = None
@@ -159,7 +162,8 @@ class NewtonRecordingPanel:
         imgui.same_line()
         _c, self.video_include_hud = imgui.checkbox("Include HUD##video", self.video_include_hud)
         hover_tooltip(imgui, "Draw the HUD panels into the recorded frames")
-        elapsed = f"{self._video_frames / max(self._video_rate, 1):.2f} s ({self._video_frames} frames)"
+        frames = self._video_frames if self.recording_video else self._video_unsaved_frames
+        elapsed = f"{frames / max(self._video_rate, 1):.2f} s ({frames} frames)"
         if self.recording_video:
             imgui.text_colored(imgui.ImVec4(*_RED), f"REC  {elapsed}")
         elif self.unsaved_video:
@@ -200,7 +204,10 @@ class NewtonRecordingPanel:
         """Draw the latest result message, green when saved and red when something failed."""
         if self._message:
             imgui.separator()
-            failed = any(word in self._message for word in ("failed", "Could not", "needs ffmpeg", "no policy"))
+            failed = any(
+                word in self._message
+                for word in ("failed", "Could not", "needs ffmpeg", "no policy", "stopped unexpectedly")
+            )
             color = _GREEN if self._message.startswith("Saved") else _RED if failed else None
             if color is None:
                 imgui.text_wrapped(self._message)
@@ -248,14 +255,15 @@ class NewtonRecordingPanel:
         self._video_frames, self._video_shape = 0, None
         self._video_rate = self.video_fps or max(1, round(self._owner.cfg.window.fps))
         self._video_limit = round(self.video_length * self._video_rate) if self.video_length > 0 else None
-        self._discard_unsaved_video()
         folder = resolve_output_dir(self.output_dir) / "video"
         try:
             folder.mkdir(parents=True, exist_ok=True)
         except OSError as exc:
             self._message = f"Could not create the video folder: {exc}"
             return
-        self._video_temp = folder / f".unsaved_video_{os.getpid()}_{id(self):x}.mp4"  # One file per panel.
+        # Each recording gets its own file, so an unsaved clip survives until the new one has been encoded.
+        self._video_count += 1
+        self._video_temp = folder / f".unsaved_video_{os.getpid()}_{id(self):x}_{self._video_count}.mp4"
         self._video_started = datetime.now()
         self._video = True  # Opened on the first frame, once the framebuffer size is known.
         self._message = "Recording video. Stop, then Save to keep it."
@@ -299,10 +307,14 @@ class NewtonRecordingPanel:
         with contextlib.suppress(OSError):  # A pipe the encoder already closed.
             video.stdin.close()
         succeeded = video.wait() == 0
-        self._video_unsaved = self._video_temp if succeeded and self._video_temp.exists() else None
-        if not succeeded:
-            self._video_temp.unlink(missing_ok=True)
-        return succeeded
+        if succeeded and self._video_temp.exists():
+            self._discard_unsaved_video()  # The new clip replaces the earlier unsaved one.
+            self._video_unsaved = self._video_temp
+            self._video_unsaved_frames = self._video_frames
+            self._video_unsaved_started = self._video_started
+            return True
+        self._video_temp.unlink(missing_ok=True)  # An earlier unsaved clip is kept.
+        return False
 
     def stop_video(self) -> None:
         """End the capture. The clip stays in a temporary file until :meth:`save_video` keeps it."""
@@ -314,6 +326,7 @@ class NewtonRecordingPanel:
             return
         if not self._finish_encoder(video):
             self._message = "ffmpeg failed; the video was discarded."
+            logger.warning("[NewtonRecording] ffmpeg failed; the video recording was discarded.")
             return
         self._message = f"Stopped after {self._video_frames} frames. Press Save to keep the video."
 
@@ -324,17 +337,18 @@ class NewtonRecordingPanel:
             return
         path = None
         try:
-            path = self._output_path("video", ".mp4", self._video_started)
+            path = self._output_path("video", ".mp4", self._video_unsaved_started)
             shutil.move(temp, path)  # Also works when the folder is on another filesystem.
         except OSError as exc:  # The clip stays in its temporary file, so Save can be pressed again.
             if path is not None and self.auto_increment:
                 path.unlink(missing_ok=True)  # Release the reserved name.
             self._message = f"Could not save the video: {exc}"
+            logger.warning("[NewtonRecording] Could not save the video; the clip stays at %s: %s", temp, exc)
             return
         self._video_unsaved = None
         self.video_path = str(path)
-        self._message = f"Saved {self._video_frames} frames to {self.video_path}"
-        logger.info("[NewtonRecording] Wrote %d video frames to %s", self._video_frames, self.video_path)
+        self._message = f"Saved {self._video_unsaved_frames} frames to {self.video_path}"
+        logger.info("[NewtonRecording] Wrote %d video frames to %s", self._video_unsaved_frames, self.video_path)
 
     def _discard_unsaved_video(self) -> None:
         temp, self._video_unsaved = self._video_unsaved, None
@@ -352,11 +366,15 @@ class NewtonRecordingPanel:
             paused: Whether rendering is paused, when a video gets no new frames but a screenshot is still taken.
         """
         owner = self._owner
+        jobs = []
         if self._video is not None and not paused:
-            self._write_video_frame(owner._viewer.get_frame(render_ui=self.video_include_hud).numpy())
+            jobs.append((self.video_include_hud, self._write_video_frame))
         if self._screenshot_pending:
             self._screenshot_pending = False
-            self._write_screenshot(owner._viewer.get_frame(render_ui=self.screenshot_include_hud).numpy())
+            jobs.append((self.screenshot_include_hud, self._write_screenshot))
+        # Reading a frame with the HUD draws the HUD into the framebuffer, so the frames without it are read first.
+        for include_hud, write in sorted(jobs, key=lambda job: job[0]):
+            write(owner._viewer.get_frame(render_ui=include_hud).numpy())
 
     def request_screenshot(self) -> None:
         """Save the next rendered window frame, as a numbered PNG in the output folder."""

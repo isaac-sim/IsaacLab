@@ -328,7 +328,28 @@ def test_a_free_view_records_the_rtx_window_instead_of_an_opengl_render():
     assert viz.current_image_view is rtx
 
 
-def test_capturing_a_view_the_window_does_not_show_stays_out_of_the_hud_recording():
+@pytest.mark.parametrize("borrowed", [True, False])
+def test_capturing_a_view_the_window_does_not_show_stays_out_of_the_hud_recording(borrowed):
+    free = _view(PerspectiveCameraCfg())
+    free.invalidate = lambda: None
+    viz = _switchable([free, _rtx_view()])
+    viz._rtx_appearance, viz._sim_time = None, 0.0
+    viz._pending_mesh_submissions = {}
+    viz._last_render_step = 0
+    viz._sim.get_physics_step_count = lambda: 0
+    viz._capturing_another_view = borrowed  # a borrowed capture renders the frame through the same path
+    captured = []
+    viz._recording = SimpleNamespace(capture=lambda paused: captured.append(paused))
+    viz._viewer = SimpleNamespace(
+        begin_frame=lambda t: None, end_frame=lambda: None, is_paused=lambda: True, is_running=lambda: True
+    )
+
+    NewtonGLVisualizer._render_frame(viz)
+
+    assert captured == ([] if borrowed else [True])  # only a frame the window itself shows reaches the recording
+
+
+def test_a_capture_marks_the_borrowed_view_while_it_renders():
     shown, other = _view(TrackingCameraCfg(env_index=0)), _view(TrackingCameraCfg(env_index=1))
     viz = _switchable([shown, other])
     viz._viewer.camera.pos = Vec3(0.0, 0.0, 0.0)

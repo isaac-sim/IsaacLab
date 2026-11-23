@@ -93,8 +93,8 @@ def test_stopped_video_is_kept_only_when_saved(tmp_path):
     assert panel.unsaved_video and not panel.recording_video
     assert [file.name for file in video_dir.iterdir()] == [panel._video_temp.name]  # Nothing numbered yet.
 
-    panel.start_video()  # Starting again replaces the unsaved clip.
-    assert not panel.unsaved_video
+    panel.start_video()  # Starting again keeps the unsaved clip until the new one has been encoded.
+    assert panel.unsaved_video
     panel.capture()
     panel.stop_video()
     panel.save_video()
@@ -316,3 +316,80 @@ def test_hud_is_captured_only_when_the_toggle_asks_for_it(tmp_path):
     panel.capture()
 
     assert requested == [False, True]
+
+
+def test_starting_a_video_that_cannot_begin_keeps_the_unsaved_clip(tmp_path, monkeypatch):
+    panel = NewtonRecordingPanel(_owner(output_dir=str(tmp_path)))
+    clip = tmp_path / ".earlier.mp4"
+    clip.write_bytes(b"clip")
+    panel._video_unsaved = clip
+    blocker = tmp_path / "file"
+    blocker.write_text("not a folder")
+    panel.output_dir = str(blocker)
+
+    panel.start_video()  # The video folder cannot be created.
+
+    assert not panel.recording_video and "Could not create" in panel._message
+    assert panel.unsaved_video and clip.exists()
+
+    monkeypatch.setattr(newton_recording, "_ffmpeg_executable", lambda: None)
+    panel.start_video()
+    assert panel.unsaved_video and clip.exists()
+
+
+def test_a_new_clip_replaces_the_unsaved_one_only_once_it_is_encoded(tmp_path):
+    clip = tmp_path / ".earlier.mp4"
+    clip.write_bytes(b"clip")
+    failed = _recording_to(tmp_path, _Encoder(returncode=1))
+    failed._video_unsaved, failed._video_unsaved_frames = clip, 7
+
+    failed.stop_video()
+
+    assert failed.unsaved_video and clip.exists() and failed._video_unsaved_frames == 7  # The earlier clip is kept.
+
+    done = _recording_to(tmp_path, _Encoder())
+    done._video_unsaved, done._video_unsaved_frames = clip, 7
+    done._video_frames = 3
+
+    done.stop_video()
+
+    assert done._video_unsaved == done._video_temp and done._video_unsaved_frames == 3 and not clip.exists()
+
+
+def test_a_screenshot_without_the_hud_is_read_before_a_video_frame_that_draws_it(tmp_path):
+    requested = []
+    owner = _owner(output_dir=str(tmp_path))
+    owner._viewer.get_frame = lambda render_ui=False: (
+        requested.append(render_ui) or _Array(np.zeros((4, 6, 3), np.uint8))
+    )
+    panel = NewtonRecordingPanel(owner)
+    panel._video, panel._video_shape = _Encoder(), (4, 6)
+    panel.video_include_hud, panel.screenshot_include_hud = True, False
+
+    panel.request_screenshot()
+    panel.capture()
+
+    assert requested == [False, True]  # The HUD drawn for the video must not reach the screenshot.
+    assert (tmp_path / "screenshot" / "newton_0001.png").exists()
+
+
+def test_closing_warns_where_the_unsaved_clip_stays_when_it_cannot_be_saved(tmp_path, monkeypatch, caplog):
+    panel = _recording_to(tmp_path, _Encoder())
+    monkeypatch.setattr("shutil.move", Mock(side_effect=OSError("disk full")))
+
+    with caplog.at_level("WARNING"):
+        panel.close()
+
+    assert str(panel._video_temp) in caplog.text and "disk full" in caplog.text
+    assert panel._video_temp.exists()
+
+
+def test_a_video_that_stopped_unexpectedly_is_shown_as_a_failure():
+    panel = NewtonRecordingPanel(_owner())
+    panel._message = "ffmpeg stopped unexpectedly; video recording ended."
+    imgui = Mock()
+    imgui.ImVec4 = lambda *color: color
+
+    panel._draw_message(imgui)
+
+    imgui.push_style_color.assert_called_once_with(imgui.Col_.text, newton_recording._RED)
