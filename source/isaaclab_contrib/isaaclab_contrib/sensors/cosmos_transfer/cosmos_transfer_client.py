@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Client connecting cameras to independently started Cosmos services."""
+"""Cosmos Transfer client connecting cameras to independently started Cosmos services."""
 
 from __future__ import annotations
 
@@ -19,25 +19,25 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 from isaaclab_neural_bridge.client import BridgeSession, SentStep
 from isaaclab_neural_bridge.protocol import SEED_LIMIT, parse_endpoint, request
 
-from .cosmos_client_cfg import MAX_CHUNK_FRAMES
+from .cosmos_transfer_client_cfg import MAX_CHUNK_FRAMES
 from .prompt_files import read_prompt_files
 
 if TYPE_CHECKING:
     import torch
 
-    from .cosmos_client_cfg import CosmosClientCfg
+    from .cosmos_transfer_client_cfg import CosmosTransferClientCfg
 
 _LOGGER = logging.getLogger(__name__)
 
 
-class CosmosClient:
+class CosmosTransferClient:
     """Client of resident Cosmos services; generation state belongs to its camera streams.
 
     The services keep model weights resident. Closing this client closes its camera sessions and
     leaves the services running, so a later Isaac Lab command can connect to the same models.
     """
 
-    def __init__(self, cfg: CosmosClientCfg):
+    def __init__(self, cfg: CosmosTransferClientCfg):
         """Validate client settings without loading Cosmos or opening a camera session."""
         if cfg.prompt_files:
             files = [cfg.prompt_files] if isinstance(cfg.prompt_files, str) else cfg.prompt_files
@@ -76,7 +76,7 @@ class CosmosClient:
             or (cfg.max_episode_frames - 1) % MAX_CHUNK_FRAMES
         ):
             raise ValueError(
-                "Set CosmosClientCfg.max_episode_frames to the episode's camera-frame budget (1 + 4*k), "
+                "Set CosmosTransferClientCfg.max_episode_frames to the episode's camera-frame budget (1 + 4*k), "
                 "for example episode_frame_budget(env_cfg, camera.update_period)[2]."
             )
         if cfg.transport not in ("auto", "cuda_ipc", "socket"):
@@ -97,8 +97,8 @@ class CosmosClient:
         """Create one camera stream; connect on its first step when image dimensions are known.
 
         With several service endpoints, the views are split into contiguous shares of near-equal size, one per
-        service in endpoint order (see :func:`split_views`). With :attr:`CosmosClientCfg.cameras`, the stream instead
-        joins the session those cameras share; the camera's processor binds it to its camera.
+        service in endpoint order (see :func:`split_views`). With :attr:`CosmosTransferClientCfg.cameras`, the stream
+        instead joins the session those cameras share; the camera's processor binds it to its camera.
 
         Args:
             num_views: Number of camera views. Each service generates its share as one batch, within GPU memory and
@@ -188,7 +188,7 @@ class CosmosClient:
 
 
 def service_endpoints(endpoint: str | Sequence[str]) -> list[str]:
-    """Return the service endpoints of :attr:`CosmosClientCfg.endpoint`: one, or one per service."""
+    """Return the service endpoints of :attr:`CosmosTransferClientCfg.endpoint`: one, or one per service."""
     return [endpoint] if isinstance(endpoint, str) else list(endpoint)
 
 
@@ -271,7 +271,7 @@ class _CosmosStream:
 
     def __init__(
         self,
-        model: CosmosClient,
+        model: CosmosTransferClient,
         endpoint: str,
         seeds: tuple[int, ...],
         views: range,
@@ -591,7 +591,7 @@ class _CameraGroup:
     failure closes the session for every camera.
     """
 
-    def __init__(self, model: CosmosClient, cameras: tuple[str, ...]):
+    def __init__(self, model: CosmosTransferClient, cameras: tuple[str, ...]):
         self._model = model
         self._cameras = cameras
         self._num_views: int | None = None

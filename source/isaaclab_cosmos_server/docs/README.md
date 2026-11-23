@@ -2,7 +2,7 @@
 
 The `isaaclab-cosmos-server` command serves Cosmos3-Nano-Sim-Transfer to Isaac Lab cameras. It runs in the public
 Cosmos Framework's own environment, which has its own Python, Torch and CUDA, so it does not import Isaac Lab.
-The camera client, `isaaclab_contrib.sensors.cosmos`, connects to it through `isaaclab_neural_bridge`, over a Unix
+The camera client, `isaaclab_contrib.sensors.cosmos_transfer`, connects to it through `isaaclab_neural_bridge`, over a Unix
 socket or TCP.
 
 - `framework.py`: checkpoint loading and inference through Cosmos Framework, and the checks of Cosmos's settings.

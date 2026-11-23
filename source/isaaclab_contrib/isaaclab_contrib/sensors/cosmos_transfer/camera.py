@@ -18,8 +18,8 @@ from isaaclab.utils import replace
 from isaaclab.utils.tensor_processors import TensorProcessorCfg
 
 from ..image_transfer import DepthControlProcessorCfg
-from .cosmos_client_cfg import CosmosClientCfg
-from .cosmos_processor_cfg import CosmosTransferProcessorCfg
+from .cosmos_transfer_client_cfg import CosmosTransferClientCfg
+from .cosmos_transfer_processor_cfg import CosmosTransferProcessorCfg
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ DEPTH_FAR = 2.0
 
 def cosmos_camera(
     camera: CameraCfg,
-    client: CosmosClientCfg,
+    client: CosmosTransferClientCfg,
     *,
     control: Sequence[TensorProcessorCfg] | None = None,
     near: float | None = None,
@@ -67,7 +67,7 @@ def cosmos_camera(
         far: Depth rendered black [m] by the default depth control. Defaults to None, which uses 2.0 m.
         canvas: Cosmos canvas ``(height, width)`` from the service's supported canvases. Defaults to None, which
             selects the canvas closest to the camera's aspect ratio. Cameras sharing a session need one canvas.
-        name: Scene name of the camera, one of :attr:`CosmosClientCfg.cameras` when cameras share a session.
+        name: Scene name of the camera, one of :attr:`CosmosTransferClientCfg.cameras` when cameras share a session.
 
     Returns:
         The Cosmos camera configuration.

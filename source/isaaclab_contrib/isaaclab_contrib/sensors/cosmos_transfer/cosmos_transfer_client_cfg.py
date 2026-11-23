@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Configuration of the Cosmos client."""
+"""Configuration of the Cosmos Transfer client."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
-    from .cosmos_client import CosmosClient
+    from .cosmos_transfer_client import CosmosTransferClient
 
 DEFAULT_ENDPOINT = default_endpoint("cosmos")
 """Default endpoint of the Cosmos service, the same as the ``isaaclab-cosmos-server`` command's."""
@@ -50,14 +50,14 @@ def episode_frame_budget(env_cfg: Any, update_period: float) -> tuple[int, int, 
 
 
 @configclass
-class CosmosClientCfg(BackendCfg):
+class CosmosTransferClientCfg(BackendCfg):
     """Settings for a camera's resident Cosmos service connection.
 
-    Use with :class:`~isaaclab_contrib.sensors.cosmos.CosmosTransferProcessorCfg` after the processors that write the
-    control image, as :func:`~isaaclab_contrib.sensors.cosmos.cosmos_camera` arranges.
+    Use with :class:`~isaaclab_contrib.sensors.cosmos_transfer.CosmosTransferProcessorCfg` after the processors that
+    write the control image, as :func:`~isaaclab_contrib.sensors.cosmos_transfer.cosmos_camera` arranges.
     """
 
-    class_type: type[CosmosClient] | str = "{DIR}.cosmos_client:CosmosClient"
+    class_type: type[CosmosTransferClient] | str = "{DIR}.cosmos_transfer_client:CosmosTransferClient"
     """Client resource constructor. The model framework runs in the service's environment."""
 
     endpoint: str | list[str] = DEFAULT_ENDPOINT
@@ -80,8 +80,8 @@ class CosmosClientCfg(BackendCfg):
 
     prompt_files: str | list[str] | None = None
     """Paths of ``.txt`` or ``.json`` prompt files, or patterns such as ``prompts/*.json``, one prompt per file (see
-    :func:`~isaaclab_contrib.sensors.cosmos.read_prompt_files`). When set, the files replace :attr:`prompt` as its
-    list; they are read when the camera's Cosmos client is created."""
+    :func:`~isaaclab_contrib.sensors.cosmos_transfer.read_prompt_files`). When set, the files replace :attr:`prompt`
+    as its list; they are read when the camera's Cosmos client is created."""
 
     cameras: tuple[str, ...] = ()
     """Scene names of the cameras that share one session, each configured with this client. Defaults to none, which
@@ -89,8 +89,8 @@ class CosmosClientCfg(BackendCfg):
     camera ``k``'s environment ``v`` is view ``k * num_envs + v``, which selects its prompt as above; a camera's view
     takes its environment's seed, so all cameras of an environment share it. Views of different cameras are generated
     independently and need not agree with each other. The cameras need the same canvas and capture rate: pass
-    each to :func:`~isaaclab_contrib.sensors.cosmos.cosmos_camera` with this client, one ``canvas`` and its scene
-    name."""
+    each to :func:`~isaaclab_contrib.sensors.cosmos_transfer.cosmos_camera` with this client, one ``canvas`` and its
+    scene name."""
 
     max_episode_frames: int | None = None
     """Image-frame budget per episode, including the initial frame: ``1 + 4*k``. The Shadow Hand Cosmos tasks
@@ -105,7 +105,7 @@ class CosmosClientCfg(BackendCfg):
     generates each image independently from the current capture's control alone, with no history, for workloads
     that need no temporal consistency, such as a policy that observes once per action chunk. Its images do not
     repeat between updates, a reset view is black only until its next capture, and the service can offload its
-    weights while the session stays open (see :meth:`CosmosClient.offload`). Cameras sharing a session
+    weights while the session stays open (see :meth:`CosmosTransferClient.offload`). Cameras sharing a session
     (:attr:`cameras`) need ``"autoregressive"``."""
 
     decision_interval: int = 1

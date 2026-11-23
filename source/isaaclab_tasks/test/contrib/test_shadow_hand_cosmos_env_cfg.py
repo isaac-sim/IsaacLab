@@ -12,7 +12,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from isaaclab_contrib.sensors.cosmos import CosmosClientCfg, cosmos_camera, episode_frame_budget
+from isaaclab_contrib.sensors.cosmos_transfer import CosmosTransferClientCfg, cosmos_camera, episode_frame_budget
 
 from isaaclab_tasks.utils import parse_env_cfg, resolve_task_config
 
@@ -38,11 +38,11 @@ def test_registering_the_cosmos_tasks_imports_no_cosmos_code():
 
         for task in ("Isaac-Reorient-Cube-Shadow-Camera-Direct", "Isaac-Reorient-Cube-Shadow-Camera"):
             load_cfg_from_registry(task, "env_cfg_entry_point")
-        cosmos = ("isaaclab_contrib.sensors.cosmos", "isaaclab_cosmos_server", "isaaclab_neural_bridge")
+        cosmos = ("isaaclab_contrib.sensors.cosmos_transfer", "isaaclab_cosmos_server", "isaaclab_neural_bridge")
         assert not [name for name in sys.modules if name.startswith(cosmos)]
 
         load_cfg_from_registry("IsaacContrib-Reorient-Cube-Shadow-Camera-Cosmos-Direct", "env_cfg_entry_point")
-        assert "isaaclab_contrib.sensors.cosmos" in sys.modules
+        assert "isaaclab_contrib.sensors.cosmos_transfer" in sys.modules
     """)
     result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, timeout=300)
 
@@ -53,7 +53,7 @@ def test_cosmos_camera_puts_cosmos_on_the_policy_camera_of_an_unmodified_task():
     """The Kuka Allegro camera task gets Cosmos with its 64 x 64 observation kept, as the guide shows."""
     env_cfg = parse_env_cfg(KUKA_TASK, overrides=(KUKA_PRESETS, "env.scene.num_envs=1"))
     camera = env_cfg.scene.base_camera
-    client = CosmosClientCfg(
+    client = CosmosTransferClientCfg(
         prompt=["A lab.", "A kitchen."],
         max_episode_frames=episode_frame_budget(env_cfg, camera.update_period)[2],
     )
@@ -91,7 +91,7 @@ def test_named_cameras_share_one_session_at_one_canvas_and_keep_their_sizes():
     env_cfg = parse_env_cfg(KUKA_TASK, overrides=(KUKA_DUO_PRESETS, "env.scene.num_envs=1"))
     env_cfg.scene.wrist_camera = env_cfg.scene.wrist_camera.replace(width=128)
     names = ("base_camera", "wrist_camera")
-    client = CosmosClientCfg(
+    client = CosmosTransferClientCfg(
         cameras=names,
         max_episode_frames=episode_frame_budget(env_cfg, env_cfg.scene.base_camera.update_period)[2],
     )

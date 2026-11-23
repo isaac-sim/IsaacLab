@@ -28,7 +28,7 @@ import torch
 from isaaclab_cosmos_server import framework
 from isaaclab_neural_bridge import protocol, serve
 
-from isaaclab_contrib.sensors.cosmos import CosmosClient, CosmosClientCfg
+from isaaclab_contrib.sensors.cosmos_transfer import CosmosTransferClient, CosmosTransferClientCfg
 
 pytestmark = pytest.mark.unit
 
@@ -193,8 +193,8 @@ def test_a_single_frame_client_generates_through_the_service_on_the_server_strea
     stream.close()
     seeds = tuple(range(5, 5 + views))
     with _served(owner) as endpoint:
-        cfg = CosmosClientCfg(endpoint=endpoint, generation_mode="single_frame", transport="socket", timeout=30)
-        client = CosmosClient(cfg)
+        cfg = CosmosTransferClientCfg(endpoint=endpoint, generation_mode="single_frame", transport="socket", timeout=30)
+        client = CosmosTransferClient(cfg)
         try:
             session = client.open_stream(num_views=views, seeds=seeds)
             for step in range(2):
