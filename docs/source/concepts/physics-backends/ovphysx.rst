@@ -241,6 +241,21 @@ in OvPhysX 0.6.3, so it imports all declared USD copies and uses collision group
 Large overlapping original layouts can still exhaust broadphase pair capacity;
 use spatially separated environments.
 
+Compiled-stage cache
+--------------------
+
+OvPhysX 0.8 can store compiled physics stages in the cooked-collider cache
+directory. Large deformable scenes can attach faster with compiled-stage
+caching disabled. Isaac Lab opts out for deformable scenes by default and
+inherits the runtime mode for other scenes. Set
+``OvPhysxCfg(disable_compiled_stage_cache=True)`` to opt out for any scene, or
+set it to ``False`` to inherit the runtime mode even for deformables.
+
+The opt-out does not affect cooked-collider caching. Isaac Lab restores the
+process-wide compiled-stage cache setting after the attach task completes.
+Code using the native OvPhysX API in the same process should avoid attaching
+a separate stage concurrently with an Isaac Lab attach.
+
 Deformable limitations
 ----------------------
 
