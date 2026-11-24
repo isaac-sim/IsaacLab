@@ -107,7 +107,7 @@ _MARKER_TIPS = {
 """What each marker group shows, by the last component of its prim path."""
 
 
-RTX_SHARED_SCENE_NOTE = "RTX: also changes what RTX sensor cameras see. Soft objects stay visible."
+RTX_SHARED_SCENE_NOTE = "Note: with RTX on, this also changes RTX sensor cameras. Soft objects stay visible."
 """Shown beside the controls that hide environments while the RTX view is selected."""
 
 
@@ -608,7 +608,7 @@ class NewtonViewerGL(ViewerGL):
         if (
             getattr(self._owner, "rtx_view_index", None) is not None
         ):  # OVRTX draws the markers as prims of the shared scene
-            hud_note(imgui, "RTX: markers also show up in RTX sensor cameras.")
+            hud_note(imgui, "Note: with RTX on, markers also show in RTX sensor cameras.")
         if not groups:
             imgui.text_disabled("This task registers no visualization markers")
             hover_tooltip(
@@ -1290,7 +1290,7 @@ class NewtonVisualizerBase(BaseVisualizer):
             return
         if rtx_rendering:
             self._draw_rtx_appearance(imgui)
-            hud_note(imgui, "RTX: lighting also changes what RTX sensor cameras see.")  # shown with the section closed
+            hud_note(imgui, "Note: with RTX on, lighting also changes RTX sensor cameras.")  # shown with the section closed
             return
         callbacks = self._viewer.gui._ui_callbacks.get("rendering") if self._viewer.gui is not None else None
         if callbacks and imgui.tree_node("Lighting & Appearance###appearance"):
