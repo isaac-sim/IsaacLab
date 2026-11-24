@@ -50,10 +50,19 @@ def _recorded_and_runtime_states(
     return dataset_state, runtime
 
 
+@pytest.mark.parametrize("flat_dataset", [False, True])
 @pytest.mark.parametrize("different_value", [False, True])
-def test_replay_compares_single_sample_to_selected_runtime_env(different_value: bool) -> None:
+def test_replay_compares_single_sample_to_selected_runtime_env(different_value: bool, flat_dataset: bool) -> None:
     runtime_env_index = 1
     dataset_state, runtime = _recorded_and_runtime_states(runtime_env_index)
+    if flat_dataset:
+        dataset_state = {
+            asset_type: {
+                asset_name: {field_name: value[0] for field_name, value in fields.items()}
+                for asset_name, fields in assets.items()
+            }
+            for asset_type, assets in dataset_state.items()
+        }
     if different_value:
         runtime["rigid_object"]["cube"]["root_pose"][runtime_env_index, 0] += 0.02
     matched, log = compare_states(dataset_state, runtime, runtime_env_index)
