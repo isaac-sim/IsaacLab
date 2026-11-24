@@ -311,7 +311,7 @@ Visualizer Overview
       Picking, visualization markers, camera selection, pause controls, Visible Envs, and recording work in
       the RTX view of a windowed Newton visualizer, and picking draws the drag arrow there. Joint, contact, spring,
       center-of-mass, and inertia overlays are drawn in the RTX view too; the collision, visual, edge, and wireframe
-      overlays and the Checkpoint Ghost tint apply to the OpenGL view only.
+      overlays apply to the OpenGL view only.
 
       .. warning::
 
@@ -816,56 +816,35 @@ without screen-sharing, running with ``--viz viser``:
 The share URL is logged on startup. Rerun has no equivalent config field, but exposes its own
 share button in the native UI.
 
-**Debugging and visualizing policies with Checkpoint Ghosts**
+**Comparing checkpoints with Checkpoint Ghosts**
 
-Checkpoint Ghosts overlay rollouts of several policy checkpoints of one task in a single Newton viewport, to debug and
-visualize how training changed the behavior. The ``--checkpoint``
-drives the reference robots; ghosts of other checkpoints are tinted, translucent copies that start
-from the same terrain, spawn pose, and commands, so differences in behavior show up as the robots
-drift apart:
+Checkpoint Ghosts overlay rollouts of several checkpoints of one task in the Newton window, to see how training changed
+the behavior. ``--checkpoint`` drives the reference; ghosts of other checkpoints are tinted, translucent copies that
+start from the same terrain, spawn pose, and commands, so the policy is the only difference:
 
 .. code-block:: bash
 
     uv run isaaclab play --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD \
         --num_envs 32 --checkpoint latest --viz newton --checkpoint_ghosts
 
-Checkpoint Ghosts are opt-in. A plain ``play`` run shows a greyed-out **Checkpoint Ghosts (not enabled)** section in the
-viewer's left panel that explains the feature and the flag, because the simulation must allocate the environments of
-every slot up front and plain playback should not pay for them.
+``--num_envs`` is the total simulated and is split evenly among the checkpoints shown: the reference starts with all of
+them, and each checkpoint you add resizes every slot. A plain ``play`` run shows a greyed-out section that explains the
+flag. ``--checkpoint_ghost_slots`` caps the checkpoints shown (default eight).
 
-``--num_envs`` is the total number of environments simulated, split evenly among the checkpoints shown. The reference
-alone gets all of them; each checkpoint you add resizes every slot and restarts the environments from the same spawn
-state. With ``--num_envs 32``, the reference starts with 32 environments, and adding one ghost gives 16 each, then
-10 each (30 in use) with three. ``--checkpoint_ghost_slots`` (default and maximum eight, capped at ``--num_envs``) limits how
-many checkpoints can be shown at once. The section shows what is drawn out of the simulated total, for example
-``Showing 12/32 envs: 4 per slot x 3 ckpts``. **Visible Envs** in **Playback** follows the per-slot size as it
-changes, and lowers the drawn count per slot, down to 1.
+In the **Checkpoint Ghosts** section, **Add Checkpoint...** browses folders for RSL-RL ``model_*.pt`` files, starting in
+the experiment's log directory or ``--checkpoint_ghost_root``. Each ghost can be shown, changed, or removed, and has
+opacity and tint under **Appearance**. The controls are disabled in the RTX view; switch the Renderer to OpenGL.
 
-Open **Checkpoint Ghosts** and choose **Add Checkpoint...** to browse for checkpoints. The window starts in the
-experiment's log directory (``--checkpoint_ghost_root`` starts it elsewhere) and lists folders and the ``model_*.pt``
-files in the current one. Click a folder to enter it, **Up** to leave it, **Experiment Folder** to return, or type any
-folder into the path box and press Enter. The window reopens in the folder you left it in, also after you pick a
-checkpoint. The checkpoint must come from a run of this task and be an RSL-RL checkpoint, because the reference's
-runner loads it; one that does not fit is reported instead of loaded. The reference is outlined and always shown. Each ghost has a
-checkbox that shows or hides it. Under **Appearance**, each ghost has opacity and tint sliders; the tint blends the robot's native colors toward the
-ghost color. Any tint above 0 drops native textures, and metal shading fades out as the tint rises. **Change...** replaces a ghost's checkpoint in place, and **Remove** frees the slot.
-
-* All ``--num_envs`` environments are always simulated. Ghost slots copy the reference slot's terrain, spawn poses, and
-  commands, and environments an uneven split leaves over receive zero actions.
-* Randomization that cannot be mirrored between slots is disabled: startup and interval events,
-  curriculum terms, and observation noise. Reset events and commands are copied from the reference.
-* Identical checkpoints do not stay exactly on top of each other; physics differences grow
-  to centimeters over a few seconds on rough terrain.
-* Checkpoint Ghosts support RSL-RL and manager-based environments only.
-* Tasks whose cameras render with OVRTX (``renderer=ovrtx``) are not supported yet. Checkpoint Ghosts are not offered for
-  them, and ``--checkpoint_ghosts`` exits with a message.
+* Startup and interval events, curriculum terms, and observation noise are disabled, since they cannot be mirrored
+  between slots.
+* Only RSL-RL and manager-based environments are supported, and not tasks whose cameras use OVRTX.
 
 **Choosing how many environments are drawn**
 
 Every Newton viewer has a **Visible Envs** slider in its left panel that sets how many
-environments are drawn. It changes only what is rendered, not the simulation. With Checkpoint Ghosts, it
-counts environments per slot. In the RTX view the OVRTX renderer is shared with scene cameras, so the hidden
-environments also drop out of their images while the RTX view is shown; the HUD notes this next to the slider.
+environments are drawn. It changes only what is rendered, not the simulation. In the RTX view the OVRTX renderer is
+shared with scene cameras, so the hidden environments also drop out of their images while the RTX view is shown;
+the HUD notes this next to the slider.
 
 Resolution Rules
 ~~~~~~~~~~~~~~~~
@@ -1033,8 +1012,7 @@ Limitations
      - ✓
 
 In Newton's RTX view, the collision, visual, edge, and wireframe overlays are not available; joint, contact, spring,
-center-of-mass, and inertia overlays are. Checkpoint Ghost tint is
-not available there, and the **Checkpoint Ghosts** controls are disabled until the Renderer is switched to OpenGL.
+center-of-mass, and inertia overlays are.
 
 **Lighting differences across visualizers**
 
