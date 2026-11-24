@@ -17,10 +17,10 @@ from isaaclab_assets.robots.cassie import CASSIE_CFG
 
 from ..velocity_flat import (
     FLAT_TERRAIN_SCENE,
+    FLAT_VELOCITY_TASK,
     FlatVelocityEnvCfg,
+    FlatVelocityPhysicsCfg,
     contact_forces,
-    flat_velocity_sim,
-    flat_velocity_task,
     joints,
     robot,
     root_state,
@@ -32,10 +32,11 @@ toes = contact_forces.bodies(".*toe")
 toe_joints = robot.joints("toe_joint_.*")
 feet_command = {"command": mdp2.commands.base_velocity, "body_ids": toes}
 
-_FLAT_TASK = flat_velocity_task("pelvis", action_rate_weight=-0.015)
+_BASE_CONTACT = FLAT_VELOCITY_TASK.terminations["base_contact"]
+_BASE_MASS = FLAT_VELOCITY_TASK.events["add_base_mass"]
 
 TASK = replace(
-    _FLAT_TASK,
+    FLAT_VELOCITY_TASK,
     actions={
         "joint_pos": mdp2.DirectAction(robot.joint_pos_target, scale=0.5, offset=robot.default_joint_pos),
     },
@@ -109,25 +110,40 @@ TASK = replace(
             weight=-1.0,
         ),
     },
+    terminations={
+        **FLAT_VELOCITY_TASK.terminations,
+        "base_contact": replace(
+            _BASE_CONTACT, inputs={**_BASE_CONTACT.inputs, "body_ids": contact_forces.bodies("pelvis")}
+        ),
+    },
     events={
-        **_FLAT_TASK.events,
+        **FLAT_VELOCITY_TASK.events,
         "add_base_mass": replace(
-            _FLAT_TASK.events["add_base_mass"],
+            _BASE_MASS,
+            inputs={**_BASE_MASS.inputs, "body_ids": robot.bodies("pelvis")},
             params={"mass_distribution_params": (1.0, 1.25), "operation": "scale", "distribution": "log_uniform"},
         ),
         "base_com": None,
         "reset_robot_joints": replace(
-            _FLAT_TASK.events["reset_robot_joints"], params={"position_range": (1.0, 1.0), "velocity_range": (0.0, 0.0)}
+            FLAT_VELOCITY_TASK.events["reset_robot_joints"],
+            params={"position_range": (1.0, 1.0), "velocity_range": (0.0, 0.0)},
         ),
     },
 )
 """The MDP of the task, adapted to Cassie's biped gait and reset."""
 
 
+_FLAT_DEFAULTS = FlatVelocityEnvCfg()
+_FLAT_MJWARP = _FLAT_DEFAULTS.sim.physics.newton_mjwarp
+_CASSIE_MJWARP = replace(_FLAT_MJWARP, solver_cfg=replace(_FLAT_MJWARP.solver_cfg, njmax=52, nconmax=15))
+
+
 @configclass
 class CassieFlatMDP2EnvCfg(FlatVelocityEnvCfg):
     """Cassie's flat velocity task on MJWarp."""
 
-    sim: SimulationCfg = flat_velocity_sim(njmax=52, nconmax=15)
+    sim: SimulationCfg = replace(
+        _FLAT_DEFAULTS.sim, physics=FlatVelocityPhysicsCfg(newton_mjwarp=_CASSIE_MJWARP, default=_CASSIE_MJWARP)
+    )
     scene: MySceneCfg = replace(FLAT_TERRAIN_SCENE, robot=replace(CASSIE_CFG, prim_path="{ENV_REGEX_NS}/Robot"))
     task: mdp2.TaskCfg = TASK

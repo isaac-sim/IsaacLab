@@ -12,7 +12,37 @@ from isaaclab.utils import configclass, replace
 
 from isaaclab_assets.robots.unitree import UNITREE_A1_CFG
 
-from ..velocity_flat import FlatVelocityEnvCfg, FlatVelocityPhysicsCfg, FlatVelocitySceneCfg, flat_velocity_task
+from ..velocity_flat import (
+    FLAT_VELOCITY_TASK,
+    FlatVelocityEnvCfg,
+    FlatVelocityPhysicsCfg,
+    FlatVelocitySceneCfg,
+    contact_forces,
+    robot,
+)
+
+base = robot.bodies("trunk")
+_ACTION_RATE = FLAT_VELOCITY_TASK.rewards["action_rate_l2"]
+_BASE_CONTACT = FLAT_VELOCITY_TASK.terminations["base_contact"]
+_BASE_MASS = FLAT_VELOCITY_TASK.events["add_base_mass"]
+_BASE_COM = FLAT_VELOCITY_TASK.events["base_com"]
+
+TASK = replace(
+    FLAT_VELOCITY_TASK,
+    rewards={**FLAT_VELOCITY_TASK.rewards, "action_rate_l2": replace(_ACTION_RATE, weight=-0.01)},
+    terminations={
+        **FLAT_VELOCITY_TASK.terminations,
+        "base_contact": replace(
+            _BASE_CONTACT, inputs={**_BASE_CONTACT.inputs, "body_ids": contact_forces.bodies("trunk")}
+        ),
+    },
+    events={
+        **FLAT_VELOCITY_TASK.events,
+        "add_base_mass": replace(_BASE_MASS, inputs={**_BASE_MASS.inputs, "body_ids": base}),
+        "base_com": replace(_BASE_COM, inputs={**_BASE_COM.inputs, "body_ids": base}),
+    },
+)
+"""The MDP of the Unitree A1 task."""
 
 _FLAT_DEFAULTS = FlatVelocityEnvCfg()
 _FLAT_MJWARP = _FLAT_DEFAULTS.sim.physics.newton_mjwarp
@@ -29,4 +59,4 @@ class UnitreeA1FlatEnvCfg(FlatVelocityEnvCfg):
     scene: FlatVelocitySceneCfg = replace(
         _FLAT_DEFAULTS.scene, robot=replace(UNITREE_A1_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     )
-    task: mdp2.TaskCfg = flat_velocity_task("trunk", action_rate_weight=-0.01)
+    task: mdp2.TaskCfg = TASK

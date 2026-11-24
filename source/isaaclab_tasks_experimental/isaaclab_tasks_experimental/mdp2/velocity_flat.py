@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 from dataclasses import MISSING
-from typing import Any
 
 from isaaclab_experimental import mdp2
 from isaaclab_experimental.envs import MDP2RLEnvCfg
@@ -79,29 +78,19 @@ class FlatVelocityPhysicsCfg(PresetCfg):
     default: NewtonCfg = newton_mjwarp
 
 
-def flat_velocity_task(base_body_name: str, *, action_rate_weight: float) -> mdp2.TaskCfg:
-    """Main's Unitree Go2 task for another robot: its base body and action rate weight, the command that steers when
-    it resamples, and no base height penalty, which is specific to Go2."""
-    base = robot.bodies(base_body_name)
-    base_contact = contact_forces.bodies(base_body_name)
-    command = GO2_TASK.commands["base_velocity"]
-    rewards = {name: reward for name, reward in GO2_TASK.rewards.items() if name != "base_height_l2"}
-    contact = GO2_TASK.terminations["base_contact"]
-    mass, com = GO2_TASK.events["add_base_mass"], GO2_TASK.events["base_com"]
-    return replace(
-        GO2_TASK,
-        commands={"base_velocity": replace(command, term=mdp.heading_velocity_command_steered_on_resample)},
-        rewards={**rewards, "action_rate_l2": replace(rewards["action_rate_l2"], weight=action_rate_weight)},
-        terminations={
-            **GO2_TASK.terminations,
-            "base_contact": replace(contact, inputs={**contact.inputs, "body_ids": base_contact}),
-        },
-        events={
-            **GO2_TASK.events,
-            "add_base_mass": replace(mass, inputs={**mass.inputs, "body_ids": base}),
-            "base_com": replace(com, inputs={**com.inputs, "body_ids": base}),
-        },
-    )
+FLAT_VELOCITY_TASK = replace(
+    GO2_TASK,
+    commands={
+        "base_velocity": replace(
+            GO2_TASK.commands["base_velocity"], term=mdp.heading_velocity_command_steered_on_resample
+        ),
+    },
+    rewards={**GO2_TASK.rewards, "base_height_l2": None},
+)
+"""Main's Unitree Go2 task as the base of the other robots, as the manager velocity tasks share their base config: the
+command that steers when it resamples, and no base height penalty, which is specific to Go2. Robots whose base body is
+not ``base`` set it in the base contact termination and the base mass and center of mass events, and robots set their
+action rate weight."""
 
 
 @configclass
@@ -124,15 +113,6 @@ class FlatVelocityEnvCfg(MDP2RLEnvCfg):
         tasks = [self.task] if isinstance(self.task, mdp2.TaskCfg) else self.task
         tasks = [replace(task, events={**task.events, "push_robot": None}) for task in tasks]
         self.task = tasks[0] if isinstance(self.task, mdp2.TaskCfg) else tasks
-
-
-def flat_velocity_sim(**solver: Any) -> sim_utils.SimulationCfg:
-    """The flat velocity simulation with a robot's MJWarp solver settings, such as its constraint capacities."""
-    newton_mjwarp = FlatVelocityPhysicsCfg().newton_mjwarp
-    newton_mjwarp = replace(newton_mjwarp, solver_cfg=replace(newton_mjwarp.solver_cfg, **solver))
-    return replace(
-        FlatVelocityEnvCfg().sim, physics=FlatVelocityPhysicsCfg(newton_mjwarp=newton_mjwarp, default=newton_mjwarp)
-    )
 
 
 _ROUGH_SCENE = MySceneCfg(num_envs=4096, env_spacing=2.5)
