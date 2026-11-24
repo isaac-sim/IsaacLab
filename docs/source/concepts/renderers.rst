@@ -437,6 +437,32 @@ SDP fills renderer-owned transform and geometry buffers, including deformable me
 and cables. Two buffers alternate per write and are reused only after OVRTX consumes them.
 Physics can therefore update its live arrays while the previous capture renders.
 
+.. _renderers-ovrtx-render-product-split:
+
+OVRTX render product splits
+---------------------------
+
+The OVRTX renderer draws the images of all environments of a camera sensor into one tiled image,
+described by one render product. For a very large sensor, a renderer buffer of this tiled image can
+exceed the limit of 4 GiB, and the frame fails. With the default ``"auto"`` of
+:attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.max_envs_per_render_product`, the renderer then
+halves the environments per render product of one sensor and renders the frame again. When a split
+renders, a warning gives its integer.
+
+Each extra render product adds a fixed cost to every frame. The search also renders the first
+frame again for each smaller split. The failed render products stay in the scene until the sensor is
+cleaned up, so the search can need more GPU memory. Path tracing and DLSS depend on the pixel
+position in the tiled image, so another split can change the color outputs a little. Set the integer
+from the warning to skip the search and to keep the same split on every GPU and driver. The value
+applies to every camera sensor of the renderer configuration, so if several of these sensors get a
+warning, set the smallest integer.
+
+.. code-block:: python
+
+   from isaaclab_ov.renderers import OVRTXRendererCfg
+
+   renderer_cfg = OVRTXRendererCfg(max_envs_per_render_product=1280)
+
 Architecture Overview
 ---------------------
 

@@ -35,7 +35,7 @@ from builtins import ExceptionGroup
 from collections import deque
 from collections.abc import Callable, Iterable, Iterator, Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Generic, TypeVar
+from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -123,7 +123,7 @@ _RENDER_DELTA_TIME = 1.0 / 60.0
 _FAILED_FRAME_TEXT = "failed to produce a frame"
 _FAILED_FRAME_NOTE = (
     "A tiled atlas above a renderer buffer limit is one cause of a failed frame."
-    " Set CameraCfg.max_envs_per_render_product to an integer to split a camera sensor"
+    " Set OVRTXRendererCfg.max_envs_per_render_product to an integer to split a camera sensor"
     ' over several render products with smaller atlases. The value "auto" searches for this split'
     " after a failed first frame, but only with one camera path per environment."
 )
@@ -359,8 +359,9 @@ def _plan_split(cameras: Sequence[OVRTXCameraRenderData], error: RuntimeError, n
     """Plan the next layouts of the camera sensors without a rendered frame after a failed step.
 
     OVRTX reports a failed frame only in its error text, so the plan is empty for any other error. A candidate has
-    ``"auto"``, one camera path per environment (``searches_split``) and more than one environment in its first
-    render product. Of the candidates, the one with the highest :func:`_split_priority` gets half as many
+    ``searches_split`` and more than one environment in its first render product. ``searches_split`` needs
+    ``"auto"`` for :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.max_envs_per_render_product` and one camera path
+    per environment. Of the candidates, the one with the highest :func:`_split_priority` gets half as many
     environments per render product. The other sensors keep their split.
 
     Without a candidate, or after ``_MAX_SMALLER_LAYOUTS`` smaller layouts, the plan halves no sensor. The search
@@ -393,7 +394,8 @@ class OVRTXRenderProduct:
 
     One atlas for all environments of a sensor can be too large for the renderer, the driver or the GPU memory.
     So a sensor can have several render products.
-    :attr:`~isaaclab.sensors.CameraCfg.max_envs_per_render_product` sets the environments of one render product.
+    :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.max_envs_per_render_product` sets the environments of one render
+    product.
     """
 
     path: str
@@ -417,13 +419,21 @@ class OVRTXCameraRenderData:
     the RenderVars in the scope of the sensor. Until the first frame renders, the split search can change them.
     """
 
-    def __init__(self, spec: CameraRenderSpec, render_scope_name: str, camera_paths: list[str]):
+    def __init__(
+        self,
+        spec: CameraRenderSpec,
+        render_scope_name: str,
+        camera_paths: list[str],
+        max_envs_per_render_product: int | Literal["auto", "all"],
+    ):
         """Create render data for a camera in its assigned render scope.
 
         Args:
             spec: Camera render specification.
             render_scope_name: Root scope containing this camera's render products and RenderVars.
             camera_paths: Concrete camera paths in sensor row order.
+            max_envs_per_render_product: Maximum number of environments in one render product, see
+                :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.max_envs_per_render_product`.
         """
         self.spec = spec
         self.camera_paths = camera_paths
@@ -433,7 +443,7 @@ class OVRTXCameraRenderData:
         self.height = spec.cfg.height
         self.num_envs = spec.num_instances
         self.data_types = spec.cfg.data_types
-        max_envs = spec.cfg.max_envs_per_render_product
+        max_envs = max_envs_per_render_product
         # Whether the split search may halve the environments per render product of this sensor.
         self.searches_split = max_envs == "auto" and len(camera_paths) == self.num_envs
         if max_envs == "auto" and not self.searches_split:
@@ -441,7 +451,7 @@ class OVRTXCameraRenderData:
             # an environment root, so a different number is unexpected.
             logger.warning(
                 "Camera %s has %d camera path(s) for %d environments, so the split search is off for it."
-                ' Set CameraCfg.max_envs_per_render_product="all" to turn this warning off.',
+                ' Set OVRTXRendererCfg.max_envs_per_render_product="all" for its renderer to turn this warning off.',
                 spec.cfg.prim_path,
                 len(camera_paths),
                 self.num_envs,
@@ -500,9 +510,9 @@ class OVRTXCameraRenderData:
         count = math.ceil(self.num_envs / envs_per_product)
         if count > 1 and len(self.camera_paths) != self.num_envs:
             raise ValueError(
-                "max_envs_per_render_product needs one camera path per environment, got"
+                "OVRTXRendererCfg.max_envs_per_render_product needs one camera path per environment, got"
                 f" {len(self.camera_paths)} camera path(s) for {self.num_envs} environments."
-                ' Use "all" for this sensor.'
+                ' Use "all" for the renderer of this sensor.'
             )
         self.products: list[OVRTXRenderProduct] = []
         for k in range(count):
@@ -790,7 +800,9 @@ class OVRTXRenderer(BaseRenderer):
                 next(env_partitions[root] for root in Sdf.Path(path).GetPrefixes() if root in env_partitions)
                 for path in camera_paths
             ]
-        render_data = OVRTXCameraRenderData(spec, f"RenderCamera_{self.scene.next_camera_id}", camera_paths)
+        render_data = OVRTXCameraRenderData(
+            spec, f"RenderCamera_{self.scene.next_camera_id}", camera_paths, self.cfg.max_envs_per_render_product
+        )
         try:
             self._add_render_products(render_data, spec)
             if self._use_ovstage:
@@ -1057,9 +1069,9 @@ class OVRTXRenderer(BaseRenderer):
                     raise RuntimeError(
                         f"OVRTX returned a different {key} for render product {product.path!r} than for"
                         f" {render_data.products[0].path!r}. The segmentation labels of a split camera sensor"
-                        ' assume one map for the whole scene. Set CameraCfg.max_envs_per_render_product to "all"'
-                        " to render this sensor through one render product, if its buffers stay below the"
-                        " renderer limit."
+                        " assume one map for the whole scene. Set OVRTXRendererCfg.max_envs_per_render_product"
+                        ' to "all" to render this sensor through one render product, if its buffers stay below'
+                        " the renderer limit."
                     )
 
     def _launch_extract_all_tiles(
@@ -1206,10 +1218,10 @@ class OVRTXRenderer(BaseRenderer):
     def _note_failed_frame(self, error: Exception, num_smaller_layouts: int = 0) -> None:
         """Add a note about render product splits to an error about a failed frame.
 
-        The renderer error about a failed frame does not name the camera setting that can fix a tiled atlas above a
-        buffer limit. The note names it and lists the camera sensors of this renderer with several environments in one
-        render product. If the split search gave up, the same note gives the number of smaller layouts that it tried.
-        Other errors and errors that already have the note do not change.
+        The renderer error about a failed frame does not name the renderer setting that can fix a tiled atlas above
+        a buffer limit. The note names it and lists the camera sensors of this renderer with several environments in
+        one render product. If the split search gave up, the same note gives the number of smaller layouts that it
+        tried. Other errors and errors that already have the note do not change.
 
         Args:
             error: Error of the failed frame.
@@ -1501,8 +1513,8 @@ class OVRTXRenderer(BaseRenderer):
         back, so products left out of the request keep their previous outputs.
 
         If the first frame fails, the split search halves the environments per render product of a camera sensor
-        with ``max_envs_per_render_product = "auto"`` and renders the frame again. A warning then gives the value
-        that skips the search. See :func:`_plan_split` and :meth:`_apply_split_plan`.
+        whose renderer has ``max_envs_per_render_product = "auto"`` and renders the frame again. A warning then gives
+        the value that skips the search. See :func:`_plan_split` and :meth:`_apply_split_plan`.
 
         Args:
             render_data: Cameras whose poses and output buffers have been prepared. An empty
@@ -1522,8 +1534,8 @@ class OVRTXRenderer(BaseRenderer):
         if failed is not None:
             raise RuntimeError(
                 f"Camera {failed.spec.cfg.prim_path} renders no frames. Its first frame failed, and the search of the"
-                " OVRTX renderer for a render product split (CameraCfg.max_envs_per_render_product) ended without a"
-                " layout that renders. The cause gives the reason."
+                " OVRTX renderer for a render product split (OVRTXRendererCfg.max_envs_per_render_product) ended"
+                " without a layout that renders. The cause gives the reason."
             ) from failed.first_frame_error
         if self.backend.renderer is None or not self._camera_render_data:
             return
@@ -1544,10 +1556,10 @@ class OVRTXRenderer(BaseRenderer):
                     self._note_failed_frame(error, num_smaller_layouts)
                     raise
         for data in self.backend.unrendered:
-            if data.spec.cfg.max_envs_per_render_product == "auto" and len(data.products) > 1:
+            if data.searches_split and len(data.products) > 1:
                 logger.warning(
                     "Camera %s: the first frame failed with one render product. It now uses %d render products."
-                    " Set CameraCfg.max_envs_per_render_product=%d to skip this search.",
+                    " Set OVRTXRendererCfg.max_envs_per_render_product=%d to skip this search.",
                     data.spec.cfg.prim_path,
                     len(data.products),
                     data.products[0].num_envs,  # The first render product has the most environments.

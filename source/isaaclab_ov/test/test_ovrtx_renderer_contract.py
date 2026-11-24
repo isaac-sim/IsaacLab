@@ -26,7 +26,7 @@ from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 from isaaclab.sensors.camera import CameraCfg
 from isaaclab.sensors.camera.camera_data import CameraData, RenderBufferKind, RenderBufferSpec
 from isaaclab.sim import PinholeCameraCfg, SimulationContext
-from isaaclab.utils import replace
+from isaaclab.utils import replace, validate
 from isaaclab.utils.warp import ProxyArray
 
 _REQUIRED_MODULES = ("isaaclab_ov", "ovrtx")
@@ -96,7 +96,7 @@ def _make_camera_cfg(data_types: list[str]) -> CameraCfg:
 
 def _make_ovrtx_camera_render_data(render_scope_name: str = "RenderCamera_0") -> OVRTXCameraRenderData:
     spec = CameraRenderSpec(_make_camera_cfg(["rgb"]), "cpu", 2, ("/World/envs/env_0/Camera",), 2)
-    return OVRTXCameraRenderData(spec, render_scope_name, [f"/World/envs/env_{i}/Camera" for i in range(2)])
+    return OVRTXCameraRenderData(spec, render_scope_name, [f"/World/envs/env_{i}/Camera" for i in range(2)], "auto")
 
 
 def _single_render_product(render_data: OVRTXCameraRenderData):
@@ -444,10 +444,9 @@ def test_ovrtx_failed_frame_error_names_the_render_product_split(mode, failed_fr
     renderer.scene.ordinal = 1
     renderer.scene.stage = types.SimpleNamespace(advance_write_floor=lambda *, ordinal: MagicMock())
     unsplit = _make_ovrtx_camera_render_data()
-    cfg = _make_camera_cfg(["rgb"])
-    cfg.max_envs_per_render_product = 1
     wrist_paths = [f"/World/envs/env_{i}/Wrist" for i in range(2)]
-    split = OVRTXCameraRenderData(CameraRenderSpec(cfg, "cpu", 2, tuple(wrist_paths), 2), "RenderCamera_1", wrist_paths)
+    wrist_spec = CameraRenderSpec(_make_camera_cfg(["rgb"]), "cpu", 2, tuple(wrist_paths), 2)
+    split = OVRTXCameraRenderData(wrist_spec, "RenderCamera_1", wrist_paths, 1)
     renderer._camera_render_data = [unsplit, split]
     for camera in renderer._camera_render_data:
         renderer.backend.render_products.update(camera.render_product_paths)
@@ -470,11 +469,25 @@ def test_ovrtx_failed_frame_error_names_the_render_product_split(mode, failed_fr
     notes = getattr(error, "__notes__", [])
     if failed_frame:
         assert len(notes) == 1
-        assert "CameraCfg.max_envs_per_render_product" in notes[0]
+        assert "OVRTXRendererCfg.max_envs_per_render_product" in notes[0]
         assert "'/World/envs/env_0/Camera' (2 environments)" in notes[0]
         assert "Wrist" not in notes[0]
     else:
         assert notes == []
+
+
+@pytest.mark.parametrize(
+    "max_envs, valid",
+    [("auto", True), ("all", True), (3, True), (0, False), (-2, False), (True, False), (None, False), ("ALL", False)],
+)
+def test_ovrtx_renderer_cfg_validates_render_product_split(max_envs, valid):
+    """The split is "auto", "all" or an integer >= 1. A camera rejects other values when it validates its config."""
+    cfg = replace(_make_camera_cfg(["rgb"]), renderer_cfg=OVRTXRendererCfg(max_envs_per_render_product=max_envs))
+    if valid:
+        validate(cfg)
+    else:
+        with pytest.raises(ValueError, match='max_envs_per_render_product must be "auto", "all" or an integer >= 1'):
+            validate(cfg)
 
 
 _FAILED_FRAME = (
@@ -486,10 +499,14 @@ _FAILED_FRAME = (
 def _add_search_camera(
     renderer: OVRTXRenderer, name: str, num_envs: int, max_envs: int | Literal["auto", "all"], width: int
 ):
-    """Register one square ``rgb`` sensor of ``num_envs`` environments with ``renderer``."""
+    """Register one square ``rgb`` sensor of ``num_envs`` environments with ``renderer``.
+
+    The renderer reads its split value when it registers a sensor. So each sensor can get its own value, like the
+    sensors of several renderer configurations on one shared engine.
+    """
+    renderer.cfg.max_envs_per_render_product = max_envs
     cfg = _make_camera_cfg(["rgb"])
     cfg.width = cfg.height = width
-    cfg.max_envs_per_render_product = max_envs
     paths = tuple(f"/World/envs/env_{i}/{name}" for i in range(num_envs))
     return renderer.create_render_data(CameraRenderSpec(cfg, "cpu", num_envs, paths, num_envs))
 
@@ -1330,10 +1347,10 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, capfd, use
                 ["rgb", "distance_to_image_plane"] if index == 0 else ["rgb", "distance_to_image_plane", "normals"]
             )
             cfg.height, cfg.width = height, width
-            # One environment per render product splits the second camera in the asynchronous rows.
+            # One environment per render product splits the second camera in the asynchronous rows. The renderer
+            # reads this value when it registers the camera.
             split = asynchronous and index == 1
-            if split:
-                cfg.max_envs_per_render_product = 1
+            renderer.cfg.max_envs_per_render_product = 1 if split else "auto"
             spec = CameraRenderSpec(
                 cfg=cfg,
                 device="cuda:0",
@@ -1514,11 +1531,11 @@ def test_ovrtx_split_sensor_outputs_match_single_product(
 ):
     """A sensor split into render products gives the outputs of one render product, in environment order.
 
-    Each camera kind has two sensors: one with ``"all"``, so one render product, and one that the camera
-    configuration splits. One more sensor with ``"auto"`` gets its split from the search after a failed first
-    frame. The cameras of environments 0 to 3 see different parts of the near cube, so a swap of two environments
-    changes every output, also the mean colors. Only the camera of environment 4 sees the far cube, so only the
-    last render product of the split sees it.
+    Each camera kind has two sensors: one with ``"all"``, so one render product, and one with 2 environments per
+    render product. One more sensor with ``"auto"`` gets its split from the search after a failed first frame. The
+    cameras of environments 0 to 3 see different parts of the near cube, so a swap of two environments changes every
+    output, also the mean colors. Only the camera of environment 4 sees the far cube, so only the last render product
+    of the split sees it.
 
     The colorize settings apply to every sensor of a renderer, and each renderer start and stop costs seconds. So
     the two rows swap the colorize values. Simple shading is a data type of a camera, so the rows spread the three
@@ -1621,9 +1638,11 @@ def test_ovrtx_split_sensor_outputs_match_single_product(
     cameras = []
 
     def add_camera(data_types, max_envs):
+        # The renderer reads its split value when it registers a sensor. One renderer start costs seconds, so the
+        # sensors share one renderer and each sensor gets its own value.
+        renderer.cfg.max_envs_per_render_product = max_envs
         camera_cfg = _make_camera_cfg(data_types)
         camera_cfg.height = camera_cfg.width = _SPLIT_IMAGE_SIZE
-        camera_cfg.max_envs_per_render_product = max_envs
         spec = CameraRenderSpec(
             cfg=camera_cfg,
             device="cuda:0",
@@ -2047,8 +2066,8 @@ def test_ovrtx_process_frame_stitches_split_frames_in_env_order(monkeypatch, use
     )
     monkeypatch.setattr(renderer, "_map_render_var_to_dlpack", contextlib.nullcontext)
 
+    renderer.cfg.max_envs_per_render_product = 2
     cfg = _make_camera_cfg(["rgba", "depth", "semantic_segmentation"])
-    cfg.max_envs_per_render_product = 2
     render_data = renderer.create_render_data(CameraRenderSpec(cfg, "cpu", num_envs, tuple(camera_paths), num_envs))
     paths = render_data.render_product_paths
     assert paths == tuple(f"/RenderCamera_0/RenderProduct_{k}" for k in range(3))
@@ -2151,7 +2170,7 @@ def test_ovrtx_process_frame_writes_each_render_product_into_its_environment_ran
     renderer._device = "cpu"
     monkeypatch.setattr(renderer, "_map_render_var_to_dlpack", contextlib.nullcontext)
     spec = CameraRenderSpec(_make_camera_cfg(["rgba"]), "cpu", num_envs, tuple(camera_paths), num_envs)
-    render_data = OVRTXCameraRenderData(spec, "RenderCamera_0", camera_paths)
+    render_data = OVRTXCameraRenderData(spec, "RenderCamera_0", camera_paths, "auto")
     render_data.products = [
         OVRTXRenderProduct("/RenderCamera_0/RenderProduct_0", camera_paths[:3], 0, 3, 2, 2),
         OVRTXRenderProduct("/RenderCamera_0/RenderProduct_1", camera_paths[3:], 3, 2, 2, 1),

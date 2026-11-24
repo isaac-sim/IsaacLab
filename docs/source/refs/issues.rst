@@ -249,10 +249,10 @@ memory. The threshold depends on the padded atlas dimensions and rendering setti
 no universal camera-count limit. See `Isaac Lab issue #8412`_ for affected configurations,
 reproduction steps, and fix status.
 
-With the OVRTX renderer (``renderer=ovrtx``), split the camera sensor over several render products
-with :attr:`~isaaclab.sensors.CameraCfg.max_envs_per_render_product`. Each render product then has
-a smaller atlas. The default ``"auto"`` searches for a split by itself when the first frame fails.
-See :ref:`camera-render-products-per-sensor`.
+The OVRTX renderer (``renderer=ovrtx``) splits a camera sensor over several render products after a
+failed first frame. Each render product then has a smaller atlas.
+:attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.max_envs_per_render_product` sets this split by hand.
+See :ref:`renderers-ovrtx-render-product-split`.
 
 With other RTX renderers, or instead of a split, reduce the camera resolution, camera count, or
 path-tracing SPP, and inspect images from all cameras before training. Reducing the camera count may

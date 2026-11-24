@@ -35,7 +35,6 @@ from .camera_data import CameraData, RenderBufferKind
 from .camera_exposure import apply_neutral_exposure
 
 if TYPE_CHECKING:
-    from ...renderers import RendererCfg
     from ...utils.tensor_processors import TensorProcessor
     from .camera_cfg import CameraCfg
 
@@ -166,24 +165,6 @@ def _camera_update_state_kernel(
         frame[dst_id] = wp.int64(0)
 
 
-def _check_render_product_split(cfg: CameraCfg, renderer_cfg: RendererCfg) -> None:
-    """Reject a render product split when the renderer of the camera cannot split a camera sensor.
-
-    The camera calls this at the start of its construction, before it changes the scene or gets its renderer. The
-    configuration check cannot do this, because a launcher can replace a placeholder renderer configuration after
-    it, for example the ``"auto_rtx"`` preset. The launcher does this before it constructs the scene.
-
-    Raises:
-        ValueError: If ``cfg.max_envs_per_render_product`` is an integer and the renderer cannot split.
-    """
-    max_envs = cfg.max_envs_per_render_product
-    if max_envs not in ("auto", "all") and not renderer_cfg.supports_render_product_split:
-        raise ValueError(
-            f"Renderer {type(renderer_cfg).__name__} renders every environment through one render product,"
-            f' so CameraCfg.max_envs_per_render_product must be "auto" or "all", got {max_envs!r}.'
-        )
-
-
 class Camera(SensorBase):
     r"""The camera sensor for acquiring visual data.
 
@@ -246,15 +227,12 @@ class Camera(SensorBase):
 
         Raises:
             RuntimeError: If no camera prim is found at the given path.
-            ValueError: If the provided data types are not supported by the camera or active renderer, or if
-                :attr:`~CameraCfg.max_envs_per_render_product` splits the sensor and the renderer cannot split it.
+            ValueError: If the provided data types are not supported by the camera or active renderer.
         """
         # perform check on supported data types
         self._check_supported_data_types(cfg)
         # initialize base class
         super().__init__(cfg)
-        # A rejected camera must not change the scene, so this check runs before the camera spawns or authors prims.
-        _check_render_product_split(self.cfg, self.cfg.renderer_cfg)
 
         # Compute camera orientation (convention conversion) and spawn.
         rot = torch.tensor(self.cfg.offset.rot, dtype=torch.float32, device="cpu").unsqueeze(0)

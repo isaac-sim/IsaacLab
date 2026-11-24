@@ -88,8 +88,9 @@ def _make_render_data(camera_spec, max_envs_per_render_product):
     pytest.importorskip("ovrtx")
     from isaaclab_ov.renderers.ovrtx_renderer import OVRTXCameraRenderData
 
-    camera_spec.cfg.max_envs_per_render_product = max_envs_per_render_product
-    return OVRTXCameraRenderData(camera_spec, "RenderCamera_0", list(camera_spec.camera_prim_paths))
+    return OVRTXCameraRenderData(
+        camera_spec, "RenderCamera_0", list(camera_spec.camera_prim_paths), max_envs_per_render_product
+    )
 
 
 def _open_layer(render_scope: str) -> Usd.Stage:

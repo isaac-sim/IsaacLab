@@ -33,12 +33,6 @@ class RendererCfg(BackendCfg):
     cloning_contexts: tuple[type[ReplicateContext] | str, ...] = ()
     """Clone contexts that build this renderer's scene representation from the asset plan."""
 
-    supports_render_product_split: ClassVar[bool] = False
-    """Whether the renderer can split a camera sensor over several render products.
-
-    Only these renderers accept an integer :attr:`~isaaclab.sensors.CameraCfg.max_envs_per_render_product`.
-    """
-
     def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec] | None:
         """Return the camera output layouts supported by this renderer configuration.
 
