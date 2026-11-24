@@ -124,6 +124,17 @@ Set ``ResetStateSamplerCfg.seed`` to initialize the sampler's per-environment ra
 Use ``sampler.reseed(seed)`` between rollouts to restart those streams while retaining
 history and assignments. A captured graph observes the new streams.
 
+A framework that owns its random streams passes them instead: ``sampler.reset(mask, rng=seeds)``
+takes one int32 seed per environment, draws ``wp.randf(wp.rand_init(seeds[env], 0))``, and leaves
+the internal streams untouched. The caller advances its seeds between resets, as MDP2 does.
+
+To replace stored states while running, such as states recorded during training, write them with
+``buffer.set_state(indices, values, mask=mask)``, the inverse of ``get_state``, and clear their outcomes
+with ``sampler.forget(indices, mask, success_rate=prior)``. A forgotten entry keeps ``prior`` as its
+success rate until its next outcome. Both can be captured. In ``sampler.reset(..., state_ids=ids)``, a
+request of -1 draws from the scores for that environment, so a captured reset can pin some
+environments and sample the others.
+
 Configure useful practice
 --------------------------
 
@@ -203,6 +214,138 @@ replays explicit starts. With adaptive sampling enabled, supply
 that took at least one step. The event credits the existing success reward's sticky
 flag before the reward manager clears it and restores root-link poses, COM velocities,
 joints, and controller targets through public mask writers.
+
+Use the MDP2 reset event
+------------------------
+
+MDP2 tasks use ``isaaclab_experimental.mdp2.mdp.reset_to_states``. It composes the same three parts:
+a source builds a :class:`~isaaclab.envs.reset.ResetStateBuffer` of reset states once at startup, a
+:class:`~isaaclab.envs.reset.ResetStateSampler` credits each ended episode and draws the next reset
+state from the use's random stream, and the event gathers the drawn states into its ``outputs``,
+which MDP2 commits. The outputs are the state: any writable scene fields.
+
+.. code-block:: python
+
+   from isaaclab_experimental import mdp2
+   from isaaclab_experimental.mdp2 import mdp
+
+   "reset": mdp2.Event(
+       mdp.reset_to_states,
+       inputs={"succeeded": mdp2.quantities.success},
+       outputs={"joint_pos": robot.joint_pos, "object_pose_w": target.root_link_pose_w},
+       params={
+           "source": mdp.FromTask(RESET_STATE_GENERATOR, num_states=16),
+           "sampler": ResetStateSamplerCfg(scores=[BetaSamplingScoreCfg(target=0.5)]),
+       },
+   )
+
+* ``source`` returns the states. :class:`~isaaclab_experimental.mdp2.mdp.reset_states.FromTask` rolls the
+  reset events of a generator task, keeps the states its terminations accept, and, given a
+  ``descriptor`` observation group, keeps the most spread of an oversampled harvest.
+  :class:`~isaaclab_experimental.mdp2.mdp.reset_states.FromTensors` takes given states, such as
+  demonstrations, and :class:`~isaaclab_experimental.mdp2.mdp.reset_states.FromFile` loads saved ones.
+* ``sampler`` weighs states by recent success; ``None`` draws uniformly. Binding ``succeeded``
+  credits each ended episode to the state it started from.
+* ``shared`` selects one set of states for every world instead of one set per world. Bind
+  ``env_origins`` so poses are stored relative to each world's origin. Share states only between
+  worlds whose states fit each other, such as worlds that spawn the same object.
+* ``groups`` selects one set of states per group of worlds, given a callable that returns each
+  world's group. :func:`~isaaclab_experimental.mdp2.mdp.reset_states.prototype_groups` groups the
+  worlds by the object, or other prototype, that the scene cloned into them, as MDP1's lift reset
+  does: the worlds of a group draw from one set and share its success statistics. Bind
+  ``env_origins`` here too.
+* ``default_reset_probability`` is the fraction of resets that keep what the earlier reset events
+  wrote, the task's default reset. Those episodes are not credited to any state.
+* ``record`` stores states that the worlds visit during training, see below.
+
+Place the event after the other reset events: it overwrites the outputs they wrote. An event whose
+outputs include a command runs after the commands resample, so that a restored goal stands. The
+init hook warms every kernel, so the event is captured with the rest of the step.
+``Isaac-Lift-KukaAllegro-MDP2`` uses 1024 reset states per object, grouped with
+:func:`~isaaclab_experimental.mdp2.mdp.reset_states.prototype_groups`, with the core Lift sampler settings.
+
+Record states along the horizon
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+States that the policy reaches on its way to success make useful reset states. With ``record``,
+the event's update hook runs once per step after the rewards and records each world's outputs into
+its own reset states:
+
+.. code-block:: python
+
+   "reset": mdp2.Event(
+       mdp.reset_to_states,
+       inputs={
+           "succeeded": mdp2.quantities.success,
+           "terminated": mdp2.terminated,  # states that end the episode are not recorded
+           "record_if": mdp2.quantities.lifted,  # optional: record only where above 0.5
+       },
+       outputs={**robot_state, **object_state},
+       params={
+           "source": mdp.FromTask(RESET_STATE_GENERATOR, num_states=16),
+           "sampler": ResetStateSamplerCfg(scores=[BetaSamplingScoreCfg(target=0.5)]),
+           "record": mdp.RecordVisited(num_states=16, probability=0.01),
+       },
+   )
+
+Each step, a world that did not terminate records with ``probability`` into the oldest of its
+``num_states`` recorded slots, which start as copies of the source's states. A recorded slot
+forgets the outcomes of the state it replaces and starts at the success rate the first score
+targets, so new states are tried before their outcomes are known. An episode whose reset state is
+recorded over is not credited. Include velocities, and commands for goal-conditioned tasks, in the
+outputs, so that a restored state continues as it was recorded. Recording needs reset states per
+world.
+
+Inspect, pin, and save reset states
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+:func:`~isaaclab_experimental.mdp2.mdp.reset_states.get_reset_states` returns the
+:class:`~isaaclab_experimental.mdp2.mdp.reset_states.ResetStates` of a use. Slots are numbered
+within each world's reset states.
+
+.. code-block:: python
+
+   reset_states = mdp.get_reset_states(env.state)  # the "events.reset" use
+   reset_states.states["joint_pos"]  # (num_worlds, size, num_joints)
+   reset_states.success_rate, reset_states.episode_counts, reset_states.probabilities  # (num_worlds, size)
+   reset_states.started_from  # the slot each world's episode started from, -1 for a default reset
+
+   reset_states.pin(torch.full((env.num_envs,), 3))  # reset every world to its slot 3 at its next reset
+   reset_states.unpin()  # draw again
+   reset_states.save("reset_states.pt")  # load in a later run with mdp.FromFile("reset_states.pt")
+
+Pins hold until replaced and run inside the captured step, so they can sweep the reset states
+during evaluation. Call ``reset_states.skip_current_episodes()`` before resetting worlds by hand
+mid-episode, so those episodes are not credited. To generate states separately from training, for
+example many more of them, run ``scripts/tools/generate_reset_states.py``, which builds the task and
+saves its reset states:
+
+.. code-block:: bash
+
+   ./isaaclab.sh -p scripts/tools/generate_reset_states.py --task Isaac-Lift-KukaAllegro-MDP2 \
+       --num_envs 4096 --num_states 64 --out kuka_lift_reset_states.pt physics=newton_mjwarp
+
+Reset states per world or per group fit only runs with the same number of worlds and object
+assignment; shared reset states fit any.
+
+View reset states
+^^^^^^^^^^^^^^^^^
+
+``scripts/tools/view_reset_states.py`` opens a task with a panel in each Viser or Newton viewer:
+
+.. code-block:: bash
+
+   uv run --extra viser python scripts/tools/view_reset_states.py --task Isaac-Lift-KukaAllegro-MDP2 \
+       --num_envs 16 --viz viser physics=newton_mjwarp
+
+The panel resets every world to one slot, draws reset states as training does, rolls the generator
+task to show which proposals its terminations reject, and plays episodes in real time with zero or
+random actions. It shows each world's slot and success rate above the world, and the selected world's
+reset states as a table: kind, success rate, episodes, and the probability of the next draw.
+``--states`` shows saved reset states. Showing, drawing, and rolling interrupt episodes, which are not
+credited. Episodes that end while playing are credited, as in training. In your own scripts,
+:class:`~isaaclab_experimental.envs.ResetStateViewer` is the controller: call ``attach()`` once and
+``update()`` in the loop instead of ``env.step``.
 
 Migrating existing reset configurations
 ---------------------------------------

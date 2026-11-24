@@ -21,6 +21,7 @@ The following classes are part of the public :mod:`isaaclab_experimental.envs` A
    MDP2EnvCfg
    MDP2RLEnv
    MDP2RLEnvCfg
+   ResetStateViewer
    ResetStep
    Stage
    Step
@@ -48,6 +49,9 @@ The following classes are part of the public :mod:`isaaclab_experimental.envs` A
 
 .. autoclass:: MDP2RLEnvCfg
    :show-inheritance:
+
+.. autoclass:: ResetStateViewer
+   :members:
 
 .. autoclass:: ResetStep
    :members:

@@ -13,6 +13,7 @@ from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
+from isaaclab.envs.reset import BetaSamplingScoreCfg, ResetStateSamplerCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim import MeshCapsuleCfg, MeshConeCfg, MeshCuboidCfg, MeshSphereCfg, RigidBodyMaterialBaseCfg
@@ -24,7 +25,6 @@ from isaaclab_assets.robots.kuka_allegro import KUKA_ALLEGRO_CFG
 
 from . import mdp as lift
 from .clearance import mesh_clearance, slab_clearance
-from .reset_bank import reset_from_bank
 
 SIM_DT = 1 / 120
 DECIMATION = 4  # 30 Hz control
@@ -152,7 +152,7 @@ class KukaAllegroLiftPhysicsCfg(PresetCfg):
     default: NewtonCfg = newton_mjwarp
 
 
-CANDIDATES = mdp2.TaskCfg(
+RESET_STATE_GENERATOR = mdp2.TaskCfg(
     observations={
         "descriptor": {
             "grasp_travel_distance": mdp2.Observation(
@@ -222,7 +222,7 @@ CANDIDATES = mdp2.TaskCfg(
                 "velocity_range": ((0.0, 0.0),) * 6,
             },
         ),
-        # A quarter of the candidates start with the object at the palm, whose pose the joint resets changed: the
+        # A quarter of the generated states start with the object at the palm, whose pose the joint resets changed: the
         # scene commits them first, since the palm pose is derived from the joint state.
         "reset_object_to_target": mdp2.Event(
             lift.reset_to_target,
@@ -232,7 +232,7 @@ CANDIDATES = mdp2.TaskCfg(
         ),
     },
 )
-"""Candidate start states of the reset bank: how they are drawn, which are rejected, and what spreads them."""
+"""The task that generates reset states: how they are drawn, which are rejected, and what spreads them."""
 
 TASK = mdp2.TaskCfg(
     actions={
@@ -453,17 +453,22 @@ TASK = mdp2.TaskCfg(
             outputs={"gravity_w": scene.gravity_w},
             params={"initial_gravity": (0.0, 0.0, 0.0), "final_gravity": (0.0, 0.0, -9.81)},
         ),
-        # Restart from the valid start states that the policy solves about half the time.
+        # Reset to the valid reset states that the policy solves about half the time. As in MDP1, the worlds that
+        # spawned the same object share 1024 reset states, harvested twice over and thinned to the most spread, and
+        # share their success statistics.
         "reset": mdp2.Event(
-            reset_from_bank,
-            inputs={"succeeded": mdp2.quantities.success},
+            mdp.reset_to_states,
+            inputs={"succeeded": mdp2.quantities.success, "env_origins": scene.env_origins},
             outputs={**robot_state, **object_state},
             params={
-                "candidates": CANDIDATES,
-                "bank_size": 16,
-                "history_length": 10,
-                "target_success_rate": 0.5,
-                "kappa": 1.0,
+                # A world per object, as in small test runs, needs a roll per state.
+                "source": mdp.FromTask(RESET_STATE_GENERATOR, num_states=1024, max_rolls=20000),
+                "groups": mdp.prototype_groups,
+                "sampler": ResetStateSamplerCfg(
+                    history_length=10,
+                    scores=[BetaSamplingScoreCfg(target=0.5, kappa=1.0, weight=0.5)],
+                    uniform_weight=1e-2,
+                ),
             },
         ),
     },
@@ -487,4 +492,11 @@ class KukaAllegroLiftEnvCfg(MDP2RLEnvCfg):
         super().play_mode()
         adr = self.task.events["adr"]
         params = {**adr.params, "init_difficulty": adr.params["max_difficulty"], "promotion_only": True}
-        self.task = replace(self.task, events={**self.task.events, "adr": replace(adr, params=params)})
+        # As MDP1, a few reset states taken as harvested: they only supply the few worlds that play.
+        reset = self.task.events["reset"]
+        source = replace(reset.params["source"], num_states=32, oversample_factor=1.0)
+        events = {
+            "adr": replace(adr, params=params),
+            "reset": replace(reset, params={**reset.params, "source": source}),
+        }
+        self.task = replace(self.task, events={**self.task.events, **events})

@@ -291,6 +291,12 @@ class ViserVisualizer(BaseVisualizer):
         self._paused_rendering = False
         self._paused_simulation = False
 
+    @property
+    def server(self) -> Any:
+        """The ``viser.ViserServer`` that serves the viewer, to add GUI controls and scene labels; None until
+        initialized."""
+        return None if self._viewer is None else self._viewer._server
+
     def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
         """Initialize viewer resources and bind scene data provider.
 

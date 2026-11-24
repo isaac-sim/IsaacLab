@@ -176,15 +176,22 @@ def build_plan(ops: Mapping[Phase, tuple], schema: SceneSchema) -> ExecutionPlan
         terminations_and_rewards.append(Step(StepKind.COMPUTE, op))
         if op.update is not None:
             terminations_and_rewards.append(Step(StepKind.UPDATE_STATE, op))
+    # Reset events with an update hook observe every step, after the step's terminations and rewards.
+    terminations_and_rewards += [Step(StepKind.UPDATE_STATE, op) for op in ops[Phase.RESET_EVENTS] if op.update]
 
-    reset_events = []
+    # A reset event that writes a command runs after the commands resample, so that its value stands.
+    command_fields = {op.writes[0] for op in ops[Phase.COMMANDS]}
+    early = [op for op in ops[Phase.RESET_EVENTS] if not command_fields & set(op.writes)]
+    late = [op for op in ops[Phase.RESET_EVENTS] if command_fields & set(op.writes)]
+    reset_events, late_events = [], []
     pending: set[FieldSelector] = set()  # Scene fields written since the last commit
-    for op in ops[Phase.RESET_EVENTS]:
-        if op.commit or op.commit is None and pending and _reads_stale(op, pending, schema):
-            reset_events.append(Step(StepKind.COMMIT, op))
-            pending.clear()
-        reset_events.append(Step(StepKind.COMPUTE, op))
-        pending.update(selector for selector in op.writes if selector.scene)
+    for steps, events in ((reset_events, early), (late_events, late)):
+        for op in events:
+            if op.commit or op.commit is None and pending and _reads_stale(op, pending, schema):
+                steps.append(Step(StepKind.COMMIT, op))
+                pending.clear()
+            steps.append(Step(StepKind.COMPUTE, op))
+            pending.update(selector for selector in op.writes if selector.scene)
 
     return ExecutionPlan(
         startup=tuple(Step(StepKind.COMPUTE, op) for op in ops[Phase.STARTUP_EVENTS]),
@@ -204,6 +211,7 @@ def build_plan(ops: Mapping[Phase, tuple], schema: SceneSchema) -> ExecutionPlan
             *(Step(StepKind.RESET_TIMER, op) for op in timed),
             *reset_events,
             *(Step(StepKind.COMPUTE, op) for op in ops[Phase.COMMANDS]),
+            *late_events,
             # State restarts last, from the fields and commands of the new episode.
             *(Step(StepKind.RESET_STATE, op) for op in stateful),
         ),
