@@ -252,6 +252,31 @@ Fixed per-benchmark poses, instructions and Gym IDs are replaced by these task f
 
 For more detail on prototype assignment and replication, see :doc:`cloning`.
 
+Evaluating a policy on the available tasks
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``scripts/large_models/pi_0.5_evaluation_heterogeneous_simulation.py`` evaluates a pi0.5 vision-language-action
+policy on ``IsaacContrib-VLA-Heterogeneous-Franka``. Because every world has its own objects, a task belongs to
+its world: the script gives each binding of ``env.tabletop.available_tasks`` ``--trials`` trials and runs them
+in that world one after the other, requesting each with ``env.tabletop.set_task`` before it resets the world.
+Every ``--horizon`` steps it queries the policy once for all worlds that run a trial, with both camera images,
+the arm joint positions, the gripper opening and ``env.tabletop.instructions``, and executes the returned
+action chunk open loop. A world whose episode ends inside a chunk holds its start pose until the next query.
+
+The policy runs in a separate server process that is not part of Isaac Lab: a pi0.5 DROID joint-position
+checkpoint behind openpi's WebSocket protocol that accepts the batched ``robolab_batch`` request of RoboLab's
+``policy_server.py``. With the server listening on port 18013:
+
+.. code-block:: bash
+
+   uv run --with msgpack python scripts/large_models/pi_0.5_evaluation_heterogeneous_simulation.py \
+       --policy localhost:18013 --num_envs 32 --trials 2 --output logs/heterogeneous_tasks/pi05
+
+``--tasks`` restricts the evaluation to task families such as ``put_on_plate``. ``--output`` names a new
+directory that receives ``result.json``, with the results of every task and task family, and
+``episodes.jsonl``, with one line per finished trial. Object combinations are sampled when the scene is built,
+so the evaluated tasks differ from run to run.
+
 Reset-time selection
 ~~~~~~~~~~~~~~~~~~~~
 
