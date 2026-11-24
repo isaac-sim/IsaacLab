@@ -64,6 +64,8 @@ The following wrappers are available in the ``isaaclab_rl`` extension:
 isaaclab_mimic extension
 ------------------------
 
+.. include:: /source/features/imitation-learning/_mimic_deprecation.include
+
 The following modules are available in the ``isaaclab_mimic`` extension:
 
 .. currentmodule:: isaaclab_mimic
@@ -89,6 +91,19 @@ The following modules are available in the ``isaaclab_contrib`` extension:
    controllers
    mdp
    rl
+   sensors
+
+isaaclab_fovi extension
+-----------------------
+
+The following modules are available in the ``isaaclab_fovi`` extension:
+
+.. currentmodule:: isaaclab_fovi
+
+.. autosummary::
+   :toctree: lab_fovi
+
+   mdp
    sensors
 
 isaaclab_tasks extension
