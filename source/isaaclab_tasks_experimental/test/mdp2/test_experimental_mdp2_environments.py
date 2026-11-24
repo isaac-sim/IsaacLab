@@ -20,6 +20,14 @@ MDP2_TASKS = sorted(
     if str(spec.kwargs.get("env_cfg_entry_point", "")).startswith("isaaclab_tasks_experimental.mdp2.")
 )
 
+NUM_GRAPHS = {
+    "IsaacContrib-Velocity-Flat-UnitreeA1-MDP2": 1,
+    "Isaac-Velocity-Flat-AnymalD-MDP2": 2,
+    "IsaacContrib-Velocity-Flat-UnitreeGo1-MDP2": 2,
+}
+"""Graphs that a captured step replays: one for PD actuators, and two for actuator networks from Torch checkpoints,
+which Newton cannot capture, so the physics and the scene reset run between the graphs."""
+
 
 @pytest.mark.parametrize("task_name", MDP2_TASKS)
 def test_mdp2_environment_resets_and_steps(task_name):
@@ -33,5 +41,8 @@ def test_mdp2_environment_resets_and_steps(task_name):
             actions = 2.0 * torch.rand(env.action_space.shape, device=env.unwrapped.device) - 1.0
             obs, reward, terminated, truncated, _ = env.step(actions)
         assert all(torch.isfinite(value).all() for value in [*obs.values(), reward])
+        # The second step captured the step's graphs.
+        if task_name in NUM_GRAPHS:
+            assert env.unwrapped.num_graphs == NUM_GRAPHS[task_name]
     finally:
         env.close()
