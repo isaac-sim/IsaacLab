@@ -25,6 +25,9 @@ if TYPE_CHECKING:
 class PourResetDatasetCurriculum(ManagerTermBase):
     """Sample reset rows and learn from rank-local asynchronous episode outcomes."""
 
+    supports_checkpoint_ghosts = False
+    """Checkpoint Ghosts disable curriculum terms, but this one selects the reset state that reset events read."""
+
     def __init__(self, cfg: CurriculumTermCfg, env: FrankaPourEnv):
         super().__init__(cfg, env)
         states = env._reset_dataset_states

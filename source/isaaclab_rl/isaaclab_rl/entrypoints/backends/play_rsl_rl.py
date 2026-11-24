@@ -237,6 +237,13 @@ def _validate_checkpoint_ghosts(args_cli: argparse.Namespace, env_cfg: object) -
             types.append(getattr(chosen, "visualizer_type", None) or getattr(cfg, "visualizer_type", None))
     if "newton" not in types:
         raise SystemExit("--checkpoint_ghosts requires the Newton GL visualizer; pass --visualizer newton.")
+    curriculum = getattr(env_cfg, "curriculum", None)
+    for name, term in vars(curriculum).items() if curriculum is not None else ():
+        # Checkpoint Ghosts disable curriculum terms, so a task whose reset events read a term's state cannot run.
+        if getattr(getattr(term, "func", None), "supports_checkpoint_ghosts", True) is False:
+            raise SystemExit(
+                f"--checkpoint_ghosts does not support this task: its curriculum term '{name}' sets the reset state."
+            )
     if _scene_cameras_use_ovrtx(env_cfg):
         raise SystemExit(
             "--checkpoint_ghosts does not support tasks whose cameras use the OVRTX renderer yet."

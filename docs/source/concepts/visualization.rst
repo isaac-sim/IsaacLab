@@ -837,7 +837,8 @@ opacity and tint under **Appearance**. The controls are disabled in the RTX view
 
 * Startup and interval events, curriculum terms, and observation noise are disabled, since they cannot be mirrored
   between slots.
-* Only RSL-RL and manager-based environments are supported, and not tasks whose cameras use OVRTX.
+* Only RSL-RL and manager-based environments are supported. Tasks whose cameras use OVRTX, or whose curriculum selects
+  the reset state (such as Franka Pour), are rejected at launch.
 
 **Choosing how many environments are drawn**
 

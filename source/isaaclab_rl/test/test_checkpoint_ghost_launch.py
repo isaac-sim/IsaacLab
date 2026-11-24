@@ -18,10 +18,11 @@ from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab_rl.entrypoints.backends import play_rsl_rl
 
 
-def _env_cfg(backend, scene=None):
+def _env_cfg(backend, scene=None, curriculum=None):
     cfg = ManagerBasedRLEnvCfg.__new__(ManagerBasedRLEnvCfg)
     cfg.sim = SimpleNamespace(visualizer_cfgs=[SimpleNamespace(backend=backend)])
     cfg.scene = scene or SimpleNamespace()
+    cfg.curriculum = curriculum
     return cfg
 
 
@@ -93,3 +94,23 @@ def test_the_session_is_built_from_the_play_arguments(monkeypatch, tmp_path):
     assert created["task"] == "Isaac-Reach-Franka"
     assert created["checkpoint_root"] == str(tmp_path)
     assert created["reference"].name == "model_5.pt"
+
+
+def test_a_task_whose_curriculum_selects_the_reset_state_is_rejected():
+    class _ResetStateCurriculum:
+        supports_checkpoint_ghosts = False
+
+    curriculum = SimpleNamespace(reset_dataset=SimpleNamespace(func=_ResetStateCurriculum))
+
+    with pytest.raises(SystemExit, match="reset_dataset"):
+        play_rsl_rl._validate_checkpoint_ghosts(
+            SimpleNamespace(), _env_cfg(SimpleNamespace(visualizer_type="newton"), curriculum=curriculum)
+        )
+
+
+def test_an_ordinary_curriculum_term_is_accepted():
+    curriculum = SimpleNamespace(terrain_levels=SimpleNamespace(func=lambda env, env_ids: None))
+
+    play_rsl_rl._validate_checkpoint_ghosts(
+        SimpleNamespace(), _env_cfg(SimpleNamespace(visualizer_type="newton"), curriculum=curriculum)
+    )
