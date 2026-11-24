@@ -26,6 +26,7 @@ import torch
 
 from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.envs.utils.checkpoint_ghost_sync import CheckpointGhostSync
+from isaaclab.envs.utils.spaces import spec_to_gym_space
 from isaaclab.utils.seed import configure_seed
 
 from .checkpoint_ghost import CheckpointGhostCheckpoint
@@ -87,8 +88,15 @@ def check(args_cli: argparse.Namespace, env_cfg: Any) -> None:
         raise SystemExit("--checkpoint_ghosts supports only --ml_framework torch.")
     if not isinstance(env_cfg, (ManagerBasedRLEnvCfg, DirectRLEnvCfg)):
         raise SystemExit("--checkpoint_ghosts only supports single-agent environments.")
-    if isinstance(env_cfg, DirectRLEnvCfg) and not isinstance(env_cfg.action_space, (int, gym.spaces.Box)):
-        raise SystemExit("--checkpoint_ghosts only supports direct environments with continuous (Box) actions.")
+    if isinstance(env_cfg, DirectRLEnvCfg):
+        try:
+            space = spec_to_gym_space(env_cfg.action_space)
+        except ValueError:
+            space = None
+        if not (isinstance(space, gym.spaces.Box) and len(space.shape) == 1):  # the action buffer is one row per env
+            raise SystemExit(
+                "--checkpoint_ghosts only supports direct environments with a flat continuous action space."
+            )
     newton = _newton_cfg(env_cfg)
     if newton is None:
         raise SystemExit("--checkpoint_ghosts requires the Newton GL visualizer; pass --visualizer newton.")

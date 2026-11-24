@@ -218,15 +218,15 @@ def test_observation_groups_are_sliced_per_slot():
     assert sliced["policy"].tolist() == [[2], [3]] and sliced["critic"]["a"].tolist() == [2, 3]
 
 
-@pytest.mark.parametrize("action_space", [{3}, {"a": 2}])
-def test_a_direct_environment_with_discrete_or_composite_actions_is_rejected(action_space):
+@pytest.mark.parametrize("action_space", [{3}, {"a": 2}, [2, 3], "bad"])
+def test_a_direct_environment_without_flat_continuous_actions_is_rejected(action_space):
     from isaaclab.envs import DirectRLEnvCfg
 
     cfg = DirectRLEnvCfg.__new__(DirectRLEnvCfg)
     cfg.sim = SimpleNamespace(visualizer_cfgs=[SimpleNamespace(backend=_newton())])
     cfg.action_space = action_space
 
-    with pytest.raises(SystemExit, match="continuous"):
+    with pytest.raises(SystemExit, match="flat continuous"):
         play.check(_args(), cfg)
 
 
@@ -244,3 +244,14 @@ def test_a_deprecated_combined_config_holds_its_own_newton_options():
     play.check(_args(), cfg)
 
     assert play._slot_count(cfg, 16) == 3
+
+
+@pytest.mark.parametrize("action_space", [6, [6]])
+def test_a_direct_environment_declaring_its_actions_as_an_int_or_a_list_is_accepted(action_space):
+    from isaaclab.envs import DirectRLEnvCfg
+
+    cfg = DirectRLEnvCfg.__new__(DirectRLEnvCfg)
+    cfg.sim = SimpleNamespace(visualizer_cfgs=[SimpleNamespace(backend=_newton())])
+    cfg.action_space = action_space
+
+    play.check(_args(), cfg)
