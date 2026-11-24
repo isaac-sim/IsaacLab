@@ -105,10 +105,10 @@ class BaseRenderer(ABC):
 
     @abstractmethod
     def create_render_data(self, spec: SensorRenderSpec) -> Any:
-        """Create render data for a camera or lidar spec.
+        """Create render data for a sensor spec.
 
         Args:
-            spec: Immutable description of the tiled camera or lidar.
+            spec: Immutable description of the tiled sensor.
 
         Returns:
             Renderer-specific data for subsequent :meth:`render` / :meth:`read_output` calls.

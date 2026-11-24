@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Immutable description of a tiled camera or lidar passed to render backends."""
+"""Immutable description of a tiled sensor passed to render backends."""
 
 from __future__ import annotations
 
