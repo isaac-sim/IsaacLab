@@ -222,7 +222,7 @@ How-to Guides
 
          .. container:: guide-metadata
 
-            :guide-tag:`PhysX` :guide-tag-newton:`Newton`
+            :guide-tag-newton:`Newton`
 
       .. container:: guide-entry
 
