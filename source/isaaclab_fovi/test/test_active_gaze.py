@@ -22,6 +22,7 @@ from isaaclab_fovi.mdp.gaze import (
     gaze_step_kernel,
     gaze_teacher_labels,
     make_rig_gaze_step,
+    target_body_index,
 )
 from isaaclab_fovi.mdp.gaze_cfg import GazeActionCfg, GazeRigCfg
 from isaaclab_fovi.sensors.gaze_kernels import camera_params, torch_stream
@@ -229,8 +230,10 @@ def test_teacher_labels_and_diagnostics_match_the_torch_reference(device, body_i
             bodies = torch.stack((torch.zeros_like(poses), poses), dim=1)
             asset_data = SimpleNamespace(body_pose_w=ProxyArray(wp.from_torch(bodies, dtype=wp.transformf)))
         mounts = ProxyArray(wp.from_torch(mount.to(device), dtype=wp.quatf))
-        # Software gaze labels the retina, so the head angles go unused.
+        # Software gaze labels the retina from its stored angles, so the head and the fixation go unused.
         heads = ProxyArray(wp.zeros(count, dtype=wp.vec4f, device=device))
+        empty_held = ProxyArray(wp.zeros(0, dtype=wp.vec3f, device=device))
+        empty_valid = ProxyArray(wp.zeros(0, dtype=wp.int32, device=device))
         sensor = SimpleNamespace(
             data=SimpleNamespace(pos_w=ProxyArray(wp.from_torch(positions.to(device), dtype=wp.vec3f))),
             gaze_angles=ProxyArray(wp.from_torch((gaze * field_radius).to(device), dtype=wp.vec2f)),
@@ -241,6 +244,7 @@ def test_teacher_labels_and_diagnostics_match_the_torch_reference(device, body_i
         camera=sensor,
         teacher_mounts=lambda: mounts,
         head_and_target=lambda: heads,
+        held_fixation=lambda: (empty_held, empty_valid),
         field_radius_deg=field_radius,
         cfg=GazeActionCfg(asset_name="camera", step_size=step),
     )
@@ -511,3 +515,39 @@ def test_physical_teacher_labels_only_the_head_turn_not_yet_commanded():
     tilt, pan = (torch.tensor([20.0, 5.0]) + labels[0, :2] * STEP * FIELD_RADIUS).tolist()
     facing = quat_apply(turn(tilt, pan), torch.tensor([[0.0, 0.0, 1.0]]))
     torch.testing.assert_close(facing, point, atol=1e-5, rtol=0)
+
+
+def test_hybrid_teacher_labels_from_the_gaze_the_next_step_starts_at():
+    term = rig_term("hybrid")
+    camera = term.camera
+    term.process_actions(torch.tensor([[0.0, 1.0]]))  # the retina pans left a full step onto a fixation
+    fixation = quat_apply(yaw_left(0.0), angles_to_direction(camera.gaze_angles.torch))
+    # The head turns left 3 degrees after the step; the fixation, and a target on it, stay where they are.
+    camera.mount = ProxyArray(wp.from_torch(yaw_left(3.0).contiguous(), dtype=wp.quatf))
+    pose = torch.cat((2.0 * fixation, torch.tensor([[0.0, 0.0, 0.0, 1.0]])), dim=-1)
+    target = SimpleNamespace(data=SimpleNamespace(root_pose_w=ProxyArray(wp.from_torch(pose, dtype=wp.transformf))))
+    env = SimpleNamespace(
+        device="cpu",
+        num_envs=1,
+        scene={"target": target},
+        action_manager=SimpleNamespace(get_term=lambda name: term),
+        extras={},
+    )
+    labels = gaze_teacher_labels(ObservationTermCfg(func=gaze_teacher_labels), env)(env, SceneEntityCfg("target"))
+    # The next step re-aims the retina at the fixation itself, so the teacher asks for no further turn; labelling
+    # from the retina's last angles would count the head's turn twice and ask for 3 degrees back.
+    assert labels[0, 2] == 1.0
+    torch.testing.assert_close(labels[0, :2], torch.zeros(2), atol=1e-4, rtol=0)
+    term.process_actions(labels[:, :2].clone())
+    looking = quat_apply(yaw_left(3.0), angles_to_direction(camera.gaze_angles.torch))
+    torch.testing.assert_close(looking, fixation, atol=1e-5, rtol=0)
+
+
+def test_teacher_target_body_resolves_a_slice_of_every_body():
+    assert target_body_index(SceneEntityCfg("target")) is None
+    named = SceneEntityCfg("target", body_names=["pole"])
+    named.body_ids = [2]
+    assert target_body_index(named) == 2
+    # Naming every body of the asset, as naming a rigid object's only body does, resolves to a slice.
+    named.body_ids = slice(None)
+    assert target_body_index(named) == 0
