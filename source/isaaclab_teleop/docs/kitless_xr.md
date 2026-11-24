@@ -131,7 +131,7 @@ Renderer startup waits up to 20 minutes for attachment; it does not bound waitin
 client to establish its OpenXR session. A first start compiles shaders, and other rendering
 processes on the same GPU slow attachment; either can take several minutes. Attachment cannot be
 interrupted: Ctrl+C takes effect once it completes. While it runs, the application logs a progress
-line every 30 s and, when attachment ends, a line reporting that the renderer is ready. No client
+line every 30 s and, once attachment succeeds, a line reporting that the renderer is ready. No client
 can connect before that, because CloudXR starts afterwards; connect once its WSS proxy is listening.
 Installing Capture and resolving
 Python packages do not warm application-specific RTX shaders or Newton/Warp
