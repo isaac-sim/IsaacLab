@@ -13,7 +13,7 @@ import torch
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.utils import update_from_dict
-from isaaclab.utils.assets import retrieve_file_path
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 
 from isaaclab_rl.model_based.rollout import PhysicalRollout
 
@@ -141,4 +141,9 @@ def _restore_environment(cfg, saved: dict) -> None:
             command[key] = getattr(cfg.commands.motion, key)
     if saved.get("recorders", {}).get("transition", False) is None:
         saved["recorders"].pop("transition")
+    spawn = saved["scene"]["robot"]["spawn"]
+    if "/PretrainedCheckpoints/model_based/assets/g1_29dof.usdc" in spawn["usd_path"]:
+        spawn["usd_path"] = f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/G1/g1_29dof.usd"
+        spawn["variants"] = {"Physics": "SimplifiedPhysX", "left_hand": "RubberHand", "right_hand": "RubberHand"}
+    cfg.scene.robot.spawn.variants = spawn["variants"]
     update_from_dict(cfg, saved)

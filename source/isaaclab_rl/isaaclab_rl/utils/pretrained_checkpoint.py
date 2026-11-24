@@ -290,7 +290,7 @@ def get_published_pretrained_checkpoint_path(
     filename = get_pretrained_checkpoint_filename(
         workflow, task_name, physics_backend, render_backend, preset_names=preset_names
     )
-    path_parts = [ISAACLAB_NUCLEUS_DIR, "PretrainedCheckpoints", workflow]
+    path_parts = [ISAACLAB_NUCLEUS_DIR, "PretrainedCheckpoints", "rsl_rl" if workflow == "model_based" else workflow]
     if physics_backend is None:
         path_parts.append(task_name)
     return posixpath.join(*path_parts, filename)

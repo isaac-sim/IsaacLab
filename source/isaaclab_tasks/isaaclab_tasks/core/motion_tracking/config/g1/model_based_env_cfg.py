@@ -13,6 +13,7 @@ from isaaclab_newton.sim.schemas import NewtonArticulationCfg
 import isaaclab.sim as sim_utils
 from isaaclab.paths import ISAACLAB_ROOT
 from isaaclab.utils import configclass, replace
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 from ...mdp.model_based import observations
 from ...model_based_env_cfg import ModelBasedMotionTrackingEnvCfg
@@ -41,8 +42,8 @@ class G1ModelBasedEnvCfg(ModelBasedMotionTrackingEnvCfg):
             G1_CFG,
             prim_path="{ENV_REGEX_NS}/Robot",
             spawn=sim_utils.UsdFileCfg(
-                usd_path=str(G1_DATA_DIR / "g1_usd/g1_29dof/g1_29dof.usda"),
-                variants={"Physics": "mujoco"},
+                usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/G1/g1_29dof.usd",
+                variants={"Physics": "SimplifiedPhysX", "left_hand": "RubberHand", "right_hand": "RubberHand"},
                 activate_contact_sensors=False,
                 rigid_props=PhysxRigidBodyCfg(disable_gravity=False, linear_damping=0.0, angular_damping=0.0),
                 articulation_props=NewtonArticulationCfg(self_collision_enabled=False),
