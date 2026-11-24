@@ -138,6 +138,11 @@ def test_the_selector_names_each_camera_with_a_short_descriptor():
     viz = _visualizer([_view(TrackingCameraCfg(env_index=0)), _view(TrackingCameraCfg(track_path="robot"))])
     assert viz._view_labels() == ["Tracking Camera 1 (fixed to env)", "Tracking Camera 2 (follows robot)"]
 
+    # the label follows what the window made the camera follow, not what the task declared
+    viz = _visualizer([_view(TrackingCameraCfg(env_index=0, track_path="robot"))])
+    viz._followers[viz._image_views[0]].set_track_path(None)
+    assert viz._view_labels() == ["Tracking Camera (fixed to env)"]
+
 
 def test_resetting_the_tracking_camera_restores_what_the_task_declared():
     task = _view(TrackingCameraCfg(env_index=0, eye=(1.0, 0.0, 0.0), track_path="robot", follow_heading=True))
