@@ -502,6 +502,13 @@ def _make_search_cameras(
     renderer.scene.paths.intern_path.side_effect = lambda path: types.SimpleNamespace(raw_id=0)
     renderer.scene.paths.intern_token.side_effect = lambda token: types.SimpleNamespace(raw_id=0)
     monkeypatch.setattr(renderer, "_process_render_frame", MagicMock())
+    build = ovrtx_renderer_module.build_render_product_as_string
+    # The CPU device has the ordinal -1, and USD cannot parse -1 in the uint[] deviceIds of the layer.
+    monkeypatch.setattr(
+        ovrtx_renderer_module,
+        "build_render_product_as_string",
+        lambda *args, **kwargs: build(*args, **{**kwargs, "device_id": 0}),
+    )
     return renderer, [
         _add_search_camera(renderer, f"cam{index}", num_envs, max_envs, width)
         for index, (max_envs, width) in enumerate(cameras)
@@ -569,13 +576,6 @@ def test_ovrtx_render_batch_halves_envs_per_render_product_while_the_first_frame
 ):
     """A sensor with "auto" starts with one product, and each failed first frame halves its environments per product."""
     renderer, (camera,) = _make_search_cameras(monkeypatch, use_ovstage, 5, [("auto", 64)])
-    build = ovrtx_renderer_module.build_render_product_as_string
-    # USD requires a CUDA ordinal in the layer, even though this test renders on the CPU.
-    monkeypatch.setattr(
-        ovrtx_renderer_module,
-        "build_render_product_as_string",
-        lambda *args, **kwargs: build(*args, **{**kwargs, "device_id": 0}),
-    )
     renderer.cfg.async_rendering = asynchronous
     # The legacy path fails in its first step with zero time. The asynchronous mode fails in the wait for the operation.
     renderer._needs_transform_initialization = not use_ovstage and not asynchronous
@@ -610,7 +610,11 @@ def test_ovrtx_render_batch_halves_envs_per_render_product_while_the_first_frame
     fail_all = True
     if asynchronous:
         renderer.render_batch([camera])
-        (failure,) = renderer.drain_pending_renders()
+        # A camera sensor that registers now first waits for the pending frame. Its error raises before the scene
+        # changes.
+        with pytest.raises(ExceptionGroup, match="before render product registration") as group:
+            _add_search_camera(renderer, "late", 5, "auto", 64)
+        (failure,) = group.value.exceptions
         assert "failed to produce a frame" in str(failure)
         camera.pending = camera.ready = None
     else:
@@ -628,18 +632,18 @@ def test_ovrtx_render_batch_halves_envs_per_render_product_while_the_first_frame
     ("use_ovstage", "asynchronous", "num_envs", "products_per_step"),
     [
         # 64 environments stop after the limit of 4 smaller layouts, with 4 environments per render product.
-        pytest.param(False, False, 64, [1, 2, 4, 8, 16], id="synchronous"),
-        pytest.param(False, True, 64, [1, 2, 4, 8, 16], id="async"),
+        pytest.param(False, False, 64, [1, 2, 4, 8, 16], id="limit-legacy"),
+        pytest.param(False, True, 64, [1, 2, 4, 8, 16], id="limit-async"),
         # 4 environments stop after 2 smaller layouts, because 1 environment per render product cannot be halved.
-        pytest.param(True, False, 4, [1, 2, 4], id="ovstage"),
+        pytest.param(True, False, 4, [1, 2, 4], id="one-env-ovstage"),
     ],
 )
 def test_ovrtx_render_batch_stops_the_split_search_after_the_last_smaller_layout(
     monkeypatch, caplog, use_ovstage, asynchronous, num_envs, products_per_step
 ):
-    """The search tries each smaller layout one time, down to 1 environment per render product and at most 4 layouts.
+    """The search tries each smaller layout one time, down to 1 environment per render product.
 
-    Then it raises the last failure.
+    It tries at most 4 smaller layouts. Then it raises the last failure.
     """
     renderer, (camera,) = _make_search_cameras(monkeypatch, use_ovstage, num_envs, [("auto", 64)])
     renderer.cfg.async_rendering = asynchronous
@@ -708,6 +712,7 @@ def test_ovrtx_split_search_names_an_auto_sensor_without_one_camera_path_per_env
 def test_ovrtx_split_search_retires_every_failed_product_before_a_scene_write(monkeypatch, written):
     """A scene write that fails during the search leaves no failed render product in the submitted set."""
     renderer, cameras = _make_search_cameras(monkeypatch, False, 8, [("auto", 64), ("auto", 64)])
+    failed = set(renderer.backend.render_products)
     _install_step(renderer, lambda products: True)
     # The scene writes of the first ``written`` sensors succeed, and the write of the next sensor fails.
     scene_writes = [object()] * written + [OSError("scene write")]
@@ -719,7 +724,23 @@ def test_ovrtx_split_search_retires_every_failed_product_before_a_scene_write(mo
     assert "failed to produce a frame" in str(error.value.__context__)
     # Only the new render products of the written sensors remain. No sensor keeps a failed one.
     assert renderer.backend.render_products == set().union(*(c.render_product_paths for c in cameras[:written]))
-    assert [product.num_envs for product in cameras[0].products] == [4, 4]
+    assert not renderer.backend.render_products & failed
+
+
+def test_ovrtx_split_search_leaves_out_a_sensor_removed_before_its_first_frame(monkeypatch):
+    """A sensor removed before its first frame gets no new render products when the first frame fails."""
+    renderer, (kept, removed) = _make_search_cameras(monkeypatch, False, 8, [("auto", 64), ("auto", 64)])
+    renderer.cleanup(removed)
+    failed = kept.render_product_paths
+    add_usd_reference = renderer.backend.renderer.add_usd_reference_from_string
+    add_usd_reference.reset_mock()
+    submissions = _install_step(renderer, lambda products: len(products) < 2)
+
+    renderer.render_batch([kept])
+
+    # Only the kept sensor gets a new scope, and no step renders a render product of the removed sensor.
+    assert [c.args[1] for c in add_usd_reference.call_args_list] == [f"/{kept.render_scope_name}"]
+    assert submissions == [set(failed), set(kept.render_product_paths)]
 
 
 def test_ovrtx_render_batch_does_not_search_after_another_error(monkeypatch):
@@ -756,8 +777,6 @@ def test_ovrtx_split_search_halves_the_sensor_with_the_largest_buffer_first(
     renderer, cameras = _make_search_cameras(monkeypatch, False, 16, sensors)
     for index, spp in samples.items():
         cameras[index].spec.cfg.render_settings = {"omni:rtx:rtpt:spp": ("Int", spp)}
-    # The scene is a mock, and the CPU test device has no device id for the authored render settings.
-    monkeypatch.setattr(ovrtx_renderer_module, "build_render_product_as_string", lambda *args, **kwargs: "")
     # A step fails while a sensor of too_large has more than 8 environments in its first and largest render product.
     submissions = _install_step(renderer, lambda products: any(cameras[i].products[0].num_envs > 8 for i in too_large))
 
@@ -803,12 +822,14 @@ def test_ovrtx_split_search_covers_every_renderer_of_a_shared_engine(monkeypatch
 def _install_attribute_store(renderer: OVRTXRenderer, use_ovstage: bool) -> dict:
     """Replace the attribute reads and writes of the scene with fakes over a dictionary.
 
-    Like OVRTX, the legacy fake raises when it reads an array without elements.
+    Like OVRTX, the legacy fake raises when it reads a tag or an array without elements. Like OVStage, the OVStage fake
+    rejects a write of the prim path.
 
     Returns:
         The attributes of each render product: ``{path: {name: (value, is_array, semantic)}}``.
     """
     import ovrtx
+    import ovstage
 
     store = {}
     if use_ovstage:
@@ -817,13 +838,16 @@ def _install_attribute_store(renderer: OVRTXRenderer, use_ovstage: bool) -> dict
         renderer.scene.paths.token_to_string.side_effect = lambda token: token.name
 
         def column(name, value, is_array, semantic):
-            # One prim per query, so a fixed-size column holds one row.
+            # OVStage can map the row of a prim in the query to another data row of the column. So the fake puts
+            # the value of the one prim after a row of zeros.
+            rows = [np.zeros_like(value), value]
             return types.SimpleNamespace(
                 attribute=types.SimpleNamespace(name=name),
                 is_array=is_array,
                 semantic=semantic,
-                data_row_index=lambda local: 0,
-                array=lambda index: value if is_array else value[None],
+                data_row_index=lambda local: local + 1,
+                # An array column has one tensor per data row. A fixed-size column has one tensor with all data rows.
+                array=lambda index: rows[index] if is_array else np.stack(rows),
             )
 
         def read_attributes(query, attributes, ordinal_range):
@@ -836,6 +860,11 @@ def _install_attribute_store(renderer: OVRTXRenderer, use_ovstage: bool) -> dict
             return read
 
         def write_attributes(query, writes, ordinal):
+            if any(write.attribute.name == "usd-path" for write in writes):
+                raise ovstage.OvstageError(
+                    ovstage.ErrorCode.NOT_SUPPORTED,
+                    "built-in attribute 'usd-path' is derived on demand and cannot be written",
+                )
             for index, path in enumerate(query):
                 for write in writes:
                     value = write.tensors[write.index_map[index]]
@@ -855,11 +884,13 @@ def _install_attribute_store(renderer: OVRTXRenderer, use_ovstage: bool) -> dict
         for path, value in zip(prim_paths, tensors, strict=True):
             store.setdefault(path, {})[attribute_name] = (np.asarray(value), True, semantic)
 
-    def read_array_attribute(name, paths):
-        values = {path: store[path][name][0] for path in paths}
-        if not all(value.size for value in values.values()):
+    def read(name, paths):
+        entries = [store[path][name] for path in paths]
+        if any(
+            semantic == ovrtx.Semantic.TAG or (is_array and not value.size) for value, is_array, semantic in entries
+        ):
             raise RuntimeError(f"Read returned no data for {name!r}")
-        return values
+        return [value for value, _, _ in entries]
 
     native.query_prims.side_effect = lambda **kwargs: {
         path: {
@@ -868,8 +899,8 @@ def _install_attribute_store(renderer: OVRTXRenderer, use_ovstage: bool) -> dict
         }
         for path, entries in store.items()
     }
-    native.read_attribute.side_effect = lambda name, paths: np.stack([store[path][name][0] for path in paths])
-    native.read_array_attribute.side_effect = read_array_attribute
+    native.read_attribute.side_effect = lambda name, paths: np.stack(read(name, paths))
+    native.read_array_attribute.side_effect = lambda name, paths: dict(zip(paths, read(name, paths), strict=True))
     native.write_attribute.side_effect = write_attribute
     native.write_array_attribute.side_effect = write_array_attribute
     return store
@@ -877,7 +908,10 @@ def _install_attribute_store(renderer: OVRTXRenderer, use_ovstage: bool) -> dict
 
 @pytest.mark.parametrize("use_ovstage", [False, True], ids=["legacy", "ovstage"])
 def test_ovrtx_split_search_copies_the_attributes_of_the_failed_render_product(monkeypatch, use_ovstage):
-    """Attributes written onto the failed render product reach the new ones, which keep their own layout."""
+    """Attributes written onto the failed render product reach the new ones, which keep their own layout.
+
+    The copy skips the attributes of the layout, tags and arrays without elements, and goes on after each of them.
+    """
     import ovrtx
     import ovstage
 
@@ -914,12 +948,12 @@ def test_ovrtx_split_search_copies_the_attributes_of_the_failed_render_product(m
         # OVStage reads the path of a prim like an attribute, but rejects a write of it.
         left_out["usd-path"] = (np.array(failed), False, 0)
     else:
-        # OVRTX lists an applied schema as a tag without a value. The fake reads the tag as True, so a copied tag
-        # shows on the new render products. The fake raises like OVRTX when it reads the array without elements.
-        left_out["OmniRtxSettingsCommonAdvancedAPI_1"] = (np.True_, False, ovrtx.Semantic.TAG)
-        left_out["omni:rtx:debug:view:target"] = (np.array([], dtype=np.uint64), True, token)
-    # A script writes two settings onto the failed render product. They come after the left-out attributes, so the
-    # copy must go on after each skipped attribute.
+        # OVRTX lists an applied schema as a tag without a value. Like OVRTX, the fake raises when it reads the tag
+        # or the array without elements.
+        left_out["OmniRtxSettingsCommonAdvancedAPI_1"] = (None, False, ovrtx.Semantic.TAG)
+        left_out["omni:rtx:debug:view:target"] = (np.array([], dtype=np.uint64), True, 0)
+    # A script writes the samples per pixel and the antialiasing mode. The layer authors waitForEvents. These
+    # attributes come after the left-out attributes, so the copy must go on after each skipped attribute.
     store[failed] = {
         **left_out,
         "omni:rtx:rtpt:spp": (np.int32(5), False, 0),
@@ -1873,8 +1907,6 @@ def test_ovrtx_process_frame_stitches_split_frames_in_env_order(monkeypatch, use
     assert "semantic_segmentation" not in render_data.renderer_info
     render_data.cleanup()
     assert renderer.backend.render_products == set()
-    # The sensor had no rendered frame. A later split search must not give it new render products.
-    assert not renderer.backend.unrendered
 
 
 def test_launch_extract_all_tiles_rejects_wider_output_channels():
