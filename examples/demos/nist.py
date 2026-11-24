@@ -6,6 +6,7 @@
 """Run a ten-part NIST assembly policy.
 
     uv run --extra ovrtx isaaclab demo nist
+    uv run isaaclab demo nist --solver steel --visualizer none --num_envs 16
 
 The pretrained TorchScript policy is downloaded automatically.
 The exported policy includes normalization and takes robot history [N, 195] and
@@ -17,6 +18,8 @@ and the robot at home. There is no reset bank or grasp-state initialization.
 The default RTX view uses a physical ground plane without a backdrop.
 Use --num_envs to run independent boards in parallel, each resetting on completion or timeout.
 Physics remains at 100 Hz and control at 25 Hz.
+All finite colliders use Newton's SDF collision path. MJWarp is the default solver;
+Steel applies robot gravity compensation explicitly and reserves larger contact-constraint buffers.
 Use --visualizer none --max_steps 1 for a headless smoke test.
 """
 
@@ -28,7 +31,7 @@ from typing import NamedTuple
 
 import torch
 from isaaclab_isaacsim.sim.schemas import PhysxCollisionCfg
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, SteelSolverCfg
 from isaaclab_newton.sim.schemas import (
     MujocoRigidBodyCfg,
     NewtonArticulationCfg,
@@ -191,6 +194,10 @@ def reset_parts(env: ManagerBasedEnv, env_ids: torch.Tensor | slice, assemblies:
     if count == 0:
         return
     robot = env.scene["robot"]
+    if isinstance(env.cfg.sim.physics.solver_cfg, SteelSolverCfg):
+        # Steel does not consume the robot's MuJoCo-specific gravcomp attribute.
+        forces = -robot.data.body_mass.torch[env_ids, :, None] * torch.tensor(env.cfg.sim.gravity, device=env.device)
+        robot.permanent_wrench_composer.add_forces_and_torques_index(forces=forces, env_ids=env_ids, is_global=True)
     joints = robot.data.default_joint_pos.torch[env_ids]
     robot.write_joint_state_to_sim_index(position=joints, velocity=torch.zeros_like(joints), env_ids=env_ids)
 
@@ -474,7 +481,12 @@ class NistEnvCfg(ManagerBasedRLEnvCfg):
                 use_mujoco_contacts=False,
             ),
             collision_cfg=NewtonCollisionPipelineCfg(
-                broad_phase="sap", max_triangle_pairs=1_000_000, rigid_contact_max=2400
+                broad_phase="sap",
+                max_triangle_pairs=1_000_000,
+                rigid_contact_max=2400,
+                sdf_all_shapes=NewtonCollisionPipelineCfg.SDFAllShapesCfg(
+                    sdf_narrow_band_inner=-0.005, sdf_narrow_band_outer=0.005
+                ),
             ),
         ),
     )
@@ -572,6 +584,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--num_envs", type=int, default=1, help="Independent boards simulated in parallel.")
     parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
+    parser.add_argument("--solver", choices=("mjwarp", "steel"), default="mjwarp", help="Newton rigid-body solver.")
     add_launcher_args(parser)
     parser.set_defaults(visualizer=["newton"])
     args = parser.parse_args()
@@ -584,6 +597,8 @@ def main() -> None:
         map_location=args.device,
     ).eval()
     cfg = NistEnvCfg(scene=NistSceneCfg(num_envs=args.num_envs))
+    if args.solver == "steel":
+        cfg.sim.physics.solver_cfg = SteelSolverCfg(articulation_constraint_max=512, free_body_constraint_max=4096)
     cfg.sim.device = args.device
     cfg.sim.visualizer_cfgs = VisualizerCfg(backend=NewtonGLBackendCfg(initial_renderer="rtx"))
     print("Assets:", ", ".join(part.name for part in cfg.assemblies), flush=True)
