@@ -1009,16 +1009,27 @@ class NewtonVisualizerBase(BaseVisualizer):
         hover_tooltip(imgui, "Vertical field of view; the Focal Length slider changes it")
 
     def _rtx_appearance_controller(self) -> RtxAppearance | None:
-        """Create the OVRTX appearance controller on first use, or None when it cannot be created."""
+        """Create the OVRTX appearance controller on first use.
+
+        Returns:
+            The controller. None until the viewer camera has a rendered frame, or if the controller cannot be created.
+        """
         if self._rtx_appearance is None and not self._rtx_appearance_failed:
             view = self._rtx_view()
             try:
                 camera = view.camera
                 renderer = self._sim.get_or_create_backend(camera.cfg.renderer_cfg)
+                if camera._render_data in renderer.backend.unrendered:
+                    # The viewer camera shares the OVRTX engine. Until a frame renders, a failed frame can move it to a
+                    # new render product, and the controller would keep writing to the old one without an error.
+                    return None
+                # The viewer camera has one view, so it has one render product. The unpacking fails if it has more,
+                # because the controls would change only the first one.
+                (product,) = camera._render_data.products
                 self._rtx_appearance = RtxAppearance(
                     self._sim.stage,
                     renderer,
-                    camera._render_data.render_product_path,
+                    product.path,
                     camera.cfg.background_color,
                 )
             except Exception:

@@ -17,7 +17,7 @@ from pxr import Sdf, Usd
 if TYPE_CHECKING:
     from isaaclab.renderers.sensor_render_spec import SensorRenderSpec
 
-    from isaaclab_ov.renderers.ovrtx_renderer import OVRTXCameraRenderData
+    from .ovrtx_renderer import OVRTXCameraRenderData, OVRTXRenderProduct
 
 logger = logging.getLogger(__name__)
 
@@ -149,15 +149,16 @@ def build_camera_render_product_as_string(
 ) -> str:
     """Build a complete render product USD layer as a string.
 
-    The layer sets the camera scope as its default prim for referencing into OVRTX.
-    The initial camera relationship targets only environment zero, whose camera is guaranteed to
-    exist in the trimmed stage. Multi-environment rendering rewrites the relationship with every
-    resolved camera path after runtime cloning.
+    The layer sets the camera scope as its default prim for referencing into OVRTX. It has one
+    ``RenderProduct`` prim for each render product, and all of them use the RenderVar prims under ``Vars``.
+
+    The initial camera relationship of every render product targets only environment zero, whose camera is
+    guaranteed to exist in the trimmed stage. Multi-environment rendering rewrites the relationship of each render
+    product with its resolved camera paths after runtime cloning.
 
     Args:
-        spec: Camera configuration, environment count, and camera paths. ISP configurations
-            automatically request the HDR render variable in addition to the configured outputs.
-        render_data: Camera's render scope and product identity.
+        spec: Camera configuration, environment count, and camera paths.
+        render_data: Camera's render scope and render products.
         device_id: CUDA device index the render product is pinned to, so its render var buffers are
             allocated on the same device as the Warp kernels that read them.
         enable_shadows: Whether lights cast shadows. Defaults to False. Only honored for the
@@ -167,7 +168,6 @@ def build_camera_render_product_as_string(
         Render product USD layer, including the USDA header and default prim metadata.
     """
     data_types = list(spec.cfg.data_types)
-    tiled_width, tiled_height = render_data.num_cols * render_data.width, render_data.num_rows * render_data.height
     render_var_configs = get_render_var_configs(data_types, render_data.render_scope_name)
     minimal_mode = next(
         (_RTX_MINIMAL_MODES[data_type] for data_type in data_types if data_type in _RTX_MINIMAL_MODES), None
@@ -210,22 +210,29 @@ def build_camera_render_product_as_string(
         for _, name, source in render_var_configs
     )
 
-    layer = f'''#usda 1.0
-(defaultPrim = "{render_data.render_scope_name}")
-
-def Scope "{render_data.render_scope_name}"
-{{
-    def RenderProduct "RenderProduct" (
+    def product_block(product: OVRTXRenderProduct) -> str:
+        tiled_width = product.num_cols * render_data.width
+        tiled_height = product.num_rows * render_data.height
+        return f'''def RenderProduct "{Sdf.Path(product.path).name}" (
         prepend apiSchemas = ["OmniRtxSettingsCommonAdvancedAPI_1"]
     ) {{
-        rel camera = [<{render_data.camera_paths[0]}>]
+        rel camera = [<{render_data.products[0].camera_paths[0]}>]
         uint[] deviceIds = [{device_id}]
         {bg_type_line}
         {render_mode_block}
         token[] omni:rtx:waitForEvents = ["AllLoadingFinished", "OnlyOnFirstRequest"]
         rel orderedVars = [{ordered_vars}]
         uniform int2 resolution = ({tiled_width}, {tiled_height})
-    }}
+    }}'''
+
+    product_blocks = "\n\n    ".join(product_block(product) for product in render_data.products)
+
+    layer = f'''#usda 1.0
+(defaultPrim = "{render_data.render_scope_name}")
+
+def Scope "{render_data.render_scope_name}"
+{{
+    {product_blocks}
 
     def "Vars"
     {{
@@ -237,7 +244,8 @@ def Scope "{render_data.render_scope_name}"
         return layer
     stage = Usd.Stage.CreateInMemory()
     stage.GetRootLayer().ImportFromString(layer)
-    product = stage.GetPrimAtPath(render_data.render_product_path)
-    for name, (type_name, value) in spec.cfg.render_settings.items():
-        product.CreateAttribute(name, getattr(Sdf.ValueTypeNames, type_name)).Set(value)
+    for product in render_data.products:
+        prim = stage.GetPrimAtPath(product.path)
+        for name, (type_name, value) in spec.cfg.render_settings.items():
+            prim.CreateAttribute(name, getattr(Sdf.ValueTypeNames, type_name)).Set(value)
     return stage.GetRootLayer().ExportToString()
