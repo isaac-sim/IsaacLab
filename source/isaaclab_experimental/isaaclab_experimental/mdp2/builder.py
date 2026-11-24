@@ -167,6 +167,7 @@ class CompileContext:
     modes: dict[str, TaskMode] = field(default_factory=dict)  # How the subtasks of each task run, by path
     staged: dict[str, bool] = field(default_factory=dict)  # Whether the uses of each task start during an episode
     renamed: dict[str, str] = field(default_factory=dict)  # Uses merged into others, see _share_across_stages
+    compiled: set[tuple[str, ...]] = field(default_factory=set)  # Uses compiled early, for the actions that read them
 
 
 class MDPBuilder:
@@ -573,10 +574,26 @@ class MDPBuilder:
             context.errors.append(f"Only one time limit is allowed, found {', '.join(map(str, time_limits))}.")
         time_limit = time_limits[0].cfg.episode_length_s if time_limits else None
 
+        # Action terms may read commands and quantities, whose uses compile first, with the uses that they read.
+        providers = {selector: entry for entry in schedule for selector in entry.provides}
+
+        def compile_providers(entry: ScheduleEntry) -> None:
+            for selector in (*entry.reads, *([entry.when] if entry.when is not None else [])):
+                provider = providers.get(selector)
+                if provider is not None and provider.path not in context.compiled and provider.path != entry.path:
+                    context.compiled.add(provider.path)
+                    if last_action in provider.reads:
+                        context.errors.append(
+                            f"{entry}: an action cannot read '{selector}', which reads the last action."
+                        )
+                    compile_providers(provider)
+                    self._compile_term(provider, context)
+
         for entry in schedule:
             if isinstance(entry.cfg, DirectAction):
                 self._compile_action(entry, context)
             elif isinstance(entry.cfg, Action):
+                compile_providers(entry)
                 self._compile_term(entry, context)
         return context, time_limit
 
@@ -603,7 +620,11 @@ class MDPBuilder:
             return
 
         for entry in (entries[path] for path in order):
-            if entry.phase is not Phase.ACTIONS and not isinstance(entry.cfg, TimeLimit):
+            if (
+                entry.phase is not Phase.ACTIONS
+                and not isinstance(entry.cfg, TimeLimit)
+                and entry.path not in context.compiled
+            ):
                 self._compile_term(entry, context)
 
         # An offset may be a field of the MDP, such as a quantity, which exists once its use is compiled.
@@ -866,6 +887,7 @@ class MDPBuilder:
                 torch_hooks=context.backend is Backend.WARP and implementation is term.torch,
                 init=term.init,
                 commit=cfg.commit if isinstance(cfg, Event) else False,
+                start=isinstance(cfg, Event) and cfg.mode is EventMode.START,
                 record=isinstance(cfg, Quantity) and cfg.record,
                 columns=columns,
                 slot=(entry.name or entry.path[-1]) if isinstance(cfg, Action) else "",
@@ -1425,7 +1447,9 @@ def _allocate_slots(
                 shapes = {(op.shape, op.dtype) for op in slot_ops}
                 if len(shapes) > 1:
                     errors.append(f"The observations '{buffer}' must have the same shape and type, got {shapes}.")
-                layouts[buffer] = (slot_ops[0].shape, slot_ops[0].dtype)
+                # Oldest first, as in a concatenated group.
+                history = slot_ops[0].observation.history_length
+                layouts[buffer] = ((history, *slot_ops[0].shape) if history else slot_ops[0].shape, slot_ops[0].dtype)
             for first, second in itertools.combinations(slot_ops, 2):
                 if not _exclusive(first, second, modes):
                     errors.append(

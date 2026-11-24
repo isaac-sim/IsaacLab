@@ -113,6 +113,6 @@ def _without_observation_noise(task: TaskCfg) -> TaskCfg:
     for group, uses in task.observations.items():
         terms, concatenate = group_terms(uses)
         terms = {name: use if use is None else replace(use, noise=None) for name, use in terms.items()}
-        observations[group] = ObservationGroup(terms=terms, concatenate=concatenate)
+        observations[group] = ObservationGroup(terms, concatenate) if isinstance(uses, ObservationGroup) else terms
     subtasks = {name: _without_observation_noise(subtask) for name, subtask in task.subtasks.items()}
     return replace(task, observations=observations, subtasks=subtasks)

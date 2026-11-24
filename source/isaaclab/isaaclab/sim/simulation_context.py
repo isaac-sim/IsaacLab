@@ -590,6 +590,14 @@ class SimulationContext:
         """
         # Block while the GUI timeline is paused so the entire training loop freezes.
         # See: https://github.com/isaac-sim/IsaacLab/issues/4279
+        self._wait_while_paused()
+        self._physics_step_count += 1
+        self.backend_manager.step()
+        if render and self.is_rendering:
+            self.render()
+
+    def _wait_while_paused(self) -> None:
+        """Block while the timeline or a visualizer is paused, keeping the visualizers responsive."""
         self.backend_manager.wait_for_playing()
         visualizers_to_remove = []
         for viz in self._visualizers:
@@ -600,10 +608,6 @@ class SimulationContext:
                 logger.error("Error stepping visualizer '%s': %s", type(viz).__name__, exc)
                 visualizers_to_remove.append(viz)
         self._remove_visualizers(visualizers_to_remove)
-        self._physics_step_count += 1
-        self.backend_manager.step()
-        if render and self.is_rendering:
-            self.render()
 
     def after_replay(self, num_steps: int) -> None:
         """Do the host work of :meth:`step` for steps whose device work a CUDA graph replayed.
@@ -615,16 +619,7 @@ class SimulationContext:
         Args:
             num_steps: Calls of :meth:`step` that the graph recorded.
         """
-        self.backend_manager.wait_for_playing()
-        visualizers_to_remove = []
-        for viz in self._visualizers:
-            try:
-                while viz.is_training_paused() and viz.is_running():
-                    viz.step(0.0)
-            except Exception as exc:
-                logger.error("Error stepping visualizer '%s': %s", type(viz).__name__, exc)
-                visualizers_to_remove.append(viz)
-        self._remove_visualizers(visualizers_to_remove)
+        self._wait_while_paused()
         self._physics_step_count += num_steps
         self.backend_manager.after_replay(num_steps)
 

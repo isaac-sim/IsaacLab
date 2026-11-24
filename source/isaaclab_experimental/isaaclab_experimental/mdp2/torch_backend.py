@@ -78,13 +78,13 @@ def _store_actions(mdp: MDP, call: Call) -> None:
     others."""
     call.state.actions.torch.copy_(call.actions.torch)
     for slot in (slot for slot in mdp.action_slots if slot.partial):
-        columns = torch.arange(slot.columns.start, slot.columns.stop, device=mdp.device)
-        covered = torch.zeros(mdp.num_worlds, len(columns), dtype=torch.bool, device=mdp.device)
+        columns = call.state.actions.torch[:, slot.columns]
+        covered = torch.zeros_like(columns, dtype=torch.bool)
         for op in slot.ops:
-            active = _active(op, call.state)
-            width = columns < op.columns.stop
-            covered |= width if active is None else active.torch[:, None] & width
-        call.state.actions.torch[:, slot.columns].masked_fill_(~covered, 0.0)
+            # An op takes the first columns of its slot.
+            active, width = _active(op, call.state), op.columns.stop - slot.columns.start
+            covered[:, :width] |= True if active is None else active.torch[:, None]
+        columns.masked_fill_(~covered, 0.0)
 
 
 def _begin_evaluate(mdp: MDP, call: Call) -> None:
@@ -300,11 +300,12 @@ def _switch(ops: tuple[TermOp, ...], state: MDPState, mask: torch.Tensor | None)
     where any of them runs. Stepping (no mask) marks the worlds where it turned on; observing new episodes, in the
     masked worlds, marks none, since resets restarted them."""
     for op in ops:
-        runs = torch.ones(state.episode_length.torch.shape, dtype=torch.bool, device=state.episode_length.torch.device)
         if op.stages:
             runs = torch.stack([state.arrays[progress_field(stage, "active")].torch for stage in op.stages]).any(0)
         elif op.scope_key is not None:
             runs = state.arrays[op.scope_key].torch
+        else:
+            runs = torch.ones_like(state.episode_length.torch, dtype=torch.bool)
         if op.when is not None:
             runs = runs & (state.arrays[op.when].torch > 0)
         on, entered = state.arrays[op.active_key].torch, state.arrays[op.entry_key].torch

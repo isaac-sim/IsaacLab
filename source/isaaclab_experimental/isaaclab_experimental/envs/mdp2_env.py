@@ -128,7 +128,7 @@ class MDP2Env:
         with one, carry its state over, see :func:`~isaaclab_experimental.mdp2.migrate`."""
         builder = mdp2.MDPBuilder(self.scene_data.schema)
         builder.add_task(task)
-        self.mdp = builder.finalize(
+        mdp = builder.finalize(
             device=self.device,
             backend=self.cfg.backend,
             diagnostics=self.diagnostics,
@@ -137,21 +137,23 @@ class MDP2Env:
         # The cameras that some term reads render, once per control step.
         read = {
             selector.name if isinstance(selector, mdp2.Entity) else selector.entity
-            for op in self.mdp.term_ops
+            for op in mdp.term_ops
             for selector in op.inputs.values()
         }
-        self._cameras = [camera for name, camera in self._all_cameras.items() if name in read]
+        cameras = [camera for name, camera in self._all_cameras.items() if name in read]
+        if cameras and Step.RENDER not in self.cfg.step:
+            raise ValueError("The task reads cameras, so MDP2EnvCfg.step must hold Step.RENDER, or they never render.")
+        state = mdp.state(self.scene_data, seed=self._seed)
+        if previous is not None:
+            mdp2.migrate(*previous, mdp, state)
+        # The environment takes the new MDP only once it is valid, so that a rejected task leaves it as it was.
+        self.mdp, self.state, self._cameras = mdp, state, cameras
         # OptiX refits its acceleration structures on the host, which a CUDA graph cannot record: such cameras render
         # between the graphs of a step.
         self._render_capturable = not any(
             isinstance(camera.cfg.renderer_cfg, NewtonOptixRendererCfg) for camera in self._cameras
         )
-        if self._cameras and Step.RENDER not in self.cfg.step:
-            raise ValueError("The task reads cameras, so MDP2EnvCfg.step must hold Step.RENDER, or they never render.")
-        self.state = self.mdp.state(self.scene_data, seed=self._seed)
-        if previous is not None:
-            mdp2.migrate(*previous, self.mdp, self.state)
-        else:
+        if previous is None:
             mdp2.startup(self.mdp, self.state)
             if self.mdp.startup_writes:
                 # Startup events write scene fields in place, which the scene commits to the solver.
@@ -221,6 +223,7 @@ class MDP2Env:
         params are the new task's. With
         ``truncate``, every world starts a new episode, so that no episode mixes two tasks; otherwise episodes go on.
         The next step captures its graphs again, which compiles the kernels of a new task once, in about a second.
+        Startup events run once, when the environment is created: those that the new task adds do not run.
         With an episode budget, the new task starts a new evaluation, so it truncates the episodes.
         """
         if not truncate and self.cfg.episode_budget is not None:
@@ -521,11 +524,14 @@ class MDP2RLEnv(MDP2Env, gym.Env):
             self.extras["final_obs"] = self._views(self.transition.final_observations)
         spaces: dict[str, Any] = {}
         for buffer, (shape, dtype) in self.mdp.observation_layouts.items():
-            if dtype is wp.float32:
-                space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=shape)
+            numpy_dtype = np.dtype(wp.dtype_to_numpy(dtype))
+            if numpy_dtype == np.bool_:
+                space = gym.spaces.Box(low=0, high=1, shape=shape, dtype=np.bool_)
+            elif np.issubdtype(numpy_dtype, np.floating):
+                space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=shape, dtype=numpy_dtype)
             else:
-                info = np.iinfo(wp.dtype_to_numpy(dtype))
-                space = gym.spaces.Box(low=info.min, high=info.max, shape=shape, dtype=wp.dtype_to_numpy(dtype))
+                info = np.iinfo(numpy_dtype)
+                space = gym.spaces.Box(low=info.min, high=info.max, shape=shape, dtype=numpy_dtype)
             if "/" in buffer:
                 group, term = buffer.split("/")
                 spaces.setdefault(group, {})[term] = space

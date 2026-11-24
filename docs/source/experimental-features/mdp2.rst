@@ -101,7 +101,7 @@ weights, in different worlds of one scene; :func:`~isaaclab_experimental.mdp2.sp
 Subtasks and progress
 ---------------------
 
-A task may say when it is ``done``, and hold named subtasks, which are tasks too. Three functions combine tasks into
+A task may say when it is ``done``, and hold named subtasks, which are tasks too. Four functions combine tasks into
 one:
 
 .. list-table::

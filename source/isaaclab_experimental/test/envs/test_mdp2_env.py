@@ -885,17 +885,24 @@ def test_update_task_keeps_the_state_of_the_uses_both_tasks_have():
 
 
 def test_delayed_actuators_run_in_captured_steps():
-    """Delayed actuators, which Newton runs natively, replay in the step's graph."""
-    cfg = cartpole_cfg()
-    delayed_cart(cfg)
-    env = MDP2RLEnv(cfg)
-    try:
-        env.reset()
-        for _ in range(3):
-            env.step(torch.zeros(NUM_ENVS, 1, device=env.device))
-        assert env.is_captured and env.num_graphs == 1
-    finally:
-        env.close()
+    """Delayed actuators, which Newton runs natively, replay in the step's graph: the cart follows changing actions
+    as it does stepping eagerly."""
+    velocities = []
+    for capture in (True, False):
+        cfg = cartpole_cfg()
+        cfg.capture = capture
+        delayed_cart(cfg)
+        env = MDP2RLEnv(cfg)
+        try:
+            env.reset(seed=0)
+            for step in range(6):
+                env.step(torch.full((NUM_ENVS, 1), (-1.0) ** step, device=env.device))
+                velocities.append(env.scene["robot"].data.joint_vel.torch[:, 0].clone())
+            assert env.is_captured == capture
+        finally:
+            env.close()
+    torch.testing.assert_close(torch.stack(velocities[:6]), torch.stack(velocities[6:]))
+    assert torch.stack(velocities).abs().amax() > 0.0
 
 
 def test_physics_that_cannot_capture_its_step_steps_between_the_graphs(monkeypatch):
@@ -911,11 +918,14 @@ def test_physics_that_cannot_capture_its_step_steps_between_the_graphs(monkeypat
         monkeypatch.setattr(manager, "capture", lambda fn: captures.append(fn) or capture(fn))
         env._work = env._step_work()
         env.reset()
-        actions = torch.zeros(NUM_ENVS, 1, device=env.device)
+        actions = torch.ones(NUM_ENVS, 1, device=env.device)
+        joint_pos = env.scene["robot"].data.joint_pos.torch
+        start = joint_pos.clone()
         for _ in range(3):
             env.step(actions)
         # The physics steps eagerly, and the rest of the step replays as one graph after it.
         assert env.is_captured and env.num_graphs == 1 and len(captures) == 1
+        assert (joint_pos[:, 0] != start[:, 0]).all()  # The cart moved
     finally:
         env.close()
 

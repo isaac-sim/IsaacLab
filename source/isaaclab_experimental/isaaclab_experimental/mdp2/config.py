@@ -181,7 +181,7 @@ class TermCfg:
     # Run only in the worlds where this field of one value per world is positive, taken at the start of each step: a
     # use that does not run outputs zero, and its state, timer, command, and history restart when it turns on. A
     # Tunable(True) is a switch per world, mdp2.tunable(use, "when"). Resets prepare the use in every world.
-    when: FieldSelector | Tunable | None = None
+    when: FieldSelector | Tunable | None = field(default=None, kw_only=True)
 
 
 @dataclass
@@ -275,7 +275,8 @@ class Event(TermCfg):
     interval_range_s: tuple[float, float] | None = None  # Seconds between interval events
     # Reset and start events: whether the scene commits the writes of the earlier events of the reset before it runs,
     # so that it reads what they changed. None infers it: before an event that reads a field derived from written
-    # ones, such as the body poses after joint writes. True always commits first, and False never does.
+    # ones, such as the body poses after joint writes. True always commits first, and False never does. Within an
+    # episode, the start events of a task that starts commit together after the step, as interval events do.
     commit: bool | None = None
 
     @property
@@ -494,8 +495,10 @@ def rename(task: TaskCfg, **entities: str) -> TaskCfg:
 
 def _renamed(value: Any, entities: dict[str, str]) -> Any:
     """Return a copy of a config value with the scene entities of its selectors renamed; params and terms stay."""
-    if isinstance(value, (FieldSelector, SubsetSelector)):
-        return dataclasses.replace(value, entity=entities.get(value.entity, value.entity)) if value.scene else value
+    if isinstance(value, SubsetSelector) or isinstance(value, FieldSelector) and value.scene:
+        return dataclasses.replace(value, entity=entities.get(value.entity, value.entity))
+    if isinstance(value, FieldSelector):
+        return value
     if isinstance(value, Entity):
         return Entity(entities.get(value.name, value.name), value.scene) if value.scene else value
     if isinstance(value, dict):

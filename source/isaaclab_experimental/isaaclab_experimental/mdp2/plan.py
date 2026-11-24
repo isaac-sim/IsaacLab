@@ -108,6 +108,7 @@ class TermOp:
     init: Callable | None = None  # Eager ``fn(ctx, **params)`` that fills the state once, before the startup events
     # Reset events: whether the scene commits the earlier events' writes before it runs, None to infer it
     commit: bool | None = False
+    start: bool = False  # Events: a start event, which runs once its task starts, after the progress restarts
     record: bool = False  # Quantities: whether the environment records it at the end of every episode
     columns: slice | None = None  # Actions: the columns of the action that the term takes
     worlds: tuple[int, ...] | None = None  # Worlds where the op is active, None for every world
@@ -375,13 +376,13 @@ def build_plan(
     starts = [Step(StepKind.START_TASKS, trees)] if any(node.staged for tree in trees for node in tree.nodes) else []
     starts += [Step(StepKind.SWITCH, switched)] if switched else []
     # Start events write the scene where their task starts; the others set up whole episodes.
-    start_events = [op for op in ops[Phase.RESET_EVENTS] if op.entry_key is not None]
-    reset_events = [op for op in ops[Phase.RESET_EVENTS] if op.entry_key is None]
+    start_events = [op for op in ops[Phase.RESET_EVENTS] if op.start or op.entry_key is not None]
+    reset_events = [op for op in ops[Phase.RESET_EVENTS] if not op.start and op.entry_key is None]
     if starts:
         scoped = [op for phase_ops in ops.values() for op in phase_ops if isinstance(op, TermOp) and op.entry_key]
         starts += [
             *(Step(StepKind.RESET_TIMER, op, entry=True) for op in timed if op.entry_key),
-            *(Step(StepKind.COMPUTE, op, entry=True) for op in start_events),
+            *(Step(StepKind.COMPUTE, op, entry=True) for op in start_events if op.entry_key is not None),
             *(Step(StepKind.COMPUTE, op, entry=True) for op in scoped if op.phase is Phase.COMMANDS),
             *(Step(StepKind.RESET_STATE, op, entry=True) for op in stateful if op.entry_key),
         ]

@@ -173,7 +173,8 @@ def _replay_torch(mask, target, ids, value, row, table, taken):
     rows = (taken.long() + rank) % table.shape[0]
     row.copy_(torch.where(mask, rows.float(), row))
     _write(target, ids, mask, table[rows], value)
-    taken.add_(mask.sum())
+    # Modulo the table, so that the count stays exact in float32.
+    taken.copy_((taken + mask.sum()) % table.shape[0])
 
 
 replay_variation = Term(

@@ -153,9 +153,10 @@ def migrate(previous: MDP, previous_state: MDPState, mdp: MDP, state: MDPState) 
             state.rng.torch[row] = previous_state.rng.torch[previous.streams.index(name)]
     _migrate_tuned(previous, previous_state, mdp, state)
 
-    params = {op.use: op.params for op in previous.term_ops}
+    # A use of several world configs has an op per params: one that the previous MDP had keeps its state.
+    uses = [(op.use, op.params) for op in previous.term_ops]
     for op in mdp.term_ops:
-        if op.init is not None and params.get(op.use) != op.params:
+        if op.init is not None and (op.use, op.params) not in uses:
             call_init(mdp, op, state, op.init)
 
 

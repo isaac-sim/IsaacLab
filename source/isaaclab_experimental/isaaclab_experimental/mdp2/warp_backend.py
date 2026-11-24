@@ -122,7 +122,7 @@ def _actions(mdp: MDP, name: str, steps: tuple[Step, ...], store: bool) -> tuple
     for step in steps:
         op = step.op
         if isinstance(op, TermOp):
-            _apply_action_term(code, op)
+            _apply_action_term(code, op, mdp)
             continue
         target = code.argument(op.target, wp.array2d(dtype=wp.float32), lambda call, op=op: rows(call, op.target))
         index = "element" if op.subset is None else f"{_array(code, op.subset, wp.array(dtype=wp.int32))}[element]"
@@ -159,7 +159,7 @@ def _store_actions(code: Fusion, mdp: MDP, actions: str) -> None:
     code.elements((mdp.action_dim,), *copy, writes=[last_action])
 
 
-def _apply_action_term(code: Fusion, op: TermOp) -> None:
+def _apply_action_term(code: Fusion, op: TermOp, mdp: MDP) -> None:
     """Run an action term's compute hook, which writes its outputs from its columns of the action."""
     if isinstance(op.compute, wp.Function):
         writes = [*op.writes, *(term_state(op.use, name) for name in op.state)]
@@ -177,7 +177,7 @@ def _apply_action_term(code: Fusion, op: TermOp) -> None:
         }
         op.compute(**hook_arguments(op.compute, arguments))
 
-    code.call(run, op.capturable, *_accesses(op))
+    code.call(run, op.capturable, *_accesses(op, mdp))
 
 
 def _evaluate(mdp: MDP) -> tuple[Callable[[Call], None], ...]:

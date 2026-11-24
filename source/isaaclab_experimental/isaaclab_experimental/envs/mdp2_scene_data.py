@@ -21,9 +21,6 @@ from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_experimental.mdp2 import EntitySchema, FieldSchema, FieldSelector, SceneSchema
 
-"""Actuator configs whose actuators MDP2 can step and reset inside CUDA graphs. Matched exactly: subclasses, such as
-delayed actuators, may draw from Torch's random generators on reset, which a replayed graph repeats."""
-
 
 class InteractiveSceneData:
     """Live views of the asset data of an :class:`InteractiveScene`, by scene entity name and field.
