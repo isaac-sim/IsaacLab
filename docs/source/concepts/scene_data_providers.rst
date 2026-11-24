@@ -138,10 +138,9 @@ elapses, without writing USD. World-space points reset their transform stack to 
 applying the body or environment pose twice. ``FabricMatrix44`` and ``FabricPoints``
 hold arrays only, not bindings or engine handles.
 
-Particle clouds, such as MPM particles, are ``Points`` prims. Their positions stay on the
-simulation device. On a GPU, Kit RTX reads them directly from GPU Fabric, so the CPU does
-not wait for the GPU. Curves (``BasisCurves``) are different. Kit RTX reads curve positions
-only from CPU Fabric (NVBug 6502662), so SDP copies them to the CPU.
+All geometry stays on the simulation device. This includes meshes, particle clouds such as
+MPM particles (``Points``), and cables (``BasisCurves``). On a GPU, Kit RTX reads the positions
+directly from GPU Fabric, so the CPU does not wait for the GPU.
 
 Newton backend
 --------------
