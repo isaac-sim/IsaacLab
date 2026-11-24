@@ -439,12 +439,6 @@ before changing an interface. Apply these rules when adding code or cleaning up 
   required attribute; express optional fields explicitly in the interface.
   Use concrete defaults for known empty selections. Reserve ``None`` for a distinct policy or lifecycle
   state, such as choosing an environment's frame rate or waiting for a client to connect.
-* Inclusion definitions declare membership and shared semantic tag types through ``match_tags``.
-  Reuse existing spawner ``semantic_tags`` rather than adding variant labels, positional pins, or
-  user-overridable matching callbacks. Inclusion sets do not own environment counts or random seeds.
-  Resolve compatibility into factorized candidate groups during scene planning; let clone-plan construction
-  and the scene's clone strategy select concrete worlds without expanding every valid combination.
-  Keep inclusion interpretation and task-specific matching classes out of replication execution.
 * Give each piece of state and validation one owner. Consumers should use the owner's contract instead
   of repairing results or maintaining duplicate state. Cache derived values only when their lifetime and
   invalidation are clear; do not expose mutable cached results for callers to modify accidentally.
