@@ -5,3 +5,6 @@
   dropped the ``library`` and ``agent`` arguments of the checkpoint selector.
 * Fixed Checkpoint Ghosts leaving the environment's reset and command hooks installed when no Newton viewer could
   attach, and allocating a new action tensor on every playback step.
+* Fixed Checkpoint Ghosts failing with recurrent policies when a ghost is added or removed, because the new slice size
+  no longer matched the hidden state. Adding, changing, or removing a ghost on an empty or unknown slot, and a failed
+  re-split, are now handled without ending the session.

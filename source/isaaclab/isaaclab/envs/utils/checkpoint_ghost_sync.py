@@ -98,7 +98,7 @@ class CheckpointGhostSync:
                 setattr(curriculum, name, None)
                 removed.append(f"curriculum.{name}")
         for group_name, group in vars(observations).items() if observations is not None else ():
-            if group.enable_corruption:
+            if group is not None and group.enable_corruption:
                 group.enable_corruption = False
                 removed.append(f"observations.{group_name}.enable_corruption")
         if removed:
@@ -163,11 +163,14 @@ class CheckpointGhostSync:
         # of its reference environment.
         start = _rng_state(self._device)
         self._reset_idx_original(reference)
+        reference_log = dict(self._env.extras.get("log", {}))  # the ghost resets below would overwrite it
         end = _rng_state(self._device)
         for ids in ghost_slices:
             _set_rng_state(self._device, start)
             self._reset_idx_original(ids)
         _set_rng_state(self._device, end)
+        if "log" in self._env.extras:
+            self._env.extras["log"] = reference_log
         scene = self._env.scene
         state = scene.get_state(is_relative=True)
         source = reference.repeat(self._num_slices - 1)

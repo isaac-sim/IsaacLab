@@ -16,7 +16,6 @@ __all__ = [
     "CheckpointGhostLayout",
     "CheckpointGhostSlot",
     "SceneCameraCfg",
-    "TrackingCameraCfg",
     "VisualizerCfg",
     "VisualizerBackendCfg",
     "WindowCfg",

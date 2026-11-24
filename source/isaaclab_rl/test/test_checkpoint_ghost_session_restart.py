@@ -43,7 +43,7 @@ def test_a_pending_restart_resets_the_environments_and_the_policies_once():
     env.reset.assert_called_once_with()
     assert session._obs == "observations"
     assert session._restart_pending is False
-    assert torch.equal(policy.reset.call_args.args[0], torch.ones(6, dtype=torch.bool))
+    policy.reset.assert_called_once_with()  # a full reset: adding a ghost changes a recurrent policy's batch size
 
 
 def test_without_a_pending_restart_nothing_is_reset():
@@ -225,3 +225,35 @@ def test_a_load_failure_is_reported_in_one_line():
 
     assert "does not fit this task" in _describe_load_error(mismatch)
     assert _describe_load_error(RuntimeError("file is corrupt\nmore detail")) == "file is corrupt"
+
+
+def test_a_resplit_failure_goes_back_to_the_previous_split_and_reports_it(monkeypatch):
+    session, sync = _start(monkeypatch, [None])
+    sync.side_effect = [ValueError("no room"), Mock()]  # the new split fails, restoring the old one succeeds
+
+    message = session.add_ghost(CHECKPOINT)
+
+    assert "no room" in message
+    assert not session.layout.slots[1].active and session.layout.slice_size == 6  # the previous split is back
+
+
+def test_a_load_failure_leaves_the_split_alone(monkeypatch):
+    session, sync = _start(monkeypatch, [None])
+    session._policy_factory = Mock(side_effect=RuntimeError("size mismatch"))
+
+    message = session.add_ghost(CHECKPOINT)
+
+    assert "does not fit this task" in message
+    sync.assert_not_called()  # nothing was split again, so nothing was torn down
+
+
+def test_changing_an_empty_slot_and_removing_an_empty_or_unknown_slot_do_nothing(monkeypatch):
+    session, sync = _start(monkeypatch, [None])
+
+    assert "empty slot" in session.replace_ghost(2, CHECKPOINT)
+    session.remove_ghost(2)
+    session.remove_ghost(99)
+    session.remove_ghost(0)
+
+    sync.assert_not_called()
+    assert not session._restart_pending or session.layout.slice_size == 6

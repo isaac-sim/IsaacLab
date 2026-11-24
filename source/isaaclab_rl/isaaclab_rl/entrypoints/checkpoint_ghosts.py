@@ -39,8 +39,8 @@ class CheckpointGhostPolicy(Protocol):
     def __call__(self, obs: Any) -> torch.Tensor:
         """Return actions for the slot's observations."""
 
-    def reset(self, dones: torch.Tensor) -> None:
-        """Reset recurrent state of the slot's environments that terminated."""
+    def reset(self, dones: torch.Tensor | None = None) -> None:
+        """Reset recurrent state of the environments that terminated, or of all of them when ``dones`` is None."""
 
 
 def _describe_load_error(error: Exception) -> str:
@@ -138,20 +138,25 @@ class CheckpointGhostSession(CheckpointGhostController):
             return "All ghost slots are in use."
         try:
             self._load(empty.index, checkpoint)
-            empty.visible = True
-            self._resplit()
         except Exception as error:  # a corrupt or mismatched checkpoint must not end the session
+            return f"Could not load {checkpoint.name}: {_describe_load_error(error)}"  # nothing changed yet
+        empty.visible = True
+        try:
+            self._resplit()
+        except Exception as error:  # the new split failed: go back to the previous one
             self._policies[empty.index] = None
             empty.checkpoint = None
             empty.label = ""
             self._resplit()
-            return f"Could not load {checkpoint.name}: {_describe_load_error(error)}"
+            return f"Could not add {checkpoint.name}: {error}"
         return None
 
     def replace_ghost(self, slot_index: int, checkpoint: CheckpointGhostCheckpoint) -> str | None:  # noqa: D102
         if not 1 <= slot_index < self.layout.num_slots:
             return "Only a ghost slot can be changed."
         slot = self.layout.slots[slot_index]
+        if not slot.active:
+            return "Only a loaded ghost can be changed; add a checkpoint to an empty slot instead."
         previous = (self._policies[slot_index], slot.checkpoint, slot.label)
         try:
             self._load(slot_index, checkpoint)
@@ -163,8 +168,8 @@ class CheckpointGhostSession(CheckpointGhostController):
         return None
 
     def remove_ghost(self, slot_index: int) -> None:  # noqa: D102
-        if slot_index < 1:
-            return
+        if not 1 <= slot_index < self.layout.num_slots or not self.layout.slots[slot_index].active:
+            return  # the reference cannot be removed, and an empty slot has nothing to free
         self._policies[slot_index] = None
         self.layout.slots[slot_index].checkpoint = None
         self.layout.slots[slot_index].label = ""
@@ -182,7 +187,7 @@ class CheckpointGhostSession(CheckpointGhostController):
         self._obs, _ = self._env.reset()
         for policy in self._policies:
             if policy is not None:
-                policy.reset(torch.ones(self.layout.slice_size, dtype=torch.bool, device=self._env.unwrapped.device))
+                policy.reset()  # a full reset, since adding or removing a ghost changes the policies' batch size
 
     def step(self) -> None:
         """Step the environment once, with each loaded slot acting on its own observations."""

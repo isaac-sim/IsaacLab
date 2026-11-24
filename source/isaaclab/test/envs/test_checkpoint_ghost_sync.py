@@ -60,6 +60,7 @@ def _make_env(num_envs: int = NUM_ENVS) -> SimpleNamespace:
         scene=_Scene(num_envs),
         command_manager=_CommandManager(num_envs),
         event_manager=object(),
+        extras={},
         reset_calls=[],
     )
 
@@ -295,3 +296,32 @@ def test_ghosts_draw_the_same_reset_randomization_as_their_reference() -> None:
     assert not torch.equal(sampled[:SLICE_SIZE], reference)  # the next reset draws new values: the stream moves on
     assert torch.equal(sampled[SLICE_SIZE : 2 * SLICE_SIZE], sampled[:SLICE_SIZE])
     sync.close()
+
+
+def test_the_reference_reset_keeps_its_own_log_after_the_ghost_resets() -> None:
+    env = _make_env()
+    reset_idx = env._reset_idx
+    calls = []
+
+    def reset_with_log(env_ids: torch.Tensor) -> None:
+        reset_idx(env_ids)
+        calls.append(env_ids.tolist())
+        env.extras["log"] = {"Episode_Reward/return": float(len(calls))}  # each call overwrites the log
+
+    env._reset_idx = reset_with_log
+    sync = CheckpointGhostSync(env, SLICE_SIZE, NUM_SLICES)
+
+    env._reset_idx(torch.arange(SLICE_SIZE))
+
+    assert len(calls) == NUM_SLICES and env.extras["log"] == {"Episode_Reward/return": 1.0}  # the reference's
+    sync.close()
+
+
+def test_configure_env_cfg_skips_an_observation_group_that_is_none() -> None:
+    cfg = SimpleNamespace(
+        events=None,
+        curriculum=None,
+        observations=SimpleNamespace(unused=None, policy=SimpleNamespace(enable_corruption=True)),
+    )
+
+    assert CheckpointGhostSync.configure_env_cfg(cfg) == ["observations.policy.enable_corruption"]

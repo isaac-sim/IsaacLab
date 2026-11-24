@@ -8,3 +8,5 @@
 * Fixed Checkpoint Ghosts running with different reset randomization than the reference, such as per-environment mass,
   friction, actuator gains, or a task's own sampled target. Each ghost slice now resets from the same random state as
   the reference, so it draws the reference's values.
+* Fixed the reference's episode log being overwritten by the ghost resets, and ``--checkpoint_ghosts`` failing on a task
+  with an observation group set to ``None``.
