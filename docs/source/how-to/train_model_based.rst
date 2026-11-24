@@ -173,12 +173,10 @@ position scaling; it outputs joint targets and the checkpoint's PD gains.
 Install Isaac ROS and the G1 driver as described in the
 :doc:`visual locomotion deployment guide </source/policy_deployment/07_g1_sim2real/training_and_deploying_a_g1_visual_locomotion_policy>`.
 The reference publisher also requires SciPy (``sudo apt-get install python3-scipy``).
-With Isaac ROS Deploy release 5.0, keep the Triton plugin loaded until shutdown.
 After sourcing the ROS environment, run:
 
 .. code-block:: bash
 
-   export LD_PRELOAD="$(ros2 pkg prefix isaac_ros_triton)/lib/libtriton_node.so${LD_PRELOAD:+:$LD_PRELOAD}"
    python3 scripts/deploy/g1_deploy.py \
        --pipeline exported/Isaac-Motion-Tracking-GenCoord-G1/Isaac-Motion-Tracking-GenCoord-G1.yaml \
        --interface <iface>
