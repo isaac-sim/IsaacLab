@@ -194,16 +194,16 @@ def test_render_var_prim_paths_cover_every_authored_render_var(camera_spec, rend
 @pytest.mark.parametrize(
     "max_envs, layout",
     [
-        *[(max_envs, [("RenderProduct", 0, 3, 2)]) for max_envs in ("all", 5, 8)],
+        *[(max_envs, [("RenderProduct", 0, 3, 2)]) for max_envs in ("auto", "all", 5, 8)],
         (2, [("RenderProduct_0", 0, 2, 1), ("RenderProduct_1", 2, 2, 1), ("RenderProduct_2", 4, 1, 1)]),
     ],
-    ids=["all", "equal", "larger", "split"],
+    ids=["auto", "all", "equal", "larger", "split"],
 )
 def test_render_products_author_one_atlas_per_environment_range(camera_spec, max_envs, layout):
     """Each render product has a contiguous range of environments, its own atlas and the RenderVars of the sensor.
 
-    With "all" or a limit not below the 5 environments, the sensor has one product with the plain name. This product
-    has all 5 environments in an atlas of 3 x 2 tiles.
+    With "auto", "all" or a limit not below the 5 environments, the sensor has one product with the plain name. This
+    product has all 5 environments in an atlas of 3 x 2 tiles.
     """
     paths = [f"/World/envs/env_{i}/Robot/head_cam" for i in range(5)]
     camera_spec = CameraRenderSpec(camera_spec.cfg, "cpu", 5, tuple(paths), 5)
