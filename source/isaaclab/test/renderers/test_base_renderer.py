@@ -95,3 +95,20 @@ def test_update_camera_forwards_to_subclass_update_sensor():
         renderer.update_camera("data", "pos", "quat", "K")
 
     assert renderer.received == ("data", "pos", "quat", "K")
+
+
+def test_legacy_extension_can_delegate_to_migrated_parent():
+    """Camera extensions can adjust a pose and pass it to the inherited backend."""
+
+    class Backend(_RendererStub):
+        def update_sensor(self, render_data, positions, orientations, intrinsics=None):
+            self.received = (render_data, positions, orientations, intrinsics)
+
+    class Extension(Backend):
+        def update_camera(self, render_data, positions, orientations, intrinsics):
+            super().update_camera(render_data, positions + 1, orientations, intrinsics)
+
+    renderer = Extension()
+    with pytest.warns(DeprecationWarning):
+        renderer.update_sensor("camera", 2, "quat", "K")
+    assert renderer.received == ("camera", 3, "quat", "K")

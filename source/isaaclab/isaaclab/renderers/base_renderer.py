@@ -40,19 +40,33 @@ class VisualMaterialBatch:
     values: torch.Tensor
 
 
-def _subclass_override(cls: type, name: str) -> Callable[..., Any] | None:
-    """Return the first method ``name`` defined on a subclass of :class:`BaseRenderer`."""
-    for klass in cls.__mro__:
-        if klass is BaseRenderer:
-            break
-        impl = klass.__dict__.get(name)
-        if impl is not None:
-            return impl
-    return None
-
-
 class BaseRenderer(ABC):
     """Abstract base class for renderer implementations."""
+
+    def __init_subclass__(cls, **kwargs):
+        """Keep both pose-update names at the same level in the method resolution order."""
+        super().__init_subclass__(**kwargs)
+        legacy = cls.__dict__.get("update_camera")
+        modern = cls.__dict__.get("update_sensor")
+        if legacy is not None and modern is None:
+
+            def update_sensor(self, render_data, positions, orientations, intrinsics=None):
+                warnings.warn(
+                    f"{cls.__name__}.update_camera is deprecated. Implement update_sensor instead.",
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
+                return legacy(self, render_data, positions, orientations, intrinsics)
+
+            cls.update_sensor = update_sensor
+        elif modern is not None and legacy is None:
+            # Bind this class's implementation so super().update_camera() advances to
+            # the parent even when the child overrides the legacy name.
+            @deprecated("BaseRenderer.update_camera is deprecated. Call update_sensor instead.")
+            def update_camera(self, render_data, positions, orientations, intrinsics=None):
+                return modern(self, render_data, positions, orientations, intrinsics)
+
+            cls.update_camera = update_camera
 
     def __init__(self, cfg: RendererCfg, *, sim: SimulationContext) -> None:
         """Bind this renderer to its owning simulation.
@@ -182,8 +196,10 @@ class BaseRenderer(ABC):
             intrinsics: Camera intrinsic matrices. Shape ``(N,)``, dtype ``wp.mat33f``.
                 Use ``.torch`` for a ``(N, 3, 3)`` tensor view. Optional initial calibration.
         """
-        return self.update_sensor(render_data, positions, orientations, intrinsics)
+        # Legacy implementations may end their cooperative super() chain here.
+        pass
 
+    @abstractmethod
     def update_sensor(
         self,
         render_data: Any,
@@ -208,16 +224,7 @@ class BaseRenderer(ABC):
             intrinsics: Camera intrinsic matrices. Shape ``(N,)``, dtype ``wp.mat33f``.
                 Use ``.torch`` for a ``(N, 3, 3)`` tensor view. Optional initial calibration.
         """
-        update_camera = _subclass_override(type(self), "update_camera")
-        if update_camera is not None:
-            warnings.warn(
-                f"{type(self).__name__}.update_camera is deprecated. Implement update_sensor instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            return update_camera(self, render_data, positions, orientations, intrinsics)
-
-        raise NotImplementedError(f"{type(self).__name__} must implement update_sensor.")
+        pass
 
     def update_camera_intrinsics(self, render_data: Any, intrinsics: wp.array, parameters: wp.array) -> None:
         """Apply a proposed runtime calibration without accessing the authored USD stage.
