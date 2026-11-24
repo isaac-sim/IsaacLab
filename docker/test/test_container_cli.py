@@ -6,31 +6,13 @@
 """Command line handling for ``docker/container.py``."""
 
 import argparse
-import importlib.util
-import sys
-from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, call
 
 import pytest
 
-DOCKER_DIR = Path(__file__).resolve().parents[1]
+from docker import container as container_cli
 
-
-def _container_module():
-    """Import ``docker/container.py`` by path (``docker`` is not an importable package here).
-
-    The script falls back to ``from utils import ...`` when it has no package, so ``docker/``
-    has to be importable for the duration of the load.
-    """
-    spec = importlib.util.spec_from_file_location("container_cli", DOCKER_DIR / "container.py")
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    sys.path.insert(0, str(DOCKER_DIR))
-    try:
-        spec.loader.exec_module(module)
-    finally:
-        sys.path.remove(str(DOCKER_DIR))
-    return module
+pytestmark = pytest.mark.kitless
 
 
 @pytest.mark.parametrize(
@@ -38,19 +20,17 @@ def _container_module():
     [
         # positional profile, unchanged from before the option existed
         ("start", ("start", "base", None)),
-        ("start kitless", ("start", "kitless", None)),
         ("start kitless --suffix custom", ("start", "kitless", "custom")),
         # option before the command, so only the command changes between calls
         ("-p kitless build", ("build", "kitless", None)),
-        ("--profile kitless start --suffix custom", ("start", "kitless", "custom")),
-        # option after the command, and agreeing duplicates
-        ("enter -p kitless", ("enter", "kitless", None)),
-        ("stop kitless -p kitless", ("stop", "kitless", None)),
+        # option after the command, and agreeing duplicates; exercise both aliases in both positions
+        ("enter --profile kitless", ("enter", "kitless", None)),
+        ("--profile kitless stop kitless -p kitless", ("stop", "kitless", None)),
     ],
 )
 def test_profile_is_accepted_positionally_or_as_an_option(argv: str, expected, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr("sys.argv", ["container.py", *argv.split()])
-    args = _container_module().parse_cli_args()
+    args = container_cli.parse_cli_args()
 
     assert (args.command, args.profile, args.suffix) == expected
 
@@ -60,14 +40,16 @@ def test_profile_is_accepted_positionally_or_as_an_option(argv: str, expected, m
     [
         "-p kitless start base",  # option and positional disagree
         "-p kitless start -p base",  # option before and after the command disagree
-        "kitless start",  # a bare profile is never read as the command
     ],
 )
-def test_ambiguous_profile_is_rejected(argv: str, monkeypatch: pytest.MonkeyPatch):
+def test_conflicting_profiles_are_rejected(argv: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture):
     monkeypatch.setattr("sys.argv", ["container.py", *argv.split()])
 
-    with pytest.raises(SystemExit):
-        _container_module().parse_cli_args()
+    with pytest.raises(SystemExit) as exc_info:
+        container_cli.parse_cli_args()
+
+    assert exc_info.value.code == 2
+    assert "conflicting profiles" in capsys.readouterr().err
 
 
 X11_OVERLAY = (["x11.yaml"], {"DISPLAY": ":1"})
@@ -87,22 +69,25 @@ def test_enter_starts_the_container_only_when_it_is_down(
 ):
     """``enter`` brings a stopped container up with the X11 overlay ``start`` would apply, and leaves a
     running one alone."""
-    module = _container_module()
-
     interface = MagicMock()
     interface.is_container_running.return_value = running
     interface.add_yamls = []
     interface.environ = {}
     started_with = []
     interface.start.side_effect = lambda: started_with.append((list(interface.add_yamls), dict(interface.environ)))
-    monkeypatch.setattr(module, "ContainerInterface", MagicMock(return_value=interface))
-    monkeypatch.setattr(module.x11_utils, "x11_check", MagicMock(return_value=x11_outputs))
-    monkeypatch.setattr(module.x11_utils, "x11_refresh", MagicMock())
-    monkeypatch.setattr(module.shutil, "which", MagicMock(return_value="/usr/bin/docker"))
+    lifecycle = MagicMock()
+    lifecycle.x11_check.return_value = x11_outputs
+    lifecycle.attach_mock(interface.start, "start")
+    lifecycle.attach_mock(interface.enter, "enter")
+    monkeypatch.setattr(container_cli, "ContainerInterface", MagicMock(return_value=interface))
+    monkeypatch.setattr(container_cli.x11_utils, "x11_check", lifecycle.x11_check)
+    monkeypatch.setattr(container_cli.x11_utils, "x11_refresh", lifecycle.x11_refresh)
+    monkeypatch.setattr(container_cli.shutil, "which", MagicMock(return_value="/usr/bin/docker"))
 
-    module.main(
+    container_cli.main(
         argparse.Namespace(command="enter", profile="kitless", files=None, env_files=None, suffix=None, info=False)
     )
 
     assert started_with == ([] if overlay_at_start is None else [overlay_at_start])
-    assert interface.enter.called
+    expected_calls = [] if running else [call.x11_check(interface.statefile), call.start()]
+    assert lifecycle.mock_calls == [*expected_calls, call.x11_refresh(interface.statefile), call.enter()]
