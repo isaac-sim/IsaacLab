@@ -44,7 +44,8 @@ Constructing :class:`FoveatedCamera` returns one of the following implementation
 Viewer Controls
 ---------------
 
-Each foveated camera adds these controls to the side panel of every Newton viewer window that shows it.
+Each foveated camera adds these controls to every Newton viewer window, below the Camera Source selector while it
+is the window's camera source.
 
 .. autoclass:: ViewerGazeControls
     :members: cmf_a_values

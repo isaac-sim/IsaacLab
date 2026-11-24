@@ -101,9 +101,9 @@ Use :attr:`~sensors.FoveatedCameraCfg.retinal_window_fraction` to shrink this wi
 :attr:`~sensors.FoveatedCameraCfg.image_rotation_deg` to compensate for mount roll.
 
 Call ``camera.set_gaze_angles(angles)`` with shape ``(num_envs, 2)`` in tilt, pan order and in degrees.
-Positive tilt looks up and positive pan looks left. While a Newton viewer window shows a foveated camera, its side
-panel has tilt and pan sliders for it, which follow its gaze and set it in every environment; a gaze action
-overrides them each step. A foveation slider beside them switches the CMF constant among
+Positive tilt looks up and positive pan looks left. While a foveated camera is a Newton viewer window's camera
+source, tilt and pan sliders for it appear below the Camera Source selector, which follow its gaze and set it in
+every environment; a gaze action overrides them each step. A foveation slider beside them switches the CMF constant among
 :attr:`~sensors.ViewerGazeControls.cmf_a_values`, which can be assigned to change the stops, with
 :meth:`~sensors.FoveatedCamera.set_cmf_a`, which re-samples the retina in place. That works on Newton for styles
 whose sample count does not depend on the constant, the warped-Cartesian and ``_fixn`` isotropic ones; OVRTX and

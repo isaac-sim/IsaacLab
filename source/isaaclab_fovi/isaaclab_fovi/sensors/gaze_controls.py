@@ -3,12 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Gaze sliders for foveated cameras in the side panel of Newton viewer windows."""
+"""Gaze and foveation controls for foveated cameras in the Camera Sensor section of Newton viewer windows."""
 
 from __future__ import annotations
 
 import weakref
-from functools import partial
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from isaaclab.sim import SimulationContext
@@ -23,10 +22,10 @@ GAZE_LIMIT_DEG = 90.0
 
 
 class ViewerGazeControls:
-    """Gaze and foveation controls for one foveated camera, in the side panel of each Newton viewer window that shows
-    it.
+    """Gaze and foveation controls for one foveated camera, in the Camera Sensor section of each Newton viewer window,
+    below its Camera Source selector.
 
-    A window draws the controls while its camera view shows the camera, so a camera the viewer cannot show, or another
+    A window draws the controls while the camera is its camera source, so a camera the viewer cannot show, or another
     camera chosen in the window's camera menu, has none. The tilt and pan sliders show the first environment's gaze
     every frame, so they follow whatever sets it, such as a gaze action or a drag in the viewer. Moving one sets that
     gaze in every environment; a gaze action that sets the gaze every step overrides them. The foveation slider steps
@@ -45,11 +44,10 @@ class ViewerGazeControls:
         The viewer cannot unregister a UI callback, so each window keeps a callback that then returns at once.
         """
         self._camera = weakref.ref(camera)
-        self._label = camera.cfg.prim_path.rsplit("/", 1)[-1]
         self._start_cmf_a = float(camera.cfg.cmf_a_deg)
         """The camera's starting CMF constant [deg], which stays a stop of the foveation slider after a switch."""
         self._windows: list[BaseVisualizer] = []
-        """The Newton viewer windows that draw the controls while they show the camera."""
+        """The Newton viewer windows that draw the controls while the camera is their source."""
 
     def attach(self, sim: SimulationContext) -> None:
         """Add the controls to every Newton viewer window of ``sim`` that does not have them yet."""
@@ -58,21 +56,18 @@ class ViewerGazeControls:
                 window is not visualizer for window in self._windows
             ):
                 self._windows.append(visualizer)
-                visualizer.register_ui_callback(partial(self._render, visualizer), position="side")
+                visualizer.register_sensor_ui_callback(self._render)
 
-    def _render(self, window: BaseVisualizer, imgui: Any) -> None:
-        """Draw the controls in the side panel of ``window`` while its camera view shows the camera."""
+    def _render(self, imgui: Any, sensor: Any) -> None:
+        """Draw the controls in a window's Camera Sensor section while ``sensor``, its camera source, is the camera."""
         camera = self._camera()
-        if camera is None or not camera.is_initialized:
+        if camera is None or sensor is not camera or not camera.is_initialized:
             return
-        view = window.current_image_view
-        if view is None or view.camera is not camera:
-            return
-        # Each camera's widgets share labels, so they need their own ID scope; a header does not open one.
+        # Each camera's widgets share labels, so they need their own ID scope.
         imgui.push_id(f"isaaclab_fovi.viewer_gaze_controls.{id(self)}")
         try:
-            if imgui.collapsing_header(f"Foveated camera: {self._label}"):
-                self._draw_controls(imgui, camera)
+            imgui.separator_text("Foveated Camera")
+            self._draw_controls(imgui, camera)
         finally:
             imgui.pop_id()
 
@@ -121,7 +116,7 @@ class ViewerGazeControls:
 
 def add_viewer_gaze_controls(camera: FoveatedCamera) -> None:
     """Add ``camera``'s controls to the Newton viewer windows of every simulation reset while it exists; a window
-    draws them while it shows the camera."""
+    draws them while the camera is its camera source."""
     controls = ViewerGazeControls(camera)
     name = f"isaaclab_fovi.viewer_gaze_controls.{id(controls)}"
     SimulationContext.add_reset_callback(name, controls.attach)
