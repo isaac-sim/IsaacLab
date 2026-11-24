@@ -541,6 +541,7 @@ def _step_teleop(env, action: torch.Tensor, *, recorder: EpisodeRecorder):
         record_initial_state(recorder, env, reset_env_ids)
 
     # -- handle episode reset requested from visualizer UI controls
+    manual_reset_ids = reset_env_ids[:0]
     if env.sim.consume_reset_request():
         # Only reset envs not already reset this step to avoid redundant resets.
         not_yet_reset = torch.ones(env.num_envs, dtype=torch.bool, device=env.device)
@@ -553,6 +554,9 @@ def _step_teleop(env, action: torch.Tensor, *, recorder: EpisodeRecorder):
             recorder.export_episodes(manual_reset_ids)
             env._reset_idx(manual_reset_ids)
             record_initial_state(recorder, env, manual_reset_ids)
+
+    if len(reset_env_ids) > 0 or len(manual_reset_ids) > 0:
+        env.sim.forward()
 
     env.command_manager.compute(dt=env.step_dt)
     if "interval" in env.event_manager.active_terms:
@@ -1002,7 +1006,9 @@ def main() -> None:
     output_dir, output_file_name = setup_output_directories()
 
     # Create and configure environment
-    env_cfg, success_term, teleop_cfg, selected_cameras, recorder_cfg = create_environment_config(output_dir, output_file_name)
+    env_cfg, success_term, teleop_cfg, selected_cameras, recorder_cfg = create_environment_config(
+        output_dir, output_file_name
+    )
 
     with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
         record_demos(env_cfg, success_term, teleop_cfg, recorder_cfg, cleanup, selected_cameras=selected_cameras)
@@ -1042,7 +1048,7 @@ def record_demos(
     )
     if args_cli.using_ovxr:
         current_recorded_demo_count = _record_ovxr_demos(
-            env_cfg, success_term, teleop_cfg, camera_feed_session, selected_cameras
+            env_cfg, success_term, teleop_cfg, recorder_cfg, camera_feed_session, selected_cameras
         )
         print(f"Recording session completed with {current_recorded_demo_count} successful demonstrations")
         print(f"Demonstrations saved to: {args_cli.dataset_file}")
@@ -1098,6 +1104,7 @@ def _record_ovxr_demos(
     env_cfg: ManagerBasedRLEnvCfg,
     success_term: object | None,
     teleop_cfg: IsaacTeleopCfg,
+    recorder_cfg: EpisodeRecorderCfg,
     camera_feed_session: "XrCameraFeedSession",
     selected_cameras: tuple[OvLibrariesXrCameraFeedCfg, ...],
 ) -> int:
@@ -1112,6 +1119,7 @@ def _record_ovxr_demos(
 
     previous_context = SimulationContext.instance()
     env = None
+    recorder = None
     presentation = None
     shutdown_signals = OvxrShutdownSignals()
     try:
@@ -1129,8 +1137,14 @@ def _record_ovxr_demos(
             # Cleanup below keeps this error; the command must not report success.
             logger.exception("Failed to create environment")
             raise
+        recorder = EpisodeRecorder(
+            recorder_cfg, env.num_envs, env.device, env_name=args_cli.task, env_metadata=get_episode_metadata(env)
+        )
+        env.sim.backend_manager.set_decimation(1)
+        env.step = MethodType(partial(_step_teleop, recorder=recorder), env)
         return run_simulation_loop(
             env,
+            recorder,
             success_term,
             None,
             camera_feed_session,
@@ -1140,6 +1154,8 @@ def _record_ovxr_demos(
         )
     finally:
         shutdown_signals.shutting_down = True
+        if recorder is not None:
+            recorder.close()
         close_teleop_resources(
             env,
             camera_feed_session,

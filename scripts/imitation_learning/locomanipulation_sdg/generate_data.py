@@ -896,6 +896,7 @@ def _step_replay(env, action: torch.Tensor, *, recorder: EpisodeRecorder):
         record_initial_state(recorder, env, reset_env_ids)
 
     # -- handle episode reset requested from visualizer UI controls
+    manual_reset_ids = reset_env_ids[:0]
     if env.sim.consume_reset_request():
         # Only reset envs not already reset this step to avoid redundant resets.
         not_yet_reset = torch.ones(env.num_envs, dtype=torch.bool, device=env.device)
@@ -908,6 +909,9 @@ def _step_replay(env, action: torch.Tensor, *, recorder: EpisodeRecorder):
             recorder.export_episodes(manual_reset_ids)
             env._reset_idx(manual_reset_ids)
             record_initial_state(recorder, env, manual_reset_ids)
+
+    if len(reset_env_ids) > 0 or len(manual_reset_ids) > 0:
+        env.sim.forward()
 
     env.command_manager.compute(dt=env.step_dt)
     if "interval" in env.event_manager.active_terms:

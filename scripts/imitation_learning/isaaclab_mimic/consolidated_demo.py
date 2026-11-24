@@ -276,6 +276,7 @@ def _step_consolidated_demo(env, action: torch.Tensor, *, recorder: EpisodeRecor
         recorder.set_success_to_episodes(env_ids, torch.zeros_like(env_ids, dtype=torch.bool))
         recorder.export_episodes(env_ids)
         env._reset_idx(env_ids)
+        env.sim.forward()
         record_initial_state(recorder, env, env_ids)
 
     env.command_manager.compute(dt=env.step_dt)

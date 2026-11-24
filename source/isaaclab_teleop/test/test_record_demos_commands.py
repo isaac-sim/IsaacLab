@@ -43,7 +43,7 @@ def test_recording_runs_task_action_policy_on_kitless_physics(monkeypatch, tmp_p
 
     monkeypatch.setattr(sys, "argv", ["record_demos.py"])
     record_demos._parse_args(["--task", task, "--physics", backend, "--renderer", "ovrtx"])
-    cfg, _, teleop_cfg, _ = record_demos.create_environment_config(str(tmp_path), "policy")
+    cfg, _, teleop_cfg, _, _ = record_demos.create_environment_config(str(tmp_path), "policy")
     assert teleop_cfg is cfg.isaac_teleop
     if "GR1T2" in task:
         assert teleop_cfg.require_initial_bimanual_hand_tracking
@@ -68,16 +68,17 @@ def test_recording_reset_notifies_teleop_after_environment_reset(monkeypatch):
 
     calls = []
     monkeypatch.setattr(record_demos, "args_cli", SimpleNamespace(reset_sim_buffer_each_episode=False), raising=False)
-    env = SimpleNamespace(
-        recorder_manager=SimpleNamespace(reset=lambda: calls.append("recorder-reset")),
-        reset=lambda: calls.append("env-reset"),
-    )
+    env = SimpleNamespace(reset=lambda: calls.append("env-reset"))
+    recorder = SimpleNamespace(reset=lambda: calls.append("recorder-reset"))
+    monkeypatch.setattr(record_demos, "record_initial_state", lambda recorder, env: calls.append("capture-initial"))
     device = SimpleNamespace(
         reset=lambda: calls.append("device-reset"), notify_reset=lambda: calls.append("device-notify-reset")
     )
 
-    assert record_demos.handle_reset(env, 3, SimpleNamespace(show_demo=lambda _text: None), "label", device) == 0
-    assert calls == ["recorder-reset", "env-reset", "device-reset", "device-notify-reset"]
+    assert (
+        record_demos.handle_reset(env, recorder, 3, SimpleNamespace(show_demo=lambda _text: None), "label", device) == 0
+    )
+    assert calls == ["recorder-reset", "env-reset", "capture-initial", "device-reset", "device-notify-reset"]
 
 
 @pytest.mark.parametrize(

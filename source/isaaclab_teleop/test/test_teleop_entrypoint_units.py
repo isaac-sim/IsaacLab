@@ -457,6 +457,14 @@ def run_record_workflow(monkeypatch):
         vars(session).setdefault("close", lambda: events.append("xr-close"))
         vars(session).setdefault("report_host_timing", lambda *_args: None)
         env.unwrapped = env
+        recorder = SimpleNamespace(reset=lambda: events.append("recorder-reset"), exported_successful_episode_count=0)
+        recorder.close = lambda: None
+        monkeypatch.setattr(record_demos, "EpisodeRecorder", lambda *_args, **_kwargs: recorder)
+        monkeypatch.setattr(record_demos, "get_episode_metadata", lambda _env: {})
+        monkeypatch.setattr(record_demos, "record_initial_state", lambda *_args: None)
+        monkeypatch.setattr(record_demos, "MethodType", lambda _step, _env: env.step)
+        env.device = "cpu"
+        env.sim.backend_manager = SimpleNamespace(set_decimation=lambda _value: None)
         monkeypatch.setattr(
             record_demos,
             "args_cli",
@@ -473,7 +481,7 @@ def run_record_workflow(monkeypatch):
         teleop_cfg = isaaclab_teleop.IsaacTeleopCfg() if teleop_cfg is None else teleop_cfg
         cfg = SimpleNamespace(sim=object(), isaac_teleop=teleop_cfg)
         with contextlib.ExitStack() as cleanup:
-            record_demos.record_demos(cfg, None, teleop_cfg, cleanup)
+            record_demos.record_demos(cfg, None, teleop_cfg, record_demos.EpisodeRecorderCfg(), cleanup)
 
     return run
 
@@ -560,9 +568,6 @@ def test_record_ovxr_loop_follows_live_presentation_and_shutdown_order(run_recor
             get_physics_dt=lambda: 0.01,
             render=lambda: fail("OVXR owns rendering; the control thread must not render"),
             reset=lambda: fail("A stage leased to OVXR must not be rebuilt"),
-        ),
-        recorder_manager=SimpleNamespace(
-            reset=lambda: events.append("recorder-reset"), exported_successful_episode_count=0
         ),
         reset=lambda: events.append("env-reset"),
         step=step,
@@ -737,7 +742,6 @@ def test_record_loop_applies_task_action_policy_like_live(run_record_workflow, c
             render=lambda: fail("OVXR owns rendering; a rejected frame must not render on the control thread"),
             reset=lambda: fail("Kitless physics must not be rebuilt"),
         ),
-        recorder_manager=SimpleNamespace(reset=lambda: None, exported_successful_episode_count=0),
         reset=lambda: events.append("env-reset"),
         step=step,
         close=lambda: None,
@@ -984,7 +988,7 @@ def test_recorded_environment_reset_preserves_backend_policy_and_hand_cursor(mon
     recorded = ["sim-reset"] if hard_reset else []
     # The recorded RESET was already consumed by the control channel, so only the
     # notification resets retargeters and withholds pre-reset actions.
-    recorded += ["recorder-reset", "env-reset", "device-reset", "device-notify-reset", "start"]
+    recorded += ["env-reset", "device-reset", "device-notify-reset", "start"]
     if viewer:
         recorded.append("publish-reset")
     assert calls == initial + recorded

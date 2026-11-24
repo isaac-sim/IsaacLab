@@ -266,10 +266,10 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
                 # mark as terminated so RL wrappers observe the episode boundary
                 index_fill_(self.reset_terminated, manual_reset_ids, True)
                 self._reset_idx(manual_reset_ids)
+
         if len(reset_env_ids) > 0 or len(manual_reset_ids) > 0:
             # Reset writes invalidate derived body poses used by observations and rewards.
             self.sim.forward()
-
 
         self.command_manager.compute(dt=self.step_dt)
         if "interval" in self.event_manager.active_terms:
