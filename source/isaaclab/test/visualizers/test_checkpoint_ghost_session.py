@@ -13,9 +13,9 @@ from unittest.mock import Mock
 import pytest
 import torch
 
+from isaaclab.visualizers import checkpoint_ghost_session as checkpoint_ghosts
 from isaaclab.visualizers.checkpoint_ghost import CheckpointGhostCheckpoint, CheckpointGhostLayout
-
-from isaaclab_rl.entrypoints.checkpoint_ghosts import CheckpointGhostSession
+from isaaclab.visualizers.checkpoint_ghost_session import CheckpointGhostSession
 
 CHECKPOINT = CheckpointGhostCheckpoint("/runs/a/model_1.pt", "a", "model_1.pt", 0.0)
 
@@ -121,8 +121,6 @@ def test_a_ghost_policy_resets_with_its_reference(dones, expected):
 
 
 def _start(monkeypatch, observations):
-    from isaaclab_rl.entrypoints import checkpoint_ghosts
-
     sync = Mock()
     monkeypatch.setattr(checkpoint_ghosts, "CheckpointGhostSync", sync)
     env = Mock(unwrapped=SimpleNamespace(device="cpu", step_dt=0.02, num_envs=6))
@@ -200,26 +198,8 @@ def test_browsing_an_unreadable_directory_raises_os_error(tmp_path):
         session.browse(str(tmp_path / "missing"))
 
 
-def test_a_run_of_another_task_is_named_and_a_matching_or_unknown_directory_is_not(tmp_path):
-    import json
-
-    session, _, _ = _session(pending=False)
-    session._task = "Isaac-Reach-Franka"
-    for name, task in (("same", "isaac:Isaac-Reach-Franka"), ("osc", "Isaac-Reach-Franka-OSC")):
-        (tmp_path / name).mkdir()
-        (tmp_path / name / "run.json").write_text(json.dumps({"task": task}))
-    (tmp_path / "plain").mkdir()
-    (tmp_path / "bad").mkdir()
-    (tmp_path / "bad" / "run.json").write_text("not json")
-
-    assert session.other_task(str(tmp_path / "osc")) == "Isaac-Reach-Franka-OSC"
-    assert session.other_task(str(tmp_path / "same")) is None  # a namespace prefix does not make it another task
-    assert session.other_task(str(tmp_path / "plain")) is None
-    assert session.other_task(str(tmp_path / "bad")) is None
-
-
 def test_a_load_failure_is_reported_in_one_line():
-    from isaaclab_rl.entrypoints.checkpoint_ghosts import _describe_load_error
+    from isaaclab.visualizers.checkpoint_ghost_session import _describe_load_error
 
     mismatch = RuntimeError("Error(s) in loading state_dict:\n size mismatch for mlp.0.weight: copying a param")
 
@@ -257,3 +237,17 @@ def test_changing_an_empty_slot_and_removing_an_empty_or_unknown_slot_do_nothing
 
     sync.assert_not_called()
     assert not session._restart_pending or session.layout.slice_size == 6
+
+
+def test_a_run_of_another_task_is_named_and_a_matching_or_unknown_directory_is_not():
+    session, _, _ = _session(pending=False)
+    session._task = "Isaac-Reach-Franka"
+    tasks = {"/runs/osc": "Isaac-Reach-Franka-OSC", "/runs/same": "isaac:Isaac-Reach-Franka", "/runs/plain": None}
+    session._run_task = tasks.get
+
+    assert session.other_task("/runs/osc") == "Isaac-Reach-Franka-OSC"
+    assert session.other_task("/runs/same") is None  # a namespace prefix does not make it another task
+    assert session.other_task("/runs/plain") is None
+
+    session._run_task = None  # without a reader, no run is flagged
+    assert session.other_task("/runs/osc") is None

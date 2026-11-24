@@ -122,3 +122,16 @@ def test_the_session_is_closed_when_no_viewer_can_attach(monkeypatch):
         )
 
     session.close.assert_called_once()  # its reset and command hooks must not stay installed
+
+
+def test_the_task_of_a_run_is_read_from_its_manifest(tmp_path):
+    import json
+
+    (tmp_path / "run").mkdir()
+    (tmp_path / "run" / "run.json").write_text(json.dumps({"task": "Isaac-Reach-Franka-OSC"}))
+    (tmp_path / "bad").mkdir()
+    (tmp_path / "bad" / "run.json").write_text("not json")
+
+    assert play_rsl_rl._run_task(str(tmp_path / "run")) == "Isaac-Reach-Franka-OSC"
+    assert play_rsl_rl._run_task(str(tmp_path / "bad")) is None
+    assert play_rsl_rl._run_task(str(tmp_path / "missing")) is None

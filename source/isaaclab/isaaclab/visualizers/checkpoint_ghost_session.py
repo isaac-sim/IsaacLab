@@ -5,16 +5,14 @@
 
 """Playback of several checkpoints of one task side by side as Checkpoint Ghosts.
 
-Only RSL-RL is supported for now. The session drives each slot through RSL-RL's pieces: the vectorized-environment
-wrapper (``step`` returning observations, rewards, dones and extras, plus ``get_observations`` and ``num_actions``), an
-inference policy obtained from a runner with ``runner.get_inference_policy``, and ``model_*.pt`` checkpoint files. Other
-libraries differ in each of these (rl_games, skrl and Stable-Baselines3 wrap environments, call policies, and name or
-store checkpoints differently), so each needs a small adapter before it can share this session.
+The session does not depend on a training library. It needs an environment wrapper whose ``step`` returns
+observations, rewards, dones and extras and that has ``get_observations``, ``reset`` and ``num_actions``, plus a
+``policy_factory`` that turns a checkpoint file into a callable policy with a ``reset`` method. A library's play entry
+point supplies those, so supporting another library means writing that wiring. Only RSL-RL provides it for now.
 """
 
 from __future__ import annotations
 
-import json
 import logging
 import re
 import time
@@ -26,13 +24,8 @@ import numpy as np
 import torch
 
 from isaaclab.envs.utils.checkpoint_ghost_sync import CheckpointGhostSync
-from isaaclab.visualizers.checkpoint_ghost import (
-    CheckpointGhostCheckpoint,
-    CheckpointGhostController,
-    CheckpointGhostLayout,
-)
 
-from .common import RUN_MANIFEST_FILENAME, _natural_sort_key, normalize_task_name
+from .checkpoint_ghost import CheckpointGhostCheckpoint, CheckpointGhostController, CheckpointGhostLayout
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +41,16 @@ class CheckpointGhostPolicy(Protocol):
 
     def reset(self, dones: torch.Tensor | None = None) -> None:
         """Reset recurrent state of the environments that terminated, or of all of them when ``dones`` is None."""
+
+
+def _task_name(task: str) -> str:
+    """Return a task id without its namespace prefix."""
+    return task.split(":")[-1]
+
+
+def _natural_sort_key(value: str) -> list[int | str]:
+    """Order file names such as ``model_9.pt`` before ``model_10.pt``."""
+    return [int(part) if part.isdigit() else part for part in re.split(r"(\d+)", value)]
 
 
 def _describe_load_error(error: Exception) -> str:
@@ -80,6 +83,7 @@ class CheckpointGhostSession(CheckpointGhostController):
         checkpoint_pattern: str,
         policy_factory: Callable[[str], CheckpointGhostPolicy],
         reference: CheckpointGhostCheckpoint,
+        run_task: Callable[[str], str | None] | None = None,
     ):
         """Create the session and load the reference checkpoint.
 
@@ -91,13 +95,16 @@ class CheckpointGhostSession(CheckpointGhostController):
             checkpoint_pattern: Regular expression matching checkpoint file names.
             policy_factory: Builds the inference policy of a checkpoint file.
             reference: Checkpoint driving slot 0.
+            run_task: Returns the task of the training run saved in a directory, or None when it is not a run. Without
+                it, the checkpoint window does not flag runs of other tasks.
         """
         if not 2 <= num_slots <= MAX_CHECKPOINT_GHOST_SLOTS:
             raise ValueError(f"Checkpoint Ghosts support 2 to {MAX_CHECKPOINT_GHOST_SLOTS} slots, got {num_slots}.")
         self.layout = CheckpointGhostLayout(env.unwrapped.num_envs, num_slots)
         self._env = env
         self._root = checkpoint_root
-        self._task = normalize_task_name(task)
+        self._task = _task_name(task)
+        self._run_task = run_task
         self._pattern = checkpoint_pattern
         self._policy_factory = policy_factory
         self._policies: list[CheckpointGhostPolicy | None] = [None] * num_slots
@@ -132,12 +139,8 @@ class CheckpointGhostSession(CheckpointGhostController):
         ]
 
     def other_task(self, directory: str) -> str | None:  # noqa: D102
-        try:
-            manifest = json.loads((Path(directory) / RUN_MANIFEST_FILENAME).read_text(encoding="utf-8"))
-            task = manifest["task"]
-        except (OSError, ValueError, KeyError, TypeError):
-            return None  # not a run directory, or one without a readable manifest
-        return task if isinstance(task, str) and normalize_task_name(task) != self._task else None
+        task = self._run_task(directory) if self._run_task is not None else None
+        return task if isinstance(task, str) and _task_name(task) != self._task else None
 
     def add_ghost(self, checkpoint: CheckpointGhostCheckpoint) -> str | None:  # noqa: D102
         empty = next((s for s in self.layout.slots[1:] if not s.active), None)

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import json
 import logging
 import os
 from pathlib import Path
@@ -20,18 +21,16 @@ from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.string import list_intersection
 from isaaclab.visualizers.checkpoint_ghost import CheckpointGhostCheckpoint
+from isaaclab.visualizers.checkpoint_ghost_session import MAX_CHECKPOINT_GHOST_SLOTS, CheckpointGhostSession
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import get_checkpoint_path, resolve_task_config, setup_preset_cli
 
 from ...rsl_rl import RslRlBaseRunnerCfg, RslRlSacRunnerCfg, RslRlVecEnvWrapper
 from ...utils.wandb import is_wandb_checkpoint, resolve_wandb_checkpoint
-from ..checkpoint_ghosts import (
-    MAX_CHECKPOINT_GHOST_SLOTS,
-    CheckpointGhostSession,
-)
 from ..common import (
     CHECKPOINT_SELECTORS,
+    RUN_MANIFEST_FILENAME,
     add_common_play_args,
     apply_env_overrides,
     apply_video_recording,
@@ -136,6 +135,14 @@ def _resolve_checkpoint(
     return get_checkpoint_path(log_root_path, agent_cfg.load_run, agent_cfg.load_checkpoint)
 
 
+def _run_task(directory: str) -> str | None:
+    """Return the task named by the run manifest in ``directory``, or None when it is not a training run."""
+    try:
+        return json.loads((Path(directory) / RUN_MANIFEST_FILENAME).read_text(encoding="utf-8"))["task"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
 def create_checkpoint_ghost_session(
     env: RslRlVecEnvWrapper,
     args_cli: argparse.Namespace,
@@ -144,7 +151,13 @@ def create_checkpoint_ghost_session(
     log_root_path: str,
     num_slots: int,
 ) -> CheckpointGhostSession:
-    """Build a Checkpoint Ghost session whose reference slot plays ``reference_path``."""
+    """Build a Checkpoint Ghost session whose reference slot plays ``reference_path``.
+
+    Checkpoint Ghosts are available for RSL-RL only because this function is the RSL-RL wiring of an otherwise
+    library-independent session: the environment wrapper it drives (``RslRlVecEnvWrapper``), the policy factory below
+    (a runner's ``get_inference_policy``), and the ``model_*.pt`` checkpoint files. rl_games, skrl and SB3 wrap
+    environments, call policies, and store checkpoints differently, so each needs its own version of this wiring.
+    """
 
     def policy_factory(path: str):
         runner = create_rsl_rl_runner(env, agent_cfg, inference=True)
@@ -162,6 +175,7 @@ def create_checkpoint_ghost_session(
         reference=CheckpointGhostCheckpoint(
             reference_path, reference_file.parent.name, reference_file.name, reference_file.stat().st_mtime
         ),
+        run_task=_run_task,
     )
 
 
