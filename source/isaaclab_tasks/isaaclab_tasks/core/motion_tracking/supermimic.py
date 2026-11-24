@@ -375,7 +375,12 @@ class MotionTrackingTask(DifferentiableTask):
         return torch.cat((torch.log1p(context), prev_actions.flatten(-2)), dim=-1)
 
     def critic_obs(
-        self, state: State, goal: torch.Tensor, context: torch.Tensor, prev_actions: torch.Tensor
+        self,
+        state: State,
+        goal: torch.Tensor,
+        context: torch.Tensor,
+        prev_actions: torch.Tensor,
+        history: torch.Tensor | None = None,
     ) -> torch.Tensor:
         """Give the critic the physical state, the reference command and anchor, and the dynamics context."""
         frame = self._frame(goal)
