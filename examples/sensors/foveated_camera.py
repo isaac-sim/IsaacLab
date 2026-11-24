@@ -28,13 +28,14 @@ import logging
 import math
 import time
 from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 import gymnasium as gym
 import numpy as np
 import torch
 import warp as wp
 from fovi.sensing.projection import gaze_rotation
-from isaaclab_fovi.sensors import FoveatedCamera, FoveatedCameraCfg
+from isaaclab_fovi.sensors import FoveatedCameraCfg
 from isaaclab_fovi.sensors.native_grid import GRID_STYLE, native_grid_exit_uv
 from isaaclab_isaacsim.physics import PhysxCfg
 from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
@@ -42,8 +43,6 @@ from isaaclab_newton.physics import NewtonCfg, XPBDSolverCfg
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
 from PIL import Image, ImageDraw, ImageFont
-
-from pxr import Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
 from isaaclab.app import add_launcher_args, launch_simulation
@@ -60,11 +59,17 @@ from isaaclab.utils.math import (
     quat_apply_inverse,
     quat_from_matrix,
 )
-from isaaclab.visualizers import BaseVisualizer, SceneCameraCfg, VisualizerCfg
+from isaaclab.visualizers import SceneCameraCfg, VisualizerCfg
 
 from isaaclab_tasks.utils import preset, setup_preset_cli
 from isaaclab_tasks.utils.hydra import resolve_task_config
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
+
+if TYPE_CHECKING:
+    # Importing the runtime classes loads USD, which must come from Kit when the selected backends start it.
+    from isaaclab_fovi.sensors import FoveatedCamera
+
+    from isaaclab.visualizers import BaseVisualizer
 
 logger = logging.getLogger("isaaclab.examples.foveated_camera")
 
@@ -140,6 +145,9 @@ def _eye_rotation() -> torch.Tensor:
 
 def _add_clutter(scene_cfg: InteractiveSceneCfg) -> dict[str, tuple[float, float, float]]:
     """Place the docs assets on the ground and return their centres in the scene frame."""
+    # USD comes from Kit when the selected backends start it, so it is imported once the simulation has launched.
+    from pxr import Usd, UsdGeom
+
     centres = {}
     for name, (usd, azimuth, distance) in OBJECTS.items():
         stage = Usd.Stage.Open(retrieve_file_path(usd))
