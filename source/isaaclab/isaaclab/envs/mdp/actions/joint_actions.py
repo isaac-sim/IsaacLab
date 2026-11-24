@@ -44,12 +44,8 @@ class JointAction(ActionTerm):
     units and dimensions. The child classes of this action term can then map the output action to a specific
     desired command of the articulation's joints (e.g. position, velocity, etc.).
 
-    By default one command per joint holds for all ``decimation`` physics steps of an environment step. With
-    :attr:`~JointActionCfg.chunk_length` above one, the action is a chunk of commands, ordered by command, then by
-    joint, that apply in order, each for ``decimation / chunk_length`` physics steps, so a policy that plans a chunk
-    of future commands acts once per chunk. Scale, offset and clip apply to each command, and
-    :attr:`processed_actions` holds all of them. The physics-step counter stays on the device, so a physics backend
-    that records :meth:`apply_actions` once and replays it on every physics step applies the right command each time.
+    With :attr:`~JointActionCfg.chunk_length` above one, the action is a chunk of commands that apply in order over
+    the physics steps of an environment step; see the "Applying action chunks" how-to guide.
     """
 
     cfg: actions_cfg.JointActionCfg
@@ -241,7 +237,8 @@ class JointAction(ActionTerm):
         # flat like every term's processed actions, so recorders concatenate the terms
         self._processed_actions = torch.zeros(self.num_envs, steps * self._num_joints, device=self.device)
         self._chunk = self._processed_actions.view(self.num_envs, steps, self._num_joints)
-        # the physics step since the action, and the command that step applies
+        # the physics step since the action, and the command that step applies; the counter stays on the device so a
+        # backend that records apply_actions once and replays it every physics step applies the right command
         self._physics_step = torch.zeros(1, dtype=torch.long, device=self.device)
         self._index = torch.zeros_like(self._physics_step)
         self._command = torch.zeros(self.num_envs, 1, self._num_joints, device=self.device)
