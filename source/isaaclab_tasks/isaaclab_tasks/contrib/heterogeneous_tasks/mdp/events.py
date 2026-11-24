@@ -34,7 +34,11 @@ if TYPE_CHECKING:
 
 
 class Task(NamedTuple):
-    """One available instruction bound to two distinct object instances in a world."""
+    """One available instruction of a world.
+
+    ``object`` and ``target`` name the first pair of bodies that the instruction can refer to. Every object of the
+    object's name counts for it, and every target of the target's name.
+    """
 
     family: str
     object: str
@@ -119,9 +123,11 @@ class reset_tabletop(ManagerTermBase):
     robot and actual collision shapes without stepping physics. Infeasible placements raise instead of
     accepting overlaps.
 
-    ``env.tabletop.available_tasks[world]`` lists category- and size-compatible bindings whose instruction
-    singles out its object and its target: instructions name objects in plain words, without asset codes, so a
-    world that holds two objects of one name offers no task for them. With ``graspable_size``, the bound object
+    ``env.tabletop.available_tasks[world]`` lists the instructions that category- and size-compatible pairs of
+    the world's objects afford. Instructions name objects in plain words, by the ``name`` semantic tag of the asset
+    or else its catalog label without asset codes. A world that holds several objects of one name offers one task
+    for them: any of those objects and any of those targets counts (``object_mask`` and ``target_mask``), while
+    ``object_ids`` and ``target_ids`` give the first such pair. With ``graspable_size``, the bound object
     also has to suit the gripper: (smallest extent, narrowest horizontal extent) limits [m], below which the
     gripper cannot pinch the object and above which it does not fit between the open fingers. A reset chooses one unless
     :meth:`set_task` requests a particular binding. A world with no available task has an empty instruction
@@ -164,28 +170,31 @@ class reset_tabletop(ManagerTermBase):
             if label not in cache:
                 cache[label] = _collision_geometry(spawn)
             geometry[int(prototype)] = cache[label]
-            metadata[int(prototype)] = (label, {value for key, value in tags if key == "category"})
+            name = next((value for key, value in tags if key == "name"), None) or _plain_name(label)
+            metadata[int(prototype)] = (label, {value for key, value in tags if key == "category"}, name)
         bounds = np.zeros((env.num_envs, len(self.names), 2, 3), dtype=np.float32)
         active = np.zeros((env.num_envs, len(self.names)), dtype=bool)
         vertices = max(len(polygon) for _, polygon in geometry.values())
         footprints = np.zeros((env.num_envs, len(self.names), vertices, 3), dtype=np.float32)
-        labels, categories = [], []
+        labels, categories, spoken = [], [], []
         for world, composition in enumerate(topology.world_prototype_layout):
             start, end = topology.world_prototype_starts[composition + 1 : composition + 3]
             world_labels, world_categories = [""] * len(self.names), [set() for _ in self.names]
+            world_names = [""] * len(self.names)
             for prototype in topology.world_prototypes[start:end]:
                 declaration = plan.asset_cfgs[prototype]
                 if declaration.prim_path not in slots:
                     continue
                 slot = slots[declaration.prim_path]
-                label, tags = metadata[int(prototype)]
+                label, tags, name = metadata[int(prototype)]
                 bounds[world, slot], polygon = geometry[int(prototype)]
                 footprints[world, slot, :, :2] = polygon[-1]
                 footprints[world, slot, : len(polygon), :2] = polygon
                 active[world, slot] = label != "__empty__"
-                world_labels[slot], world_categories[slot] = label, tags
+                world_labels[slot], world_categories[slot], world_names[slot] = label, tags, name
             labels.append(world_labels)
             categories.append(world_categories)
+            spoken.append(world_names)
         self.object_names = tuple(tuple(row) for row in labels)
         self.active = torch.as_tensor(active, device=env.device)
         corners = np.array(list(itertools.product((0, 1), repeat=3)))
@@ -193,15 +202,16 @@ class reset_tabletop(ManagerTermBase):
         self.local_bounds = torch.as_tensor(bounds, device=env.device)
         self.local_footprints = torch.as_tensor(footprints, device=env.device)
         self.available_tasks = []
+        # The object slots and the target slots that the instruction of each world's tasks can refer to.
+        self._task_slots: list[list[tuple[list[int], list[int]]]] = []
+        limits = cfg.params.get("graspable_size")
         for world in range(env.num_envs):
-            tasks = []
-            names = [_plain_name(label) for label in labels[world]]
-            # An instruction has to single out its object and its target among the world's objects.
-            unique = [active[world, slot] and names.count(name) == 1 for slot, name in enumerate(names)]
-            limits = cfg.params.get("graspable_size")
+            names = spoken[world]
+            # An instruction names its object and its target, so one task stands for all pairs of those names.
+            pairs: dict[tuple[str, str, str], tuple[int, int]] = {}
             for family, rule in self.families.items():
                 for source, target in itertools.permutations(range(len(self.names)), 2):
-                    if not (unique[source] and unique[target]) or rule["target"] not in categories[world][target]:
+                    if not active[world, source] or rule["target"] not in categories[world][target]:
                         continue
                     extent = np.diff(bounds[world, source], axis=0)[0]
                     if limits is not None and (extent.min() < limits[0] or extent[:2].min() > limits[1]):
@@ -211,14 +221,31 @@ class reset_tabletop(ManagerTermBase):
                     # A conservative inset reserves room for a rim or container walls.
                     if np.any(size + 2 * cfg.params["clearance"] > support * 0.8):
                         continue
-                    instruction = rule["instruction"].format(object=names[source], target=names[target])
-                    tasks.append(Task(family, self.names[source], self.names[target], instruction))
+                    pairs.setdefault((family, names[source], names[target]), (source, target))
+            tasks, slots = [], []
+            for (family, object_name, target_name), (source, target) in pairs.items():
+                rule = self.families[family]
+                instruction = rule["instruction"].format(object=object_name, target=target_name)
+                tasks.append(Task(family, self.names[source], self.names[target], instruction))
+                slots.append(
+                    (
+                        [slot for slot, name in enumerate(names) if active[world, slot] and name == object_name],
+                        [
+                            slot
+                            for slot, name in enumerate(names)
+                            if name == target_name and rule["target"] in categories[world][slot]
+                        ],
+                    )
+                )
             self.available_tasks.append(tuple(tasks))
+            self._task_slots.append(slots)
         self.available_tasks = tuple(self.available_tasks)
         self.instructions = [""] * env.num_envs
         self.task_ids = torch.full((env.num_envs,), -1, dtype=torch.long, device=env.device)
         self.object_ids = torch.zeros(env.num_envs, dtype=torch.long, device=env.device)
         self.target_ids = torch.zeros_like(self.object_ids)
+        self.object_mask = torch.zeros_like(self.active)
+        self.target_mask = torch.zeros_like(self.active)
         self.in_container = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
         self._requested = [-1] * env.num_envs
         self._backend = env.sim.backend_manager.backend
@@ -333,9 +360,13 @@ class reset_tabletop(ManagerTermBase):
             if available and task < 0:
                 task = int(torch.randint(len(available), (), device=env.device))
             self.task_ids[world] = task
+            self.object_mask[world] = self.target_mask[world] = False
             if task < 0:
                 self.instructions[world] = ""
                 continue
+            objects, targets = self._task_slots[world][task]
+            self.object_mask[world, objects] = True
+            self.target_mask[world, targets] = True
             binding = available[task]
             self.object_ids[world], self.target_ids[world] = (
                 self.names.index(binding.object),

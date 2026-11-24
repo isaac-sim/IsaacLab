@@ -235,6 +235,8 @@ def env(request, tmp_path):
                 spawn.semantic_tags.append(("category", "object"))
             if label in ("plate", "Box_A01"):
                 spawn.semantic_tags.append(("category", "plate" if label == "plate" else "container"))
+            if label == "plate":
+                spawn.semantic_tags.append(("name", "white plate"))
             candidates.append(spawn)
         collection[name] = RigidObjectCfg(
             prim_path=f"{{ENV_REGEX_NS}}/{name}",
@@ -272,18 +274,18 @@ def test_reset_intersects_workspace_and_table_and_binds_only_feasible_tasks(env)
     state = env.tabletop
     container_world = next(i for i, names in enumerate(state.object_names) if "Box_A01" in names)
     large_world = next(i for i, names in enumerate(state.object_names) if "large" in names)
-    # World 0 also holds an object that fits the plate but is too thin for the gripper. World 1 holds a plate
-    # too, but its two objects share a name: no instruction could single one out.
-    assert [len(state.available_tasks[i]) for i in (0, 1, large_world, container_world)] == [1, 0, 0, 2]
+    # World 0 also holds an object that fits the plate but is too thin for the gripper. The two objects of
+    # world 1 share a name, so one instruction stands for both.
+    assert [len(state.available_tasks[i]) for i in (0, 1, large_world, container_world)] == [1, 1, 0, 2]
     assert sorted(state.active.sum(1).tolist()) == [2, 3, 3, 3]
     assert not state.penetrating_worlds().any()
     assert all(surface.area == pytest.approx(0.864, abs=1e-6) for surface in state.surfaces[:2])
     assert state.surfaces[2].area < 0.05
     assert all(len(surface.interiors) == 1 for surface in state.surfaces)
-    assert state.instructions[0] and state.instructions[container_world]
-    assert [state.instructions[i] for i in (1, large_world)] == ["", ""]
+    assert state.instructions[0] and state.instructions[1] and state.instructions[container_world]
+    assert state.instructions[large_world] == ""
     with pytest.raises(ValueError, match="Unavailable"):
-        state.set_task([1], [0])
+        state.set_task([large_world], [0])
     poses = state.objects.data.body_link_pose_w.torch
     before = poses.clone()
     for _ in range(3):
@@ -323,20 +325,22 @@ def test_reset_intersects_workspace_and_table_and_binds_only_feasible_tasks(env)
         assert not state.penetrating_worlds().any()
     assert not env.termination_manager.compute().any()
     inside = next(i for i, task in enumerate(state.available_tasks[container_world]) if task.family == "in_box")
-    state.set_task([0, container_world], [0, inside])
+    state.set_task([0, 1, container_world], [0, 0, inside])
     env.reset()
-    # Instructions name objects in plain words, without the asset code of the catalog label.
+    # Instructions name objects in plain words: by the asset's name tag, or else by its catalog label without the
+    # asset code.
+    assert state.instructions[0] == "Place small on white plate."
     assert state.instructions[container_world] == "Put small in box."
     target = state.objects.data.body_link_pose_w.torch
 
-    def place(world: int, offset: tuple[float, float, float]):
-        """Move the world's object to an offset in its target's frame."""
-        pose = target[world, state.target_ids[world]].clone()
+    def place(world: int, offset: tuple[float, float, float], body: int = 0, reference: int | None = None):
+        """Move an object of the world to an offset in the frame of the world's target, or of another object."""
+        pose = target[world, state.target_ids[world] if reference is None else reference].clone()
         pose[:3] += quat_apply(pose[3:][None], pose.new_tensor([offset]))[0]
         ids = torch.tensor([world], device=env.device)
-        state.objects.write_body_pose_to_sim_index(body_poses=pose[None, None], body_ids=[0], env_ids=ids)
+        state.objects.write_body_pose_to_sim_index(body_poses=pose[None, None], body_ids=[body], env_ids=ids)
         state.objects.write_body_velocity_to_sim_index(
-            body_velocities=torch.zeros(1, 1, 6, device=env.device), body_ids=[0], env_ids=ids
+            body_velocities=torch.zeros(1, 1, 6, device=env.device), body_ids=[body], env_ids=ids
         )
 
     def settle(steps: int) -> list[list[bool]]:
@@ -374,6 +378,12 @@ def test_reset_intersects_workspace_and_table_and_binds_only_feasible_tasks(env)
         0, sensor.sensor_names.index("object_0"), sensor.filter_object_names.index(state.names[state.target_ids[0]])
     ]
     assert force.norm() >= 0.1
+    # The instruction of world 1 names two objects alike: whichever of them rests on the plate counts.
+    place(1, (0, 0, 0.072), body=1)
+    assert settle(60)[-1][1]
+    # An object that rests on another receiver than the one the instruction names does not count.
+    place(container_world, (0, 0, 0.072), reference=state.object_names[container_world].index("plate"))
+    assert not any(done[container_world] for done in settle(60))
     params = dict(env.cfg.events["place_objects"].params, workspace=((2, 2, 0), (3, 3, 1)))
     with pytest.raises(RuntimeError, match="intersection"):
         state(env, torch.tensor([0], device=env.device), **params)

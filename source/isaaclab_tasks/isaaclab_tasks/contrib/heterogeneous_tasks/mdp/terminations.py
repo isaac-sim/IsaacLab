@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 class task_success(ManagerTermBase):
     """Require a released object that rests in or on its selected target.
 
+    Every object and every target that the instruction can refer to count (see :class:`~.events.reset_tabletop`).
     The center of the object's collision bounds must lie inside the target's bounding rectangle, and the target
     has to carry the object: the object touches the target and not the table, the gripper has let go, the object
     is at rest and the target stands upright. Containment also requires the object's bottom below the rim and its
@@ -51,31 +52,29 @@ class task_success(ManagerTermBase):
         """
         state = self._tabletop
         poses = state.objects.data.body_link_pose_w.torch
-        source, target = state.object_ids, state.target_ids
-        source_pose, target_pose = poses[self._envs, source], poses[self._envs, target]
-        corners = quat_apply(source_pose[:, None, 3:].expand(-1, 8, 4), state.local_corners[self._envs, source])
-        corners += source_pose[:, None, :3]
-        relative = quat_apply_inverse(target_pose[:, None, 3:].expand(-1, 8, 4), corners - target_pose[:, None, :3])
-        bounds = state.local_bounds[self._envs, target]
+        count = poses.shape[1]
+        corners = quat_apply(poses[:, :, None, 3:], state.local_corners) + poses[:, :, None, :3]
+        # The bounds of every object (second dimension) in the frame of every target (third dimension).
+        relative = quat_apply_inverse(poses[:, None, :, None, 3:], corners[:, :, None] - poses[:, None, :, None, :3])
+        bounds = state.local_bounds[:, None]
         # The mean of the corners is the center of the object's bounds.
-        center = relative.mean(dim=1)
-        over = ((center[:, :2] >= bounds[:, 0, :2]) & (center[:, :2] <= bounds[:, 1, :2])).all(dim=1)
+        center = relative.mean(dim=3)
+        over = ((center[..., :2] >= bounds[..., 0, :2]) & (center[..., :2] <= bounds[..., 1, :2])).all(dim=-1)
         # A corner of rotated bounds lies below a tilted object; the center of the bounds does not.
-        inside = (relative[..., 2].amin(1) < bounds[:, 1, 2] - 0.002) & (center[:, 2] >= bounds[:, 0, 2])
-        forces = self._sensor.data.normal_force_matrix_w.torch[self._envs, self._sensor_rows[source]]
-        touching = forces[self._envs, self._sensor_columns[target]].norm(dim=-1) >= 0.1
-        grounded = forces[:, self._table_column].norm(dim=-1) >= 0.1
-        released = forces[:, self._sensor_columns[-1]].norm(dim=-1) < 0.1
-        speed = state.objects.data.body_com_vel_w.torch[self._envs, source, :3].norm(dim=-1)
-        up = quat_apply(target_pose[:, 3:], target_pose.new_tensor([0.0, 0.0, 1.0]).expand(env.num_envs, 3))
-        return (
-            (state.task_ids >= 0)
-            & poses.isfinite().all(dim=(1, 2))
+        inside = (relative[..., 2].amin(dim=3) < bounds[..., 1, 2] - 0.002) & (center[..., 2] >= bounds[..., 0, 2])
+        forces = self._sensor.data.normal_force_matrix_w.torch[:, self._sensor_rows[:count]]
+        touching = forces[:, :, self._sensor_columns[:count]].norm(dim=-1) >= 0.1
+        grounded = forces[:, :, self._table_column].norm(dim=-1) >= 0.1
+        released = forces[:, :, self._sensor_columns[-1]].norm(dim=-1) < 0.1
+        resting = state.objects.data.body_com_vel_w.torch[..., :3].norm(dim=-1) < rest_speed
+        upright = quat_apply(poses[..., 3:], poses.new_tensor([0.0, 0.0, 1.0]))[..., 2] > 0.98
+        placed = (
+            state.object_mask[:, :, None]
+            & state.target_mask[:, None, :]
             & over
             & touching
-            & ~grounded
-            & released
-            & (speed < rest_speed)
-            & (up[:, 2] > 0.98)
-            & (inside | ~state.in_container)
+            & (~grounded & released & resting)[:, :, None]
+            & upright[:, None, :]
+            & (inside | ~state.in_container[:, None, None])
         )
+        return (state.task_ids >= 0) & poses.isfinite().all(dim=(1, 2)) & placed.any(dim=(1, 2))

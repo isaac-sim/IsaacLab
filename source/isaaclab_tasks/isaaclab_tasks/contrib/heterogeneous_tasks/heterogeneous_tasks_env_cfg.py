@@ -199,6 +199,28 @@ EMPTY_OBJECT_CFG = sim_utils.SphereCfg(
 )
 
 
+ASSET_NAMES = {
+    "Bowl_F01": "black bowl",
+    "Bowl_H01": "beige bowl",
+    "Bowl_I01": "brown bowl",
+    "Bowl_J01": "brown bowl",
+    "Bowl_K01": "brown bowl",
+    "Bowl_L01": "white bowl",
+    "Bowl_M01": "beige bowl",
+    "Bowl_N01": "white bowl",
+    "Bowl_O01": "grey bowl",
+    "Bowl_P01": "brown bowl",
+    "Bowl_Q01": "white bowl",
+    "Bowl_R01": "white bowl",
+    "Bowl_S01": "green bowl",
+    "Bowl_U01": "orange bowl",
+    "Kitchenware_Bowl_B01": "beige bowl",
+    "Kitchenware_Bowl_C01": "brown bowl",
+    "Kitchenware_Bowl_D01": "blue bowl",
+    "Kitchenware_Bowl_E01": "beige bowl",
+}
+"""Names for instructions where the catalog label does not tell assets apart: the bowls, by their color."""
+
 # Maximum counts keep large props in sparse layouts within the declared robot workspace.
 ASSET_CATALOG = {
     path.split("/")[-2]: sim_utils.UsdFileCfg(
@@ -208,6 +230,7 @@ ASSET_CATALOG = {
         mesh_collision_props=sim_utils.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="none"),
         semantic_tags=[
             ("category", category),
+            *[("name", name) for name in (ASSET_NAMES.get(path.split("/")[-2]),) if name],
             *[("object_count", str(count)) for count in range(OBJECT_COUNT[0], min(max_count, OBJECT_COUNT[1]) + 1)],
         ],
     )

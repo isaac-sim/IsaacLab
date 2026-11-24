@@ -8,9 +8,9 @@
   their actual collisions, without a box proxy. Reset jointly samples a different table and feasible object placement, retrying smaller tables
   that cannot fit the sampled objects. Table variants switch on reset with their matching
   poses and measured surfaces; category and size requirements expose tray- and container-placement
-  instructions only where evaluable: the object fits its target and the gripper, and the instruction, which names
-  objects in plain words without asset codes, singles out its object and its target. A placement counts when the
-  target carries the released object at rest.
+  instructions only where evaluable: the object fits its target and the gripper. Instructions name objects in
+  plain words without asset codes, the bowls by their color, and stand for every object and target of the names
+  they use. A placement counts when the target carries the released object at rest.
   Camera and object collection constants compose directly through config copies and replacements, without
   config factories or post-init scene generation. The robot preserves its original home pose, arm impedance and
   disabled self-collisions, preventing internal collision hulls from deforming the open Robotiq linkage.

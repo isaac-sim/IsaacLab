@@ -235,9 +235,10 @@ check uses conservative collision bounds with an inset for walls; it is not a gr
 The object to move also has to suit the gripper: ``graspable_size`` of the reset term excludes objects with
 an extent below 2 cm, which the gripper cannot pinch, and objects whose narrower side exceeds the 85 mm
 opening of the Robotiq 2F-85. Such props still appear in the scenes, as receivers or as distractors.
-Instructions name objects in plain words, without the asset codes of the catalog labels (``Ketchup_A02`` reads
-"ketchup"), and a binding is offered only when its object and its target are the only objects of their name in
-the world, so that the instruction singles them out. Reset selects an available binding
+Instructions name objects in plain words: by the catalog label without its asset code (``Ketchup_A02`` reads
+"ketchup"), or by the ``name`` semantic tag of the asset, which ``ASSET_NAMES`` sets for the bowls to tell them
+apart by color ("grey bowl"). When several objects of a world share a name, one instruction stands for all of
+them: any of those objects in or on any of those targets counts. Reset selects an available binding
 and publishes ``env.tabletop.instructions``. To request another binding on the next reset, use
 ``env.tabletop.set_task([world], [binding_index])``. A world with no binding keeps its sampled objects,
 has an empty instruction and does not report task success. Success requires the target to carry the selected
