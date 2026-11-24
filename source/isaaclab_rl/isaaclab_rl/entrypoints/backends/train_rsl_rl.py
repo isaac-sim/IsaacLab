@@ -11,7 +11,6 @@ import argparse
 import contextlib
 import logging
 import os
-import re
 import time
 from datetime import datetime
 
@@ -19,17 +18,15 @@ import torch.distributed as dist
 
 from isaaclab.app import add_launcher_args, launch_simulation, report_activity
 from isaaclab.envs import DirectMARLEnvCfg
-from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.string import list_intersection
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils import get_checkpoint_path, resolve_task_config, setup_preset_cli
+from isaaclab_tasks.utils import resolve_task_config, setup_preset_cli
 
-from ...rsl_rl import RslRlBaseRunnerCfg, RslRlDistillationRunnerCfg, RslRlVecEnvWrapper
-from ...utils.wandb import announce_new_run, is_wandb_checkpoint, resolve_wandb_checkpoint, resolve_wandb_entity
+from ...rsl_rl import RslRlVecEnvWrapper
+from ...utils.wandb import announce_new_run, resolve_wandb_entity
 from ..common import (
-    CHECKPOINT_SELECTORS,
     add_common_train_args,
     apply_env_overrides,
     apply_video_recording,
@@ -38,7 +35,6 @@ from ..common import (
     dump_train_configs,
     enable_cameras_for_video,
     pre_launch_video_config,
-    resolve_checkpoint_selector,
     scoped_torch_backend_flags,
     set_hydra_args,
     show_run_summary,
@@ -84,31 +80,6 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     return args_cli
 
 
-def _resolve_checkpoint(args_cli: argparse.Namespace, agent_cfg: RslRlBaseRunnerCfg, log_root_path: str) -> str | None:
-    """Resolve the checkpoint to resume from, or None when training starts from scratch."""
-    if args_cli.checkpoint and is_wandb_checkpoint(args_cli.checkpoint):
-        return resolve_wandb_checkpoint(args_cli.checkpoint)
-    if args_cli.checkpoint in CHECKPOINT_SELECTORS:
-        return resolve_checkpoint_selector(
-            log_root_path,
-            args_cli.checkpoint,
-            library="rsl_rl",
-            task=args_cli.task,
-            checkpoint_pattern=r"model_.*\.pt",
-            metadata={"agent": args_cli.agent},
-        )
-    if args_cli.checkpoint and os.path.isdir(args_cli.checkpoint):
-        # ``--checkpoint`` overwrites ``agent_cfg.load_checkpoint`` with this directory, so it is not a file pattern.
-        # Anchor the run name: ``run_dir`` is a prefix regex, so ``run`` would also match a sibling ``run-retry``.
-        run_name = re.escape(os.path.basename(os.path.normpath(args_cli.checkpoint))) + "$"
-        return get_checkpoint_path(os.path.dirname(os.path.normpath(args_cli.checkpoint)), run_name, r"model_.*\.pt")
-    if args_cli.checkpoint:
-        return retrieve_file_path(args_cli.checkpoint)
-    if isinstance(agent_cfg, RslRlDistillationRunnerCfg):
-        raise ValueError("Distillation training requires --checkpoint.")
-    return None
-
-
 def run(argv: list[str]) -> None:
     """Train an RSL-RL agent while restoring the caller's Torch backend settings."""
     args_cli = _parse_args(argv)
@@ -140,6 +111,7 @@ def _run(args_cli: argparse.Namespace) -> None:
 
             log_root_path = os.path.abspath(os.path.join("logs", "rsl_rl", agent_cfg.experiment_name))
             logger.info(f"Logging experiment in directory: {log_root_path}")
+            resume_path = cli_args.resolve_rsl_rl_training_checkpoint(args_cli, agent_cfg, log_root_path)
             run_name = args_cli.run_timestamp or datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             logger.info(f"Exact experiment name requested from command line: {run_name}")
             if agent_cfg.run_name:
@@ -151,7 +123,6 @@ def _run(args_cli: argparse.Namespace) -> None:
             if rank in (None, 0):
                 write_run_manifest(log_dir, library="rsl_rl", task=args_cli.task, metadata={"agent": args_cli.agent})
 
-            resume_path = _resolve_checkpoint(args_cli, agent_cfg, log_root_path)
             env_cfg.log_dir = rank_dir
             apply_video_recording(env_cfg, rank_dir, args_cli)
 

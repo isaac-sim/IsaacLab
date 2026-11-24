@@ -1,2 +1,3 @@
-* Fixed RSL-RL training and benchmark ``--checkpoint`` with a run directory, which used the directory path as the
-  checkpoint filename pattern and failed with ``No checkpoints in the directory``.
+* Unified RSL-RL training and benchmark checkpoint selection, including configured student resume.
+* Kept explicit checkpoint references separate from configured filename patterns and resolved run directories directly,
+  including relative paths and names containing regular-expression characters.
