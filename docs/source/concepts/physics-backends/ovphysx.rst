@@ -313,6 +313,9 @@ start and stop calls on the simulation's stepping thread between completed
 steps. The same simulation can continue stepping after a stop and start
 another capture with a new destination.
 
+.. image:: ../../_static/concepts/ovphysx-live-ovd-recording.png
+   :alt: The simulation keeps stepping before, between, and after two separate OVD captures.
+
 This headless example takes several steps before starting a file capture.
 
 .. code-block:: python
