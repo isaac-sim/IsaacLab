@@ -1477,6 +1477,9 @@ class OVRTXRenderer(BaseRenderer):
             ) from failed.first_frame_error
         if self.backend.renderer is None or not self._camera_render_data:
             return
+        # Each pass renders once. After a failed first frame, _replace_failed_layouts moves the sensors without a
+        # rendered frame to new render products, which the next pass renders. It allows at most
+        # _MAX_SMALLER_LAYOUTS smaller layouts, so the loop ends with a frame or an error.
         for num_smaller_layouts in itertools.count():
             try:
                 self._render_batch_once(render_data)
