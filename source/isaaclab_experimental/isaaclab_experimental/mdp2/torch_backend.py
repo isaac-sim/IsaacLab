@@ -46,7 +46,11 @@ def _apply_actions(mdp: MDP, call: Call) -> None:
         offset = op.offset
         if isinstance(offset, FieldSelector):
             offset = call.state.arrays[offset].torch.view(mdp.num_worlds, -1)[:, ids]
-        value = actions[:, op.columns] * op.scale + offset
+        scale = call.state.arrays["action_scale", op.name].torch if isinstance(op.scale, tuple) else op.scale
+        value = actions[:, op.columns] * scale + offset
+        if op.clip is not None:
+            clip = call.state.arrays["action_clip", op.name].torch
+            value = value.clamp(min=clip[:, 0], max=clip[:, 1])
 
         active = call.state.arrays.get(("active", op.name))
         if active is not None:

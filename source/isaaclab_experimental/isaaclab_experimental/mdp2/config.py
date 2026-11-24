@@ -252,14 +252,19 @@ class TimeLimit:
 
 @dataclass
 class DirectAction:
-    """Configuration for an action that writes ``scale * action + offset`` to an entity field."""
+    """Write ``scale * action + offset`` to an entity field, clipping the result if configured.
+
+    Dictionaries bind scales or clip ranges by regular expressions over the selected element names.
+    Unmatched elements keep a unit scale or an unbounded clip range.
+    """
 
     phase: ClassVar[Phase] = Phase.ACTIONS
 
     target: FieldSelector
-    scale: float = 1.0
+    scale: float | dict[str, float] = 1.0
     offset: float | FieldSelector = 0.0  # A field gives an offset per element, like robot.default_joint_pos
     subset: SubsetSelector | None = None  # Elements of the target to write, like robot.joints("slider_to_cart")
+    clip: tuple[float, float] | dict[str, tuple[float, float]] | None = None
 
 
 @dataclass

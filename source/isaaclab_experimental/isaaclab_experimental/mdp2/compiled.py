@@ -201,6 +201,8 @@ class MDP:
                 if phase is Phase.ACTIONS:
                     details = [f"columns {op.columns.start}:{op.columns.stop} -> {op.target}"]
                     details += [f"scale {op.scale}", f"offset {op.offset}"]
+                    if op.clip is not None:
+                        details.append(f"clip {op.clip}")
                 else:
                     details = [f"{arg}={selector}" for arg, selector in op.inputs.items()]
                     details += [f"{name}={value!r}" for name, value in op.params.items()]
@@ -250,6 +252,11 @@ class MDP:
             arrays[op.writes[0]] = self._zeros(self.num_worlds, *op.shape)
         for subset, indices in self.subsets.items():
             arrays[subset] = ProxyArray(wp.array(indices, dtype=wp.int32, device=self.device))
+        for op in self.ops[Phase.ACTIONS]:
+            if isinstance(op.scale, tuple):
+                arrays["action_scale", op.name] = ProxyArray(wp.array(op.scale, dtype=wp.float32, device=self.device))
+            if op.clip is not None:
+                arrays["action_clip", op.name] = ProxyArray(wp.array(op.clip, dtype=wp.vec2f, device=self.device))
         # State belongs to the use: the ops that other world configs define differently share it.
         for op in self.term_ops:
             for name, spec in op.state.items():

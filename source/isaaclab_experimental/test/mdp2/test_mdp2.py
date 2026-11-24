@@ -483,6 +483,7 @@ def test_finalize_reports_all_errors():
     builder.add_reward("unmatched_subset", mdp2.Reward(is_alive, inputs={"joint_pos": robot.joints("x", "elbow")}))
     for name in ("joint_effort", "second_writer"):
         builder.add_action(name, mdp2.DirectAction(robot.joint_effort_target))
+    builder.add_action("unmatched_scale", mdp2.DirectAction(robot.joint_pos, scale={"elbow": 2.0}))
     builder.add_reward("array_type", mdp2.Reward(generated_commands, inputs={"command": robot.joint_pos}))
     builder.add_termination("return_type", mdp2.Termination(is_alive, inputs={"joint_pos": robot.joint_pos}))
     builder.add_reward("no_warp", mdp2.Reward(mdp2.Term(), inputs={"joint_pos": robot.joint_pos}))
@@ -505,6 +506,7 @@ def test_finalize_reports_all_errors():
     assert "rewards.unknown_command: unknown field 'commands.typo'. Fields of the MDP:" in message
     assert "rewards.unmatched_subset: 'robot.joints('x', 'elbow')' matches no name with ['elbow']" in message
     assert "actions.second_writer: 'robot.joint_effort_target' is already written by 'actions.joint_effort'" in message
+    assert "actions.unmatched_scale: Not all regular expressions are matched!" in message
     assert "rewards.array_type: wp.func 'generated_commands_warp' takes 'command' as a 1-dimensional array" in message
     assert "terminations.return_type: wp.func 'is_alive_warp' must return bool" in message
     assert "rewards.no_warp: the term has no 'warp' implementation" in message
@@ -1023,6 +1025,50 @@ def test_world_configs_with_fewer_actions_read_their_own_actions():
         # Eager terms too.
         torch.testing.assert_close(policy[:2, 4], steps[1][:2].square().sum(-1))
         torch.testing.assert_close(policy[2:, 3], steps[1][2:, 0].square())
+
+
+def test_direct_actions_scale_and_clip_by_element_name():
+    """Named scales and clip ranges apply to the selected elements that they match, the others keep a unit scale and
+    no bounds; a uniform clip bounds the value after the offset; and world configs keep their own named scales."""
+    actions = torch.tensor([[3.0, -3.0, 0.4], [-0.2, 0.7, -5.0], [0.3, 4.0, 1.0], [-2.0, 0.1, 0.2]], device=DEVICE)
+    offset = torch.tensor([0.1, -0.2, 0.3], device=DEVICE)
+    expected = torch.empty(4, 3, device=DEVICE)
+    for world, scale in ((slice(0, 2), 2.0), (slice(2, 4), 3.0)):
+        world_actions = actions[world]
+        expected[world, 0] = (world_actions[:, 0] * scale).clamp(-1.0, 1.0)  # x: named scale and clip
+        expected[world, 2] = world_actions[:, 1]  # z: matched by neither
+        expected[world, 1] = (world_actions[:, 2] * 0.5 + offset[1]).clamp(-0.25, 0.25)  # y: uniform clip of the offset
+    for backend in ("torch", "warp"):
+        scene = PointMassScene(num_worlds=4, joint_names=("x", "y", "z"), device=DEVICE)
+        scene.data("robot", "joint_pos").torch[:] = offset
+        configs = []
+        for scale in (2.0, 3.0):
+            config = mdp2.MDPBuilder(scene.schema)
+            named = mdp2.DirectAction(
+                robot.joint_effort_target,
+                scale={"[xy]": scale},
+                clip={"x": (-1.0, 1.0)},
+                subset=robot.joints("[xz]"),
+            )
+            config.add_action("named", named)
+            uniform = mdp2.DirectAction(
+                robot.joint_effort_target,
+                scale=0.5,
+                offset=robot.joint_pos,
+                clip=(-0.25, 0.25),
+                subset=robot.joints("y"),
+            )
+            config.add_action("uniform", uniform)
+            configs.append(config)
+        builder = mdp2.MDPBuilder(scene.schema)
+        builder.replicate(configs[0], 2)
+        builder.replicate(configs[1], 2)
+        mdp = builder.finalize(device=DEVICE, backend=backend)
+        state = mdp.state(scene)
+
+        mdp2.apply_actions(mdp, state, ProxyArray(wp.from_torch(actions)))
+
+        torch.testing.assert_close(scene.data("robot", "joint_effort_target").torch, expected)
 
 
 def test_library_action_and_termination_terms():
