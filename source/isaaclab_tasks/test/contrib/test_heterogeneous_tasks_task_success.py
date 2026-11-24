@@ -28,6 +28,7 @@ from isaaclab.utils import configclass
 from isaaclab.utils.math import quat_apply, quat_apply_inverse
 
 from isaaclab_tasks.contrib.heterogeneous_tasks import mdp
+from isaaclab_tasks.contrib.heterogeneous_tasks.heterogeneous_tasks_env_cfg import TableCfg
 
 pytestmark = [pytest.mark.integration, pytest.mark.kitless]
 
@@ -175,7 +176,7 @@ def env(request, tmp_path):
     table_path = tmp_path / "table.usda"
     _table(table_path)
     cfg = _EnvCfg(seed=42)
-    cfg.scene.work_table = RigidObjectCfg(
+    table = TableCfg(
         prim_path="{ENV_REGEX_NS}/work_table",
         spawn=sim_utils.UsdFileCfg(
             usd_path=str(table_path),
@@ -183,6 +184,24 @@ def env(request, tmp_path):
             rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.6, 0.0, 0.175), rot=(0.0, 0.0, 0.14943813, 0.98877108)),
+        surface_outline=((-0.45, -0.5), (0.45, -0.5), (0.45, 0.5), (-0.45, 0.5)),
+        surface_height=0.025,
+        surface_holes=(((-0.09, -0.1), (0.09, -0.1), (0.09, 0.1), (-0.09, 0.1)),),
+    )
+    tables = (
+        table,
+        table.replace(
+            spawn=table.spawn.replace(scale=(1.0, 1.0, 1.4)),
+            surface_height=0.035,
+            init_state=table.init_state.replace(pos=(0.6, 0.0, 0.165)),
+        ),
+    )
+    cfg.scene.work_table = table.replace(
+        spawn=sim_utils.MultiAssetSpawnerCfg(
+            assets_cfg=[candidate.spawn for candidate in tables],
+            static=False,
+            random_choice=False,
+        )
     )
     cfg.sim.device = request.param
     names = [f"object_{slot}" for slot in range(3)]
@@ -218,9 +237,7 @@ def env(request, tmp_path):
             params={
                 "objects": SceneEntityCfg("objects"),
                 "table": SceneEntityCfg("work_table"),
-                "surface_outline": ((-0.45, -0.5), (0.45, -0.5), (0.45, 0.5), (-0.45, 0.5)),
-                "surface_height": 0.025,
-                "surface_holes": (((-0.09, -0.1), (0.09, -0.1), (0.09, 0.1), (-0.09, 0.1)),),
+                "table_variants": tables,
                 "workspace": ((0.25, -0.35, 0.1), (0.9, 0.35, 0.6)),
                 "gripper_body": "gripper",
                 "clearance": 0.005,
@@ -243,8 +260,8 @@ def test_reset_intersects_workspace_and_table_and_binds_only_feasible_tasks(env)
     assert [len(state.available_tasks[i]) for i in (0, 1, large_world, container_world)] == [1, 0, 0, 2]
     assert sorted(state.active.sum(1).tolist()) == [2, 2, 2, 3]
     assert not state.penetrating_worlds().any()
-    assert state.surface.area == pytest.approx(0.864, abs=1e-6)
-    assert len(state.surface.interiors) == 1
+    assert all(surface.area == pytest.approx(0.864, abs=1e-6) for surface in state.surfaces)
+    assert all(len(surface.interiors) == 1 for surface in state.surfaces)
     assert state.instructions[0] and state.instructions[container_world]
     assert [state.instructions[i] for i in (1, large_world)] == ["", ""]
     with pytest.raises(ValueError, match="Unavailable"):
@@ -252,10 +269,15 @@ def test_reset_intersects_workspace_and_table_and_binds_only_feasible_tasks(env)
     poses = state.objects.data.body_link_pose_w.torch
     before = poses.clone()
     for _ in range(3):
+        table_before = state.table.mesh_variant_ids.torch.clone()
         env.reset(env_ids=torch.tensor([0, container_world], device=env.device))
         poses = state.objects.data.body_link_pose_w.torch
         torch.testing.assert_close(poses[[1, large_world]], before[[1, large_world]])
         assert not torch.equal(poses[0], before[0])
+        table_after = state.table.mesh_variant_ids.torch
+        assert (table_after[[0, container_world]] != table_before[[0, container_world]]).all()
+        torch.testing.assert_close(table_after[[1, large_world]], table_before[[1, large_world]])
+        torch.testing.assert_close(state.tabletop_heights, torch.full_like(state.tabletop_heights, 0.2))
         corners = quat_apply(poses[..., None, 3:].expand(-1, -1, 8, 4), state.local_corners) + poses[..., None, :3]
         local = corners - env.scene.env_origins[:, None, None]
         assert (local[state.active] >= local.new_tensor([0.25, -0.35, 0.1])).all()

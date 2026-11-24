@@ -219,8 +219,7 @@ For example:
        scene=TabletopSceneCfg(num_envs=128, env_spacing=10.0, objects=OBJECTS_CFG.copy()),
    )
    cfg.events.place_objects.params["workspace"] = ((0.25, -0.4, 0.0), (0.85, 0.4, 0.6))
-   cfg.events.place_objects.params["surface_outline"] = TABLETOP_OUTLINE
-   cfg.events.place_objects.params["surface_height"] = TABLETOP_HEIGHT
+   cfg.events.place_objects.params["table_variants"] = TABLE_VARIANTS
 
 ``OBJECT_COUNT = (2, 8)`` sets the bounds in the scene definition. ``OBJECTS_CFG`` is a complete
 ``RigidObjectCollectionCfg`` declaration; the scene references it directly. Customize or compose
@@ -229,7 +228,7 @@ collection members using ``.copy()`` and ``.replace()`` before constructing the 
 config factory or ``__post_init__`` hook generates scene fields or rewrites the event configuration.
 
 The workspace is an axis-aligned reachable volume in the environment frame. Reset intersects it with
-the table's declared, measured support outline, preserving its boundaries and any ``surface_holes``.
+the selected table's declared, measured support outline, preserving its boundaries and any ``surface_holes``.
 The intersection is a polygon region, not a bounding rectangle.
 Horizontal tables with arbitrary yaw are supported. Every object's full conservative collision
 footprint must be covered by that region; its height must also remain inside the reachable volume.
@@ -238,14 +237,24 @@ and clearance from earlier convex footprints, so round plates can be packed with
 bounding-box corners. Newton's narrow-phase collision detection rejects penetrating
 placements, including robot intersections, without stepping physics. Placement retries are bounded;
 a workspace that cannot hold the selected objects raises a clear error instead of accepting overlaps.
-The shared scene uses the actual ``av_eastrural_table`` mesh with triangle collisions on its authored
-geometry. Its declared tabletop has about 1.389 square metres of horizontal support area at 0.762 m
-above the asset origin. The root is placed on the floor; no proxy box replaces the table. The measured
-usable dimensions and height are plain constants in the scene configuration; reset does
-not parse meshes or infer a surface. Other table assets supply their own measured outline and height.
+``TableCfg`` extends a rigid-object declaration with ``surface_outline``, ``surface_height`` and optional
+``surface_holes``. ``TABLE_VARIANTS`` contains the real ``av_eastrural_table`` and ``av_desperes_table``
+assets, their individual poses and measured usable surfaces. The latter uses its fixed central panel,
+excluding its extension leaves. Both retain triangle collisions on the actual mesh geometry.
+The scene declares them with ``MultiAssetSpawnerCfg(static=False)`` and includes ``work_table`` alongside
+``objects`` in its inclusion set, so initial table choices also vary across worlds. Each reset selects uniformly among
+the other table variants, applies its pose, and recomputes the placement region before placing objects.
+Partial resets preserve tables in untouched worlds. Add tables by composing complete ``TableCfg``
+values and using the same ordered tuple for the spawner and reset term. Measured dimensions are plain
+config values; reset does not parse table meshes or infer a surface.
+
+``CAMERA_CFG.renderer_cfg`` declares the Newton renderer's ambient and directional light colors.
+These control the camera image directly; USD dome and sphere lights do not currently control this renderer.
+
 The reachable volume is user-supplied; this example does not compute inverse-kinematics reachability.
 
-Combinations are sampled once when the scene is built; reset randomizes poses. The table and robot do
+Movable-object combinations are sampled once when the scene is built; reset changes the table and
+randomizes object poses. The table and robot do
 not count toward ``OBJECT_COUNT``. The example retains a rectangular object collection using hidden inactive
 bodies and Newton mesh variants; inactive bodies are parked away from the workspace. Any combination
 may be selected, including repeated instances and worlds without a usable target. There is no

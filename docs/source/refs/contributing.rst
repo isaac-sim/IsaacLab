@@ -453,7 +453,8 @@ before changing an interface. Apply these rules when adding code or cleaning up 
   intersection of the measured support outline and supplied reachable workspace. Measured asset
   dimensions may be constants in the scene configuration. Preserve surface outlines and holes; do not
   substitute a box or its bounding rectangle for the actual table. Reject impossible
-  placements instead of silently accepting overlap.
+  placements instead of silently accepting overlap. When tables vary at reset, use the existing
+  variable-asset interface and select the matching measured support region after changing geometry.
 * Give each piece of state and validation one owner. Consumers should use the owner's contract instead
   of repairing results or maintaining duplicate state. Cache derived values only when their lifetime and
   invalidation are clear; do not expose mutable cached results for callers to modify accidentally.

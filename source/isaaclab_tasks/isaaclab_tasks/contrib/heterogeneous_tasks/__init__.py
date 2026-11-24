@@ -7,7 +7,7 @@
 Newton.
 
 One flat catalog supplies bounded object combinations. Reset places objects on the reachable part of
-one shared table, and category/size rules expose the tasks that can be evaluated in each world.
+a variable real table, and category/size rules expose the tasks that can be evaluated in each world.
 """
 
 import os

@@ -301,7 +301,11 @@ class NewtonWarpRenderer(BaseRenderer):
             ),
         )
         if self.cfg.create_default_light:
-            self.newton_sensor.create_default_light(enable_shadows=self.cfg.enable_shadows)
+            self.newton_sensor.create_default_light(
+                enable_shadows=self.cfg.enable_shadows, color=self.cfg.default_light_color
+            )
+        if self.cfg.ambient_light_color is not None:
+            self.newton_sensor.set_ambient_light(self.cfg.ambient_light_color)
 
     @property
     def visual_material_writer(self):

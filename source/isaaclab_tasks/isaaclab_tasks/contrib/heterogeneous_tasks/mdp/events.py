@@ -28,6 +28,8 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
     from isaaclab.managers import EventTermCfg
 
+    from ..heterogeneous_tasks_env_cfg import TableCfg
+
 
 class Task(NamedTuple):
     """One available instruction bound to two distinct object instances in a world."""
@@ -100,8 +102,8 @@ class reset_tabletop(ManagerTermBase):
     """Place sampled objects on the reachable part of a table, then select an available task.
 
     Object combinations come from the scene's inclusion set and stay fixed for the lifetime of the
-    scene. Resets randomize their poses. Convex footprints reject overlaps; Newton's collision
-    pipeline screens the resulting poses against the robot and the actual collision shapes without
+    scene. Resets change the table variant and randomize object poses. Convex footprints reject overlaps;
+    Newton's collision pipeline screens the resulting poses against the robot and actual collision shapes without
     stepping physics. Infeasible placements raise instead of accepting overlaps.
 
     ``env.tabletop.available_tasks[world]`` lists category- and size-compatible bindings. A reset
@@ -119,11 +121,18 @@ class reset_tabletop(ManagerTermBase):
         for name, rule in self.families.items():
             if set(rule) != {"target", "relation", "instruction"} or rule["relation"] not in ("on", "in"):
                 raise ValueError(f"Task family {name!r} requires a target, relation ('on' or 'in') and instruction.")
-        self.surface = shapely.Polygon(cfg.params["surface_outline"], cfg.params.get("surface_holes", ()))
-        self.surface_height = cfg.params["surface_height"]
-        if not self.surface.is_valid or self.surface.is_empty or not math.isfinite(self.surface_height):
-            raise ValueError("Tabletop requires a valid support outline and a finite local surface height.")
+        self.table_variants = cfg.params["table_variants"]
+        if len(self.table_variants) != self.table.num_mesh_variants:
+            raise ValueError("Declare one measured surface and pose for each table mesh variant, in spawner order.")
+        self.surfaces = tuple(
+            shapely.Polygon(table.surface_outline, table.surface_holes) for table in self.table_variants
+        )
+        if any(not surface.is_valid or surface.is_empty for surface in self.surfaces):
+            raise ValueError("Tabletop requires valid support outlines.")
+        if any(not math.isfinite(table.surface_height) for table in self.table_variants):
+            raise ValueError("Tabletop requires finite local surface heights.")
         self.placement_regions = np.empty(env.num_envs, dtype=object)
+        self.tabletop_heights = torch.empty(env.num_envs, device=env.device)
         plan = env.sim.get_clone_plan()
         topology = plan.topology
         slots = {cfg.prim_path: index for index, cfg in enumerate(self.objects.cfg.rigid_objects.values())}
@@ -215,13 +224,11 @@ class reset_tabletop(ManagerTermBase):
         env_ids: torch.Tensor | slice,
         objects: SceneEntityCfg,
         table: SceneEntityCfg,
-        surface_outline: tuple[tuple[float, float], ...],
-        surface_height: float,
+        table_variants: tuple[TableCfg, ...],
         workspace: tuple[tuple[float, float, float], tuple[float, float, float]],
         gripper_body: str,
         clearance: float = 0.005,
         max_attempts: int = 128,
-        surface_holes: tuple[tuple[tuple[float, float], ...], ...] = (),
     ) -> None:
         ids = torch.arange(env.num_envs, device=env.device)[env_ids]
         if not len(ids):
@@ -231,19 +238,42 @@ class reset_tabletop(ManagerTermBase):
         workspace = torch.as_tensor(workspace, dtype=torch.float32, device=env.device)
         if workspace.shape != (2, 3) or not torch.isfinite(workspace).all() or (workspace[0] >= workspace[1]).any():
             raise ValueError("Workspace must contain finite, ordered XYZ lower and upper bounds.")
-        table_poses = self.table.data.root_link_pose_w.torch[ids]
+        if len(self.table_variants) > 1:
+            # Uniform over the other variants, so every requested world changes table on reset.
+            selected = (
+                self.table.mesh_variant_ids.torch[ids].long()
+                + torch.randint(1, len(self.table_variants), (len(ids),), device=env.device)
+            ) % len(self.table_variants)
+            self.table.write_mesh_variant_to_sim(selected, env_ids=ids)
+        else:
+            selected = torch.zeros(len(ids), dtype=torch.long, device=env.device)
+        selected_ids = selected.tolist()
+        table_poses = torch.tensor(
+            [(*self.table_variants[i].init_state.pos, *self.table_variants[i].init_state.rot) for i in selected_ids],
+            device=env.device,
+        )
+        table_poses[:, :3] += env.scene.env_origins[ids]
+        self.table.write_root_pose_to_sim_index(root_pose=table_poses, env_ids=ids)
+        self.table.write_root_velocity_to_sim_index(
+            root_velocity=torch.zeros(len(ids), 6, device=env.device), env_ids=ids
+        )
+        self.tabletop_heights[ids] = table_poses[:, 2] + table_poses.new_tensor(
+            [self.table_variants[i].surface_height for i in selected_ids]
+        )
         up = quat_apply(table_poses[:, 3:], table_poses.new_tensor([0.0, 0.0, 1.0]).expand(len(ids), 3))
         if (up[:, 2] < 1 - 1e-6).any():
             raise ValueError("Tabletop reset requires a horizontal table; yaw rotation is supported.")
         origins = env.scene.env_origins[ids].cpu().numpy()
         limits = workspace.cpu().numpy()
-        for world, pose, origin in zip(ids.tolist(), table_poses.cpu().numpy(), origins, strict=True):
+        for world, variant, pose, origin in zip(
+            ids.tolist(), selected_ids, table_poses.cpu().numpy(), origins, strict=True
+        ):
             x, y, z, w = pose[3:]
             cosine, sine = 1 - 2 * (y * y + z * z), 2 * (w * z + x * y)
-            tabletop = affine_transform(self.surface, [cosine, -sine, sine, cosine, pose[0], pose[1]])
+            tabletop = affine_transform(self.surfaces[variant], [cosine, -sine, sine, cosine, pose[0], pose[1]])
             reachable = shapely.box(*(limits[0, :2] + origin[:2]), *(limits[1, :2] + origin[:2]))
             region = tabletop.intersection(reachable).buffer(-clearance)
-            top = pose[2] + self.surface_height
+            top = pose[2] + self.table_variants[variant].surface_height
             if region.is_empty or top < limits[0, 2] + origin[2] - 1e-5 or top + clearance >= limits[1, 2] + origin[2]:
                 raise RuntimeError("The measured table surface and workspace have no usable intersection.")
             self.placement_regions[world] = region
@@ -289,7 +319,7 @@ class reset_tabletop(ManagerTermBase):
         regions = self.placement_regions[ids.cpu().numpy()]
         bounds = torch.as_tensor(shapely.bounds(regions), dtype=torch.float32, device=env.device)
         lo, hi = bounds[:, :2], bounds[:, 2:]
-        top = self.table.data.root_link_pose_w.torch[ids, 2] + self.surface_height
+        top = self.tabletop_heights[ids]
         poses = torch.zeros(count, width, 7, device=env.device)
         poses[..., 6] = 1.0
         poses[..., :3] = origin[:, None] + poses.new_tensor([0.0, -10.0, 0.5])
@@ -381,9 +411,10 @@ class reset_tabletop(ManagerTermBase):
             self._contacts = backend.collision_pipeline.contacts()
         contacts = self._contacts
         backend.collision_pipeline.collide(backend.state_0, contacts)
-        count = int(wp.to_torch(contacts.rigid_contact_count)[0])
-        if count > contacts.rigid_contact_max:
-            raise RuntimeError("Tabletop reset collision buffer overflowed.")
+        counters = wp.to_torch(contacts.contact_counters)
+        count = int(counters[0])
+        if count > contacts.rigid_contact_max or counters[2]:
+            raise RuntimeError("Tabletop reset collision buffers overflowed; increase the collision pipeline budgets.")
         bad = torch.zeros(self._env.num_envs, dtype=torch.bool, device=self._env.device)
         if not count:
             return bad

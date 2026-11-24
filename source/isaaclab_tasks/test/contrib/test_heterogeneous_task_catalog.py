@@ -63,7 +63,8 @@ def test_bounded_combinations_do_not_expand_the_object_product():
         }
     )
     candidates = [member.spawn.assets_cfg for member in cfg.scene.objects.rigid_objects.values()]
-    names = ["objects"] * len(candidates)
+    names = ["objects"] * len(candidates) + ["work_table"]
+    candidates.append([table.spawn for table in catalog.TABLE_VARIANTS])
     groups, weights = make_valid_clone_combinations(names, candidates, cfg.scene.clone_cfg.clone_combinations)
     assert len(groups) <= 8, "Object combinations must stay factorized, rather than expanding the product"
     flattened = [candidate for row in candidates for candidate in row]
@@ -87,12 +88,18 @@ def test_bounded_combinations_do_not_expand_the_object_product():
     chosen = set()
     category_counts = {}
     common_halves = [0, 0]
+    selected_tables = set()
     for composition in topology.world_prototype_layout:
         start, end = topology.world_prototype_starts[composition + 1 : composition + 3]
         members = [
-            dict(flattened[index].semantic_tags)["_catalog_key"] for index in topology.world_prototypes[start:end]
+            dict(flattened[index].semantic_tags).get("_catalog_key") for index in topology.world_prototypes[start:end]
         ]
-        real = [name for name in members if name != "__empty__"]
+        selected_tables.update(
+            flattened[index].usd_path
+            for index in topology.world_prototypes[start:end]
+            if dict(flattened[index].semantic_tags).get("category") == "table"
+        )
+        real = [name for name in members if name is not None and name != "__empty__"]
         counts.append(len(real))
         chosen.update(real)
         for name in real:
@@ -101,6 +108,7 @@ def test_bounded_combinations_do_not_expand_the_object_product():
             index = int(name.removeprefix("item_"))
             if index < 900:
                 common_halves[index // 450] += 1
+    assert len(selected_tables) == 2, "Include the table in world sampling"
     assert min(counts) == 2 and max(counts) == 8
     assert chosen <= objects.keys() and len(chosen) > 100
     # A 900-asset category must not overwhelm four categories of only 25 assets each.
@@ -113,4 +121,7 @@ def test_bounded_combinations_do_not_expand_the_object_product():
     assert len(catalog.ASSET_CATALOG) == 159 and set(resolved.tasks) == {"put_on_plate", "put_in_container"}
     assert resolved.scene.objects is not catalog.OBJECTS_CFG
     assert len(resolved.scene.objects.rigid_objects) == catalog.OBJECT_COUNT[1]
-    assert isinstance(resolved.scene.work_table.spawn, sim_utils.UsdFileCfg), "Use the real table asset"
+    tables = resolved.scene.work_table.spawn
+    assert isinstance(tables, sim_utils.MultiAssetSpawnerCfg) and not tables.static
+    assert len(tables.assets_cfg) == len(resolved.events.place_objects.params["table_variants"]) == 2
+    assert all(isinstance(table, sim_utils.UsdFileCfg) for table in tables.assets_cfg), "Use real table assets"

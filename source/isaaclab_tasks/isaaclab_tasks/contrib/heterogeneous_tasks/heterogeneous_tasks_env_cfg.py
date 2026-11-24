@@ -6,6 +6,7 @@
 """A flat tabletop scene: bounded object combinations, geometric reset and available task families."""
 
 import math
+from dataclasses import MISSING
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
@@ -39,7 +40,7 @@ CAMERA_CFG = CameraCfg(
     height=252,
     data_types=["rgb"],
     update_period=0.0,
-    renderer_cfg=NewtonWarpRendererCfg(),
+    renderer_cfg=NewtonWarpRendererCfg(ambient_light_color=(1.0, 1.0, 1.0), default_light_color=(0.5, 0.5, 0.5)),
     spawn=sim_utils.PinholeCameraCfg(
         focal_length=2.1,
         focus_distance=28.0,
@@ -52,9 +53,42 @@ CAMERA_CFG = CameraCfg(
 OBJECT_COUNT = (2, 8)
 """Inclusive cardinality bounds, excluding the robot and table."""
 
-TABLETOP_OUTLINE = ((-0.4557, -0.76215), (0.4557, -0.76215), (0.4557, 0.76215), (-0.4557, 0.76215))
-TABLETOP_HEIGHT = 0.762
-"""Measured flat support surface of av_eastrural_table, in its local frame (metres)."""
+
+@configclass
+class TableCfg(RigidObjectCfg):
+    """A real table asset, its initial pose and its measured usable support region in local metres."""
+
+    surface_outline: tuple[tuple[float, float], ...] = MISSING
+    surface_height: float = MISSING
+    surface_holes: tuple[tuple[tuple[float, float], ...], ...] = ()
+
+
+EASTRURAL_TABLE_CFG = TableCfg(
+    prim_path="{ENV_REGEX_NS}/work_table",
+    spawn=sim_utils.UsdFileCfg(
+        usd_path=f"{VLA_BENCHMARKS_ASSETS_DIR}/objects/av_eastrural_table/av_eastrural_table.usd",
+        func=mdp.spawn_table,
+        semantic_tags=[
+            ("category", "table"),
+            *[("object_count", str(count)) for count in range(OBJECT_COUNT[0], OBJECT_COUNT[1] + 1)],
+        ],
+        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
+    ),
+    init_state=RigidObjectCfg.InitialStateCfg(pos=(0.65, 0.0, -0.697)),
+    surface_outline=((-0.4557, -0.76215), (0.4557, -0.76215), (0.4557, 0.76215), (-0.4557, 0.76215)),
+    surface_height=0.762,
+)
+DESPERES_TABLE_CFG = EASTRURAL_TABLE_CFG.replace(
+    spawn=EASTRURAL_TABLE_CFG.spawn.replace(
+        usd_path=f"{VLA_BENCHMARKS_ASSETS_DIR}/objects/av_desperes_table/av_desperes_table.usd"
+    ),
+    init_state=EASTRURAL_TABLE_CFG.init_state.replace(rot=(0.0, 0.0, math.sqrt(0.5), math.sqrt(0.5))),
+    # The measured fixed centre panel; the extension leaves are not part of the placement region.
+    surface_outline=((-0.760438, -0.406075), (0.760438, -0.406075), (0.760438, 0.406075), (-0.760438, 0.406075)),
+    surface_height=0.76835005,
+)
+TABLE_VARIANTS = (EASTRURAL_TABLE_CFG, DESPERES_TABLE_CFG)
+"""Variable real table assets, including their own measured usable surfaces and poses."""
 
 EMPTY_OBJECT_CFG = sim_utils.SphereCfg(
     radius=0.001,
@@ -282,7 +316,9 @@ class TabletopSceneCfg(InteractiveSceneCfg):
 
     clone_cfg = CloneCfg(
         clone_strategy=random,
-        clone_combinations=[InclusionSet(assets=["objects"], match_tags=["object_count"], sample_by="category")],
+        clone_combinations=[
+            InclusionSet(assets=["objects", "work_table"], match_tags=["object_count"], sample_by="category")
+        ],
     )
     objects = OBJECTS_CFG
 
@@ -295,14 +331,10 @@ class TabletopSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.UsdFileCfg(usd_path=f"{VLA_BENCHMARKS_ASSETS_DIR}/scene/franka_table/franka_table.usd"),
         init_state=AssetBaseCfg.InitialStateCfg(pos=(-0.087, 0.0, 0.0), rot=(0.0, 0.0, 1.0, 0.0)),
     )
-    work_table = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/work_table",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{VLA_BENCHMARKS_ASSETS_DIR}/objects/av_eastrural_table/av_eastrural_table.usd",
-            func=mdp.spawn_table,
-            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.65, 0.0, -0.697)),
+    work_table = EASTRURAL_TABLE_CFG.replace(
+        spawn=sim_utils.MultiAssetSpawnerCfg(
+            assets_cfg=[table.spawn for table in TABLE_VARIANTS], static=False, random_choice=False
+        )
     )
     # Ground under the shared work surface.
     ground = AssetBaseCfg(
@@ -326,7 +358,10 @@ class TabletopSceneCfg(InteractiveSceneCfg):
     )
     over_shoulder_left_camera = CAMERA_CFG.replace(
         prim_path="{ENV_REGEX_NS}/over_shoulder_left_camera",
-        offset=CameraCfg.OffsetCfg(pos=(0.05, 0.57, 0.66), rot=(-0.195, 0.399, 0.805, -0.393), convention="opengl"),
+        spawn=CAMERA_CFG.spawn.replace(focal_length=4.2),
+        offset=CameraCfg.OffsetCfg(
+            pos=(1.2, 1.4, 1.5), rot=(0.07322545, 0.38665175, 0.90325868, 0.17106223), convention="opengl"
+        ),
     )
     wrist_cam = CAMERA_CFG.replace(
         prim_path="{ENV_REGEX_NS}/robot/Robotiq_2F_85_edit/Robotiq_2F_85/base_link/wrist_cam",
@@ -397,8 +432,7 @@ class EventsCfg:
         params={
             "objects": SceneEntityCfg("objects"),
             "table": SceneEntityCfg("work_table"),
-            "surface_outline": TABLETOP_OUTLINE,
-            "surface_height": TABLETOP_HEIGHT,
+            "table_variants": TABLE_VARIANTS,
             "workspace": ((0.25, -0.4, 0.0), (0.85, 0.4, 0.6)),
             "gripper_body": GRIPPER_BODY.rsplit("/", 1)[-1],
             "clearance": 0.005,
@@ -448,7 +482,10 @@ class VLAHeterogeneousEnvCfg(ManagerBasedRLEnvCfg):
                 use_mujoco_contacts=False,
                 ccd_iterations=35,
             ),
-            collision_cfg=NewtonCollisionPipelineCfg(broad_phase="sap"),
+            # Explicit shared budgets avoid estimates dominated by inactive variant shape slots.
+            collision_cfg=NewtonCollisionPipelineCfg(
+                broad_phase="sap", rigid_contact_max=524288, max_triangle_pairs=2097152
+            ),
             num_substeps=2,
             # Thousands of small hull meshes: cuBQL takes about 0.1 s to build each one's BVH, LBVH a few ms.
             bvh_constructor_geometry="lbvh",
