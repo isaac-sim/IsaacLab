@@ -124,6 +124,8 @@ def _run(args_cli: argparse.Namespace) -> None:
         algorithm = resolve_skrl_algorithm(agent_cfg, args_cli.algorithm)
         pre_launch_video_config(env_cfg, args_cli)
         checkpoint_ghost_play.check(args_cli, env_cfg)
+        if args_cli.checkpoint_ghosts and args_cli.ml_framework != "torch":
+            raise SystemExit("--checkpoint_ghosts supports only --ml_framework torch.")
         screen.stage("Launching simulation")
         with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
             show_run_summary(screen, args_cli, env_cfg, library=f"skrl ({args_cli.ml_framework})", action="play")

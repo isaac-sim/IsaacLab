@@ -36,6 +36,14 @@ _RUN_MANIFEST_FILENAME = "run.json"
 """Name of the manifest that training writes into a run directory (``isaaclab_rl.entrypoints.common``)."""
 
 
+def _slot_count(value: str) -> int:
+    """Parse ``--checkpoint_ghost_slots``, so a bad count fails at argument parsing like any other flag."""
+    count = int(value)
+    if not 2 <= count <= MAX_CHECKPOINT_GHOST_SLOTS:
+        raise argparse.ArgumentTypeError(f"must be between 2 and {MAX_CHECKPOINT_GHOST_SLOTS}.")
+    return count
+
+
 def add_args(parser: argparse.ArgumentParser) -> None:
     """Add the Checkpoint Ghosts flags to a play script's parser."""
     parser.add_argument(
@@ -50,7 +58,7 @@ def add_args(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument(
         "--checkpoint_ghost_slots",
-        type=int,
+        type=_slot_count,
         default=None,
         help=(
             f"Most checkpoints shown at once, including the reference (2 to {MAX_CHECKPOINT_GHOST_SLOTS}). Defaults to"
@@ -71,9 +79,6 @@ def check(args_cli: argparse.Namespace, env_cfg: Any) -> None:
     """
     if not args_cli.checkpoint_ghosts:
         return
-    slots = args_cli.checkpoint_ghost_slots
-    if slots is not None and not 2 <= slots <= MAX_CHECKPOINT_GHOST_SLOTS:
-        raise SystemExit(f"--checkpoint_ghost_slots must be between 2 and {MAX_CHECKPOINT_GHOST_SLOTS}.")
     if not isinstance(env_cfg, (ManagerBasedRLEnvCfg, DirectRLEnvCfg)):
         raise SystemExit("--checkpoint_ghosts only supports single-agent environments.")
     visualizers = env_cfg.sim.visualizer_cfgs or []

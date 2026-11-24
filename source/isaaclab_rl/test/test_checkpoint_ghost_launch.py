@@ -27,3 +27,11 @@ def test_checkpoint_selectors_pass_the_library_and_agent_to_the_resolver(monkeyp
     assert path == "/runs/model_5.pt"
     assert resolver.call_args.kwargs["library"] == "rsl_rl"
     assert resolver.call_args.kwargs["metadata"] == {"agent": "rsl_rl_cfg_entry_point"}
+
+
+def test_the_ghost_manifest_name_matches_the_one_training_writes():
+    from isaaclab.visualizers import checkpoint_ghost_play
+
+    from isaaclab_rl.entrypoints.common import RUN_MANIFEST_FILENAME
+
+    assert checkpoint_ghost_play._RUN_MANIFEST_FILENAME == RUN_MANIFEST_FILENAME  # core cannot import it

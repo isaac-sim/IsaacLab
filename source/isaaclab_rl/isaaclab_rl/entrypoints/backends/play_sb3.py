@@ -138,7 +138,8 @@ def run(argv: list[str]) -> None:
 
                 def policy_factory(path: str):
                     model = PPO.load(path, device=agent_cfg["device"])
-                    stats = Path(path.replace("/model", "/model_vecnormalize").replace(".zip", ".pkl"))
+                    name = Path(path).name.replace("model", "model_vecnormalize", 1).replace(".zip", ".pkl")
+                    stats = Path(path).with_name(name)
                     norm = VecNormalize.load(stats, env) if stats.exists() else None  # each checkpoint has its own
 
                     def act(obs):

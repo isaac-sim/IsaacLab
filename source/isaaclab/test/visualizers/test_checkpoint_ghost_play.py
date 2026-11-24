@@ -50,12 +50,15 @@ def test_without_newton_the_run_is_rejected():
         play.check(_args(), _env_cfg(SimpleNamespace(visualizer_type="viser")))
 
 
-def test_a_slot_count_out_of_range_is_rejected():
-    args = _args()
-    args.checkpoint_ghost_slots = 1
+def test_a_slot_count_out_of_range_fails_at_argument_parsing():
+    import argparse
 
-    with pytest.raises(SystemExit, match="between 2 and"):
-        play.check(args, object())
+    parser = argparse.ArgumentParser()
+    play.add_args(parser)
+
+    assert parser.parse_args(["--checkpoint_ghost_slots", "4"]).checkpoint_ghost_slots == 4
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--checkpoint_ghost_slots", "1"])
 
 
 def test_a_task_whose_curriculum_selects_the_reset_state_is_rejected():

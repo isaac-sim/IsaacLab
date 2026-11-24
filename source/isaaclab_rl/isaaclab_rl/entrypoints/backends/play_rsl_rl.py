@@ -13,6 +13,7 @@ import logging
 import os
 
 from tensordict import TensorDict
+from torch.utils._pytree import tree_leaves
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs import DirectMARLEnvCfg
@@ -148,7 +149,7 @@ def run(argv: list[str]) -> None:
                     runner.load(path)
                     policy = runner.get_inference_policy(device=env.unwrapped.device)
                     return checkpoint_ghost_play.PolicyAdapter(
-                        lambda obs: policy(TensorDict(obs, batch_size=[next(iter(obs.values())).shape[0]])),
+                        lambda obs: policy(TensorDict(obs, batch_size=[tree_leaves(obs)[0].shape[0]])),
                         policy.reset,
                         agent_cfg.clip_actions,
                     )
