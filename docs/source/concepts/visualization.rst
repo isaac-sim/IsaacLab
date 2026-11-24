@@ -831,7 +831,7 @@ start from the same terrain, spawn pose, and commands, so the policy is the only
 them, and each checkpoint you add resizes every slot. A plain ``play`` run shows a greyed-out section that explains the
 flag. ``--checkpoint_ghost_slots`` caps the checkpoints shown (default eight).
 
-In the **Checkpoint Ghosts** section, **Add Checkpoint...** browses folders for RSL-RL ``model_*.pt`` files, starting in
+In the **Checkpoint Ghosts** section, **Add Checkpoint...** browses folders for the library's checkpoint files, starting in
 the experiment's log directory or ``--checkpoint_ghost_root``. Each ghost can be shown, changed, or removed, and has
 opacity and tint under **Appearance**. The controls are disabled in the RTX view; switch the Renderer to OpenGL.
 
@@ -839,8 +839,9 @@ opacity and tint under **Appearance**. The controls are disabled in the RTX view
   between slots, so the reference plays without disturbances such as pushes and can look steadier than in training.
   Reset randomization is mirrored: each ghost resets from the reference's random state. Randomness that does not come
   from torch's generators (numpy, warp) is not mirrored.
-* Only RSL-RL and manager-based environments are supported. Tasks whose curriculum selects the reset state (such as
-  Franka Pour) are rejected at launch.
+* RSL-RL, rl_games, skrl, and Stable-Baselines3 playback support it, for single-agent manager-based and direct
+  environments. A direct environment mirrors its reset state, but goals or commands it resamples during an episode are
+  not mirrored. Tasks whose curriculum selects the reset state (such as Franka Pour) are rejected at launch.
 
 **Choosing how many environments are drawn**
 

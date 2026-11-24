@@ -12,6 +12,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
+import torch
 
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.visualizers import checkpoint_ghost_play as play
@@ -169,3 +170,35 @@ def test_the_task_of_a_run_is_read_from_its_manifest(tmp_path):
     assert play._run_task(str(tmp_path / "run")) == "Isaac-Reach-Franka-OSC"
     assert play._run_task(str(tmp_path / "bad")) is None
     assert play._run_task(str(tmp_path / "missing")) is None
+
+
+def test_a_direct_environment_is_accepted():
+    from isaaclab.envs import DirectRLEnvCfg
+
+    cfg = DirectRLEnvCfg.__new__(DirectRLEnvCfg)
+    cfg.sim = SimpleNamespace(visualizer_cfgs=[SimpleNamespace(backend=SimpleNamespace(visualizer_type="newton"))])
+
+    play.check(_args(), cfg)
+
+
+def test_a_policy_adapter_clips_the_actions_and_forwards_resets():
+    resets = []
+    policy = play.PolicyAdapter(lambda obs: obs["policy"] * 10, resets.append, clip=1.0)
+
+    actions = policy({"policy": torch.tensor([[0.5, -0.5]])})
+    policy.reset()
+    policy.reset(torch.tensor([True]))
+
+    assert actions.tolist() == [[1.0, -1.0]]
+    assert resets[0] is None and resets[1].tolist() == [True]
+    play.PolicyAdapter(lambda obs: obs).reset()  # a policy without recurrent state needs no reset function
+
+
+def test_observation_groups_are_sliced_per_slot():
+    from isaaclab.visualizers.checkpoint_ghost_session import _slice
+
+    obs = {"policy": torch.arange(6).view(6, 1), "critic": {"a": torch.arange(6)}}
+
+    sliced = _slice(obs, slice(2, 4))
+
+    assert sliced["policy"].tolist() == [[2], [3]] and sliced["critic"]["a"].tolist() == [2, 3]

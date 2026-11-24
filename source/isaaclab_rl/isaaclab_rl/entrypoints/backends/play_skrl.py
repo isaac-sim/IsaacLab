@@ -21,6 +21,7 @@ import skrl
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs import DirectMARLEnvCfg
 from isaaclab.utils.seed import configure_seed
+from isaaclab.visualizers import checkpoint_ghost_play
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import get_checkpoint_path, resolve_task_config, setup_preset_cli
@@ -70,6 +71,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     )
     parser.add_argument("--checkpoint", type=str, default=None, help="Checkpoint path, latest/best, or pretrained.")
     cli_args.add_skrl_args(parser)
+    checkpoint_ghost_play.add_args(parser)
     add_launcher_args(parser)
     args_cli, hydra_args = setup_preset_cli(parser, argv)
     enable_cameras_for_video(args_cli)
@@ -121,6 +123,7 @@ def _run(args_cli: argparse.Namespace) -> None:
         )
         algorithm = resolve_skrl_algorithm(agent_cfg, args_cli.algorithm)
         pre_launch_video_config(env_cfg, args_cli)
+        checkpoint_ghost_play.check(args_cli, env_cfg)
         screen.stage("Launching simulation")
         with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
             show_run_summary(screen, args_cli, env_cfg, library=f"skrl ({args_cli.ml_framework})", action="play")
@@ -144,6 +147,7 @@ def _run(args_cli: argparse.Namespace) -> None:
                 return
             log_dir = os.path.dirname(os.path.dirname(resume_path))
             env_cfg.log_dir = log_dir
+            checkpoint_ghost_play.prepare(args_cli, env_cfg)
             apply_video_recording(env_cfg, log_dir, args_cli, subdir="play")
 
             screen.stage("Creating environment")
@@ -161,6 +165,30 @@ def _run(args_cli: argparse.Namespace) -> None:
             agent_cfg["trainer"]["close_environment_at_exit"] = False
             experiment_cfg["write_interval"] = 0
             experiment_cfg["checkpoint_interval"] = 0
+            if args_cli.checkpoint_ghosts:
+
+                def policy_factory(path: str):
+                    agent = runner_cls(env, agent_cfg).agent  # one agent per checkpoint, since they run side by side
+                    agent.load(path)
+                    agent.enable_training_mode(False, apply_to_models=True)
+
+                    def act(obs):
+                        outputs = agent.act(obs["policy"], obs.get("critic"), timestep=0, timesteps=0)
+                        return outputs[-1].get("mean_actions", outputs[0])
+
+                    return checkpoint_ghost_play.PolicyAdapter(act)
+
+                screen.close()
+                checkpoint_ghost_play.run(
+                    env,
+                    args_cli,
+                    policy_factory=policy_factory,
+                    checkpoint_pattern=r".*\.pt",
+                    reference_path=resume_path,
+                    log_root_path=log_root_path,
+                    run_playback=run_playback,
+                )
+                return
             runner = runner_cls(env, agent_cfg)
             # configure_seed must run after Runner() so torch determinism does not disturb its initialization
             if args_cli.deterministic:
@@ -183,4 +211,5 @@ def _run(args_cli: argparse.Namespace) -> None:
                 states = env.state()
 
             screen.close()
+            checkpoint_ghost_play.offer(env, env_cfg)
             run_playback(step, dt=dt, args_cli=args_cli, env_cfg=env_cfg)

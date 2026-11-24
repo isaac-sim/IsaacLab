@@ -13,12 +13,14 @@ import logging
 import os
 from pathlib import Path
 
+import torch
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import VecNormalize
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs import DirectMARLEnvCfg
 from isaaclab.utils.seed import configure_seed
+from isaaclab.visualizers import checkpoint_ghost_play
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import get_checkpoint_path, resolve_task_config, setup_preset_cli
@@ -65,6 +67,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         default=False,
         help="Use a slower SB3 wrapper but keep all the extra training info.",
     )
+    checkpoint_ghost_play.add_args(parser)
     add_launcher_args(parser)
     args_cli, hydra_args = setup_preset_cli(parser, argv)
     enable_cameras_for_video(args_cli)
@@ -101,6 +104,7 @@ def run(argv: list[str]) -> None:
     with startup_screen(args_cli, num_stages=3) as screen:
         env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent, play_mode=not args_cli.train_env_cfg)
         pre_launch_video_config(env_cfg, args_cli)
+        checkpoint_ghost_play.check(args_cli, env_cfg)
         screen.stage("Launching simulation")
         with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
             show_run_summary(screen, args_cli, env_cfg, library="sb3", action="play")
@@ -115,6 +119,7 @@ def run(argv: list[str]) -> None:
                 return
             log_dir = os.path.dirname(checkpoint_path)
             env_cfg.log_dir = log_dir
+            checkpoint_ghost_play.prepare(args_cli, env_cfg)
             apply_video_recording(env_cfg, log_dir, args_cli, subdir="play")
 
             screen.stage("Creating environment")
@@ -129,6 +134,31 @@ def run(argv: list[str]) -> None:
 
             screen.stage("Loading policy")
             env = Sb3VecEnvWrapper(env, fast_variant=not args_cli.keep_all_info)
+            if args_cli.checkpoint_ghosts:
+
+                def policy_factory(path: str):
+                    model = PPO.load(path, device=agent_cfg["device"])
+                    stats = Path(path.replace("/model", "/model_vecnormalize").replace(".zip", ".pkl"))
+                    norm = VecNormalize.load(stats, env) if stats.exists() else None  # each checkpoint has its own
+
+                    def act(obs):
+                        obs = env._process_obs(obs)
+                        actions, _ = model.predict(norm.normalize_obs(obs) if norm else obs, deterministic=True)
+                        return torch.as_tensor(actions, device=env.unwrapped.device)
+
+                    return checkpoint_ghost_play.PolicyAdapter(act)
+
+                screen.close()
+                checkpoint_ghost_play.run(
+                    env,
+                    args_cli,
+                    policy_factory=policy_factory,
+                    checkpoint_pattern=r"model(?:_.*)?\.zip",
+                    reference_path=checkpoint_path,
+                    log_root_path=log_root_path,
+                    run_playback=run_playback,
+                )
+                return
             vec_norm_path = checkpoint_path.replace("/model", "/model_vecnormalize").replace(".zip", ".pkl")
             vec_norm_path = Path(vec_norm_path)
             if vec_norm_path.exists():
@@ -158,4 +188,5 @@ def run(argv: list[str]) -> None:
                 obs, _, _, _ = env.step(actions)
 
             screen.close()
+            checkpoint_ghost_play.offer(env, env_cfg)
             run_playback(step, dt=env.unwrapped.step_dt, args_cli=args_cli, env_cfg=env_cfg)

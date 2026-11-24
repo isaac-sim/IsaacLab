@@ -21,7 +21,9 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from isaaclab.envs import ManagerBasedRLEnvCfg
+import torch
+
+from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.envs.utils.checkpoint_ghost_sync import CheckpointGhostSync
 from isaaclab.utils.seed import configure_seed
 
@@ -72,8 +74,8 @@ def check(args_cli: argparse.Namespace, env_cfg: Any) -> None:
     slots = args_cli.checkpoint_ghost_slots
     if slots is not None and not 2 <= slots <= MAX_CHECKPOINT_GHOST_SLOTS:
         raise SystemExit(f"--checkpoint_ghost_slots must be between 2 and {MAX_CHECKPOINT_GHOST_SLOTS}.")
-    if not isinstance(env_cfg, ManagerBasedRLEnvCfg):
-        raise SystemExit("--checkpoint_ghosts only supports manager-based environments.")
+    if not isinstance(env_cfg, (ManagerBasedRLEnvCfg, DirectRLEnvCfg)):
+        raise SystemExit("--checkpoint_ghosts only supports single-agent environments.")
     visualizers = env_cfg.sim.visualizer_cfgs or []
     if not isinstance(visualizers, (list, tuple)):
         visualizers = [visualizers]
@@ -85,7 +87,7 @@ def check(args_cli: argparse.Namespace, env_cfg: Any) -> None:
             types.append(getattr(chosen, "visualizer_type", None) or getattr(cfg, "visualizer_type", None))
     if "newton" not in types:
         raise SystemExit("--checkpoint_ghosts requires the Newton GL visualizer; pass --visualizer newton.")
-    curriculum = env_cfg.curriculum
+    curriculum = getattr(env_cfg, "curriculum", None)
     for name, term in vars(curriculum).items() if curriculum is not None else ():
         # Checkpoint Ghosts disable curriculum terms, so a task whose reset events read a term's state cannot run.
         if getattr(getattr(term, "func", None), "supports_checkpoint_ghosts", True) is False:
@@ -94,7 +96,7 @@ def check(args_cli: argparse.Namespace, env_cfg: Any) -> None:
             )
 
 
-def prepare(args_cli: argparse.Namespace, env_cfg: ManagerBasedRLEnvCfg) -> None:
+def prepare(args_cli: argparse.Namespace, env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg) -> None:
     """Resolve the slot count and disable randomization that cannot be mirrored, before the environment is created.
 
     ``--num_envs`` is the total simulated; the environments are split among the loaded checkpoints, so every slot needs
@@ -114,11 +116,16 @@ def prepare(args_cli: argparse.Namespace, env_cfg: ManagerBasedRLEnvCfg) -> None
         slots = total
     args_cli.checkpoint_ghost_slots = min(slots, MAX_CHECKPOINT_GHOST_SLOTS)
     CheckpointGhostSync.configure_env_cfg(env_cfg)
+    if isinstance(env_cfg, DirectRLEnvCfg):
+        logger.warning(
+            "Direct environment: reset randomization is mirrored, but goals or commands a task resamples during an"
+            " episode are not, so ghosts may chase different targets."
+        )
 
 
 def offer(env: Any, env_cfg: Any) -> None:
     """Show the greyed-out Checkpoint Ghosts section in the Newton GL HUD of a run that started without the feature."""
-    if not isinstance(env_cfg, ManagerBasedRLEnvCfg):
+    if not isinstance(env_cfg, (ManagerBasedRLEnvCfg, DirectRLEnvCfg)):
         return
     for visualizer in env.unwrapped.sim.visualizers:
         if hasattr(visualizer, "offer_checkpoint_ghosts"):
@@ -150,7 +157,7 @@ def run(
         configure_seed(env.unwrapped.cfg.seed, torch_deterministic=True)  # no runner is built here, so seed up front
     reference_file = Path(reference_path)
     session = CheckpointGhostSession(
-        env,
+        env.unwrapped,  # the Isaac Lab environment: its observation groups and 5-tuple step, free of library wrappers
         num_slots=args_cli.checkpoint_ghost_slots,
         task=args_cli.task,
         checkpoint_root=os.path.abspath(args_cli.checkpoint_ghost_root or log_root_path),
@@ -172,6 +179,26 @@ def run(
         run_playback(session.step, dt=env.unwrapped.step_dt, args_cli=args_cli, env_cfg=env.unwrapped.cfg)
     finally:
         session.close()
+
+
+class PolicyAdapter:
+    """Turns a library's act function into the policy a slot needs: observation slice in, clipped actions out."""
+
+    def __init__(
+        self,
+        act: Callable[[Any], torch.Tensor],
+        reset: Callable[[torch.Tensor | None], None] | None = None,
+        clip: float | None = None,
+    ):
+        self._act, self._reset, self._clip = act, reset, clip
+
+    def __call__(self, obs: Any) -> torch.Tensor:  # noqa: D102
+        actions = self._act(obs)
+        return actions if self._clip is None else torch.clamp(actions, -self._clip, self._clip)
+
+    def reset(self, dones: torch.Tensor | None = None) -> None:  # noqa: D102
+        if self._reset is not None:
+            self._reset(dones)
 
 
 def _run_task(directory: str) -> str | None:

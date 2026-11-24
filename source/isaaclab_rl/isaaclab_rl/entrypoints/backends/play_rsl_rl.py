@@ -12,6 +12,8 @@ import contextlib
 import logging
 import os
 
+from tensordict import TensorDict
+
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs import DirectMARLEnvCfg
 from isaaclab.utils.assets import retrieve_file_path
@@ -144,7 +146,12 @@ def run(argv: list[str]) -> None:
                 def policy_factory(path: str):
                     runner = create_rsl_rl_runner(env, agent_cfg, inference=True)
                     runner.load(path)
-                    return runner.get_inference_policy(device=env.unwrapped.device)
+                    policy = runner.get_inference_policy(device=env.unwrapped.device)
+                    return checkpoint_ghost_play.PolicyAdapter(
+                        lambda obs: policy(TensorDict(obs, batch_size=[next(iter(obs.values())).shape[0]])),
+                        policy.reset,
+                        agent_cfg.clip_actions,
+                    )
 
                 screen.close()
                 checkpoint_ghost_play.run(

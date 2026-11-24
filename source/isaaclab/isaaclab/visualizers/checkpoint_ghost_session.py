@@ -5,10 +5,10 @@
 
 """Playback of several checkpoints of one task side by side as Checkpoint Ghosts.
 
-The session does not depend on a training library. It needs an environment wrapper whose ``step`` returns
-observations, rewards, dones and extras and that has ``get_observations``, ``reset`` and ``num_actions``, plus a
-``policy_factory`` that turns a checkpoint file into a callable policy with a ``reset`` method. A library's play entry
-point supplies those, so supporting another library means writing that wiring. Only RSL-RL provides it for now.
+The session does not depend on a training library. It steps the Isaac Lab environment itself, whose observations are
+a dictionary of observation groups, and needs a ``policy_factory`` that turns a checkpoint file into a policy. The
+policy receives one slot's slice of that dictionary and returns the slot's actions, so a library's play script only
+supplies the factory, which handles the library's own observation processing and action clipping.
 """
 
 from __future__ import annotations
@@ -36,11 +36,16 @@ MAX_CHECKPOINT_GHOST_SLOTS = 8
 class CheckpointGhostPolicy(Protocol):
     """Inference policy driving one slot."""
 
-    def __call__(self, obs: Any) -> torch.Tensor:
-        """Return actions for the slot's observations."""
+    def __call__(self, obs: dict[str, Any]) -> torch.Tensor:
+        """Return actions for one slot's slice of the observation groups."""
 
     def reset(self, dones: torch.Tensor | None = None) -> None:
         """Reset recurrent state of the environments that terminated, or of all of them when ``dones`` is None."""
+
+
+def _slice(obs: Any, chunk: slice) -> Any:
+    """Return the environments in ``chunk`` of an observation tensor, or of every tensor in nested groups."""
+    return {key: _slice(value, chunk) for key, value in obs.items()} if isinstance(obs, dict) else obs[chunk]
 
 
 def _task_name(task: str) -> str:
@@ -111,11 +116,7 @@ class CheckpointGhostSession(CheckpointGhostController):
         self._restart_pending = False
         self._sync: CheckpointGhostSync | None = None
         self._load(0, reference)
-        try:
-            self._obs = env.get_observations()
-        except BaseException:
-            self.close()
-            raise
+        self._obs: dict[str, Any] = {}  # filled by the restart below, which resets the environment
         # start the reference and the empty slots together from the same spawn state
         self._restart_pending = True
 
@@ -207,14 +208,15 @@ class CheckpointGhostSession(CheckpointGhostController):
         self.apply_pending_restart()
         size = self.layout.slice_size
         if self._actions is None:
-            self._actions = torch.zeros(self._env.num_envs, self._env.num_actions, device=self._env.unwrapped.device)
+            self._actions = torch.zeros(self._env.num_envs, self._env.action_space.shape[-1], device=self._env.device)
         actions = self._actions
         actions.zero_()  # environments of no loaded slot act with zeros
         for slot in self.layout.active_slots:
             start = self.layout.slot_start(slot.index)
             chunk = slice(start, start + size)
-            actions[chunk] = self._policies[slot.index](self._obs[chunk])
-        self._obs, _, dones, _ = self._env.step(actions)
+            actions[chunk] = self._policies[slot.index](_slice(self._obs, chunk))
+        self._obs, _, terminated, truncated, _ = self._env.step(actions)
+        dones = terminated | truncated
         if self._restart_pending:
             # The viewer can add or remove a ghost while the environment steps. The split then changed, so this step's
             # dones no longer line up with the slots; the restart resets every environment and policy before the next.

@@ -109,22 +109,27 @@ def test_a_ghost_policy_resets_with_its_reference(dones, expected):
     ghost = Mock()
     session._policies = [reference, ghost, None]
     session.layout.slots[1].checkpoint = CHECKPOINT  # two loaded slots split the six envs into slices of three
-    session._obs = torch.zeros(6, 1)
-    env.num_envs, env.num_actions = 6, 1
+    session._obs = {"policy": torch.zeros(6, 1)}
+    env.num_envs, env.device, env.action_space = 6, "cpu", SimpleNamespace(shape=(6, 1))
     reference.return_value = torch.zeros(3, 1)
     ghost.return_value = torch.zeros(3, 1)
-    env.step.return_value = (torch.zeros(6, 1), torch.zeros(6), torch.tensor(dones), {})
+    env.step.return_value = (
+        {"policy": torch.zeros(6, 1)},
+        torch.zeros(6),
+        torch.tensor(dones),
+        torch.zeros(6, dtype=torch.bool),
+        {},
+    )
 
     session.step()
 
     assert ghost.reset.call_args.args[0].tolist() == expected
 
 
-def _start(monkeypatch, observations):
+def _start(monkeypatch):
     sync = Mock()
     monkeypatch.setattr(checkpoint_ghosts, "CheckpointGhostSync", sync)
     env = Mock(unwrapped=SimpleNamespace(device="cpu", step_dt=0.02, num_envs=6))
-    env.get_observations.side_effect = observations
     session = CheckpointGhostSession(
         env,
         num_slots=3,
@@ -137,13 +142,8 @@ def _start(monkeypatch, observations):
     return session, sync
 
 
-def test_a_failing_start_never_leaves_the_environment_patched(monkeypatch):
-    with pytest.raises(RuntimeError, match="observations"):
-        _start(monkeypatch, RuntimeError("observations"))
-
-
 def test_adding_and_removing_a_ghost_splits_the_environments_again(monkeypatch):
-    session, sync = _start(monkeypatch, [None])
+    session, sync = _start(monkeypatch)
     sync.assert_not_called()  # the reference alone owns every environment
     assert session.layout.slice_size == 6
 
@@ -208,7 +208,7 @@ def test_a_load_failure_is_reported_in_one_line():
 
 
 def test_a_resplit_failure_goes_back_to_the_previous_split_and_reports_it(monkeypatch):
-    session, sync = _start(monkeypatch, [None])
+    session, sync = _start(monkeypatch)
     sync.side_effect = [ValueError("no room"), Mock()]  # the new split fails, restoring the old one succeeds
 
     message = session.add_ghost(CHECKPOINT)
@@ -218,7 +218,7 @@ def test_a_resplit_failure_goes_back_to_the_previous_split_and_reports_it(monkey
 
 
 def test_a_load_failure_leaves_the_split_alone(monkeypatch):
-    session, sync = _start(monkeypatch, [None])
+    session, sync = _start(monkeypatch)
     session._policy_factory = Mock(side_effect=RuntimeError("size mismatch"))
 
     message = session.add_ghost(CHECKPOINT)
@@ -228,7 +228,7 @@ def test_a_load_failure_leaves_the_split_alone(monkeypatch):
 
 
 def test_changing_an_empty_slot_and_removing_an_empty_or_unknown_slot_do_nothing(monkeypatch):
-    session, sync = _start(monkeypatch, [None])
+    session, sync = _start(monkeypatch)
 
     assert "empty slot" in session.replace_ghost(2, CHECKPOINT)
     session.remove_ghost(2)
@@ -255,13 +255,19 @@ def test_a_run_of_another_task_is_named_and_a_matching_or_unknown_directory_is_n
 
 def test_a_ghost_added_while_the_environment_steps_skips_the_stale_policy_resets():
     session, env, policy = _session(pending=False)
-    session._obs = torch.zeros(6, 1)
-    env.num_envs, env.num_actions = 6, 1
+    session._obs = {"policy": torch.zeros(6, 1)}
+    env.num_envs, env.device, env.action_space = 6, "cpu", SimpleNamespace(shape=(6, 1))
     policy.return_value = torch.zeros(6, 1)
 
     def step(actions):
         session._restart_pending = True  # the viewer added a ghost during the step, changing the split
-        return torch.zeros(6, 1), torch.zeros(6), torch.zeros(6, dtype=torch.bool), {}
+        return (
+            {"policy": torch.zeros(6, 1)},
+            torch.zeros(6),
+            torch.zeros(6, dtype=torch.bool),
+            torch.zeros(6, dtype=torch.bool),
+            {},
+        )
 
     env.step.side_effect = step
 
@@ -271,7 +277,7 @@ def test_a_ghost_added_while_the_environment_steps_skips_the_stale_policy_resets
 
 
 def test_a_failed_rollback_after_a_failed_resplit_still_returns_a_message(monkeypatch):
-    session, sync = _start(monkeypatch, [None])
+    session, sync = _start(monkeypatch)
     sync.side_effect = ValueError("no room")  # both the new split and the rollback fail
 
     message = session.add_ghost(CHECKPOINT)

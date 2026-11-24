@@ -14,6 +14,8 @@ import numpy as np
 import torch
 
 if TYPE_CHECKING:
+    from ..direct_rl_env import DirectRLEnv
+    from ..direct_rl_env_cfg import DirectRLEnvCfg
     from ..manager_based_rl_env import ManagerBasedRLEnv
     from ..manager_based_rl_env_cfg import ManagerBasedRLEnvCfg
 
@@ -37,7 +39,7 @@ class CheckpointGhostSync:
     be mirrored.
     """
 
-    def __init__(self, env: ManagerBasedRLEnv, slice_size: int, num_slices: int):
+    def __init__(self, env: ManagerBasedRLEnv | DirectRLEnv, slice_size: int, num_slices: int):
         """Attach to an environment and place every slice on the reference slice's terrain.
 
         Args:
@@ -47,12 +49,11 @@ class CheckpointGhostSync:
             num_slices: Number of slices, including the reference.
 
         Raises:
-            TypeError: If the environment does not use managers.
+            TypeError: If the environment has no scene.
             ValueError: If the environment has fewer worlds than the slices need.
         """
-        for manager in ("command_manager", "event_manager", "scene"):
-            if not hasattr(env, manager):
-                raise TypeError("Checkpoint Ghosts only support manager-based environments.")
+        if not hasattr(env, "scene"):
+            raise TypeError("Checkpoint Ghosts need an environment with a scene.")
         if slice_size < 1 or num_slices < 2 or env.num_envs < slice_size * num_slices:
             raise ValueError(
                 f"Environment has {env.num_envs} envs, expected at least {num_slices} slices of {slice_size} envs."
@@ -66,12 +67,14 @@ class CheckpointGhostSync:
         self._saved_terrain = self._save_terrain()
         self._sync_terrain()
         self._reset_idx_original = env._reset_idx
-        self._compute_commands_original = env.command_manager.compute
+        self._commands = getattr(env, "command_manager", None)  # direct environments have none
         env._reset_idx = self._reset_idx
-        env.command_manager.compute = self._compute_commands
+        if self._commands is not None:
+            self._compute_commands_original = self._commands.compute
+            self._commands.compute = self._compute_commands
 
     @staticmethod
-    def configure_env_cfg(env_cfg: ManagerBasedRLEnvCfg) -> list[str]:
+    def configure_env_cfg(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg) -> list[str]:
         """Remove per-environment randomization that cannot be mirrored between slices.
 
         Startup and interval events, curriculum terms, and observation corruption are disabled. Reset events are kept:
@@ -86,7 +89,12 @@ class CheckpointGhostSync:
         """
         removed = []
         # A task may leave these fields None when it has no events, curriculum, or observation groups.
-        events, curriculum, observations = env_cfg.events, env_cfg.curriculum, env_cfg.observations
+        events, curriculum = getattr(env_cfg, "events", None), getattr(env_cfg, "curriculum", None)
+        observations = getattr(env_cfg, "observations", None)
+        for noise in ("action_noise_model", "observation_noise_model"):  # direct environments corrupt per environment
+            if getattr(env_cfg, noise, None) is not None:
+                setattr(env_cfg, noise, None)
+                removed.append(noise)
         for name, term in vars(events).items() if events is not None else ():
             if term is None:
                 continue
@@ -118,7 +126,8 @@ class CheckpointGhostSync:
     def close(self) -> None:
         """Restore the environment's original reset, command update, and terrain placement."""
         self._env._reset_idx = self._reset_idx_original
-        self._env.command_manager.compute = self._compute_commands_original
+        if self._commands is not None:
+            self._commands.compute = self._compute_commands_original
         terrain = self._terrain()
         for name, values in self._saved_terrain.items():
             getattr(terrain, name).copy_(values)
@@ -176,7 +185,8 @@ class CheckpointGhostSync:
         source = reference.repeat(self._num_slices - 1)
         scene.reset_to(_gather(state, source), env_ids=ghosts, is_relative=True)
         self._copy_joint_targets(ghosts, source)
-        self._copy_command_state(reference)
+        if self._commands is not None:
+            self._copy_command_state(reference)
 
     def _copy_joint_targets(self, ghosts: torch.Tensor, source: torch.Tensor) -> None:
         """Give each ghost the reference's joint targets.
@@ -201,7 +211,7 @@ class CheckpointGhostSync:
         """Copy every per-environment tensor of each command term from the reference to its ghosts."""
         ghosts = (reference[None, :] + self._ghost_offsets[:, None]).reshape(-1)
         source = reference.repeat(self._num_slices - 1)
-        manager = self._env.command_manager
+        manager = self._commands
         origins = self._env.scene.env_origins
         for name in manager.active_terms:
             term = manager.get_term(name)

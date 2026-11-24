@@ -325,3 +325,24 @@ def test_configure_env_cfg_skips_an_observation_group_that_is_none() -> None:
     )
 
     assert CheckpointGhostSync.configure_env_cfg(cfg) == ["observations.policy.enable_corruption"]
+
+
+def test_a_direct_environment_without_commands_still_mirrors_the_spawn_state() -> None:
+    env = _make_env()
+    del env.command_manager, env.event_manager  # direct environments have neither manager
+    sync = CheckpointGhostSync(env, SLICE_SIZE, NUM_SLICES)
+
+    env._reset_idx(torch.tensor([0, 1]))
+    sync.close()
+
+    root = env.scene.root_pos
+    assert torch.equal(root[[3, 4]], root[[0, 1]]) and torch.equal(root[[6, 7]], root[[0, 1]])
+
+
+def test_direct_noise_models_are_disabled_since_they_corrupt_each_environment_alone() -> None:
+    cfg = SimpleNamespace(events=None, action_noise_model=object(), observation_noise_model=object())
+
+    removed = CheckpointGhostSync.configure_env_cfg(cfg)
+
+    assert removed == ["action_noise_model", "observation_noise_model"]
+    assert cfg.action_noise_model is None and cfg.observation_noise_model is None

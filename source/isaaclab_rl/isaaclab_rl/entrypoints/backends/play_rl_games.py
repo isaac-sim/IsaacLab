@@ -21,6 +21,7 @@ from isaaclab.envs import DirectMARLEnvCfg
 from isaaclab.utils import index_fill_
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.seed import configure_seed
+from isaaclab.visualizers import checkpoint_ghost_play
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import get_checkpoint_path, resolve_task_config, setup_preset_cli
@@ -61,6 +62,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         agent_help="Name of the RL agent configuration entry point.",
     )
     parser.add_argument("--checkpoint", type=str, default=None, help="Checkpoint path, latest/best, or pretrained.")
+    checkpoint_ghost_play.add_args(parser)
     add_launcher_args(parser)
     args_cli, hydra_args = setup_preset_cli(parser, argv)
     enable_cameras_for_video(args_cli)
@@ -109,6 +111,7 @@ def run(argv: list[str]) -> None:
                 " --agent rl_games_cfg_entry_point, or use --rl_library rsl_rl for RSL-RL runner configurations."
             )
         pre_launch_video_config(env_cfg, args_cli)
+        checkpoint_ghost_play.check(args_cli, env_cfg)
         screen.stage("Launching simulation")
         with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
             show_run_summary(screen, args_cli, env_cfg, library="rl_games", action="play")
@@ -124,6 +127,7 @@ def run(argv: list[str]) -> None:
                 return
             log_dir = os.path.dirname(os.path.dirname(resume_path))
             env_cfg.log_dir = log_dir
+            checkpoint_ghost_play.prepare(args_cli, env_cfg)
             apply_video_recording(env_cfg, log_dir, args_cli, subdir="play")
 
             screen.stage("Creating environment")
@@ -147,6 +151,41 @@ def run(argv: list[str]) -> None:
             if args_cli.deterministic:
                 configure_seed(env_cfg.seed, torch_deterministic=True)
             runner.load(agent_cfg)
+            if args_cli.checkpoint_ghosts:
+
+                def policy_factory(path: str):
+                    player = runner.create_player()
+                    player.restore(path)
+                    player.reset()
+
+                    def act(obs):
+                        obs = player.obs_to_torch(env._process_obs(obs)["obs"])
+                        player.get_batch_size(obs, 1)
+                        if player.is_rnn and player.states is None:
+                            player.init_rnn()
+                        return player.get_action(obs, is_deterministic=player.is_deterministic)
+
+                    def reset(dones):
+                        if dones is None:  # the slot was resized: its recurrent states are rebuilt on the next act
+                            player.states = None
+                        elif player.states is not None:
+                            for state in player.states:
+                                index_fill_(state, dones, 0.0, dim=1)
+
+                    clip = params.get("env", {}).get("clip_actions")
+                    return checkpoint_ghost_play.PolicyAdapter(act, reset, clip)
+
+                screen.close()
+                checkpoint_ghost_play.run(
+                    env,
+                    args_cli,
+                    policy_factory=policy_factory,
+                    checkpoint_pattern=r".*\.pth",
+                    reference_path=resume_path,
+                    log_root_path=log_root_path,
+                    run_playback=run_playback,
+                )
+                return
             agent: BasePlayer = runner.create_player()
             agent.restore(resume_path)
             agent.reset()
@@ -169,4 +208,5 @@ def run(argv: list[str]) -> None:
                         index_fill_(state, dones, 0.0, dim=1)
 
             screen.close()
+            checkpoint_ghost_play.offer(env, env_cfg)
             run_playback(step, dt=env.unwrapped.step_dt, args_cli=args_cli, env_cfg=env_cfg)
