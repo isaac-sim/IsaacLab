@@ -22,7 +22,7 @@ from ... import assets
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject
-    from isaaclab.envs import ManagerBasedEnv
+    from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
 
 
 class randomize_rigid_body_material(ManagerTermBase):
@@ -61,6 +61,16 @@ class randomize_rigid_body_material(ManagerTermBase):
         model = self._newton_manager.backend.model
         self._friction_binding = asset._root_view.get_attribute("shape_material_mu", model)[:, 0]  # type: ignore
         self._restitution_binding = asset._root_view.get_attribute("shape_material_restitution", model)[:, 0]  # type: ignore
+
+        self._contact_bindings = []
+        for parameter, attribute in (
+            ("contact_stiffness_range", "shape_material_ke"),
+            ("contact_damping_range", "shape_material_kd"),
+        ):
+            value_range = cfg.params.get(parameter)
+            if value_range is not None:
+                binding = asset._root_view.get_attribute(attribute, model)[:, 0]
+                self._contact_bindings.append((binding, value_range))
 
         if isinstance(asset, assets.Articulation) and asset_cfg.body_ids != slice(None):
             # The view's shape axis follows the model's shape order, which is not grouped by body,
@@ -135,6 +145,10 @@ class randomize_rigid_body_material(ManagerTermBase):
             )
             friction_view[env_rows, shape_idx] = friction_samples
             restitution_view[env_rows, shape_idx] = restitution_samples
+
+        for binding, value_range in self._contact_bindings:
+            values = wp.to_torch(binding)
+            values[env_rows, shape_idx] = math_utils.sample_uniform(*value_range, (num_envs, num_shapes), device=device)
 
         self._newton_manager.add_model_change(ModelFlags.SHAPE_PROPERTIES)
 
@@ -310,3 +324,19 @@ class randomize_visual_shape(ManagerTermBase):
         if self._writer.model is not model:
             self._writer.rebind(model)
         self._writer(self._sample((len(selected), self._writer.body_count)), selected)
+
+
+def zero_final_obs_on_solver_fault(env: ManagerBasedRLEnv, env_ids: torch.Tensor | slice) -> None:
+    """Zero complete terminal observation rows for solver-faulted worlds, including history.
+
+    Configure as the first reset event, before any event rewrites physics state and refreshes the
+    lazy fault query. Acts on all flagged rows in ``extras["final_obs"]`` when final observations are
+    enabled. Normal environment reset clears the affected observation histories.
+    """
+    final_obs = env.extras.get("final_obs")
+    if final_obs is None:
+        return
+    faults = wp.to_torch(env.sim.backend_manager.get_non_finite_worlds())
+    for group in final_obs.values():
+        for data in group.values() if isinstance(group, dict) else (group,):
+            data.masked_fill_(faults.reshape((-1,) + (1,) * (data.ndim - 1)), 0.0)

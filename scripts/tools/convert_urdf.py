@@ -17,7 +17,8 @@ https://docs.isaacsim.omniverse.nvidia.com/latest/robot_setup/ext_isaacsim_asset
 
 positional arguments:
   input               The path to the input URDF file.
-  output              The path to store the USD file.
+  output              The directory to store the USD output in. The URDF importer writes the USD file into
+                      a subdirectory named after the robot (``<output>/<robot_name>/<robot_name>.usda``).
 
 optional arguments:
   -h, --help                Show this help message and exit
@@ -28,7 +29,7 @@ optional arguments:
   --joint_target_type       The type of control to use for the joint drive. (default: "position")
 
 The standard launcher arguments are also accepted. In particular, ``--viz`` previews the converted
-asset: ``--viz kit`` opens it in the Isaac Sim viewport, while ``--viz newton_gl`` (or ``rerun`` /
+asset: ``--viz kit`` opens it in the Isaac Sim viewport, while ``--viz newton`` (or ``rerun`` /
 ``viser``) opens it kitlessly. Run with ``--help`` for the full list.
 
 """

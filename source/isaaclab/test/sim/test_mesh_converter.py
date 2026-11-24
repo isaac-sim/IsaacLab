@@ -14,7 +14,7 @@ import shutil
 import tempfile
 
 import pytest
-from isaaclab_physx.sim.schemas import PhysxConvexHullCfg
+from isaaclab_isaacsim.sim.schemas import PhysxConvexHullCfg
 
 from pxr import Usd, UsdGeom, UsdPhysics
 
@@ -132,27 +132,30 @@ def check_mesh_collider_settings(mesh_converter: MeshConverter):
     assert geom_prim.IsInstanceable() == mesh_converter.cfg.make_instanceable
     # Obtain mesh settings
     geom_prim.SetInstanceable(False)
-    mesh_prim = stage.GetPrimAtPath(prim_path + "/geometry/mesh")
+    mesh_prims = [prim for prim in Usd.PrimRange(geom_prim) if prim.IsA(UsdGeom.Mesh)]
+    assert mesh_prims, "The converted geometry contains no meshes"
 
     # Check collision settings
     # -- if collision is enabled, check that API is present
     collision_props = _single_cfg(mesh_converter.cfg.collision_props)
     exp_collision_enabled = collision_props is not None and collision_props.collision_enabled
-    collision_api = UsdPhysics.CollisionAPI(mesh_prim)
-    collision_enabled = collision_api.GetCollisionEnabledAttr().Get()
-    assert collision_enabled == exp_collision_enabled, "Collision enabled is not the same!"
-    # -- if collision is enabled, check that collision approximation is correct
-    if exp_collision_enabled:
-        mesh_collision_props = _single_cfg(mesh_converter.cfg.mesh_collision_props)
-        if mesh_collision_props is not None:
-            exp_collision_approximation_str = mesh_collision_props.mesh_approximation_name
-            exp_collision_approximation_token = MESH_APPROXIMATION_TOKENS[exp_collision_approximation_str]
-            mesh_collision_api = UsdPhysics.MeshCollisionAPI(mesh_prim)
-            collision_approximation = mesh_collision_api.GetApproximationAttr().Get()
-            # Convert token to string for comparison
-            assert collision_approximation == exp_collision_approximation_token, (
-                "Collision approximation is not the same!"
-            )
+    for mesh_prim in mesh_prims:
+        assert mesh_prim.HasAPI(UsdPhysics.CollisionAPI)
+        collision_api = UsdPhysics.CollisionAPI(mesh_prim)
+        collision_enabled = collision_api.GetCollisionEnabledAttr().Get()
+        assert collision_enabled == exp_collision_enabled, "Collision enabled is not the same!"
+        # -- if collision is enabled, check that collision approximation is correct
+        if exp_collision_enabled:
+            mesh_collision_props = _single_cfg(mesh_converter.cfg.mesh_collision_props)
+            if mesh_collision_props is not None:
+                exp_collision_approximation_str = mesh_collision_props.mesh_approximation_name
+                exp_collision_approximation_token = MESH_APPROXIMATION_TOKENS[exp_collision_approximation_str]
+                mesh_collision_api = UsdPhysics.MeshCollisionAPI(mesh_prim)
+                collision_approximation = mesh_collision_api.GetApproximationAttr().Get()
+                # Convert token to string for comparison
+                assert collision_approximation == exp_collision_approximation_token, (
+                    "Collision approximation is not the same!"
+                )
 
 
 def test_no_change(assets):

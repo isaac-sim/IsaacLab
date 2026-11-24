@@ -22,13 +22,12 @@ from .scene_data_backend import SceneDataBackend, SceneDataFormat
 
 REQUIRES_STAGE_AND_MODEL: dict[str, tuple[bool, bool]] = {
     "kit": (True, False),
-    "newton_gl": (False, True),
     "newton": (False, True),
-    "newton_rtx": (True, False),
     "rerun": (False, True),
     "viser": (False, True),
     "isaac_rtx": (True, False),
     "newton_warp": (False, True),
+    "newton_optix": (False, True),
     "ovrtx": (True, False),
 }
 

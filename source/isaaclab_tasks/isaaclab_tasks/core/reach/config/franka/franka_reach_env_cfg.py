@@ -10,6 +10,7 @@ import warnings
 from typing import TYPE_CHECKING
 
 import torch
+from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
 from isaaclab_newton.controllers.ik.newton_ik_objectives_cfg import (
     NewtonIKJointLimitObjectiveCfg,
     NewtonIKPoseObjectiveCfg,
@@ -18,7 +19,6 @@ from isaaclab_newton.controllers.ik.newton_ik_solver_cfg import NewtonIKSolverCf
 from isaaclab_newton.envs.mdp.actions.newton_ik_actions_cfg import NewtonInverseKinematicsActionCfg
 from isaaclab_newton.physics import NewtonCfg
 from isaaclab_newton.sim.schemas import MujocoRigidBodyCfg
-from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.envs.mdp as mdp
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
@@ -160,8 +160,13 @@ class FrankaReachEnvCfg(ReachEnvCfg):
             "panda_joint7": 12.0,
         }
         self.scene.robot.spawn.variants["Physics"] = preset(
-            default="mujoco", isaacsim_physx="physx", physx="physx", ovphysx="physx"
+            default="mujoco", isaacsim_physx="physx", physx="physx", ovphysx="physx", newton_steel="physx"
         )
+        steel_solver = self.sim.physics.newton_steel.solver_cfg
+        steel_solver.iterations = 4
+        steel_solver.update_mass_matrix_interval = 4
+        steel_solver.articulation_constraint_max = 16
+        steel_solver.enable_joint_velocity_limits = False
         self.scene.robot.spawn.variants["Colliders"] = preset(
             default=FRANKA_PANDA_CFG.spawn.variants["Colliders"],
             minimal=FRANKA_MINIMAL_CFG.spawn.variants["Colliders"],

@@ -5,9 +5,9 @@
 
 """Configurations shared by the direct and manager-based Humanoid environments."""
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_isaacsim.physics import PhysxCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, SteelSolverCfg
 from isaaclab_ov.physics import OvPhysxCfg
-from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.physics import PhysxAutoCfg
@@ -72,5 +72,14 @@ class HumanoidPhysicsCfg(PresetCfg):
         ),
         num_substeps=2,
         debug_mode=False,
+    )
+    newton_steel: NewtonCfg = NewtonCfg(
+        solver_cfg=SteelSolverCfg(
+            update_mass_matrix_interval=2,
+            enable_joint_limits=True,
+            articulation_constraint_max=128,
+            free_body_constraint_max=512,
+        ),
+        num_substeps=2,
     )
     default: NewtonCfg = newton_mjwarp

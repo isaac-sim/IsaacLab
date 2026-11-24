@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Regression tests for OVPhysX 0.5.9 bootstrap and shutdown."""
+"""Regression tests for OVPhysX bootstrap and shutdown."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ import inspect
 import subprocess
 import sys
 import textwrap
-from contextlib import nullcontext
+from contextlib import closing, nullcontext
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
@@ -49,7 +49,6 @@ def manager(monkeypatch):
 
     from isaaclab.sim import SimulationContext
 
-    monkeypatch.setattr(module.ovphysx_compat, "OVPHYSX_USES_TASKS", False)
     cfg = OvPhysxBackendCfg(device="cpu")
     manager = module.OvPhysxManager(OvPhysxCfg())
     sim = SimpleNamespace(_backend_registry=[], backend_manager=manager)
@@ -121,7 +120,7 @@ def test_schema_registration_skips_providers_already_supplied_by_host(
         Path("/schemas/PhysxSchema/resources"),
         Path("/schemas/OmniUsdPhysicsDeformableSchema/resources"),
     ]
-    monkeypatch.setattr(manager_module.ovphysx_compat, "physx_schema_paths", lambda _: schema_paths)
+    monkeypatch.setattr(manager_module, "physx_schema_paths", lambda: schema_paths)
     host_registrations, ovstage_registrations = [], []
     monkeypatch.setattr(manager_module.ovstage.population, "register_usd_schemas", ovstage_registrations.append)
     monkeypatch.setattr(
@@ -227,24 +226,15 @@ def test_atexit_cleanup_logs_and_swallows_active_close_failure(monkeypatch, mana
     assert "Failed to close OVPhysX during process exit." in caplog.text
 
 
-@pytest.mark.parametrize(("modern", "fails"), [(False, False), (True, False), (True, True)])
-def test_stage_reuse_drains_bindings_before_reset(monkeypatch, manager_module, manager, modern, fails):
+@pytest.mark.parametrize("fails", [False, True])
+def test_stage_reuse_drains_bindings_before_reset(monkeypatch, manager_module, manager, fails):
     events = []
-    monkeypatch.setattr(manager_module.ovphysx_compat, "OVPHYSX_USES_TASKS", modern)
 
     class FakePhysX:
         def attach_ovstage(self, stage, *, read_ordinal):
             events.append(("attach", stage, read_ordinal))
             return receipt
 
-        def reset_stage(self):
-            events.append("reset")
-            return 9
-
-        def wait_op(self, operation):
-            events.append(("wait", operation))
-
-    class TaskPhysX(FakePhysX):
         def detach_ovstage(self):
             events.append("reset")
             return receipt
@@ -255,8 +245,8 @@ def test_stage_reuse_drains_bindings_before_reset(monkeypatch, manager_module, m
             if fails:
                 raise RuntimeError("detach failed")
 
-    receipt = object() if modern else 9
-    physx = TaskPhysX() if modern else FakePhysX()
+    receipt = object()
+    physx = FakePhysX()
     manager.backend.physx = physx
     monkeypatch.setattr(
         manager_module.OvPhysxView, "_close_all_for", lambda value: events.append(("close_views", value))
@@ -264,36 +254,26 @@ def test_stage_reuse_drains_bindings_before_reset(monkeypatch, manager_module, m
     manager.backend.stage = object()
     manager.backend.rigid_body_view = SimpleNamespace(destroy=lambda: events.append("destroy_view"))
     scene = manager.backend.scene = SimpleNamespace(
-        stage=object(), ordinal=2, reset=lambda: events.append("destroy_stage"),
+        stage=object(),
+        ordinal=2,
+        reset=lambda: events.append("destroy_stage"),
         populate=lambda usda: events.append(("populate", usda)),
-    )  # fmt: skip
-
+    )
     stage = manager.backend.stage
     with pytest.raises(RuntimeError, match="detach failed") if fails else nullcontext():
         manager.backend.load("#usda 1.0")
-
-    assert events == [
-        "destroy_view",
-        ("close_views", physx),
-        "reset",
-        ("wait", receipt),
-    ] + ([] if fails else ["destroy_stage", ("populate", "#usda 1.0"), ("attach", scene.stage, 1)]) + (
-        [("wait", receipt)] if modern and not fails else []
-    )
+    assert events == ["destroy_view", ("close_views", physx), "reset", ("wait", receipt)] + (
+        [] if fails else ["destroy_stage", ("populate", "#usda 1.0"), ("attach", scene.stage, 1)]
+    ) + ([("wait", receipt)] if not fails else [])
     assert manager.backend.rigid_body_view is None
     assert manager.backend.stage is (stage if fails else scene.stage)
 
 
-@pytest.mark.parametrize(
-    ("modern", "failure"), [(False, None), (False, "query"), (False, "write"), (True, None), (True, "update")]
-)
-def test_set_gravity_writes_and_releases_ovstage_control_resources(
-    monkeypatch, manager_module, manager, modern, failure
-):
+@pytest.mark.parametrize("failure", [None, "query", "write", "update"])
+def test_set_gravity_writes_and_releases_ovstage_control_resources(monkeypatch, manager, failure):
     """Scene gravity updates must seal their ordinal and release resources on every path."""
     from isaaclab_ov.stage import OvstageBackend
 
-    monkeypatch.setattr(manager_module.ovphysx_compat, "OVPHYSX_USES_TASKS", modern)
     calls = []
     task = object()
 
@@ -352,7 +332,6 @@ def test_set_gravity_writes_and_releases_ovstage_control_resources(
         SimpleNamespace(cfg=SimpleNamespace(physics_prim_path="/World/physicsScene", gravity=(0.0, 0.0, -9.81))),
     )
     monkeypatch.setattr(manager, "_gravity", (0.0, 0.0, -9.81))
-
     if failure is None:
         manager.set_gravity((0.0, 0.0, -3.72))
         expected_calls = [
@@ -369,10 +348,7 @@ def test_set_gravity_writes_and_releases_ovstage_control_resources(
     else:
         with pytest.raises(RuntimeError, match=f"{failure} failed"):
             manager.set_gravity((0.0, 0.0, -3.72))
-        expected_calls = [
-            ("paths", ["/World/physicsScene"]),
-            ("query", "physics-scene-paths"),
-        ]
+        expected_calls = [("paths", ["/World/physicsScene"]), ("query", "physics-scene-paths")]
         if failure in ("write", "update"):
             expected_calls.append(
                 ("write", "physics-scene-query", "physics:gravityDirection", 3, [[0.0, 0.0, -1.0]], False)
@@ -388,14 +364,9 @@ def test_set_gravity_writes_and_releases_ovstage_control_resources(
                 )
             expected_calls.append(("release_query", "physics-scene-query"))
         expected_calls.append(("destroy_paths", "physics-scene-paths"))
-
-    if not modern:
-        expected_calls = [call for call in expected_calls if call[0] != "wait"]
     assert calls == [("seal", 2), *expected_calls]
-    # ``get_gravity`` reports the last successfully applied vector.
     expected_gravity = (0.0, 0.0, -3.72) if failure is None else (0.0, 0.0, -9.81)
     assert manager.get_gravity() == pytest.approx(expected_gravity)
-    # ``cfg.gravity`` stays the nominal base that randomization terms resample from.
     assert manager._sim.cfg.gravity == (0.0, 0.0, -9.81)
 
 
@@ -557,6 +528,31 @@ def test_scene_settings(monkeypatch, manager, device, rate, override, expected):
     assert prim.GetAttribute("physxScene:enableSceneQuerySupport").Get() is sim_cfg.enable_scene_query_support
 
 
+def test_scene_contact_settings_are_authored_only_when_selected(monkeypatch, manager):
+    """Optional contact tuning reaches the scene prim; unset fields keep the stage value."""
+    from isaaclab_ov.physics.ovphysx_manager_cfg import OvPhysxCfg
+
+    from pxr import Usd
+
+    monkeypatch.setattr(
+        manager, "_sim", SimpleNamespace(cfg=SimpleNamespace(dt=1.0 / 60.0, enable_scene_query_support=False))
+    )
+    stage = Usd.Stage.CreateInMemory()
+    default_prim = stage.DefinePrim("/World/DefaultScene", "PhysicsScene")
+    # Contact settings are authored the same way on every device, so one device covers them.
+    manager._configure_physx_scene_prim(default_prim, OvPhysxCfg(), "cpu")
+    for attr in ("bounceThreshold", "frictionCorrelationDistance", "solveArticulationContactLast"):
+        assert not default_prim.GetAttribute(f"physxScene:{attr}").HasAuthoredValue()
+    prim = stage.DefinePrim("/World/PhysicsScene", "PhysicsScene")
+    cfg = OvPhysxCfg(
+        bounce_threshold_velocity=0.01, friction_correlation_distance=0.00625, solve_articulation_contact_last=True
+    )
+    manager._configure_physx_scene_prim(prim, cfg, "cpu")
+    assert prim.GetAttribute("physxScene:bounceThreshold").Get() == pytest.approx(0.01)
+    assert prim.GetAttribute("physxScene:frictionCorrelationDistance").Get() == pytest.approx(0.00625)
+    assert prim.GetAttribute("physxScene:solveArticulationContactLast").Get() is True
+
+
 @pytest.mark.parametrize(("device", "gpu_dynamics", "broadphase"), [("cpu", False, "MBP"), ("gpu", True, "GPU")])
 def test_scenes_author_device_dynamics_and_broadphase(monkeypatch, manager, device, gpu_dynamics, broadphase):
     """Every physics scene selects the simulation device, since CPU and GPU scenes share one process."""
@@ -631,6 +627,57 @@ def test_default_cache_dir_rejects_a_directory_owned_by_another_user(manager_mod
         manager_module._prepare_default_cache_dir(str(target))
 
 
+@pytest.mark.kitless
+@pytest.mark.integration
+@pytest.mark.parametrize("device", _CPU_DEVICES)
+def test_shared_cpu_stage_materializes_clone_worlds(monkeypatch, device):
+    """A shared CPU stage imports every world with its placement instead of using native clones."""
+    import numpy as np
+    import ovphysx
+    import warp as wp
+    from isaaclab_ov.cloner import ovphysx_replicate
+    from isaaclab_ov.physics import OvPhysxCfg
+    from isaaclab_ov.sim.views import OvPhysxView
+    from isaaclab_ov.stage import OvstageBackendCfg
+
+    from pxr import UsdGeom, UsdPhysics
+
+    from isaaclab.sim import SimulationCfg, build_simulation_context
+
+    def reject_native_clone(*args, **kwargs):
+        pytest.fail("CPU worlds must be imported through USD, not native-cloned")
+
+    monkeypatch.setattr(ovphysx.PhysX, "clone", reject_native_clone)
+    cfg = SimulationCfg(physics=OvPhysxCfg(), device=device, gravity=(0.0, 0.0, 0.0))
+    with build_simulation_context(sim_cfg=cfg) as sim:
+        source = "/World/envs/env_0/Cube"
+        cube = UsdGeom.Cube.Define(sim.stage, source)
+        cube.AddTranslateOp().Set((0.0, 0.0, 1.0))
+        UsdPhysics.RigidBodyAPI.Apply(cube.GetPrim())
+        UsdPhysics.CollisionAPI.Apply(cube.GetPrim())
+        ovphysx_replicate(
+            sim.stage,
+            sources=[source],
+            destinations=["/World/envs/env_{}/Cube"],
+            env_ids=np.array([0, 1]),
+            mapping=np.array([[True, True]]),
+            positions=np.array([[0.0, 0.0, 0.0], [5.0, 0.0, 0.0]]),
+        )
+        shared = sim.get_or_create_backend(OvstageBackendCfg(populate_physics=True, defer_render_copies=True))
+        shared.clone_copies = [(source, [source, "/World/envs/env_1/Cube"])]
+        sim.reset()
+
+        with closing(
+            OvPhysxView(
+                sim.backend_manager.get_physx_instance(), prim_paths=[source, "/World/envs/env_1/Cube"], device=device
+            )
+        ) as view:
+            binding = view.binding_for("rigid_body_pose")
+            poses = wp.zeros(tuple(binding.shape), dtype=wp.float32, device=device)
+            binding.read(poses)
+            np.testing.assert_allclose(poses.numpy()[:, :3], [[0.0, 0.0, 1.0], [5.0, 0.0, 1.0]], atol=1e-6)
+
+
 @pytest.mark.skipif(not (_CPU_DEVICES and _CUDA_DEVICES), reason="The device sequence requires a CPU and a CUDA device")
 def test_cpu_and_cuda_scenes_run_sequentially_in_one_process():
     """A CPU scene must not prevent a later CUDA scene in the same process, or the reverse."""
@@ -641,15 +688,133 @@ def test_cpu_and_cuda_scenes_run_sequentially_in_one_process():
     assert "DEVICE_SEQUENCE_OK" in output, output[-8000:]
 
 
-@pytest.mark.parametrize("warmup, clone_fails", [("warmup_gpu", False), ("warmup", False), ("warmup", True)])
-def test_warmup_collects_clone_receipt_before_model_init(monkeypatch, manager_module, manager, warmup, clone_fails):
-    """Accepted clone failures prevent warmup and model-ready publication."""
+@pytest.mark.kitless
+@pytest.mark.integration
+@pytest.mark.skipif(not _CUDA_DEVICES, reason="Requires a selected CUDA test device")
+def test_shared_stage_rejects_joint_only_native_recipe():
+    """A joint-only recipe must fail before attachment instead of silently losing its destination."""
+    import numpy as np
+    from isaaclab_ov.cloner import ovphysx_replicate
+    from isaaclab_ov.physics import OvPhysxCfg
+    from isaaclab_ov.stage import OvstageBackendCfg
+
+    from pxr import UsdGeom, UsdPhysics
+
+    from isaaclab.sim import SimulationCfg, build_simulation_context
+
+    cfg = SimulationCfg(physics=OvPhysxCfg(), device=_CUDA_DEVICES[0])
+    with build_simulation_context(sim_cfg=cfg, auto_add_lighting=False) as sim:
+        source = "/World/envs/env_0/Constraints"
+        UsdGeom.Xform.Define(sim.stage, source)
+        body_path = "/World/envs/env_0/Body"
+        body = UsdGeom.Cube.Define(sim.stage, body_path).GetPrim()
+        UsdPhysics.RigidBodyAPI.Apply(body)
+        UsdPhysics.CollisionAPI.Apply(body)
+        joint = UsdPhysics.FixedJoint.Define(sim.stage, source + "/Joint")
+        joint.CreateBody1Rel().SetTargets([body_path])
+        ovphysx_replicate(
+            sim.stage,
+            sources=[source],
+            destinations=["/World/envs/env_{}/Constraints"],
+            env_ids=np.array([0, 1]),
+            mapping=np.array([[True, True]]),
+        )
+        sim.get_or_create_backend(OvstageBackendCfg(populate_physics=True, defer_render_copies=True))
+
+        with pytest.raises(ValueError, match=source + ".*USD replication"):
+            sim.reset()
+        assert sim.backend_manager.get_physx_instance() is None
+
+
+@pytest.mark.kitless
+@pytest.mark.integration
+@pytest.mark.skipif(not _CPU_DEVICES, reason="Requires a selected CPU test device")
+@pytest.mark.parametrize("shared", [False, True])
+def test_binding_readiness_preserves_priorities_across_resets(monkeypatch, shared):
+    """Binding callbacks preserve priority and initialize late consumers without replaying construction."""
+    from isaaclab_ov.assets import RigidObject
+    from isaaclab_ov.physics import OvPhysxCfg
+    from isaaclab_ov.stage import OvstageBackendCfg
+
+    import isaaclab.sim as sim_utils
+    from isaaclab.assets import RigidObjectCfg
+    from isaaclab.physics import PhysicsEvent
+    from isaaclab.sim import SimulationCfg, build_simulation_context
+
+    # A flag without a shared renderer must not change headless callback ordering.
+    monkeypatch.setenv("ISAAC_LAB_SHARE_OVSTAGE", "1")
+    cfg = SimulationCfg(physics=OvPhysxCfg(), device=_CPU_DEVICES[0], gravity=(0.0, 0.0, 0.0))
+    with build_simulation_context(sim_cfg=cfg) as sim:
+        consumers = [
+            RigidObject(
+                RigidObjectCfg(
+                    prim_path="/World/Cube",
+                    spawn=sim_utils.CuboidCfg(
+                        size=(0.5, 0.5, 0.5),
+                        rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg()],
+                        collision_props=[sim_utils.UsdPhysicsCollisionCfg()],
+                    ),
+                )
+            )
+        ]
+        events = []
+        manager = sim.backend_manager
+        for name, event, order in [
+            ("model_init", PhysicsEvent.MODEL_INIT, -100),
+            ("ready_first", PhysicsEvent.PHYSICS_READY, 0),
+            ("bindings", manager.binding_init_event, 11),
+            ("ready_last", PhysicsEvent.PHYSICS_READY, 20),
+        ]:
+            manager.register_callback(
+                lambda _, name=name: events.append((name, tuple(asset.is_initialized for asset in consumers))),
+                event,
+                order=order,
+            )
+        # Stage sharing is selected after assets and listeners have already registered.
+        if shared:
+            sim.get_or_create_backend(OvstageBackendCfg(populate_physics=True, defer_render_copies=True))
+        sim.reset()
+        assert events == [("model_init", (False,))] + (
+            [("bindings", (True,)), ("ready_first", (True,)), ("ready_last", (True,))]
+            if shared
+            else [("ready_first", (False,)), ("bindings", (True,)), ("ready_last", (True,))]
+        )
+
+        # An isolated rendering stage must not change physics ownership or readiness ordering.
+        sim.get_or_create_backend(OvstageBackendCfg(scene_key=1))
+        consumers.append(RigidObject(RigidObjectCfg(prim_path="/World/Cube", spawn=None)))
+        for rebuild in (False, True):
+            events.clear()
+            if rebuild:
+                manager._warmup_done = False
+            sim.reset()
+            construction = [("model_init", (False, False))] if rebuild else []
+            assert events == construction + (
+                [("bindings", (True, True)), ("ready_first", (True, True)), ("ready_last", (True, True))]
+                if shared
+                else [
+                    ("ready_first", (not rebuild, False)),
+                    ("bindings", (True, True)),
+                    ("ready_last", (True, True)),
+                ]
+            )
+        events.clear()
+        sim.reset(soft=True)
+        assert events == []
+
+
+@pytest.mark.parametrize(
+    ("explicit_warmup", "clone_fails"),
+    [(True, False), (False, False), (False, True)],
+)
+def test_warmup_collects_clone_receipt_before_model_init(
+    monkeypatch, manager_module, manager, explicit_warmup, clone_fails
+):
+    """Both runtime APIs complete cloning before publishing model readiness; clone failures prevent it."""
     from pxr import Usd, UsdPhysics
 
     from isaaclab.physics import PhysicsEvent
 
-    monkeypatch.setattr(manager_module.ovphysx_compat, "OVPHYSX_USES_TASKS", True)
-    monkeypatch.setattr(manager_module, "OVPHYSX_LIFECYCLE_ENTRY_POINTS", {"warmup": warmup})
     events = []
     task = object()
     targets = ["/World/env_1", "/World/env_2"]
@@ -658,12 +823,6 @@ def test_warmup_collects_clone_receipt_before_model_init(monkeypatch, manager_mo
     clones = [("/World/env_0", targets, transforms, env_ids, 0)]
 
     class FakePhysX:
-        def warmup(self):
-            events.append("warmup")
-
-        def warmup_gpu(self):
-            events.append("warmup_gpu")
-
         def clone(self, source, destinations, poses, *, env_ids):
             events.append(("clone", source, destinations, poses, env_ids))
             return task
@@ -674,7 +833,17 @@ def test_warmup_collects_clone_receipt_before_model_init(monkeypatch, manager_mo
             if clone_fails:
                 raise RuntimeError("clone task failed")
 
-    backend = SimpleNamespace(physx=FakePhysX(), stage=None, load=lambda usda: None)
+    if explicit_warmup:
+
+        class LegacyPhysX(FakePhysX):
+            def warmup(self):
+                events.append("warmup")
+
+        physx = LegacyPhysX()
+    else:
+        physx = FakePhysX()
+
+    backend = SimpleNamespace(physx=physx, stage=None, owns_scene=True, load=lambda usda, **kwargs: None)
     stage = Usd.Stage.CreateInMemory()
     UsdPhysics.Scene.Define(stage, "/World/PhysicsScene")
     sim = manager._sim
@@ -694,11 +863,50 @@ def test_warmup_collects_clone_receipt_before_model_init(monkeypatch, manager_mo
         manager, "_scene_data_backend", SimpleNamespace(_defer_setup=lambda *args: events.append("defer_bindings"))
     )
     monkeypatch.setattr(manager, "dispatch_event", lambda event, payload: events.append(event))
-
     with pytest.raises(RuntimeError, match="clone task failed") if clone_fails else nullcontext():
         manager._warmup_and_load()
-
     assert events == [("clone", "/World/env_0", targets, transforms, env_ids), "wait"] + (
-        [] if clone_fails else [warmup, "defer_bindings", PhysicsEvent.MODEL_INIT]
+        [] if clone_fails else (["warmup"] if explicit_warmup else []) + ["defer_bindings", PhysicsEvent.MODEL_INIT]
     )
     assert manager._warmup_done is (not clone_fails)
+
+
+@pytest.mark.parametrize("fail", [False, True], ids=["success", "attach-failure"])
+def test_load_scopes_compiled_stage_cache_opt_out(monkeypatch, manager_module, manager, fail):
+    """A subsequent attachment must inherit the original cache setting even after a failed attach."""
+    from ovphysx.types import CompiledStageCacheMode, GlobalConfigKey
+
+    key = GlobalConfigKey.COMPILED_STAGE_CACHE
+    mode = CompiledStageCacheMode.READ_ONLY
+
+    def get_mode(setting):
+        assert setting == key
+        return mode
+
+    def set_mode(setting, value):
+        assert setting == key
+        nonlocal mode
+        mode = value
+
+    monkeypatch.setattr(manager_module.ovphysx, "get_global_config", get_mode)
+    monkeypatch.setattr(manager_module.ovphysx, "set_global_config", set_mode)
+    receipt = object()
+
+    def attach(stage, *, read_ordinal):
+        assert mode == CompiledStageCacheMode.DISABLED
+        return receipt
+
+    def wait(task):
+        assert task is receipt
+        assert mode == CompiledStageCacheMode.READ_ONLY
+        if fail:
+            raise RuntimeError("attach failed")
+
+    backend = manager.backend
+    backend.scene = SimpleNamespace(stage=object(), ordinal=2, populate=lambda usda: None)
+    backend.physx = SimpleNamespace(attach_ovstage=attach, wait_task=wait)
+    with pytest.raises(RuntimeError, match="attach failed") if fail else nullcontext():
+        backend.load("#usda 1.0", disable_compiled_stage_cache=True)
+
+    assert mode == CompiledStageCacheMode.READ_ONLY
+    assert backend.stage is backend.scene.stage

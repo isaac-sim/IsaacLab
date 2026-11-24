@@ -12,6 +12,7 @@ import contextlib
 import inspect
 import logging
 import socket
+import warnings
 import webbrowser
 from typing import TYPE_CHECKING
 from urllib.parse import quote
@@ -204,7 +205,12 @@ class NewtonViewerRerun(ViewerRerun):
 
 
 class RerunVisualizer(BaseVisualizer):
-    """Rerun visualizer for Isaac Lab."""
+    """Rerun visualizer for Isaac Lab.
+
+    .. deprecated:: 3.2.0
+        The Rerun visualizer will be removed in Isaac Lab 3.3. Use the Viser visualizer (``--viz viser``)
+        instead.
+    """
 
     def __init__(self, cfg: VisualizerCfg):
         """Initialize Rerun visualizer state.
@@ -212,6 +218,12 @@ class RerunVisualizer(BaseVisualizer):
         Args:
             cfg: Rerun visualizer configuration.
         """
+        warnings.warn(
+            "The Rerun visualizer is deprecated in Isaac Lab 3.2 and will be removed in Isaac Lab 3.3. "
+            "Use the Viser visualizer instead (--viz viser, or VisualizerCfg(backend=ViserBackendCfg())).",
+            FutureWarning,
+            stacklevel=2,
+        )
         super().__init__(cfg)
         self._viewer: NewtonViewerRerun | None = None
         self._backend_display: str | None = None

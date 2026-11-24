@@ -38,7 +38,7 @@ import sys
 
 class BlockBackends(importlib.abc.MetaPathFinder):
     def find_spec(self, fullname, path=None, target=None):
-        if fullname.split(".")[0] in {"isaaclab_newton", "isaaclab_ov", "isaaclab_physx"}:
+        if fullname.split(".")[0] in {"isaaclab_newton", "isaaclab_ov", "isaaclab_isaacsim"}:
             raise ModuleNotFoundError(fullname)
 
 sys.meta_path.insert(0, BlockBackends())
@@ -50,7 +50,7 @@ from isaaclab.envs.mdp import randomize_physics_scene_gravity
 
 @pytest.mark.parametrize(
     "visualizers,renderers",
-    [(("kit",), ()), (("newton_gl",), ("isaac_rtx",)), ((), ())],
+    [(("kit",), ()), (("newton",), ("isaac_rtx",)), ((), ())],
 )
 def test_shape_event_rejects_consumers_without_shape_storage(visualizers, renderers) -> None:
     env = SimpleNamespace(

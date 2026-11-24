@@ -20,6 +20,8 @@ from ..utils.tensor_processors import TensorProcessorCfg
 from .scene_entity_cfg import SceneEntityCfg
 
 if TYPE_CHECKING:
+    from leapp import Axis
+
     from .action_manager import ActionTerm
     from .command_manager import CommandTerm
     from .manager_base import ManagerTermBase
@@ -102,8 +104,8 @@ class ActionTermCfg:
     clip: dict[str, tuple] | None = None
     """Clip range for the processed action (dict of regex expressions). Defaults to None.
 
-    The keys are matched against the joint names for joint action terms and against the task-space
-    action names (:attr:`action_names`) for task-space action terms.
+    The keys are matched against the joint names for joint action terms and against the action names
+    (:attr:`action_names`) for task-space and non-holonomic action terms.
     """
 
 
@@ -130,7 +132,9 @@ class CommandTermCfg:
     cmd_kind: str | None = None
     """Type hint for the command for deployment."""
     element_names: list[str] | list[list[str]] | None = None
-    """Element names for the command for deployment."""
+    """Labels for non-environment dimensions. A flat list labels a vector command."""
+    axes: list[Axis | None] | None = None
+    """Advanced LEAPP layout, including the environment dimension. Overrides :attr:`element_names`."""
 
 
 ##

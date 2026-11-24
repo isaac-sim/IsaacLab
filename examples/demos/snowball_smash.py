@@ -64,7 +64,7 @@ parser.add_argument("--mpm_iterations", type=int, default=100, help="Maximum MPM
 parser.add_argument("--rigid_substeps", type=int, default=4, help="MuJoCo-Warp substeps per coupled step.")
 parser.add_argument("--disable_cuda_graph", action="store_true", help="Disable CUDA graph capture for debugging.")
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["newton_gl"])
+parser.set_defaults(visualizer=["newton"])
 args_cli = parser.parse_args()
 
 
@@ -125,10 +125,9 @@ def create_snowball_points(radius: float, seed: int) -> np.ndarray:
 def create_sim_cfg():
     """Create the proxy-coupled Newton simulation configuration."""
     from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg, NewtonCfg
+    from isaaclab_newton.physics.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
     import isaaclab.sim as sim_utils
-
-    from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
     if not str(args_cli.device).startswith("cuda"):
         raise RuntimeError("The graph-captured implicit-MPM coupling demo requires a CUDA device.")

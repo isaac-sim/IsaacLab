@@ -17,7 +17,8 @@ https://docs.isaacsim.omniverse.nvidia.com/latest/robot_setup/ext_isaacsim_asset
 
 positional arguments:
   input               The path to the input MJCF file.
-  output              The path to store the USD file.
+  output              A path whose parent directory stores the USD output; the file name is derived
+                      from the MJCF file name.
 
 optional arguments:
   -h, --help                Show this help message and exit
@@ -28,7 +29,7 @@ optional arguments:
   --import_physics_scene    Import the physics scene from the MJCF file. (default: False)
 
 The standard launcher arguments are also accepted. In particular, ``--viz`` previews the converted
-asset: ``--viz kit`` opens it in the Isaac Sim viewport, while ``--viz newton_gl`` (or ``rerun`` /
+asset: ``--viz kit`` opens it in the Isaac Sim viewport, while ``--viz newton`` (or ``rerun`` /
 ``viser``) opens it kitlessly. Run with ``--help`` for the full list.
 
 """

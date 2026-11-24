@@ -7,12 +7,10 @@
 
 from __future__ import annotations
 
-import warnings
-
 from ...utils import configclass
 from ...visualizers.visualizer_cfg import VISUALIZER_ALIASES, VISUALIZER_TYPES, ImageViewCfg
 
-CAPTURE_VISUALIZER_TYPES = ("kit", "newton_gl", "newton_rtx")
+CAPTURE_VISUALIZER_TYPES = ("kit", "newton")
 """Visualizer types a video can be recorded from; the streaming ``rerun`` and ``viser`` cannot."""
 
 SENSOR_CHANNELS = ("rgb", "depth", "segmentation", "normals")
@@ -23,9 +21,9 @@ def parse_video_source(source: str) -> tuple[str, str, str]:
     """Split a string :attr:`VideoRecorderCfg.source` into ``(kind, name, sub)``.
 
     ``kind`` is ``"viz"`` or ``"sensor"``; ``name`` is the canonical visualizer type (``""`` for a bare
-    ``"viz"``) or the sensor name; ``sub`` is ``"streaming_view"``, a sensor channel, or ``""``. The prefix
-    ``visualizer`` is the long form of ``viz``, as ``--visualizer`` is of ``--viz``; the deprecated ``newton``
-    type is mapped to ``newton_gl`` with a :class:`DeprecationWarning`.
+    ``"viz"``) or the sensor name; ``sub`` is ``"streaming_view"``, a sensor channel, or ``""``.
+    The prefix ``visualizer`` is the long form of ``viz``, as ``--visualizer`` is of ``--viz``;
+    the ``newton_gl`` and ``newton_rtx`` aliases are mapped to ``newton``.
     A bare visualizer type is shorthand for ``viz:<type>``.
 
     Raises:
@@ -39,12 +37,6 @@ def parse_video_source(source: str) -> tuple[str, str, str]:
     if kind == "viz" and not parts:
         return kind, "", ""
     if kind == "viz" and parts[1:] in ([], ["streaming_view"]) and name in (*VISUALIZER_TYPES, *VISUALIZER_ALIASES):
-        if name in VISUALIZER_ALIASES:
-            warnings.warn(
-                f"Video source type {name!r} is deprecated. Use {VISUALIZER_ALIASES[name]!r} instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
         return kind, VISUALIZER_ALIASES.get(name, name), sub
     if kind == "sensor" and 1 <= len(parts) <= 2 and name and sub in ("", *SENSOR_CHANNELS):
         return kind, name, sub
@@ -69,11 +61,11 @@ class VideoRecorderCfg:
     Fields are colon-separated: ``"<kind>:<type>:<sub>"``.
 
     * ``"viz"``                        – the first capture-capable visualizer ``--viz`` selected, else a
-      headless Newton GL visualizer added for the recording.
-    * ``"viz:<type>"``                 – a ``kit``, ``newton_gl`` or ``newton_rtx`` visualizer, interactive
+      headless Newton visualizer added for the recording.
+    * ``"viz:<type>"``                 – a ``kit`` or ``newton`` visualizer, interactive
       camera: the one ``--viz`` selected, else a headless one added for the recording.
     * ``"viz:<type>:streaming_view"``  – the streaming camera panel of that visualizer (requires
-      ``streaming_view=True`` on its config, e.g. :class:`~isaaclab_visualizers.kit.KitBackendCfg`).
+      ``streaming_view=True`` on its :class:`~isaaclab.visualizers.VisualizerCfg`).
     * ``"sensor:<name>"``              – scene sensor, RGB channel (default); no visualizer is added.
     * ``"sensor:<name>:<channel>"``    – scene sensor channel: ``rgb``, ``depth`` (colorized via the turbo
       colormap), ``segmentation`` or ``normals`` (colorized).
@@ -84,9 +76,9 @@ class VideoRecorderCfg:
     :func:`~isaaclab.app.launch_simulation` resolves ``"viz"`` and ``"viz:<type>"`` to the visualizer the
     recording uses. The camera position and resolution are configured on the visualizer cfg, not here.
 
-    ``visualizer`` is the long form of the ``viz`` prefix (``"visualizer:kit"`` is ``"viz:kit"``). The deprecated
-    ``newton`` type still works with a warning; use ``newton_gl``. A bare visualizer type is shorthand for
-    ``viz:<type>`` (e.g. ``"newton_gl"`` is ``"viz:newton_gl"``).
+    ``visualizer`` is the long form of the ``viz`` prefix (``"visualizer:kit"`` is ``"viz:kit"``). ``newton_gl`` and
+    ``newton_rtx`` are aliases of ``newton``. A bare visualizer type
+    is shorthand for ``viz:<type>`` (e.g. ``"newton"`` is ``"viz:newton"``).
     """
 
     source: ImageViewCfg | str = "viz"
@@ -106,9 +98,9 @@ class VideoRecorderCfg:
     fps: int | None = None
     """Output video frame rate in frames per second.
 
-    ``None`` (default): resolved automatically from the environment at recording time
-    using ``env.metadata["render_fps"]`` when available, falling back to
-    ``round(1.0 / env.step_dt)``.  Set an explicit integer to override.
+    ``None`` (default): resolved automatically as ``max(1, round(base_fps / frame_stride))``.
+    The base rate uses ``env.metadata["render_fps"]`` when available, falling back to
+    ``1.0 / env.step_dt``. Set an explicit integer to override.
     """
 
     video_length: int = 200
@@ -170,7 +162,7 @@ class VideoRecorderCfg:
     ``video_interval=1000`` keeps only the three most recently recorded clips::
 
         VideoRecorderCfg(
-            source="viz:newton_gl",
+            source="viz:newton",
             video_interval=1000,
             video_length=200,
             keep_last_n_clips=3,

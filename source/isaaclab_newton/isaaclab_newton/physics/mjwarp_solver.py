@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import warp as wp
@@ -26,6 +26,39 @@ logger = logging.getLogger(__name__)
 _SENSORS_BY_STATE_ATTRIBUTE = {"body_qdd": "the IMU or PVA sensor", "body_parent_f": "the joint-wrench sensor"}
 
 
+@wp.func
+def _nonfinite(values: wp.array2d(dtype=Any), world: int, column: int) -> bool:
+    return column < values.shape[1] and not wp.isfinite(values[world, column])
+
+
+@wp.kernel(enable_backward=False)
+def _find_nonfinite_solver_worlds(
+    qpos: wp.array2d(dtype=wp.float32),
+    qvel: wp.array2d(dtype=wp.float32),
+    qacc: wp.array2d(dtype=wp.float32),
+    qfrc_actuator: wp.array2d(dtype=wp.float32),
+    qacc_warmstart: wp.array2d(dtype=wp.float32),
+    qfrc_applied: wp.array2d(dtype=wp.float32),
+    ctrl: wp.array2d(dtype=wp.float32),
+    act: wp.array2d(dtype=wp.float32),
+    xfrc_applied: wp.array2d(dtype=wp.spatial_vector),
+    invalid_worlds: wp.array(dtype=wp.bool),
+):
+    world, column = wp.tid()
+    if (
+        _nonfinite(qpos, world, column)
+        or _nonfinite(qvel, world, column)
+        or _nonfinite(qacc, world, column)
+        or _nonfinite(qfrc_actuator, world, column)
+        or _nonfinite(qacc_warmstart, world, column)
+        or _nonfinite(qfrc_applied, world, column)
+        or _nonfinite(ctrl, world, column)
+        or _nonfinite(act, world, column)
+        or _nonfinite(xfrc_applied, world, column)
+    ):
+        invalid_worlds[world] = True
+
+
 class MJWarpSolver(NewtonSolver):
     """Newton's MuJoCo Warp solver, which steps in place on one state."""
 
@@ -33,7 +66,7 @@ class MJWarpSolver(NewtonSolver):
 
     solver_class = SolverMuJoCo
     single_state = True
-    deterministic = True
+    max_deterministic_mode = wp.DeterministicMode.RUN_TO_RUN
 
     @classmethod
     def applied_deterministic_mode(cls, cfg: MJWarpSolverCfg, mode: wp.DeterministicMode) -> wp.DeterministicMode:
@@ -72,6 +105,8 @@ class MJWarpSolver(NewtonSolver):
         kwargs.pop("ls_parallel", None)
         if deterministic:
             kwargs["disable_sensors"] = True
+        if model._has_body_variants:
+            kwargs["separate_worlds"] = True
         return self.solver_class(model, **kwargs)
 
     def supports_capture(self) -> bool:
@@ -91,6 +126,37 @@ class MJWarpSolver(NewtonSolver):
             requested_attributes=model.get_requested_contact_attributes(),
         )
 
+    def mark_non_finite_worlds(self, state: State, faults: wp.array) -> None:
+        """Include MuJoCo's persistent solver buffers.
+
+        CPU MuJoCo uses one global simulation and clears its history globally on reset, so a fault in
+        its private buffers invalidates every environment. MJWarp checks each world's buffers separately.
+        """
+        super().mark_non_finite_worlds(state, faults)
+        data = self.native.mj_data if self.cfg.use_mujoco_cpu else self.native.mjw_data
+        arrays = (
+            data.qpos,
+            data.qvel,
+            data.qacc,
+            data.qfrc_actuator,
+            data.qacc_warmstart,
+            data.qfrc_applied,
+            data.ctrl,
+            data.act,
+            data.xfrc_applied,
+        )
+        if self.cfg.use_mujoco_cpu:
+            if any(not np.isfinite(array).all() for array in arrays):
+                faults.fill_(True)
+        else:
+            wp.launch(
+                _find_nonfinite_solver_worlds,
+                dim=(data.qpos.shape[0], max(array.shape[1] for array in arrays)),
+                inputs=arrays,
+                outputs=[faults],
+                device=faults.device,
+            )
+
     def reset(self, state: State, world_mask: wp.array) -> None:
         """Clear solver history and synchronize authored joint state for masked worlds.
 
@@ -104,7 +170,7 @@ class MJWarpSolver(NewtonSolver):
         if solver.use_mujoco_cpu and not world_mask.numpy()[0]:
             return
         solver.reset(state, world_mask=world_mask, flags=0)
-        if solver.update_data_interval != 1:
+        if self.cfg.update_data_interval != 1:
             # Newton has no public masked import. With sleeping disabled,
             # reset(flags=0) skips it, so reuse the pinned solver's conversion.
             data = solver.mj_data if solver.use_mujoco_cpu else solver.mjw_data

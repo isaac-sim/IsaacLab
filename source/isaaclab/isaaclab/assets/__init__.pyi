@@ -39,6 +39,9 @@ __all__ = [
     "DeformableObjectData",
     "VisualMaterial",
     "VisualMaterialCfg",
+    "BaseSurfaceGripper",
+    "SurfaceGripper",
+    "SurfaceGripperCfg",
 ]
 
 from .articulation import (
@@ -85,3 +88,4 @@ from .deformable_object import (
     DeformableObjectData,
 )
 from .visual_material import VisualMaterial, VisualMaterialCfg
+from .surface_gripper import BaseSurfaceGripper, SurfaceGripper, SurfaceGripperCfg

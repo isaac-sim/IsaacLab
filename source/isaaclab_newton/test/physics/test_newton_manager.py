@@ -10,14 +10,18 @@ from __future__ import annotations
 
 import gc
 import logging
+import threading
 from functools import partial as P
+from pathlib import Path
 from types import SimpleNamespace
 
 import isaaclab_newton.physics.newton_manager as newton_manager_module
 import newton
 import numpy as np
 import pytest
+import torch
 import warp as wp
+from isaaclab_newton.envs.mdp import solver_fault
 from isaaclab_newton.physics import (
     FeatherstoneSolverCfg,
     KaminoPADMMSolverCfg,
@@ -32,6 +36,7 @@ from isaaclab_newton.physics import (
     NewtonShapeCfg,
     NewtonSolver,
     NewtonSolverCfg,
+    SteelSolverCfg,
     VBDSolverCfg,
     XPBDSolverCfg,
     create_builder,
@@ -44,12 +49,44 @@ from newton import ModelFlags
 from newton.actuators import DrivePID
 from newton.solvers import SolverImplicitMPM, SolverKamino, SolverMuJoCo, SolverVBD
 
+from isaaclab.managers import (
+    EventManager,
+    EventTermCfg,
+    ObservationGroupCfg,
+    ObservationManager,
+    ObservationTermCfg,
+    RewardManager,
+    RewardTermCfg,
+)
 from isaaclab.physics import PhysicsEvent
 from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
 from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context
 from isaaclab.test.utils import DeviceScope, test_devices
+from isaaclab.utils import instantiate
 
 # ----- Configuration and lifecycle -------------------------------------------------------
+
+
+def test_native_body_variants_have_one_geometry_owner():
+    """Native variants must use Newton's model without an Isaac Lab geometry bank."""
+    package = Path(__file__).resolve().parents[2] / "isaaclab_newton"
+    cloner = package / "cloner/replicate.py"
+    asset = package / "assets/rigid_object/rigid_object.py"
+    physics = package / "physics"
+    assert not (physics / "mesh_variants.py").exists()
+    assert not (physics / "mjwarp_manager.py").exists()
+    assert "add_body_variants(" in cloner.read_text()
+    assert "select_body_variants(" in asset.read_text()
+    assert "resolve_matching_prims_from_source" not in asset.read_text()
+    assert all(symbol not in asset.read_text() for symbol in ("torch.cuda", "record_stream", "ScopedStream"))
+    assert "spawn.func(" not in cloner.read_text()
+    assert all(
+        symbol not in cloner.read_text()
+        for symbol in ("plan.asset_catalogs", "catalog_rows", "target_owners", "while catalogs")
+    )
+    forbidden = ("MeshVariants", "_SELECT_MESH_VARIANTS", "mesh_variant_definitions")
+    for path in (cloner, asset, physics / "newton_backend.py", physics / "newton_manager.py"):
+        assert all(symbol not in path.read_text() for symbol in forbidden)
 
 
 @pytest.mark.parametrize(
@@ -76,6 +113,122 @@ def test_newton_shape_cfg_defaults_match_newton():
 def test_collision_cfg_leaves_max_triangle_pairs_to_newton():
     """The default must not override Newton's estimate, which grows with the world count."""
     assert NewtonCollisionPipelineCfg().to_pipeline_args()["max_triangle_pairs"] is None
+
+
+def test_explicit_collision_capacity_reaches_the_solver_before_construction():
+    """A configured pipeline capacity must also size solver scratch allocated at construction."""
+
+    class CapacitySeen(Exception):
+        pass
+
+    class RecordingSolver(NewtonSolver):
+        def build(self, model, mode, env_template):
+            assert model.rigid_contact_max == 48
+            raise CapacitySeen
+
+    cfg = NewtonCfg(
+        solver_cfg=NewtonSolverCfg(class_type=RecordingSolver),
+        collision_cfg=NewtonCollisionPipelineCfg(rigid_contact_max=48),
+    )
+    backend = backend_stub(
+        cfg=cfg, model=SimpleNamespace(rigid_contact_max=None), deterministic_mode=wp.DeterministicMode.NOT_GUARANTEED
+    )
+
+    with pytest.raises(CapacitySeen):
+        backend.init_solver()
+
+
+def test_kamino_rejects_conflicting_contact_capacities():
+    cfg = KaminoPADMMSolverCfg(max_contacts_per_world=32, use_fk_solver=False)
+    model = SimpleNamespace(rigid_contact_max=128, world_count=2)
+
+    with pytest.raises(ValueError, match="one consistent contact capacity"):
+        instantiate(cfg, model, wp.DeterministicMode.NOT_GUARANTEED)
+
+
+def test_all_shapes_sdf_config_validates_after_update():
+    cfg = NewtonCollisionPipelineCfg.SDFAllShapesCfg()
+    cfg.sdf_max_resolution = 7
+    with pytest.raises(ValueError, match="divisible by 8"):
+        cfg.validate()
+    cfg.sdf_target_voxel_size = 0.01
+    cfg.validate()
+
+
+@pytest.mark.kitless
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_all_shapes_sdf_provisions_analytic_colliders(device):
+    """Ordinary and variant colliders have SDFs without overriding authored settings."""
+    collision = NewtonCollisionPipelineCfg(
+        speculative_contact_gap_max=0.01,
+        sdf_all_shapes=NewtonCollisionPipelineCfg.SDFAllShapesCfg(sdf_max_resolution=32),
+    )
+    cfg = NewtonCfg(
+        solver_cfg=XPBDSolverCfg(),
+        collision_cfg=collision,
+        num_substeps=2,
+        collision_decimation=1,
+        use_cuda_graph=False,
+    )
+    builder = create_builder(cfg)
+    builder.begin_world()
+    body = builder.add_body(mass=1.0)
+    builder.add_shape_box(body=body, hx=0.1, hy=0.1, hz=0.1)
+    builder.add_shape_sphere(body=body, radius=0.05)
+    cable = builder.add_shape_capsule(body=body, radius=0.02, half_height=0.13)
+    cable_scale = builder.shape_scale[cable]
+    barrel = builder.add_shape_cylinder(body=body, radius=0.05, half_height=0.04, barrel_radius=0.08)
+    mesh = newton.Mesh.create_box(0.05, 0.05, 0.05, compute_inertia=False)
+    authored_sdf = builder.add_shape_mesh(body=body, mesh=mesh)
+    builder.shape_sdf_max_resolution[authored_sdf] = 16
+    builder.shape_sdf_narrow_band_range[authored_sdf] = (-0.02, 0.03)
+    builder.shape_sdf_texture_format[authored_sdf] = "float32"
+    builder.shape_sdf_padding[authored_sdf] = 0.02
+    force_only = builder.add_shape_mesh(body=body, mesh=mesh)
+    builder.shape_force_sdf[force_only] = True
+    builder.shape_sdf_narrow_band_range[force_only] = (-0.03, 0.04)
+    variants = []
+    for shape in ("box", "sphere"):
+        variant = newton.ModelBuilder(up_axis=builder.up_axis)
+        variant_body = variant.add_body(mass=0.1)
+        if shape == "box":
+            variant.add_shape_box(body=variant_body, hx=0.04, hy=0.04, hz=0.04)
+        else:
+            variant.add_shape_sphere(body=variant_body, radius=0.04)
+        variants.append(variant)
+    builder.add_body_variants(body, variants)
+    builder.end_world()
+    plain_cfg = NewtonCfg(solver_cfg=XPBDSolverCfg(), use_cuda_graph=False)
+    plain_builder = create_builder(plain_cfg)
+    plain_builder.begin_world()
+    plain_builder.add_builder(builder)
+    plain_builder.end_world()
+
+    backend = NewtonBackend(NewtonBackendCfg(physics_cfg=cfg, device=device), builder, dt=0.01)
+    assert builder.shape_sdf_max_resolution[authored_sdf] == 16
+    assert builder.shape_sdf_narrow_band_range[authored_sdf] == (-0.02, 0.03)
+    assert builder.shape_sdf_texture_format[authored_sdf] == "float32"
+    assert builder.shape_sdf_padding[authored_sdf] == 0.02
+    assert builder.shape_sdf_max_resolution[force_only] == 32
+    assert builder.shape_sdf_narrow_band_range[force_only] == (-0.03, 0.04)
+    assert collision.to_pipeline_args()["speculative_contact_gap_max"] == 0.01
+    assert backend.model.shape_count == 7
+    barrel_vertices = builder.shape_source[barrel].vertices
+    assert np.hypot(barrel_vertices[:, 0], barrel_vertices[:, 1]).max() > 0.055
+    assert (backend.model._shape_sdf_index.numpy() >= 0).all()
+    assert (backend.model._shape_edge_range.numpy()[:, 1] > 0).all()
+    assert (backend.model._variant_shape_geometry["_shape_sdf_index"].numpy() >= 0).all()
+    backend.model.select_body_variants(
+        wp.array([1], dtype=wp.int32, device=device), bodies=wp.array([body], dtype=wp.int32, device=device)
+    )
+    assert (backend.model._shape_sdf_index.numpy() >= 0).all()
+    scene_data = NewtonSceneDataBackend(SimpleNamespace(backend=backend))
+    scene_data.initialize_geometry([], {"cable": [cable]}, {cable: cable_scale})
+    source, _ = scene_data.get_geometry_batches()[0]
+    assert backend.model.shape_scale.numpy()[cable, 1] == 1.0
+    assert source.shape_scale.numpy()[cable, 1] == pytest.approx(0.13)
+    plain_backend = NewtonBackend(NewtonBackendCfg(physics_cfg=plain_cfg, device=device), plain_builder, dt=0.01)
+    assert newton.GeoType.SPHERE in plain_backend.model._variant_shape_geometry["shape_type"].numpy()
 
 
 def test_reset_lets_consumers_bind_each_new_backend_before_the_solver_exists(monkeypatch):
@@ -124,6 +277,7 @@ def test_reset_lets_consumers_bind_each_new_backend_before_the_solver_exists(mon
         pytest.param(XPBDSolverCfg, newton.solvers.SolverXPBD, True, id="xpbd"),
         pytest.param(VBDSolverCfg, SolverVBD, True, id="vbd"),
         pytest.param(FeatherstoneSolverCfg, newton.solvers.SolverFeatherstone, True, id="featherstone"),
+        pytest.param(SteelSolverCfg, newton.solvers.SolverSteel, True, id="steel"),
         pytest.param(P(KaminoPADMMSolverCfg, use_collision_detector=True), SolverKamino, False, id="kamino_internal"),
         pytest.param(P(KaminoPADMMSolverCfg, use_collision_detector=False), SolverKamino, True, id="kamino_pipeline"),
         pytest.param(P(MPMSolverCfg, max_iterations=2, voxel_size=0.05), SolverImplicitMPM, False, id="mpm"),
@@ -165,8 +319,9 @@ def test_reset_builds_the_configured_solver_and_steps(solver_cfg_factory, solver
                 particle_radius=0.01,
             )
         else:
-            body = builder.add_body(mass=1.0)
-            builder.add_joint_revolute(parent=-1, child=body, axis=(0, 0, 1))
+            body = builder.add_link(mass=1.0)
+            joint = builder.add_joint_revolute(parent=-1, child=body, axis=(0, 0, 1))
+            builder.add_articulation([joint])
             if solver_cls is SolverKamino and solver_cfg.use_collision_detector:
                 builder.add_shape_sphere(body=body, radius=0.05)
                 builder.add_ground_plane()
@@ -233,7 +388,7 @@ class _State:
 
 
 def _recording_backend(
-    events, *, single_state=True, num_substeps=1, device="cpu", captures=True, ignored_model_changes=None, **cfg
+    events, *, single_state=True, num_substeps=1, device="cpu", captures=False, ignored_model_changes=None, **cfg
 ):
     """A backend whose solver hooks and states record every operation of a step."""
 
@@ -282,18 +437,22 @@ def _recording_backend(
         solver_dt=0.002 / num_substeps,
         actuators=None,
         actuators_active=False,
+        lab_actuators_active=False,
+        handles_actions=False,
         contact_sensors={},
         imu_sensors=[],
         world_mask=wp.zeros(2, dtype=wp.bool, device=device),
         fk_mask=wp.zeros(1, dtype=wp.bool, device=device),
         kinematics_dirty=False,
         transforms_may_change_on_graph_replay=False,
-        state_version=0,
+        timestamp=0,
         model_changes=set(),
         warned_model_changes=set(),
         pre_actuator_callbacks=[],
         post_actuator_callbacks=[],
         state_force_callbacks=[],
+        post_solver_substep_callbacks=[],
+        solver_observables=None,
         post_step_callbacks=[],
         solver_init_callbacks=[],
         decimation=1,
@@ -308,7 +467,9 @@ def _recording_backend(
 # ----- Solver initialization and contacts ----------------------------------------------------
 
 
-@pytest.mark.parametrize("solver_cfg", [KaminoPADMMSolverCfg(), MPMSolverCfg()], ids=["kamino", "mpm"])
+@pytest.mark.parametrize(
+    "solver_cfg", [KaminoPADMMSolverCfg(), MPMSolverCfg(), MJWarpSolverCfg()], ids=["kamino", "mpm", "mjwarp"]
+)
 def test_init_solver_rejects_a_determinism_guarantee_the_solver_cannot_honor(solver_cfg):
     cfg = NewtonCfg(solver_cfg=solver_cfg, deterministic_mode="gpu_to_gpu")
     backend = backend_stub(cfg=cfg, model=None, deterministic_mode=newton_backend._resolve_deterministic_mode(cfg))
@@ -322,7 +483,7 @@ def test_init_solver_rejects_a_determinism_guarantee_the_solver_cannot_honor(sol
     [
         pytest.param(XPBDSolverCfg(), False, "not_guaranteed", wp.DeterministicMode.NOT_GUARANTEED, id="no_request"),
         pytest.param(XPBDSolverCfg(), True, "not_guaranteed", wp.DeterministicMode.RUN_TO_RUN, id="generic_request"),
-        pytest.param(MJWarpSolverCfg(), True, "gpu_to_gpu", wp.DeterministicMode.GPU_TO_GPU, id="explicit_mode_wins"),
+        pytest.param(XPBDSolverCfg(), True, "gpu_to_gpu", wp.DeterministicMode.GPU_TO_GPU, id="explicit_mode_wins"),
         pytest.param(
             MJWarpSolverCfg(use_mujoco_cpu=True), True, "not_guaranteed", wp.DeterministicMode.NOT_GUARANTEED, id="cpu"
         ),
@@ -384,6 +545,47 @@ def test_deterministic_collision_pipeline_grows_with_the_solver_contact_capacity
     assert observable_requests == []
 
 
+@pytest.mark.kitless
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_hydroelastic_contacts_keep_per_contact_stiffness_when_nconmax_grows(device: str) -> None:
+    builder = newton.ModelBuilder(gravity=(0.0, 0.0, -9.81))
+    box_mesh = newton.Mesh.create_box(0.05, 0.05, 0.05, compute_inertia=False)
+    ground_mesh = newton.Mesh.create_box(0.25, 0.25, 0.05, compute_inertia=False)
+    box_mesh.build_sdf(margin=0.005, max_resolution=32, device=device)
+    ground_mesh.build_sdf(margin=0.005, max_resolution=32, device=device)
+
+    builder.begin_world()
+    body = builder.add_body(xform=wp.transform(wp.vec3(0.0, 0.0, 0.025), wp.quat_identity()))
+    builder.add_shape_mesh(
+        body,
+        mesh=box_mesh,
+        cfg=newton.ModelBuilder.ShapeConfig(is_hydroelastic=True, kh=1.0e6, density=1000.0, margin=0.0, gap=0.0),
+    )
+    builder.add_shape_mesh(
+        -1,
+        xform=wp.transform(wp.vec3(0.0, 0.0, -0.025), wp.quat_identity()),
+        mesh=ground_mesh,
+        cfg=newton.ModelBuilder.ShapeConfig(is_hydroelastic=True, kh=1.0e9, margin=0.0, gap=0.0),
+    )
+    builder.end_world()
+
+    # Large nconmax forces required > CollisionPipeline's auto-estimate in non-deterministic mode.
+    cfg = NewtonCfg(solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=False, nconmax=12000), num_substeps=1)
+    cfg.solver_cfg.class_type.prepare_builder(cfg.solver_cfg, builder)
+    backend = NewtonBackend(NewtonBackendCfg(physics_cfg=cfg, device=device), builder, dt=1.0 / 60.0)
+    backend.init_solver()
+    backend.capture = None
+    backend.actuators_active = True
+    backend.step()
+
+    assert backend.contacts.rigid_contact_max == 12000
+    assert backend.contacts.per_contact_shape_properties is True
+    assert backend.contacts.rigid_contact_stiffness is not None
+    contact_count = int(backend.contacts.rigid_contact_count.numpy()[0])
+    assert contact_count > 0
+    assert np.any(backend.contacts.rigid_contact_stiffness.numpy()[:contact_count] > 0.0)
+
+
 def test_collision_cfg_is_rejected_when_the_solver_does_not_use_the_collision_pipeline():
     backend = backend_stub(
         cfg=NewtonCfg(solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=True), collision_cfg=NewtonCollisionPipelineCfg()),
@@ -396,7 +598,10 @@ def test_collision_cfg_is_rejected_when_the_solver_does_not_use_the_collision_pi
         backend._allocate_contacts()
 
 
-def test_late_contact_sensor_registration_allocates_observables_and_invalidates_capture(monkeypatch):
+@pytest.mark.parametrize(
+    "substep_consumer", [None, "contact_f", "body_qdd"], ids=["sensor_only", "contact_f", "body_qdd"]
+)
+def test_late_contact_sensor_registration_allocates_observables_and_invalidates_capture(monkeypatch, substep_consumer):
     """A new sensor must be included in the next captured step without reallocating existing contacts."""
     allocated, requests = [], []
     contacts = SimpleNamespace(rigid_contact_max=2)
@@ -407,12 +612,20 @@ def test_late_contact_sensor_registration_allocates_observables_and_invalidates_
         def __init__(self, model, **kwargs):
             requests.append(kwargs["request_contact_attributes"])
 
-    solver = SimpleNamespace(observables=lambda kinds, *, contacts: allocated.append((kinds, contacts)) or object())
+    def allocate(kinds, *, contacts):
+        allocated.append((kinds, contacts))
+        return SimpleNamespace(kinds=kinds)
+
+    solver = SimpleNamespace(observables=allocate)
+    existing = SimpleNamespace(kinds=frozenset({substep_consumer})) if substep_consumer else None
+    if substep_consumer == "body_qdd":
+        existing.body_qdd = wp.zeros(1, dtype=wp.spatial_vector, device="cpu")
     backend = backend_stub(
         cfg=NewtonCfg(solver_cfg=MJWarpSolverCfg()),
         model=object(),
         solver=solver,
         contacts=contacts,
+        solver_observables=existing,
         graphs={"simulate": object()},
     )
     monkeypatch.setattr(newton_backend, "SensorContact", RecordingSensor)
@@ -420,13 +633,19 @@ def test_late_contact_sensor_registration_allocates_observables_and_invalidates_
     backend.add_contact_sensor(body_names_expr="foot")
 
     assert requests == [False]
-    assert allocated == [(RecordingSensor.solver_observable_kinds, contacts)]
+    expected_kinds = RecordingSensor.solver_observable_kinds | (existing.kinds if existing is not None else set())
+    assert allocated == ([] if substep_consumer == "contact_f" else [(expected_kinds, contacts)])
     assert backend.contact_observables is not None
+    assert backend.solver_observables is existing
+    if substep_consumer == "contact_f":
+        assert backend.contact_observables is existing
+    elif substep_consumer == "body_qdd":
+        assert backend.contact_observables.body_qdd is existing.body_qdd
     assert backend.graphs == {}
     backend.graphs = {"simulate": object()}
     backend.add_contact_sensor(body_names_expr="hand")
     assert backend.graphs == {}
-    assert len(allocated) == 1
+    assert len(allocated) == int(substep_consumer != "contact_f")
 
 
 @pytest.mark.parametrize("solver_cfg", [FeatherstoneSolverCfg(), MPMSolverCfg()], ids=["featherstone", "mpm"])
@@ -441,11 +660,11 @@ def test_contact_sensor_requires_solver_contact_force_observables(solver_cfg):
 
 
 @pytest.mark.parametrize(
-    ("decimation", "graphable"),
-    [(1, True), (2, True), (2, False)],
-    ids=["physics_only", "captured_actuators", "eager_actuators"],
+    ("decimation", "graphable", "substep_consumer"),
+    [(1, True, False), (2, True, False), (2, False, False), (2, True, True)],
+    ids=["physics_only", "captured_actuators", "eager_actuators", "shared_contact_f"],
 )
-def test_solver_observables_reach_contact_sensors_once_per_step(decimation, graphable):
+def test_solver_observables_reach_contact_sensors_once_per_step(decimation, graphable, substep_consumer):
     events = []
     backend = _recording_backend(events, num_substeps=2)
     backend.contacts = object()
@@ -453,6 +672,11 @@ def test_solver_observables_reach_contact_sensors_once_per_step(decimation, grap
     backend.contact_sensors["foot"] = SimpleNamespace(
         update=lambda state, contacts, *, observables: events.append(("sensor", contacts, observables))
     )
+    if substep_consumer:
+        backend.solver_observables = backend.contact_observables
+        backend.post_solver_substep_callbacks.append(
+            lambda contacts, outputs, state, dt: events.append(("substep", outputs, state.name))
+        )
     if decimation > 1:
         backend.actuators_active = True
         backend.actuators = SimpleNamespace(is_all_graphable=graphable, step=lambda *args, **kwargs: None)
@@ -460,8 +684,14 @@ def test_solver_observables_reach_contact_sensors_once_per_step(decimation, grap
 
     backend.step()
 
-    assert events.count(("observables", backend.contact_observables)) == 1
+    assert events.count(("observables", backend.contact_observables)) == (4 if substep_consumer else 1)
     assert events.count(("sensor", backend.contacts, backend.contact_observables)) == 1
+    if substep_consumer:
+        assert events.count(("substep", backend.contact_observables, "state_0")) == 4
+        for index, event in enumerate(events):
+            if event[0] == "substep":
+                assert events[index - 1] == ("observables", backend.contact_observables)
+                assert events[index + 1] == ("clear", "state_0")
 
 
 @pytest.mark.parametrize("single_state", [True, False], ids=["single_state", "double_state"])
@@ -516,21 +746,21 @@ def test_decimation_loop_runs_actuator_callbacks_per_physics_step_and_post_step_
 
 
 @pytest.mark.parametrize(
-    ("collision_decimation", "mid_loop_collides"),
-    [(0, 0), (2, 3), (7, 1)],
+    ("collision_decimation", "horizons"),
+    [(0, [8]), (2, [2, 2, 2, 2]), (7, [7, 1])],
     ids=["disabled", "every_2nd", "only_7th"],
 )
-def test_collision_decimation_recollides_between_substeps_except_after_the_last(
-    collision_decimation, mid_loop_collides
-):
+def test_collision_decimation_recollides_between_substeps_except_after_the_last(collision_decimation, horizons):
     events = []
     backend = _recording_backend(events, num_substeps=8, collision_decimation=collision_decimation)
-    backend.collision_pipeline = SimpleNamespace(collide=lambda state, contacts: events.append(("collide",)))
+    backend.collision_pipeline = SimpleNamespace(collide=lambda state, contacts, *, dt: events.append(("collide", dt)))
     backend.contacts = object()
 
     backend.step()
 
-    assert events.count(("collide",)) == 1 + mid_loop_collides
+    assert [event[1] for event in events if event[0] == "collide"] == [
+        horizon * backend.solver_dt for horizon in horizons
+    ]
 
 
 def test_model_changes_notify_the_solver_once_per_step_and_warn_once_when_ignored(caplog):
@@ -566,6 +796,66 @@ def test_step_runs_eagerly_once_then_replays_a_graph_only_when_the_solver_suppor
     assert [event for event in events if event[0] == "check"] == [("check", supported)] * 2
 
 
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_graph_capture_allows_concurrent_legacy_stream_copy(device: str) -> None:
+    """A render/UI copy must not invalidate physics capture on the same GPU."""
+    source = wp.full(4, 7.0, device=device)
+    result = wp.zeros(4, device=device)
+    image = torch.full((4,), 23.0, device=device)
+    copied = torch.zeros_like(image)
+    # Setup is complete before capture. No allocations or implicit dependency
+    # on captured physics work are needed by the independent image consumer.
+    wp.synchronize_device(device)
+    torch.cuda.synchronize(device)
+    entered = threading.Event()
+    finished = threading.Event()
+    errors = []
+
+    def copy_image() -> None:
+        try:
+            assert entered.wait(5), "capture did not start"
+            with torch.cuda.device(device), torch.cuda.stream(torch.cuda.default_stream(device)):
+                copied.copy_(image)
+                torch.cuda.default_stream(device).synchronize()
+        except BaseException as error:
+            errors.append(error)
+        finally:
+            finished.set()
+
+    def record_physics() -> None:
+        wp.copy(result, source)
+        entered.set()
+        assert finished.wait(5), "concurrent image copy did not complete"
+
+    worker = threading.Thread(target=copy_image)
+    worker.start()
+    try:
+        graph = newton_backend.capture_graph(device, record_physics)
+    finally:
+        entered.set()
+        worker.join(5)
+        assert not errors, errors
+    assert not worker.is_alive()
+    np.testing.assert_array_equal(result.numpy(), [0.0] * 4)  # Recording did not advance physics.
+    wp.capture_launch(graph)
+    np.testing.assert_array_equal(result.numpy(), [7.0] * 4)
+    np.testing.assert_array_equal(copied.cpu().numpy(), [23.0] * 4)
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_graph_capture_records_torch_work_on_the_warp_stream(device: str) -> None:
+    """Torch work that the caller runs on Warp's current stream is recorded with the Warp work."""
+    values = torch.zeros(4, device=device)
+    wp.synchronize_device(device)
+    with torch.cuda.stream(wp.stream_to_torch(wp.get_stream(device))):
+        graph = newton_backend.capture_graph(device, lambda: values.add_(1.0))
+    torch.cuda.synchronize(device)
+    np.testing.assert_array_equal(values.cpu().numpy(), [0.0] * 4)  # Recording ran nothing.
+    wp.capture_launch(graph)
+    wp.synchronize_device(device)
+    np.testing.assert_array_equal(values.cpu().numpy(), [1.0] * 4)
+
+
 # ----- Reset masks -------------------------------------------------------------------------
 
 
@@ -598,7 +888,7 @@ def test_forward_resolves_flagged_worlds_once_and_not_while_an_outer_graph_recor
         kinematics_dirty=True,
         transforms_may_change_on_graph_replay=False,
         model_changes=set(),
-        state_version=0,
+        timestamp=0,
     )
     scene_data = NewtonSceneDataBackend(manager)
 
@@ -719,12 +1009,21 @@ def _two_solver_configs() -> list[tuple[NewtonCfg, int]]:
     ]
 
 
-@pytest.mark.parametrize("execution", ["eager", "backend_capture", "outer_capture"])
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize(
+    ("device", "execution"),
+    [
+        (device, execution)
+        for device in test_devices()
+        for execution in ("eager", "backend_capture", "outer_capture")
+        # The capture cases already step their CPU reference backends eagerly.
+        if execution != "eager" or device != "cpu"
+    ],
+)
 def test_backends_with_different_solvers_step_side_by_side(device, execution):
     """Each backend advances only its own model and matches a backend stepped alone.
 
-    An outer capture records each backend's step without running it or capturing a graph of its own.
+    An outer capture records each backend's step without running it or capturing a graph of its own. On the CPU,
+    both captures use Warp's CPU graph capture.
     """
     captured = execution != "eager"
     pair = [_pendulums(cfg, decimation, device, captured=captured) for cfg, decimation in _two_solver_configs()]
@@ -811,7 +1110,7 @@ def test_queries_share_one_bvh_refit_per_publication(monkeypatch, cloth, device)
         observed.append(backend.state_0.body_q.numpy().copy())
 
     monkeypatch.setattr(renderer, "_launch_render", read)
-    render_data = SimpleNamespace(graph=None, ppisp_pipeline=None)
+    render_data = SimpleNamespace(graph=None)
     renderer.render(render_data)
     renderer.render(render_data)
     assert render_data.graph is None
@@ -894,6 +1193,15 @@ def test_captured_step_holds_staged_forces_and_recaptures_after_decimation_chang
             np.testing.assert_allclose(manager.backend.state_0.joint_qd.numpy(), 0.0, atol=1e-6)
             assert counter.numpy()[0] == step + 1
 
+        substeps = wp.zeros(1, dtype=wp.int32, device="cuda:0")
+        manager.register_post_solver_substep_callback(
+            lambda contacts, observables, state, dt: wp.launch(_count_steps, 1, inputs=[substeps])
+        )
+        sim.step(render=False)
+        assert substeps.numpy()[0] == num_substeps * decimation
+        sim.step(render=False)
+        assert substeps.numpy()[0] == 2 * num_substeps * decimation
+
 
 def test_stateful_actuators_replay_like_eager_steps_across_decimation_changes(monkeypatch):
     """PID and delay history survive replay, recapture, and odd and even decimation."""
@@ -930,3 +1238,219 @@ def test_stateful_actuators_replay_like_eager_steps_across_decimation_changes(mo
                     )
             trajectories.append(np.asarray(samples))
     np.testing.assert_allclose(trajectories[1], trajectories[0], atol=1e-6, rtol=1e-5)
+
+
+@wp.kernel
+def _damp_body(body_qd: wp.array(dtype=wp.spatial_vector), body_f: wp.array(dtype=wp.spatial_vector)):
+    # a state-dependent command: it changes between the physics steps of one environment step
+    body_f[0] = wp.spatial_vector(0.0, 0.0, -20.0 * body_qd[0][2], 0.0, 0.0, 0.0)
+
+
+def test_handled_actions_run_before_every_physics_step_like_the_environment_loop():
+    """Handled actions run before every physics step of one captured step, also after a hard reset, like the env loop.
+
+    The post-step callbacks still run once per step, after its last physics step.
+    """
+    decimation, num_steps, velocities = 3, 4, []
+    for handled in (True, False):
+        sim_cfg = SimulationCfg(dt=0.01, device="cuda:0", physics=NewtonCfg(solver_cfg=MJWarpSolverCfg()))
+        with build_simulation_context(sim_cfg=sim_cfg) as sim:
+            builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
+            builder.add_body(mass=1.0)
+            sim.reset()
+            manager = sim.backend_manager
+            manager.set_decimation(decimation)
+            applied = []
+            # actions that damp the free body, recorded into the step only when handled
+            actions = SimpleNamespace(
+                is_graphable=handled,
+                apply_action=lambda: (
+                    applied.append("action"),
+                    wp.launch(_damp_body, 1, inputs=[manager.backend.state_0.body_qd, manager.backend.state_0.body_f]),
+                ),
+            )
+            scene = SimpleNamespace(is_graphable=True, write_data_to_sim=lambda: None)
+            assert manager.handle_actions(actions, scene) is handled
+            assert manager.handles_decimation() is handled
+            for reset in (False, True):
+                if reset:
+                    sim.reset()
+                    assert manager.backend.handles_actions is handled
+                # hard resets discard the post-step callbacks
+                manager.register_post_step_callback(lambda: applied.append("publish"))
+                applied.clear()
+                for _ in range(num_steps):
+                    for _ in range(1 if handled else decimation):
+                        if not handled:
+                            actions.apply_action()
+                        sim.step(render=False)
+                # steps that handle actions record the actions once per physics step and then replay them
+                if handled:
+                    assert applied == (["action"] * decimation + ["publish"]) * 2
+                else:
+                    assert applied.count("action") == num_steps * decimation
+                velocities.append(manager.backend.state_0.body_qd.numpy().copy())
+    np.testing.assert_allclose(velocities[:2], velocities[2:], rtol=1e-5, atol=1e-6)
+    # damping holds the body well below free-fall speed
+    assert velocities[0][0, 2] > -0.5 * 9.81 * num_steps * decimation * 0.01
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
+def test_solver_fault_detects_private_buffers_and_recovers_only_the_failed_world(device, monkeypatch):
+    """Poisoned MuJoCo state is detected even with finite body poses, and masked recovery matches a clean solve."""
+    cfg = NewtonCfg(solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=True), num_substeps=1, use_cuda_graph=False)
+    backend, reference = (_pendulums(cfg, 1, device) for _ in range(2))
+    manager = NewtonManager(cfg)
+    manager.backend = backend
+    env = SimpleNamespace(
+        num_envs=4,
+        device=device,
+        sim=SimpleNamespace(backend_manager=manager, is_playing=lambda: False),
+        max_episode_length_s=2.0,
+        extras={},
+        reward_values=torch.tensor([1.0, float("nan"), 3.0, 4.0], device=device),
+        observation_values=torch.tensor([[float("nan"), 1.0], [7.0, 2.0], [3.0, 4.0], [5.0, 6.0]], device=device),
+    )
+    env.reward_manager = RewardManager(
+        {
+            "task": RewardTermCfg(func=lambda env: env.reward_values, weight=1.0),
+            "bonus": RewardTermCfg(func=lambda env: 2.0, weight=1.0),
+            "solver_fault_reward": RewardTermCfg(
+                func="isaaclab_newton.envs.mdp:zero_reward_on_solver_fault", weight=1.0
+            ),
+        },
+        env,
+    )
+    env.sim.is_playing = lambda: True
+    groups = {}
+    for name, concatenate in (("policy", True), ("perception", False)):
+        group = ObservationGroupCfg(concatenate_terms=concatenate)
+        group.values = ObservationTermCfg(
+            func=lambda env: env.observation_values, history_length=2, flatten_history_dim=concatenate
+        )
+        groups[name] = group
+    observations = ObservationManager(groups, env)
+    events = EventManager(
+        {
+            "solver_fault_observations": EventTermCfg(
+                func="isaaclab_newton.envs.mdp:zero_final_obs_on_solver_fault", mode="reset"
+            )
+        },
+        env,
+    )
+    observations.compute(update_history=True)
+    env.observation_values[1, 0] = float("inf")
+    art_ids = wp.array(np.arange(4).reshape(4, 1), dtype=wp.int32, device=device)
+    world_mask = wp.array([False, True, False, False], dtype=wp.bool, device=device)
+    scans = []
+    mark_faults = backend.solver_ops.mark_non_finite_worlds
+    monkeypatch.setattr(
+        backend.solver_ops,
+        "mark_non_finite_worlds",
+        lambda state, faults: (scans.append(state), mark_faults(state, faults)),
+    )
+    events.apply("reset", env_ids=torch.tensor([1], device=device), global_env_step_count=0)
+    assert not scans
+    for name in ("qpos", "qvel", "qacc", "qfrc_actuator", "qacc_warmstart", "qfrc_applied", "xfrc_applied"):
+        values = wp.to_torch(getattr(backend.solver.mjw_data, name))
+        scans_before = len(scans)
+        backend.step()
+        reference.step()
+        assert len(scans) == scans_before
+        values[1].fill_(float("nan"))
+        assert np.isfinite(backend.state_0.body_q.numpy()).all()
+        assert solver_fault(env).tolist() == [False, True, False, False]
+        torch.testing.assert_close(
+            env.reward_manager.compute(dt=0.1), torch.tensor([0.3, 0.0, 0.5, 0.6], device=device)
+        )
+        # The reset event clears complete terminal rows, including nonzero history.
+        for update_history in (True, False):
+            result = observations.compute(update_history=update_history)
+            env.extras["final_obs"] = result
+            events.apply("reset", env_ids=torch.tensor([1], device=device), global_env_step_count=0)
+            expected = torch.tensor(
+                [[float("nan"), 1.0, float("nan"), 1.0], [0.0] * 4, [3.0, 4.0] * 2, [5.0, 6.0] * 2],
+                device=device,
+            )
+            torch.testing.assert_close(result["policy"], expected, equal_nan=True)
+            torch.testing.assert_close(result["perception"]["values"], expected.reshape(4, 2, 2), equal_nan=True)
+        assert torch.isinf(env.observation_values[1, 0])
+        assert len(scans) == scans_before + 1
+        logs = env.reward_manager.reset(torch.tensor([1], device=device))
+        assert all(value.item() == 0.0 for value in logs.values())
+        # Use the same authored-state and FK boundary as the normal scene reset.
+        for target in (backend, reference):
+            wp.to_torch(target.state_0.joint_q)[1] = 0.0
+            wp.to_torch(target.state_0.joint_qd)[1] = 0.0
+            target.invalidate_fk(world_mask, art_ids)
+            target.forward()
+            target.step()
+        assert not backend.get_non_finite_worlds().numpy().any(), name
+    for name in ("joint_q", "joint_qd"):
+        np.testing.assert_allclose(
+            getattr(backend.state_0, name).numpy(), getattr(reference.state_0, name).numpy(), atol=1e-6, rtol=1e-5
+        )
+    assert not solver_fault(env).any()
+    # Masking the output must not erase stored history or hide unrelated nonfinite observations.
+    result = observations.compute(update_history=False)
+    env.extras["final_obs"] = result
+    events.apply("reset", env_ids=torch.tensor([1], device=device), global_env_step_count=0)
+    assert torch.isinf(result["policy"][1, 0])
+    assert torch.isnan(result["policy"][0, 0])
+    env.reward_values.fill_(1.0)
+    torch.testing.assert_close(env.reward_manager.compute(dt=0.1), torch.full((4,), 0.3, device=device))
+
+
+def test_non_finite_newton_state_ignores_global_entities():
+    cfg = NewtonCfg(solver_cfg=XPBDSolverCfg(), use_cuda_graph=False)
+    backend = _pendulums(cfg, 1, "cpu")
+    wp.to_torch(backend.state_0.joint_q)[0] = float("nan")
+    wp.to_torch(backend.state_0.joint_qd)[2] = float("inf")
+    assert np.isfinite(backend.state_0.body_q.numpy()).all()
+    assert backend.get_non_finite_worlds().numpy().tolist() == [True, False, True, False]
+
+    builder = create_builder(cfg)
+    for _ in range(4):
+        builder.begin_world()
+        builder.add_body(mass=1.0, inertia=wp.diag(wp.vec3(0.01)))
+        builder.add_particle(pos=wp.vec3(0.0), vel=wp.vec3(0.0), mass=1.0)
+        builder.end_world()
+    builder.add_body(mass=1.0, inertia=wp.diag(wp.vec3(0.01)))
+    builder.add_particle(pos=wp.vec3(0.0), vel=wp.vec3(0.0), mass=1.0)
+    backend = NewtonBackend(NewtonBackendCfg(physics_cfg=cfg, device="cpu"), builder, dt=0.01)
+    backend.init_solver()
+    poses = wp.to_torch(backend.state_0.body_q)
+    original_poses = poses.clone()
+    poses[1, 0] = poses[2, 3] = float("nan")
+    wp.to_torch(backend.state_0.body_qd)[3, 0] = float("inf")
+    poses[4].fill_(float("nan"))
+    assert backend.get_non_finite_worlds().numpy().tolist() == [False, True, True, True]
+    poses[:4] = original_poses[:4]
+    backend.state_0.body_qd.zero_()
+    backend.invalidate_body_state()
+    backend.forward()
+    wp.to_torch(backend.state_0.particle_q)[1, 0] = float("nan")
+    wp.to_torch(backend.state_0.particle_qd)[2, 2] = float("inf")
+    wp.to_torch(backend.state_0.particle_q)[4].fill_(float("nan"))
+    assert backend.get_non_finite_worlds().numpy().tolist() == [False, True, True, False]
+
+
+def test_cpu_mujoco_solver_history_fault_recovers():
+    """The single-world CPU MuJoCo path detects and resets its native history."""
+    cfg = NewtonCfg(solver_cfg=MJWarpSolverCfg(use_mujoco_cpu=True), num_substeps=1, use_cuda_graph=False)
+    builder = create_builder(cfg)
+    builder.begin_world()
+    link = builder.add_link(mass=1.0, inertia=wp.diag(wp.vec3(0.01)))
+    builder.add_articulation([builder.add_joint_revolute(-1, link)])
+    builder.end_world()
+    backend = NewtonBackend(NewtonBackendCfg(physics_cfg=cfg, device="cpu"), builder, dt=0.01)
+    backend.init_solver()
+    backend.solver.mj_data.qacc_warmstart[0] = float("nan")
+    assert backend.get_non_finite_worlds().numpy().all()
+    backend.invalidate_fk(
+        wp.array([True], dtype=wp.bool, device="cpu"),
+        wp.array(np.arange(1).reshape(1, 1), dtype=wp.int32, device="cpu"),
+    )
+    backend.forward()
+    backend.step()
+    assert not backend.get_non_finite_worlds().numpy().any()

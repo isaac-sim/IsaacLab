@@ -5,7 +5,7 @@
 import os
 import tempfile
 
-from isaaclab_physx.physics import PhysxCfg
+from isaaclab_isaacsim.physics import PhysxCfg
 
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
@@ -510,7 +510,7 @@ class EventCfg:
 
 @configclass
 class PickPlaceG1InspireFTPEnvCfg(ManagerBasedRLEnvCfg):
-    """Configuration for the GR1T2 environment."""
+    """Configuration for the Unitree G1 Inspire Hand pick-place environment."""
 
     # Scene settings
     scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=1, env_spacing=2.5)

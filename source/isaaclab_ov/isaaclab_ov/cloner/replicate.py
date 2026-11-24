@@ -12,6 +12,7 @@ import math
 import os
 import re
 from collections.abc import Iterable, Sequence
+from functools import cache, partial
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -21,7 +22,6 @@ from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 from isaaclab import cloner
 
 from isaaclab_ov._clone import CloneRecipe
-from isaaclab_ov.physics import ovphysx_compat
 from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg, OVRTXRendererCfg
 from isaaclab_ov.stage import OvstageBackend, OvstageBackendCfg
 from isaaclab_ov.stage import ovstage_replicate as ovstage_replicate
@@ -194,10 +194,11 @@ class OvrtxReplicateContext(cloner.ReplicateContext):
         if share_ovstage and sim.backend_manager.backend is not None and sim.backend_manager.backend.owns_scene:
             raise RuntimeError("Configure OVRTX cameras before the first OVPhysX reset to share its OVStage.")
         if use_ovstage:
-            replaced = (OvrtxReplicateContext, OvPhysxReplicateContext) if share_ovstage else (OvrtxReplicateContext,)
-            for context in replaced:
-                routing.setdefault(OvstageReplicateContext, set()).update(routing.pop(context, ()))
-                sim.clone_contexts.pop(context, None)
+            if share_ovstage:
+                # Keep the physics route so the existing planner builds native clone recipes.
+                routing.setdefault(OvstageReplicateContext, set()).update(routing.get(OvPhysxReplicateContext, ()))
+            routing.setdefault(OvstageReplicateContext, set()).update(routing.pop(OvrtxReplicateContext, ()))
+            sim.clone_contexts.pop(OvrtxReplicateContext, None)
 
         # Stage ownership is settled before native construction. Register the stage before its borrowers.
         for renderer in renderers:
@@ -223,7 +224,11 @@ class OvrtxReplicateContext(cloner.ReplicateContext):
             scene = None
             if use_ovstage:
                 scene = sim.get_or_create_backend(
-                    OvstageBackendCfg(scene_key=None if share_ovstage else backend_cfg, populate_physics=share_ovstage)
+                    OvstageBackendCfg(
+                        scene_key=None if share_ovstage else backend_cfg,
+                        populate_physics=share_ovstage,
+                        defer_render_copies=share_ovstage,
+                    )
                 )
             renderer.backend = sim.get_or_create_backend(backend_cfg)
             renderer.scene = scene if use_ovstage else renderer.backend
@@ -407,7 +412,7 @@ def _convert_legacy_joint_properties(
             axis = {"PhysicsRevoluteJoint": "angular", "PhysicsPrismaticJoint": "linear"}.get(prim.typeName)
             if not matches or axis is None or layer.ListTimeSamplesForPath(friction.path):
                 raise ValueError(
-                    f"OVPhysX 0.7 cannot preserve legacy joint friction on {path}. "
+                    f"OVPhysX cannot preserve legacy joint friction on {path}. "
                     "Remove physxJoint:jointFriction and retune NewtonJointAPI newton:friction/newton:damping "
                     "or configure legacy_joint_friction_replacements with calibrated efforts; "
                     "the old coefficient has no exact conversion."
@@ -453,9 +458,7 @@ def _convert_legacy_joint_properties(
             if modern is not None and (modern.HasDefaultValue() or layer.ListTimeSamplesForPath(modern.path)):
                 continue
             if layer.ListTimeSamplesForPath(old.path):
-                raise ValueError(
-                    f"OVPhysX 0.7 cannot preserve time-sampled {old_name} on {path}; migrate to {new_name}."
-                )
+                raise ValueError(f"OVPhysX cannot preserve time-sampled {old_name} on {path}; migrate to {new_name}.")
             if not old.HasDefaultValue() or old.default == Sdf.ValueBlock():
                 continue
             if prim.typeName not in (
@@ -465,13 +468,39 @@ def _convert_legacy_joint_properties(
                 "PhysicsJoint",
             ):
                 if old.default != default:
-                    raise ValueError(f"OVPhysX 0.7 cannot preserve {old_name} on {prim.typeName} at {path}.")
+                    raise ValueError(f"OVPhysX cannot preserve {old_name} on {prim.typeName} at {path}.")
                 continue
             schemas = list(prim.GetInfo("apiSchemas").GetAppliedItems()) if prim.HasInfo("apiSchemas") else []
             if "NewtonJointAPI" not in schemas:
                 prim.SetInfo("apiSchemas", Sdf.TokenListOp.CreateExplicit([*schemas, "NewtonJointAPI"]))
             attribute = modern or Sdf.AttributeSpec(prim, new_name, old.typeName)
             attribute.default = old.default
+
+
+def _classify_physics(stage: Usd.Stage, source: str) -> tuple[bool, bool]:
+    """Return (has_physics, has_bodies_or_colliders) with one traversal of a source subtree."""
+    root = stage.GetPrimAtPath(source)
+    if not root:
+        return False, False
+    has_physics = False
+    for prim in Usd.PrimRange(root, Usd.TraverseInstanceProxies()):
+        if prim.HasAPI(UsdPhysics.RigidBodyAPI) or prim.HasAPI(UsdPhysics.CollisionAPI):
+            return True, True
+        if not has_physics:
+            # Typed schemas, API schemas and authored properties also carry physics.
+            has_physics = (
+                prim.IsA(UsdPhysics.Joint)
+                or prim.GetTypeName().startswith(("Physics", "Physx", "OmniPhysics", "Newton"))
+                or any(
+                    schema.startswith(("Physics", "Physx", "OmniPhysics", "Newton"))
+                    for schema in prim.GetPrimTypeInfo().GetAppliedAPISchemas()
+                )
+                or any(
+                    prop.GetName().startswith(("physics:", "physx", "omniphysics:", "newton:"))
+                    for prop in prim.GetAuthoredProperties()
+                )
+            )
+    return has_physics, False
 
 
 def _serialize_stage(
@@ -481,27 +510,29 @@ def _serialize_stage(
     plan: ClonePlan | None = None,
     *,
     friction_replacements: dict[str, tuple[float, float, float]] | None = None,
+    filter_render_only: bool = False,
+    preserve_physics_ancestors: bool = False,
 ) -> tuple[str, list[CloneRecipe]]:
     """Export complete original worlds once and compile copies from those originals.
 
     Parsed bodies have native environment ID zero. An original-bearing world must therefore
     import all its assets together; its copies inherit one collision group and environment ID.
-    CPU, features without native cloning, and acceleration-spring materials with positive
-    compliant-contact stiffness import every declared world instead.
+    CPU and features without native cloning import every declared world instead.
+
+    When ``preserve_physics_ancestors`` is enabled, retain empty ancestors with authored
+    physics properties even when no API schema is applied.
+
+    Physics-only roots without bodies or colliders cannot use native replication. Route them
+    through USD replication so their destinations exist at attachment; standalone joint cloning is unsafe.
+
+    ``filter_render_only`` omits render-only recipes when sharing a stage. Physics classification
+    is cached per source for this export only, including original-world selection and native validation.
     """
-    if recipes and not full_stage:
-        # Native clones lose acceleration-spring material behavior in OVPhysX 0.6.3.
-        for prim in stage.Traverse(Usd.TraverseInstanceProxies()):
-            acceleration = prim.GetAttribute("physxMaterial:compliantContactAccelerationSpring")
-            stiffness = prim.GetAttribute("physxMaterial:compliantContactStiffness")
-            if acceleration and acceleration.Get() and stiffness and (stiffness.Get() or 0.0) > 0.0:
-                logger.warning(
-                    "Importing the full scene through USD to preserve acceleration-spring contact behavior "
-                    "for material %s. Native-cloning startup savings are disabled.",
-                    prim.GetPath(),
-                )
-                full_stage = True
-                break
+
+    physics_content = cache(partial(_classify_physics, stage))
+    if filter_render_only:
+        recipes = [recipe for recipe in recipes if physics_content(recipe[0])[0]]
+
     # Group worlds by their declared asset memberships, not by completed-stage discovery.
     sources = tuple(Sdf.Path(source) for source, _, _, _, _ in recipes)
     memberships = {}
@@ -526,11 +557,7 @@ def _serialize_stage(
                         uncovered = {world for world in uncovered if template.format(world) not in copied_paths}
                 if not uncovered:
                     continue
-                prim = stage.GetPrimAtPath(source)
-                if prim and any(
-                    child.HasAPI(UsdPhysics.RigidBodyAPI) or child.HasAPI(UsdPhysics.CollisionAPI)
-                    for child in Usd.PrimRange(prim, Usd.TraverseInstanceProxies())
-                ):
+                if physics_content(source)[0]:
                     originals.update(uncovered)
     for index, (_, _, _, world_ids, _) in enumerate(recipes):
         for world in world_ids or ():
@@ -543,15 +570,26 @@ def _serialize_stage(
 
     # Materialize only originals on GPU. Each native destination is absent from the export.
     layer = stage.Flatten()
-    if ovphysx_compat.OVPHYSX_USES_TASKS:
-        _convert_legacy_joint_properties(layer, friction_replacements)
+    _convert_legacy_joint_properties(layer, friction_replacements)
     exported = Usd.Stage.Open(layer)
     xforms = UsdGeom.XformCache()
     native = {}
     for recipe in sorted(recipes, key=lambda recipe: recipe[0].count("/")):
         source, targets, transforms, world_ids, source_world = recipe
         target_by_world = dict(zip(world_ids, targets, strict=True)) if world_ids is not None else {}
-        source_pose = xforms.GetLocalToWorldTransform(stage.GetPrimAtPath(source))
+        source_prim = stage.GetPrimAtPath(source)
+        if not full_stage and any(
+            target != source and (world_ids is None or world_ids[index] not in originals)
+            for index, target in enumerate(targets)
+        ):
+            # Physics authoring is not itself proof that native replication supports this root.
+            has_physics, has_bodies_or_colliders = physics_content(source)
+            if has_physics and not has_bodies_or_colliders:
+                raise ValueError(
+                    f"Cannot natively clone physics source {source!r} without rigid bodies or colliders. "
+                    "Materialize these prims through USD replication before physics attachment."
+                )
+        source_pose = xforms.GetLocalToWorldTransform(source_prim)
         for index, target in enumerate(targets):
             target_path = Sdf.Path(target)
             if target != source and any(path.HasPrefix(target_path) for path in sources):
@@ -592,7 +630,14 @@ def _serialize_stage(
                 # Empty clone ancestors make native literal-path lookup enumerate every world.
                 spec = layer.GetPrimAtPath(target_path.GetParentPath())
                 while spec and not spec.nameChildren and spec.typeName in ("", "Xform"):
-                    if spec.HasInfo("apiSchemas") or any(source.HasPrefix(spec.path) for source in sources):
+                    if (
+                        spec.HasInfo("apiSchemas")
+                        or any(source.HasPrefix(spec.path) for source in sources)
+                        or (
+                            preserve_physics_ancestors
+                            and any(prop.name.startswith(("physics:", "physx")) for prop in spec.properties)
+                        )
+                    ):
                         break
                     parent = spec.nameParent
                     del (parent.nameChildren if parent else layer.rootPrims)[spec.name]

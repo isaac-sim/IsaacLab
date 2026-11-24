@@ -10,6 +10,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, ClassVar
 
 import torch
+import warp as wp
 
 from ..utils import string as string_utils
 from ..utils.types import ArticulationActions
@@ -236,11 +237,14 @@ class ActuatorBase(ABC):
     """
 
     @abstractmethod
-    def reset(self, env_ids: Sequence[int]):
+    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None) -> None:
         """Reset the internals within the group.
 
         Args:
-            env_ids: List of environment IDs to reset.
+            env_ids: Environment indices or a slice to reset. Defaults to None, which resets all environments.
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,). Takes precedence over
+                ``env_ids``; implementations must leave the unselected environments unchanged and must not
+                synchronize the device. Defaults to None.
         """
         raise NotImplementedError
 

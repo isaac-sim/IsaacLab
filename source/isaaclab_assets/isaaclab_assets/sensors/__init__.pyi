@@ -6,8 +6,10 @@
 __all__ = [
     "GELSIGHT_R15_CFG",
     "GELSIGHT_MINI_CFG",
+    "H2_HEAD_CAMERA_CFG",
     "VELODYNE_VLP_16_RAYCASTER_CFG",
 ]
 
 from .gelsight import GELSIGHT_R15_CFG, GELSIGHT_MINI_CFG
+from .unitree import H2_HEAD_CAMERA_CFG
 from .velodyne import VELODYNE_VLP_16_RAYCASTER_CFG

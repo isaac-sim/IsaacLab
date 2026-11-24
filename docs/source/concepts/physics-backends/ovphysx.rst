@@ -15,6 +15,10 @@ OvPhysX
 OvPhysX runs PhysX without Omniverse Kit. It reads scene-level solver settings
 from the USD ``PhysicsScene`` prim. :class:`~isaaclab_ov.physics.OvPhysxCfg` holds
 GPU buffer settings that USD does not represent.
+It can also author selected contact settings onto that prim:
+``bounce_threshold_velocity``, ``friction_correlation_distance`` and
+``solve_articulation_contact_last``. Contact settings left at ``None`` keep the
+stage value.
 
 OvPhysX is selected through :class:`~isaaclab_ov.physics.OvPhysxCfg`:
 
@@ -236,6 +240,20 @@ CPU has no native environment-ID filtering
 in OvPhysX 0.6.3, so it imports all declared USD copies and uses collision groups.
 Large overlapping original layouts can still exhaust broadphase pair capacity;
 use spatially separated environments.
+
+Compiled-stage cache
+--------------------
+
+OvPhysX 0.8 can store compiled physics stages in the cooked-collider cache
+directory. Large deformable scenes can attach faster with compiled-stage
+caching disabled. Set ``OvPhysxCfg(disable_compiled_stage_cache=True)`` to opt
+out for a scene. The Franka cloth and soft-beam lift tasks set this option
+in their ``physics=ovphysx`` presets. The default inherits the runtime mode.
+
+The opt-out does not affect cooked-collider caching. Isaac Lab restores the
+process-wide compiled-stage cache setting after submitting the attach task.
+Code using the native OvPhysX API in the same process should avoid attaching
+a separate stage concurrently with an Isaac Lab attach.
 
 Deformable limitations
 ----------------------

@@ -32,7 +32,7 @@ Standalone URDF/MJCF importers
 The URDF and MJCF converter scripts run without Isaac Sim. The standalone
 importers are optional; install them with the ``isaaclab[importers]`` command in
 :ref:`installation-importers-extra` before running these scripts.
-Optionally pass ``--viz newton_gl`` (or ``rerun`` / ``viser``) to preview the converted asset in a
+Optionally pass ``--viz newton`` (or ``viser``) to preview the converted asset in a
 kit-less Isaac Lab visualizer:
 
 .. code-block:: bash
@@ -80,7 +80,7 @@ the intended physics backend.
 
 With ``run_asset_transformer=False``, the tested converters produce flat output without a
 ``Physics`` variant set. Isaac Lab leaves that output unchanged rather than selecting a variant.
-For an existing layered asset, :attr:`~sim.UsdFileCfg.variants` can override an available
+For an existing layered asset, :attr:`~sim.spawners.from_files.UsdFileCfg.variants` can override an available
 selection at spawn time.
 Use :ref:`asset-config-backends` to choose configuration overrides for the selected backend.
 
@@ -258,7 +258,7 @@ is derived automatically from the robot name in the URDF):
 .. _import-new-asset-preview:
 
 The examples pass ``--viz kit`` to open the converted asset in the Isaac Sim viewport, which
-requires a full Isaac Sim installation. Use ``--viz newton_gl``, ``--viz rerun``, or ``--viz viser``
+requires a full Isaac Sim installation. Use ``--viz newton`` or ``--viz viser``
 for a kit-less preview instead. Omit ``--viz`` to exit as soon as the conversion completes.
 
 Inspect the converted geometry and articulation in the viewer, then validate dynamics in the
@@ -443,7 +443,7 @@ effort mode because Isaac Lab computes its effort directly.
 
 Joints without an Isaac Lab actuator configuration retain their imported USD settings.
 Consequently, an asset with zero-gain USD drives no longer needs
-:attr:`~isaaclab.sim.spawners.from_files.FileCfg.ensure_drives_exist` solely
+:attr:`~isaaclab.sim.spawners.from_files.UsdFileCfg.ensure_drives_exist` solely
 to make configured joints actuate in Newton.
 
 The ``ensure_drives_exist`` option remains useful when a workflow needs to

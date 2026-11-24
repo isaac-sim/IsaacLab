@@ -42,6 +42,7 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
+from isaaclab_isaacsim.sim.schemas import PhysxJointCfg
 from isaaclab_newton.assets import Articulation, RigidObject
 from isaaclab_newton.assets.articulation import articulation as articulation_module
 from isaaclab_newton.assets.articulation import kernels as articulation_kernels
@@ -49,7 +50,6 @@ from isaaclab_newton.assets.articulation.articulation_data import ArticulationDa
 from isaaclab_newton.controllers.ik import NewtonIKPoseObjectiveCfg
 from isaaclab_newton.envs.mdp.actions.newton_ik_actions import NewtonInverseKinematicsAction
 from isaaclab_newton.envs.mdp.actions.newton_ik_actions_cfg import NewtonInverseKinematicsActionCfg
-from isaaclab_physx.sim.schemas import PhysxJointCfg
 from newton import JointTargetMode, JointType, ModelBuilder, ModelFlags, ShapeFlags
 from newton.selection import ArticulationView
 from newton.solvers import SolverMuJoCo
@@ -435,7 +435,7 @@ def test_task_space_allocation_and_capture(device, first_property):
         control=control,
         solver=None,
         kinematics_dirty=False,
-        state_version=0,
+        timestamp=0,
         device=model.device,
         transforms_may_change_on_graph_replay=False,
     )
@@ -489,7 +489,7 @@ def test_world_hinged_root_has_no_base_dofs(device):
         control=control,
         solver=None,
         kinematics_dirty=False,
-        state_version=0,
+        timestamp=0,
         device=model.device,
         transforms_may_change_on_graph_replay=False,
     )
@@ -783,6 +783,35 @@ def test_hard_reset_recreates_ordered_state_and_actuators(device: str) -> None:
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_fixed_tendon_mask_writer_reaches_solver_on_every_replay(device: str) -> None:
+    """Each replay of a captured fixed-tendon mask write updates the masked cells and the solver's copy of them.
+
+    The values are filled only after capture, so each replay must read them at launch time; the solver keeps its own
+    copy of the tendon properties, so a refresh queued only while capturing would leave it on the first replay's.
+    """
+    with build_simulation_context(sim_cfg=newton_sim_cfg(device, use_newton_actuators=False)) as sim:
+        articulation = spawn_assets({"tendon": _island_cfgs()["tendon"]})["tendon"]
+        sim.reset()
+        env_mask = wp.array([False, True], dtype=wp.bool, device=device)
+        tendon_mask = wp.array([False, True], dtype=wp.bool, device=device)
+        stiffness = torch.zeros(articulation.num_instances, articulation.num_fixed_tendons, device=device)
+        expected = articulation.data.fixed_tendon_stiffness.torch.clone()
+        with wp.ScopedCapture(device) as capture:
+            articulation.set_fixed_tendon_stiffness_mask(
+                stiffness=stiffness, fixed_tendon_mask=tendon_mask, env_mask=env_mask
+            )
+            articulation.write_fixed_tendon_properties_to_sim_mask(fixed_tendon_mask=tendon_mask, env_mask=env_mask)
+        solver_model = sim.backend_manager.backend.solver.mjw_model
+        for value in (12.0, 34.0):
+            stiffness.fill_(value)
+            wp.capture_launch(capture.graph)
+            sim.step()
+            expected[1, 1] = value
+            torch.testing.assert_close(articulation.data.fixed_tendon_stiffness.torch, expected)
+            np.testing.assert_allclose(solver_model.tendon_stiffness.numpy(), expected.cpu().numpy())
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_newton_ordered_state_publishes_inside_captured_cuda_graph(device: str) -> None:
     """Republish the user-order state shadows from inside a captured CUDA graph.
 
@@ -835,6 +864,43 @@ def test_newton_ordered_state_publishes_inside_captured_cuda_graph(device: str) 
             articulation.write_root_pose_to_sim_index(root_pose=root_pose)
             sim.step(render=False)
             np.testing.assert_allclose(sampled_heading.numpy(), yaw, atol=1e-5)
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_handled_writes_read_the_reordered_state_of_the_current_physics_step(device: str) -> None:
+    """A handled asset write runs between the physics steps of one step and reads the current reordered body poses."""
+    articulation_cfg = ArticulationCfg(
+        prim_path="/World/Env_[^/]*/Robot",
+        spawn=local_usd("floating_two_leg.usda"),
+        init_state=ArticulationCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
+        actuators={"legs": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=40.0, damping=5.0)},
+        joint_ordering=_LEG_PUBLIC_JOINT_NAMES,
+        body_ordering=_LEG_PUBLIC_BODY_NAMES,
+    )
+    sim_cfg = newton_sim_cfg(device, use_newton_actuators=False, use_cuda_graph=True)
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        articulation = spawn_assets({"robot": articulation_cfg})["robot"]
+        sim.reset()
+        data = articulation.data
+        body_u2b = np.asarray(articulation.body_ordering.user_to_backend_indices)
+        read, backend = wp.clone(data._body_link_pose_w_user), wp.clone(data._sim_bind_body_link_pose_w)
+
+        def write_data_to_sim():
+            articulation.write_data_to_sim()
+            wp.copy(read, data._body_link_pose_w_user)
+            wp.copy(backend, data._sim_bind_body_link_pose_w)
+
+        manager = sim.backend_manager
+        manager.set_decimation(3)
+        actions = SimpleNamespace(is_graphable=True, apply_action=lambda: None)
+        assert manager.handle_actions(actions, SimpleNamespace(is_graphable=True, write_data_to_sim=write_data_to_sim))
+        # a spinning robot moves during the step, so a pose from before the step cannot pass for the current one
+        spin = torch.tensor([[1.0, 0.0, 0.0, 0.0, 0.0, 5.0]], device=device).repeat(articulation.num_instances, 1)
+        articulation.write_root_velocity_to_sim_index(root_velocity=spin)
+        for _ in range(3):
+            sim.step(render=False)
+        assert not np.allclose(backend.numpy()[:, body_u2b], data._body_link_pose_w_user.numpy())
+        np.testing.assert_allclose(read.numpy(), backend.numpy()[:, body_u2b])
 
 
 ##
@@ -1384,9 +1450,9 @@ def test_floating_articulation_root_and_wrench_response(scene: _Scene, monkeypat
     actuator_reset = actuator.reset
     reset_env_ids = []
 
-    def record_actuator_reset(env_ids: torch.Tensor | None = None) -> None:
+    def record_actuator_reset(env_ids: torch.Tensor | None = None, env_mask: wp.array | None = None) -> None:
         reset_env_ids.append(env_ids)
-        actuator_reset(env_ids)
+        actuator_reset(env_ids, env_mask)
 
     monkeypatch.setattr(actuator, "reset", record_actuator_reset)
     articulation.reset()
@@ -1426,7 +1492,7 @@ def test_floating_articulation_root_and_wrench_response(scene: _Scene, monkeypat
 def test_branching_fixture_physx_ordering_reorders_newton_to_bfs(scene: _Scene) -> None:
     """Resolve the documented Newton ``joint_ordering="physx"`` sim-to-sim workflow on a branching asset.
 
-    Mirrors :func:`isaaclab_physx.test.assets.test_articulation.test_branching_fixture_resolves_distinct_conventions`
+    Mirrors :func:`isaaclab_isaacsim.test.assets.test_articulation.test_branching_fixture_resolves_distinct_conventions`
     with the backend roles swapped: here the live backend is Newton (depth-first, so its native view is
     the MJWarp order), and the request is ``physx``/``body_ordering="physx"``. Cross-backend discovery must
     resolve the breadth-first PhysX order and reorder the public joint/body axes to it. This is the headline

@@ -10,8 +10,8 @@ The following configuration parameters are available:
 * :obj:`ARL_ROBOT_1_CFG`: The ARL_Robot_1
 """
 
+from isaaclab_isaacsim.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 from isaaclab_newton.sim.schemas import NewtonArticulationCfg
-from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR

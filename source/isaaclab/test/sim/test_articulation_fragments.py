@@ -35,8 +35,8 @@ def _make_xform(stage, path="/World/Art"):
 
 
 def test_apply_articulation_root_properties_composes_namespaces():
+    from isaaclab_isaacsim.sim.schemas import PhysxArticulationCfg
     from isaaclab_newton.sim.schemas import NewtonArticulationCfg
-    from isaaclab_physx.sim.schemas import PhysxArticulationCfg
 
     from isaaclab.sim.schemas import apply_articulation_root_properties
 
@@ -78,7 +78,7 @@ def test_apply_articulation_root_properties_tunes_existing_child_root():
     that existing root rather than stamp a second ``ArticulationRootAPI`` on the input (top) prim
     -- a duplicate root mis-writes the properties and violates the 'exactly one root' invariant.
     """
-    from isaaclab_physx.sim.schemas import PhysxArticulationCfg
+    from isaaclab_isaacsim.sim.schemas import PhysxArticulationCfg
 
     from isaaclab.sim.schemas import apply_articulation_root_properties
 
@@ -108,7 +108,7 @@ def test_apply_articulation_root_properties_tunes_existing_child_root():
 
 def test_apply_articulation_root_properties_processes_siblings_and_aggregates_results():
     """Every sibling root is visited and a failing applier makes the family result False."""
-    from isaaclab_physx.sim.schemas import PhysxArticulationCfg
+    from isaaclab_isaacsim.sim.schemas import PhysxArticulationCfg
 
     from isaaclab.sim.schemas import apply_articulation_root_properties
 
@@ -136,7 +136,7 @@ def test_apply_articulation_root_properties_warns_on_nested_roots(caplog):
 
     The writer trusts the expression; asset validity is the author's responsibility.
     """
-    from isaaclab_physx.sim.schemas import PhysxArticulationCfg
+    from isaaclab_isaacsim.sim.schemas import PhysxArticulationCfg
 
     from isaaclab.sim.schemas import apply_articulation_root_properties
 
@@ -161,7 +161,7 @@ def test_apply_articulation_root_properties_warns_on_nested_roots(caplog):
 
 def test_apply_articulation_root_properties_does_not_duplicate_instance_proxy_root(caplog):
     """A root hidden in an instance suppresses define-fresh but is skipped because proxies are read-only."""
-    from isaaclab_physx.sim.schemas import PhysxArticulationCfg
+    from isaaclab_isaacsim.sim.schemas import PhysxArticulationCfg
 
     from isaaclab.sim.schemas import apply_articulation_root_properties
 
@@ -195,7 +195,7 @@ def test_apply_articulation_root_properties_does_not_duplicate_instance_proxy_ro
 
 
 def test_apply_articulation_root_properties_toggles_existing_fixed_joint():
-    from isaaclab_physx.sim.schemas import PhysxArticulationCfg
+    from isaaclab_isaacsim.sim.schemas import PhysxArticulationCfg
 
     from isaaclab.sim.schemas import apply_articulation_root_properties
 
@@ -247,7 +247,7 @@ def test_apply_articulation_root_properties_enables_existing_joint_and_relocates
 def test_apply_articulation_root_properties_fix_root_link_requires_rigid_body():
     """fix_root_link=True on a non-rigid-body root raises NotImplementedError: the writer cannot
     determine the first rigid body link to anchor the fixed joint to."""
-    from isaaclab_physx.sim.schemas import PhysxArticulationCfg
+    from isaaclab_isaacsim.sim.schemas import PhysxArticulationCfg
 
     from isaaclab.sim.schemas import apply_articulation_root_properties
 
@@ -294,8 +294,8 @@ def test_physx_and_newton_fragments_fix_root_link_keeps_single_root():
     must not retain ``NewtonArticulationRootAPI`` / ``newton:*`` (which would leave a stray second root
     because that API composes ``PhysicsArticulationRootAPI``).
     """
+    from isaaclab_isaacsim.sim.schemas import PhysxArticulationCfg
     from isaaclab_newton.sim.schemas import NewtonArticulationCfg
-    from isaaclab_physx.sim.schemas import PhysxArticulationCfg
 
     from isaaclab.sim.schemas import apply_articulation_root_properties
 
@@ -412,7 +412,7 @@ def test_physx_fix_root_link_preserves_complete_authored_property_spec():
 def test_apply_articulation_root_properties_rejects_non_fragment_items():
     """A list containing a non-fragment (e.g. a legacy single cfg) raises a clear ``TypeError`` --
     not an ``AttributeError`` deep inside fragment dispatch."""
-    from isaaclab_physx.sim.schemas import PhysxArticulationRootPropertiesCfg
+    from isaaclab_isaacsim.sim.schemas import PhysxArticulationRootPropertiesCfg
 
     from isaaclab.sim.schemas import apply_articulation_root_properties
 
@@ -448,7 +448,7 @@ def test_apply_articulation_root_properties_topology_only_does_not_stamp_root():
 
 def test_apply_articulation_root_properties_honors_explicit_stage():
     """Fragment writes and fixed-joint lookup both stay on the explicitly supplied stage."""
-    from isaaclab_physx.sim.schemas import PhysxArticulationCfg
+    from isaaclab_isaacsim.sim.schemas import PhysxArticulationCfg
 
     from isaaclab.sim.schemas import apply_articulation_root_properties
 
@@ -531,7 +531,7 @@ def test_articulation_fragment_and_legacy_cfg_match_physx_schema():
     """Both interfaces cover exactly all six attributes registered by PhysxArticulationAPI."""
     import dataclasses
 
-    from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxArticulationRootPropertiesCfg
+    from isaaclab_isaacsim.sim.schemas import PhysxArticulationCfg, PhysxArticulationRootPropertiesCfg
 
     from pxr import PhysxSchema
 
@@ -551,8 +551,8 @@ def test_articulation_fragment_and_legacy_cfg_match_physx_schema():
 
 def test_newton_legacy_cfg_matches_equivalent_fragment_composition():
     """A Newton legacy subclass still routes its inherited articulation_enabled base field."""
+    from isaaclab_isaacsim.sim.schemas import PhysxArticulationCfg
     from isaaclab_newton.sim.schemas import NewtonArticulationCfg, NewtonArticulationRootPropertiesCfg
-    from isaaclab_physx.sim.schemas import PhysxArticulationCfg
 
     from isaaclab.sim.schemas import apply_articulation_root_properties, modify_articulation_root_properties
 
@@ -621,8 +621,8 @@ def test_spawn_from_usd_file_topology_only_honors_fix_root_link(tmp_path, articu
 
 def test_spawn_from_usd_file_applies_composed_fragment_list(tmp_path):
     """The real FileCfg fragment path composes backend fragments on the relocated root."""
+    from isaaclab_isaacsim.sim.schemas import PhysxArticulationCfg
     from isaaclab_newton.sim.schemas import NewtonArticulationCfg
-    from isaaclab_physx.sim.schemas import PhysxArticulationCfg
 
     from isaaclab.sim.spawners.from_files.from_files import spawn_from_usd_file
     from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
@@ -654,7 +654,7 @@ def test_spawn_from_usd_file_applies_composed_fragment_list(tmp_path):
 
 def test_apply_articulation_root_properties_creates_on_every_matched_prim():
     """Creation applies the root API to every matched sibling prim; the expression is trusted."""
-    from isaaclab_physx.sim.schemas import PhysxArticulationCfg
+    from isaaclab_isaacsim.sim.schemas import PhysxArticulationCfg
 
     from isaaclab.sim.schemas import apply_articulation_root_properties
 

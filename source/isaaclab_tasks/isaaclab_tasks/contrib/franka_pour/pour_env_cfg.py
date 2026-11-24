@@ -15,11 +15,12 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any, Literal
 
+from isaaclab_isaacsim.sim.schemas import PhysxArticulationCfg
 from isaaclab_newton.assets import MPMObjectCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
+from isaaclab_newton.physics.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 from isaaclab_newton.sim.schemas import MujocoJointCfg, NewtonArticulationCfg
 from isaaclab_newton.sim.spawners.mpm import MPMParticleMaterialCfg
-from isaaclab_physx.sim.schemas import PhysxArticulationCfg
 from isaaclab_visualizers.kit import KitBackendCfg
 
 import isaaclab.sim as sim_utils
@@ -39,8 +40,6 @@ from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.visualizers import VisualizerCfg
-
-from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
 from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
 

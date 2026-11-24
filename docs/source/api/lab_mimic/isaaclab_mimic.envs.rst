@@ -1,6 +1,8 @@
 ﻿isaaclab_mimic.envs
 ===================
 
+.. include:: /source/features/imitation-learning/_mimic_deprecation.include
+
 .. automodule:: isaaclab_mimic.envs
 
   .. rubric:: Classes

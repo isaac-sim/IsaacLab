@@ -113,7 +113,7 @@ class modify_env_param(ManagerTermBase):
                         "static_friction_range": [0.5, 1.0],
                         "dynamic_friction_range": [0.3, 1.0],
                         "restitution_range": [0.0, 0.5],
-                        "num_step": 120000,
+                        "num_steps": 120000,
                     },
                 },
             )
@@ -296,6 +296,26 @@ def set_value_after_steps(env: ManagerBasedRLEnv, env_ids: Sequence[int], data: 
     if env.common_step_counter >= num_steps:
         return value
     return modify_term_cfg.NO_CHANGE
+
+
+def set_value_linearly(
+    env: ManagerBasedRLEnv,
+    env_ids: Sequence[int],
+    data: float,
+    initial_value: float,
+    final_value: float,
+    start_step: int,
+    end_step: int,
+) -> float:
+    """Interpolate a scalar term parameter over global control steps, clipped at both endpoints.
+
+    Use with :class:`modify_term_cfg` to update the parameter on episode resets. The schedule
+    depends on ``common_step_counter``, independently of the number of parallel environments.
+    """
+    if not 0 <= start_step < end_step:
+        raise ValueError("Expected 0 <= start_step < end_step.")
+    progress = min(max((env.common_step_counter - start_step) / (end_step - start_step), 0.0), 1.0)
+    return initial_value + progress * (final_value - initial_value)
 
 
 class DifficultyScheduler(ManagerTermBase):

@@ -581,8 +581,8 @@ def set_body_link_pose_to_sim(
 ):
     """Write body link pose data to simulation buffers.
 
-    This kernel writes body link poses from the input array to the output buffers
-    and optionally updates the corresponding state vectors, for each body in each environment.
+    This kernel writes body link poses from the input array to the output buffer,
+    for each body in each environment.
 
     Args:
         data: Input array of body link poses. Shape is (num_envs, num_bodies) or
@@ -649,9 +649,8 @@ def set_body_com_velocity_to_sim(
 ):
     """Write body COM velocity data to simulation buffers.
 
-    This kernel writes body COM velocities from the input array to the output buffers,
-    optionally updates the corresponding state vectors, and zeros out the body
-    acceleration buffer, for each body in each environment.
+    This kernel writes body COM velocities from the input array to the output buffer
+    and zeros out the body acceleration buffer, for each body in each environment.
 
     Args:
         data: Input array of body COM spatial velocities. Shape is (num_envs, num_bodies) or

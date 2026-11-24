@@ -166,8 +166,10 @@ Table of Contents
 
    source/experimental-features/bleeding-edge
    source/concepts/warp_environments
+   source/experimental-features/mdp2
    source/experimental-features/ray
    source/experimental-features/visuo_tactile_sensor
+   source/experimental-features/foveated_camera
    source/experimental-features/rlinf_vla_posttraining
    source/features/imitation-learning/index
 

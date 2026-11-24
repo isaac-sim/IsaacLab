@@ -468,13 +468,16 @@ def _get_physics_backend_name(physics_cfg: PhysicsCfg | None) -> str:
 def _get_newton_solver_name(solver_cfg) -> str | None:
     """Return the checkpoint name of a Newton solver config, or ``None`` without one.
 
-    A solver is named by its config class without ``SolverCfg``, so ``KaminoPADMMSolverCfg``
+    A solver is generally named by its config class without ``SolverCfg``, so ``KaminoPADMMSolverCfg``
     gives ``kaminopadmm``. A coupled solver is named by its entry solvers in order followed by
     its coupling scheme, so a proxy coupler over MJWarp and VBD entries gives ``mjwarpvbdproxy``.
     """
     if solver_cfg is None:
         return None
     class_name = type(solver_cfg).__name__
+    if class_name == "KaminoSCCSolverCfg":
+        # Keep existing checkpoint paths after the Kamino solver config rename.
+        return "kaminodvi"
     entries = getattr(solver_cfg, "entries", None)
     if entries is None:
         return class_name.removesuffix("SolverCfg").lower()
@@ -484,7 +487,7 @@ def _get_newton_solver_name(solver_cfg) -> str | None:
 
 def _normalize_render_backend_name(renderer_type: str) -> str:
     """Return the normalized render backend name for a renderer type identifier."""
-    if renderer_type == "newton_warp":
+    if renderer_type in {"newton_warp", "newton_optix"}:
         return "newton"
     if renderer_type in {"auto_rtx", "default", "isaac_rtx", "ovrtx", "rtx"}:
         return "rtx"

@@ -18,6 +18,7 @@ from typing import Any, ClassVar
 import gymnasium as gym
 import numpy as np
 import torch
+from torch.utils._pytree import tree_map
 
 from ..managers import EventManager
 from ..sim import SimulationContext
@@ -183,6 +184,9 @@ class DirectRLEnv(gym.Env):
         # fold the full loop into a single step() when possible
         self.sim.backend_manager.set_decimation(self.cfg.decimation)
         self._physics_handles_decimation = self.sim.backend_manager.handles_decimation()
+        # export after asset initialization, before startup events
+        if self.cfg.scene.export_usd_path is not None:
+            self.scene.export_to_usd(self.cfg.scene.export_usd_path)
 
         # check if debug visualization is has been implemented by the environment
         source_code = inspect.getsource(self._set_debug_vis_impl)
@@ -329,6 +333,8 @@ class DirectRLEnv(gym.Env):
         Returns:
             A tuple containing the observations and extras.
         """
+        # terminal observations belong to the step that captured them
+        self.extras.pop("final_obs", None)
         # set the seed
         if seed is not None:
             self.seed(seed)
@@ -363,8 +369,8 @@ class DirectRLEnv(gym.Env):
         The environment steps forward at a fixed time-step, while the physics simulation is decimated at a
         lower time-step. This is to ensure that the simulation is stable. These two time-steps can be configured
         independently using the :attr:`DirectRLEnvCfg.decimation` (number of simulation steps per environment step)
-        and the :attr:`DirectRLEnvCfg.sim.physics_dt` (physics time-step). Based on these parameters, the environment
-        time-step is computed as the product of the two.
+        and the :attr:`~isaaclab.sim.SimulationCfg.dt` of :attr:`~isaaclab.envs.DirectRLEnvCfg.sim` (physics
+        time-step). Based on these parameters, the environment time-step is computed as the product of the two.
 
         This function performs the following steps:
 
@@ -393,6 +399,8 @@ class DirectRLEnv(gym.Env):
         Returns:
             A tuple containing the observations, rewards, resets (terminated and truncated) and extras.
         """
+        # terminal observations belong to the step that captured them
+        self.extras.pop("final_obs", None)
         action = action.to(self.device)
         # add action noise
         if self.cfg.action_noise_model:
@@ -501,9 +509,6 @@ class DirectRLEnv(gym.Env):
             None.
 
         Raises:
-            RuntimeError: If mode is set to "rgb_data" and simulation render mode does not support it.
-                In this case, the simulation render mode must be set to ``RenderMode.PARTIAL_RENDERING``
-                or ``RenderMode.FULL_RENDERING``.
             NotImplementedError: If an unsupported rendering mode is specified.
         """
         # run a rendering step of the simulator
@@ -554,8 +559,9 @@ class DirectRLEnv(gym.Env):
     def close(self):
         """Cleanup for the environment."""
         if not self._is_closed:
-            # Stop simulation first to allow physics to clean up properly
+            # Deliver stop callbacks before detaching scene-owned grippers.
             self.sim.stop()
+            self.scene.close()
 
             # Drop cached observation tensors so they don't survive close via
             # gymnasium's wrapper chain.
@@ -679,7 +685,8 @@ class DirectRLEnv(gym.Env):
             # apply the same observation noise as the returned obs (policy space only) so the
             # bootstrapped terminal value matches the distribution the policy is trained on.
             if self.cfg.compute_final_obs:
-                self.extras["final_obs"] = self._compute_observations()
+                # copy, since resetting may update the task buffers that observations borrow
+                self.extras["final_obs"] = tree_map(torch.clone, self._compute_observations())
             self._reset_idx(reset_env_ids)
         return reset_env_ids
 

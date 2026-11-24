@@ -441,6 +441,7 @@ class ContactSensor(BaseContactSensor):
             f" track_contact_points: {self._track_contact_points}, track_air_time: {self.cfg.track_air_time},"
             f" track_pose: {self.cfg.track_pose}, device: {self._device}"
         )
+        self._data._body_names = self.sensor_names
         self._data.create_buffers(
             self._num_envs,
             self._num_sensors,
@@ -527,14 +528,6 @@ class ContactSensor(BaseContactSensor):
             ],
             device=self._device,
         )
-
-        # FIXME: Re-enable this when we have a non-physx rigid body view?
-        # (tracked in https://github.com/newton-physics/newton/issues/1489)
-        # obtain the pose of the sensor origin
-        # if self.cfg.track_pose:
-        #    pose = self.body_physx_view.get_transforms().view(-1, self._num_sensors, 7)[env_ids]
-        #    pose[..., 3:] = convert_quat(pose[..., 3:], to="wxyz")
-        #    self._data.pos_w[env_ids], self._data.quat_w[env_ids] = pose.split([3, 4], dim=-1)
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         if debug_vis:

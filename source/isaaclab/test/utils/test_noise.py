@@ -5,6 +5,7 @@
 
 import pytest
 import torch
+import warp as wp
 
 import isaaclab.utils.noise as noise
 
@@ -129,3 +130,18 @@ def test_additive_bias_is_resampled_on_reset():
     cfg.bias_noise_cfg.bias = 0.25
     noise_model.reset(env_ids=[1])
     torch.testing.assert_close(noise_model(data), torch.tensor([[0.5, 0.5], [0.25, 0.25], [0.5, 0.5]]))
+
+
+def test_additive_bias_mask_reset():
+    """A mask reset resamples the bias of the selected environments only."""
+    cfg = noise.NoiseModelWithAdditiveBiasCfg(
+        noise_cfg=noise.ConstantNoiseCfg(bias=0.0),
+        bias_noise_cfg=noise.ConstantNoiseCfg(bias=1.0, operation="add"),
+        sample_bias_per_component=False,
+    )
+    noise_model = noise.NoiseModelWithAdditiveBias(cfg, num_envs=3, device="cpu")
+
+    noise_model.reset(env_mask=wp.array([True, False, True], dtype=wp.bool, device="cpu"))
+
+    output = noise_model(torch.zeros(3, 2))
+    torch.testing.assert_close(output, torch.tensor([[1.0, 1.0], [0.0, 0.0], [1.0, 1.0]]))

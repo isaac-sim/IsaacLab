@@ -9,10 +9,10 @@ Asset and marker configurations, joint/body name lists, backend physics
 presets, and the sim mixin. No task tunables.
 """
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_isaacsim.physics import PhysxCfg
+from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, SteelSolverCfg
 from isaaclab_ov.physics import OvPhysxCfg
-from isaaclab_physx.physics import PhysxCfg
-from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
@@ -83,6 +83,19 @@ class PhysicsCfg(PresetCfg):
             impratio=10.0,
             cone="elliptic",
             update_data_interval=2,
+        ),
+        num_substeps=2,
+    )
+    newton_steel = NewtonCfg(
+        solver_cfg=SteelSolverCfg(
+            update_mass_matrix_interval=2,
+            enable_joint_limits=True,
+            enable_joint_velocity_limits=True,
+            iterations=8,
+            articulation_constraint_max=192,
+            free_body_constraint_max=64,
+            contact_friction_gap_max=0.001,
+            contact_torsion=False,
         ),
         num_substeps=2,
     )

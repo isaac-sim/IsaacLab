@@ -44,8 +44,8 @@ class MeshCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     visual_material_path: str = "material"
     """Path to the visual material to use for the prim. Defaults to "material".
 
-    If the path is relative, then it will be relative to the prim's path.
-    This parameter is ignored if `visual_material` is not None.
+    If the path is relative, then it will be relative to the geometry prim ``{prim_path}/geometry``.
+    This parameter is ignored if `visual_material` is None.
     """
 
     visual_material: materials.VisualMaterialCfg | None = None
@@ -58,8 +58,8 @@ class MeshCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     physics_material_path: str = "material"
     """Path to the physics material to use for the prim. Defaults to "material".
 
-    If the path is relative, then it will be relative to the prim's path.
-    This parameter is ignored if `physics_material` is not None.
+    If the path is relative, then it will be relative to the geometry prim ``{prim_path}/geometry``.
+    This parameter is ignored if `physics_material` is None.
     """
 
     physics_material: (
@@ -120,7 +120,7 @@ class MeshCuboidCfg(MeshCfg):
 class MeshCylinderCfg(MeshCfg):
     """Configuration parameters for a cylinder mesh prim with deformable properties.
 
-    See :meth:`spawn_cylinder` for more information.
+    See :meth:`spawn_mesh_cylinder` for more information.
     """
 
     func: Callable | str = "{DIR}.meshes:spawn_mesh_cylinder"
@@ -137,7 +137,7 @@ class MeshCylinderCfg(MeshCfg):
 class MeshCapsuleCfg(MeshCfg):
     """Configuration parameters for a capsule mesh prim.
 
-    See :meth:`spawn_capsule` for more information.
+    See :meth:`spawn_mesh_capsule` for more information.
     """
 
     func: Callable | str = "{DIR}.meshes:spawn_mesh_capsule"
@@ -154,7 +154,7 @@ class MeshCapsuleCfg(MeshCfg):
 class MeshConeCfg(MeshCfg):
     """Configuration parameters for a cone mesh prim.
 
-    See :meth:`spawn_cone` for more information.
+    See :meth:`spawn_mesh_cone` for more information.
     """
 
     func: Callable | str = "{DIR}.meshes:spawn_mesh_cone"

@@ -67,13 +67,13 @@ class MeshConverter(AssetConverterBase):
     def _convert_asset(self, cfg: MeshConverterCfg):
         """Generate USD from OBJ, STL or FBX.
 
-        The USD file has Y-up axis and is scaled to meters.
+        The USD file has Z-up axis and is scaled to meters.
         The asset hierarchy is arranged as follows:
 
         .. code-block:: none
             mesh_file_basename (default prim)
-                |- /geometry/Looks
-                |- /geometry/mesh
+                |- /geometry
+                    |- <imported mesh hierarchy>
 
         Args:
             cfg: The configuration for conversion of mesh to USD.
@@ -119,14 +119,14 @@ class MeshConverter(AssetConverterBase):
         # Get the default prim (which is the root prim) -- "/{mesh_file_basename}"
         xform_prim = stage.GetDefaultPrim()
         geom_prim = stage.GetPrimAtPath(f"/{mesh_file_basename}/geometry")
-        # Move all meshes to underneath new Xform
-        for child_mesh_prim in geom_prim.GetChildren():
-            if child_mesh_prim.GetTypeName() == "Mesh":
+        # Apply collision schemas throughout the imported mesh hierarchy.
+        for mesh_prim in Usd.PrimRange(geom_prim):
+            if mesh_prim.IsA(UsdGeom.Mesh):
                 # Collider properties such as offset, scale, etc. anchor at this mesh prim.
                 if cfg.collision_props is not None:
                     apply_schema_props(
                         cfg.collision_props,
-                        str(child_mesh_prim.GetPath()),
+                        str(mesh_prim.GetPath()),
                         schemas.apply_collision_properties,
                         schemas.define_collision_properties,
                         stage,
@@ -143,11 +143,11 @@ class MeshConverter(AssetConverterBase):
                     )
                     if all(isinstance(f, SchemaFragment) for f in mesh_collision_frags):
                         schemas.apply_mesh_collision_properties(
-                            prim_path=child_mesh_prim.GetPath(), fragments=mesh_collision_frags, stage=stage
+                            prim_path=mesh_prim.GetPath(), fragments=mesh_collision_frags, stage=stage
                         )
                     else:
                         schemas.define_mesh_collision_properties(
-                            prim_path=child_mesh_prim.GetPath(), cfg=cfg.mesh_collision_props, stage=stage
+                            prim_path=mesh_prim.GetPath(), cfg=cfg.mesh_collision_props, stage=stage
                         )
         # Delete the old Xform and make the new Xform the default prim
         stage.SetDefaultPrim(xform_prim)

@@ -3,6 +3,8 @@
 Examples: Data Generation and Imitation Learning for Humanoids
 ==============================================================
 
+.. include:: /source/features/imitation-learning/_mimic_deprecation.include
+
 These Isaac Lab Mimic examples cover three humanoid tasks:
 
 * **Demo 1:** Data generation and policy training for a humanoid robot (GR-1 pick and place)
@@ -589,7 +591,7 @@ To generate the locomanipulation dataset, use the following command:
 
 .. note::
 
-   The input dataset (``--dataset``) should be the manipulation dataset generated in the previous step. You can specify any output filename using the ``--output_file_name`` parameter.
+   The input dataset (``--dataset``) should be the manipulation dataset generated in the previous step. You can specify any output filename using the ``--output_file`` parameter.
 
 The key parameters for locomanipulation dataset generation are:
 

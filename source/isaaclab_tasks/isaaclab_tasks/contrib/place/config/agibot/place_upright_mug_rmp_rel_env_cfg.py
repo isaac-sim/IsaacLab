@@ -6,7 +6,7 @@
 import os
 from dataclasses import MISSING
 
-from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
+from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
 
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.devices.device_base import DevicesCfg
