@@ -388,6 +388,16 @@ class OVRTXCameraRenderData:
         max_envs = spec.cfg.max_envs_per_render_product
         # Whether the split search may halve the environments per render product of this sensor.
         self.searches_split = max_envs == "auto" and len(camera_paths) == self.num_envs
+        if max_envs == "auto" and not self.searches_split:
+            # A split needs one camera path per environment. create_render_data completes the paths of a camera below
+            # an environment root, so a different number is unexpected.
+            logger.warning(
+                "Camera %s has %d camera path(s) for %d environments, so the split search is off for it."
+                ' Set CameraCfg.max_envs_per_render_product="all" to turn this warning off.',
+                spec.cfg.prim_path,
+                len(camera_paths),
+                self.num_envs,
+            )
         # The error that ended the split search before the first frame of this sensor. It is the failed frame if the
         # search gave up, or a failed scene write. Later renders raise at once, with this error as the cause.
         self.first_frame_error: Exception | None = None

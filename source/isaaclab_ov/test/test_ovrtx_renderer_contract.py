@@ -689,13 +689,18 @@ def test_ovrtx_render_batch_does_not_search_without_auto(monkeypatch, caplog, ma
     assert not caplog.records
 
 
-def test_ovrtx_split_search_names_an_auto_sensor_without_one_camera_path_per_environment(monkeypatch):
-    """The search cannot split an "auto" sensor with only one camera path, so the note of the error names it."""
+def test_ovrtx_split_search_names_an_auto_sensor_without_one_camera_path_per_environment(monkeypatch, caplog):
+    """The search cannot split an "auto" sensor with only one camera path. A warning and the error note name it."""
     renderer, _ = _make_search_cameras(monkeypatch, False, 8, [])
     cfg = _make_camera_cfg(["rgb"])
     # The camera is not below an environment root, so the renderer cannot complete its camera paths.
-    camera = renderer.create_render_data(CameraRenderSpec(cfg, "cpu", 8, ("/World/Camera",), 8))
+    cfg.prim_path = "/World/Camera"
+    with caplog.at_level(logging.WARNING):
+        camera = renderer.create_render_data(CameraRenderSpec(cfg, "cpu", 8, ("/World/Camera",), 8))
     assert not camera.searches_split
+    assert [record.levelno for record in caplog.records] == [logging.WARNING]
+    for text in ("/World/Camera", "1 camera path", "8 environments"):
+        assert text in caplog.messages[0]
     submissions = _install_step(renderer, lambda products: True)
 
     with pytest.raises(RuntimeError, match="failed to produce a frame") as error:
