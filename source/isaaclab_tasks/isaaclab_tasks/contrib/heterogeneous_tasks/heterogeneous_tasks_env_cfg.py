@@ -584,7 +584,7 @@ class VLAHeterogeneousEnvCfg(ManagerBasedRLEnvCfg):
     )
 
     tasks: dict[str, dict[str, str]] = {
-        "put_on_plate": {"target": "plate", "relation": "on", "instruction": "Place the {object} on the {target}."},
+        # No plate placement yet: the only plate in the catalog is a 10 cm dish that does not look like a plate.
         "put_in_container": {
             "target": "container",
             "relation": "in",

@@ -228,8 +228,9 @@ may be selected, including repeated instances and worlds without a usable target
 conditioning on the presence of a plate or container and no list of authored benchmark layouts.
 
 After reset, ``env.tabletop.available_tasks[world]`` lists the evaluable instruction bindings.
-``put_on_plate`` requires a plate and a distinct movable object that fits its inset footprint;
-``put_in_container`` similarly requires a container, and ``put_on_tray`` requires a tray. The current fit
+``put_in_container`` requires a container and a distinct movable object that fits its inset footprint;
+``put_on_tray`` similarly requires a tray. Placing objects on a plate is left out until the catalog has a
+plate that policies can use: its only one is a 10 cm dish with 4 cm walls. The current fit
 check uses conservative collision bounds with an inset for walls; it is not a grasp or motion planner.
 The object to move also has to suit the gripper: ``graspable_size`` of the reset term excludes objects with
 an extent below 2 cm, which the gripper cannot pinch, and objects whose narrower side exceeds the 85 mm

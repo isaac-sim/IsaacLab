@@ -119,7 +119,7 @@ def test_bounded_combinations_do_not_expand_the_object_product():
     resolved, _ = resolve_task_config("IsaacContrib-VLA-Heterogeneous-Franka", "", overrides=[])
     assert type(resolved) is catalog.VLAHeterogeneousEnvCfg
     assert len(catalog.ASSET_CATALOG) == 100
-    assert set(resolved.tasks) == {"put_on_plate", "put_in_container", "put_on_tray"}
+    assert set(resolved.tasks) == {"put_in_container", "put_on_tray"}
     assert resolved.scene.objects is not catalog.OBJECTS_CFG
     assert len(resolved.scene.objects.rigid_objects) == catalog.OBJECT_COUNT[1]
     tables = resolved.scene.work_table.spawn
