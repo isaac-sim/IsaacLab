@@ -474,6 +474,7 @@ class MDPBuilder:
         if target.dtype is not wp.float32:
             context.errors.append(f"{entry}: the target '{cfg.target}' must be a float32 field.")
 
+        # The target's elements that the action writes, in the order of its columns: all of them, or the subset's.
         indices = tuple(range(math.prod(target.sizes.values())))
         if cfg.subset is not None:
             dims = list(target.sizes)
@@ -508,7 +509,7 @@ class MDPBuilder:
         if cfg.clip is not None and not isinstance(cfg.clip, dict):
             clip = (cfg.clip,) * len(indices)
 
-        columns = slice(context.action_dim, context.action_dim + len(elements))
+        columns = slice(context.action_dim, context.action_dim + len(indices))
         context.action_dim = columns.stop
         context.mdp_fields[last_action] = ArrayLayout(
             wp.float32, 2, {"actions": context.action_dim}, (context.action_dim,)
