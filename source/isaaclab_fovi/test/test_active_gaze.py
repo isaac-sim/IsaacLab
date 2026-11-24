@@ -551,3 +551,31 @@ def test_teacher_target_body_resolves_a_slice_of_every_body():
     # Naming every body of the asset, as naming a rigid object's only body does, resolves to a slice.
     named.body_ids = slice(None)
     assert target_body_index(named) == 0
+
+
+def test_teacher_labels_world_points_as_it_labels_an_asset_there():
+    # Each environment picks its own point, as a command that chooses one object among several does.
+    term = rig_term("physical", joint_pos=(0.0, 0.0, 0.0), mount=turn(0.0, 0.0))
+    points = quat_apply(turn(10.0, -6.0), torch.tensor([[0.0, 0.0, 1.0]]))
+    pose = torch.cat((points, torch.tensor([[0.0, 0.0, 0.7071068, 0.7071068]])), dim=-1)
+    asset = SimpleNamespace(data=SimpleNamespace(root_pose_w=ProxyArray(wp.from_torch(pose, dtype=wp.transformf))))
+    env = SimpleNamespace(
+        device="cpu",
+        num_envs=1,
+        scene={"target": asset},
+        action_manager=SimpleNamespace(get_term=lambda name: term),
+        extras={},
+    )
+    teacher = gaze_teacher_labels(ObservationTermCfg(func=gaze_teacher_labels), env)
+    expected = teacher(env, SceneEntityCfg("target")).clone()
+    assert expected[0, 2] == 1.0 and expected[0, :2].abs().min() > 0
+    torch.testing.assert_close(teacher(env, target_w=lambda env: points), expected)
+    # The offset of a world point runs along the world axes, not the turned asset's.
+    shifted = teacher(env, target_w=lambda env: points - torch.tensor([[0.0, 0.2, 0.0]]), offset=(0.0, 0.2, 0.0))
+    torch.testing.assert_close(shifted, expected)
+    with pytest.raises(ValueError, match="one target"):
+        teacher(env)
+    with pytest.raises(ValueError, match="one target"):
+        teacher(env, SceneEntityCfg("target"), target_w=lambda env: points)
+    with pytest.raises(ValueError, match=r"shape \(1, 3\)"):
+        teacher(env, target_w=lambda env: points[0])

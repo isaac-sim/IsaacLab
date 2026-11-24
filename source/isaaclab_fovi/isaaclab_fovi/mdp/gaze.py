@@ -14,6 +14,7 @@ x right, y down, z forward.
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from functools import cache
 from typing import TYPE_CHECKING, ClassVar
 
@@ -766,15 +767,20 @@ class GazeAction(ActionTerm):
 
 
 class gaze_teacher_labels(ManagerTermBase):
-    """The teacher's gaze action toward a point fixed to an asset, and its validity, shape (num_envs, 3).
+    """The teacher's gaze action toward a target point, and its validity, shape (num_envs, 3).
+
+    The target is a point fixed to an asset (``target_cfg``), or any world point each environment supplies
+    (``target_w``), for example the object a command picks among several.
 
     A training label, never a policy input. One launch labels every environment and logs the mean gaze error to valid
     targets and the fraction of valid targets.
 
     Args:
-        target_cfg: The asset, and optionally one body by ``body_names``.
-        offset: The point in the root's or the body's frame [m].
+        target_cfg: The asset, and optionally one body by ``body_names``; give this or ``target_w``.
+        offset: The point in the root's or the body's frame [m]; along the world axes from ``target_w``.
         action_name: The gaze action term.
+        target_w: A function of the environment that returns each environment's target point in the world [m], shape
+            (num_envs, 3); give this or ``target_cfg``.
     """
 
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
@@ -784,18 +790,27 @@ class gaze_teacher_labels(ManagerTermBase):
         self._log = ProxyArray(wp.zeros(2, dtype=wp.float32, device=env.device))
         """Mean gaze error to valid targets [deg] and the fraction of valid targets."""
         self._launch: tuple[tuple, wp.Launch] | None = None
+        self._point_poses: ProxyArray | None = None
+        """Poses at the points ``target_w`` returns, unturned, which the launch reads as it reads an asset's."""
 
     def __call__(
         self,
         env: ManagerBasedEnv,
-        target_cfg: SceneEntityCfg,
+        target_cfg: SceneEntityCfg | None = None,
         offset: tuple[float, float, float] = (0.0, 0.0, 0.0),
         action_name: str = "gaze",
+        target_w: Callable[[ManagerBasedEnv], torch.Tensor] | None = None,
     ) -> torch.Tensor:
-        data = env.scene[target_cfg.name].data
-        # Reading the property refreshes the producer's poses.
-        body_id = target_body_index(target_cfg)
-        poses = data.root_pose_w.warp if body_id is None else data.body_pose_w.warp
+        if (target_cfg is None) == (target_w is None):
+            raise ValueError("gaze_teacher_labels needs one target: target_cfg or target_w.")
+        if target_w is not None:
+            body_id = None
+            poses = self._poses_at(target_w(env))
+        else:
+            data = env.scene[target_cfg.name].data
+            # Reading the property refreshes the producer's poses.
+            body_id = target_body_index(target_cfg)
+            poses = data.root_pose_w.warp if body_id is None else data.body_pose_w.warp
         point = tuple(float(value) for value in offset)
         gaze = self._gaze
         mounts = gaze.teacher_mounts()
@@ -838,3 +853,15 @@ class gaze_teacher_labels(ManagerTermBase):
         log["Gaze/target_error_deg"] = error
         log["Gaze/valid_target_fraction"] = fraction
         return self._labels.torch
+
+    def _poses_at(self, points: torch.Tensor) -> wp.array:
+        """World points as unturned poses in one buffer, shape (num_envs,) of ``transformf``, so the recorded launch
+        reads them as it reads an asset's poses."""
+        if tuple(points.shape) != (self.num_envs, 3):
+            raise ValueError(f"target_w must return points of shape ({self.num_envs}, 3), got {tuple(points.shape)}.")
+        if self._point_poses is None:
+            self._point_poses = ProxyArray(wp.zeros(self.num_envs, dtype=wp.transformf, device=self.device))
+            # Identity orientations (x, y, z, w).
+            self._point_poses.torch[:, 6] = 1.0
+        self._point_poses.torch[:, :3] = points
+        return self._point_poses.warp
