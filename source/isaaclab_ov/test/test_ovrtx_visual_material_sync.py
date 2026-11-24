@@ -130,6 +130,7 @@ def _renderer(*, use_ovstage: bool = False):
     renderer.backend.renderer = _NativeRecorder(events)
     renderer._visual_material_writer_ref = None
     renderer.cfg = OVRTXRendererCfg()
+    renderer._sim = SimpleNamespace(get_rendering_dt=lambda: 1.0 / 60.0)
     renderer._camera_render_data = []
     if use_ovstage:
         from isaaclab_ov.stage import OvstageBackend
