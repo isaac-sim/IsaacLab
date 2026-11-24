@@ -152,7 +152,6 @@ def run(argv: list[str]) -> None:
             if args_cli.deterministic:
                 configure_seed(env_cfg.seed, torch_deterministic=True)
             runner.load(agent_cfg)
-            # Checkpoint Ghosts: --checkpoint is the reference, and the viewer HUD adds ghosts.
             if args_cli.checkpoint_ghosts:
                 screen.close()
                 checkpoint_ghost_policies.run_rl_games(

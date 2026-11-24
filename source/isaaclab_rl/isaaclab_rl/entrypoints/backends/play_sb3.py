@@ -134,7 +134,6 @@ def run(argv: list[str]) -> None:
 
             screen.stage("Loading policy")
             env = Sb3VecEnvWrapper(env, fast_variant=not args_cli.keep_all_info)
-            # Checkpoint Ghosts: --checkpoint is the reference, and the viewer HUD adds ghosts.
             if args_cli.checkpoint_ghosts:
                 screen.close()
                 checkpoint_ghost_policies.run_sb3(

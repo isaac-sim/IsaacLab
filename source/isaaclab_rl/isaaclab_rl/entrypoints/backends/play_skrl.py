@@ -166,7 +166,6 @@ def _run(args_cli: argparse.Namespace) -> None:
             agent_cfg["trainer"]["close_environment_at_exit"] = False
             experiment_cfg["write_interval"] = 0
             experiment_cfg["checkpoint_interval"] = 0
-            # Checkpoint Ghosts: --checkpoint is the reference, and the viewer HUD adds ghosts.
             if args_cli.checkpoint_ghosts:
                 screen.close()
                 checkpoint_ghost_policies.run_skrl(

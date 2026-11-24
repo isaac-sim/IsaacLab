@@ -140,7 +140,6 @@ def run(argv: list[str]) -> None:
             screen.stage("Loading policy")
             env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
             logger.info(f"Loading model checkpoint from: {resume_path}")
-            # Checkpoint Ghosts: --checkpoint is the reference, and the viewer HUD adds ghosts.
             if args_cli.checkpoint_ghosts:
                 screen.close()
                 checkpoint_ghost_policies.run_rsl_rl(env, args_cli, agent_cfg, resume_path, log_root_path, run_playback)
