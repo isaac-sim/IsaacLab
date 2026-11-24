@@ -2,7 +2,7 @@
 
 ---
 
-# Isaac Lab 3.0.0
+# Isaac Lab 3.1.0
 
 [![IsaacSim](https://img.shields.io/badge/IsaacSim-6.2.0-silver.svg)](https://docs.isaacsim.omniverse.nvidia.com/latest/index.html)
 [![Python](https://img.shields.io/badge/python-3.12-blue.svg)](https://docs.python.org/3/whatsnew/3.12.html)
