@@ -630,12 +630,15 @@ class GazeAction(ActionTerm):
         """Each camera's mount (x, y, z, w), ROS convention, that the teacher aims from: the current one when
         tracked, else the one captured when the term was created.
 
+        The call reads the camera's pose, so the teacher aims from where the camera stands now, though no term has
+        read its image yet; it captures no image.
+
         Raises:
             RuntimeError: The camera's mount turned while the gaze assumes a fixed mount.
         """
+        mount = self.camera.update_mount()
         if self.tracked_mount:
-            # The mount as the camera stands now, though no term has read its image yet.
-            return self.camera.update_mount()
+            return mount
         if self.camera.mount_turns != self._mount_turns:
             raise RuntimeError(
                 "The gaze camera's mount turned, so the fixed-mount teacher would aim from its first orientation;"
@@ -812,7 +815,8 @@ class gaze_teacher_labels(ManagerTermBase):
         mounts = gaze.teacher_mounts()
         heads = gaze.head_and_target()
         held, held_valid = gaze.held_fixation()
-        camera_positions = gaze.camera.data.pos_w.warp
+        # The mounts' pose read refreshed the position; reading the camera's data would capture an image.
+        camera_positions = gaze.camera.mount_pos_w.warp
         # Warp retains the selected view and its backing array in the recorded launch.
         key = (id(poses), body_id, id(camera_positions), id(mounts), id(heads), point)
         if self._launch is None or self._launch[0] != key:

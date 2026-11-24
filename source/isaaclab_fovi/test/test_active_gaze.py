@@ -127,7 +127,7 @@ class _Camera:
         self.gaze_angles = ProxyArray(wp.zeros(1, dtype=wp.vec2f, device="cpu"))
         self.mount = ProxyArray(wp.from_torch(mount.contiguous(), dtype=wp.quatf))
         self.gaze_writes = 0
-        self.data = SimpleNamespace(pos_w=ProxyArray(wp.zeros(1, dtype=wp.vec3f, device="cpu")))
+        self.mount_pos_w = ProxyArray(wp.zeros(1, dtype=wp.vec3f, device="cpu"))
         self.image_frame = wp.mat33f(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
         self.projection_params = camera_params(PINHOLE)
 
@@ -235,7 +235,7 @@ def test_teacher_labels_and_diagnostics_match_the_torch_reference(device, body_i
         empty_held = ProxyArray(wp.zeros(0, dtype=wp.vec3f, device=device))
         empty_valid = ProxyArray(wp.zeros(0, dtype=wp.int32, device=device))
         sensor = SimpleNamespace(
-            data=SimpleNamespace(pos_w=ProxyArray(wp.from_torch(positions.to(device), dtype=wp.vec3f))),
+            mount_pos_w=ProxyArray(wp.from_torch(positions.to(device), dtype=wp.vec3f)),
             gaze_angles=ProxyArray(wp.from_torch((gaze * field_radius).to(device), dtype=wp.vec2f)),
             image_frame=wp.mat33f(*frame.flatten().tolist()),
             projection_params=camera_params(camera),
@@ -412,8 +412,11 @@ def test_fixed_mount_teacher_rejects_only_turns_after_capture():
     term.tracked_mount = False
     term._mount_turns = 2
     term._fixed_mount = "captured"
-    term._asset = SimpleNamespace(mount_turns=2)
+    pose_reads = []
+    term._asset = SimpleNamespace(mount_turns=2, update_mount=lambda: pose_reads.append(1))
     assert GazeAction.teacher_mounts(term) == "captured"
+    # The teacher aims from the camera's position now, so a fixed mount reads the pose too.
+    assert len(pose_reads) == 1
     term._asset.mount_turns = 3
     with pytest.raises(RuntimeError, match="mount='tracked'"):
         GazeAction.teacher_mounts(term)

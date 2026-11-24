@@ -194,15 +194,23 @@ class FoveatedCamera(Camera):
             self._allocate_gaze()
         return self._mount_quat_ros
 
-    def update_mount(self) -> ProxyArray:
-        """Read the camera's pose now and return :attr:`mount_quat_w_ros`.
+    @property
+    def mount_pos_w(self) -> ProxyArray:
+        """World position [m] of the physical camera as of its last pose update, shape (num_envs,) of ``vec3f``.
 
-        A lazily updated camera reads its pose only when its data is read, so its recorded mount may be a step old.
+        Reading it captures no image, unlike ``data.pos_w``; :meth:`update_mount` refreshes it.
+        """
+        return self._data.pos_w
+
+    def update_mount(self) -> ProxyArray:
+        """Read the camera's pose now, without capturing an image, and return :attr:`mount_quat_w_ros`.
+
+        A lazily updated camera reads its pose only when its data is read, so its recorded mount and
+        :attr:`mount_pos_w` may be a step old.
         """
         mount = self.mount_quat_w_ros
-        if self._gaze_pose_reads_angles:
-            self._update_poses()
-        else:
+        self._update_poses()
+        if not self._gaze_pose_reads_angles:
             # The prims hold the gaze, which the reported pose leaves out.
             mount.torch.copy_(self.get_world_poses(convention="ros")[1])
         return mount
