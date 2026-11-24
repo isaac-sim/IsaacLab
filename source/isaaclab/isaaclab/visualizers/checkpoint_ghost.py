@@ -169,12 +169,12 @@ class CheckpointGhostController(ABC):
             OSError: If the directory cannot be read.
         """
 
+    @abstractmethod
     def other_task(self, directory: str) -> str | None:
         """Return the task of the run saved in ``directory`` when it is not the running task, else None.
 
         The checkpoint window uses this to flag runs whose checkpoints cannot fit the running policy.
         """
-        return None
 
     @abstractmethod
     def add_ghost(self, checkpoint: CheckpointGhostCheckpoint) -> str | None:
@@ -188,17 +188,15 @@ class CheckpointGhostController(ABC):
     def remove_ghost(self, slot_index: int) -> None:
         """Empty a ghost slot; the reference slot cannot be removed."""
 
+    @abstractmethod
     def replace_ghost(self, slot_index: int, checkpoint: CheckpointGhostCheckpoint) -> str | None:
         """Load a checkpoint into a given ghost slot, in place of the one it holds.
-
-        Controllers that cannot target a slot remove that ghost and add the checkpoint to the first empty slot.
 
         Returns:
             None on success, otherwise a message explaining why the checkpoint could not be loaded.
         """
-        self.remove_ghost(slot_index)
-        return self.add_ghost(checkpoint)
 
+    @abstractmethod
     def apply_pending_restart(self) -> None:
         """Reset the environments now when a new ghost asked for a restart that the next step would apply.
 

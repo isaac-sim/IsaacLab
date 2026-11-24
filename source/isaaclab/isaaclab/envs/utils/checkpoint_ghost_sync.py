@@ -85,19 +85,15 @@ class CheckpointGhostSync:
             Names of the disabled terms.
         """
         removed = []
-        # A task may declare no events, curriculum, or observation groups at all.
-        events, curriculum, observations = (
-            getattr(env_cfg, name, None) for name in ("events", "curriculum", "observations")
-        )
+        # A task may leave these fields None when it has no events, curriculum, or observation groups.
+        events, curriculum, observations = env_cfg.events, env_cfg.curriculum, env_cfg.observations
         for name, term in vars(events).items() if events is not None else ():
             if term is None:
                 continue
-            mode = getattr(term, "mode", None)
+            mode = term.mode
             # A reset event that draws physics parameters (mass, friction, gains) per environment cannot be
             # mirrored, since the scene state copied to a ghost does not carry them. Pose resets are mirrored.
-            randomizes = mode == "reset" and getattr(getattr(term, "func", None), "__name__", "").startswith(
-                "randomize_"
-            )
+            randomizes = mode == "reset" and getattr(term.func, "__name__", "").startswith("randomize_")
             if mode in ("startup", "interval") or randomizes:
                 setattr(events, name, None)
                 removed.append(f"events.{name}")
@@ -106,7 +102,7 @@ class CheckpointGhostSync:
                 setattr(curriculum, name, None)
                 removed.append(f"curriculum.{name}")
         for group_name, group in vars(observations).items() if observations is not None else ():
-            if getattr(group, "enable_corruption", False):
+            if group.enable_corruption:
                 group.enable_corruption = False
                 removed.append(f"observations.{group_name}.enable_corruption")
         if removed:

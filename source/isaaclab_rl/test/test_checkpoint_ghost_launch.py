@@ -126,3 +126,16 @@ def test_checkpoint_selectors_pass_the_library_and_agent_to_the_resolver(monkeyp
     assert path == "/runs/model_5.pt"
     assert resolver.call_args.kwargs["library"] == "rsl_rl"
     assert resolver.call_args.kwargs["metadata"] == {"agent": "rsl_rl_cfg_entry_point"}
+
+
+def test_the_session_is_closed_when_no_viewer_can_attach(monkeypatch):
+    session = Mock()
+    monkeypatch.setattr(play_rsl_rl, "create_checkpoint_ghost_session", Mock(return_value=session))
+    env = SimpleNamespace(unwrapped=SimpleNamespace(sim=SimpleNamespace(visualizers=[object()]), step_dt=0.02))
+
+    with pytest.raises(RuntimeError, match="initialized Newton GL visualizer"):
+        play_rsl_rl.run_checkpoint_ghosts(
+            env, SimpleNamespace(checkpoint_ghost_slots=2), Mock(), "/runs/model_5.pt", "/logs"
+        )
+
+    session.close.assert_called_once()  # its reset and command hooks must not stay installed

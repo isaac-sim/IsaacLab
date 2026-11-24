@@ -60,6 +60,9 @@ class CheckpointGhostSession(CheckpointGhostController):
     uneven split are simulated with zero actions.
     """
 
+    _actions: torch.Tensor | None = None
+    """Actions of every environment, reused by every step."""
+
     def __init__(
         self,
         env: Any,
@@ -185,7 +188,10 @@ class CheckpointGhostSession(CheckpointGhostController):
         """Step the environment once, with each loaded slot acting on its own observations."""
         self.apply_pending_restart()
         size = self.layout.slice_size
-        actions = torch.zeros(self._env.num_envs, self._env.num_actions, device=self._env.unwrapped.device)
+        if self._actions is None:
+            self._actions = torch.zeros(self._env.num_envs, self._env.num_actions, device=self._env.unwrapped.device)
+        actions = self._actions
+        actions.zero_()  # environments of no loaded slot act with zeros
         for slot in self.layout.active_slots:
             start = self.layout.slot_start(slot.index)
             chunk = slice(start, start + size)

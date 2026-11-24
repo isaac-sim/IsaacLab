@@ -206,7 +206,7 @@ def test_environment_size_must_match_the_slices() -> None:
 
 def test_configure_env_cfg_keeps_only_randomization_the_reset_can_mirror() -> None:
     def term(mode: str) -> SimpleNamespace:
-        return SimpleNamespace(mode=mode)
+        return SimpleNamespace(mode=mode, func=lambda: None)
 
     cfg = SimpleNamespace(
         events=SimpleNamespace(mass=term("startup"), push=term("interval"), reset_base=term("reset"), removed=None),
@@ -230,13 +230,14 @@ def test_configure_env_cfg_keeps_only_randomization_the_reset_can_mirror() -> No
 
 def test_configure_env_cfg_accepts_a_task_without_a_curriculum() -> None:
     cfg = SimpleNamespace(
-        events=SimpleNamespace(push=SimpleNamespace(mode="interval")),
+        events=SimpleNamespace(push=SimpleNamespace(mode="interval", func=lambda: None)),
         curriculum=None,
         observations=SimpleNamespace(policy=SimpleNamespace(enable_corruption=False)),
     )
 
     assert CheckpointGhostSync.configure_env_cfg(cfg) == ["events.push"]
-    assert CheckpointGhostSync.configure_env_cfg(SimpleNamespace()) == []  # No events, curriculum, or observations.
+    none = SimpleNamespace(events=None, curriculum=None, observations=None)
+    assert CheckpointGhostSync.configure_env_cfg(none) == []  # A task with no events, curriculum, or observations.
 
 
 def test_a_larger_pool_resets_the_environments_beyond_the_slices_on_their_own() -> None:

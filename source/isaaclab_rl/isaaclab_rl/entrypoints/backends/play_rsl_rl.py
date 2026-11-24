@@ -176,14 +176,14 @@ def run_checkpoint_ghosts(
     session = create_checkpoint_ghost_session(
         env, args_cli, agent_cfg, reference_path, log_root_path, args_cli.checkpoint_ghost_slots
     )
-    attached = False
-    for visualizer in env.unwrapped.sim.visualizers:
-        if hasattr(visualizer, "attach_checkpoint_ghosts"):
-            visualizer.attach_checkpoint_ghosts(session)
-            attached = True
-    if not attached:
-        raise RuntimeError("--checkpoint_ghosts needs an initialized Newton GL visualizer.")
-    try:
+    try:  # the session patches the environment's reset and commands, which must be undone on any failure
+        attached = False
+        for visualizer in env.unwrapped.sim.visualizers:
+            if hasattr(visualizer, "attach_checkpoint_ghosts"):
+                visualizer.attach_checkpoint_ghosts(session)
+                attached = True
+        if not attached:
+            raise RuntimeError("--checkpoint_ghosts needs an initialized Newton GL visualizer.")
         run_playback(
             session.step,
             dt=env.unwrapped.step_dt,
@@ -239,7 +239,7 @@ def _validate_checkpoint_ghosts(args_cli: argparse.Namespace, env_cfg: object) -
             types.append(getattr(chosen, "visualizer_type", None) or getattr(cfg, "visualizer_type", None))
     if "newton" not in types:
         raise SystemExit("--checkpoint_ghosts requires the Newton GL visualizer; pass --visualizer newton.")
-    curriculum = getattr(env_cfg, "curriculum", None)
+    curriculum = env_cfg.curriculum
     for name, term in vars(curriculum).items() if curriculum is not None else ():
         # Checkpoint Ghosts disable curriculum terms, so a task whose reset events read a term's state cannot run.
         if getattr(getattr(term, "func", None), "supports_checkpoint_ghosts", True) is False:
