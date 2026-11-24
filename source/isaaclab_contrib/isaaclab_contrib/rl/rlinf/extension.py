@@ -583,15 +583,6 @@ def _create_generic_env_wrapper(task_id: str) -> type:
 
                 env = gym.make(self.isaaclab_env_id, cfg=isaac_env_cfg, render_mode="rgb_array").unwrapped
 
-                options = self.cfg.get("isaaclab", {})
-                if options.get("absolute_joint_position_actions", False):
-                    from .joint_position_env import AbsoluteJointPositionEnv
-
-                    env = AbsoluteJointPositionEnv(
-                        env,
-                        prefix_pad=options["action_mapping"].get("prefix_pad", 0),
-                        warmup_steps=options.get("renderer_warmup_steps", 0),
-                    )
                 return env, sim_app
 
             return make_env_isaaclab

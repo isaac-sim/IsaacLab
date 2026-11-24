@@ -13,8 +13,6 @@ The only public entry point expected by the task is
 `G1RobotPresets.g1_29dof_dex3_base_fix(...)`.
 """
 
-import math
-
 from isaaclab.assets import ArticulationCfg
 from isaaclab.utils import configclass, replace
 
@@ -60,35 +58,35 @@ DEFAULT_JOINT_POS: dict[str, float] = {
     "waist_yaw_joint": 0.0,
     "waist_roll_joint": 0.0,
     "waist_pitch_joint": 0.0,
-    # arms
-    "left_shoulder_pitch_joint": -0.754599,
-    "left_shoulder_roll_joint": 0.550010,
-    "left_shoulder_yaw_joint": -0.399298,
-    "left_elbow_joint": 0.278886,
-    "left_wrist_roll_joint": 0.320559,
-    "left_wrist_pitch_joint": -0.203525,
-    "left_wrist_yaw_joint": -0.387435,
-    "right_shoulder_pitch_joint": -0.340858,
-    "right_shoulder_roll_joint": -0.186152,
-    "right_shoulder_yaw_joint": 0.015023,
-    "right_elbow_joint": -0.777159,
-    "right_wrist_roll_joint": 0.019805,
-    "right_wrist_pitch_joint": 1.182285,
-    "right_wrist_yaw_joint": -0.022848,
+    # Arms and hands start at the mean pose from 117 real trocar episodes.
+    "left_shoulder_pitch_joint": -0.699552,
+    "left_shoulder_roll_joint": 0.208284,
+    "left_shoulder_yaw_joint": 0.23312,
+    "left_elbow_joint": -0.186277,
+    "left_wrist_roll_joint": -0.206097,
+    "left_wrist_pitch_joint": 0.883695,
+    "left_wrist_yaw_joint": 0.010174,
+    "right_shoulder_pitch_joint": -0.945077,
+    "right_shoulder_roll_joint": 0.022149,
+    "right_shoulder_yaw_joint": -0.040477,
+    "right_elbow_joint": 0.023875,
+    "right_wrist_roll_joint": 0.035349,
+    "right_wrist_pitch_joint": 0.890212,
+    "right_wrist_yaw_joint": -0.075485,
     # dex3 hands (left)
-    "left_hand_index_0_joint": -60.0 * math.pi / 180.0,
-    "left_hand_middle_0_joint": -60.0 * math.pi / 180.0,
+    "left_hand_index_0_joint": -1.053897,
+    "left_hand_middle_0_joint": -1.06179,
     "left_hand_thumb_0_joint": 0.0,
-    "left_hand_index_1_joint": -40.0 * math.pi / 180.0,
-    "left_hand_middle_1_joint": -40.0 * math.pi / 180.0,
-    "left_hand_thumb_1_joint": 0.0,
+    "left_hand_index_1_joint": -0.696634,
+    "left_hand_middle_1_joint": -0.704563,
+    "left_hand_thumb_1_joint": 0.016303,
     "left_hand_thumb_2_joint": 0.0,
     # dexterous hand joint - right hand
-    "right_hand_index_0_joint": 60.0 * math.pi / 180.0,
-    "right_hand_middle_0_joint": 60.0 * math.pi / 180.0,
-    "right_hand_thumb_0_joint": 0.0,
-    "right_hand_index_1_joint": 40.0 * math.pi / 180.0,
-    "right_hand_middle_1_joint": 40.0 * math.pi / 180.0,
+    "right_hand_index_0_joint": 1.029162,
+    "right_hand_middle_0_joint": 1.11628,
+    "right_hand_thumb_0_joint": 0.008241,
+    "right_hand_index_1_joint": 0.673514,
+    "right_hand_middle_1_joint": 0.424304,
     "right_hand_thumb_1_joint": 0.0,
     "right_hand_thumb_2_joint": 0.0,
 }
