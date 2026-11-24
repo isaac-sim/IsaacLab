@@ -161,11 +161,12 @@ def env(request, tmp_path):
     UsdGeom.Xformable(cube).AddTranslateOp().Set((0.04, -0.02, 0.04))
     UsdGeom.Xformable(cube).AddScaleOp().Set((0.11, 0.1, 0.01))
     UsdPhysics.CollisionAPI.Apply(cube.GetPrim())
-    # A rim post: the top of the plate's bounds is 4 cm above the surface that carries objects.
-    post = UsdGeom.Cube.Define(stage, "/plate/rim")
-    UsdGeom.Xformable(post).AddTranslateOp().Set((0.14, 0.07, 0.07))
-    UsdGeom.Xformable(post).AddScaleOp().Set((0.01, 0.01, 0.02))
-    UsdPhysics.CollisionAPI.Apply(post.GetPrim())
+    # A ledge along the surface that carries objects, 3.9 cm above the table: the top of the plate's bounds is
+    # above that surface, and an object on the table fits under the ledge, inside the plate's bounds.
+    ledge = UsdGeom.Cube.Define(stage, "/plate/ledge")
+    UsdGeom.Xformable(ledge).AddTranslateOp().Set((0.04, 0.11, 0.074))
+    UsdGeom.Xformable(ledge).AddScaleOp().Set((0.11, 0.03, 0.005))
+    UsdPhysics.CollisionAPI.Apply(ledge.GetPrim())
     stage.GetRootLayer().Save()
     bodies = {
         "small": sim_utils.CuboidCfg(size=(0.04, 0.04, 0.04)),
@@ -327,36 +328,52 @@ def test_reset_intersects_workspace_and_table_and_binds_only_feasible_tasks(env)
     # Instructions name objects in plain words, without the asset code of the catalog label.
     assert state.instructions[container_world] == "Put small in box."
     target = state.objects.data.body_link_pose_w.torch
-    for world, height in ((0, 0.072), (container_world, 0.031)):
+
+    def place(world: int, offset: tuple[float, float, float]):
+        """Move the world's object to an offset in its target's frame."""
         pose = target[world, state.target_ids[world]].clone()
-        pose[:3] += quat_apply(pose[3:][None], pose.new_tensor([[0, 0, height]]))[0]
+        pose[:3] += quat_apply(pose[3:][None], pose.new_tensor([offset]))[0]
         ids = torch.tensor([world], device=env.device)
         state.objects.write_body_pose_to_sim_index(body_poses=pose[None, None], body_ids=[0], env_ids=ids)
         state.objects.write_body_velocity_to_sim_index(
             body_velocities=torch.zeros(1, 1, 6, device=env.device), body_ids=[0], env_ids=ids
         )
 
-    def settle(steps: int) -> list[bool]:
+    def settle(steps: int) -> list[list[bool]]:
+        """Step the simulation and return the success of every world at every step."""
+        done = []
         for _ in range(steps):
             env.sim.step(render=False)
             env.scene.update(env.physics_dt)
-            done = env.termination_manager.compute()
-        return done.tolist()
+            done.append(env.termination_manager.compute().tolist())
+        return done
 
-    # The object rests on the plate, below its rim, and in the box: placed, but not yet for the hold time of 0.5 s.
-    assert settle(40) == [False] * env.num_envs
+    # The object rests on the plate, below the top of its bounds, and in the box.
+    place(0, (0, 0, 0.072))
+    place(container_world, (0, 0, 0.031))
     expected = [False] * env.num_envs
     expected[0] = expected[container_world] = True
-    assert settle(80) == expected
-    # The plate also carries an object whose corners overhang its edge by 5 mm.
-    pose = target[0, state.target_ids[0]].clone()
-    pose[:3] += quat_apply(pose[3:][None], pose.new_tensor([[-0.055, 0, 0.072]]))[0]
-    ids = torch.tensor([0], device=env.device)
-    state.objects.write_body_pose_to_sim_index(body_poses=pose[None, None], body_ids=[0], env_ids=ids)
+    assert settle(60)[-1] == expected
+    # An object that slides across the plate is not placed until it has come to rest.
     state.objects.write_body_velocity_to_sim_index(
-        body_velocities=torch.zeros(1, 1, 6, device=env.device), body_ids=[0], env_ids=ids
+        body_velocities=target.new_tensor([[[0.5, 0, 0, 0, 0, 0]]]),
+        body_ids=[0],
+        env_ids=torch.tensor([0], device=env.device),
     )
-    assert settle(100) == expected
+    assert not settle(1)[-1][0]
+    assert settle(60)[-1] == expected
+    # The plate also carries an object whose corners overhang its edge by 5 mm.
+    place(0, (-0.055, 0, 0.072))
+    assert settle(100)[-1] == expected
+    # An object that stands on the table under the ledge touches the plate inside its bounds, but the table
+    # carries it, not the plate.
+    place(0, (0.04, 0.11, 0.05))
+    assert not any(done[0] for done in settle(60))
+    sensor = env.scene["contact"]
+    force = sensor.data.normal_force_matrix_w.torch[
+        0, sensor.sensor_names.index("object_0"), sensor.filter_object_names.index(state.names[state.target_ids[0]])
+    ]
+    assert force.norm() >= 0.1
     params = dict(env.cfg.events["place_objects"].params, workspace=((2, 2, 0), (3, 3, 1)))
     with pytest.raises(RuntimeError, match="intersection"):
         state(env, torch.tensor([0], device=env.device), **params)

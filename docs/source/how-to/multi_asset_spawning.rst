@@ -240,11 +240,11 @@ Instructions name objects in plain words, without the asset codes of the catalog
 the world, so that the instruction singles them out. Reset selects an available binding
 and publishes ``env.tabletop.instructions``. To request another binding on the next reset, use
 ``env.tabletop.set_task([world], [binding_index])``. A world with no binding keeps its sampled objects,
-has an empty instruction and does not report task success. Success requires the selected object to stay
-placed for half a second: released, with the center of its bounds inside the target footprint, touching the
-target, and the target upright; containment also requires its bottom below the rim. Corners may overhang, and
-a rim may rise above the surface that carries the object. Fixed per-benchmark poses, instructions and Gym IDs
-are replaced by these task families.
+has an empty instruction and does not report task success. Success requires the target to carry the selected
+object: the object is released and at rest, the center of its bounds lies inside the target's bounding
+rectangle, it touches the target and not the table, and the target is upright; containment also requires its
+bottom below the rim. Corners may overhang, and a rim may rise above the surface that carries the object.
+Fixed per-benchmark poses, instructions and Gym IDs are replaced by these task families.
 
 For more detail on prototype assignment and replication, see :doc:`cloning`.
 
