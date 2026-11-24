@@ -426,6 +426,38 @@ def test_ovrtx_render_submits_every_product_and_routes_requested_outputs(
         assert not published_ordinals
 
 
+def test_lidar_and_camera_captures_use_separate_steps(monkeypatch):
+    """A lidar capture submits only the requested product at its own sampling interval."""
+    from isaaclab_ov.renderers import OVRTXLidarCfg
+
+    from isaaclab.sensors import LidarData
+
+    renderer = _make_mocked_scene_renderer(monkeypatch, use_ovstage=False, clone_env_paths=[])
+    renderer._needs_transform_initialization = False
+    camera = _make_ovrtx_camera_render_data()
+    renderer._camera_render_data.append(camera)
+    renderer.backend.render_products.update(camera.render_product_paths)
+    cfg = OVRTXLidarCfg(
+        prim_path="/Lidar", update_period=0.1, azimuth_deg=[0.0], elevation_deg=[0.0], fire_time_ns=[0], channel_id=[0]
+    )
+    lidar = renderer.create_lidar_render_data(cfg, [cfg.prim_path], 1)
+    other = replace(cfg, prim_path="/OtherLidar", update_period=0.2)
+    renderer.create_lidar_render_data(other, [other.prim_path], 1)
+    native = renderer.backend.renderer
+    native.step.return_value = {_single_render_product(camera).path: types.SimpleNamespace(frames=[object()])}
+    monkeypatch.setattr(renderer, "_process_render_frames", MagicMock())
+    publish = MagicMock()
+    monkeypatch.setattr(renderer, "_publish_lidar_output", publish)
+
+    renderer.render(camera)
+    assert native.step.call_args.kwargs["render_products"] == set(camera.render_product_paths)
+
+    data = LidarData(1, 1, "cpu")
+    renderer.render_lidar(lidar, data)
+    native.step.assert_called_with(render_products={lidar.render_product_path}, delta_time=0.1)
+    publish.assert_called_once_with(lidar, native.step.return_value, data)
+
+
 def test_ovrtx_render_batch_empty_sequence_does_not_require_initialized_backend():
     """An empty render request has no backend work or initialization precondition."""
     renderer = OVRTXRenderer.__new__(OVRTXRenderer)
@@ -2722,3 +2754,53 @@ def test_scene_preparation_respects_physics_population_and_camera_transform_mode
     assert events.count("disable-camera-reads") == (stage_mode != "legacy")
     if stage_mode != "legacy":
         assert events[-2:] == ["commit", "attach"]
+
+
+@pytest.mark.parametrize(
+    ("gpu_side", "cuda_stream", "expected_stream", "consumer_fails"),
+    [(True, 0, 1, False), (True, 99, 99, True), (False, 0, 1, False)],
+)
+def test_ovrtx_lidar_map_orders_the_copy_against_map_release(
+    monkeypatch, gpu_side, cuda_stream, expected_stream, consumer_fails
+):
+    """Order CUDA lidar copies after rendering and release after the copy, including when it raises."""
+    events = []
+
+    class _Mapped:
+        wait_event = object()
+
+        def wait(self):
+            events.append("wait")
+
+        def unmap(self, *, stream):
+            events.append(("release", stream))
+
+        def __contains__(self, key):
+            return key == "Coordinates"
+
+        def __getitem__(self, key):
+            return types.SimpleNamespace(shape=(4, 3))
+
+    mapped = _Mapped()
+    point_cloud = types.SimpleNamespace(map=MagicMock(return_value=mapped))
+    monkeypatch.setattr(ovrtx_renderer_module, "_gpu_side_render_var_sync_enabled", lambda: gpu_side)
+
+    def consume(*_args, **_kwargs):
+        events.append("consume")
+        if consumer_fails:
+            raise ValueError("consumer failed")
+
+    monkeypatch.setattr(ovrtx_renderer_module, "copy_tiled_point_cloud", consume)
+
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._warp_device = types.SimpleNamespace(stream=types.SimpleNamespace(cuda_stream=cuda_stream))
+    lidar_data = types.SimpleNamespace(
+        points=types.SimpleNamespace(torch=object()),
+        intensity=types.SimpleNamespace(torch=object()),
+        valid=types.SimpleNamespace(torch=object()),
+    )
+    with pytest.raises(ValueError, match="consumer failed") if consumer_fails else contextlib.nullcontext():
+        renderer._copy_mapped_lidar_point_cloud(point_cloud, lidar_data, ovrtx_renderer_module.Device.CUDA)
+
+    assert point_cloud.map.call_args.kwargs["sync_stream"] == (expected_stream if gpu_side else 0)
+    assert events == ([] if gpu_side else ["wait"]) + ["consume", ("release", expected_stream)]
