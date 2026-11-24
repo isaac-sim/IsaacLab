@@ -159,11 +159,12 @@ Export a checkpoint and one reference clip to a LEAPP bundle:
 
 .. code-block:: bash
 
-   uv run --extra leapp isaaclab export \
+   uv run --extra leapp isaaclab leapp export \
        --task Isaac-Motion-Tracking-GenCoord-G1 --rl_library model_based \
-       --checkpoint pretrained --export_save_path exported
+       --checkpoint pretrained --motion_dir /path/to/motion.npz --export_save_path exported
 
-For a local checkpoint, pass its path and select one motion with ``--motion_dir``.
+Select one local reference clip with ``--motion_dir``. For a local checkpoint,
+replace ``pretrained`` with its path.
 The output directory contains an ONNX model, a pipeline YAML, initial feedback
 state, and ``motion.npz``. Keep these files together. The graph includes sensor
 preprocessing, observation history, normalization, motion inference and joint
@@ -171,10 +172,12 @@ position scaling; it outputs joint targets and the checkpoint's PD gains.
 
 Install Isaac ROS and the G1 driver as described in the
 :doc:`visual locomotion deployment guide </source/policy_deployment/07_g1_sim2real/training_and_deploying_a_g1_visual_locomotion_policy>`.
-Then, in the ROS environment:
+With Isaac ROS Deploy release 5.0, keep the Triton plugin loaded until shutdown.
+After sourcing the ROS environment, run:
 
 .. code-block:: bash
 
+   export LD_PRELOAD="$(ros2 pkg prefix isaac_ros_triton)/lib/libtriton_node.so${LD_PRELOAD:+:$LD_PRELOAD}"
    python3 scripts/deploy/g1_deploy.py \
        --pipeline exported/Isaac-Motion-Tracking-GenCoord-G1/Isaac-Motion-Tracking-GenCoord-G1.yaml \
        --interface <iface>
