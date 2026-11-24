@@ -8,10 +8,13 @@
 import itertools
 from pathlib import Path
 
+import numpy as np
 import pytest
 import shapely
 import torch
+import trimesh
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
+from newton.usd import get_mesh
 
 from pxr import Usd, UsdGeom, UsdPhysics
 
@@ -396,7 +399,10 @@ def test_reset_intersects_workspace_and_table_and_binds_only_feasible_tasks(env)
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_robotiq_reopens_without_internal_collision_deformation(device):
     """The actual gripper reopens after closing, while its base still collides with external objects."""
-    from isaaclab_tasks.contrib.heterogeneous_tasks.heterogeneous_tasks_env_cfg import VLAHeterogeneousEnvCfg
+    from isaaclab_tasks.contrib.heterogeneous_tasks.heterogeneous_tasks_env_cfg import (
+        CONTACT_CFG,
+        VLAHeterogeneousEnvCfg,
+    )
 
     cfg = VLAHeterogeneousEnvCfg(seed=42)
     cfg.sim.device = device
@@ -407,9 +413,9 @@ def test_robotiq_reopens_without_internal_collision_deformation(device):
     cfg.scene.probe = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/probe",
         spawn=sim_utils.SphereCfg(
-            radius=0.01,
+            radius=0.02,
             rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
-            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+            collision_props=CONTACT_CFG,
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0, -2, 0.5)),
     )
@@ -456,5 +462,43 @@ def test_robotiq_reopens_without_internal_collision_deformation(device):
             for a, b in pairs
             if a >= 0 and b >= 0
         )
+        # Close on a fixed 40 mm object and measure overlap against the actual visual pad surfaces.
+        # Free-space open/close alone misses the transient finger penetration caused by coarse contacts.
+        stage = sim_utils.get_current_stage()
+        xforms = UsdGeom.XformCache()
+        pad_meshes, pad_centers = [], []
+        for name in ("left_inner_finger", "right_inner_finger"):
+            body = next(prim for prim in stage.Traverse() if prim.GetName() == name)
+            visual = next(
+                prim
+                for prim in Usd.PrimRange(body)
+                if prim.IsA(UsdGeom.Mesh) and "fingertipsstep" in prim.GetName() and "_hull_" not in prim.GetName()
+            )
+            mesh = get_mesh(visual, compute_inertia=False, apply_stage_units=False, load_visual_materials=False)
+            transform = np.array(
+                xforms.GetLocalToWorldTransform(visual) * xforms.GetLocalToWorldTransform(body).GetInverse()
+            )
+            vertices = mesh.vertices @ transform[:3, :3] + transform[3, :3]
+            surface = trimesh.Trimesh(vertices, mesh.indices.reshape(-1, 3), process=True)
+            pad_meshes.append(surface)
+            pad_centers.append(surface.bounds.mean(axis=0))
+        tips, _ = robot.find_bodies(["left_inner_finger", "right_inner_finger"], preserve_order=True)
+        poses = robot.data.body_link_pose_w.torch[:, tips]
+        centers = torch.tensor(np.array(pad_centers), device=device, dtype=poses.dtype)
+        center = (quat_apply(poses[..., 3:], centers[None]) + poses[..., :3]).mean(dim=1)
+        pose[:, :3] = center
+        pose[:, 3:] = pose.new_tensor([0.0, 0.0, 0.0, 1.0])
+        env.scene["probe"].write_root_pose_to_sim_index(root_pose=pose)
+        action[:, -1] = -1
+        for _ in range(30):
+            env.step(action)
+            poses = robot.data.body_link_pose_w.torch[:, tips]
+            local_centers = quat_apply_inverse(poses[..., 3:], center[:, None] - poses[..., :3])[0].cpu().numpy()
+            for surface, point in zip(pad_meshes, local_centers):
+                distance = trimesh.proximity.closest_point(surface, point[None])[1][0]
+                inside = surface.contains(point[None])[0]
+                penetration = 0.02 + distance if inside else 0.02 - distance
+                assert penetration < 0.003, f"Finger penetrated the probe by {penetration * 1000:.1f} mm"
+        assert robot.data.joint_pos.torch[:, driver].max() < 0.7, "The probe must block full gripper closure"
     finally:
         env.close()

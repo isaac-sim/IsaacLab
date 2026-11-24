@@ -16,5 +16,8 @@
   config factories or post-init scene generation. The robot preserves its original home pose, arm impedance and
   disabled self-collisions, preventing internal collision hulls from deforming the open Robotiq linkage.
   The flat catalog references 100 NVIDIA-hosted SimReady props, with large assets restricted to sparse worlds through
-  inclusion tags and receiver cavities preserved by triangle collisions. The known failing large plastic plate is excluded.
+  inclusion tags. Newton targets 75% fewer collision triangles and generates native SDFs while preserving the
+  original visual meshes and receiver cavities. The known failing large plastic plate is excluded.
+  Four solver substeps with refreshed contacts and a shared gripper/object contact response reduce finger penetration
+  during closing, without changing actuator gains or the robot's initial pose.
   Table and stand assets continue to use the pinned HeteroTask dataset, its local cache, or ``VLA_BENCHMARKS_ASSETS_DIR``.

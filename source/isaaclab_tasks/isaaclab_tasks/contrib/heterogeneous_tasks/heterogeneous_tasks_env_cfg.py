@@ -11,7 +11,7 @@ from dataclasses import MISSING
 from isaaclab_isaacsim.sim.schemas import PhysxArticulationCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
-from isaaclab_newton.sim.schemas import NewtonArticulationCfg
+from isaaclab_newton.sim.schemas import MujocoCollisionCfg, NewtonArticulationCfg, NewtonSDFCollisionCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg, RigidObjectCollectionCfg
@@ -221,13 +221,34 @@ ASSET_NAMES = {
 }
 """Names for instructions where the catalog label does not tell assets apart: the bowls, by their color."""
 
-# Maximum counts keep large props in sparse layouts within the declared robot workspace.
+CONTACT_CFG = [sim_utils.UsdPhysicsCollisionCfg(), MujocoCollisionCfg(solref=(0.005, 1.0))]
+"""A 5 ms contact response for the gripper and props, resolved with contacts refreshed at each solver substep."""
+
+OBJECT_TRIANGLE_REDUCTION = 0.75
+"""Target fraction of collision triangles removed by Newton; visual geometry remains unchanged."""
+
+OBJECT_COLLISION_CFG = [
+    sim_utils.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="none"),
+    NewtonSDFCollisionCfg(sdf_target_voxel_size=0.00075, sdf_narrow_band_inner=-0.01, sdf_narrow_band_outer=0.01),
+]
+"""Native SDF collision with 0.75 mm voxels, preserving receiver cavities."""
+
+
+@configclass
+class ObjectCfg(sim_utils.UsdFileCfg):
+    """A catalog USD whose collision mesh is reduced independently of its authored visual mesh."""
+
+    func = mdp.spawn_object
+    triangle_reduction: float = OBJECT_TRIANGLE_REDUCTION
+
+
 ASSET_CATALOG = {
-    path.split("/")[-2]: sim_utils.UsdFileCfg(
+    path.split("/")[-2]: ObjectCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/SimReady/{path}",
         make_uninstanceable=True,
         move_rigid_body_to_root=True,
-        mesh_collision_props=sim_utils.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="none"),
+        collision_props=CONTACT_CFG,
+        mesh_collision_props=OBJECT_COLLISION_CFG,
         semantic_tags=[
             ("category", category),
             *[("name", name) for name in (ASSET_NAMES.get(path.split("/")[-2]),) if name],
@@ -348,7 +369,7 @@ ASSET_CATALOG = {
 }
 """100 NVIDIA-hosted SimReady props: relative USD paths, sampling categories and maximum world counts.
 
-The known failing large plastic plate is excluded. Mesh collisions preserve receiver cavities;
+The known failing large plastic plate is excluded. Reduced SDF collision meshes preserve receiver cavities;
 SimReady's PhysX validation alone does not certify contact behavior on Newton.
 """
 
@@ -510,6 +531,7 @@ class TabletopSceneCfg(InteractiveSceneCfg):
         ),
         spawn=FRANKA_ROBOTIQ_GRIPPER_CFG.spawn.replace(
             activate_contact_sensors=True,
+            collision_props={"/.*": CONTACT_CFG},
             articulation_props=[
                 PhysxArticulationCfg(
                     enabled_self_collisions=False, solver_position_iteration_count=64, solver_velocity_iteration_count=0
@@ -688,7 +710,8 @@ class VLAHeterogeneousEnvCfg(ManagerBasedRLEnvCfg):
             collision_cfg=NewtonCollisionPipelineCfg(
                 broad_phase="sap", rigid_contact_max=1048576, max_triangle_pairs=33554432
             ),
-            num_substeps=2,
+            num_substeps=4,
+            collision_decimation=1,
             # Thousands of small hull meshes: cuBQL takes about 0.1 s to build each one's BVH, LBVH a few ms.
             bvh_constructor_geometry="lbvh",
         ),

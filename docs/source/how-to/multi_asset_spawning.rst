@@ -182,7 +182,8 @@ categories and maximum world counts directly in the scene config. Assets wider t
 to two-object worlds; assets wider than 15 cm to at most four; smaller assets allow up to eight.
 These measured limits restrict candidates through ``object_count`` tags before category and asset sampling;
 they do not guarantee that every composition fits every table. The known failing large plastic plate is
-excluded. Triangle collisions preserve receiver cavities; SimReady PhysX certification alone does not
+excluded. Original visual meshes are retained while Newton targets 75% fewer collision triangles and cooks native
+SDFs with 0.75 mm voxels, preserving receiver cavities. SimReady PhysX certification alone does not
 validate contact behavior under Newton. Assets are downloaded through the normal cache at scene construction,
 not when importing the configuration. The tables and robot stand still use the pinned HeteroTask dataset.
 
