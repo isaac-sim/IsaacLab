@@ -46,10 +46,12 @@ def backend_cfg(name: str):
     return BACKENDS[name]
 
 
-def test_hybrid_gaze_turns_the_head_onto_the_fixation():
-    # Gaze that turns a rig needs a tracked mount, so a renderer that turns the camera's pose by the gaze. The case
-    # builds its own environment around the rig, so it runs before the shared ground scenes below.
-    cases.hybrid_gaze_turns_the_head_onto_the_fixation(backend_cfg("newton_warp"))
+@pytest.mark.parametrize("backend", ["newton_warp", "isaac_rtx"])
+def test_hybrid_gaze_turns_the_head_onto_the_fixation(backend):
+    # Gaze that turns a rig tracks the camera's mount: Newton turns the pose it reads by the gaze, and Isaac RTX reads
+    # the mount back from the camera prim, which holds the gaze. The case builds its own environment around the rig,
+    # so it runs before the shared ground scenes below.
+    cases.hybrid_gaze_turns_the_head_onto_the_fixation(backend_cfg(backend))
 
 
 @pytest.fixture(scope="module", params=list(BACKENDS))

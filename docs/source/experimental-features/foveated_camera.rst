@@ -146,7 +146,7 @@ Gaze modes
 * ``"dual"`` (experimental): four actions that move the rig's joints and then the retina independently.
 
 The rig modes need a :class:`~mdp.GazeRigCfg`, which names the articulation and its pan and tilt joints,
-``mount="tracked"`` (Newton or OVRTX), and a camera without image roll. :data:`~assets.PAN_TILT_CFG` is a two-joint
+``mount="tracked"``, and a camera without image roll. :data:`~assets.PAN_TILT_CFG` is a two-joint
 pan-tilt mount:
 
 .. code-block:: python

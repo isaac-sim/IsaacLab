@@ -63,7 +63,7 @@ class GazeActionCfg(ActionTermCfg):
     random_reset: bool = False
     """Start episodes at a random software gaze the camera sees; otherwise on the optical axis."""
     mount: str = "fixed"
-    """Teacher's mount: ``"fixed"`` at the action's creation, or ``"tracked"`` on a moving body (Newton, OVRTX)."""
+    """Teacher's mount: ``"fixed"`` at the action's creation, or ``"tracked"`` on a moving body."""
 
     def validate_config(self) -> None:
         """Reject invalid gaze bounds, modes and mounts, and rig settings that a mode cannot use."""

@@ -458,10 +458,6 @@ class GazeAction(ActionTerm):
         super().__init__(cfg, env)
         camera = self.camera
         self.tracked_mount = cfg.mount == "tracked"
-        if self.tracked_mount and not camera.turns_pose_by_gaze:
-            raise ValueError(
-                "A tracked gaze mount needs a camera that turns its pose by the gaze every frame: Newton or OVRTX."
-            )
         if not self.tracked_mount and camera.cfg.prim_path.rpartition("/")[0] not in (
             "{ENV_REGEX_NS}",
             env.scene.env_regex_ns,
