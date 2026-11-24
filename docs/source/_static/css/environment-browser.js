@@ -149,6 +149,7 @@
             ["IsaacContrib-TrackPositionNoObstacles-ARL-Robot-1", "rl_games,rsl_rl,skrl", "", "", "", "environments/previews/drone_arl/arl_robot_1_track_position_state_based.jpg"],
             ["IsaacContrib-Tracking-LocoManip-Digit", "rsl_rl", "isaacsim_physx,newton_mjwarp", "", "", "environment-previews/agility_digit_loco_manip.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||", "newton_mjwarp||"]],
             ["IsaacContrib-UR10-Particle-Push", "rsl_rl", "", "", "", "environment-previews/ur10_particle_push.jpg"],
+            ["IsaacContrib-VLA-Heterogeneous-Franka", "", "", "", "", "environment-previews/heterogeneous_tabletop.jpg"],
             ["IsaacContrib-Velocity-Flat-AnymalB", "rsl_rl,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,newton_steel,ovphysx", "", "", "environment-previews/anymal_b_flat.jpg", true, {}, {}, "", null, ["||", "isaacsim_physx||", "newton_kamino||", "newton_mjwarp||", "newton_steel||", "ovphysx||"]],
             ["IsaacContrib-Velocity-Flat-AnymalC-Direct", "rl_games,rsl_rl,skrl", "", "", "", "environment-previews/anymal_c_flat.jpg"],
             ["IsaacContrib-Velocity-Flat-AnymalC", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,newton_steel,ovphysx", "", "", "environment-previews/anymal_c_flat.jpg", true, {}, {}, "", null, ["||", "isaacsim_physx||", "newton_kamino||", "newton_mjwarp||", "newton_steel||", "ovphysx||"]],

@@ -10,8 +10,6 @@ __all__ = [
     "CommandTerm",
     "CurriculumManager",
     "EventManager",
-    "HeterogeneousTaskManager",
-    "HeterogeneousTaskCfg",
     "ManagerBase",
     "ManagerTermBase",
     "ActionTermCfg",
@@ -38,7 +36,6 @@ from .action_manager import ActionManager, ActionTerm
 from .command_manager import CommandManager, CommandTerm
 from .curriculum_manager import CurriculumManager
 from .event_manager import EventManager
-from .heterogeneous_task_manager import HeterogeneousTaskCfg, HeterogeneousTaskManager
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import (
     ActionTermCfg,

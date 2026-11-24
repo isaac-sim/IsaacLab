@@ -6,12 +6,12 @@
 """Heterogeneous tasks for vision-language-action policies: a Franka with a Robotiq gripper manipulating objects, on
 Newton.
 
-The environment configuration owns one flat asset catalog and declarative inclusion, pose, instruction and success
-records for all 256 tasks. :class:`~isaaclab.managers.HeterogeneousTaskManager` compiles their reset-time slots;
-``config/<robot>`` registers the shared environment and individual task selectors.
+One flat catalog supplies bounded object combinations. Reset places objects on the reachable part of
+one shared table, and category/size rules expose the tasks that can be evaluated in each world.
 """
 
 import os
+from pathlib import Path
 
 _ASSETS_REPO = "LiFanxing/HeteroTask"
 """Hugging Face dataset holding the tasks' assets."""
@@ -26,14 +26,11 @@ def _assets_dir() -> str:
         return os.environ["VLA_BENCHMARKS_ASSETS_DIR"]
     url = f"https://huggingface.co/datasets/{_ASSETS_REPO}/resolve/{_ASSETS_REVISION}"
     try:
-        from huggingface_hub import snapshot_download
-        from huggingface_hub.errors import LocalEntryNotFoundError
+        from huggingface_hub.constants import HF_HUB_CACHE
     except ImportError:
         return url
-    try:
-        return snapshot_download(_ASSETS_REPO, repo_type="dataset", revision=_ASSETS_REVISION, local_files_only=True)
-    except LocalEntryNotFoundError:
-        return url
+    cached = Path(HF_HUB_CACHE) / ("datasets--" + _ASSETS_REPO.replace("/", "--")) / "snapshots" / _ASSETS_REVISION
+    return str(cached) if cached.is_dir() else url
 
 
 # TODO: Point to the Isaac Lab Nucleus once the assets are uploaded there.

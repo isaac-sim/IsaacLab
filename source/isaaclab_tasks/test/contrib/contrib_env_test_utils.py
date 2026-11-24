@@ -44,7 +44,7 @@ _COVERED_TASKS = [
     "IsaacContrib-Lift-Cube-Franka",  # Already covered by test_environment_determinism.py
 ]
 _COVERED_TASK_PREFIXES = (
-    # The VLA tasks download their assets from Hugging Face; the manager and success terms have their own tests.
+    # The VLA assets are downloaded from Hugging Face; the reset and task bindings have native coverage.
     "IsaacContrib-VLA-",
 )
 

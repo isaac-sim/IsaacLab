@@ -30,7 +30,6 @@
     CurriculumTermCfg
     RecorderManager
     RecorderTermCfg
-    HeterogeneousTaskManager
 
 Scene Entity
 ------------
@@ -271,12 +270,6 @@ applications explicitly close any additional resources they own.
 .. autoclass:: RecorderTermCfg
     :members:
     :exclude-members: __init__
-
-Heterogeneous Task Manager
---------------------------
-
-.. autoclass:: HeterogeneousTaskManager
-    :members:
 
 Additional Public Classes
 -------------------------

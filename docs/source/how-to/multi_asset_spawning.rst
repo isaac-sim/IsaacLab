@@ -183,46 +183,65 @@ state. ``InclusionSet`` does not own an environment count or random seed. Planni
 candidate metadata and selected worlds, without expanding the product within each matching group;
 loading and simulating concrete assets still has its own cost.
 
-With ``match_tags=[]`` (the default), the existing independent Cartesian product and assignment behavior
-are preserved. Inclusion interpretation stays in scene planning. ``ReplicateSession`` forwards the
-resolved definitions without applying tag matching or task-specific rules.
-
-A task bank uses one flat scene and :class:`~isaaclab.managers.HeterogeneousTaskCfg` records. Declare
-objects once in the scene; each record selects those names and supplies only task-specific data:
+To sample categories before assets, use the same semantic tags with ``sample_by``:
 
 .. code-block:: python
 
-   tasks = {
-       "place_gear": HeterogeneousTaskCfg(
-           inclusion=InclusionSet(assets=["gear", "fixture"]),
-           init_states={"gear": RigidObjectCfg.InitialStateCfg(pos=(0.4, 0.1, 0.1))},
-           instruction="put the gear in the fixture",
-           episode_length_s=30.0,
-           terminations={"success": success_term},
-       ),
-   }
-   HeterogeneousTaskManager.compose_tasks(env_cfg, tasks)
+   InclusionSet(assets=["object_0", "object_1", "object_2"], sample_by="category")
 
-The shared scene must already declare ``gear`` and ``fixture`` as rigid objects. Requested semantic
-``match_tags`` are validated against those concrete source assets. Initial-state overrides and success
-terms use the original asset names. Other scene entities, such as the robot and cameras, stay shared.
+Each slot first chooses a category uniformly, then chooses a variant uniformly within that category.
+The categories are independent between slots; unlike ``match_tags=["category"]``, they need not be equal.
+A category with 900 assets gets the same probability as one with 25. No category combinations are
+listed or expanded. Every candidate must carry the requested tag. Multiple values give an asset
+membership in multiple categories, so use one value per asset for disjoint sampling categories.
+``sample_by`` can be combined with ``match_tags``: compatibility is resolved first, then sampling
+chooses among the remaining categories and assets. Both decisions use the scene's clone strategy
+and random state. Unclaimed assets keep their independent behavior.
 
-The task manager moves selected source assets into one catalog owned by its reset configuration, then
-compiles them into the fixed slots required by reset-time mesh switching. Task records contain no scene
-or environment configuration. Equal spawn definitions share a candidate; pose differences remain in the
-records. The composer derives ``task`` tags on candidate copies and marks the first task's candidates
-with ``initial_task``. Its default clone inclusion matches ``initial_task``, retaining one initial task
-world while keeping every candidate available for later resets.
+With ``match_tags=[]`` and ``sample_by=None`` (the defaults), the existing independent Cartesian
+product and assignment behavior are preserved. Inclusion interpretation stays in scene planning. ``ReplicateSession`` forwards the
+resolved definitions without applying tag matching or task-specific rules.
 
-The 256 VLA benchmarks use one inline table and one shared environment class in
-``contrib/heterogeneous_tasks/heterogeneous_tasks_env_cfg.py``. Individual benchmark IDs select a record
-from that table; there are no per-task modules or generated environment subclasses. Instructions,
-durations, poses and success predicates remain explicit data, independent of asset compatibility.
+The tabletop example in ``contrib/heterogeneous_tasks`` samples arbitrary object combinations with a
+bounded count. It samples the count uniformly, then a category independently for each occupied slot,
+then an asset uniformly within each chosen category. The catalog distinguishes books, bottles, cans,
+food, toys, utensils, miscellaneous objects, plates and containers. Ordinary inclusion matching represents count
+groups without expanding their products; ``sample_by="category"`` balances the category selection. Objects carry semantic category tags; task families become available only when distinct
+instances have the required categories and compatible sizes. Task binding and geometric reset stay
+local to the example, outside replication execution.
 
-Caller-supplied clone inclusions remain authoritative. Matching ``task`` can describe other legal task
-families, but does not bind runtime task IDs, poses, instructions, or success terms: custom initial
-layouts must still agree with the first task. Selecting several initial task families and binding their
-runtime task IDs is a separate capability.
+For example:
+
+.. code-block:: python
+
+   cfg = VLAHeterogeneousEnvCfg(object_count=(2, 8))
+   cfg.scene.num_envs = 128
+   cfg.events.place_objects.params["workspace"] = ((0.25, -0.4, 0.0), (0.85, 0.4, 0.6))
+
+The workspace is an axis-aligned reachable volume in the environment frame. Reset intersects it with
+the table's actual collision bounds, supports horizontal tables with arbitrary yaw, and keeps every
+object's convex collision footprint and height inside both regions. Larger objects are placed first, with random yaw, a mixture of boundary and interior position proposals,
+and clearance from earlier convex footprints, so round plates can be packed without reserving empty
+bounding-box corners. Newton's narrow-phase collision detection rejects penetrating
+placements, including robot intersections, without stepping physics. Placement retries are bounded;
+a workspace that cannot hold the selected objects raises a clear error instead of accepting overlaps.
+The reachable volume is user-supplied; this example does not compute inverse-kinematics reachability.
+
+Combinations are sampled once when the scene is built; reset randomizes poses. The table and robot do
+not count toward ``object_count``. The example retains rectangular object views using hidden inactive
+bodies and Newton mesh variants; inactive bodies are parked away from the workspace. Any combination
+may be selected, including repeated instances and worlds without a usable target. There is no
+conditioning on the presence of a plate or container and no list of authored benchmark layouts.
+
+After reset, ``env.tabletop.available_tasks[world]`` lists the evaluable instruction bindings.
+``put_on_plate`` requires a plate and a distinct movable object that fits its inset footprint;
+``put_in_container`` similarly requires a container. The current fit check uses conservative collision
+bounds with an inset for walls; it is not a grasp or motion planner. Reset selects an available binding
+and publishes ``env.tabletop.instructions``. To request another binding on the next reset, use
+``env.tabletop.set_task([world], [binding_index])``. A world with no binding keeps its sampled objects,
+has an empty instruction and does not report task success. Success requires the selected object to be
+released, inside the target footprint and supported by contact; containment also requires its bottom
+below the rim. Fixed per-benchmark poses, instructions and Gym IDs are replaced by these task families.
 
 For more detail on prototype assignment and replication, see :doc:`cloning`.
 

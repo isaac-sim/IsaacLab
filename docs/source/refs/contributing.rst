@@ -445,10 +445,11 @@ before changing an interface. Apply these rules when adding code or cleaning up 
   Resolve compatibility into factorized candidate groups during scene planning; let clone-plan construction
   and the scene's clone strategy select concrete worlds without expanding every valid combination.
   Keep inclusion interpretation and task-specific matching classes out of replication execution.
-  Task composition derives membership tags on copies of deduplicated candidates; do not mutate source task
-  configurations or introduce inclusion subclasses to choose an initial task. Define task banks as records over
-  one flat scene catalog. Do not generate a module or environment subclass for each record; existing Gym IDs
-  may bind selectors on the shared configuration. Runtime slot projection belongs to the task manager.
+  Keep task-specific sampling, placement and instruction binding in the task package. Define tabletop
+  tasks as category requirements over a shared flat asset catalog, not per-combination environment
+  configurations. Bound object cardinality without enumerating combinations, and keep reset placement
+  inside the intersection of the work surface and supplied reachable workspace. Reject impossible
+  placements instead of silently accepting overlap.
 * Give each piece of state and validation one owner. Consumers should use the owner's contract instead
   of repairing results or maintaining duplicate state. Cache derived values only when their lifetime and
   invalidation are clear; do not expose mutable cached results for callers to modify accidentally.

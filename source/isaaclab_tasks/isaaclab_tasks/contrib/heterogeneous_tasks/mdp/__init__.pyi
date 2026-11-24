@@ -3,20 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-__all__ = [
-    "object_in_container",
-    "object_on_top",
-    "object_outside_of",
-    "objects_placed_in_container_in_order",
-    "stacked",
-    "task_success",
-]
+__all__ = ["reset_tabletop", "task_success"]
 
-from .terminations import (
-    object_in_container,
-    object_on_top,
-    object_outside_of,
-    objects_placed_in_container_in_order,
-    stacked,
-    task_success,
-)
+from .events import reset_tabletop
+from .terminations import task_success
