@@ -626,7 +626,6 @@ def _feet_slide(
     body_com_vel_w: wp.array2d(dtype=wp.spatial_vectorf),
     net_normal_forces_w_history: wp.array3d(dtype=wp.vec3f),
     body_ids: wp.array(dtype=wp.int32),
-    sensor_ids: wp.array(dtype=wp.int32),
     aligned_sensor_ids: wp.array(dtype=float),
 ) -> float:
     speed = float(0.0)
@@ -645,7 +644,6 @@ def _feet_slide_torch(
     body_com_vel_w: torch.Tensor,
     net_normal_forces_w_history: torch.Tensor,
     body_ids: torch.Tensor,
-    sensor_ids: torch.Tensor,
     aligned_sensor_ids: torch.Tensor,
 ) -> torch.Tensor:
     touching = contact_mask_torch(net_normal_forces_w_history, aligned_sensor_ids.long(), 1.0)
