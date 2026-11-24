@@ -304,8 +304,8 @@ class Lidar(SensorBase):
             return
 
         self._push_renderer_pose()
-        self._sim.render_context.render_into_lidar(
-            self._renderer, self._render_data, self._sim.get_physics_step_count()
+        self._sim.render_context.render_into_sensor(
+            self._renderer, self._render_data, self._data, self._sim.get_physics_step_count()
         )
 
     def _push_renderer_pose(self) -> None:

@@ -14,9 +14,11 @@ from typing import Any
 
 import torch
 import warp as wp
+from typing_extensions import deprecated
 
 from .. import cloner
 from ..sensors.camera.camera_data import CameraData
+from ..sensors.lidar.lidar_data import LidarData
 from ..utils.string import string_to_callable
 from .base_renderer import BaseRenderer, VisualMaterialBatch
 from .renderer_cfg import RendererCfg
@@ -332,42 +334,28 @@ class RenderContext:
             renderer.update_transforms()
             renderer.update_geometries()
 
-    def render_into_lidar(self, renderer: BaseRenderer, render_data: Any, physics_step_count: int) -> None:
-        """Sync scene state and capture one lidar.
-
-        The point cloud is published by :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.render`,
-        so this helper does not read outputs back.
-
-        Args:
-            renderer: Renderer that owns ``render_data``.
-            render_data: Renderer-specific lidar resources from ``create_render_data``.
-            physics_step_count: Current physics step for shared scene synchronization.
-        """
-        self.update_scene_state(physics_step_count)
-        renderer.render(render_data)
-
-    def render_into_camera(
+    def render_into_sensor(
         self,
         renderer: BaseRenderer,
         render_data: Any,
-        camera_data: CameraData,
+        sensor_data: CameraData | LidarData,
         physics_step_count: int,
     ) -> None:
-        """Sync scene state and capture one camera through :meth:`render_into_cameras`."""
-        self.render_into_cameras([(renderer, render_data, camera_data)], physics_step_count)
+        """Sync scene state and capture one sensor through :meth:`render_into_sensors`."""
+        self.render_into_sensors([(renderer, render_data, sensor_data)], physics_step_count)
 
-    def render_into_cameras(
+    def render_into_sensors(
         self,
-        requests: Sequence[tuple[BaseRenderer, Any, CameraData]],
+        requests: Sequence[tuple[BaseRenderer, Any, CameraData | LidarData]],
         physics_step_count: int,
     ) -> None:
-        """Render prepared cameras in batches grouped by renderer instance.
+        """Render prepared sensors in batches grouped by renderer instance.
 
-        Camera poses must be updated before this call. Requests are used only for this
-        submission; the context does not retain cameras or manage sensor timing.
+        Sensor poses must be updated before this call. Requests are used only for this
+        submission; the context does not retain sensors or manage sensor timing.
 
         Args:
-            requests: Tuples of renderer, renderer-specific render data, and output camera data.
+            requests: Tuples of renderer, renderer-specific render data, and output sensor data.
                 An empty sequence performs no work.
             physics_step_count: Current physics step for shared scene synchronization.
         """
@@ -376,14 +364,47 @@ class RenderContext:
 
         self.update_scene_state(physics_step_count)
 
-        groups: dict[int, tuple[BaseRenderer, list[tuple[Any, CameraData]]]] = {}
-        for renderer, render_data, camera_data in requests:
-            groups.setdefault(id(renderer), (renderer, []))[1].append((render_data, camera_data))
+        groups: dict[int, tuple[BaseRenderer, list[tuple[Any, CameraData | LidarData]]]] = {}
+        for renderer, render_data, sensor_data in requests:
+            groups.setdefault(id(renderer), (renderer, []))[1].append((render_data, sensor_data))
 
-        for renderer, cameras in groups.values():
-            renderer.render_batch([render_data for render_data, _ in cameras])
-            for render_data, camera_data in cameras:
-                renderer.read_output(render_data, camera_data)
+        for renderer, sensors in groups.values():
+            renderer.render_batch([render_data for render_data, _ in sensors])
+            for render_data, sensor_data in sensors:
+                renderer.read_output(render_data, sensor_data)
+
+    @deprecated("RenderContext.render_into_camera is deprecated. Call render_into_sensor instead.")
+    def render_into_camera(
+        self,
+        renderer: BaseRenderer,
+        render_data: Any,
+        camera_data: CameraData,
+        physics_step_count: int,
+    ) -> None:
+        """Deprecated alias of :meth:`render_into_sensor`.
+
+        .. deprecated::
+            Call :meth:`render_into_sensor` instead. The arguments are the same.
+        """
+        return self.render_into_sensor(renderer, render_data, camera_data, physics_step_count)
+
+    @deprecated("RenderContext.render_into_cameras is deprecated. Call render_into_sensors instead.")
+    def render_into_cameras(
+        self,
+        requests: Sequence[tuple[BaseRenderer, Any, CameraData]],
+        physics_step_count: int,
+    ) -> None:
+        """Deprecated alias of :meth:`render_into_sensors`.
+
+        .. deprecated::
+            Call :meth:`render_into_sensors` instead. The arguments are the same.
+
+        Args:
+            requests: Tuples of renderer, renderer-specific render data, and output camera data.
+                An empty sequence performs no work.
+            physics_step_count: Current physics step for shared scene synchronization.
+        """
+        return self.render_into_sensors(requests, physics_step_count)
 
     def reset_stage_prepare_flag(self) -> None:
         """Allow :meth:`ensure_prepare_stage` to run ``prepare_stage`` again (e.g. a new USD stage)."""

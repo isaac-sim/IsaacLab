@@ -24,6 +24,7 @@ from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.scene import InteractiveScene
 from isaaclab.sensors import Camera, SensorBase
 from isaaclab.sensors.camera.camera_data import CameraData
+from isaaclab.sensors.lidar.lidar_data import LidarData
 from isaaclab.sim import BackendCfg, SimulationContext
 from isaaclab.utils import replace
 from isaaclab.utils.warp import ProxyArray
@@ -198,14 +199,14 @@ def test_scene_state_does_not_skip_writes_within_a_physics_step(sim):
 
 
 @pytest.mark.parametrize("profile", [False, True])
-def test_render_into_camera_call_order_and_profile_output(sim, capsys, profile):
+def test_render_into_sensor_call_order_and_profile_output(sim, capsys, profile):
     """Profiling preserves call order and collects timings without printing."""
     renderer = sim.get_or_create_backend(RendererCfg(class_type=_renderer))
     data, camera = object(), CameraData()
 
     with profile_renderers(sim.render_context, active=profile) as timings:
-        sim.render_context.render_into_camera(renderer, data, camera, physics_step_count=1)
-        sim.render_context.render_into_camera(renderer, data, camera, physics_step_count=1)
+        sim.render_context.render_into_sensor(renderer, data, camera, physics_step_count=1)
+        sim.render_context.render_into_sensor(renderer, data, camera, physics_step_count=1)
 
     assert renderer.mock_calls == [
         call.update_transforms(),
@@ -233,16 +234,16 @@ def test_default_render_batch_preserves_single_camera_render_contract():
     assert renderer.render.call_args_list == [call(data) for data in render_data]
 
 
-def test_render_into_cameras_groups_renderers_and_reads_each_output(sim):
+def test_render_into_sensors_groups_renderers_and_reads_each_output(sim):
     first = sim.get_or_create_backend(RendererCfg(class_type=_renderer))
     second = sim.get_or_create_backend(RendererCfg(class_type=_renderer, renderer_type="second"))
     data = [object() for _ in range(3)]
     cameras = [CameraData() for _ in data]
 
-    sim.render_context.render_into_cameras([], physics_step_count=1)
+    sim.render_context.render_into_sensors([], physics_step_count=1)
     first.render_batch.assert_not_called()
     second.render_batch.assert_not_called()
-    sim.render_context.render_into_cameras(
+    sim.render_context.render_into_sensors(
         [(first, data[0], cameras[0]), (second, data[1], cameras[1]), (first, data[2], cameras[2])],
         physics_step_count=1,
     )
@@ -255,6 +256,46 @@ def test_render_into_cameras_groups_renderers_and_reads_each_output(sim):
         renderer.render.assert_not_called()
         renderer.update_transforms.assert_called_once_with()
         renderer.update_geometries.assert_called_once_with()
+
+
+def test_render_into_camera_aliases_are_deprecated(sim):
+    """The camera names still capture, and warn callers to use the sensor methods."""
+    renderer = sim.get_or_create_backend(RendererCfg(class_type=_renderer))
+    data, camera = object(), CameraData()
+
+    with pytest.warns(
+        DeprecationWarning, match="RenderContext.render_into_camera is deprecated. Call render_into_sensor instead."
+    ):
+        sim.render_context.render_into_camera(renderer, data, camera, physics_step_count=1)
+    renderer.read_output.assert_called_once_with(data, camera)
+
+    renderer.reset_mock()
+    with pytest.warns(
+        DeprecationWarning, match="RenderContext.render_into_cameras is deprecated. Call render_into_sensors instead."
+    ):
+        sim.render_context.render_into_cameras([(renderer, data, camera)], physics_step_count=1)
+    renderer.read_output.assert_called_once_with(data, camera)
+
+
+def test_render_into_sensors_reads_each_lidar_output(sim):
+    """Lidar captures go through the generic sensor path and pass LidarData to read_output."""
+    renderer = sim.get_or_create_backend(RendererCfg(class_type=_renderer))
+    data = [object(), object()]
+    lidars = [LidarData(1, 1, "cpu") for _ in data]
+
+    sim.render_context.render_into_sensor(renderer, data[0], lidars[0], physics_step_count=1)
+    renderer.render_batch.assert_called_once_with([data[0]])
+    renderer.read_output.assert_called_once_with(data[0], lidars[0])
+    renderer.render.assert_not_called()
+
+    renderer.reset_mock()
+    sim.render_context.render_into_sensors(
+        [(renderer, data[0], lidars[0]), (renderer, data[1], lidars[1])],
+        physics_step_count=1,
+    )
+    renderer.render_batch.assert_called_once_with([data[0], data[1]])
+    assert renderer.read_output.call_args_list == [call(data[0], lidars[0]), call(data[1], lidars[1])]
+    renderer.render.assert_not_called()
 
 
 def test_legacy_render_profile_scope_warns_and_preserves_import():

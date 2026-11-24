@@ -22,6 +22,7 @@ from isaaclab.assets import AssetBaseCfg
 from isaaclab.renderers.sensor_render_spec import SensorRenderSpec
 from isaaclab.sensors.camera import CameraCfg
 from isaaclab.sensors.camera.camera_data import CameraData, RenderBufferKind, RenderBufferSpec
+from isaaclab.sensors.lidar.lidar_data import LidarData
 from isaaclab.sim import PinholeCameraCfg, SimulationContext
 from isaaclab.utils import replace
 from isaaclab.utils.warp import ProxyArray
@@ -395,6 +396,8 @@ def test_lidar_and_camera_captures_use_separate_steps(monkeypatch):
     products["/Render/LidarOther"] = types.SimpleNamespace(frames=[object()])
     submissions = []
     processed = []
+    published = []
+    lidar_data = LidarData(1, 1, "cpu")
 
     def step(**kwargs):
         submissions.append(kwargs)
@@ -403,10 +406,11 @@ def test_lidar_and_camera_captures_use_separate_steps(monkeypatch):
     renderer.backend.renderer = types.SimpleNamespace(step=step)
     monkeypatch.setattr(renderer, "_process_render_frame", lambda *args: processed.append(args[0]))
     monkeypatch.setattr(renderer, "_publish_lidar_output", lambda *_args, **_kwargs: published.append(_args[0]))
-    published = []
 
     renderer.render_batch((cameras[0],))
     renderer.render(lidar)
+    assert published == []
+    renderer.read_output(lidar, lidar_data)
 
     assert len(submissions) == 2
     assert submissions[0]["render_products"] == {"/Render/Camera0", "/Render/Camera1"}
@@ -414,6 +418,17 @@ def test_lidar_and_camera_captures_use_separate_steps(monkeypatch):
     assert submissions[1]["render_products"] == {"/Render/Lidar"}
     assert processed == [cameras[0]]
     assert published == [lidar]
+
+    renderer.render_batch((cameras[0], lidar))
+    assert published == [lidar]
+    renderer.read_output(lidar, lidar_data)
+
+    assert len(submissions) == 4
+    assert submissions[2]["render_products"] == {"/Render/Camera0", "/Render/Camera1"}
+    assert submissions[3]["delta_time"] == pytest.approx(0.1)
+    assert submissions[3]["render_products"] == {"/Render/Lidar"}
+    assert processed == [cameras[0], cameras[0]]
+    assert published == [lidar, lidar]
 
 
 def test_ovrtx_render_batch_empty_sequence_does_not_require_initialized_backend():

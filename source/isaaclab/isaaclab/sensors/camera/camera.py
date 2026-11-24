@@ -777,7 +777,7 @@ class Camera(SensorBase):
             return
         self._prepare_camera(env_mask)
 
-        self._sim.render_context.render_into_camera(
+        self._sim.render_context.render_into_sensor(
             self._renderer, self._render_data, self._data, self._sim.get_physics_step_count()
         )
         self._apply_tensor_processors(env_mask)
@@ -796,7 +796,7 @@ class Camera(SensorBase):
             return
 
         sim = ready[0]._sim
-        sim.render_context.render_into_cameras(
+        sim.render_context.render_into_sensors(
             [(camera._renderer, camera._render_data, camera._data) for camera in ready],
             sim.get_physics_step_count(),
         )

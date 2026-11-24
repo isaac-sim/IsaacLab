@@ -7,13 +7,14 @@
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass
 
 from ..sensors.camera.camera_cfg import CameraCfg
 from ..sensors.lidar.lidar_cfg import LidarCfg
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, init=False)
 class SensorRenderSpec:
     """Stable inputs for :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.create_render_data`.
 
@@ -36,6 +37,40 @@ class SensorRenderSpec:
     prim_paths: tuple[str, ...]
     view_count: int
 
-    def is_lidar(self) -> bool:
-        """Return whether this spec describes a lidar."""
-        return isinstance(self.cfg, LidarCfg)
+    def __init__(
+        self,
+        cfg: CameraCfg | LidarCfg,
+        device: str,
+        num_instances: int,
+        prim_paths: tuple[str, ...] | None = None,
+        view_count: int | None = None,
+        *,
+        camera_prim_paths: tuple[str, ...] | None = None,
+    ) -> None:
+        if camera_prim_paths is not None:
+            if prim_paths is not None:
+                raise TypeError("Pass only one of 'prim_paths' and 'camera_prim_paths'.")
+
+            warnings.warn("camera_prim_paths is deprecated. Use prim_paths.", FutureWarning, stacklevel=2)
+            prim_paths = camera_prim_paths
+
+        # To allow camera_prim_paths to omit prim_paths, None defaults are used.
+        if prim_paths is None:
+            raise TypeError("SensorRenderSpec.__init__() missing required argument: 'prim_paths'.")
+
+        # view_count needs a default because it follows prim_paths in the function signature.
+        if view_count is None:
+            raise TypeError("SensorRenderSpec.__init__() missing required argument: 'view_count'.")
+
+        # Frozen dataclasses reject self.field = value, including in a custom __init__.
+        object.__setattr__(self, "cfg", cfg)
+        object.__setattr__(self, "device", device)
+        object.__setattr__(self, "num_instances", num_instances)
+        object.__setattr__(self, "prim_paths", prim_paths)
+        object.__setattr__(self, "view_count", view_count)
+
+    @property
+    def camera_prim_paths(self) -> tuple[str, ...]:
+        """Deprecated name for :attr:`prim_paths`."""
+        warnings.warn("camera_prim_paths is deprecated. Use prim_paths.", FutureWarning, stacklevel=2)
+        return self.prim_paths

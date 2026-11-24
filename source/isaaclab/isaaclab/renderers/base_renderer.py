@@ -7,9 +7,12 @@
 
 from __future__ import annotations
 
+import warnings
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
+
+from typing_extensions import deprecated
 
 from .output_contract import RenderBufferKind, RenderBufferSpec
 from .sensor_render_spec import SensorRenderSpec
@@ -21,6 +24,7 @@ if TYPE_CHECKING:
     import warp as wp
 
     from ..sensors.camera.camera_data import CameraData
+    from ..sensors.lidar.lidar_data import LidarData
     from ..sim import SimulationContext
     from ..utils.warp import ProxyArray
     from .renderer_cfg import RendererCfg
@@ -35,6 +39,17 @@ class VisualMaterialBatch:
     shader_paths: tuple[str, ...]
     input_names: tuple[str, ...]
     values: torch.Tensor
+
+
+def _subclass_override(cls: type, name: str) -> Callable[..., Any] | None:
+    """Return the first method ``name`` defined on a subclass of :class:`BaseRenderer`."""
+    for klass in cls.__mro__:
+        if klass is BaseRenderer:
+            break
+        impl = klass.__dict__.get(name)
+        if impl is not None:
+            return impl
+    return None
 
 
 class BaseRenderer(ABC):
@@ -146,7 +161,30 @@ class BaseRenderer(ABC):
         """
         pass
 
-    @abstractmethod
+    @deprecated("BaseRenderer.update_camera is deprecated. Call update_sensor instead.")
+    def update_camera(
+        self,
+        render_data: Any,
+        positions: ProxyArray,
+        orientations: ProxyArray,
+        intrinsics: ProxyArray | None = None,
+    ) -> None:
+        """Deprecated alias of :meth:`update_sensor`.
+
+        .. deprecated::
+            Call :meth:`update_sensor` instead. The arguments are the same.
+
+        Args:
+            render_data: The render data object from :meth:`create_render_data`.
+            positions: Sensor positions in world frame. Shape ``(N,)``, dtype ``wp.vec3f``.
+                Use ``.torch`` for a ``(N, 3)`` tensor view.
+            orientations: Sensor orientations as quaternions ``(x, y, z, w)``. Shape ``(N,)``,
+                dtype ``wp.quatf``. Use ``.torch`` for a ``(N, 4)`` tensor view.
+            intrinsics: Camera intrinsic matrices. Shape ``(N,)``, dtype ``wp.mat33f``.
+                Use ``.torch`` for a ``(N, 3, 3)`` tensor view. ``None`` for a lidar.
+        """
+        return self.update_sensor(render_data, positions, orientations, intrinsics)
+
     def update_sensor(
         self,
         render_data: Any,
@@ -160,6 +198,9 @@ class BaseRenderer(ABC):
         them. Runtime camera calibration changes are submitted separately through
         :meth:`update_camera_intrinsics`.
 
+        A subclass that still implements :meth:`update_camera` is called from here. New backends
+        implement this method instead. :meth:`update_camera` is a deprecated alias of this method.
+
         Args:
             render_data: The render data object from :meth:`create_render_data`.
             positions: Sensor positions in world frame. Shape ``(N,)``, dtype ``wp.vec3f``.
@@ -169,7 +210,16 @@ class BaseRenderer(ABC):
             intrinsics: Camera intrinsic matrices. Shape ``(N,)``, dtype ``wp.mat33f``.
                 Use ``.torch`` for a ``(N, 3, 3)`` tensor view. ``None`` for a lidar.
         """
-        pass
+        update_camera = _subclass_override(type(self), "update_camera")
+        if update_camera is not None:
+            warnings.warn(
+                f"{type(self).__name__}.update_camera is deprecated. Implement update_sensor instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return update_camera(self, render_data, positions, orientations, intrinsics)
+
+        raise NotImplementedError(f"{type(self).__name__} must implement update_sensor.")
 
     def update_camera_intrinsics(self, render_data: Any, intrinsics: wp.array, parameters: wp.array) -> None:
         """Apply a proposed runtime calibration without accessing the authored USD stage.
@@ -190,7 +240,7 @@ class BaseRenderer(ABC):
 
     @abstractmethod
     def render(self, render_data: Any) -> None:
-        """Submit a capture; :meth:`read_output` publishes its camera's available observation.
+        """Submit a capture; :meth:`read_output` publishes the sensor's available observation.
 
         Args:
             render_data: The render data object from :meth:`create_render_data`.
@@ -198,12 +248,12 @@ class BaseRenderer(ABC):
         pass
 
     def render_batch(self, render_data: Sequence[Any]) -> None:
-        """Submit captures for a collection of cameras.
+        """Submit captures for a collection of sensors.
 
-        All camera poses and shared scene state must be prepared before calling this method.
+        All sensor poses and shared scene state must be prepared before calling this method.
         An empty sequence is a no-op. Each object must belong to this renderer and appear once.
-        The default implementation calls :meth:`render` for each camera; subclasses may override
-        this method to submit all cameras together.
+        The default implementation calls :meth:`render` for each sensor; subclasses may override
+        this method to submit sensors together.
 
         Args:
             render_data: Renderer-specific objects from :meth:`create_render_data`.
@@ -212,16 +262,16 @@ class BaseRenderer(ABC):
             self.render(data)
 
     @abstractmethod
-    def read_output(self, render_data: Any, camera_data: CameraData) -> None:
-        """Read rendered outputs from the renderer into the camera data container.
+    def read_output(self, render_data: Any, sensor_data: CameraData | LidarData) -> None:
+        """Read rendered outputs from the renderer into the sensor data container.
 
-        Asynchronous renderers may return the previous capture with its matching metadata in
-        ``camera_data.info``. Publishing one camera must not change another camera's observations.
+        Asynchronous camera renderers may return the previous capture with its matching metadata in
+        ``sensor_data.info``. Publishing one sensor must not change another sensor's observations.
 
         Args:
             render_data: The render data object from :meth:`create_render_data`.
-            camera_data: The :class:`~isaaclab.sensors.camera.camera_data.CameraData`
-                instance to populate.
+            sensor_data: The :class:`~isaaclab.sensors.camera.camera_data.CameraData` or
+                :class:`~isaaclab.sensors.lidar.lidar_data.LidarData` instance to populate.
         """
         pass
 
