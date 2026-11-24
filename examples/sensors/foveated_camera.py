@@ -5,10 +5,12 @@
 
 """Explore a cluttered scene through the experimental foveated camera.
 
-The viewer shows the camera's retina; a panel shows the gaze on the viewing sphere beside a magnified retina.
-Use WASD or the arrow keys to move, and Q/E to lower or raise the camera.
-I/K tilt the gaze and J/L pan it. O/U magnify the panel's retina and zoom back out.
-Press H to show or hide the viewer controls.
+The viewer shows the camera's retina, covered at launch by a window that shows the gaze on the viewing sphere beside
+the retina; move or resize that window to see the viewer's own view of the retina.
+Use WASD or the arrow keys to move the camera, and Q/E to lower or raise it.
+Drag with the left mouse button, or press I/K and J/L, to steer the gaze.
+The side panel's sliders follow the gaze and set it, and step the foveation (cmf_a) through
+``env.scene.eye.viewer_cmf_a_values`` on Newton. Press H to show or hide the viewer controls.
 Use --target to choose where the retina looks at launch.
 
 .. code-block:: bash
@@ -224,8 +226,8 @@ def gaze_toward(centre: tuple[float, float, float], camera_cfg: FoveatedCameraCf
 
 def camera_comparison(
     camera: FoveatedCamera, overview: FoveatedCamera
-) -> tuple[Callable[[], None], Callable[[torch.Tensor, float], wp.array]]:
-    """Draw the lens and gaze on the viewing sphere used in the docs, beside the retina magnified by a zoom."""
+) -> tuple[Callable[[], None], Callable[[torch.Tensor], wp.array]]:
+    """Draw the lens and gaze on the viewing sphere used in the docs, beside the retina."""
     size, gap = PREVIEW_SIZE, 6
     header_height = 28
     image_width = 2 * size + gap
@@ -234,13 +236,12 @@ def camera_comparison(
     draw = ImageDraw.Draw(header)
     font = ImageFont.load_default(size=17)
     draw.text((8, header_height / 2), "Viewing sphere", font=font, fill="white", anchor="lm")
-    draw.text((size + gap + 8, header_height / 2), "FoveatedCamera view", font=font, fill="white", anchor="lm")
+    draw.text((size + gap + 8, header_height / 2), "Retina", font=font, fill="white", anchor="lm")
     labels = torch.from_numpy(np.array(header)).to(camera.device)
     divider = labels[:1, size : size + gap].expand(size, -1, -1)
-    displayed_zoom = None
+    displayed_cmf_a = None
 
     coords = overview.sampling_coords
-    retina_coords = camera.sampling_coords
     pixels = torch.arange(size, device=camera.device)
     center = (pixels + 0.5) * (2 / size) - 1
     screen = torch.stack(torch.meshgrid(center, center, indexing="xy"), dim=-1)
@@ -257,21 +258,21 @@ def camera_comparison(
 
     def prepare() -> None:
         overview.set_world_poses(*camera.get_world_poses(convention="opengl"), convention="opengl")
-        if camera.supports_batch_update and overview.supports_batch_update:
-            camera.update_batch((camera, overview), 0.0)
+        if overview.supports_batch_update:
+            overview.update_batch((overview,), 0.0)
 
-    def compose(retina: torch.Tensor, zoom: float) -> wp.array:
-        """The panel for one RGB retina image (H, W, 3): the viewing sphere, then the retina magnified by ``zoom``."""
-        nonlocal displayed_zoom
-        if zoom != displayed_zoom:
-            draw.rectangle((image_width - 68, 0, image_width - 1, header_height - 1), fill=header_color)
-            draw.text((image_width - 8, header_height / 2), f"{zoom:.2f}x", font=font, fill="white", anchor="rm")
+    def compose(retina: torch.Tensor) -> wp.array:
+        """The view for one RGB retina image (H, W, 3): the viewing sphere, then the retina."""
+        nonlocal displayed_cmf_a
+        # The retina may change its foveation at runtime, so its coordinates are read for every frame.
+        retina_coords = camera.sampling_coords
+        if camera.cfg.cmf_a_deg != displayed_cmf_a:
+            displayed_cmf_a = camera.cfg.cmf_a_deg
+            draw.rectangle((image_width - 140, 0, image_width - 1, header_height - 1), fill=header_color)
+            text = f"cmf_a {displayed_cmf_a:g} deg"
+            draw.text((image_width - 8, header_height / 2), text, font=font, fill="white", anchor="rm")
             labels.copy_(torch.from_numpy(np.array(header)))
-            displayed_zoom = zoom
         detail = torch.cat((retina, torch.full_like(retina[..., :1], 255)), dim=-1)
-        height, width = detail.shape[:2]
-        crop_h, crop_w = max(1, round(height / zoom)), max(1, round(width / zoom))
-        top, left = (height - crop_h) // 2, (width - crop_w) // 2
 
         # Transform the fixed observer into the live camera frame, independently of active gaze.
         position, orientation = camera.get_world_poses(convention="opengl")
@@ -309,7 +310,7 @@ def camera_comparison(
             radius = torch.linalg.vector_norm(2 * grid - 1, dim=-1)
         else:
             radius = torch.acos(alignment.clamp(-1, 1)) / math.radians(retina_coords.fov / 2)
-        in_retina = radius <= min(crop_h / height, crop_w / width)
+        in_retina = radius <= 1.0
 
         # Match the docs: an untextured near shell, a faded peripheral texture, and independent lens/gaze edges.
         texel = 0.72 * rgb + 0.28 * 255
@@ -331,8 +332,8 @@ def camera_comparison(
         full = torch.where(outline(hit)[..., None], lens_color, full)
         full = torch.cat((full.to(torch.uint8), torch.full_like(texture[..., :1], 255)), dim=-1)
 
-        crop = detail[top : top + crop_h, left : left + crop_w].permute(2, 0, 1).unsqueeze(0)
-        detail = torch.nn.functional.interpolate(crop, size=(size, size), mode="nearest")[0].permute(1, 2, 0)
+        detail = detail.permute(2, 0, 1).unsqueeze(0)
+        detail = torch.nn.functional.interpolate(detail, size=(size, size), mode="nearest")[0].permute(1, 2, 0)
         detail[..., :3].masked_fill_(~retina_disc[..., None], 0)
         return wp.from_torch(torch.cat((labels, torch.cat((full, divider, detail), dim=1)), dim=0))
 
@@ -340,9 +341,107 @@ def camera_comparison(
 
 
 def newton_window(visualizer):
-    """The window of a Newton visualizer, which shows the example's panel. Isaac Lab's Newton raycast example reaches it
+    """The window of a Newton visualizer, which shows the example's view. Isaac Lab's Newton raycast example reaches it
     the same way."""
     return visualizer._viewer
+
+
+COMPARISON_WINDOW = "Foveated camera"
+"""Title of the window that shows the viewing sphere beside the retina."""
+
+
+def comparison_image_hovered(imgui, edge: float = 8.0) -> bool:
+    """Whether the mouse is inside the comparison window's image: below its title bar and away from its resize edges."""
+    window = imgui.get_current_context().hovered_window
+    if window is None or str(window.root_window.name) != COMPARISON_WINDOW:
+        return False
+    root = window.root_window
+    mouse = imgui.get_io().mouse_pos
+    left, top = root.pos.x + edge, root.title_bar_rect().max.y
+    right, bottom = root.pos.x + root.size.x - edge, root.pos.y + root.size.y - edge
+    return left <= mouse.x <= right and top <= mouse.y <= bottom
+
+
+def cover_view_with_comparison(frames: int = 30):
+    """A side-panel callback that stretches the comparison window over the whole view beside the panel for its first
+    ``frames`` frames, then leaves its size and position to the user."""
+    remaining = [frames]
+
+    def cover(imgui) -> None:
+        if remaining[0] <= 0:
+            return
+        remaining[0] -= 1
+        # The callback draws inside the side panel, whose right edge is where the view begins.
+        viewport = imgui.get_main_viewport()
+        left = imgui.get_window_pos().x + imgui.get_window_width()
+        width = viewport.work_pos.x + viewport.work_size.x - left
+        imgui.set_window_pos(COMPARISON_WINDOW, imgui.ImVec2(left, viewport.work_pos.y))
+        imgui.set_window_size(COMPARISON_WINDOW, imgui.ImVec2(width, viewport.work_size.y))
+
+    return cover
+
+
+class GazeSteering:
+    """Steer the eye's gaze with the mouse and I/J/K/L.
+
+    Left-dragging the viewer steers only the gaze, as I/J/K/L and the side panel's sliders do; a drag that starts over
+    the viewer's panels stays with them. The viewer itself moves the eye's mount with WASD/QE.
+    """
+
+    DRAG_DEG_PER_PIXEL = 0.15
+    GAZE_LIMIT_DEG = 85.0
+
+    def __init__(self, camera: FoveatedCamera, visualizers: list):
+        self.camera = camera
+        self.visualizers = visualizers
+        self.angles = torch.zeros_like(camera.gaze_angles.torch)
+        self.drag = [0.0, 0.0]
+        self.press_over_panel = False
+        for visualizer in visualizers:
+            window = getattr(newton_window(visualizer), "renderer", None)
+            native = getattr(window, "window", None)
+            if native is not None:
+                native.push_handlers(on_mouse_press=self._on_mouse_press, on_mouse_drag=self._on_mouse_drag)
+
+    def _on_mouse_press(self, x, y, button, modifiers):
+        """Decide where a press's drag goes: inside the comparison image or on the bare view it steers the gaze; on any
+        other panel, or on the comparison window's title bar or edges, it stays with the panel."""
+        from imgui_bundle import imgui
+        from pyglet import event
+
+        self.press_over_panel = imgui.get_io().want_capture_mouse
+        if self.press_over_panel and comparison_image_hovered(imgui):
+            self.press_over_panel = False
+            # Keep ImGui from taking the press, which would drag the window instead of the gaze.
+            return event.EVENT_HANDLED
+        return None
+
+    def _on_mouse_drag(self, x, y, dx, dy, buttons, modifiers):
+        """Collect left drags that started on the view."""
+        from pyglet import event
+        from pyglet.window import mouse
+
+        if not buttons & mouse.LEFT or self.press_over_panel:
+            return None
+        self.drag[0] += dx
+        self.drag[1] += dy
+        return event.EVENT_HANDLED
+
+    def steer(self, tilt_deg: float, pan_deg: float) -> None:
+        """Turn the gaze by (tilt, pan) [deg], starting from wherever the sliders or a drag left it."""
+        # Dragging right looks right (negative pan); dragging up looks up.
+        pan_deg -= self.drag[0] * self.DRAG_DEG_PER_PIXEL
+        tilt_deg += self.drag[1] * self.DRAG_DEG_PER_PIXEL
+        self.drag = [0.0, 0.0]
+        if not tilt_deg and not pan_deg:
+            return
+        self.angles.copy_(self.camera.gaze_angles.torch)
+        step = self.angles.new_tensor((tilt_deg, pan_deg))
+        self.angles.copy_((self.angles + step).clamp(-self.GAZE_LIMIT_DEG, self.GAZE_LIMIT_DEG))
+        self.camera.set_gaze_angles(self.angles)
+        for visualizer in self.visualizers:
+            # The viewer shows the eye; a new gaze redraws it even while paused.
+            visualizer.current_image_view.invalidate()
 
 
 def main() -> None:
@@ -381,34 +480,26 @@ def main() -> None:
                 pool_enabled=False,
                 mask_to_sensor_fov=True,
                 data_types=["rgb"],
+                # The overview only draws the panel; the viewer's gaze sliders are for the eye.
+                viewer_gaze_controls=False,
             )
         scene = instantiate(cfg.scene)
         sim.register_interactive_scene(scene)
         sim.reset()
         camera = scene["eye"]
-        gaze = (0.0, 0.0)
+        angles = torch.zeros(scene.num_envs, 2, device=sim.device)
         if args_cli.target is not None:
-            gaze = gaze_toward(centres[args_cli.target], cfg.scene.eye)
-        angles = torch.tensor([gaze], device=sim.device).repeat(scene.num_envs, 1)
-        if args_cli.target is not None:
+            angles[:] = angles.new_tensor(gaze_toward(centres[args_cli.target], cfg.scene.eye))
             camera.set_gaze_angles(angles)
         viewers = [v for v in sim.visualizers if v.cfg.backend.visualizer_type == "newton"]
-
-        def set_gaze(value: tuple[float, float]) -> None:
-            nonlocal gaze
-            if gaze == value:
-                return
-            gaze = value
-            angles.copy_(angles.new_tensor(gaze).expand_as(angles))
-            camera.set_gaze_angles(angles)
-            for viewer in viewers:
-                viewer.current_image_view.invalidate()
-
         if viewers:
             prepare, compose = camera_comparison(camera, scene["overview"])
-        zoom = 1.0
+            gaze = GazeSteering(camera, viewers)
+            for viewer in viewers:
+                viewer.register_ui_callback(cover_view_with_comparison(), position="side")
 
         last_gaze_update = time.monotonic()
+        shown_frame = None  # The viewer's frame of the eye that the comparison window shows.
         frame = 0
         while sim.is_running() and (args_cli.max_steps < 0 or frame < args_cli.max_steps):
             now = time.monotonic()
@@ -418,24 +509,20 @@ def main() -> None:
                 viewer = viewers[0]
                 tilt = int(viewer.is_key_down("i")) - int(viewer.is_key_down("k"))
                 pan = int(viewer.is_key_down("j")) - int(viewer.is_key_down("l"))
-                magnify = int(viewer.is_key_down("o")) - int(viewer.is_key_down("u"))
-                zoom = max(1.0, min(8.0, zoom * math.exp(1.5 * magnify * elapsed)))
-                if tilt or pan:
-                    set_gaze(
-                        (
-                            max(-85.0, min(85.0, gaze[0] + tilt * 50 * elapsed)),
-                            max(-85.0, min(85.0, gaze[1] + pan * 50 * elapsed)),
-                        )
-                    )
+                gaze.steer(tilt * 50 * elapsed, pan * 50 * elapsed)
             scene.update(sim.get_physics_dt())
             sim.render()
             if viewers:
-                # The panel follows the retina the viewer shows: the dense overview takes the eye's pose, then both
-                # render, and the panel is drawn from them.
-                prepare()
-                panel = compose(camera.data.output["rgb"].torch[0, ..., :3], zoom)
-                for viewer in viewers:
-                    newton_window(viewer).log_image("Foveated camera", panel)
+                # The comparison is redrawn only when the viewer shows a new frame of the eye, and from that very
+                # frame. The viewer keeps showing one frame until the eye moves, its gaze or foveation changes;
+                # re-rendering in between would show OVRTX's frame-to-frame sampling noise as jitter.
+                latest = viewers[0].current_image_view.frame.data
+                if latest is not None and (shown_frame is None or not torch.equal(wp.to_torch(latest), shown_frame)):
+                    shown_frame = wp.to_torch(latest).clone()
+                    prepare()
+                    view = compose(shown_frame[..., :3])
+                    for viewer in viewers:
+                        newton_window(viewer).log_image(COMPARISON_WINDOW, view)
             if not sim.visualizers:
                 # Without a viewer, explicitly request sensor data to render the frame.
                 _ = camera.data

@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+import contextlib
+import io
 import math
 import warnings
 from collections.abc import Mapping, Sequence
@@ -14,6 +16,7 @@ from typing import TYPE_CHECKING
 
 import torch
 import warp as wp
+from fovi.sensing.coords import WARPED_CARTESIAN_STYLES
 from fovi.sensing.projection import CameraModel
 
 from isaaclab.sensors.camera.camera import Camera
@@ -21,6 +24,7 @@ from isaaclab.utils.math import convert_camera_frame_orientation_convention, qua
 from isaaclab.utils.warp import ProxyArray
 
 from .calibrated_geometry import camera_model_from_spawn, retinal_directions
+from .gaze_controls import add_viewer_gaze_controls
 from .gaze_kernels import (
     CameraParams,
     apply_gaze_indexed_kernel,
@@ -34,6 +38,7 @@ from .gaze_kernels import (
 )
 from .native_grid import GRID_STYLE, buffer_tensor, native_grid_directions
 from .pooling import (
+    build_pooler,
     build_retinal_coords,
     is_segmentation_output,
     pool_hwc_buffer,
@@ -49,6 +54,21 @@ MOUNT_TURN_TOLERANCE_RAD = 1e-5
 
 OPENGL_TO_ROS_AXES = (1.0, -1.0, -1.0)
 """Axis signs between OpenGL camera-frame directions (x right, y up, -z forward) and ROS ones (x right, y down)."""
+
+
+def fixed_count_style(style: str) -> bool:
+    """Whether a sampling style keeps its sample count for every CMF constant: the warped-Cartesian styles, whose
+    count is the grid's, and the ``_fixn`` isotropic ones, which fix it."""
+    return style in WARPED_CARTESIAN_STYLES or "fixn" in style
+
+
+def runtime_cmf_a_limitation(camera: FoveatedCamera) -> str:
+    """Why ``camera`` cannot change its CMF constant at runtime, for messages and the viewer panel."""
+    if not camera._renders_switchable_rays:
+        return "OVRTX and Isaac RTX read the retina's lens textures once, when the renderer loads the stage"
+    if not fixed_count_style(camera.cfg.foveated_style):
+        return f"a {camera.cfg.foveated_style!r} retina's sample count depends on cmf_a"
+    return "the retina can change its cmf_a at runtime"
 
 
 class FoveatedCamera(Camera):
@@ -71,6 +91,9 @@ class FoveatedCamera(Camera):
     """
 
     cfg: FoveatedCameraCfg
+
+    _renders_switchable_rays = False
+    """Whether the renderer traces rays the camera can replace while it runs, as :meth:`set_cmf_a` needs."""
 
     def __new__(cls, cfg: FoveatedCameraCfg, *args, **kwargs):
         """Create the implementation that matches the configured renderer.
@@ -121,9 +144,14 @@ class FoveatedCamera(Camera):
         self._published_shape: tuple[int, int] | None = None
         self._segmentation_neighbors: torch.Tensor | None = None
         self._sensor_fov_valid: torch.Tensor | None = None
+        self._pooler = None
+        self._retinas: dict[float, tuple] = {}
+        """Retinas built for :meth:`set_cmf_a`, by CMF constant."""
         self.mount_turns = 0
         """How many times :meth:`set_world_poses` or :meth:`set_world_poses_from_view` has turned the camera's mount."""
         super().__init__(cfg)
+        if cfg.viewer_gaze_controls:
+            add_viewer_gaze_controls(self)
 
     @property
     def image_shape(self) -> tuple[int, int]:
@@ -303,14 +331,8 @@ class FoveatedCamera(Camera):
             self._sampling_coords_highres = self._sampling_coords_highres.to(device=self._device)
         self._ray_coords = self._sampling_coords_highres or self._sampling_coords
         self._gaze_camera = camera_params(self._camera_model)
-        coords = self._ray_coords
         rotation_deg = self.cfg.image_rotation_deg
-        # The rays as rendered, mount roll included, in the ROS frame the camera model projects.
-        if coords.style == GRID_STYLE:
-            rays = native_grid_directions(coords, image_rotation_deg=rotation_deg)
-        else:
-            rays = retinal_directions(coords.cartesian, coords.fov, rotation_deg)
-        self._gaze_rays = (rays * rays.new_tensor(OPENGL_TO_ROS_AXES)).float().contiguous()
+        self._gaze_rays = self._retina_rays(self._ray_coords)
         # No gaze until one is set: the camera looks along its optical axis untouched.
         self._gaze_angles = None
         self._gaze_rotation = None
@@ -334,6 +356,79 @@ class FoveatedCamera(Camera):
             wp.quatf(*to_world),
             wp.quatf(*to_ros),
         )
+
+    def _retina_rays(self, coords) -> torch.Tensor:
+        """The rendered rays of ``coords``, mount roll included, in the ROS frame the camera model projects, shape
+        (N, 3)."""
+        rotation_deg = self.cfg.image_rotation_deg
+        if coords.style == GRID_STYLE:
+            rays = native_grid_directions(coords, image_rotation_deg=rotation_deg)
+        else:
+            rays = retinal_directions(coords.cartesian, coords.fov, rotation_deg)
+        return (rays * rays.new_tensor(OPENGL_TO_ROS_AXES)).float().contiguous()
+
+    @property
+    def supports_runtime_cmf_a(self) -> bool:
+        """Whether :meth:`set_cmf_a` can change this camera's foveation while it runs: on Newton, for retinas whose
+        sample count does not depend on the CMF constant (the warped-Cartesian and ``_fixn`` isotropic styles)."""
+        return self._renders_switchable_rays and fixed_count_style(self.cfg.foveated_style)
+
+    def set_cmf_a(self, cmf_a_deg: float) -> None:
+        """Re-sample the retina for a new CMF constant [deg], keeping the gaze, the sample count and every buffer.
+
+        Each constant's retina is built once and cached, so switching back to it is immediate.
+
+        Raises:
+            RuntimeError: The camera is not initialized.
+            NotImplementedError: The renderer or sampling style cannot change the retina at runtime; see
+                :attr:`supports_runtime_cmf_a`.
+        """
+        if not self.is_initialized:
+            raise RuntimeError("Initialize the foveated camera (reset the simulation) before changing its cmf_a.")
+        if not self.supports_runtime_cmf_a:
+            raise NotImplementedError(runtime_cmf_a_limitation(self))
+        cmf_a_deg = float(cmf_a_deg)
+        if cmf_a_deg == self.cfg.cmf_a_deg:
+            return
+        if not self._retinas:
+            self._retinas[self.cfg.cmf_a_deg] = (
+                self._sampling_coords,
+                self._sampling_coords_highres,
+                self._gaze_rays.clone(),
+                self._pooler,
+            )
+        if cmf_a_deg not in self._retinas:
+            self._retinas[cmf_a_deg] = self._build_retina(cmf_a_deg)
+        self._sampling_coords, self._sampling_coords_highres, rays, self._pooler = self._retinas[cmf_a_deg]
+        self._ray_coords = self._sampling_coords_highres or self._sampling_coords
+        # The sensor mask, the grid layout and the renderer read the rays in place, so they follow without new launches.
+        self._gaze_rays.copy_(rays)
+        self._write_render_rays()
+        if self._segmentation_neighbors is not None:
+            self._prepare_segmentation_pooling(["semantic_segmentation"])
+        self.cfg.cmf_a_deg = cmf_a_deg
+
+    def _build_retina(self, cmf_a_deg: float) -> tuple:
+        """The retina at ``cmf_a_deg``: its coordinates on the sensor device, rendered rays and pooler."""
+        cfg = self.cfg.replace(cmf_a_deg=cmf_a_deg)
+        # fovi reports its isotropic ring fitting on stdout.
+        with contextlib.redirect_stdout(io.StringIO()):
+            lowres, highres = build_retinal_coords(cfg, self._camera_model, "cpu")
+        lowres = lowres.to(device=self._device)
+        highres = None if highres is None else highres.to(device=self._device)
+        ray_coords = highres or lowres
+        if len(ray_coords) != self._num_ray_samples or not torch.equal(
+            ray_coords.valid_mask, self._ray_coords.valid_mask
+        ):
+            raise NotImplementedError(
+                f"cmf_a {cmf_a_deg:g} changes this retina's samples; {runtime_cmf_a_limitation(self)}"
+            )
+        pooler, _ = build_pooler(cfg, lowres, highres, device=str(self._device))
+        return lowres, highres, self._retina_rays(ray_coords), pooler
+
+    def _write_render_rays(self) -> None:
+        """Hand the renderer the rays now in :attr:`_gaze_rays`; only renderers that trace them support it."""
+        raise NotImplementedError(runtime_cmf_a_limitation(self))
 
     def _allocate_gaze(self) -> None:
         """Allocate one stored gaze per camera, on the optical axis, its rotation and the mount, on the sensor

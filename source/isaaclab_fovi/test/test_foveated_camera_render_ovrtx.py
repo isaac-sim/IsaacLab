@@ -47,3 +47,7 @@ def test_gaze_stays_relative_to_moved_mounts(ground):
 
 def test_foveated_camera_samples_densest_at_the_fixation(ground):
     cases.foveated_camera_samples_densest_at_the_fixation(ground)
+
+
+def test_cmf_a_switches_the_retina_at_runtime(ground):
+    cases.cmf_a_switches_the_retina_at_runtime(ground)

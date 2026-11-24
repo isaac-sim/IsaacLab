@@ -66,8 +66,15 @@ class FoveatedNewtonCamera(FoveatedCamera):
 
     cfg: FoveatedCameraCfg
 
+    _renders_switchable_rays = True
+
     def __init__(self, cfg: FoveatedCameraCfg):
         super().__init__(cfg, turns_pose_by_gaze=True)
+
+    def _write_render_rays(self) -> None:
+        # Newton reads the camera's ray array each render, so the new rays go into it in place.
+        ray_directions = self._gaze_rays * self._gaze_rays.new_tensor(OPENGL_TO_ROS_AXES)
+        wp.copy(self._render_data.camera_rays, explicit_rays(ray_directions, self.cfg.height, self.cfg.width))
 
     def _initialize_impl(self):
         # The pooler's KNN tensors are plain attributes that nn.Module.to() does not move, so the coordinates start on

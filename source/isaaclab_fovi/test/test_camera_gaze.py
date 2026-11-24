@@ -18,6 +18,7 @@ from fovi.sensing.retina import RetinalTransform
 from isaaclab_fovi.sensors.calibrated_geometry import retinal_directions
 from isaaclab_fovi.sensors.foveated_camera import FoveatedCamera
 from isaaclab_fovi.sensors.foveated_rtx_camera import FoveatedRTXCamera
+from isaaclab_fovi.sensors.gaze_controls import ViewerGazeControls, add_viewer_gaze_controls
 from isaaclab_fovi.sensors.gaze_kernels import (
     camera_params,
     project_directions,
@@ -30,6 +31,7 @@ from isaaclab_fovi.sensors.pooling import build_retinal_coords
 
 from isaaclab.sensors.camera.camera import Camera
 from isaaclab.sensors.camera.camera_data import CameraData
+from isaaclab.sim import SimulationContext
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils.math import (
     convert_camera_frame_orientation_convention,
@@ -538,3 +540,127 @@ def test_publish_kernel_matches_masking_then_copying_to_the_grid() -> None:
     assert (visible[updated] == valid[updated]).float().mean() > 0.999
     assert not visible[~updated].any()
     assert valid.any() and (~valid).any()
+
+
+class _SliderCamera:
+    """The parts of a foveated camera that the viewer's gaze and foveation controls use."""
+
+    def __init__(self, num_envs: int, switchable: bool = True):
+        self.cfg = SimpleNamespace(
+            prim_path="/World/envs/env_.*/Eye",
+            cmf_a_deg=0.591,
+            viewer_cmf_a_values=(0.1, 1.0, 10.0),
+            foveated_style="warped_cartesian_as_grid",
+        )
+        self.is_initialized = True
+        self.supports_runtime_cmf_a = switchable
+        self._renders_switchable_rays = switchable
+        self.gaze_angles = SimpleNamespace(torch=torch.tensor([[5.0, -10.0]]).repeat(num_envs, 1))
+        self.written = []
+
+    def set_gaze_angles(self, angles: torch.Tensor) -> None:
+        self.written.append(angles.clone())
+        self.gaze_angles.torch.copy_(angles)
+
+    def set_cmf_a(self, cmf_a_deg: float) -> None:
+        self.cfg.cmf_a_deg = cmf_a_deg
+
+
+class _Imgui:
+    """The ImGui calls the controls make; each float slider returns a scripted (changed, value), and the foveation
+    slider a scripted (changed, index)."""
+
+    def __init__(self, sliders=(), button=False, foveation=None):
+        self.sliders = list(sliders)
+        self.button_pressed = button
+        self.foveation = foveation
+        self.shown = []
+
+    def collapsing_header(self, label):
+        self.shown.append(label)
+        return True
+
+    def slider_float(self, label, value, *_args):
+        self.shown.append((label, value))
+        return self.sliders.pop(0) if self.sliders else (False, value)
+
+    def slider_int(self, label, index, low, high, display):
+        self.shown.append((label, index, low, high, display))
+        return (True, self.foveation) if self.foveation is not None else (False, index)
+
+    def text(self, text):
+        self.shown.append(text)
+
+    def is_item_hovered(self):
+        return False
+
+    def button(self, label):
+        return self.button_pressed
+
+
+def _visualizer(kind: str) -> SimpleNamespace:
+    """A visualizer of ``kind`` that records its UI callbacks and counts redraws of its camera view."""
+    view = SimpleNamespace(invalidated=0)
+    view.invalidate = lambda: setattr(view, "invalidated", view.invalidated + 1)
+    callbacks = []
+    return SimpleNamespace(
+        cfg=SimpleNamespace(backend=SimpleNamespace(visualizer_type=kind)),
+        register_ui_callback=lambda callback, position: callbacks.append((callback, position)),
+        current_image_view=view,
+        callbacks=callbacks,
+    )
+
+
+def test_viewer_gaze_sliders_follow_and_set_the_gaze_in_newton_windows() -> None:
+    camera = _SliderCamera(num_envs=3)
+    newton, kit = _visualizer("newton"), _visualizer("kit")
+    controls = ViewerGazeControls(camera)
+    # Each simulation reset attaches again; a window gets the sliders once, and only Newton windows get them.
+    controls.attach(SimpleNamespace(visualizers=[newton, kit]))
+    controls.attach(SimpleNamespace(visualizers=[newton, kit]))
+    assert [position for _, position in newton.callbacks] == ["side"] and not kit.callbacks
+    render = newton.callbacks[0][0]
+
+    # The sliders show the first environment's gaze, and leave it alone until moved.
+    imgui = _Imgui()
+    render(imgui)
+    assert ("Gaze tilt", 5.0) in imgui.shown and ("Gaze pan", -10.0) in imgui.shown and not camera.written
+    # Moving one sets that gaze in every environment and redraws the window's camera view.
+    render(_Imgui(sliders=[(True, 20.0), (False, -10.0)]))
+    assert torch.equal(camera.written[-1], torch.tensor([[20.0, -10.0]]).repeat(3, 1))
+    assert newton.current_image_view.invalidated == 1
+    render(_Imgui(button=True))
+    assert not camera.written[-1].any()
+
+    # The foveation slider steps through the configured CMF constants with the camera's own added, in order.
+    imgui = _Imgui()
+    render(imgui)
+    assert ("Foveation", 1, 0, 3, "cmf_a 0.591 deg") in imgui.shown  # 0.1, 0.591, 1, 10
+    render(_Imgui(foveation=3))
+    assert camera.cfg.cmf_a_deg == 10.0 and newton.current_image_view.invalidated == 3
+    # A camera that cannot switch shows its constant as fixed instead.
+    fixed = _SliderCamera(num_envs=1, switchable=False)
+    fixed_controls = ViewerGazeControls(fixed)
+    fixed_window = _visualizer("newton")
+    fixed_controls.attach(SimpleNamespace(visualizers=[fixed_window]))
+    imgui = _Imgui(foveation=0)
+    fixed_window.callbacks[0][0](imgui)
+    assert "Foveation: cmf_a 0.591 deg (fixed)" in imgui.shown and fixed.cfg.cmf_a_deg == 0.591
+
+    # Once the camera is gone, the window's callback draws nothing.
+    del camera
+    imgui = _Imgui()
+    render(imgui)
+    assert not imgui.shown
+
+
+def test_every_foveated_camera_adds_its_sliders_on_reset_until_it_is_gone() -> None:
+    camera = _SliderCamera(num_envs=1)
+    before = set(SimulationContext._reset_callbacks)
+    add_viewer_gaze_controls(camera)
+    (name,) = set(SimulationContext._reset_callbacks) - before
+    newton = _visualizer("newton")
+    SimulationContext._reset_callbacks[name](SimpleNamespace(visualizers=[newton]))
+    assert len(newton.callbacks) == 1
+    del camera
+    assert name not in SimulationContext._reset_callbacks

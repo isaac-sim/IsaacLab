@@ -281,3 +281,30 @@ def foveated_camera_samples_densest_at_the_fixation(ground: GroundScene):
     even_angles = _cell_angles(even.as_grid(even.cartesian, sample_dim=0).float(), fov)
     errors, _ = _relative_errors(distance[0], even_angles)
     assert float((errors < 0.03).float().mean()) < 0.5
+
+
+def cmf_a_switches_the_retina_at_runtime(ground: GroundScene):
+    """Newton re-samples the retina for a new CMF constant in place: each sample renders along its new ray, the outputs
+    keep their shape, and switching back restores the first image. Renderers that read a lens texture refuse."""
+    camera = ground.calibrated
+    ground.reset_mounts(camera)
+    camera.set_gaze_angles(torch.zeros(NUM_ENVS, 2, device=ground.sim.device))
+    if not camera.supports_runtime_cmf_a:
+        with pytest.raises(NotImplementedError, match="lens textures"):
+            camera.set_cmf_a(10.0)
+        return
+    first = camera.cfg.cmf_a_deg
+    before, _, first_angles, _ = ground.render(camera)
+    camera.set_cmf_a(10.0)
+    try:
+        after, _, angles, _ = ground.render(camera)
+        assert after.shape == before.shape
+        errors, _ = _relative_errors(after[0], angles)
+        assert float((errors < 0.03).float().mean()) > 0.98
+        # The new image does not follow the first retina's rays.
+        errors, _ = _relative_errors(after[0], first_angles)
+        assert float((errors < 0.03).float().mean()) < 0.9
+    finally:
+        camera.set_cmf_a(first)
+    again, _, _, _ = ground.render(camera)
+    assert torch.equal(again, before)
