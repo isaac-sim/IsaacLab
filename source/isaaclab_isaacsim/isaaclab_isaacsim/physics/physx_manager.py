@@ -427,6 +427,8 @@ class PhysxManager(PhysicsManager):
 
         from isaaclab.sim.utils.stage import get_current_stage_id
 
+        # SimulationApp may have been started without KitLauncher connecting the native settings.
+        sim_context.settings.set_backend(carb.settings.get_settings())
         super().initialize(sim_context)
         self._stage_id = get_current_stage_id()
 
