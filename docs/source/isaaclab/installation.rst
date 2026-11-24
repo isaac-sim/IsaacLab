@@ -442,6 +442,9 @@ have dedicated commands below.
      - The corresponding visualizer.
    * - ``mimic`` / ``teleop``
      - Isaac Lab Mimic / XR teleoperation. The wheel's ``mimic`` extra does not include Robomimic.
+   * - ``fovi``
+     - The experimental :doc:`foveated camera </source/experimental-features/foveated_camera>`
+       (``isaaclab_fovi``), with the `fovi <https://pypi.org/project/fovi/>`__ sampling library.
    * - ``tetrahedralization`` / ``video``
      - Mesh tetrahedralization / video recording.
    * - ``leapp``
@@ -455,8 +458,8 @@ have dedicated commands below.
      - Developer test tooling.
 
 Use ``all`` for the curated list above. Isaac Sim, standalone importers, specialized extras
-(``optix``, ``skrl-jax``, ``rlinf``, ``mimic``, ``teleop``, ``tetrahedralization``, ``video``,
-``leapp``), and the developer ``test`` tooling remain opt-in.
+(``optix``, ``skrl-jax``, ``rlinf``, ``mimic``, ``teleop``, ``fovi``, ``tetrahedralization``,
+``video``, ``leapp``), and the developer ``test`` tooling remain opt-in.
 
 .. note::
 

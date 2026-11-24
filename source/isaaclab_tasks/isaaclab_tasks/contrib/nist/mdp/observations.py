@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Factory observations for static and reset-selectable assemblies."""
+"""NIST observations for reset-selectable assemblies."""
 
 from __future__ import annotations
 
