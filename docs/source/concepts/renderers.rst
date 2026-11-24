@@ -100,7 +100,10 @@ use case.
 
    - **Runtime and physics:** The Newton renderer ray traced in hardware with OptiX on RTX GPUs.
      Install it with ``uv sync --inexact --extra optix`` (Linux x86-64 and Windows x64) and select it
-     with ``renderer=newton_optix``. Pairs with the same physics backends as Newton Warp.
+     with ``renderer=newton_optix``. The x86-64 Isaac Lab container images include it; the arm64
+     kit-less image does not. Pairs with the same physics backends as Newton Warp. OptiX 9.1 needs
+     an NVIDIA driver of the 590 series or newer: with an older driver, importing it fails with
+     ``ImportError: Unsupported ABI version``.
    - **Output coverage:** Same outputs and settings as Newton Warp. It does not render particles,
      deformable surfaces, or Gaussian splats, and it ignores ``use_cuda_graph``.
    - **Configuration:** :class:`~isaaclab_newton.renderers.NewtonOptixRendererCfg`

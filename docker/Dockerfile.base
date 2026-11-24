@@ -137,8 +137,9 @@ RUN touch /bin/nvidia-smi && \
 COPY --parents source/*/pyproject.toml ${ISAACLAB_PATH}/
 
 # The image's package set. Kit ships in the base image, so the teleop stack comes without the
-# ``isaacsim`` wheel; ``teleop`` itself is left exactly as tuned.
-ARG IMAGE_EXTRAS="--extra sb3 --extra skrl --extra rl-games --extra rsl-rl --extra viser --extra rerun --extra mimic --extra teleop --extra test --extra tetrahedralization --extra ov --extra fovi"
+# ``isaacsim`` wheel; ``teleop`` itself is left exactly as tuned. ``optix`` adds the OptiX backend
+# of ``renderer=newton_optix`` (x86-64 only); it needs an NVIDIA driver of the 590 series or newer.
+ARG IMAGE_EXTRAS="--extra sb3 --extra skrl --extra rl-games --extra rsl-rl --extra viser --extra rerun --extra mimic --extra teleop --extra test --extra tetrahedralization --extra ov --extra fovi --extra optix"
 
 RUN --mount=type=cache,target=/root/.cache/uv \
     cd ${ISAACLAB_PATH} && \
