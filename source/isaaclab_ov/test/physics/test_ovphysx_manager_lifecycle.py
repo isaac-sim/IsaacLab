@@ -79,6 +79,13 @@ def _fake_ovphysx_module(bootstrap):
     module.bootstrap = bootstrap
     module.PhysX = _FakePhysX
     module.PhysXConfig = _FakePhysXConfig
+    module.GlobalConfigKey = SimpleNamespace(OVD_RECORDING_CAPABLE=object())
+    module.get_global_config = lambda key: False
+
+    def reject_write(key, value):
+        pytest.fail("A matching native capability must not be written")
+
+    module.set_global_config = reject_write
     return module
 
 
@@ -494,6 +501,222 @@ def _assert_no_atexit_errors(output: str) -> None:
     assert "ATEXIT_UNRAISABLE" not in output, output[-8000:]
     assert "Exception ignored in atexit callback" not in output, output[-8000:]
     assert "Error in atexit._run_exitfuncs" not in output, output[-8000:]
+
+
+def _run_ovd_child(tmp_path: Path, checks: str) -> None:
+    setup = textwrap.dedent(
+        """
+        from pathlib import Path
+
+        import ovphysx
+        from pxr import UsdGeom, UsdPhysics
+
+        from isaaclab.sim import SimulationCfg, build_simulation_context
+        from isaaclab_ov.physics import OvPhysxCfg
+
+        def add_cube(sim):
+            cube = UsdGeom.Cube.Define(sim.stage, "/World/Cube")
+            cube.AddTranslateOp().Set((0.0, 0.0, 2.0))
+            UsdPhysics.RigidBodyAPI.Apply(cube.GetPrim())
+            UsdPhysics.CollisionAPI.Apply(cube.GetPrim())
+
+        def disable_check(physx, capture):
+            try:
+                physx.start_recording(ovphysx.OmniPvdDestination.file(str(capture)))
+            except RuntimeError as exc:
+                assert "INVALID_STATE" in str(exc) and "OVD_RECORDING_CAPABLE" in str(exc), exc
+            else:
+                physx.stop_recording()
+                raise AssertionError("A default Isaac Lab context recorded after a native SDK opt-in")
+            assert not physx.is_recording() and not capture.exists()
+
+        ovphysx.bootstrap()
+        key = ovphysx.GlobalConfigKey.OVD_RECORDING_CAPABLE
+        initial = ovphysx.get_global_config(key)
+        """
+    )
+    script = setup + f"\noutput = Path({str(tmp_path)!r})\n" + textwrap.dedent(checks)
+    completed, output = _run_child(script)
+    assert completed.returncode == 0, output[-8000:]
+    _assert_no_atexit_errors(output)
+
+
+@pytest.mark.kitless
+@pytest.mark.integration
+@pytest.mark.skipif(not _CPU_DEVICES, reason="Requires a selected CPU test device")
+def test_default_ovd_capability_overrides_unfrozen_native_opt_in(tmp_path):
+    """A default Lab job must leave late recording disabled with a pre-set native key."""
+    _run_ovd_child(
+        tmp_path,
+        """
+        try:
+            ovphysx.set_global_config(key, True)
+            physics = OvPhysxCfg(cooked_collider_cache_dir=str(output / "cache"))
+            with build_simulation_context(sim_cfg=SimulationCfg(device="cpu", physics=physics)) as sim:
+                add_cube(sim)
+                sim.reset()
+                sim.step(render=False)
+                disable_check(sim.backend_manager.get_physx_instance(), output / "unexpected.ovd")
+        finally:
+            ovphysx.set_global_config(key, initial)
+        """,
+    )
+
+
+@pytest.mark.kitless
+@pytest.mark.integration
+@pytest.mark.skipif(not _CPU_DEVICES, reason="Requires a selected CPU test device")
+def test_ovd_recording_lifecycle_and_conflicting_owner(tmp_path):
+    """Record on a live shared stage, retain the native owner, and restore the default."""
+    _run_ovd_child(
+        tmp_path,
+        """
+        from contextlib import closing
+        from unittest.mock import patch
+
+        from isaaclab_ov.physics import OvPhysxBackendCfg
+        from isaaclab_ov.physics.ovphysx_manager import OvPhysxBackend
+        from isaaclab_ov.stage import OvstageBackendCfg
+
+        def start(physx, label):
+            capture = output / f"{label}.ovd"
+            assert not capture.exists() and not physx.is_recording()
+            physx.start_recording(ovphysx.OmniPvdDestination.file(str(capture)))
+            assert physx.is_recording()
+            return capture
+
+        cache = str(output / "cache")
+        try:
+            physics = OvPhysxCfg(ovd_recording_capable=True, cooked_collider_cache_dir=cache)
+            with build_simulation_context(sim_cfg=SimulationCfg(device="cpu", physics=physics)) as sim:
+                manager = sim.backend_manager
+                assert manager.get_physx_instance() is None
+                shared = sim.get_or_create_backend(OvstageBackendCfg(populate_physics=True))
+                add_cube(sim)
+                sim.reset()
+                physx = manager.get_physx_instance()
+                assert manager.backend.scene is shared
+                sim.step(render=False)
+                assert not list(output.glob("*.ovd"))
+
+                conflicting = OvPhysxBackendCfg(device="cpu", cooked_collider_cache_dir=cache)
+                with patch.object(ovphysx, "PhysX", wraps=ovphysx.PhysX) as constructor:
+                    try:
+                        sim.get_or_create_backend(conflicting)
+                    except RuntimeError as exc:
+                        assert "ovd_recording_capable" in str(exc)
+                        assert "False" in str(exc) and "True" in str(exc)
+                        assert isinstance(exc.__cause__, RuntimeError), exc.__cause__
+                    else:
+                        raise AssertionError("A conflicting request started while a capable native owner was live")
+                    constructor.assert_not_called()
+                assert sim.get_backends(OvPhysxBackendCfg) == (manager.backend,)
+
+                first = start(physx, "first")
+                t = manager.get_simulation_time()
+                sim.step(render=False)
+                assert manager.get_simulation_time() > t
+                physx.stop_recording()
+                assert not physx.is_recording() and first.stat().st_size > 0
+                t = manager.get_simulation_time()
+                sim.step(render=False)
+                assert manager.get_simulation_time() > t and manager.get_physx_instance() is physx
+
+                rewarmed = start(physx, "rewarmed")
+                sim.step(render=False)
+                manager._warmup_done = False
+                sim.reset()
+                assert manager.get_physx_instance() is physx
+                assert not physx.is_recording() and rewarmed.stat().st_size > 0
+                t = manager.get_simulation_time()
+                sim.step(render=False)
+                assert manager.get_simulation_time() > t
+
+                closed = start(physx, "closed")
+                sim.step(render=False)
+            assert closed.stat().st_size > 0
+
+            physics = OvPhysxCfg(cooked_collider_cache_dir=cache)
+            with build_simulation_context(sim_cfg=SimulationCfg(device="cpu", physics=physics)) as sim:
+                add_cube(sim)
+                sim.reset()
+                sim.step(render=False)
+                disable_check(sim.backend_manager.get_physx_instance(), output / "after-close.ovd")
+
+            # A live instance freezes the startup key even before any stage attaches.
+            native_owner = ovphysx.PhysX()
+            try:
+                with closing(OvPhysxBackend(conflicting)) as peer:
+                    assert peer.physx.handle != native_owner.handle
+            finally:
+                native_owner.destroy()
+        finally:
+            ovphysx.set_global_config(key, initial)
+        """,
+    )
+
+
+@pytest.mark.parametrize(("query_fails", "cleanup_fails"), [(False, False), (True, False), (False, True)])
+def test_ovd_constructor_releases_candidate_after_failed_readback(
+    monkeypatch, manager_module, query_fails, cleanup_fails
+):
+    """A backend with failed startup verification cannot escape into the registry."""
+    from isaaclab_ov.physics import OvPhysxBackendCfg
+
+    from isaaclab.sim import SimulationContext
+
+    candidates = []
+
+    class Candidate(_FakePhysX):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            self.cleanup_attempted = False
+            candidates.append(self)
+
+        def destroy(self):
+            self.cleanup_attempted = True
+            if cleanup_fails:
+                raise RuntimeError("Native teardown still busy")
+
+    def configured_value(key):
+        if candidates and query_fails:
+            raise RuntimeError("Native query failed")
+        return False
+
+    native = _fake_ovphysx_module(lambda: None)
+    native.PhysX = Candidate
+    native.get_global_config = configured_value
+    native.set_global_config = lambda key, value: None
+    monkeypatch.setattr(manager_module, "ovphysx", native)
+    sim = SimpleNamespace(_backend_registry=[])
+    cfg = OvPhysxBackendCfg(device="cpu", ovd_recording_capable=True)
+    with pytest.raises(RuntimeError, match="ovd_recording_capable") as error:
+        SimulationContext.get_or_create_backend(sim, cfg)
+
+    assert not sim._backend_registry
+    assert len(candidates) == 1 and candidates[0].cleanup_attempted
+    if cleanup_fails:
+        assert "Native teardown still busy" in str(error.value.__cause__)
+        assert any("new process" in note for note in error.value.__notes__)
+
+
+def test_ovd_capability_requires_bool_before_native_startup(monkeypatch, manager_module):
+    """Non-bools, including integers and other boolean-like types, never reach the SDK."""
+    import numpy as np
+    from isaaclab_ov.physics import OvPhysxBackendCfg
+
+    def native_call(*args, **kwargs):
+        pytest.fail("Invalid Lab capability reached the native API")
+
+    native = _fake_ovphysx_module(native_call)
+    native.PhysX = native_call
+    native.get_global_config = native_call
+    native.set_global_config = native_call
+    monkeypatch.setattr(manager_module, "ovphysx", native)
+    for value in (0, 1, "false", None, np.bool_(True)):
+        cfg = OvPhysxBackendCfg(device="cpu", ovd_recording_capable=value)
+        with pytest.raises(TypeError, match="ovd_recording_capable.*bool"):
+            manager_module.OvPhysxBackend(cfg)
 
 
 def test_retained_binding_preserves_uncaught_failure_exit_status():

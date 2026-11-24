@@ -296,6 +296,74 @@ readiness predicate for the current simulation context. Manager teardown release
 and clears this handle. Initialize and reset the current context before access, and always
 reacquire the handle before creating new bindings or views.
 
+Record OVD during a running simulation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Set ``OvPhysxCfg(ovd_recording_capable=True)`` before the first native PhysX
+instance is created. The default is ``False``. Enabling capability provisions
+recording resources and can affect simulation performance while output is
+inactive. An explicit start selects the destination and begins recording. See
+the `OVPhysX recording guide <https://nvidia-omniverse.github.io/PhysX/ovphysx/0.8.0/tutorials/omnipvd_recording.html>`_
+for the runtime's recording and performance details.
+
+The manager's handle is ``None`` until the first hard reset starts constructing
+the runtime. For recording, wait until that reset has returned and the scene has
+attached and warmed up. A late start snapshots the current scene. Run the
+start and stop calls on the simulation's stepping thread between completed
+steps. The same simulation can continue stepping after a stop and start
+another capture with a new destination.
+
+This headless example takes several steps before starting a file capture.
+
+.. code-block:: python
+
+   from ovphysx import OmniPvdDestination
+   from pxr import UsdGeom, UsdPhysics
+
+   from isaaclab.sim import SimulationCfg, build_simulation_context
+   from isaaclab_ov.physics import OvPhysxCfg
+
+   cfg = SimulationCfg(device="cpu", physics=OvPhysxCfg(ovd_recording_capable=True))
+   with build_simulation_context(sim_cfg=cfg) as sim:
+       cube = UsdGeom.Cube.Define(sim.stage, "/World/Cube")
+       cube.AddTranslateOp().Set((0.0, 0.0, 2.0))
+       UsdPhysics.RigidBodyAPI.Apply(cube.GetPrim())
+       UsdPhysics.CollisionAPI.Apply(cube.GetPrim())
+       sim.reset()
+
+       for _ in range(10):
+           sim.step(render=False)
+
+       physx = sim.backend_manager.get_physx_instance()
+       physx.start_recording(OmniPvdDestination.file("captures/late.ovd"))
+       try:
+           for _ in range(20):
+               sim.step(render=False)
+       finally:
+           physx.stop_recording()
+
+       for _ in range(10):
+           sim.step(render=False)
+
+A path ending in lowercase ``.ovd`` selects that filename and can replace an
+existing file. A directory destination produces timestamped files and preserves
+existing captures. For streaming, use ``OmniPvdDestination.tcp(address, port,
+timeout_ms=...)`` with an already listening, trusted receiver. Starting a
+TCP capture connects synchronously.
+
+The process can have one active recording at a time. Stop it on the native
+instance that started it. A forced re-warm that reloads the stage or a context
+close ends its capture without restarting it. Stop explicitly before teardown
+to receive recording errors, and reacquire the native handle in a new context.
+
+The capability setting is shared process-wide and the native value persists
+after the context closes. A default Isaac Lab context resets an unfrozen
+``True`` to ``False``, including a value set directly through the SDK, retained
+from an earlier job, or inherited from host settings. A default context raises
+if an existing capable runtime has frozen the value. Match that runtime's
+capability, complete native shutdown by closing all owners, or run the new
+context in a fresh process with the desired value.
+
 Reuse Isaac Lab-owned access
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
