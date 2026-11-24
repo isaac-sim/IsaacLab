@@ -13,7 +13,8 @@ from isaaclab_tasks.mdp2.cartpole.cartpole_env_cfg import TASK, CartpoleEnvCfg, 
 
 @configclass
 class CartpoleDirectEnvCfg(CartpoleEnvCfg):
-    """Cartpole MDP2 with the Direct policy's cart-then-pole observation order."""
+    """Cartpole MDP2 with the Direct environment's observation order: the cart and pole positions, then the cart and
+    pole velocities."""
 
     task: mdp2.TaskCfg = replace(
         TASK,
