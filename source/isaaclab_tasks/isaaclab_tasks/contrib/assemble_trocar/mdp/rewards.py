@@ -114,7 +114,7 @@ def update_task_stage(
     asset_cfg1: SceneEntityCfg,
     asset_cfg2: SceneEntityCfg,
     table_height: float = 0.85483,
-    lift_threshold: float = 0.08,
+    lift_threshold: float = 0.05,
     tip_align_threshold: float = 0.015,
     insertion_dist_threshold: float = 0.03,
     insertion_angle_threshold: float = 0.15,
@@ -124,10 +124,12 @@ def update_task_stage(
     placement_y_max: float = 1.8,
     placement_z_min: float = 0.9,
     print_log: bool = False,
+    use_com_for_lift: bool = False,
 ) -> torch.Tensor:
     """Update task stage based on current state.
 
     This function checks conditions and advances stages automatically.
+    Set ``use_com_for_lift`` for assets whose first trocar root is offset from its center of mass.
     Once a stage is completed, it never goes back.
     Returns a zero-valued tensor (num_envs,). Note that the reward manager skips
     terms with weight 0.0, so it does not run when registered as a weight=0 reward term.
@@ -147,7 +149,8 @@ def update_task_stage(
 
     # Stage 0 -> 1: Check if lifted
     target_z = table_height + lift_threshold
-    is_lifted_1 = obj1.data.root_com_pos_w.torch[:, 2] > target_z
+    lift_pos1 = obj1.data.root_com_pos_w.torch if use_com_for_lift else pos1
+    is_lifted_1 = lift_pos1[:, 2] > target_z
     is_lifted_2 = pos2[:, 2] > target_z
     both_lifted = is_lifted_1 & is_lifted_2
     stage = torch.where((stage == 0) & both_lifted, torch.ones_like(stage), stage)
@@ -222,11 +225,12 @@ def update_task_stage(
 def lift_trocars_reward(
     env: ManagerBasedRLEnv,
     table_height: float = 0.85483,
-    lift_threshold: float = 0.08,
+    lift_threshold: float = 0.05,
     asset_cfg1: SceneEntityCfg = SceneEntityCfg("trocar_1"),
     asset_cfg2: SceneEntityCfg = SceneEntityCfg("trocar_2"),
     use_sparse_reward: bool = True,
     print_log: bool = False,
+    use_com_for_lift: bool = False,
 ) -> torch.Tensor:
     """Reward for lifting both trocars above the table.
 
@@ -242,6 +246,7 @@ def lift_trocars_reward(
         use_sparse_reward: If True, only give reward (1.0) when stage transitions from 0->1.
                           If False, give continuous reward based on current state.
         print_log: If True, log debug information.
+        use_com_for_lift: Use the first trocar center of mass for packaged assets with an offset root.
     """
     s = get_assemble_trocar_state(env)
     stage = s.task_stage
@@ -249,7 +254,7 @@ def lift_trocars_reward(
     obj1: RigidObject = env.scene[asset_cfg1.name]
     obj2: RigidObject = env.scene[asset_cfg2.name]
 
-    pos1 = obj1.data.root_com_pos_w.torch
+    pos1 = obj1.data.root_com_pos_w.torch if use_com_for_lift else obj1.data.root_pos_w.torch
     pos2 = obj2.data.root_pos_w.torch
     target_z = table_height + lift_threshold
 

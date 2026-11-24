@@ -439,8 +439,6 @@ def _prepare_camera_image(image: torch.Tensor, cfg: dict) -> torch.Tensor:
     """Crop a batch of RGB frames and resize to the policy input dimensions on the image device."""
     batch, height, width, _ = image.shape
     size = (cfg.get("gpu_resize_height", height), cfg.get("gpu_resize_width", width))
-    if size == (height, width):
-        return image
     fraction = cfg.get("gpu_crop_scale", 0.0)
     if fraction:
         if not 0 < fraction < 1:

@@ -28,3 +28,13 @@ gym.register(
         "env_cfg_entry_point": "isaaclab_tasks.contrib.assemble_trocar.g129_dex3_env_cfg:G1AssembleTrocarEvalEnvCfg",
     },
 )
+
+for task_suffix, config in (("Calibrated", "G1AssembleTrocarCalibratedEnvCfg"),
+                            ("Calibrated-Eval", "G1AssembleTrocarCalibratedEvalEnvCfg")):
+    gym.register(
+        id=f"IsaacContrib-Assemble-Trocar-G129-Dex3-{task_suffix}",
+        entry_point="isaaclab.envs:ManagerBasedRLEnv",
+        disable_env_checker=True,
+        kwargs={"env_cfg_entry_point":
+                f"isaaclab_tasks.contrib.assemble_trocar.calibrated_env_cfg:{config}"},
+    )

@@ -90,7 +90,18 @@ class IsaacLabDataConfig(BaseDataConfig):
         transforms = [
             # Video transforms
             VideoToTensor(apply_to=self.video_keys),
-            # The RLinf observation adapter crops and resizes the camera images to 224 x 224.
+            # Disabled: camera already outputs 224×224 via TiledCameraCfg.
+            # To avoid VideoToTensor size-check errors, either:
+            #   1. Disable input size validation in VideoToTensor, OR
+            #   2. Set modality meta height/width to 224 to match actual input.
+            # Re-enable VideoCrop/VideoResize if camera resolution changes.
+            # VideoCrop(apply_to=self.video_keys, scale=0.95),
+            # VideoResize(
+            #     apply_to=self.video_keys,
+            #     height=224,
+            #     width=224,
+            #     interpolation="linear",
+            # ),
             VideoColorJitter(
                 apply_to=self.video_keys,
                 brightness=0.3,

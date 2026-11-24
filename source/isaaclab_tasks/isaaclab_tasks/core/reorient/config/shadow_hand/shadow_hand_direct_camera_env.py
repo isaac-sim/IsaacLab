@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
@@ -28,7 +27,6 @@ class ShadowHandCameraEnv(ShadowHandDirectEnv):
     cfg: ShadowHandCameraEnvCfg
 
     def __init__(self, cfg: ShadowHandCameraEnvCfg, render_mode: str | None = None, **kwargs):
-        self.feature_extractor: FeatureExtractor | None = None
         super().__init__(cfg, render_mode, **kwargs)
         self._tiled_camera = self.scene["tiled_camera"]
         # the CNN input channels follow the resolved camera data types, so any camera preset
@@ -44,11 +42,6 @@ class ShadowHandCameraEnv(ShadowHandDirectEnv):
         # keypoints buffer
         self.gt_keypoints = torch.ones(self.num_envs, 8, 3, dtype=torch.float32, device=self.device)
         self.goal_keypoints = torch.ones(self.num_envs, 8, 3, dtype=torch.float32, device=self.device)
-
-    def _reset_idx(self, env_ids: Sequence[int]) -> None:
-        super()._reset_idx(env_ids)
-        if self.feature_extractor is not None:
-            self.feature_extractor.reset(env_ids)
 
     def _compute_image_observations(self) -> torch.Tensor:
         # generate ground truth keypoints for in-hand cube
