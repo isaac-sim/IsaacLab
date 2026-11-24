@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 class CameraRenderSpec(SensorRenderSpec):
     """Deprecated subclass of :class:`SensorRenderSpec`.
 
-    .. deprecated::
+    .. deprecated:: 3.1
         Construct :class:`SensorRenderSpec` for a camera or a lidar. Pass sensor prims as
         ``prim_paths``. ``camera_prim_paths`` still reads and sets that field.
     """

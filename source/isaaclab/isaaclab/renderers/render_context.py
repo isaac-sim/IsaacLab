@@ -383,7 +383,7 @@ class RenderContext:
     ) -> None:
         """Deprecated alias of :meth:`render_into_sensor`.
 
-        .. deprecated::
+        .. deprecated:: 3.1
             Call :meth:`render_into_sensor` instead. The arguments are the same.
         """
         return self.render_into_sensor(renderer, render_data, camera_data, physics_step_count)
@@ -396,7 +396,7 @@ class RenderContext:
     ) -> None:
         """Deprecated alias of :meth:`render_into_sensors`.
 
-        .. deprecated::
+        .. deprecated:: 3.1
             Call :meth:`render_into_sensors` instead. The arguments are the same.
 
         Args:

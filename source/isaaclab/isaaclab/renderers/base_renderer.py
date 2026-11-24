@@ -171,7 +171,7 @@ class BaseRenderer(ABC):
     ) -> None:
         """Deprecated alias of :meth:`update_sensor`.
 
-        .. deprecated::
+        .. deprecated:: 3.1
             Call :meth:`update_sensor` instead. The arguments are the same.
 
         Args:
