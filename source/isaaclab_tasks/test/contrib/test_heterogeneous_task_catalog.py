@@ -108,7 +108,7 @@ def test_bounded_combinations_do_not_expand_the_object_product():
             index = int(name.removeprefix("item_"))
             if index < 900:
                 common_halves[index // 450] += 1
-    assert len(selected_tables) == 2, "Include the table in world sampling"
+    assert len(selected_tables) == len(catalog.TABLE_VARIANTS) > 2, "Include the table in world sampling"
     assert min(counts) == 2 and max(counts) == 8
     assert chosen <= objects.keys() and len(chosen) > 100
     # A 900-asset category must not overwhelm four categories of only 25 assets each.
@@ -123,5 +123,9 @@ def test_bounded_combinations_do_not_expand_the_object_product():
     assert len(resolved.scene.objects.rigid_objects) == catalog.OBJECT_COUNT[1]
     tables = resolved.scene.work_table.spawn
     assert isinstance(tables, sim_utils.MultiAssetSpawnerCfg) and not tables.static
-    assert len(tables.assets_cfg) == len(resolved.events.place_objects.params["table_variants"]) == 2
+    assert (
+        len(tables.assets_cfg)
+        == len(resolved.events.place_objects.params["table_variants"])
+        == len(catalog.TABLE_VARIANTS)
+    )
     assert all(isinstance(table, sim_utils.UsdFileCfg) for table in tables.assets_cfg), "Use real table assets"

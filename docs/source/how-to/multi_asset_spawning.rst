@@ -218,7 +218,7 @@ For example:
    cfg = VLAHeterogeneousEnvCfg(
        scene=TabletopSceneCfg(num_envs=128, env_spacing=10.0, objects=OBJECTS_CFG.copy()),
    )
-   cfg.events.place_objects.params["workspace"] = ((0.25, -0.4, 0.0), (0.85, 0.4, 0.6))
+   cfg.events.place_objects.params["workspace"] = ((0.25, -0.4, -0.1), (0.85, 0.4, 0.6))
    cfg.events.place_objects.params["table_variants"] = TABLE_VARIANTS
 
 ``OBJECT_COUNT = (2, 8)`` sets the bounds in the scene definition. ``OBJECTS_CFG`` is a complete
@@ -238,20 +238,26 @@ bounding-box corners. Newton's narrow-phase collision detection rejects penetrat
 placements, including robot intersections, without stepping physics. Placement retries are bounded;
 a workspace that cannot hold the selected objects raises a clear error instead of accepting overlaps.
 ``TableCfg`` extends a rigid-object declaration with ``surface_outline``, ``surface_height`` and optional
-``surface_holes``. ``TABLE_VARIANTS`` contains the real ``av_eastrural_table`` and ``av_desperes_table``
-assets, their individual poses and measured usable surfaces. The latter uses its fixed central panel,
-excluding its extension leaves. Both retain triangle collisions on the actual mesh geometry.
+``surface_holes``. ``TABLE_VARIANTS`` contains all nine table assets in the dataset: Eastrural,
+Desperes, oak, black, maple, bamboo, Jennings, the end table and the sofa table. They retain their real
+geometry and collisions, with individually measured usable support regions. Their roots place the feet
+on the common floor, preserving the different tabletop heights. Desperes uses its fixed
+central panel, and Jennings uses one contiguous leaf rather than spanning the separated panels.
 The scene declares them with ``MultiAssetSpawnerCfg(static=False)`` and includes ``work_table`` alongside
-``objects`` in its inclusion set, so initial table choices also vary across worlds. Each reset selects uniformly among
-the other table variants, applies its pose, and recomputes the placement region before placing objects.
+``objects`` in its inclusion set, so initial table choices also vary across worlds. Reset jointly samples
+another table and collision-free object placement. It rejects candidates whose measured surface/workspace
+intersection has insufficient area, then checks full footprints and actual contacts. A small table cannot
+invalidate a composition that fits on another variant. Accepted resets always change the table; placement
+retries remain bounded and fail clearly when no other table can fit the selected world.
 Partial resets preserve tables in untouched worlds. Add tables by composing complete ``TableCfg``
 values and using the same ordered tuple for the spawner and reset term. Measured dimensions are plain
 config values; reset does not parse table meshes or infer a surface.
 
 ``CAMERA_CFG.renderer_cfg`` declares the Newton renderer's ambient and directional light colors.
 These control the camera image directly; USD dome and sphere lights do not currently control this renderer.
-The scene composes the standard Franka arm impedance and effort limits with the Robotiq gripper
-drives, rather than inheriting the Robotiq demonstration configuration's enlarged arm efforts.
+The scene preserves the original task's robot home pose, arm impedance and disabled self-collisions.
+The Robotiq base hull overlaps its internal knuckles, so enabling self-contact deforms the open linkage.
+External contacts remain enabled.
 
 The reachable volume is user-supplied; this example does not compute inverse-kinematics reachability.
 

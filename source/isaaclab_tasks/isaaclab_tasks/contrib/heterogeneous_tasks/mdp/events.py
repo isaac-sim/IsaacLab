@@ -238,47 +238,58 @@ class reset_tabletop(ManagerTermBase):
         workspace = torch.as_tensor(workspace, dtype=torch.float32, device=env.device)
         if workspace.shape != (2, 3) or not torch.isfinite(workspace).all() or (workspace[0] >= workspace[1]).any():
             raise ValueError("Workspace must contain finite, ordered XYZ lower and upper bounds.")
-        if len(self.table_variants) > 1:
-            # Uniform over the other variants, so every requested world changes table on reset.
-            selected = (
-                self.table.mesh_variant_ids.torch[ids].long()
-                + torch.randint(1, len(self.table_variants), (len(ids),), device=env.device)
-            ) % len(self.table_variants)
-            self.table.write_mesh_variant_to_sim(selected, env_ids=ids)
-        else:
-            selected = torch.zeros(len(ids), dtype=torch.long, device=env.device)
-        selected_ids = selected.tolist()
-        table_poses = torch.tensor(
-            [(*self.table_variants[i].init_state.pos, *self.table_variants[i].init_state.rot) for i in selected_ids],
-            device=env.device,
-        )
-        table_poses[:, :3] += env.scene.env_origins[ids]
-        self.table.write_root_pose_to_sim_index(root_pose=table_poses, env_ids=ids)
-        self.table.write_root_velocity_to_sim_index(
-            root_velocity=torch.zeros(len(ids), 6, device=env.device), env_ids=ids
-        )
-        self.tabletop_heights[ids] = table_poses[:, 2] + table_poses.new_tensor(
-            [self.table_variants[i].surface_height for i in selected_ids]
-        )
-        up = quat_apply(table_poses[:, 3:], table_poses.new_tensor([0.0, 0.0, 1.0]).expand(len(ids), 3))
-        if (up[:, 2] < 1 - 1e-6).any():
-            raise ValueError("Tabletop reset requires a horizontal table; yaw rotation is supported.")
-        origins = env.scene.env_origins[ids].cpu().numpy()
+        # Table and object placement are sampled together: a small table must not invalidate a world
+        # that fits on another variant. All candidates still use their measured surface/workspace intersection.
         limits = workspace.cpu().numpy()
-        for world, variant, pose, origin in zip(
-            ids.tolist(), selected_ids, table_poses.cpu().numpy(), origins, strict=True
-        ):
-            x, y, z, w = pose[3:]
+        reachable = shapely.box(*limits[0, :2], *limits[1, :2])
+        local_regions, heights = [], []
+        for variant, surface in zip(self.table_variants, self.surfaces, strict=True):
+            x, y, z, w = variant.init_state.rot
             cosine, sine = 1 - 2 * (y * y + z * z), 2 * (w * z + x * y)
-            tabletop = affine_transform(self.surfaces[variant], [cosine, -sine, sine, cosine, pose[0], pose[1]])
-            reachable = shapely.box(*(limits[0, :2] + origin[:2]), *(limits[1, :2] + origin[:2]))
-            region = tabletop.intersection(reachable).buffer(-clearance)
-            top = pose[2] + self.table_variants[variant].surface_height
-            if region.is_empty or top < limits[0, 2] + origin[2] - 1e-5 or top + clearance >= limits[1, 2] + origin[2]:
-                raise RuntimeError("The measured table surface and workspace have no usable intersection.")
-            self.placement_regions[world] = region
-        remaining = ids
+            if abs(x) > 1e-6 or abs(y) > 1e-6:
+                raise ValueError("Tabletop reset requires a horizontal table; yaw rotation is supported.")
+            tx, ty, tz = variant.init_state.pos
+            region = affine_transform(surface, [cosine, -sine, sine, cosine, tx, ty])
+            region = region.intersection(reachable).buffer(-clearance)
+            height = tz + variant.surface_height
+            if height < limits[0, 2] - 1e-5 or height + clearance >= limits[1, 2]:
+                region = shapely.Polygon()
+            local_regions.append(region)
+            heights.append(height)
+        footprints = self.local_footprints[ids, ..., :2].cpu().numpy()
+        occupied_area = (shapely.area(shapely.polygons(footprints)) * self.active[ids].cpu().numpy()).sum(1)
+        eligible = occupied_area[:, None] < shapely.area(local_regions)[None, :]
+        previous = self.table.mesh_variant_ids.torch[ids].long()
+        if len(self.table_variants) > 1:
+            eligible[np.arange(len(ids)), previous.cpu().numpy()] = False
+        if not eligible.any(1).all():
+            failed = ids[torch.as_tensor(~eligible.any(1), device=env.device)]
+            raise RuntimeError(f"No usable table/workspace intersection with enough area for worlds {failed.tolist()}.")
+        weights = torch.as_tensor(eligible, dtype=torch.float32, device=env.device)
+        variant_poses = workspace.new_tensor(
+            [(*variant.init_state.pos, *variant.init_state.rot) for variant in self.table_variants]
+        )
+        remaining_rows = torch.arange(len(ids), device=env.device)
         for _ in range(max_attempts):
+            remaining = ids[remaining_rows]
+            selected = torch.multinomial(weights[remaining_rows], 1).flatten()
+            if len(self.table_variants) > 1:
+                self.table.write_mesh_variant_to_sim(selected, env_ids=remaining)
+            table_poses = variant_poses[selected].clone()
+            table_poses[:, :3] += env.scene.env_origins[remaining]
+            self.table.write_root_pose_to_sim_index(root_pose=table_poses, env_ids=remaining)
+            self.table.write_root_velocity_to_sim_index(
+                root_velocity=torch.zeros(len(remaining), 6, device=env.device), env_ids=remaining
+            )
+            self.tabletop_heights[remaining] = (
+                workspace.new_tensor(heights)[selected] + env.scene.env_origins[remaining, 2]
+            )
+            for world, variant, origin in zip(
+                remaining.tolist(), selected.tolist(), env.scene.env_origins[remaining].cpu().numpy(), strict=True
+            ):
+                self.placement_regions[world] = affine_transform(
+                    local_regions[variant], [1, 0, 0, 1, origin[0], origin[1]]
+                )
             poses, placed = self._sample(remaining, workspace, clearance, max_attempts)
             accepted = remaining[placed]
             if len(accepted):
@@ -288,11 +299,11 @@ class reset_tabletop(ManagerTermBase):
                 )
                 bad = self.penetrating_worlds()
                 placed &= ~bad[remaining]
-            remaining = remaining[~placed]
-            if not len(remaining):
+            remaining_rows = remaining_rows[~placed]
+            if not len(remaining_rows):
                 break
         else:
-            raise RuntimeError(f"No collision-free tabletop reset for worlds {remaining.tolist()}.")
+            raise RuntimeError(f"No collision-free tabletop reset for worlds {ids[remaining_rows].tolist()}.")
         for world in ids.tolist():
             available = self.available_tasks[world]
             task = self._requested[world]

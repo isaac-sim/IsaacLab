@@ -195,6 +195,11 @@ def env(request, tmp_path):
             surface_height=0.035,
             init_state=table.init_state.replace(pos=(0.6, 0.0, 0.165)),
         ),
+        table.replace(
+            spawn=table.spawn.replace(scale=(0.2, 0.2, 1.0)),
+            surface_outline=tuple((0.2 * x, 0.2 * y) for x, y in table.surface_outline),
+            surface_holes=tuple(tuple((0.2 * x, 0.2 * y) for x, y in hole) for hole in table.surface_holes),
+        ),
     )
     cfg.scene.work_table = table.replace(
         spawn=sim_utils.MultiAssetSpawnerCfg(
@@ -260,7 +265,8 @@ def test_reset_intersects_workspace_and_table_and_binds_only_feasible_tasks(env)
     assert [len(state.available_tasks[i]) for i in (0, 1, large_world, container_world)] == [1, 0, 0, 2]
     assert sorted(state.active.sum(1).tolist()) == [2, 2, 2, 3]
     assert not state.penetrating_worlds().any()
-    assert all(surface.area == pytest.approx(0.864, abs=1e-6) for surface in state.surfaces)
+    assert all(surface.area == pytest.approx(0.864, abs=1e-6) for surface in state.surfaces[:2])
+    assert state.surfaces[2].area < 0.05
     assert all(len(surface.interiors) == 1 for surface in state.surfaces)
     assert state.instructions[0] and state.instructions[container_world]
     assert [state.instructions[i] for i in (1, large_world)] == ["", ""]
@@ -275,6 +281,7 @@ def test_reset_intersects_workspace_and_table_and_binds_only_feasible_tasks(env)
         torch.testing.assert_close(poses[[1, large_world]], before[[1, large_world]])
         assert not torch.equal(poses[0], before[0])
         table_after = state.table.mesh_variant_ids.torch
+        assert (table_after[[0, large_world, container_world]] != 2).all(), "Small tables cannot hold these worlds"
         assert (table_after[[0, container_world]] != table_before[[0, container_world]]).all()
         torch.testing.assert_close(table_after[[1, large_world]], table_before[[1, large_world]])
         torch.testing.assert_close(state.tabletop_heights, torch.full_like(state.tabletop_heights, 0.2))
@@ -286,6 +293,9 @@ def test_reset_intersects_workspace_and_table_and_binds_only_feasible_tasks(env)
         table_local = quat_apply_inverse(
             table[:, None, None, 3:].expand(-1, 3, 8, 4), corners - table[:, None, None, :3]
         )
+        # Compare the small table in the original mesh coordinates, including its scaled opening.
+        scale = torch.where(table_after == 2, 0.2, 1.0)
+        table_local[..., :2] /= scale[:, None, None, None]
         assert (table_local[..., :2][state.active] >= table_local.new_tensor([-0.45, -0.5]) + 0.005 - 1e-6).all()
         assert (table_local[..., :2][state.active] <= table_local.new_tensor([0.45, 0.5]) - 0.005 + 1e-6).all()
         hole = shapely.box(-0.09, -0.1, 0.09, 0.1)
@@ -318,3 +328,70 @@ def test_reset_intersects_workspace_and_table_and_binds_only_feasible_tasks(env)
     params = dict(env.cfg.events["place_objects"].params, workspace=((0.58, -0.02, 0.1), (0.62, 0.02, 0.6)))
     with pytest.raises(RuntimeError, match="intersection"):
         state(env, torch.tensor([0], device=env.device), **params)
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_robotiq_reopens_without_internal_collision_deformation(device):
+    """The actual gripper reopens after closing, while its base still collides with external objects."""
+    from isaaclab_tasks.contrib.heterogeneous_tasks.heterogeneous_tasks_env_cfg import VLAHeterogeneousEnvCfg
+
+    cfg = VLAHeterogeneousEnvCfg(seed=42)
+    cfg.sim.device = device
+    cfg.scene.num_envs = 1
+    for name in ("objects", "work_table", "table_fixture", "contact", "over_shoulder_left_camera", "wrist_cam"):
+        setattr(cfg.scene, name, None)
+    cfg.scene.clone_cfg.clone_combinations = []
+    cfg.scene.probe = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/probe",
+        spawn=sim_utils.SphereCfg(
+            radius=0.01,
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0, -2, 0.5)),
+    )
+    cfg.observations.policy.over_shoulder_left_camera = None
+    cfg.observations.policy.wrist_cam = None
+    cfg.events.place_objects = None
+    cfg.terminations.success = None
+    cfg.terminations.time_out = None
+    env = ManagerBasedRLEnv(cfg)
+    try:
+        env.reset()
+        robot = env.scene["robot"]
+        arm, _ = robot.find_joints(cfg.actions.arm.joint_names, preserve_order=True)
+        fingers, _ = robot.find_joints(["finger_joint", ".*inner_finger.*", "right_outer_knuckle_joint"])
+        action = torch.ones(1, 8, device=env.device)
+        action[:, :7] = robot.data.default_joint_pos.torch[:, arm]
+        for command in (1, -1, 1):
+            action[:, -1] = command
+            for _ in range(30):
+                env.step(action)
+            assert robot.data.joint_pos.torch.isfinite().all()
+            if command > 0:
+                assert robot.data.joint_pos.torch[:, fingers].abs().max() < 0.02
+            else:
+                driver, _ = robot.find_joints(["finger_joint"])
+                assert robot.data.joint_pos.torch[:, driver].min() > 0.7
+        base, _ = robot.find_bodies(["base_link"])
+        pose = robot.data.body_link_pose_w.torch[:, base[0]].clone()
+        env.scene["probe"].write_root_pose_to_sim_index(root_pose=pose)
+        env.sim.forward()
+        backend = env.sim.backend_manager.backend
+        contacts = backend.collision_pipeline.contacts()
+        backend.collision_pipeline.collide(backend.state_0, contacts)
+        count = int(contacts.contact_counters.numpy()[0])
+        bodies = backend.model.shape_body.numpy()
+        pairs = zip(
+            bodies[contacts.rigid_contact_shape0.numpy()[:count]],
+            bodies[contacts.rigid_contact_shape1.numpy()[:count]],
+        )
+        labels = backend.model.body_label
+        assert any(
+            (labels[a].endswith("/base_link") and "/probe/" in labels[b] + "/")
+            or (labels[b].endswith("/base_link") and "/probe/" in labels[a] + "/")
+            for a, b in pairs
+            if a >= 0 and b >= 0
+        )
+    finally:
+        env.close()

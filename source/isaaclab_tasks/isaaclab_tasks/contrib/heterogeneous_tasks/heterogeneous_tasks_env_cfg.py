@@ -8,8 +8,10 @@
 import math
 from dataclasses import MISSING
 
+from isaaclab_isaacsim.sim.schemas import PhysxArticulationCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg, RigidObjectCollectionCfg
@@ -26,7 +28,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg, ContactSensorCfg
 from isaaclab.utils import configclass
 
-from isaaclab_assets.robots.franka import FRANKA_PANDA_LEGACY_CFG, FRANKA_ROBOTIQ_GRIPPER_CFG
+from isaaclab_assets.robots.franka import FRANKA_ROBOTIQ_GRIPPER_CFG
 
 from . import VLA_BENCHMARKS_ASSETS_DIR, mdp
 
@@ -87,7 +89,101 @@ DESPERES_TABLE_CFG = EASTRURAL_TABLE_CFG.replace(
     surface_outline=((-0.760438, -0.406075), (0.760438, -0.406075), (0.760438, 0.406075), (-0.760438, 0.406075)),
     surface_height=0.76835005,
 )
-TABLE_VARIANTS = (EASTRURAL_TABLE_CFG, DESPERES_TABLE_CFG)
+# Place each asset on the common floor at Z=-0.697; tabletop heights remain asset-specific.
+OAK_TABLE_CFG = EASTRURAL_TABLE_CFG.replace(
+    spawn=EASTRURAL_TABLE_CFG.spawn.replace(usd_path=f"{VLA_BENCHMARKS_ASSETS_DIR}/objects/table_oak/table_oak.usd"),
+    init_state=EASTRURAL_TABLE_CFG.init_state.replace(pos=(0.65, 0.0, -0.347)),
+    surface_outline=((-0.348, -0.498), (-0.348, 0.498), (0.348, 0.498), (0.348, -0.498)),
+    surface_height=0.35,
+)
+BLACK_TABLE_CFG = OAK_TABLE_CFG.replace(
+    spawn=OAK_TABLE_CFG.spawn.replace(usd_path=f"{VLA_BENCHMARKS_ASSETS_DIR}/objects/table_black/table_black.usd")
+)
+MAPLE_TABLE_CFG = OAK_TABLE_CFG.replace(
+    spawn=OAK_TABLE_CFG.spawn.replace(usd_path=f"{VLA_BENCHMARKS_ASSETS_DIR}/objects/table_maple/table_maple.usd")
+)
+BAMBOO_TABLE_CFG = OAK_TABLE_CFG.replace(
+    spawn=OAK_TABLE_CFG.spawn.replace(usd_path=f"{VLA_BENCHMARKS_ASSETS_DIR}/objects/table_bamboo/table_bamboo.usd")
+)
+# Use the measured contiguous leaf; the separated panels are outside this support region.
+JENNINGS_TABLE_CFG = EASTRURAL_TABLE_CFG.replace(
+    spawn=EASTRURAL_TABLE_CFG.spawn.replace(
+        usd_path=f"{VLA_BENCHMARKS_ASSETS_DIR}/objects/av_jennings_table/av_jennings_table.usd"
+    ),
+    init_state=EASTRURAL_TABLE_CFG.init_state.replace(
+        pos=(0.65, -0.696875, -0.697), rot=(0.0, 0.0, math.sqrt(0.5), math.sqrt(0.5))
+    ),
+    surface_outline=((0.2591, -0.31705), (0.2591, 0.31705), (1.13465, 0.31705), (1.13465, -0.31705)),
+    surface_height=0.762,
+)
+END_TABLE_CFG = EASTRURAL_TABLE_CFG.replace(
+    spawn=EASTRURAL_TABLE_CFG.spawn.replace(
+        usd_path=f"{VLA_BENCHMARKS_ASSETS_DIR}/objects/appleseed_endtable/appleseed_endtable.usd"
+    ),
+    init_state=EASTRURAL_TABLE_CFG.init_state.replace(pos=(0.649625, -0.000475, -0.697)),
+    surface_outline=(
+        (-0.26995, -0.22155),
+        (-0.26995, 0.2225),
+        (-0.06965, 0.2216),
+        (-0.0696, 0.2017),
+        (-0.0683, 0.19995),
+        (-0.0045, 0.19925),
+        (-0.0045, 0.1427),
+        (-0.0026, 0.1408),
+        (0.0587, 0.1413),
+        (0.05965, 0.14285),
+        (0.05965, 0.1994),
+        (0.11605, 0.2),
+        (0.11735, 0.20175),
+        (0.11735, 0.22165),
+        (0.2707, 0.2225),
+        (0.26895, -0.22155),
+    ),
+    surface_height=0.63500077,
+)
+SOFA_TABLE_CFG = EASTRURAL_TABLE_CFG.replace(
+    spawn=EASTRURAL_TABLE_CFG.spawn.replace(
+        usd_path=f"{VLA_BENCHMARKS_ASSETS_DIR}/objects/appleseed_sofatable/appleseed_sofatable.usd"
+    ),
+    init_state=EASTRURAL_TABLE_CFG.init_state.replace(pos=(0.6494, 0.000275, -0.696824)),
+    surface_outline=(
+        (-0.19, -0.60425),
+        (-0.19, 0.60535),
+        (0.1912, 0.60535),
+        (0.1911, 0.1728),
+        (0.19, 0.03715),
+        (0.1573, 0.0367),
+        (0.15655, 0.03525),
+        (0.1564, 0.0052),
+        (0.11055, 0.0052),
+        (0.10925, 0.0046),
+        (0.10865, 0.0033),
+        (0.1086, -0.02735),
+        (0.1092, -0.02885),
+        (0.1105, -0.02945),
+        (0.1365, -0.02945),
+        (0.1366, -0.0579),
+        (0.1372, -0.0592),
+        (0.1385, -0.0598),
+        (0.17005, -0.0598),
+        (0.17045, -0.08955),
+        (0.1721, -0.09065),
+        (0.1901, -0.09065),
+        (0.1912, -0.6059),
+    ),
+    surface_height=0.74930084,
+)
+TABLE_VARIANTS = (
+    EASTRURAL_TABLE_CFG,
+    DESPERES_TABLE_CFG,
+    OAK_TABLE_CFG,
+    BLACK_TABLE_CFG,
+    MAPLE_TABLE_CFG,
+    BAMBOO_TABLE_CFG,
+    JENNINGS_TABLE_CFG,
+    END_TABLE_CFG,
+    SOFA_TABLE_CFG,
+)
 """Variable real table assets, including their own measured usable surfaces and poses."""
 
 EMPTY_OBJECT_CFG = sim_utils.SphereCfg(
@@ -324,12 +420,34 @@ class TabletopSceneCfg(InteractiveSceneCfg):
 
     robot = FRANKA_ROBOTIQ_GRIPPER_CFG.replace(
         prim_path="{ENV_REGEX_NS}/robot",
-        init_state=FRANKA_ROBOTIQ_GRIPPER_CFG.init_state.replace(pos=(0.0, 0.0, 0.0)),
-        # Compose the standard arm impedance with the Robotiq gripper drives.
+        # Preserve the original RoboLab home pose, collision setting and arm impedance.
+        init_state=FRANKA_ROBOTIQ_GRIPPER_CFG.init_state.replace(
+            pos=(0.0, 0.0, 0.0),
+            joint_pos={
+                **FRANKA_ROBOTIQ_GRIPPER_CFG.init_state.joint_pos,
+                "panda_joint2": -math.pi / 5,
+                "panda_joint4": -4 * math.pi / 5,
+                "panda_joint6": 3 * math.pi / 5,
+                "panda_joint7": 0.0,
+            },
+        ),
+        spawn=FRANKA_ROBOTIQ_GRIPPER_CFG.spawn.replace(
+            activate_contact_sensors=True,
+            articulation_props=[
+                PhysxArticulationCfg(
+                    enabled_self_collisions=False, solver_position_iteration_count=64, solver_velocity_iteration_count=0
+                ),
+                NewtonArticulationCfg(self_collision_enabled=False),
+            ],
+        ),
         actuators={
             **FRANKA_ROBOTIQ_GRIPPER_CFG.actuators,
-            "panda_shoulder": FRANKA_PANDA_LEGACY_CFG.actuators["panda_shoulder"].copy(),
-            "panda_forearm": FRANKA_PANDA_LEGACY_CFG.actuators["panda_forearm"].copy(),
+            "panda_shoulder": FRANKA_ROBOTIQ_GRIPPER_CFG.actuators["panda_shoulder"].replace(
+                stiffness=400.0, damping=80.0, armature=0.1
+            ),
+            "panda_forearm": FRANKA_ROBOTIQ_GRIPPER_CFG.actuators["panda_forearm"].replace(
+                stiffness=400.0, damping=80.0, armature=0.1
+            ),
         },
     )
     table_fixture = AssetBaseCfg(
@@ -439,7 +557,7 @@ class EventsCfg:
             "objects": SceneEntityCfg("objects"),
             "table": SceneEntityCfg("work_table"),
             "table_variants": TABLE_VARIANTS,
-            "workspace": ((0.25, -0.4, 0.0), (0.85, 0.4, 0.6)),
+            "workspace": ((0.25, -0.4, -0.1), (0.85, 0.4, 0.6)),
             "gripper_body": GRIPPER_BODY.rsplit("/", 1)[-1],
             "clearance": 0.005,
             "max_attempts": 128,
