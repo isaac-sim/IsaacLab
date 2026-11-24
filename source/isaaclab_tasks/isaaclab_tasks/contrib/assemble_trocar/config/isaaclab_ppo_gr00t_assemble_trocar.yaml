@@ -125,7 +125,7 @@ env:
       id: "IsaacContrib-Assemble-Trocar-G129-Dex3"
       num_envs: null
       max_episode_steps: ${env.train.max_episode_steps}
-      task_description: "assemble trocar from tray"
+      task_description: "install trocar from tray"
 
     # ========================================================================
     # IsaacLab -> RLinf -> GR00T observation/action mapping configuration
@@ -133,7 +133,7 @@ env:
     # ========================================================================
     isaaclab: &isaaclab_config  # YAML anchor for reuse in eval
       # Task description for language conditioning
-      task_description: "assemble trocar from tray"
+      task_description: "install trocar from tray"
 
       # Crop the calibrated 320 x 240 camera images before passing them to GR00T.
       gpu_resize_height: 224
@@ -207,7 +207,7 @@ env:
       id: "IsaacContrib-Assemble-Trocar-G129-Dex3-Eval"
       num_envs: null
       max_episode_steps: ${env.eval.max_episode_steps}
-      task_description: "assemble trocar from tray"
+      task_description: "install trocar from tray"
     # Reuse IsaacLab config from train section via YAML anchor
     isaaclab:
       <<: *isaaclab_config
@@ -228,7 +228,7 @@ rollout:
   pipeline_stage_num: 1
 
   model:
-    model_path: ".pretrained_checkpoints/rlinf/Assemble_Trocar"
+    model_path: ".pretrained_checkpoints/rlinf/Assemble_Trocar_SFT_100k"
     precision: ${actor.model.precision}
     obs_converter_type: ${env.train.isaaclab.obs_converter_type}
     embodiment_tag: ${env.train.isaaclab.embodiment_tag}
@@ -250,7 +250,7 @@ actor:
 
   model:
     model_type: "gr00t"
-    model_path: ".pretrained_checkpoints/rlinf/Assemble_Trocar"
+    model_path: ".pretrained_checkpoints/rlinf/Assemble_Trocar_SFT_100k"
     precision: "bf16"
     trust_remote_code: True
     is_lora: false

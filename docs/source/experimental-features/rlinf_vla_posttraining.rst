@@ -32,13 +32,19 @@ Prerequisites
 
 - **Isaac Lab** installed and configured
 - **Isaac-GR00T** repo (for VLA inference and data transforms)
-- A **pretrained VLA checkpoint** in HuggingFace format. A pretrained GR00T checkpoint for
-  ``assemble_trocar`` is available and can be downloaded via:
-
-  .. code-block:: bash
-
-     hf download --repo-type model nvidia/Assemble_Trocar --local-dir /path/to/local/models
+- A **pretrained VLA checkpoint** in HuggingFace format. The ``assemble_trocar`` recipe
+  uses the GR00T N1.5 SFT checkpoint trained for 100,000 steps,
+  ``trocar_install_segfixed/rot_0_10_320ep_sim_78ep_real_8gpu_100k``.
+  Place its ``config.json``, model weights and ``experiment_cfg/`` directory directly in
+  ``.pretrained_checkpoints/rlinf/Assemble_Trocar_SFT_100k`` relative to the Isaac Lab root,
+  or pass the checkpoint directory with ``--model_path``.
 - Multi-GPU setup recommended (FSDP requires at least 1 GPU)
+
+.. note::
+
+   Public release of the 100k SFT checkpoint is pending. The previously published
+   ``nvidia/Assemble_Trocar`` model is an older checkpoint and does not supply these weights.
+   The updated recipe requires the 100k checkpoint to be provided locally until it is released.
 
 Installation
 ------------
@@ -237,7 +243,9 @@ Quick Start
              --video
 
 Here ``--model_path`` points to the HuggingFace-format base model (with
-``config.json``), and ``--checkpoint`` points to the RLinf checkpoint
+``config.json``). For the trocar recipe, use the 100k SFT directory described in
+Prerequisites_, or omit ``--model_path`` to use its default location.
+``--checkpoint`` points to the RLinf checkpoint
 directory (the ``global_step_<N>`` folder), a subdirectory containing exactly one
 ``full_weights.pt``, or that weights file. RLinf loads the base model, then applies the
 RL-finetuned weights through its native checkpoint hook. Relative model and checkpoint
@@ -284,8 +292,8 @@ environment worker, for training and evaluation alike. For example,
 
 .. note::
 
-   Contact dynamics differ between the backends, so the published ``Assemble_Trocar`` checkpoint
-   succeeds less often on Newton than on PhysX until it is RL fine-tuned on Newton.
+   Contact dynamics differ between the backends. Evaluate the selected checkpoint on the target
+   backend before RL fine-tuning; a PhysX result does not establish performance on Newton.
 
 Checkpoints
 -----------
@@ -326,7 +334,7 @@ are converted to GR00T format:
 .. code-block:: yaml
 
    isaaclab: &isaaclab_config
-     task_description: "assemble trocar from tray"
+     task_description: "install trocar from tray"
 
      # IsaacLab → RLinf observation mapping
      main_images: "front_camera"
@@ -342,6 +350,9 @@ are converted to GR00T format:
      action_mapping:
        prefix_pad: 15
        suffix_pad: 0
+
+The trocar recipe uses ``install trocar from tray`` for both training and evaluation,
+including the environment's ``init_params.task_description`` and the policy observation mapping.
 
 Action chunks across resets
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
