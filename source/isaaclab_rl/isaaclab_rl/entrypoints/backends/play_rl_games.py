@@ -62,6 +62,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         agent_help="Name of the RL agent configuration entry point.",
     )
     parser.add_argument("--checkpoint", type=str, default=None, help="Checkpoint path, latest/best, or pretrained.")
+    # Checkpoint Ghosts: overlay several checkpoints in the Newton viewer.
     checkpoint_ghost_play.add_args(parser)
     add_launcher_args(parser)
     args_cli, hydra_args = setup_preset_cli(parser, argv)
@@ -111,6 +112,7 @@ def run(argv: list[str]) -> None:
                 " --agent rl_games_cfg_entry_point, or use --rl_library rsl_rl for RSL-RL runner configurations."
             )
         pre_launch_video_config(env_cfg, args_cli)
+        # Checkpoint Ghosts: reject unsupported setups before the simulation launches.
         checkpoint_ghost_play.check(args_cli, env_cfg)
         screen.stage("Launching simulation")
         with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
@@ -127,6 +129,7 @@ def run(argv: list[str]) -> None:
                 return
             log_dir = os.path.dirname(os.path.dirname(resume_path))
             env_cfg.log_dir = log_dir
+            # Checkpoint Ghosts: split --num_envs among the checkpoints; drop randomization that cannot be mirrored.
             checkpoint_ghost_play.prepare(args_cli, env_cfg)
             apply_video_recording(env_cfg, log_dir, args_cli, subdir="play")
 
@@ -151,9 +154,11 @@ def run(argv: list[str]) -> None:
             if args_cli.deterministic:
                 configure_seed(env_cfg.seed, torch_deterministic=True)
             runner.load(agent_cfg)
+            # Checkpoint Ghosts: --checkpoint is the reference; the viewer HUD adds ghosts of other checkpoints.
             if args_cli.checkpoint_ghosts:
 
                 def policy_factory(path: str):
+                    # a ghost gets its own player, so every slot keeps its own policy and recurrent state
                     player = runner.create_player()
                     player.restore(path)
                     player.reset()
@@ -208,5 +213,6 @@ def run(argv: list[str]) -> None:
                         index_fill_(state, dones, 0.0, dim=1)
 
             screen.close()
+            # Checkpoint Ghosts: show the greyed-out HUD section that explains the flag.
             checkpoint_ghost_play.offer(env, env_cfg)
             run_playback(step, dt=env.unwrapped.step_dt, args_cli=args_cli, env_cfg=env_cfg)

@@ -71,6 +71,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     )
     parser.add_argument("--checkpoint", type=str, default=None, help="Checkpoint path, latest/best, or pretrained.")
     cli_args.add_skrl_args(parser)
+    # Checkpoint Ghosts: overlay several checkpoints in the Newton viewer.
     checkpoint_ghost_play.add_args(parser)
     add_launcher_args(parser)
     args_cli, hydra_args = setup_preset_cli(parser, argv)
@@ -123,6 +124,7 @@ def _run(args_cli: argparse.Namespace) -> None:
         )
         algorithm = resolve_skrl_algorithm(agent_cfg, args_cli.algorithm)
         pre_launch_video_config(env_cfg, args_cli)
+        # Checkpoint Ghosts: reject unsupported setups before the simulation launches.
         checkpoint_ghost_play.check(args_cli, env_cfg)
         if args_cli.checkpoint_ghosts and args_cli.ml_framework != "torch":
             raise SystemExit("--checkpoint_ghosts supports only --ml_framework torch.")
@@ -149,6 +151,7 @@ def _run(args_cli: argparse.Namespace) -> None:
                 return
             log_dir = os.path.dirname(os.path.dirname(resume_path))
             env_cfg.log_dir = log_dir
+            # Checkpoint Ghosts: split --num_envs among the checkpoints; drop randomization that cannot be mirrored.
             checkpoint_ghost_play.prepare(args_cli, env_cfg)
             apply_video_recording(env_cfg, log_dir, args_cli, subdir="play")
 
@@ -167,6 +170,7 @@ def _run(args_cli: argparse.Namespace) -> None:
             agent_cfg["trainer"]["close_environment_at_exit"] = False
             experiment_cfg["write_interval"] = 0
             experiment_cfg["checkpoint_interval"] = 0
+            # Checkpoint Ghosts: --checkpoint is the reference; the viewer HUD adds ghosts of other checkpoints.
             if args_cli.checkpoint_ghosts:
 
                 def policy_factory(path: str):
@@ -213,5 +217,6 @@ def _run(args_cli: argparse.Namespace) -> None:
                 states = env.state()
 
             screen.close()
+            # Checkpoint Ghosts: show the greyed-out HUD section that explains the flag.
             checkpoint_ghost_play.offer(env, env_cfg)
             run_playback(step, dt=dt, args_cli=args_cli, env_cfg=env_cfg)

@@ -65,6 +65,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--external_callback", default=None, help="Fully qualified path to an externally defined callback."
     )
+    # Checkpoint Ghosts: overlay several checkpoints in the Newton viewer.
     checkpoint_ghost_play.add_args(parser)
     cli_args.add_rsl_rl_args(parser)
     add_launcher_args(parser)
@@ -111,6 +112,7 @@ def run(argv: list[str]) -> None:
     with startup_screen(args_cli, num_stages=3) as screen:
         env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent, play_mode=not args_cli.train_env_cfg)
         pre_launch_video_config(env_cfg, args_cli)
+        # Checkpoint Ghosts: reject unsupported setups before the simulation launches.
         checkpoint_ghost_play.check(args_cli, env_cfg)
         screen.stage("Launching simulation")
         with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
@@ -127,6 +129,7 @@ def run(argv: list[str]) -> None:
                 return
             log_dir = os.path.dirname(resume_path)
             env_cfg.log_dir = log_dir
+            # Checkpoint Ghosts: split --num_envs among the checkpoints; drop randomization that cannot be mirrored.
             checkpoint_ghost_play.prepare(args_cli, env_cfg)
             apply_video_recording(env_cfg, log_dir, args_cli, subdir="play", checkpoint_path=resume_path)
 
@@ -142,9 +145,11 @@ def run(argv: list[str]) -> None:
             screen.stage("Loading policy")
             env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
             logger.info(f"Loading model checkpoint from: {resume_path}")
+            # Checkpoint Ghosts: --checkpoint is the reference; the viewer HUD adds ghosts of other checkpoints.
             if args_cli.checkpoint_ghosts:
 
                 def policy_factory(path: str):
+                    # a ghost loads a checkpoint into its own runner, so every slot keeps its own policy
                     runner = create_rsl_rl_runner(env, agent_cfg, inference=True)
                     runner.load(path)
                     policy = runner.get_inference_policy(device=env.unwrapped.device)
@@ -185,5 +190,6 @@ def run(argv: list[str]) -> None:
                 policy.reset(dones)
 
             screen.close()
+            # Checkpoint Ghosts: show the greyed-out HUD section that explains the flag.
             checkpoint_ghost_play.offer(env, env_cfg)
             run_playback(step, dt=env.unwrapped.step_dt, args_cli=args_cli, env_cfg=env_cfg)

@@ -67,6 +67,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         default=False,
         help="Use a slower SB3 wrapper but keep all the extra training info.",
     )
+    # Checkpoint Ghosts: overlay several checkpoints in the Newton viewer.
     checkpoint_ghost_play.add_args(parser)
     add_launcher_args(parser)
     args_cli, hydra_args = setup_preset_cli(parser, argv)
@@ -104,6 +105,7 @@ def run(argv: list[str]) -> None:
     with startup_screen(args_cli, num_stages=3) as screen:
         env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent, play_mode=not args_cli.train_env_cfg)
         pre_launch_video_config(env_cfg, args_cli)
+        # Checkpoint Ghosts: reject unsupported setups before the simulation launches.
         checkpoint_ghost_play.check(args_cli, env_cfg)
         screen.stage("Launching simulation")
         with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
@@ -119,6 +121,7 @@ def run(argv: list[str]) -> None:
                 return
             log_dir = os.path.dirname(checkpoint_path)
             env_cfg.log_dir = log_dir
+            # Checkpoint Ghosts: split --num_envs among the checkpoints; drop randomization that cannot be mirrored.
             checkpoint_ghost_play.prepare(args_cli, env_cfg)
             apply_video_recording(env_cfg, log_dir, args_cli, subdir="play")
 
@@ -134,9 +137,11 @@ def run(argv: list[str]) -> None:
 
             screen.stage("Loading policy")
             env = Sb3VecEnvWrapper(env, fast_variant=not args_cli.keep_all_info)
+            # Checkpoint Ghosts: --checkpoint is the reference; the viewer HUD adds ghosts of other checkpoints.
             if args_cli.checkpoint_ghosts:
 
                 def policy_factory(path: str):
+                    # each checkpoint has its own policy and its own normalization statistics
                     model = PPO.load(path, device=agent_cfg["device"])
                     name = Path(path).name.replace("model", "model_vecnormalize", 1).replace(".zip", ".pkl")
                     stats = Path(path).with_name(name)
@@ -189,5 +194,6 @@ def run(argv: list[str]) -> None:
                 obs, _, _, _ = env.step(actions)
 
             screen.close()
+            # Checkpoint Ghosts: show the greyed-out HUD section that explains the flag.
             checkpoint_ghost_play.offer(env, env_cfg)
             run_playback(step, dt=env.unwrapped.step_dt, args_cli=args_cli, env_cfg=env_cfg)
