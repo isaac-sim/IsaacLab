@@ -30,7 +30,7 @@ class _RecordingRenderer:
     def __init__(self):
         self.poses = []
 
-    def update_camera(self, render_data, positions, orientations, intrinsics):
+    def update_sensor(self, render_data, positions, orientations, intrinsics=None):
         self.poses.append((render_data, positions.torch.clone(), orientations.torch.clone()))
 
     def cleanup(self, render_data):

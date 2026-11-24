@@ -37,12 +37,12 @@ The following classes are part of the public :mod:`isaaclab.renderers` API.
 .. autosummary::
    :nosignatures:
 
-   CameraRenderSpec
+   SensorRenderSpec
    RenderBufferKind
    RenderBufferSpec
    RenderContext
 
-.. autoclass:: CameraRenderSpec
+.. autoclass:: SensorRenderSpec
    :show-inheritance:
 
 .. autoclass:: RenderBufferKind

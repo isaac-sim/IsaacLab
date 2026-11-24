@@ -369,7 +369,7 @@ def test_newton_rtx_scene_sky_and_background_override(tmp_path, monkeypatch, lig
         native_renderer = renderer.backend.renderer
         if lighting:
             assert renderer is camera._renderer
-        assert len(renderer._camera_render_data) == (2 if lighting else 1)
+        assert len(renderer._sensor_render_data) == (2 if lighting else 1)
         assert visualizer.current_image_view.camera.num_instances == 1
         assert len(scene.sensors) == 2
         origin = scene.env_origins[0].cpu().numpy()

@@ -3,34 +3,59 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Immutable description of a tiled camera passed to render backends."""
+"""Deprecated subclass of :class:`~isaaclab.renderers.sensor_render_spec.SensorRenderSpec`.
+
+Construct :class:`SensorRenderSpec` instead. Pass sensor prims as ``prim_paths``.
+``camera_prim_paths`` still initializes and reads that field.
+"""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-from ..sensors.camera.camera_cfg import CameraCfg
+from typing_extensions import deprecated
+
+from .sensor_render_spec import SensorRenderSpec
+
+if TYPE_CHECKING:
+    from ..sensors.camera.camera_cfg import CameraCfg
 
 
-@dataclass(frozen=True)
-class CameraRenderSpec:
-    """Stable inputs for :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.create_render_data`.
+@deprecated("CameraRenderSpec is deprecated. Use SensorRenderSpec instead.")
+class CameraRenderSpec(SensorRenderSpec):
+    """Deprecated subclass of :class:`SensorRenderSpec`.
 
-    Backends use this instead of holding a reference to the :class:`~isaaclab.sensors.camera.Camera`
-    sensor instance, avoiding circular dependencies between sensors and render data.
-
-    Args:
-        cfg: Camera configuration (data types, resolution, filters, etc.).
-        device: Torch device string (e.g. ``"cuda:0"``) used by GPU annotators and Warp.
-        num_instances: Number of tiled camera instances (environments).
-        camera_prim_paths: Absolute paths of the authored camera prims. When the renderer
-            clones environments internally, this may contain only the source camera path;
-            the renderer resolves its logical per-environment paths during registration.
-        view_count: Number of logical camera instances in the sensor view.
+    .. deprecated:: 3.1
+        Construct :class:`SensorRenderSpec` for a camera. Pass sensor prims as
+        ``prim_paths``. ``camera_prim_paths`` still initializes and reads that field.
     """
 
-    cfg: CameraCfg
-    device: str
-    num_instances: int
-    camera_prim_paths: tuple[str, ...]
-    view_count: int
+    def __init__(
+        self,
+        cfg: CameraCfg,
+        device: str,
+        num_instances: int,
+        prim_paths: tuple[str, ...] | None = None,
+        view_count: int | None = None,
+        *,
+        camera_prim_paths: tuple[str, ...] | None = None,
+    ) -> None:
+        if camera_prim_paths is not None:
+            if prim_paths is not None:
+                raise TypeError("Pass only one of 'prim_paths' and 'camera_prim_paths'.")
+            prim_paths = camera_prim_paths
+
+        # To allow camera_prim_paths to omit prim_paths, None defaults are used.
+        if prim_paths is None:
+            raise TypeError("CameraRenderSpec.__init__() missing required argument: 'prim_paths'.")
+
+        # view_count needs a default because it follows prim_paths in the function signature.
+        if view_count is None:
+            raise TypeError("CameraRenderSpec.__init__() missing required argument: 'view_count'.")
+
+        super().__init__(cfg, device, num_instances, prim_paths, view_count)
+
+    @property
+    def camera_prim_paths(self) -> tuple[str, ...]:
+        """Alias of :attr:`prim_paths`."""
+        return self.prim_paths

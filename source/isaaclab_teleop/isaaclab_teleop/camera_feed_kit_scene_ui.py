@@ -701,7 +701,7 @@ class _KitSceneUiCameraFeedPresenter:
         if getattr(render_data, "render_product", None) is None:
             raise ValueError(f"Isolated XR camera feed {camera_name!r} requires an Isaac RTX camera.")
         stage = get_current_stage()
-        for path in render_data.spec.camera_prim_paths:
+        for path in render_data.spec.prim_paths:
             prim = stage.GetPrimAtPath(path)
             partition = prim.GetAttribute("omni:scenePartition") if prim else None
             if partition and partition.Get() not in (None, ""):

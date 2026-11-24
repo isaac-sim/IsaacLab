@@ -25,7 +25,7 @@ pytestmark = [
 
 if not _MISSING_MODULES:
     from isaaclab_ov.renderers.ovrtx_usd import (  # noqa: E402
-        build_render_product_as_string,
+        build_camera_render_product_as_string,
         get_render_var_configs,
         render_var_prim_names_by_source,
         render_var_prim_paths_by_source,
@@ -34,14 +34,14 @@ if not _MISSING_MODULES:
 
     from pxr import Gf, Sdf, Usd, UsdGeom, UsdRender  # noqa: E402
 
-    from isaaclab.renderers.camera_render_spec import CameraRenderSpec  # noqa: E402
+    from isaaclab.renderers.sensor_render_spec import SensorRenderSpec  # noqa: E402
     from isaaclab.sensors.camera import CameraCfg  # noqa: E402
     from isaaclab.utils.tensor_processors import TensorProcessorCfg  # noqa: E402
 else:
     Sdf = None
     Usd = None
     UsdGeom = None
-    build_render_product_as_string = None
+    build_camera_render_product_as_string = None
     export_stage_to_string = None
     get_render_var_configs = None
     render_var_prim_names_by_source = None
@@ -57,11 +57,11 @@ def camera_spec():
         height=8,
         data_types=["rgb"],
     )
-    return CameraRenderSpec(
+    return SensorRenderSpec(
         cfg=cfg,
         device="cpu",
         num_instances=4,
-        camera_prim_paths=tuple(f"/World/envs/env_{i}/Robot/head_cam" for i in range(4)),
+        prim_paths=tuple(f"/World/envs/env_{i}/Robot/head_cam" for i in range(4)),
         view_count=4,
     )
 
@@ -71,7 +71,7 @@ def render_data(camera_spec):
     return SimpleNamespace(
         render_scope_name="RenderCamera_0",
         render_product_path="/RenderCamera_0/RenderProduct",
-        camera_paths=list(camera_spec.camera_prim_paths),
+        camera_paths=list(camera_spec.prim_paths),
         width=16,
         height=8,
         num_cols=2,
@@ -114,7 +114,7 @@ def _assert_export_omits_env_children(exported: str, env_indices: range | list[i
 
 def test_render_product_default_background_is_dome_light(camera_spec, render_data):
     """Default background (background_color=None) uses domeLight source type."""
-    render_scope = build_render_product_as_string(camera_spec, render_data, device_id=0)
+    render_scope = build_camera_render_product_as_string(camera_spec, render_data, device_id=0)
     assert 'token omni:rtx:background:source:type = "domeLight"' in render_scope
     assert "omni:rtx:background:source:color" not in render_scope
     assert 'token omni:rtx:rendermode = "RealTimePathTracing"' in render_scope
@@ -124,7 +124,7 @@ def test_render_product_default_background_is_dome_light(camera_spec, render_dat
 def test_render_product_solid_background_color(camera_spec, render_data):
     """Providing background_color emits color source type and the color attribute."""
     camera_spec.cfg.background_color = (1.0, 0.0, 0.5)
-    render_scope = build_render_product_as_string(camera_spec, render_data, device_id=0)
+    render_scope = build_camera_render_product_as_string(camera_spec, render_data, device_id=0)
     assert 'token omni:rtx:background:source:type = "color"' in render_scope
     assert "color3f omni:rtx:background:source:color = (1.0, 0.0, 0.5)" in render_scope
     assert 'token omni:rtx:background:source:type = "domeLight"' not in render_scope
@@ -155,7 +155,7 @@ def test_render_var_prim_paths_cover_every_authored_render_var(camera_spec, rend
     camera_spec.cfg.data_types = data_types
     render_data.render_scope_name = render_scope_name
     render_data.render_product_path = f"/{render_scope_name}/RenderProduct"
-    render_scope = build_render_product_as_string(camera_spec, render_data, device_id=0)
+    render_scope = build_camera_render_product_as_string(camera_spec, render_data, device_id=0)
     layer = Sdf.Layer.CreateAnonymous(".usda")
     assert layer.ImportFromString(render_scope)
     stage = Usd.Stage.Open(layer)
@@ -265,7 +265,7 @@ def test_ovrtx_simple_shading_alone_uses_ldr_color(camera_spec, render_data, dat
         ("/RenderCamera_0/Vars/LdrColor", "LdrColor", "LdrColor")
     ]
     camera_spec.cfg.data_types = [data_type]
-    usd = build_render_product_as_string(camera_spec, render_data, device_id=0, enable_shadows=enable_shadows)
+    usd = build_camera_render_product_as_string(camera_spec, render_data, device_id=0, enable_shadows=enable_shadows)
     layer = Sdf.Layer.CreateAnonymous(".usda")
     assert layer.ImportFromString(usd)
     assert layer.GetAttributeAtPath("/RenderCamera_0/RenderProduct.omni:rtx:rendermode").default == "MinimalRendering"
@@ -281,7 +281,7 @@ def test_ovrtx_hdr_processor_tonemaps_gaussian_splats(camera_spec, render_data, 
     camera_spec.cfg.data_types = ["rgb_hdr"]
     if reads_hdr:
         camera_spec.cfg.tensor_processors = [TensorProcessorCfg(inputs=["rgb_hdr"], outputs=["rgb"])]
-    usd = build_render_product_as_string(camera_spec, render_data, device_id=0, enable_shadows=False)
+    usd = build_camera_render_product_as_string(camera_spec, render_data, device_id=0, enable_shadows=False)
     layer = Sdf.Layer.CreateAnonymous(".usda")
     assert layer.ImportFromString(usd)
     attribute = layer.GetAttributeAtPath("/RenderCamera_0/RenderProduct.omni:rtx:gaussian:skipTonemapping:enabled")
@@ -297,7 +297,7 @@ def test_ovrtx_duplicate_simple_shading_data_types_collapse():
 
 def test_render_product_initially_targets_only_the_resolvable_source_camera(camera_spec, render_data):
     """Multi-environment RenderProducts initially target env zero while retaining tiled resolution."""
-    render_product = build_render_product_as_string(camera_spec, render_data, device_id=0)
+    render_product = build_camera_render_product_as_string(camera_spec, render_data, device_id=0)
 
     layer = Sdf.Layer.CreateAnonymous(".usda")
     assert layer.ImportFromString(render_product)
@@ -309,7 +309,7 @@ def test_render_product_initially_targets_only_the_resolvable_source_camera(came
 
 def test_render_product_pins_device_ids_to_the_requested_cuda_device(camera_spec, render_data):
     """``device_id`` is authored as ``deviceIds`` so OVRTX allocates buffers on the reader's device."""
-    render_product = build_render_product_as_string(camera_spec, render_data, device_id=1)
+    render_product = build_camera_render_product_as_string(camera_spec, render_data, device_id=1)
 
     layer = Sdf.Layer.CreateAnonymous(".usda")
     assert layer.ImportFromString(render_product)
@@ -329,7 +329,7 @@ def test_ovrtx_rgb_and_rgb_hdr_author_both_render_vars(camera_spec, render_data)
     ]
 
     camera_spec.cfg.data_types = ["rgb", "rgb_hdr"]
-    render_scope = build_render_product_as_string(camera_spec, render_data, device_id=0)
+    render_scope = build_camera_render_product_as_string(camera_spec, render_data, device_id=0)
 
     assert "rel orderedVars = [</RenderCamera_0/Vars/LdrColor>, </RenderCamera_0/Vars/HdrColor>]" in render_scope
     assert 'def RenderVar "LdrColor"' in render_scope
@@ -346,7 +346,7 @@ def test_ovrtx_semantic_segmentation_authors_semantic_and_id_map_render_vars(cam
     ]
 
     camera_spec.cfg.data_types = ["semantic_segmentation"]
-    render_scope = build_render_product_as_string(camera_spec, render_data, device_id=0)
+    render_scope = build_camera_render_product_as_string(camera_spec, render_data, device_id=0)
 
     assert "rel orderedVars = [</RenderCamera_0/Vars/semantic>, </RenderCamera_0/Vars/SemanticIdMap>]" in render_scope
     assert 'uniform string sourceName = "SemanticSegmentation"' in render_scope
@@ -369,7 +369,7 @@ def test_ovrtx_instance_segmentation_authors_pixel_and_map_render_vars(camera_sp
     ]
 
     camera_spec.cfg.data_types = ["instance_segmentation"]
-    render_scope = build_render_product_as_string(camera_spec, render_data, device_id=0)
+    render_scope = build_camera_render_product_as_string(camera_spec, render_data, device_id=0)
 
     assert (
         "rel orderedVars = [</RenderCamera_0/Vars/NonStableInstanceSegmentation>,"

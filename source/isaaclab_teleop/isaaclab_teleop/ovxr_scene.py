@@ -48,7 +48,7 @@ if TYPE_CHECKING:
     from isaaclab_ov.stage import OvstageBackend
 
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
-    from isaaclab.renderers.camera_render_spec import CameraRenderSpec
+    from isaaclab.renderers.sensor_render_spec import SensorRenderSpec
 
     from .ovxr_renderer import OvxrRenderer, OvxrRendererCfg
 
@@ -245,11 +245,11 @@ def _resolve_env_light_partitions(
 class _OvxrPanelRenderData:
     """One camera panel's render product, pose binding and pose buffer in the OVXR renderer's OVStage.
 
-    The fields that :func:`~isaaclab_ov.renderers.ovrtx_usd.build_render_product_as_string` reads follow
+    The fields that :func:`~isaaclab_ov.renderers.ovrtx_usd.build_camera_render_product_as_string` reads follow
     the OVRTX renderer's camera render data; a panel is one camera view.
     """
 
-    def __init__(self, spec: CameraRenderSpec, render_scope_name: str, device: str):
+    def __init__(self, spec: SensorRenderSpec, render_scope_name: str, device: str):
         """Create render data for a panel camera in its assigned render scope.
 
         Args:
@@ -259,7 +259,7 @@ class _OvxrPanelRenderData:
         """
         self.render_scope_name = render_scope_name
         self.render_product_path = f"/{render_scope_name}/RenderProduct"
-        self.camera_paths = list(spec.camera_prim_paths)
+        self.camera_paths = list(spec.prim_paths)
         self.width = spec.cfg.width
         self.height = spec.cfg.height
         self.num_cols = self.num_rows = 1

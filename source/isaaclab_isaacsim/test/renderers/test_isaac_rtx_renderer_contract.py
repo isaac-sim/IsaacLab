@@ -124,9 +124,9 @@ def test_create_render_data_uses_unique_sdf_safe_render_product_name(monkeypatch
     replicator_core_module.create = SimpleNamespace(render_product_tiled=create_tiled)
     replicator_core_module.AnnotatorRegistry = registry
 
-    # Minimal CameraRenderSpec: one rgb tiled camera is enough to exercise naming.
+    # Minimal SensorRenderSpec: one rgb tiled camera is enough to exercise naming.
     spec = SimpleNamespace(
-        camera_prim_paths=["/World/envs/env_0/Camera"],
+        prim_paths=["/World/envs/env_0/Camera"],
         device="cpu",
         cfg=SimpleNamespace(
             data_types=["rgb"],
@@ -241,7 +241,7 @@ def test_simple_shading_configures_its_render_product(
     replicator_core_module.AnnotatorRegistry = registry
 
     spec = SimpleNamespace(
-        camera_prim_paths=["/World/envs/env_0/Camera"],
+        prim_paths=["/World/envs/env_0/Camera"],
         device="cpu",
         cfg=SimpleNamespace(
             data_types=data_types,
@@ -326,7 +326,7 @@ def test_depth_only_camera_color_render_setting(monkeypatch, has_gui, expected_d
     stage.SelectPrims.return_value.GetCount.return_value = 1
     stage.GetPrimAtPath.return_value.IsA.return_value = False
     spec = SimpleNamespace(
-        camera_prim_paths=["/World/NotACamera"],
+        prim_paths=["/World/NotACamera"],
         cfg=SimpleNamespace(data_types=["depth"]),
     )
     renderer = rtx_renderer.IsaacRtxRenderer.__new__(rtx_renderer.IsaacRtxRenderer)

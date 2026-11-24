@@ -264,17 +264,17 @@ def gallery_lighting_override(renderer: str) -> Iterator[None]:
 
     import isaaclab_ov.renderers.ovrtx_renderer as ovrtx_renderer
 
-    original_builder = ovrtx_renderer.build_render_product_as_string
+    original_builder = ovrtx_renderer.build_camera_render_product_as_string
 
     def build_render_product_without_ambient_light(*args: Any, **kwargs: Any) -> str:
         render_product_usd = original_builder(*args, **kwargs)
         return override_ovrtx_ambient_light(render_product_usd)
 
-    ovrtx_renderer.build_render_product_as_string = build_render_product_without_ambient_light
+    ovrtx_renderer.build_camera_render_product_as_string = build_render_product_without_ambient_light
     try:
         yield
     finally:
-        ovrtx_renderer.build_render_product_as_string = original_builder
+        ovrtx_renderer.build_camera_render_product_as_string = original_builder
 
 
 def _create_camera_and_reset(renderer: str, create_camera: Callable[[], Any], reset_sim: Callable[[], None]) -> Any:

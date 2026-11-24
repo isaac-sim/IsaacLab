@@ -33,7 +33,7 @@ import ovstage
 import warp as wp
 from isaaclab_ov.cloner import ovstage_replicate
 from isaaclab_ov.renderers import OVRTXBackendCfg, OVRTXRendererCfg
-from isaaclab_ov.renderers.ovrtx_usd import build_render_product_as_string
+from isaaclab_ov.renderers.ovrtx_usd import build_camera_render_product_as_string
 from isaaclab_ov.stage import (
     OvstageBackendCfg,
     export_stage_to_string,
@@ -45,8 +45,8 @@ from isaaclab_ov.stage import (
 from pxr import Gf, Sdf, Usd, UsdGeom
 
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
-from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 from isaaclab.renderers.renderer_cfg import RendererCfg
+from isaaclab.renderers.sensor_render_spec import SensorRenderSpec
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.utils import configclass
 
@@ -89,7 +89,7 @@ class _OvxrLeaseState(Enum):
 class _AuxiliaryCamera:
     cfg: Any
     max_fps: float | None
-    spec: CameraRenderSpec | None = None
+    spec: SensorRenderSpec | None = None
     render_data: _OvxrPanelRenderData | None = None
     state: tuple[Any, ...] | None = None
     product_path: str | None = None
@@ -807,9 +807,9 @@ class _OvxrPanelCameras:
             raise ValueError("Auxiliary camera max_fps must be finite and positive [Hz]")
         self.cameras.append(_AuxiliaryCamera(camera_cfg, max_fps))
 
-    def for_spec(self, spec: CameraRenderSpec) -> _AuxiliaryCamera | None:
+    def for_spec(self, spec: SensorRenderSpec) -> _AuxiliaryCamera | None:
         """Return the selected camera that ``spec`` describes, or ``None`` for an ordinary camera."""
-        if not self.cameras or not spec.camera_prim_paths:
+        if not self.cameras or not spec.prim_paths:
             return None
         for camera in self.cameras:
             expected = camera.cfg
@@ -823,15 +823,15 @@ class _OvxrPanelCameras:
                 int(spec.cfg.width) == int(expected.width)
                 and int(spec.cfg.height) == int(expected.height)
                 and tuple(spec.cfg.data_types) == tuple(expected.data_types)
-                and re.fullmatch(f"(?:{pattern})(?:/camera)?", str(spec.camera_prim_paths[0])) is not None
+                and re.fullmatch(f"(?:{pattern})(?:/camera)?", str(spec.prim_paths[0])) is not None
             ):
                 # Only a matched camera is external; other specifications are not panels and are rejected.
-                if spec.num_instances != 1 or spec.view_count != 1 or len(spec.camera_prim_paths) != 1:
+                if spec.num_instances != 1 or spec.view_count != 1 or len(spec.prim_paths) != 1:
                     raise RuntimeError("An external camera requires exactly one camera view")
                 return camera
         return None
 
-    def accept(self, spec: CameraRenderSpec) -> _AuxiliaryCamera | None:
+    def accept(self, spec: SensorRenderSpec) -> _AuxiliaryCamera | None:
         """Return the selected camera for ``spec`` after recording its specification."""
         camera = self.for_spec(spec)
         if camera is None:
@@ -864,7 +864,7 @@ class _OvxrPanelCameras:
         """
         usd = self._author_schedules(usd)
         scene = self._renderer.scene
-        scheduled_paths = [camera.spec.camera_prim_paths[0] for camera in self.cameras if camera.max_fps is not None]
+        scheduled_paths = [camera.spec.prim_paths[0] for camera in self.cameras if camera.max_fps is not None]
         if not scheduled_paths:
             scene.populate(usd)
             return
@@ -939,7 +939,7 @@ class _OvxrPanelCameras:
         for camera in scheduled:
             if camera.spec is None:
                 raise RuntimeError("Native-rate auxiliary camera was not prepared")
-            path = Sdf.Path(camera.spec.camera_prim_paths[0])
+            path = Sdf.Path(camera.spec.prim_paths[0])
             if layer.GetPrimAtPath(path) is None:
                 # A camera inside a preserved reference has no spec of its own; check the composed export.
                 stage = stage or Usd.Stage.Open(layer)
@@ -1153,7 +1153,7 @@ class OvxrRenderer(BaseRenderer):
 
     # Only the session's camera panels are accepted; this renderer produces no camera images.
 
-    def create_render_data(self, spec: CameraRenderSpec) -> _OvxrPanelRenderData:
+    def create_render_data(self, spec: SensorRenderSpec) -> _OvxrPanelRenderData:
         """Reserve a camera panel that the lease selected; its product is registered when the Stage is prepared.
 
         Raises:
@@ -1170,8 +1170,8 @@ class OvxrRenderer(BaseRenderer):
             )
         if camera.render_data is not None:
             raise RuntimeError("Auxiliary camera render data already exists")
-        data = _OvxrPanelRenderData(spec, f"RenderCamera_{self.scene.next_camera_id}", self._device)
-        self.scene.next_camera_id += 1
+        data = _OvxrPanelRenderData(spec, f"RenderCamera_{self.scene.next_sensor_id}", self._device)
+        self.scene.next_sensor_id += 1
         camera.render_data = data
         self._camera_render_data.append(data)
         return data
@@ -1185,8 +1185,12 @@ class OvxrRenderer(BaseRenderer):
     def reset(self, render_data: Any, env_ids: Sequence[int] | None = None) -> None:
         """Do nothing: this renderer keeps no per-camera image state."""
 
-    def update_camera(
-        self, render_data: Any, positions: ProxyArray, orientations: ProxyArray, intrinsics: ProxyArray
+    def update_sensor(
+        self,
+        render_data: Any,
+        positions: ProxyArray,
+        orientations: ProxyArray,
+        intrinsics: ProxyArray | None = None,
     ) -> None:
         """Keep a camera panel's latest pose sample; the next scene publication writes it.
 
@@ -1350,7 +1354,7 @@ class OvxrRenderer(BaseRenderer):
             semantic=ovstage.AttributeSemantic.MATRIX,
         ).wait()
 
-    def _register_panel(self, spec: CameraRenderSpec, render_data: _OvxrPanelRenderData) -> None:
+    def _register_panel(self, spec: SensorRenderSpec, render_data: _OvxrPanelRenderData) -> None:
         """Add a camera panel's render product and pose binding to the populated Stage on the render owner."""
         scene = self.scene
         camera_paths = render_data.camera_paths
@@ -1397,7 +1401,7 @@ class OvxrRenderer(BaseRenderer):
         self.backend.render_products.add(product_path)
         render_data.resources.callback(self.backend.render_products.discard, product_path)
 
-    def _panel_product_usd(self, spec: CameraRenderSpec, render_data: _OvxrPanelRenderData) -> str:
+    def _panel_product_usd(self, spec: SensorRenderSpec, render_data: _OvxrPanelRenderData) -> str:
         """Build a panel's render product, pinned to the simulation GPU when that GPU renders.
 
         A CPU simulation, or rendering GPUs that exclude the simulation GPU, leave the product's GPU choice
@@ -1405,7 +1409,7 @@ class OvxrRenderer(BaseRenderer):
         frame.
         """
         device_id = self._warp_device.ordinal if self._warp_device.is_cuda else 0
-        usd = build_render_product_as_string(spec, render_data, device_id=device_id)
+        usd = build_camera_render_product_as_string(spec, render_data, device_id=device_id)
         if self._warp_device.is_cuda and not self._excludes_simulation_gpu():
             return usd
         # The device index above is removed with the product's only device pin.

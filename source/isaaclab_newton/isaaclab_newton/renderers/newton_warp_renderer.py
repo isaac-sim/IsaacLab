@@ -18,7 +18,7 @@ import newton
 import warp as wp
 
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
-from isaaclab.renderers.camera_render_spec import CameraRenderSpec
+from isaaclab.renderers.sensor_render_spec import SensorRenderSpec
 from isaaclab.scene_data import REQUIRES_STAGE_AND_MODEL, SceneDataFormat
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.version import has_kit
@@ -112,7 +112,7 @@ class RenderData:
     def __init__(
         self,
         model: newton.Model,
-        spec: CameraRenderSpec,
+        spec: SensorRenderSpec,
         seg_mapper: NewtonSegmentationMapper | None = None,
         renderer_cfg: NewtonWarpRendererCfg | None = None,
     ):
@@ -318,11 +318,11 @@ class NewtonWarpRenderer(BaseRenderer):
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.prepare_stage`."""
         pass
 
-    def create_render_data(self, spec: CameraRenderSpec) -> RenderData:
+    def create_render_data(self, spec: SensorRenderSpec) -> RenderData:
         """Create render data for the Newton tiled camera.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.create_render_data`."""
         if spec.cfg.spawn is None or spec.cfg.spawn.distortion is None:
-            for path in spec.camera_prim_paths:
+            for path in spec.prim_paths:
                 prim = self._sim.stage.GetPrimAtPath(path)
                 if not prim.IsValid():
                     continue
@@ -367,15 +367,17 @@ class NewtonWarpRenderer(BaseRenderer):
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_geometries`."""
         pass
 
-    def update_camera(
+    def update_sensor(
         self,
         render_data: RenderData,
         positions: ProxyArray,
         orientations: ProxyArray,
-        intrinsics: ProxyArray,
+        intrinsics: ProxyArray | None = None,
     ):
         """Update camera poses and initialize the ray field on first use.
-        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_camera`."""
+        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_sensor`."""
+        if intrinsics is None:
+            raise NotImplementedError(f"{type(self).__name__} does not support lidar pose updates.")
         render_data.update(positions, orientations, intrinsics)
 
     def update_camera_intrinsics(self, render_data: RenderData, intrinsics: wp.array, parameters: wp.array):

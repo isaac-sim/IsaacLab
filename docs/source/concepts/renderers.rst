@@ -488,12 +488,12 @@ For RTX renderer settings, see
 
 .. _renderer-camera-batching:
 
-Batching camera renders
+Batching sensor renders
 -----------------------
 
 :meth:`~isaaclab.renderers.BaseRenderer.render_batch` accepts a sequence of render-data objects
-owned by the same renderer. Prepare the camera poses, intrinsics, and shared scene state before
-rendering, then read each camera's output. An empty sequence performs no rendering.
+owned by the same renderer. Prepare sensor poses and shared scene state before rendering, then
+read each sensor's output. An empty sequence performs no rendering.
 
 .. code-block:: python
 
@@ -509,9 +509,9 @@ products together but publishes only the requested cameras' observations.
 With eager sensor updates (``scene.cfg.lazy_sensor_update=False``), ``scene.update()`` advances
 sensor clocks in scene order and collects batch-capable sensors. After the loop, the camera
 batch implementation prepares the remaining due captures for submission.
-:meth:`~isaaclab.renderers.RenderContext.render_into_cameras` groups these requests by renderer
-instance, renders each group, and reads its outputs. The context does not retain a pending-camera
-queue. Each camera retains its own update period and reset state.
+:meth:`~isaaclab.renderers.RenderContext.render_into_sensors` groups these requests by renderer
+instance, renders each group, and reads its outputs. The context does not retain a pending-sensor
+queue. Each sensor retains its own update period and reset state.
 
 With lazy sensor updates, reading a camera's ``data`` refreshes only that camera's sensor buffers
 and capture timestamps. It does not refresh peer camera sensors sharing the renderer.
