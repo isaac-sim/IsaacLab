@@ -366,8 +366,11 @@ def hybrid_gaze_turns_the_head_onto_the_fixation(backend: tuple):
         assert float(term.state[0, 1]) == pytest.approx(3 * term.cfg.step_size, abs=0.005)
 
         env.reset()
-        assert not term.joint_targets.any()
         assert not camera.gaze_angles.torch.any()
         assert not term.state.any()
+        # From the reset, a step without gaze commands the rig to stay at its default pose.
+        env.step(torch.zeros_like(pan_left))
+        targets = rig.data.joint_pos_target.torch[0, joints]
+        torch.testing.assert_close(targets, torch.zeros_like(targets), atol=1e-3, rtol=0)
     finally:
         env.close()

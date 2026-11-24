@@ -135,17 +135,19 @@ observe it, and :class:`~mdp.gaze_teacher_labels` for optional supervision.
 Gaze modes
 ----------
 
-:attr:`~mdp.GazeActionCfg.mode` sets what the gaze actions turn:
+:attr:`~mdp.GazeActionCfg.mode` sets what the gaze actions turn, two (tilt, pan) actions in every mode but dual gaze:
 
-* ``"software"`` (the default): the retina, inside a camera that does not turn.
+* ``"software"`` (the default): the retina, relative to the camera's optical axis. The camera itself may move, for
+  example on a robot's head, with ``mount="tracked"``.
 * ``"physical"``: the joints of a rig that carries the camera. Each action steps the joint targets.
 * ``"hybrid"``: the retina at once, while the rig turns the camera after it by at most
   :attr:`~mdp.GazeRigCfg.max_step_deg` per step. The fixation holds in the world as the head takes over, so the
   camera ends up pointing where it looks.
 * ``"dual"`` (experimental): four actions that move the rig's joints and then the retina independently.
 
-The rig modes need a :class:`~mdp.GazeRigCfg`, which names the articulation and its pan and tilt joints, and
-``mount="tracked"`` (Newton or OVRTX). :data:`~assets.PAN_TILT_CFG` is a two-joint pan-tilt mount:
+The rig modes need a :class:`~mdp.GazeRigCfg`, which names the articulation and its pan and tilt joints,
+``mount="tracked"`` (Newton or OVRTX), and a camera without image roll. :data:`~assets.PAN_TILT_CFG` is a two-joint
+pan-tilt mount:
 
 .. code-block:: python
 
@@ -162,7 +164,8 @@ The rig modes need a :class:`~mdp.GazeRigCfg`, which names the articulation and 
    )
    gaze = GazeActionCfg(asset_name="eye", mode="hybrid", mount="tracked", rig=GazeRigCfg(asset_name="rig"))
 
-With a rig, :func:`~mdp.gaze_state` reports the head's angles plus the software gaze.
+With a rig, :func:`~mdp.gaze_state` reports the fixation's direction from the rig's zero pose: the head's turn
+composed with the software gaze.
 
 .. figure:: ../_static/overview/sensors/foveated_camera_gaze_modes.jpg
    :alt: Pan angles over time for the four gaze modes, with the camera's images before, during and after.

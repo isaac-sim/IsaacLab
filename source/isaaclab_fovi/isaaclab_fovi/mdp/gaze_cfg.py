@@ -34,6 +34,15 @@ class GazeRigCfg:
     max_step_deg: float = 6.0
     """Largest change of each joint target per step in hybrid gaze [deg]: how fast the head catches up."""
 
+    def validate_config(self):
+        """Reject a rig without two distinct joints, a sign of 1 or -1 for each, and a positive, finite step."""
+        if not _positive_finite(self.max_step_deg):
+            raise ValueError(f"GazeRigCfg.max_step_deg must be positive and finite, got {self.max_step_deg!r}.")
+        if len(self.joint_names) != 2 or len(set(self.joint_names)) != 2:
+            raise ValueError(f"GazeRigCfg.joint_names must name two joints, got {self.joint_names!r}.")
+        if len(self.joint_signs) != 2 or any(sign not in (-1.0, 1.0) for sign in self.joint_signs):
+            raise ValueError(f"GazeRigCfg.joint_signs must be two signs, each 1 or -1, got {self.joint_signs!r}.")
+
 
 @configclass
 class GazeActionCfg(ActionTermCfg):
@@ -72,12 +81,7 @@ class GazeActionCfg(ActionTermCfg):
             raise ValueError(f"GazeActionCfg.mode={self.mode!r} moves the camera's mount; set mount='tracked'.")
         if self.random_reset:
             raise ValueError("GazeActionCfg.random_reset applies only to software gaze.")
-        if not _positive_finite(self.rig.max_step_deg):
-            raise ValueError(f"GazeRigCfg.max_step_deg must be positive and finite, got {self.rig.max_step_deg!r}.")
-        if len(self.rig.joint_names) != 2 or len(set(self.rig.joint_names)) != 2:
-            raise ValueError(f"GazeRigCfg.joint_names must name two joints, got {self.rig.joint_names!r}.")
-        if any(sign not in (-1.0, 1.0) for sign in self.rig.joint_signs):
-            raise ValueError(f"GazeRigCfg.joint_signs must each be 1 or -1, got {self.rig.joint_signs!r}.")
+        self.rig.validate_config()
 
 
 def _positive_finite(value) -> bool:

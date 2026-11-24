@@ -5,6 +5,6 @@
 
 """Assets for physical gaze: a pan-tilt camera mount."""
 
-from .pan_tilt import PAN_TILT_CAMERA_OFFSET, PAN_TILT_CFG, PAN_TILT_USD_PATH
+from isaaclab.utils.module import lazy_export
 
-__all__ = ["PAN_TILT_CAMERA_OFFSET", "PAN_TILT_CFG", "PAN_TILT_USD_PATH"]
+lazy_export()
