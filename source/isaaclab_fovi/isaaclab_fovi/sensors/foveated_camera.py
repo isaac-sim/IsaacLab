@@ -12,11 +12,11 @@ import io
 import math
 import warnings
 from collections.abc import Mapping, Sequence
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple
 
 import torch
 import warp as wp
-from fovi.sensing.coords import WARPED_CARTESIAN_STYLES
+from fovi.sensing.coords import WARPED_CARTESIAN_STYLES, SamplingCoords
 from fovi.sensing.projection import CameraModel
 
 from isaaclab.sensors.camera.camera import Camera
@@ -56,17 +56,32 @@ OPENGL_TO_ROS_AXES = (1.0, -1.0, -1.0)
 """Axis signs between OpenGL camera-frame directions (x right, y up, -z forward) and ROS ones (x right, y down)."""
 
 
-def fixed_count_style(style: str) -> bool:
+class _Retina(NamedTuple):
+    """One CMF constant's retina, cached by :meth:`FoveatedCamera.set_cmf_a`."""
+
+    coords: SamplingCoords
+    """Sampling coordinates on the sensor device."""
+    coords_highres: SamplingCoords | None
+    """High-resolution ray coordinates, when the retina pools them."""
+    rays: torch.Tensor
+    """Rendered rays in the ROS camera frame, shape (N, 3)."""
+    render_rays: Any
+    """The renderer's form of :attr:`rays`, from :meth:`FoveatedCamera._render_rays`."""
+    pooler: Any
+    """The pooler of :attr:`coords`, or None."""
+
+
+def _fixed_count_style(style: str) -> bool:
     """Whether a sampling style keeps its sample count for every CMF constant: the warped-Cartesian styles, whose
     count is the grid's, and the ``_fixn`` isotropic ones, which fix it."""
     return style in WARPED_CARTESIAN_STYLES or "fixn" in style
 
 
-def runtime_cmf_a_limitation(camera: FoveatedCamera) -> str:
+def _runtime_cmf_a_limitation(camera: FoveatedCamera) -> str:
     """Why ``camera`` cannot change its CMF constant at runtime, for messages and the viewer panel."""
     if not camera._renders_switchable_rays:
         return "OVRTX and Isaac RTX read the retina's lens textures once, when the renderer loads the stage"
-    if not fixed_count_style(camera.cfg.foveated_style):
+    if not _fixed_count_style(camera.cfg.foveated_style):
         return f"a {camera.cfg.foveated_style!r} retina's sample count depends on cmf_a"
     return "the retina can change its cmf_a at runtime"
 
@@ -145,7 +160,7 @@ class FoveatedCamera(Camera):
         self._segmentation_neighbors: torch.Tensor | None = None
         self._sensor_fov_valid: torch.Tensor | None = None
         self._pooler = None
-        self._retinas: dict[float, tuple] = {}
+        self._retinas: dict[float, _Retina] = {}
         """Retinas built for :meth:`set_cmf_a`, by CMF constant."""
         self.mount_turns = 0
         """How many times :meth:`set_world_poses` or :meth:`set_world_poses_from_view` has turned the camera's mount."""
@@ -224,7 +239,7 @@ class FoveatedCamera(Camera):
     def supports_runtime_cmf_a(self) -> bool:
         """Whether :meth:`set_cmf_a` can change this camera's foveation while it runs: on Newton, for retinas whose
         sample count does not depend on the CMF constant (the warped-Cartesian and ``_fixn`` isotropic styles)."""
-        return self._renders_switchable_rays and fixed_count_style(self.cfg.foveated_style)
+        return self._renders_switchable_rays and _fixed_count_style(self.cfg.foveated_style)
 
     def set_gaze_angles(self, angles_deg: torch.Tensor) -> None:
         """Turn the retina to (tilt, pan) [deg] from the physical camera's optical axis.
@@ -330,26 +345,27 @@ class FoveatedCamera(Camera):
         if not self.is_initialized:
             raise RuntimeError("Initialize the foveated camera (reset the simulation) before changing its cmf_a.")
         if not self.supports_runtime_cmf_a:
-            raise NotImplementedError(runtime_cmf_a_limitation(self))
+            raise NotImplementedError(_runtime_cmf_a_limitation(self))
         cmf_a_deg = float(cmf_a_deg)
         if cmf_a_deg == self.cfg.cmf_a_deg:
             return
         if not self._retinas:
             rays = self._gaze_rays.clone()
-            self._retinas[self.cfg.cmf_a_deg] = (
-                self._sampling_coords,
-                self._sampling_coords_highres,
-                rays,
-                self._render_rays(rays),
-                self._pooler,
+            self._retinas[self.cfg.cmf_a_deg] = _Retina(
+                self._sampling_coords, self._sampling_coords_highres, rays, self._render_rays(rays), self._pooler
             )
         if cmf_a_deg not in self._retinas:
             self._retinas[cmf_a_deg] = self._build_retina(cmf_a_deg)
-        self._sampling_coords, self._sampling_coords_highres, rays, render_rays, self._pooler = self._retinas[cmf_a_deg]
+        retina = self._retinas[cmf_a_deg]
+        self._sampling_coords, self._sampling_coords_highres, self._pooler = (
+            retina.coords,
+            retina.coords_highres,
+            retina.pooler,
+        )
         self._ray_coords = self._sampling_coords_highres or self._sampling_coords
         # The sensor mask, the grid layout and the renderer read the rays in place, so they follow without new launches.
-        self._gaze_rays.copy_(rays)
-        self._write_render_rays(render_rays)
+        self._gaze_rays.copy_(retina.rays)
+        self._write_render_rays(retina.render_rays)
         if self._segmentation_neighbors is not None:
             self._prepare_segmentation_pooling(["semantic_segmentation"])
         self.cfg.cmf_a_deg = cmf_a_deg
@@ -413,7 +429,7 @@ class FoveatedCamera(Camera):
             rays = retinal_directions(coords.cartesian, coords.fov, rotation_deg)
         return (rays * rays.new_tensor(OPENGL_TO_ROS_AXES)).float().contiguous()
 
-    def _build_retina(self, cmf_a_deg: float) -> tuple:
+    def _build_retina(self, cmf_a_deg: float) -> _Retina:
         """The retina at ``cmf_a_deg``: its coordinates on the sensor device, its rays, the renderer's copy of them,
         and its pooler."""
         cfg = self.cfg.replace(cmf_a_deg=cmf_a_deg)
@@ -427,20 +443,20 @@ class FoveatedCamera(Camera):
             ray_coords.valid_mask, self._ray_coords.valid_mask
         ):
             raise NotImplementedError(
-                f"cmf_a {cmf_a_deg:g} changes this retina's samples; {runtime_cmf_a_limitation(self)}"
+                f"cmf_a {cmf_a_deg:g} changes this retina's samples; {_runtime_cmf_a_limitation(self)}"
             )
         pooler, _ = build_pooler(cfg, lowres, highres, device=str(self._device))
         rays = self._retina_rays(ray_coords)
-        return lowres, highres, rays, self._render_rays(rays), pooler
+        return _Retina(lowres, highres, rays, self._render_rays(rays), pooler)
 
-    def _render_rays(self, rays: torch.Tensor):
+    def _render_rays(self, rays: torch.Tensor) -> Any:
         """The renderer's form of ``rays`` (ROS frame), which :meth:`_write_render_rays` hands it; only renderers that
         trace the camera's rays support it."""
-        raise NotImplementedError(runtime_cmf_a_limitation(self))
+        raise NotImplementedError(_runtime_cmf_a_limitation(self))
 
-    def _write_render_rays(self, render_rays) -> None:
+    def _write_render_rays(self, render_rays: Any) -> None:
         """Hand the renderer rays made by :meth:`_render_rays`."""
-        raise NotImplementedError(runtime_cmf_a_limitation(self))
+        raise NotImplementedError(_runtime_cmf_a_limitation(self))
 
     def _allocate_gaze(self) -> None:
         """Allocate one stored gaze per camera, on the optical axis, its rotation and the mount, on the sensor

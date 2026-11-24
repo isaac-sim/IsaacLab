@@ -644,12 +644,14 @@ def test_viewer_gaze_sliders_follow_and_set_the_gaze_in_newton_windows() -> None
     assert ("Gaze tilt", -30.0) in imgui.shown and ("Gaze pan", 40.0) in imgui.shown and not camera.written
     # Two cameras' sections open different ID scopes, so their same-named widgets stay apart.
     other, other_camera = _Imgui(), _SliderCamera(num_envs=1)
-    ViewerGazeControls(other_camera)._render_callback(newton)(other)
+    ViewerGazeControls(other_camera)._render(other)
     assert imgui.scopes and other.scopes and imgui.scopes != other.scopes
-    # Moving one sets that gaze in every environment and redraws the window's camera view.
+    # Moving one sets that gaze in every environment and redraws the camera view of every window, even another one.
+    second = _visualizer("newton")
+    controls.attach(SimpleNamespace(visualizers=[newton, second]))
     render(_Imgui(sliders=[(True, 20.0), (False, -10.0)]))
     assert torch.equal(camera.written[-1], torch.tensor([[20.0, -10.0]]).repeat(3, 1))
-    assert newton.current_image_view.invalidated == 1
+    assert newton.current_image_view.invalidated == 1 and second.current_image_view.invalidated == 1
     render(_Imgui(button=True))
     assert not camera.written[-1].any()
 

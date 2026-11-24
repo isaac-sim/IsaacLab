@@ -60,7 +60,7 @@ from isaaclab.utils.math import (
     quat_apply_inverse,
     quat_from_matrix,
 )
-from isaaclab.visualizers import SceneCameraCfg, VisualizerCfg
+from isaaclab.visualizers import BaseVisualizer, SceneCameraCfg, VisualizerCfg
 
 from isaaclab_tasks.utils import preset, setup_preset_cli
 from isaaclab_tasks.utils.hydra import resolve_task_config
@@ -384,69 +384,6 @@ def cover_view_with_comparison():
     return cover
 
 
-class GazeSteering:
-    """Steer the eye's gaze with the mouse and I/J/K/L.
-
-    Left-dragging the viewer steers only the gaze, as I/J/K/L and the side panel's sliders do; a drag that starts over
-    the viewer's panels stays with them. The viewer itself moves the eye's mount with WASD/QE.
-    """
-
-    DRAG_DEG_PER_PIXEL = 0.15
-    GAZE_LIMIT_DEG = 85.0
-
-    def __init__(self, camera: FoveatedCamera, visualizers: list):
-        self.camera = camera
-        self.visualizers = visualizers
-        self.angles = torch.zeros_like(camera.gaze_angles.torch)
-        self.drag = [0.0, 0.0]
-        self.press_over_panel = False
-        for visualizer in visualizers:
-            window = getattr(newton_window(visualizer), "renderer", None)
-            native = getattr(window, "window", None)
-            if native is not None:
-                native.push_handlers(on_mouse_press=self._on_mouse_press, on_mouse_drag=self._on_mouse_drag)
-
-    def steer(self, tilt_deg: float, pan_deg: float) -> None:
-        """Turn the gaze by (tilt, pan) [deg], starting from wherever the sliders or a drag left it."""
-        # Dragging right looks right (negative pan); dragging up looks up.
-        pan_deg -= self.drag[0] * self.DRAG_DEG_PER_PIXEL
-        tilt_deg += self.drag[1] * self.DRAG_DEG_PER_PIXEL
-        self.drag = [0.0, 0.0]
-        if not tilt_deg and not pan_deg:
-            return
-        self.angles.copy_(self.camera.gaze_angles.torch)
-        step = self.angles.new_tensor((tilt_deg, pan_deg))
-        self.angles.copy_((self.angles + step).clamp(-self.GAZE_LIMIT_DEG, self.GAZE_LIMIT_DEG))
-        self.camera.set_gaze_angles(self.angles)
-        for visualizer in self.visualizers:
-            # The viewer shows the eye; a new gaze redraws it even while paused.
-            visualizer.current_image_view.invalidate()
-
-    def _on_mouse_press(self, x, y, button, modifiers):
-        """Decide where a press's drag goes: inside the comparison image or on the bare view it steers the gaze; on any
-        other panel, or on the comparison window's title bar or edges, it stays with the panel."""
-        from imgui_bundle import imgui
-        from pyglet import event
-
-        self.press_over_panel = imgui.get_io().want_capture_mouse
-        if self.press_over_panel and comparison_image_hovered(imgui):
-            self.press_over_panel = False
-            # Keep ImGui from taking the press, which would drag the window instead of the gaze.
-            return event.EVENT_HANDLED
-        return None
-
-    def _on_mouse_drag(self, x, y, dx, dy, buttons, modifiers):
-        """Collect left drags that started on the view."""
-        from pyglet import event
-        from pyglet.window import mouse
-
-        if not buttons & mouse.LEFT or self.press_over_panel:
-            return None
-        self.drag[0] += dx
-        self.drag[1] += dy
-        return event.EVENT_HANDLED
-
-
 def main() -> None:
     """Render the docs scene and let the viewer drive the camera."""
     # Config-only registration reuses the standard preset and Hydra override resolver.
@@ -536,6 +473,72 @@ def main() -> None:
                 # Without a viewer, explicitly request sensor data to render the frame.
                 _ = camera.data
             frame += 1
+
+
+class GazeSteering:
+    """Steer the eye's gaze with the mouse and I/J/K/L.
+
+    Left-dragging the viewer steers only the gaze, as I/J/K/L and the side panel's sliders do; a drag that starts over
+    the viewer's panels stays with them. The viewer itself moves the eye's mount with WASD/QE.
+    """
+
+    DRAG_DEG_PER_PIXEL = 0.15
+    GAZE_LIMIT_DEG = 85.0
+
+    def __init__(self, camera: FoveatedCamera, visualizers: list[BaseVisualizer]) -> None:
+        self.camera = camera
+        self.visualizers = visualizers
+        self.drag = [0.0, 0.0]
+        self.press_over_panel = False
+        for visualizer in visualizers:
+            window = getattr(newton_window(visualizer), "renderer", None)
+            native = getattr(window, "window", None)
+            if native is not None:
+                native.push_handlers(on_mouse_press=self._on_mouse_press, on_mouse_drag=self._on_mouse_drag)
+
+    def steer(self, tilt_deg: float, pan_deg: float) -> None:
+        """Turn the gaze by (tilt, pan) [deg], starting from wherever the sliders or a drag left it."""
+        # Dragging right looks right (negative pan); dragging up looks up.
+        pan_deg -= self.drag[0] * self.DRAG_DEG_PER_PIXEL
+        tilt_deg += self.drag[1] * self.DRAG_DEG_PER_PIXEL
+        self.drag = [0.0, 0.0]
+        if not tilt_deg and not pan_deg:
+            return
+        # The camera's stored angles are writable; set_gaze_angles then publishes them.
+        gaze = self.camera.gaze_angles.torch
+        gaze.add_(gaze.new_tensor((tilt_deg, pan_deg))).clamp_(-self.GAZE_LIMIT_DEG, self.GAZE_LIMIT_DEG)
+        self.camera.set_gaze_angles(gaze)
+        for visualizer in self.visualizers:
+            # The viewer shows the eye; a new gaze redraws it even while paused.
+            visualizer.current_image_view.invalidate()
+
+    def _on_mouse_press(self, x: int, y: int, button: int, modifiers: int) -> bool | None:
+        """Decide where a left press's drag goes: inside the comparison image or on the bare view it steers the gaze;
+        on any other panel, or on the comparison window's title bar or edges, it stays with the panel. Other buttons
+        keep their usual handling."""
+        from imgui_bundle import imgui
+        from pyglet import event
+        from pyglet.window import mouse
+
+        if button != mouse.LEFT:
+            return None
+        self.press_over_panel = imgui.get_io().want_capture_mouse
+        if self.press_over_panel and comparison_image_hovered(imgui):
+            self.press_over_panel = False
+            # Keep ImGui from taking the press, which would drag the window instead of the gaze.
+            return event.EVENT_HANDLED
+        return None
+
+    def _on_mouse_drag(self, x: int, y: int, dx: int, dy: int, buttons: int, modifiers: int) -> bool | None:
+        """Collect left drags that started on the view."""
+        from pyglet import event
+        from pyglet.window import mouse
+
+        if not buttons & mouse.LEFT or self.press_over_panel:
+            return None
+        self.drag[0] += dx
+        self.drag[1] += dy
+        return event.EVENT_HANDLED
 
 
 if __name__ == "__main__":

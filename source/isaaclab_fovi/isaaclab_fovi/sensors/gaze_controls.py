@@ -8,10 +8,7 @@
 from __future__ import annotations
 
 import weakref
-from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
-
-import torch
 
 from isaaclab.sim import SimulationContext
 
@@ -31,52 +28,46 @@ class ViewerGazeControls:
     gaze action or a drag in the viewer. Moving one sets that gaze in every environment; a gaze action that sets the
     gaze every step overrides them. The foveation slider steps through :attr:`FoveatedCameraCfg.viewer_cmf_a_values`
     and the camera's starting CMF constant where :meth:`FoveatedCamera.set_cmf_a` can change the retina, and otherwise
-    shows the CMF constant and why it is fixed.
+    shows the CMF constant and why it is fixed. A change in any window redraws the camera view of every window.
     """
 
     def __init__(self, camera: FoveatedCamera):
-        """Create the sliders for ``camera``, which they hold weakly: once it is gone, they draw nothing."""
+        """Create the sliders for ``camera``, which they hold weakly: once it is gone, they draw nothing.
+
+        The viewer cannot unregister a UI callback, so each window keeps a callback that then returns at once.
+        """
         self._camera = weakref.ref(camera)
         self._label = camera.cfg.prim_path.rsplit("/", 1)[-1]
         self._cmf_a_values = sorted(
             {float(value) for value in camera.cfg.viewer_cmf_a_values} | {float(camera.cfg.cmf_a_deg)}
         )
         """The foveation slider's CMF constants [deg]; the starting one stays an option after a switch."""
-        self._attached: set[int] = set()
-        self._angles: torch.Tensor | None = None
-
-    def detach(self) -> None:
-        """Release the gaze buffer once the camera is gone; the windows' callbacks then draw nothing.
-
-        The viewer cannot unregister a UI callback, so each window keeps a callback that returns at once.
-        """
-        self._angles = None
+        self._windows: list[BaseVisualizer] = []
+        """The Newton viewer windows that show the controls."""
 
     def attach(self, sim: SimulationContext) -> None:
         """Add the sliders to every Newton viewer window of ``sim`` that does not show them yet."""
         for visualizer in sim.visualizers:
-            if visualizer.cfg.backend.visualizer_type == "newton" and id(visualizer) not in self._attached:
-                self._attached.add(id(visualizer))
-                visualizer.register_ui_callback(self._render_callback(visualizer), position="side")
+            if visualizer.cfg.backend.visualizer_type == "newton" and all(
+                window is not visualizer for window in self._windows
+            ):
+                self._windows.append(visualizer)
+                visualizer.register_ui_callback(self._render, position="side")
 
-    def _render_callback(self, visualizer: BaseVisualizer) -> Callable[[Any], None]:
-        """Return the ImGui callback that draws the sliders in one window."""
+    def _render(self, imgui: Any) -> None:
+        """Draw the controls in the side panel of one window."""
+        camera = self._camera()
+        if camera is None or not camera.is_initialized:
+            return
+        # Each camera's widgets share labels, so they need their own ID scope; a header does not open one.
+        imgui.push_id(f"isaaclab_fovi.viewer_gaze_controls.{id(self)}")
+        try:
+            if imgui.collapsing_header(f"Foveated camera: {self._label}"):
+                self._draw_controls(imgui, camera)
+        finally:
+            imgui.pop_id()
 
-        def render(imgui: Any) -> None:
-            camera = self._camera()
-            if camera is None or not camera.is_initialized:
-                return
-            # Each camera's widgets share labels, so they need their own ID scope; a header does not open one.
-            imgui.push_id(f"isaaclab_fovi.viewer_gaze_controls.{id(self)}")
-            try:
-                if imgui.collapsing_header(f"Foveated camera: {self._label}"):
-                    self._draw_controls(imgui, camera, visualizer)
-            finally:
-                imgui.pop_id()
-
-        return render
-
-    def _draw_controls(self, imgui: Any, camera: FoveatedCamera, visualizer: BaseVisualizer) -> None:
+    def _draw_controls(self, imgui: Any, camera: FoveatedCamera) -> None:
         """Draw the gaze sliders, the center button and the foveation control."""
         tilt, pan = camera.gaze_angles.torch[0].tolist()
         tilt_changed, tilt = imgui.slider_float("Gaze tilt", tilt, -GAZE_LIMIT_DEG, GAZE_LIMIT_DEG, "%.1f deg")
@@ -85,18 +76,22 @@ class ViewerGazeControls:
             imgui.set_tooltip("Positive tilt looks up, positive pan looks left. A gaze action overrides these.")
         center = imgui.button("Center gaze")
         if tilt_changed or pan_changed or center:
-            self._set_gaze(camera, (0.0, 0.0) if center else (tilt, pan), visualizer)
-        self._draw_foveation(imgui, camera, visualizer)
+            # The camera's stored angles are writable; set_gaze_angles then publishes them.
+            gaze = camera.gaze_angles.torch
+            gaze[:] = gaze.new_tensor((0.0, 0.0) if center else (tilt, pan))
+            camera.set_gaze_angles(gaze)
+            self._redraw()
+        self._draw_foveation(imgui, camera)
 
-    def _draw_foveation(self, imgui: Any, camera: FoveatedCamera, visualizer: BaseVisualizer) -> None:
+    def _draw_foveation(self, imgui: Any, camera: FoveatedCamera) -> None:
         """Draw the CMF constant: a slider over the configured values, or the fixed value and why it is fixed."""
-        from .foveated_camera import runtime_cmf_a_limitation  # The camera module imports this one.
+        from .foveated_camera import _runtime_cmf_a_limitation  # The camera module imports this one.
 
         current = float(camera.cfg.cmf_a_deg)
         if not camera.supports_runtime_cmf_a:
             imgui.text(f"Foveation: cmf_a {current:g} deg (fixed)")
             if imgui.is_item_hovered():
-                imgui.set_tooltip(f"Fixed because {runtime_cmf_a_limitation(camera)}.")
+                imgui.set_tooltip(f"Fixed because {_runtime_cmf_a_limitation(camera)}.")
             return
         values = self._cmf_a_values if current in self._cmf_a_values else sorted({*self._cmf_a_values, current})
         index = values.index(current)
@@ -105,20 +100,14 @@ class ViewerGazeControls:
             imgui.set_tooltip("Smaller cmf_a concentrates the samples at the fixation; larger spreads them evenly.")
         if changed and values[index] != current:
             camera.set_cmf_a(values[index])
-            view = getattr(visualizer, "current_image_view", None)
+            self._redraw()
+
+    def _redraw(self) -> None:
+        """Redraw the camera view of every window, which shows the change even while paused."""
+        for window in self._windows:
+            view = getattr(window, "current_image_view", None)
             if view is not None:
                 view.invalidate()
-
-    def _set_gaze(self, camera: FoveatedCamera, angles: tuple[float, float], visualizer: BaseVisualizer) -> None:
-        """Set ``angles`` [deg] in every environment and redraw the window's camera view, even while paused."""
-        gaze = camera.gaze_angles.torch
-        if self._angles is None or self._angles.shape != gaze.shape:
-            self._angles = torch.empty_like(gaze)
-        self._angles[:] = torch.tensor(angles, device=gaze.device)
-        camera.set_gaze_angles(self._angles)
-        view = getattr(visualizer, "current_image_view", None)
-        if view is not None:
-            view.invalidate()
 
 
 def add_viewer_gaze_controls(camera: FoveatedCamera) -> None:
@@ -126,10 +115,4 @@ def add_viewer_gaze_controls(camera: FoveatedCamera) -> None:
     controls = ViewerGazeControls(camera)
     name = f"isaaclab_fovi.viewer_gaze_controls.{id(controls)}"
     SimulationContext.add_reset_callback(name, controls.attach)
-    weakref.finalize(camera, _forget_controls, name, controls)
-
-
-def _forget_controls(name: str, controls: ViewerGazeControls) -> None:
-    """Stop adding a collected camera's controls on reset and release their buffers."""
-    SimulationContext.remove_reset_callback(name)
-    controls.detach()
+    weakref.finalize(camera, SimulationContext.remove_reset_callback, name)
