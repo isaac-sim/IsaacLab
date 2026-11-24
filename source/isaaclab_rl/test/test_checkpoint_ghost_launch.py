@@ -114,3 +114,15 @@ def test_an_ordinary_curriculum_term_is_accepted():
     play_rsl_rl._validate_checkpoint_ghosts(
         SimpleNamespace(), _env_cfg(SimpleNamespace(visualizer_type="newton"), curriculum=curriculum)
     )
+
+
+def test_checkpoint_selectors_pass_the_library_and_agent_to_the_resolver(monkeypatch):
+    resolver = Mock(return_value="/runs/model_5.pt")
+    monkeypatch.setattr(play_rsl_rl, "resolve_checkpoint_selector", resolver)
+    args = SimpleNamespace(checkpoint="latest", task="Isaac-Reach-Franka", agent="rsl_rl_cfg_entry_point")
+
+    path = play_rsl_rl._resolve_checkpoint(args, Mock(), Mock(), "/logs/rsl_rl/reach_franka")
+
+    assert path == "/runs/model_5.pt"
+    assert resolver.call_args.kwargs["library"] == "rsl_rl"
+    assert resolver.call_args.kwargs["metadata"] == {"agent": "rsl_rl_cfg_entry_point"}

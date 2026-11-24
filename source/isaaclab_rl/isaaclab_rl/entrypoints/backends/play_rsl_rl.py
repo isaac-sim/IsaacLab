@@ -122,8 +122,10 @@ def _resolve_checkpoint(
         return resolve_checkpoint_selector(
             log_root_path,
             args_cli.checkpoint,
+            library="rsl_rl",
             task=normalize_task_name(args_cli.task),
             checkpoint_pattern=r"model_.*\.pt",
+            metadata={"agent": args_cli.agent},
         )
     if args_cli.checkpoint and os.path.isdir(args_cli.checkpoint):
         return get_checkpoint_path(

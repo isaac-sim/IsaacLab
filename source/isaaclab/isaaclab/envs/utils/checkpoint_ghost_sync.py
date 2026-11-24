@@ -74,8 +74,9 @@ class CheckpointGhostSync:
     def configure_env_cfg(env_cfg: ManagerBasedRLEnvCfg) -> list[str]:
         """Remove per-environment randomization that cannot be mirrored between slices.
 
-        Startup and interval events, curriculum terms, and observation corruption are disabled. Reset events
-        are kept because the reference's reset state is copied to the ghosts.
+        Startup and interval events, reset events that randomize physics parameters (``randomize_*``), curriculum terms,
+        and observation corruption are disabled. The other reset events are kept because the reference's reset state is
+        copied to the ghosts.
 
         Args:
             env_cfg: Environment config to modify in place.
@@ -89,7 +90,15 @@ class CheckpointGhostSync:
             getattr(env_cfg, name, None) for name in ("events", "curriculum", "observations")
         )
         for name, term in vars(events).items() if events is not None else ():
-            if term is not None and getattr(term, "mode", None) in ("startup", "interval"):
+            if term is None:
+                continue
+            mode = getattr(term, "mode", None)
+            # A reset event that draws physics parameters (mass, friction, gains) per environment cannot be
+            # mirrored, since the scene state copied to a ghost does not carry them. Pose resets are mirrored.
+            randomizes = mode == "reset" and getattr(getattr(term, "func", None), "__name__", "").startswith(
+                "randomize_"
+            )
+            if mode in ("startup", "interval") or randomizes:
                 setattr(events, name, None)
                 removed.append(f"events.{name}")
         for name, term in vars(curriculum).items() if curriculum is not None else ():

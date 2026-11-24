@@ -269,3 +269,29 @@ def test_close_puts_the_ghost_environments_back_on_their_own_terrain() -> None:
 
     assert torch.equal(env.scene.terrain.env_origins, original)
     assert torch.equal(env.scene.terrain.terrain_levels, torch.arange(NUM_ENVS))
+
+
+def test_configure_env_cfg_also_disables_reset_events_that_randomize_physics() -> None:
+    def randomize_rigid_body_mass() -> None:
+        pass
+
+    def reset_root_state_uniform() -> None:
+        pass
+
+    def term(mode: str, func) -> SimpleNamespace:
+        return SimpleNamespace(mode=mode, func=func)
+
+    cfg = SimpleNamespace(
+        events=SimpleNamespace(
+            mass=term("reset", randomize_rigid_body_mass),
+            pose=term("reset", reset_root_state_uniform),
+            startup_mass=term("startup", randomize_rigid_body_mass),
+        ),
+        curriculum=None,
+        observations=None,
+    )
+
+    removed = CheckpointGhostSync.configure_env_cfg(cfg)
+
+    assert sorted(removed) == ["events.mass", "events.startup_mass"]
+    assert cfg.events.pose is not None and cfg.events.mass is None  # the pose reset is mirrored, so it stays
