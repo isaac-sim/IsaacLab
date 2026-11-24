@@ -1473,7 +1473,9 @@ class OVRTXRenderer(BaseRenderer):
         failed = next((data for data in render_data if data.first_frame_error is not None), None)
         if failed is not None:
             raise RuntimeError(
-                f"Camera {failed.spec.cfg.prim_path} renders no frames, because the split search failed."
+                f"Camera {failed.spec.cfg.prim_path} renders no frames. Its first frame failed, and the search of the"
+                " OVRTX renderer for a render product split (CameraCfg.max_envs_per_render_product) ended without a"
+                " layout that renders. The cause gives the reason."
             ) from failed.first_frame_error
         if self.backend.renderer is None or not self._camera_render_data:
             return

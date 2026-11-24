@@ -660,7 +660,7 @@ def test_ovrtx_render_batch_stops_the_split_search_after_the_last_smaller_layout
     # The camera left the steps. A later render batch raises at once and steps nothing.
     assert camera not in renderer.backend.unrendered
     assert renderer.backend.render_products == set()
-    with pytest.raises(RuntimeError, match="renders no frames") as later:
+    with pytest.raises(RuntimeError, match="renders no frames.*max_envs_per_render_product") as later:
         renderer.render_batch([camera])
     assert later.value.__cause__ is error.value
     assert [len(products) for products in submissions] == products_per_step
@@ -741,7 +741,7 @@ def test_ovrtx_split_search_retires_every_failed_product_before_a_scene_write(mo
     assert list(renderer.backend.unrendered) == cameras[:written]
     # A later render batch raises at once and steps nothing.
     steps = len(submissions)
-    with pytest.raises(RuntimeError, match="renders no frames") as later:
+    with pytest.raises(RuntimeError, match="renders no frames.*max_envs_per_render_product") as later:
         renderer.render_batch(cameras)
     assert later.value.__cause__ is error.value
     assert len(submissions) == steps
