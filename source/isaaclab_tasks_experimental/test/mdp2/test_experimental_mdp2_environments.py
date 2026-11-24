@@ -9,6 +9,9 @@ import gymnasium as gym
 import isaaclab_tasks_experimental  # noqa: F401
 import pytest
 import torch
+from isaaclab_experimental import mdp2
+
+from isaaclab.utils import replace
 
 from isaaclab_tasks.utils import resolve_task_config
 
@@ -44,5 +47,44 @@ def test_mdp2_environment_resets_and_steps(task_name):
         # The second step captured the step's graphs.
         if task_name in NUM_GRAPHS:
             assert env.unwrapped.num_graphs == NUM_GRAPHS[task_name]
+    finally:
+        env.close()
+
+
+def test_reach_curriculum_sets_reward_weights_at_first_reset_after_threshold():
+    """The Reach curriculum keeps both reward weights until the first reset after its step threshold, then sets them
+    in every world, from a captured step."""
+    task_name = "Isaac-Reach-Franka-MDP2"
+    env_cfg, _ = resolve_task_config(task_name, None, overrides=["physics=newton_mjwarp"])
+    env_cfg.sim.device = "cuda:0"
+    env_cfg.scene.num_envs = 4
+    env_cfg.curriculum_after_steps = 5
+    # Episodes of four steps: the first resets come before the threshold, the next ones after it.
+    step_dt = env_cfg.sim.dt * env_cfg.decimation
+    time_limit = mdp2.TimeLimit(episode_length_s=4 * step_dt)
+    env_cfg.task = replace(env_cfg.task, terminations={**env_cfg.task.terminations, "time_out": time_limit})
+    env = gym.make(task_name, cfg=env_cfg)
+    try:
+        unwrapped = env.unwrapped
+        indices = {op.use: op.index for op in unwrapped.mdp.ops[mdp2.Phase.REWARDS]}
+        columns = [indices["rewards.action_rate"], indices["rewards.joint_vel"]]
+        weights = unwrapped.state.reward_weights.torch
+        initial = weights[:, columns].clone()
+        final = torch.tensor([env_cfg.curriculum_action_rate, env_cfg.curriculum_joint_vel], device=unwrapped.device)
+
+        env.reset(seed=0)
+        actions = torch.zeros(env.action_space.shape, device=unwrapped.device)
+        early_reset, applied_at = False, None
+        for step in range(1, 13):
+            _, _, terminated, truncated, _ = env.step(actions)
+            resetting = bool((terminated | truncated).any())
+            early_reset |= resetting and step <= env_cfg.curriculum_after_steps
+            if applied_at is None and resetting and step > env_cfg.curriculum_after_steps:
+                applied_at = step
+            expected = final.expand_as(initial) if applied_at is not None else initial
+            torch.testing.assert_close(weights[:, columns], expected, msg=f"weights after step {step}")
+        assert early_reset and applied_at is not None
+        # Steps after the first replay the captured graphs, so the curriculum ran inside one.
+        assert applied_at > 1 and unwrapped.num_graphs > 0
     finally:
         env.close()
