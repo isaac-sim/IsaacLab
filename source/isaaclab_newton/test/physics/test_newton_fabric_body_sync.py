@@ -433,7 +433,7 @@ def test_nested_articulation_follows_root_pose_writes():
 def test_fabric_geometry_sink_uses_sdp_world_points_and_frame_cadence(monkeypatch):
     """Mesh, curve and cloud sinks consume only named SDP buffers, independent of Newton internals.
 
-    A CUDA cloud is bound to GPU Fabric and never copied to the host.
+    On a GPU, the particle cloud goes to GPU Fabric without a copy to the CPU.
     """
     cfg = SimulationCfg(device="cuda:0", physics=NewtonCfg(), visualizer_cfgs=[])
     with build_simulation_context(sim_cfg=cfg) as sim:
@@ -492,8 +492,8 @@ def test_fabric_geometry_sink_uses_sdp_world_points_and_frame_cadence(monkeypatc
         fabric.update_geometries(provider, 1)
         fabric.update_geometries(provider, 2)
         np.testing.assert_allclose(_fabric_curve_points_world(str(cloud.GetPath()))[0], [1.0, 0.0, 2.0])
-        # Only the cloud is due here. Its points must enter Fabric without a device-to-host copy.
-        # Fabric index reads are int32 and legitimate, so the guard watches only vec3f data.
+        # At frame 3, only the cloud updates. Fail if the update copies its positions to the CPU.
+        # The update also copies int32 Fabric indices to the CPU. That is expected, so check only vec3f.
         with monkeypatch.context() as patch:
             guard = _forbid_warp_copy_readback(wp.vec3f, "The cloud update copied CUDA points to the CPU")
             patch.setattr(wp, "copy", guard)
@@ -599,7 +599,7 @@ def _frame_scene(frame_path: str, translation, device: str = "cuda:0"):
 
 
 def _forbid_warp_copy_readback(dtype, message: str):
-    """Return a ``wp.copy`` replacement that fails with ``message`` on a device-to-host copy of ``dtype`` data."""
+    """Return a replacement for ``wp.copy`` that fails when it copies ``dtype`` data from a GPU to the CPU."""
     copy = wp.copy
 
     def copy_without_readback(dest, src, *args, **kwargs):
