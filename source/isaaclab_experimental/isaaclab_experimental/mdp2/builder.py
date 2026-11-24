@@ -45,6 +45,7 @@ from .config import (
     step_dt,
     term_state,
     terminated,
+    time_out,
 )
 from .plan import ActionOp, ObservationOutput, Segment, TermOp, build_plan
 from .scene import SceneSchema
@@ -119,6 +120,7 @@ class CompileContext:
             last_action: ArrayLayout(wp.float32, 2, {"actions": 0}, (0,)),
             episode_length: ArrayLayout(wp.int32, 1, {}),
             terminated: ArrayLayout(wp.bool, 1, {}),
+            time_out: ArrayLayout(wp.bool, 1, {}),
         }
     )
     subsets: dict[SubsetSelector, tuple[int, ...]] = field(default_factory=dict)

@@ -53,6 +53,7 @@ __all__ = [
     "step_dt",
     "term_state",
     "terminated",
+    "time_out",
     "uniform",
     "mdp",
 ]
@@ -86,6 +87,7 @@ from .config import (
     step_dt,
     term_state,
     terminated,
+    time_out,
 )
 from .eager import TermContext
 from .plan import ExecutionPlan, Segment, Step, StepKind

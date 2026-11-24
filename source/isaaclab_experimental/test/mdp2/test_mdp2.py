@@ -633,9 +633,10 @@ def test_step_ends_and_bootstraps_worlds():
 
         bootstrap = env_step(mdp, state, scene, torch.tensor([[0.1], [0.1], [100.0]], device=DEVICE), transition)
 
-        # A world that terminates is not truncated.
+        # A world that terminates is not truncated, but it still reached its time limit.
         assert transition.terminated.torch.tolist() == [False, False, True]
         assert transition.truncated.torch.tolist() == [False, True, False]
+        assert state.arrays[mdp2.time_out].torch.tolist() == [False, True, True]
         assert state.episode_length.torch.tolist() == [1, 0, 0]
 
         observations, bootstrap = transition.observations["policy"].torch, bootstrap["policy"]
@@ -728,6 +729,7 @@ def test_mdp_fields_subsets_weights_and_diagnostics():
         assert transition.terminated.torch.tolist() == [False, True]
         assert transition.truncated.torch.tolist() == [True, False]
         assert transition.done.torch.tolist() == [True, True]
+        assert state.arrays[mdp2.time_out].torch.tolist() == [True, True]
         assert torch.equal(transition.termination_terms.torch[:, 0], transition.terminated.torch)
         torch.testing.assert_close(transition.reward_terms.torch.sum(dim=-1), transition.rewards.torch)
 

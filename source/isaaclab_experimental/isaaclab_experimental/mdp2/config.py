@@ -132,6 +132,13 @@ terminated = FieldSelector("mdp", "terminated", scene=False)
 Terminations run before rewards, so rewards can read it, like MDP1's ``is_terminated``.
 """
 
+time_out = FieldSelector("mdp", "time_out", scene=False)
+"""Whether a time-out was reached this step, ``bool`` of shape ``(num_worlds,)``, like MDP1's ``time_outs``.
+
+The time limit or a termination with ``time_out`` sets it, also in worlds where a termination ended the episode too.
+Quantities run before terminations, so they see only the time limit; rewards and observations see both.
+"""
+
 
 @dataclass(frozen=True)
 class UniformNoise:

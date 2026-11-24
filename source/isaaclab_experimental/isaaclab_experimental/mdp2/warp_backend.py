@@ -21,7 +21,7 @@ import torch
 import warp as wp
 
 from .compiled import MDP
-from .config import Entity, FieldSelector, Phase, episode_length, last_action, term_state, terminated
+from .config import Entity, FieldSelector, Phase, episode_length, last_action, term_state, terminated, time_out
 from .fusion import Fusion
 from .plan import Call, Launches, Step, StepKind, TermOp
 from .terms import hook_arguments
@@ -124,13 +124,14 @@ def _evaluate(mdp: MDP) -> tuple[Callable[[Call], None], ...]:
     code = Fusion("evaluate", mdp.num_worlds, mdp.device)
     length = _array(code, episode_length, wp.array(dtype=wp.int32))
     ended = _array(code, terminated, wp.array(dtype=wp.bool))
+    timed_out = _array(code, time_out, wp.array(dtype=wp.bool))
     terminated_result, truncated, done, rewards = (
         _result(code, key) for key in ("terminated", "truncated", "done", "rewards")
     )
 
-    time_out = "False"
+    limit = "False"
     if mdp.max_episode_length is not None:
-        time_out = f"{length}[world] >= {code.constant(int, mdp.max_episode_length)}"
+        limit = f"{length}[world] >= {code.constant(int, mdp.max_episode_length)}"
     lines, writes = [], []
     if mdp.interval_writes:
         lines.append(f"{_array(code, 'interval_worlds', wp.array(dtype=wp.bool))}[world] = False")
@@ -140,11 +141,12 @@ def _evaluate(mdp: MDP) -> tuple[Callable[[Call], None], ...]:
         f"{length}[world] = {length}[world] + 1",
         f"{terminated_result}[world] = False",
         f"{ended}[world] = False",
-        f"{truncated}[world] = {time_out}",
+        f"{timed_out}[world] = {limit}",
+        f"{truncated}[world] = {timed_out}[world]",
         f"{done}[world] = {truncated}[world]",
         f"{rewards}[world] = 0.0",
         *lines,
-        writes=["rng", episode_length, terminated, "terminated", "truncated", "done", "rewards", *writes],
+        writes=["rng", episode_length, terminated, time_out, "terminated", "truncated", "done", "rewards", *writes],
     )
 
     _emit(code, mdp, mdp.plan.evaluate, stepping=True)
@@ -239,7 +241,11 @@ def _compute(code: Fusion, mdp: MDP, op: TermOp, conditions: Sequence[str] = (),
             done, truncated = _result(code, "done"), _result(code, "truncated")
             writes = ["truncated", "done"]
             if op.time_out:
-                flags = [f"{truncated}[world] = not {_result(code, 'terminated')}[world]"]
+                flags = [
+                    f"{truncated}[world] = not {_result(code, 'terminated')}[world]",
+                    f"{_array(code, time_out, wp.array(dtype=wp.bool))}[world] = True",
+                ]
+                writes.append(time_out)
             else:
                 flags = [
                     f"{_result(code, 'terminated')}[world] = True",

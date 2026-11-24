@@ -19,7 +19,17 @@ import warp as wp
 from isaaclab.utils.warp import ProxyArray
 
 from . import rng
-from .config import Entity, FieldSelector, Phase, SubsetSelector, episode_length, last_action, term_state, terminated
+from .config import (
+    Entity,
+    FieldSelector,
+    Phase,
+    SubsetSelector,
+    episode_length,
+    last_action,
+    term_state,
+    terminated,
+    time_out,
+)
 from .plan import ActionOp, ExecutionPlan, Launches, Segment, TermOp, segments
 from .scene import SceneData, SceneSchema
 
@@ -232,6 +242,7 @@ class MDP:
             last_action: self._zeros(self.num_worlds, self.action_dim),
             episode_length: self._zeros(self.num_worlds, dtype=wp.int32),
             terminated: self._zeros(self.num_worlds, dtype=wp.bool),
+            time_out: self._zeros(self.num_worlds, dtype=wp.bool),
         }
         for action_dim in self.narrow_action_dims:
             arrays[last_action, action_dim] = self._zeros(self.num_worlds, action_dim)
