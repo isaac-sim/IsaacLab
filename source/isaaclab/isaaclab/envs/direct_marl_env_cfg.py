@@ -94,6 +94,17 @@ class DirectMARLEnvCfg:
     ``extras[agent]["final_obs"]`` is not populated, and the extra observation computation is skipped.
     """
 
+    final_obs_every_step: bool = False
+    """Whether to capture physical successor observations on every step. Defaults to False.
+
+    Capture precedes resets, command updates and interval events, even when
+    :attr:`compute_final_obs` is False. Every row of ``extras[agent]["final_obs"]`` is valid when
+    ``extras[agent]["final_obs_every_step"]`` is True. Public resets do not produce this signal.
+    This calls the same observation computation as terminal capture; observation terms must
+    support an additional read without advancing internal history or other state.
+    Experimental Warp environments do not support this flag.
+    """
+
     episode_length_s: float = MISSING
     """Duration of an episode (in seconds).
 

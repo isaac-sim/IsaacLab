@@ -39,7 +39,7 @@ from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
-from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.utils import PresetCfg, preset
 
 from . import mdp
 
@@ -200,6 +200,27 @@ class ObservationsCfg:
 
     # observation groups
     policy: PolicyCfg = PolicyCfg()
+
+    @configclass
+    class StateCfg(ObsGroup):
+        state = ObsTerm(func=mdp.VelocityState)
+
+    @configclass
+    class GoalCfg(ObsGroup):
+        command = ObsTerm(func=mdp.generated_commands, params={"command_name": "base_velocity"})
+
+    @configclass
+    class ContextCfg(ObsGroup):
+        mass = ObsTerm(func=mdp.velocity_context)
+
+    @configclass
+    class LabelsCfg(ObsGroup):
+        contacts = ObsTerm(func=mdp.VelocityLabels)
+
+    state = preset(default=None, state_obs=StateCfg())
+    goal = preset(default=None, state_obs=GoalCfg())
+    context = preset(default=None, state_obs=ContextCfg())
+    labels = preset(default=None, state_obs=LabelsCfg())
 
 
 @configclass
