@@ -439,22 +439,6 @@ before changing an interface. Apply these rules when adding code or cleaning up 
   required attribute; express optional fields explicitly in the interface.
   Use concrete defaults for known empty selections. Reserve ``None`` for a distinct policy or lifecycle
   state, such as choosing an environment's frame rate or waiting for a client to connect.
-* Inclusion definitions declare membership and shared semantic tag types through ``match_tags``.
-  Reuse existing spawner ``semantic_tags`` rather than adding variant labels, positional pins, or
-  user-overridable matching callbacks. Inclusion sets do not own environment counts or random seeds.
-  Resolve compatibility into factorized candidate groups during scene planning; let clone-plan construction
-  and the scene's clone strategy select concrete worlds without expanding every valid combination.
-  Keep inclusion interpretation and task-specific matching classes out of replication execution.
-  Keep task-specific sampling, placement and instruction binding in the task package. Define tabletop
-  tasks as category requirements over a shared flat asset catalog, not per-combination environment
-  configurations. Declare complete configs with named constants and ``copy``/``replace`` composition;
-  do not generate or repair scene fields in ``__post_init__`` or add functions that only return configs.
-  Bound object cardinality without enumerating combinations, and keep reset placement inside the
-  intersection of the measured support outline and supplied reachable workspace. Measured asset
-  dimensions may be constants in the scene configuration. Preserve surface outlines and holes; do not
-  substitute a box or its bounding rectangle for the actual table. Reject impossible
-  placements instead of silently accepting overlap. When tables vary at reset, use the existing
-  variable-asset interface and select the matching measured support region after changing geometry.
 * Give each piece of state and validation one owner. Consumers should use the owner's contract instead
   of repairing results or maintaining duplicate state. Cache derived values only when their lifetime and
   invalidation are clear; do not expose mutable cached results for callers to modify accidentally.

@@ -131,58 +131,6 @@ variant because their batched Newton views currently require a uniform body layo
    :end-at: scene_cfg.robot.spawn.usd_path = scene_cfg.robot.spawn.usd_path[0]
    :dedent: 8
 
-An :class:`~isaaclab.cloner.InclusionSet` declares which assets are active and which semantic tag
-values must match. No subclass or callback is needed. For a scene with ``gear`` and ``fixture`` assets:
-
-.. code-block:: python
-
-   scene_cfg.clone_cfg.clone_combinations = [
-       InclusionSet(assets=["gear", "fixture"], match_tags=["size", "assembly"]),
-   ]
-
-Tag the individual spawner configurations using the existing semantic API:
-
-.. code-block:: python
-
-   small_gear_cfg.semantic_tags = [("size", "small"), ("assembly", "drive")]
-   small_fixture_cfg.semantic_tags = [("size", "small"), ("assembly", "drive")]
-   universal_fixture_cfg.semantic_tags = [
-       ("size", "small"), ("size", "medium"), ("size", "large"),
-       ("assembly", "drive"),
-   ]
-
-Every selected gear and fixture must share a value for each requested tag type. The universal fixture
-can therefore match small, medium, or large gears in the drive assembly. Missing requested tags do not
-match. Tag values are compared exactly; there are no reserved wildcard values or implicit regex rules.
-Tags inherited from ``MultiAssetSpawnerCfg`` also participate. ``MultiUsdFileCfg`` candidates inherit
-the wrapper's tags and retain their individual USD paths.
-
-Repeat an asset name to request multiple instances:
-
-.. code-block:: python
-
-   InclusionSet(assets=["gear", "gear", "fixture"], match_tags=["size", "assembly"])
-
-This requests two gear instances and one fixture, all sharing a size and assembly. It does not express
-separate pairwise constraints. Repeated instances may use the same variant. Assets not referenced by
-any inclusion definition remain active independently and do not participate in tag matching. Collection
-members retain their separate candidate slots even when they share a scene asset name.
-
-Matching definitions remain compact until clone-plan construction. For example, 1,000 candidates across
-five categories and eight asset slots can be represented as five compatible groups, rather than
-expanding every valid concrete world. The scene's ``num_envs`` determines how many worlds to instantiate.
-Its :attr:`~isaaclab.cloner.CloneCfg.clone_strategy` selects compatible groups according to their weights,
-then selects each slot's concrete variant within the chosen group. Identical concrete worlds share a
-prototype. The inclusion weight is divided equally across its compatible groups; this gives equal
-weight to tag-value groups, rather than to every possible concrete combination. Multi-valued tags can
-make groups overlap.
-
-The existing ``sequential`` strategy distributes environments across groups and candidate lists in order.
-The ``random`` strategy draws groups by weight and candidates uniformly, using the existing NumPy random
-state. ``InclusionSet`` does not own an environment count or random seed. Planning cost depends on
-candidate metadata and selected worlds, without expanding the product within each matching group;
-loading and simulating concrete assets still has its own cost.
-
 To sample categories before assets, use the same semantic tags with ``sample_by``:
 
 .. code-block:: python
@@ -204,8 +152,8 @@ resolved definitions without applying tag matching or task-specific rules.
 
 The tabletop example in ``contrib/heterogeneous_tasks`` samples arbitrary object combinations with a
 bounded count. It samples the count uniformly, then a category independently for each occupied slot,
-then an asset uniformly within each chosen category. The catalog distinguishes books, bottles, cans,
-food, toys, utensils, miscellaneous objects, plates and containers. Ordinary inclusion matching represents
+then an asset uniformly within each chosen category. The catalog distinguishes food, bottles, cans, tools,
+utensils, miscellaneous objects, plates, trays and containers. Ordinary inclusion matching represents
 count groups without expanding their products; ``sample_by="category"`` balances the category selection.
 Objects carry semantic category tags; task families become available only when distinct
 instances have the required categories and compatible sizes. Task binding and geometric reset stay
