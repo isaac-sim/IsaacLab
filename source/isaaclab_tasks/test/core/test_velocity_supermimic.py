@@ -140,13 +140,12 @@ def test_g1_differentiable_velocity_matches_simulation_and_managers(task_name):
                 state = task.representation.unflatten(obs["state"].clone())
                 goal = obs["goal"].clone()
                 history = torch.stack((owner.action_manager.prev_action, owner.action_manager.action), -2)
-                frame = task.actor_obs(state, goal, obs["context"], history)
+                frame = task.actor_obs(state, goal, obs["context"], history)["policy"]
                 proprio = frame.shape[-1] - num_scan
                 torch.testing.assert_close(frame[..., :proprio], obs["policy"][..., :proprio])
                 scan_errors.append((frame[..., proprio:] - obs["policy"][..., proprio:]).abs().flatten())
-                assert task.actor_goal(state, goal).shape[-1] == 0
                 # Privileged masses and contact clocks cannot enter the actor.
-                torch.testing.assert_close(frame, task.actor_obs(state, goal, 2 * obs["context"], history))
+                torch.testing.assert_close(frame, task.actor_obs(state, goal, 2 * obs["context"], history)["policy"])
                 if step < 4:
                     # The mirror is an involution that reflects the feet and the terrain below them.
                     for mirror, value in (
@@ -228,7 +227,7 @@ def test_g1_differentiable_velocity_matches_simulation_and_managers(task_name):
             clock_state[6] = torch.full_like(clock_state[6], 0.2)
             clock_state[7] = torch.full_like(clock_state[7], 0.1)
             clock_state[8] = torch.full_like(clock_state[8], 0.15)
-            advanced = task.post_dynamics(tuple(clock_state), successor, labels)
+            advanced = task.post_dynamics(tuple(clock_state), successor, labels, actions, obs["context"])
             sum(value.sum() for value in advanced[6:]).backward()
             assert torch.isfinite(labels.grad).all() and labels.grad.abs().sum() > 0
             # Imagined rewards, actor inputs and terrain heights must differentiate with respect to actions and state.
@@ -236,7 +235,7 @@ def test_g1_differentiable_velocity_matches_simulation_and_managers(task_name):
             action = actions.detach().clone().requires_grad_()
             (
                 task.reward(state, action, differentiable, goal, history, final["labels"]).sum()
-                + task.actor_obs(differentiable, goal, obs["context"], history).sum()
+                + task.actor_obs(differentiable, goal, obs["context"], history)["policy"].sum()
                 + task.dynamics_context(differentiable, obs["context"], history).sum()
             ).backward()
             assert torch.isfinite(action.grad).all() and action.grad.abs().sum() > 0
@@ -273,8 +272,11 @@ def test_g1_velocity_supermimic_learns_in_cuda_graphs(task_name):
 
     from isaaclab.app import launch_simulation
 
-    from isaaclab_rl.entrypoints.backends.runner_rsl_rl import configure_rsl_rl_env_cfg, create_rsl_rl_runner
-    from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
+    from isaaclab_rl.entrypoints.backends.runner_rsl_rl import (
+        configure_rsl_rl_env_cfg,
+        create_rsl_rl_runner,
+        wrap_rsl_rl_env,
+    )
 
     cfg, agent = resolve_task_config(
         task_name,
@@ -284,23 +286,27 @@ def test_g1_velocity_supermimic_learns_in_cuda_graphs(task_name):
     cfg.scene.num_envs = 64
     configure_rsl_rl_env_cfg(cfg, agent)
     agent.actor.encoder_hidden_dims = agent.actor.decoder_hidden_dims = (64, 64)
-    agent.world_model.hidden_dims = (64, 64)
+    dynamics = agent.algorithm.world_model_cfg
+    dynamics.model.hidden_dims = (64, 64)
     agent.critic.hidden_dims = [64]
     algorithm = agent.algorithm
-    algorithm.replay_buffer_capacity = 64 * 64
-    algorithm.num_warmup_steps = 8
+    dynamics.replay_buffer_capacity = 64 * 64
+    dynamics.num_warmup_steps = 8
     algorithm.updates_per_step = 1.0
-    algorithm.world_model_batch_size = algorithm.policy_batch_size = 64
+    dynamics.batch_size = algorithm.policy_batch_size = 64
     algorithm.horizon = 4
-    assert algorithm.use_cuda_graph and algorithm.use_mixed_precision and algorithm.world_model_mirror_fraction
+    assert algorithm.use_cuda_graph and algorithm.use_mixed_precision and dynamics.mirror_fraction
     with launch_simulation(cfg, {"visualizer": ["none"]}):
-        env = RslRlVecEnvWrapper(gym.make(task_name, cfg=cfg), clip_actions=agent.clip_actions)
+        env = wrap_rsl_rl_env(gym.make(task_name, cfg=cfg), agent)
         try:
             runner = create_rsl_rl_runner(env, agent, log_dir=None)
-            runner.learn(num_learning_iterations=16)
             learner = runner.alg
-            assert learner.iteration >= 8 and learner._graph_updates and learner._act_graphs
-            parameters = (*learner.actor.parameters(), *learner.world_model.parameters(), *learner.critic.parameters())
-            assert all(torch.isfinite(parameter).all() for parameter in parameters)
+            models = (learner.actor, learner.learned_dynamics.world_model, learner.critic)
+            before = [[p.detach().clone() for p in model.parameters()] for model in models]
+            runner.learn(num_learning_iterations=16)
+            assert learner.num_learner_updates >= 8
+            for model, initial in zip(models, before, strict=True):
+                assert all(torch.isfinite(p).all() for p in model.parameters())
+                assert any(not torch.equal(p, old) for p, old in zip(model.parameters(), initial, strict=True))
         finally:
             env.close()

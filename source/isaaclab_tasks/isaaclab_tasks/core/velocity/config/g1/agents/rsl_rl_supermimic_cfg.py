@@ -14,6 +14,7 @@ batch, and a deployment actor average.
 from isaaclab.utils import configclass, replace
 
 from isaaclab_rl.rsl_rl import (
+    RslRlLearnedDynamicsCfg,
     RslRlMLPModelCfg,
     RslRlSuperMimicActorCfg,
     RslRlSuperMimicAlgorithmCfg,
@@ -23,8 +24,7 @@ from isaaclab_rl.rsl_rl import (
 )
 
 SUPERMIMIC_ALGORITHM_CFG = RslRlSuperMimicAlgorithmCfg(
-    replay_buffer_capacity=4_096_000,
-    num_world_model_warmup_iterations=0,
+    world_model_cfg=RslRlLearnedDynamicsCfg(replay_buffer_capacity=4_096_000, num_warmup_iterations=0),
     action_noise=0.0,
     use_mixed_precision=True,
     use_cuda_graph=True,
@@ -33,8 +33,12 @@ SUPERMIMIC_ALGORITHM_CFG = RslRlSuperMimicAlgorithmCfg(
 
 BLINKMIMIC_ALGORITHM_CFG = replace(
     SUPERMIMIC_ALGORITHM_CFG,
-    num_world_model_updates=5,
-    world_model_mirror_fraction=0.5,
+    world_model_cfg=replace(
+        SUPERMIMIC_ALGORITHM_CFG.world_model_cfg,
+        model=RslRlWorldModelCfg(hidden_dims=(1024, 1024, 1024)),
+        num_updates=5,
+        mirror_fraction=0.5,
+    ),
     policy_batch_size=2048,
     learning_rate=4e-4,
     muon_models=("actor", "world_model"),
@@ -60,13 +64,13 @@ class G1FlatSuperMimicRunnerCfg(RslRlSuperMimicRunnerCfg):
     experiment_name = "g1_flat_supermimic"
     clip_actions = None
     obs_groups = {
+        "actor": ["policy", "history"],
         "state": ["state"],
         "goal": ["goal"],
         "context": ["context"],
         "labels": ["labels"],
     }
     actor = RslRlSuperMimicActorCfg()
-    world_model = RslRlWorldModelCfg()
     critic = RslRlMLPModelCfg(
         hidden_dims=[256, 128],
         activation="elu",
@@ -80,7 +84,6 @@ class G1FlatBlinkMimicRunnerCfg(G1FlatSuperMimicRunnerCfg):
     """Train flat G1 velocity tracking with the BlinkMimic settings."""
 
     experiment_name = "g1_flat_blinkmimic"
-    world_model = RslRlWorldModelCfg(hidden_dims=(1024, 1024, 1024))
     algorithm = replace(BLINKMIMIC_ALGORITHM_CFG, max_step_reward=FLAT_MAX_STEP_REWARD)
 
 
@@ -102,5 +105,4 @@ class G1RoughBlinkMimicRunnerCfg(G1RoughSuperMimicRunnerCfg):
     """Train rough G1 velocity tracking with the BlinkMimic settings."""
 
     experiment_name = "g1_rough_blinkmimic"
-    world_model = RslRlWorldModelCfg(hidden_dims=(1024, 1024, 1024))
     algorithm = replace(BLINKMIMIC_ALGORITHM_CFG, max_step_reward=ROUGH_MAX_STEP_REWARD)

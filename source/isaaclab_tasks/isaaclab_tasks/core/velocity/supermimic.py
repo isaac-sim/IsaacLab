@@ -21,7 +21,8 @@ from typing import TYPE_CHECKING
 import numpy as np
 import torch
 from newton import GeoType, ShapeFlags
-from rsl_rl.algorithms.supermimic_task import DifferentiableTask, State
+from rsl_rl.env.differentiable_task import DifferentiableTask, State
+from tensordict import TensorDict
 
 from isaaclab.actuators import IdealPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.actuators.actuator_base import resolve_joint_parameter
@@ -108,11 +109,6 @@ class Heightfield:
         if planes:
             heights = torch.where(torch.isfinite(heights), heights.clamp(min=max(planes)), max(planes))
         return cls(heights, (lower[0], lower[1]), HEIGHTFIELD_RESOLUTION)
-
-    def to(self, device: torch.device | str) -> Heightfield:
-        """Move the heights."""
-        self.heights = self.heights.to(device)
-        return self
 
     def __call__(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         """Return the terrain height [m] at world coordinates of any shared shape."""
@@ -329,15 +325,6 @@ class VelocityTask(DifferentiableTask):
             limit = cfg.actuator_effort_limit if cfg.actuator_effort_limit is not None else cfg.joint_effort_limit
             self.effort_limit[ids] = resolve_joint_parameter(limit, torch.inf, names, 1, device)[0]
 
-    def to(self, device: torch.device | str) -> VelocityTask:
-        """Move tensor attributes, the per-term index tensors, the heightfield and the kinematic tree."""
-        super().to(device)
-        for table in (self.term_joints, self.termination_bodies):
-            table.update({name: _index(ids, device) for name, ids in table.items()})
-        self.terrain.to(device)
-        self.kinematics.to(device)
-        return self
-
     def _bodies(self, state: State) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """Feet and scanner poses and velocities, reused while the same state is passed to several heads."""
         if self._cached_state is not state[0]:
@@ -364,7 +351,7 @@ class VelocityTask(DifferentiableTask):
 
     def actor_obs(
         self, state: State, goal: torch.Tensor, context: torch.Tensor, prev_actions: torch.Tensor
-    ) -> torch.Tensor:
+    ) -> TensorDict:
         """Return the default policy's deployable inputs, including the command."""
         gravity = quat_apply_inverse(state[2], self.gravity.expand_as(state[0]))
         parts = [
@@ -378,21 +365,14 @@ class VelocityTask(DifferentiableTask):
         ]
         if self.scan_points is not None:
             parts.append(self._height_scan(state))
-        return torch.cat(
+        frame = torch.cat(
             tuple(
                 parts[index] if term.clip is None else parts[index].clamp(*term.clip)
                 for index, _, term in self.actor_terms
             ),
             dim=-1,
         )
-
-    def actor_goal(self, state: State, goal: torch.Tensor) -> torch.Tensor:
-        """Return no separate goal: the command is part of each actor frame.
-
-        A separately encoded goal passes the actor's tanh goal encoder, which can saturate early in training and
-        leave the policy blind to the command.
-        """
-        return goal[..., :0]
+        return TensorDict({"policy": frame}, batch_size=frame.shape[:-1])
 
     def add_noise(self, obs: torch.Tensor) -> torch.Tensor:
         """Match the policy's independent uniform observation corruption, clipping noisy terms again.
@@ -430,7 +410,7 @@ class VelocityTask(DifferentiableTask):
         return torch.cat((torch.log1p(context), prev_actions.flatten(-2), height, clearance.flatten(-2)), dim=-1)
 
     def critic_obs(
-        self, state: State, goal: torch.Tensor, context: torch.Tensor, prev_actions: torch.Tensor
+        self, state: State, goal: torch.Tensor, context: torch.Tensor, prev_actions: torch.Tensor, history: torch.Tensor
     ) -> torch.Tensor:
         """Allow the critic privileged physical state, mass and terrain information."""
         values = [self.representation.features(state), goal, self.dynamics_context(state, context, prev_actions)]
@@ -444,7 +424,9 @@ class VelocityTask(DifferentiableTask):
         """Hold the command over the short imagined horizon."""
         return goal, context
 
-    def post_dynamics(self, state: State, next_state: State, labels: torch.Tensor) -> State:
+    def post_dynamics(
+        self, state: State, next_state: State, labels: torch.Tensor, actions: torch.Tensor, context: torch.Tensor
+    ) -> State:
         """Advance contact clocks from soft contact events at policy resolution."""
         contact = labels[..., : self.num_feet]
         first = labels[..., self.num_feet + self.num_bodies :]
