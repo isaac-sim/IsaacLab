@@ -642,6 +642,8 @@ def test_record_ovxr_startup_failure_drains_xr_before_releasing_the_environment(
             return False
 
     env = SimpleNamespace(
+        num_envs=1,
+        step=Mock(side_effect=AssertionError("environment stepped before device startup")),
         scene=SimpleNamespace(env_prim_paths=["/World/envs/env_0"]),
         sim=SimpleNamespace(visualizers=()),
         cfg=SimpleNamespace(),
@@ -785,6 +787,7 @@ def test_record_loop_applies_task_action_policy_like_live(run_record_workflow, c
         "make",
         "env-reset",
         "device-reset",
+        "recorder-reset",
         "env-reset",
         "device-reset",
         "xr-close",
@@ -952,7 +955,6 @@ def test_recorded_environment_reset_preserves_backend_policy_and_hand_cursor(mon
         sim=SimpleNamespace(
             device="cpu", is_running=lambda: frame < 1, render=lambda: None, reset=lambda: calls.append("sim-reset")
         ),
-        recorder_manager=SimpleNamespace(reset=lambda: calls.append("recorder-reset")),
         reset=lambda: calls.append("env-reset"),
         step_dt=0,
     )
@@ -1889,7 +1891,6 @@ def test_replay_waits_for_initial_and_recorded_reset_publication(monkeypatch, cl
             get_physics_dt=lambda: 0.01,
         ),
         reset=lambda: resets.append("env"),
-        recorder_manager=SimpleNamespace(reset=lambda: None),
         step_dt=0.01,
     )
     monkeypatch.setattr(
