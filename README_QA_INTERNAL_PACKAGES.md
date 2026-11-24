@@ -1,23 +1,24 @@
 # Isaac Lab 3.1 QA with internal Isaac Sim 6.3
 
-This temporary QA patch uses internal Isaac Sim 6.3 and its standalone asset
-importer. Run the commands from your Isaac Lab checkout on the NVIDIA network
-or VPN, with uv installed. The patch configures the internal registry.
+This temporary QA patch uses internal Isaac Sim 6.3 with the latest standalone
+`isaacsim-asset` package, including 7.0 builds. Run the commands from your Isaac
+Lab checkout on the NVIDIA network or VPN, with uv installed. The patch
+configures the internal registry.
 
 ## Apply the QA patch
 
-Start from the checkout you intend to test, with a clean working tree. Fetch the
-original QA commit from the fork and cherry-pick it onto a local QA branch:
+Start with a clean working tree and create a local branch from the QA fork:
 
 ```bash
-git switch -c qa/3.1-internal-isaacsim
 git fetch https://github.com/kellyguo11/IsaacLab-public.git kellyg/release-3.1.0-qa-internal-isaacsim
-git cherry-pick 9376446a1c3cd7755d6765133a41c7be8e20861c
+git switch -c qa/3.1-internal-isaacsim FETCH_HEAD
 ```
 
-The PR targets `main` until `release/3.1.0` exists. This patch changes only root
-dependency configuration and this README. The committed `uv.lock` stays at the
-base branch's versions; refresh it locally before installing or running QA.
+For cherry-picking only the QA changes onto another base, use the commits listed
+in [the draft PR](https://github.com/isaac-sim/IsaacLab/pull/9137). The PR targets
+`main` until `release/3.1.0` exists. The QA changes affect only root dependency
+configuration and this README. The committed `uv.lock` stays at the base
+branch's versions; refresh it locally before installing or running QA.
 
 ## Refresh and install the nightly dependencies
 
@@ -25,14 +26,21 @@ Run this same one-line command on Linux, Windows PowerShell, or Windows Command
 Prompt at the start of each QA pass:
 
 ```bash
-uv sync --extra isaacsim --extra importers -P isaacsim -P isaacsim-asset-isolated -P urdf-usd-converter -P mujoco-usd-converter -P usd-optimize
+uv sync --extra isaacsim --extra importers -P isaacsim -P isaacsim-asset -P urdf-usd-converter -P mujoco-usd-converter -P usd-optimize
 ```
 
 `-P` refreshes package metadata and ignores the corresponding versions in the
-existing local lock. Isaac Sim and the standalone importer use
-`>=6.3.0.dev0,<6.3.0rc0`, allowing new 6.3 alpha/beta nightlies without editing
-the version number. The previous converter and optimizer overrides are removed
-so the selected Isaac Sim packages determine their matched dependencies.
+existing local lock. Isaac Sim uses `>=6.3.0rc3,<6.4`, including new release
+candidates. The asset requirement and UV override use `>=6.3.0.dev0,<8`, allowing
+both 6.3 and 7.x builds. The override replaces Isaac Sim's exact 6.3 asset
+requirement; widening the ordinary requirement alone would still conflict with
+that pin. With `-P isaacsim-asset`, UV selects the newest available asset build
+in the range, currently 7.0, independently of the runtime's asset pin.
+
+The range alone does not upgrade an existing local lock: keep `-P` in the nightly
+refresh command. `isaacsim-asset-isolated` is no longer requested. The selected
+asset package supplies its matched converter, common, schema, and optimizer
+dependencies.
 
 For importer-only QA, omit `--extra isaacsim`. To test OV integrations alongside
 Isaac Sim, add `--extra ov`; those packages retain the base branch's public pins.
@@ -57,28 +65,39 @@ uv sync --frozen --extra isaacsim --extra importers
 ## Use the documented uv commands
 
 After refreshing once, the normal documented `uv run --extra isaacsim ...`
-commands use the locally locked 6.3 packages. Ordinary `uv run` checks whether
-the lock matches the project; it does not automatically seek a newer nightly
-every run. Add `--frozen` to preserve a recorded lock, and include the same
-extras as the installation when you want both integrations present.
+commands use the locally locked 6.3 runtime and 7.0 asset packages. Ordinary
+`uv run` checks whether the lock matches the project; it does not automatically
+seek a newer nightly every run. Add `--frozen` to preserve a recorded lock, and
+include the same extras as the installation when you want both integrations
+present.
+
+When Kit is running, Isaac Lab enables and imports the Kit URDF/MJCF extensions.
+Without Kit, it imports the standalone asset wheel. The pip override selects the
+installed asset distribution; it does not override Kit's extension selection.
+In the combined smoke test, Kit downloaded its importer extensions from NVIDIA's
+extension registry on first use. Allow access to that registry as well as the
+internal pip registry when testing Kit conversions.
 
 Print installed versions without importing or launching Isaac Sim:
 
 ```bash
-uv run --frozen --extra isaacsim --extra importers python -c "from importlib.metadata import version; packages = ('isaacsim', 'isaacsim-asset-isolated', 'isaacsim-robot-schema', 'urdf-usd-converter', 'mujoco-usd-converter', 'usd-optimize'); print({p: version(p) for p in packages})"
+uv run --frozen --extra isaacsim --extra importers python -c "from importlib.metadata import version; packages = ('isaacsim', 'isaacsim-asset', 'isaacsim-common', 'isaacsim-robot-schema', 'urdf-usd-converter', 'mujoco-usd-converter', 'usd-optimize'); print({p: version(p) for p in packages})"
 ```
 
 ## Verified package set
 
-The full Linux x86_64 install dry-run on November 20, 2026, resolved 445 packages,
-including:
+The combined Linux x86_64 installation on November 24, 2026, resolved 449
+packages. URDF and MJCF conversions passed both with Kit running and without
+Kit. The dependency-configuration tests passed (13 tests), as did the repository
+formatting and lint checks. The installed versions included:
 
 | Package | Version |
 | --- | --- |
-| Isaac Sim and standalone importer | `6.3.0a43+release.58948.6d33ca13.gl` |
+| Isaac Sim | `6.3.0rc4+release.59505.a720a5f8.gl` |
+| Asset, common, and robot schema | `7.0.0a2.dev58610+gl.698c657` |
 | URDF USD converter | `0.4.0` |
 | MuJoCo USD converter | `0.9.0` |
-| USD Optimize | `1.4.0` |
+| USD Optimize | `1.3.1` |
 
 Later nightly builds may specify different converter versions. Record the
 installed-version output and the generated lock with every QA result.

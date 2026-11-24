@@ -117,7 +117,7 @@ video = ["moviepy>=1.0.3,<2.0.0.dev0"]
 optix = ["newton[optix]"]
 
 importers = [
-    "isaacsim-asset-isolated==6.2.0.1",
+    "isaacsim-asset>=6.3.0.dev0,<8",
     "tinyobjloader==2.0.0rc13",
 ]
 
@@ -433,9 +433,9 @@ environments = [
 # ``importers`` extras pin older versions of these packages, so the overrides prevent downgrades.
 # Direct torch-stack pins also apply to published wheels; overrides reconcile Isaac Sim's older pins.
 override-dependencies = [
-    # QA-only nightly ranges replace the published Isaac Sim and standalone importer pins.
-    "isaacsim[all,extscache]>=6.3.0.dev0,<6.3.0rc0",
-    "isaacsim-asset-isolated>=6.3.0.dev0,<6.3.0rc0",
+    # QA-only overrides allow the latest asset wheel to replace Isaac Sim's exact asset pin.
+    "isaacsim[all,extscache]>=6.3.0rc3,<6.4",
+    "isaacsim-asset>=6.3.0.dev0,<8",
     # Capture CloudXR requires >=17.3; override Isaac Sim 6.2's <15 and Viser 1.0's <17 caps.
     "websockets>=17.3",
     "numpy>=2",
@@ -467,7 +467,7 @@ egl-probe = { CMAKE_POLICY_VERSION_MINIMUM = "3.5" }
 
 [tool.uv.sources]
 isaacsim = { index = "isaacsim-internal" }
-isaacsim-asset-isolated = { index = "isaacsim-internal" }
+isaacsim-asset = { index = "isaacsim-internal" }
 ovstorage = { index = "pypi-public" }
 ovphysx = { index = "pypi-public" }
 ovrtx = { index = "pypi-public" }
