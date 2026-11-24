@@ -10,6 +10,9 @@
     Asset
     AssetBase
     AssetBaseCfg
+    BaseSurfaceGripper
+    SurfaceGripper
+    SurfaceGripperCfg
     VisualMaterial
     VisualMaterialCfg
     BaseCableObject
@@ -49,6 +52,9 @@
 Assets
 ------
 
+Surface grippers use :class:`SurfaceGripperCfg` and the active physics backend.
+See :doc:`/source/how-to/run_surface_gripper` for configuration and commands.
+
 .. autoclass:: Asset
     :members:
 
@@ -72,6 +78,21 @@ Visual Material
     :inherited-members:
     :show-inheritance:
     :exclude-members: __init__, class_type, InitialStateCfg
+
+Surface Grippers
+----------------
+
+.. autoclass:: SurfaceGripper
+    :members:
+    :inherited-members:
+
+.. autoclass:: SurfaceGripperCfg
+    :members:
+    :inherited-members:
+    :exclude-members: __init__, class_type
+
+.. autoclass:: BaseSurfaceGripper
+    :members:
 
 Rigid Object
 ------------

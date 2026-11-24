@@ -139,7 +139,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
     from isaaclab.benchmark.schema import StartupTime
 
     from isaaclab_rl.entrypoints.backends.runner_rsl_rl import configure_rsl_rl_env_cfg, create_rsl_rl_runner
-    from isaaclab_rl.rsl_rl import RslRlDistillationRunnerCfg, RslRlVecEnvWrapper
+    from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
 
     import isaaclab_tasks  # noqa: F401
 
@@ -223,11 +223,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             )
 
             log_root_path = os.path.abspath(os.path.join("logs", "rsl_rl", agent_cfg.experiment_name))
-            resume_path = (
-                get_checkpoint_path(log_root_path, agent_cfg.load_run, agent_cfg.load_checkpoint)
-                if agent_cfg.resume or isinstance(agent_cfg, RslRlDistillationRunnerCfg)
-                else None
-            )
+            resume_path = cli_args.resolve_rsl_rl_training_checkpoint(args_cli, agent_cfg, log_root_path)
             log_dir = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             if agent_cfg.run_name:
                 log_dir += f"_{agent_cfg.run_name}"
@@ -252,6 +248,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             runner = create_rsl_rl_runner(env, agent_cfg, log_dir=log_dir)
             _disable_code_state_capture(runner)
             if resume_path is not None:
+                # map to this process's device; the checkpoint's tensors otherwise land on the GPU that saved them
                 runner.load(resume_path, map_location=agent_cfg.device)
 
             early = RslRlEarlyStopWrapper(
