@@ -5,6 +5,7 @@
 
 __all__ = [
     "heading_velocity_command",
+    "heading_velocity_command_steered_on_resample",
     "uniform_pose_command",
     "uniform_velocity_command",
     "difficulty_scheduler",
@@ -58,7 +59,12 @@ __all__ = [
     "root_height_below_minimum",
 ]
 
-from .commands import heading_velocity_command, uniform_pose_command, uniform_velocity_command
+from .commands import (
+    heading_velocity_command,
+    heading_velocity_command_steered_on_resample,
+    uniform_pose_command,
+    uniform_velocity_command,
+)
 from .curriculums import difficulty_scheduler
 from .events import (
     push_by_setting_velocity,

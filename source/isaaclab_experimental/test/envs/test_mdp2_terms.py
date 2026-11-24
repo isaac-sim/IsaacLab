@@ -313,39 +313,43 @@ def test_events_agree_across_backends_and_respect_ranges(env: MDP2Env):
 
 
 def test_heading_command_steers_towards_its_heading(env: MDP2Env):
-    """Both backends draw the same commands; heading worlds turn towards their heading as MDP1's command does."""
-    command = mdp2.Command(
-        mdp.heading_velocity_command,
-        inputs={"root_link_pose_w": robot.root_link_pose_w},
-        params={
-            "lin_vel_x": (-1.0, 1.0),
-            "lin_vel_y": (-0.5, 0.5),
-            "ang_vel_z": (-1.0, 1.0),
-            "heading": (-math.pi, math.pi),
-            "rel_standing_envs": 0.25,
-            "rel_heading_envs": 0.5,
-            "heading_control_stiffness": 0.5,
-        },
-    )
+    """Both backends draw the same commands; heading worlds turn towards their heading as MDP1's command does.
 
+    The steered variant gives at its resample what the plain command gives at its first update: MDP1's
+    ``UniformVelocityCommand`` steers right after it resamples, since its manager updates the commands after a reset.
+    """
+    params = {
+        "lin_vel_x": (-1.0, 1.0),
+        "lin_vel_y": (-0.5, 0.5),
+        "ang_vel_z": (-1.0, 1.0),
+        "heading": (-math.pi, math.pi),
+        "rel_standing_envs": 0.25,
+        "rel_heading_envs": 0.5,
+        "heading_control_stiffness": 0.5,
+    }
+
+    terms = {"plain": mdp.heading_velocity_command, "steered": mdp.heading_velocity_command_steered_on_resample}
     results = {}
     for backend in ("torch", "warp"):
-        builder = mdp2.MDPBuilder(env.scene_data.schema)
-        builder.add_command("base_velocity", command)
-        model = builder.finalize(device=env.device, backend=backend)
-        state, transition = model.state(env.scene_data, seed=1), model.transition()
+        for variant, term in terms.items():
+            command = mdp2.Command(term, inputs={"root_link_pose_w": robot.root_link_pose_w}, params=params)
+            builder = mdp2.MDPBuilder(env.scene_data.schema)
+            builder.add_command("base_velocity", command)
+            model = builder.finalize(device=env.device, backend=backend)
+            state, transition = model.state(env.scene_data, seed=1), model.transition()
 
-        mdp2.reset(model, state, ProxyArray(wp.ones(NUM_ENVS, dtype=wp.bool, device=env.device)))
-        sampled = state.arrays[mdp2.commands.base_velocity].torch.clone()
-        mdp2.evaluate(model, state, transition)
-        updated = state.arrays[mdp2.commands.base_velocity].torch.clone()
-        heading = state.arrays[mdp2.term_state("commands.base_velocity", "heading_target")].torch.clone()
-        results[backend] = (sampled, updated, heading)
+            mdp2.reset(model, state, ProxyArray(wp.ones(NUM_ENVS, dtype=wp.bool, device=env.device)))
+            sampled = state.arrays[mdp2.commands.base_velocity].torch.clone()
+            mdp2.evaluate(model, state, transition)
+            updated = state.arrays[mdp2.commands.base_velocity].torch.clone()
+            heading = state.arrays[mdp2.term_state("commands.base_velocity", "heading_target")].torch.clone()
+            results[backend, variant] = (sampled, updated, heading)
 
-    for value, expected in zip(results["warp"], results["torch"]):
-        torch.testing.assert_close(value, expected, equal_nan=True)
+    for variant in terms:
+        for value, expected in zip(results["warp", variant], results["torch", variant]):
+            torch.testing.assert_close(value, expected, equal_nan=True)
 
-    sampled, updated, heading = results["warp"]
+    sampled, updated, heading = results["warp", "plain"]
     standing = (sampled == 0.0).all(-1)
     controlled = ~heading.isnan()
     assert standing.any() and controlled.any() and (~standing & ~controlled).any()
@@ -355,6 +359,11 @@ def test_heading_command_steers_towards_its_heading(env: MDP2Env):
     expected = torch.where(controlled, (0.5 * heading_error).clip(-1.0, 1.0), sampled[:, 2])
     torch.testing.assert_close(updated[:, 2], expected)
     assert heading[standing].isnan().all() and (updated[standing] == 0.0).all()
+
+    steered_sampled, steered_updated, steered_heading = results["warp", "steered"]
+    torch.testing.assert_close(steered_sampled, updated)
+    torch.testing.assert_close(steered_updated, updated)
+    torch.testing.assert_close(steered_heading, heading, equal_nan=True)
 
 
 def test_model_events_randomize_the_startup_model_alike_on_both_backends(env: MDP2Env):
