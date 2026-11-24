@@ -1,6 +1,7 @@
 * Added ``IsaacContrib-VLA-Heterogeneous-Franka``: a shared tabletop scene for vision-language-action policies
   on Newton, with bounded combinations from a tagged object catalog instead of fixed per-benchmark layouts.
   Sampling chooses categories uniformly before assets uniformly within each category, without enumerating combinations.
+  The first object of a world is a tray or bowl and the second a prop that fits it, so every world offers a task.
   Reset places objects collision-free inside the polygon intersection of the declared, measured tabletop outline and a
   hand-defined robot workspace, preserving outlines and holes. Placement samples COM poses using
   collision geometry relative to the simulator COM, accounting for mesh and COM offsets from the asset origin.

@@ -150,7 +150,7 @@ With ``match_tags=[]`` and ``sample_by=None`` (the defaults), the existing indep
 product and assignment behavior are preserved. Inclusion interpretation stays in scene planning. ``ReplicateSession`` forwards the
 resolved definitions without applying tag matching or task-specific rules.
 
-The tabletop example in ``contrib/heterogeneous_tasks`` samples arbitrary object combinations with a
+The tabletop example in ``contrib/heterogeneous_tasks`` samples object combinations with a
 bounded count. It samples the count uniformly, then a category independently for each occupied slot,
 then an asset uniformly within each chosen category. The catalog distinguishes food, bottles, cans, tools,
 utensils, miscellaneous objects, plates, trays and containers. Ordinary inclusion matching represents
@@ -223,9 +223,12 @@ The workspace is hand-defined; this example does not compute inverse-kinematics 
 Movable-object combinations are sampled once when the scene is built; reset changes the table and
 randomizes object poses. The table and robot do
 not count toward ``OBJECT_COUNT``. The example retains a rectangular object collection using hidden inactive
-bodies and Newton mesh variants; inactive bodies are parked away from the workspace. Any combination
-may be selected, including repeated instances and worlds without a usable target. There is no
-conditioning on the presence of a plate or container and no list of authored benchmark layouts.
+bodies and Newton mesh variants; inactive bodies are parked away from the workspace. Combinations may
+repeat instances, and there is no list of authored benchmark layouts. So that every world offers a task,
+``SLOT_ASSETS`` restricts the first two objects of a world: the first is a tray or a bowl of 12 cm or more
+(``RECEIVER_ASSETS``), the second a prop that suits the gripper and fits every such receiver
+(``MOVABLE_ASSETS``, by the rules below). The other objects are sampled freely, except that they are no further
+trays or bowls. The two bowls of 10 cm (``Kitchenware_Bowl_E01`` and ``Bowl_M01``) are therefore not sampled.
 
 After reset, ``env.tabletop.available_tasks[world]`` lists the evaluable instruction bindings.
 ``put_in_container`` requires a container and a distinct movable object that fits its inset footprint;
@@ -240,8 +243,8 @@ Instructions name objects in plain words: by the catalog label without its asset
 apart by color ("grey bowl"). When several objects of a world share a name, one instruction stands for all of
 them: any of those objects in or on any of those targets counts. Reset selects an available binding
 and publishes ``env.tabletop.instructions``. To request another binding on the next reset, use
-``env.tabletop.set_task([world], [binding_index])``. A world with no binding keeps its sampled objects,
-has an empty instruction and does not report task success. Success requires the target to carry the selected
+``env.tabletop.set_task([world], [binding_index])``. With another object collection, a world with no binding
+keeps its sampled objects, has an empty instruction and does not report task success. Success requires the target to carry the selected
 object: the object is released and at rest, the center of its bounds lies inside the target's bounding
 rectangle, it touches the target and not the table, and the target is upright; containment also requires its
 bottom below the rim. Corners may overhang, and a rim may rise above the surface that carries the object.

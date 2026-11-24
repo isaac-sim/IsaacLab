@@ -352,6 +352,89 @@ The known failing large plastic plate is excluded. Mesh collisions preserve rece
 SimReady's PhysX validation alone does not certify contact behavior on Newton.
 """
 
+RECEIVER_ASSETS = (
+    "Bowl_U01",
+    "Bowl_H01",
+    "Tray_A01",
+    "Bowl_F01",
+    "Bowl_N01",
+    "Bowl_Q01",
+    "Bowl_S01",
+    "Kitchenware_Bowl_B01",
+    "Kitchenware_Bowl_D01",
+    "Plastic_Tray_A01",
+    "Kitchenware_Bowl_C01",
+    "Bowl_I01",
+    "Bowl_J01",
+    "Bowl_K01",
+    "Bowl_L01",
+    "Bowl_O01",
+    "Bowl_P01",
+    "Bowl_R01",
+)
+"""The trays and the bowls of 12 cm or more. The first object of every world is one of them: its target."""
+
+MOVABLE_ASSETS = (
+    "Red_Delicious_Apple_A01",
+    "Socket_B01_03",
+    "Garlic_Bulb_A01",
+    "Lime_A01",
+    "Strawberry_A01",
+    "Tangerine_A01",
+    "Lime_A02",
+    "Onion_B01",
+    "Beer_Bottle_A01",
+    "Ketchup_A01",
+    "Ketchup_A02",
+    "Ketchup_A03",
+    "Can_B01",
+    "Canned_Food_B01",
+    "Can_C01",
+    "Canned_Food_C01",
+    "Can_D01",
+    "Canned_Food_D01",
+    "Can_E01",
+    "Canned_Food_F01",
+    "Can_G01",
+    "Can_H01",
+    "Can_I01",
+    "Can_J01",
+    "Canned_Food_J01",
+    "Can_K01",
+    "Canned_Food_K01",
+    "Can_L01",
+    "Canned_Food_L01",
+    "Can_M01",
+    "Canned_Food_M01",
+    "Can_N01",
+    "Cup_A01",
+    "Socket_B01_08",
+    "Socket_1_3_16in_A01",
+    "Socket_1_5_16in_A01",
+    "Socket_3_4in_A01",
+    "Socket_3_8in_A01",
+    "Socket_5_16in_A01",
+    "Socket_5_8in_A01",
+)
+"""Props that suit the gripper and fit every receiver, by the rules of :class:`~.mdp.reset_tabletop`.
+
+The second object of every world is one of them, so every world offers a task.
+"""
+
+SLOT_ASSETS = (
+    RECEIVER_ASSETS,
+    MOVABLE_ASSETS,
+    *[
+        tuple(
+            label
+            for label, spawn in ASSET_CATALOG.items()
+            if not {("category", "container"), ("category", "tray")} & set(spawn.semantic_tags)
+        )
+    ]
+    * (OBJECT_COUNT[1] - 2),
+)
+"""Catalog labels that each object slot samples from; the slots after the first two hold no further receiver."""
+
 
 OBJECTS_CFG = RigidObjectCollectionCfg(
     rigid_objects={
@@ -370,7 +453,8 @@ OBJECTS_CFG = RigidObjectCollectionCfg(
                         ]
                     )
                     for label, spawn in ASSET_CATALOG.items()
-                    if any(tag == "object_count" and int(value) > slot for tag, value in spawn.semantic_tags)
+                    if label in SLOT_ASSETS[slot]
+                    and any(tag == "object_count" and int(value) > slot for tag, value in spawn.semantic_tags)
                 ]
                 + [
                     EMPTY_OBJECT_CFG.replace(
@@ -389,7 +473,10 @@ OBJECTS_CFG = RigidObjectCollectionCfg(
         for slot in range(OBJECT_COUNT[1])
     },
 )
-"""Complete object group; inclusion matching selects count, then category and asset per occupied slot."""
+"""Complete object group; inclusion matching selects count, then category and asset per occupied slot.
+
+Slot 0 holds a receiver and slot 1 a prop that can be placed in or on it (see ``SLOT_ASSETS``).
+"""
 
 
 @configclass
@@ -565,10 +652,11 @@ class TerminationsCfg:
 
 @configclass
 class VLAHeterogeneousEnvCfg(ManagerBasedRLEnvCfg):
-    """Sample any bounded object combination; tasks become available from categories and geometric fit.
+    """Sample bounded object combinations; tasks become available from categories and geometric fit.
 
     ``OBJECTS_CFG`` declares the object collection before environment construction. Empty placeholders
     keep runtime views rectangular; inclusion matching selects the count, category and concrete assets.
+    Every world holds a receiver and a prop that can be placed in or on it, so every world offers a task.
     """
 
     scene: TabletopSceneCfg = TabletopSceneCfg(num_envs=1, env_spacing=10.0, lazy_sensor_update=True)

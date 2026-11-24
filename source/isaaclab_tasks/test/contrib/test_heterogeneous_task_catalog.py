@@ -47,11 +47,12 @@ def test_bounded_combinations_do_not_expand_the_object_product():
                             semantic_tags=[
                                 *spawn.semantic_tags,
                                 ("_catalog_key", label),
-                                *[
+                                *dict.fromkeys(
                                     (tag, value)
-                                    for tag, value in member.spawn.assets_cfg[0].semantic_tags
+                                    for candidate in member.spawn.assets_cfg[:-1]
+                                    for tag, value in candidate.semantic_tags
                                     if tag == "object_count"
-                                ],
+                                ),
                             ]
                         )
                         for label, spawn in objects.items()
@@ -139,12 +140,19 @@ def test_bounded_combinations_do_not_expand_the_object_product():
     groups, weights = make_valid_clone_combinations(names, candidates, resolved.scene.clone_cfg.clone_combinations)
     flattened = [candidate for row in candidates for candidate in row]
     plan = make_clone_plan(flattened, groups, 128, weights=weights)
+    slots = np.repeat(np.arange(len(candidates)), [len(row) for row in candidates])
+    receivers = {rule["target"] for rule in resolved.tasks.values()}
     seen_large = set()
     for composition in plan.topology.world_prototype_layout:
         start, end = plan.topology.world_prototype_starts[composition + 1 : composition + 3]
         members = [flattened[index] for index in plan.topology.world_prototypes[start:end]]
         labels = [dict(spawn.semantic_tags or ()).get("_catalog_key") for spawn in members]
         count = sum(label not in (None, "__empty__") for label in labels)
+        # Every world offers a task: its first object is a receiver, its second fits it, the others are no receivers.
+        world = dict(zip(slots[plan.topology.world_prototypes[start:end]].tolist(), members, strict=True))
+        assert dict(world[0].semantic_tags)["_catalog_key"] in catalog.RECEIVER_ASSETS
+        assert dict(world[1].semantic_tags)["_catalog_key"] in catalog.MOVABLE_ASSETS
+        assert not any(dict(spawn.semantic_tags)["category"] in receivers for slot, spawn in world.items() if slot > 1)
         for label in labels:
             if label in ("Tray_A01", "Bowl_N01"):
                 assert count <= {"Tray_A01": 2, "Bowl_N01": 4}[label]
