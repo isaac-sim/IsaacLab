@@ -433,7 +433,7 @@ def test_nested_articulation_follows_root_pose_writes():
 def test_fabric_geometry_sink_uses_sdp_world_points_and_frame_cadence(monkeypatch):
     """Mesh, curve and cloud sinks consume only named SDP buffers, independent of Newton internals.
 
-    On a GPU, the particle cloud goes to GPU Fabric without a copy to the CPU.
+    On a GPU, the cloud update writes the particle positions to Fabric without a copy to the CPU.
     """
     cfg = SimulationCfg(device="cuda:0", physics=NewtonCfg(), visualizer_cfgs=[])
     with build_simulation_context(sim_cfg=cfg) as sim:
