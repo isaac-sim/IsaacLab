@@ -59,7 +59,8 @@ Demos
      - A Franka suction tool sorts parcels of different sizes onto receiving belts and into bins.
      - `Suction sorting <https://github.com/isaac-sim/isaaclab_demos/blob/main/demos/conveyor_suction/README.md>`_
    * - ``cube-reorient``
-     - Trains the Shadow Hand camera task to turn a cube to a goal pose; with ``--cosmos``, on Cosmos images.
+     - Trains the Shadow Hand camera task to turn a cube to a goal pose; with ``--cosmos``, on images
+       Cosmos3-Nano-Sim-Transfer generates from the camera's depth.
      - `Cube reorientation <https://github.com/isaac-sim/isaaclab_demos/blob/main/demos/cube_reorient/README.md>`_
    * - ``apple-pick-place``
      - A GR00T N1.7 policy moves an apple onto a plate with a Unitree G1; with ``--cosmos``, it sees the Cosmos head
@@ -67,26 +68,6 @@ Demos
      - `G1 apple pick-and-place
        <https://github.com/isaac-sim/isaaclab_demos/blob/main/demos/apple_pick_place/README.md>`_
 
-The repository's `README <https://github.com/isaac-sim/isaaclab_demos#install-and-run-a-demo>`_ has each demo's run
-command and what else it needs.
-
-Cosmos Transfer
----------------
-
-`Cosmos3-Nano-Sim-Transfer <https://huggingface.co/nvidia/Cosmos3-Nano-Sim-Transfer>`_ generates RGB camera images
-from a simulated camera's depth. ``cube-reorient`` and ``apple-pick-place`` take ``--cosmos`` to use it. Cosmos runs as
-a server in the Cosmos Framework environment, which uses Python 3.13, and Isaac Lab connects to it from its own
-environment. It needs about 47 GB of GPU memory for the first environment and about 9 GB for each further one, and
-about 50 GB of disk.
-
-Set up Cosmos once and start its server as
-`Run a demo with Cosmos <https://github.com/isaac-sim/isaaclab_demos#run-a-demo-with-cosmos>`_ in the repository's
-README describes, then run a demo with ``--cosmos`` in a second terminal:
-
-.. code-block:: bash
-
-   uv run --locked isaaclab-demos run cube-reorient --cosmos --max_iterations 20 --num_envs 1
-
-The `Cosmos Transfer camera integration
-<https://github.com/isaac-sim/isaaclab_demos/blob/main/packages/cosmos_transfer/README.md>`_ guide shows how to put
-Cosmos on your own camera task.
+Each guide explains how to install and run its demo, including what else it needs to download, such as a policy or the
+Cosmos server. The repository's `README <https://github.com/isaac-sim/isaaclab_demos#install-and-run-a-demo>`_ has
+every demo's run command.
