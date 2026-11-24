@@ -28,6 +28,15 @@ class _AutoRtxRendererCfg(RendererCfg):
 
 
 @configclass
+class RtxRendererCfg(PresetCfg):
+    """Select standalone or Isaac Sim RTX for tasks requiring the RTX renderer family."""
+
+    isaacsim_rtx: IsaacRtxRendererCfg = IsaacRtxRendererCfg()
+    ovrtx: OVRTXRendererCfg = OVRTXRendererCfg()
+    default: OVRTXRendererCfg = ovrtx
+
+
+@configclass
 class MultiBackendRendererCfg(PresetCfg):
     rtx: _AutoRtxRendererCfg = _AutoRtxRendererCfg()
     ovrtx: OVRTXRendererCfg = OVRTXRendererCfg()

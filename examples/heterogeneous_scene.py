@@ -51,10 +51,11 @@ parser.add_argument(
     default=None,
     help="Number of tasks to use from the default order. Omit to use all tasks.",
 )
-parser.add_argument("--physics", default="ovphysx", choices=["ovphysx"], help="Physics backend.")
+parser.add_argument("--physics", default="ovphysx", choices=["isaacsim_physx", "ovphysx"], help="Physics backend.")
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["newton_rtx"])
 args_cli, hydra_args = parser.parse_known_args()
+if args_cli.visualizer is None:
+    args_cli.visualizer = ["newton_gl" if args_cli.physics == "isaacsim_physx" else "newton_rtx"]
 if args_cli.num_envs < 1:
     parser.error("--num_envs must be at least 1.")
 if args_cli.env_spacing <= 0.0:

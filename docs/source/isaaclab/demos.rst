@@ -204,7 +204,9 @@ SONIC on gravel and sand
 ------------------------
 
 The SONIC demo runs a G1 robot over gravel and sand with Newton MJWarp and MPM,
-or Isaac Sim PhysX and PBD. It requires an NVIDIA GPU and uses Kit for RTX rendering.
+or Isaac Sim PhysX and PBD. It requires an NVIDIA GPU. The Newton physics path records
+with Newton RTX by default; the retained Isaac Sim physics path uses Kit physics
+and Newton OpenGL visualization.
 
 From the repository root, install the simulator, recording dependencies, and the
 additional packages used to download and run the released ONNX models:
@@ -235,7 +237,7 @@ The terminal reports simulation progress. Recording advances
 in simulation time, so the full MPM scene can take substantially longer than the video
 duration. Pass ``--seconds`` to change the simulation duration.
 
-Pass ``--viz newton_rtx`` to choose an interactive RTX visualizer instead.
+With Newton physics, pass ``--viz newton_rtx`` to choose an interactive RTX visualizer instead.
 With an explicit ``--viz`` selection, recording is opt-in via ``--video``.
 
 Append ``env.sim.device=cuda:1`` to select a different CUDA device for physics and SONIC

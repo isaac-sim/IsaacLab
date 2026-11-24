@@ -9,15 +9,15 @@
 .. code-block:: bash
 
     # with allegro hand
-    uvx --from 'isaaclab[ov]' isaaclab example multi-mesh-ray-caster-camera \\
+    uvx --from 'isaaclab[isaacsim]' isaaclab example multi-mesh-ray-caster-camera \\
         --num_envs 16 --asset_type allegro_hand
 
     # with anymal-D bodies
-    uvx --from 'isaaclab[ov]' isaaclab example multi-mesh-ray-caster-camera \\
+    uvx --from 'isaaclab[isaacsim]' isaaclab example multi-mesh-ray-caster-camera \\
         --num_envs 16 --asset_type anymal_d
 
     # with random multiple objects
-    uvx --from 'isaaclab[ov]' isaaclab example multi-mesh-ray-caster-camera \\
+    uvx --from 'isaaclab[isaacsim]' isaaclab example multi-mesh-ray-caster-camera \\
         --num_envs 16 --asset_type objects
 
 """

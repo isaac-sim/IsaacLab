@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""This script demonstrates how to create a simple stage in Isaac Sim.
+"""This script demonstrates how to create a simple stage with standalone OvPhysX.
 
 .. code-block:: bash
 

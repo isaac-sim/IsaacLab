@@ -115,11 +115,15 @@ def test_newton_rtx_selection_launches_newton_in_rtx_without_a_warning():
 
 
 def test_newton_gl_alias_selects_newton_without_a_warning():
-    cfg = SimulationCfg(physics=sim_launcher.NewtonCfg())
+    cfg = SimulationCfg(
+        physics=sim_launcher.NewtonCfg(),
+        visualizer_cfgs=VisualizerCfg(backend=NewtonGLBackendCfg(initial_renderer="rtx")),
+    )
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         sim_launcher.validate_launch(cfg, {"visualizer": ["newton_gl"]})
     assert [viewer.backend.visualizer_type for viewer in cfg.visualizer_cfgs] == ["newton"]
+    assert [viewer.backend.initial_renderer for viewer in cfg.visualizer_cfgs] == ["opengl"]
 
 
 def test_initial_renderer_opens_in_opengl_and_rtx_needs_the_viewer_camera():

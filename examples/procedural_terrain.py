@@ -59,11 +59,12 @@ parser.add_argument(
     default=False,
     help="Whether to show the flat patches computed during the terrain generation.",
 )
-parser.add_argument("--physics", default="ovphysx", choices=["ovphysx"], help="Physics backend.")
+parser.add_argument("--physics", default="ovphysx", choices=["isaacsim_physx", "ovphysx"], help="Physics backend.")
 parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["newton_rtx"])
 args_cli = parser.parse_args()
+if args_cli.visualizer is None:
+    args_cli.visualizer = ["newton_gl" if args_cli.physics == "isaacsim_physx" else "newton_rtx"]
 if args_cli.max_steps == 0 or args_cli.max_steps < -1:
     parser.error("--max_steps must be positive or -1.")
 

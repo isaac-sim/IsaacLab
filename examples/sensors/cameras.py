@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
 
 from isaaclab.app import add_launcher_args, launch_simulation
@@ -35,12 +36,13 @@ parser.add_argument("--output_dir", type=Path, default=Path("output/camera"), he
 parser.add_argument(
     "--physics",
     default="ovphysx",
-    choices=["ovphysx"],
+    choices=["isaacsim_physx", "ovphysx"],
     help="Physics backend.",
 )
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["newton_rtx"])
 args_cli = parser.parse_args()
+if args_cli.visualizer is None:
+    args_cli.visualizer = ["newton_gl" if args_cli.physics == "isaacsim_physx" else "newton_rtx"]
 if args_cli.log_interval < 1:
     parser.error("--log_interval must be at least 1.")
 if args_cli.save_interval < 1:
@@ -89,7 +91,7 @@ class SensorsSceneCfg(InteractiveSceneCfg):
 
     # sensors
     camera = CameraCfg(
-        renderer_cfg=OVRTXRendererCfg(),
+        renderer_cfg=IsaacRtxRendererCfg() if args_cli.physics == "isaacsim_physx" else OVRTXRendererCfg(),
         prim_path="{ENV_REGEX_NS}/Robot/base/front_cam",
         update_period=0.1,
         height=480,

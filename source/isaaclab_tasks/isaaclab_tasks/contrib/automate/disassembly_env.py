@@ -80,13 +80,9 @@ class DisassemblyEnv(DirectRLEnv):
         )
 
         # Set masses and frictions.
-        self._set_friction(self._held_asset, self.cfg_task.held_asset_cfg.friction)
-        self._set_friction(self._fixed_asset, self.cfg_task.fixed_asset_cfg.friction)
-        self._set_friction(self._robot, self.cfg_task.robot_cfg.friction)
-
-    def _set_friction(self, asset, value):
-        """Update shape friction without changing restitution."""
-        factory_utils.set_friction(asset, value, self.scene.num_envs, self.cfg.sim.physics)
+        factory_utils.set_friction(self._held_asset, self.cfg_task.held_asset_cfg.friction, self.scene.num_envs)
+        factory_utils.set_friction(self._fixed_asset, self.cfg_task.fixed_asset_cfg.friction, self.scene.num_envs)
+        factory_utils.set_friction(self._robot, self.cfg_task.robot_cfg.friction, self.scene.num_envs)
 
     def _init_tensors(self):
         """Initialize tensors once."""

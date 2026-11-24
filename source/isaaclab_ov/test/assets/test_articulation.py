@@ -959,7 +959,7 @@ def test_set_material_properties(scene: _ArticulationScene) -> None:
     # The ranges exclude the asset's default material, so values inside them prove the write happened.
     static_range, dynamic_range, restitution_range = (1.5, 2.0), (1.2, 1.4), (0.6, 0.8)
     view = articulation.root_view
-    materials_before = wp.to_torch(view.get_attribute(TT.SHAPE_FRICTION_AND_RESTITUTION)).clone()
+    materials_before = wp.to_torch(view.get_material_properties()).clone()
     assert materials_before.shape[1] > 0
     assert (materials_before[..., 0] < static_range[0]).all(), f"default material overlaps: {materials_before}"
     params = {
@@ -983,6 +983,17 @@ def test_set_material_properties(scene: _ArticulationScene) -> None:
     for component, (lo, hi) in enumerate((static_range, dynamic_range, restitution_range)):
         values = materials[-1, :, component]
         assert ((values >= lo - eps) & (values <= hi + eps)).all(), values
+
+    # The shared view interface also writes a selected row without changing restitution.
+    restitution = materials[..., 2].clone()
+    materials[-1, :, :2] = 0.25
+    view.set_material_properties(
+        wp.from_torch(materials.contiguous()), wp.from_torch(torch.tensor([num_articulations - 1], dtype=torch.int32))
+    )
+    actual = wp.to_torch(view.get_attribute(TT.SHAPE_FRICTION_AND_RESTITUTION))
+    torch.testing.assert_close(actual[..., 2], restitution)
+    torch.testing.assert_close(actual[-1, :, :2], torch.full_like(actual[-1, :, :2], 0.25))
+    torch.testing.assert_close(actual[:-1], materials_before[:-1])
 
 
 @pytest.mark.parametrize("scene", _ALL_DEVICES, indirect=True)
