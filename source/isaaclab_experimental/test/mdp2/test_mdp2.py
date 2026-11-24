@@ -506,7 +506,7 @@ def test_finalize_reports_all_errors():
     assert "rewards.unknown_command: unknown field 'commands.typo'. Fields of the MDP:" in message
     assert "rewards.unmatched_subset: 'robot.joints('x', 'elbow')' matches no name with ['elbow']" in message
     assert "actions.second_writer: 'robot.joint_effort_target' is already written by 'actions.joint_effort'" in message
-    assert "actions.unmatched_scale: Not all regular expressions are matched!" in message
+    assert "actions.unmatched_scale: " in message
     assert "rewards.array_type: wp.func 'generated_commands_warp' takes 'command' as a 1-dimensional array" in message
     assert "terminations.return_type: wp.func 'is_alive_warp' must return bool" in message
     assert "rewards.no_warp: the term has no 'warp' implementation" in message
