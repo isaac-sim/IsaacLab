@@ -492,3 +492,13 @@ def test_the_docs_link_does_not_block_the_render_thread(monkeypatch):
 
     assert started.wait(5)
     release.set()
+def test_a_window_that_forbids_the_rtx_camera_takes_no_viewer_camera():
+    from isaaclab_visualizers.newton.newton_visualizer import NewtonGLVisualizer
+
+    viz = NewtonGLVisualizer.__new__(NewtonGLVisualizer)
+    viz._rtx_camera_path = None
+
+    viz.cfg = SimpleNamespace(backend=SimpleNamespace(rtx_camera=None))
+    assert viz._is_viewer_camera("/World/viewer_camera_0")
+    viz.cfg = SimpleNamespace(backend=SimpleNamespace(rtx_camera=False))
+    assert not viz._is_viewer_camera("/World/viewer_camera_0")
