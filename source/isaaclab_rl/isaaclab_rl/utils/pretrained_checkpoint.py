@@ -273,9 +273,10 @@ def get_pretrained_checkpoint_publish_path(
     filename = get_pretrained_checkpoint_filename(
         workflow, task_name, physics_backend, render_backend, preset_names=preset_names
     )
+    directory = "rsl_rl" if workflow == "model_based" else workflow
     if physics_backend is None:
-        return posixpath.join(PRETRAINED_CHECKPOINT_PATH, workflow, task_name, filename)
-    return posixpath.join(PRETRAINED_CHECKPOINT_PATH, workflow, filename)
+        return posixpath.join(PRETRAINED_CHECKPOINT_PATH, directory, task_name, filename)
+    return posixpath.join(PRETRAINED_CHECKPOINT_PATH, directory, filename)
 
 
 def get_published_pretrained_checkpoint_path(
