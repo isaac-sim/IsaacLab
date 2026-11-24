@@ -38,7 +38,9 @@ Choosing a renderer backend
       ``renderer=newton_warp``
 
       On RTX GPUs, ``renderer=newton_optix`` traces the same scenes in hardware with OptiX. Install it
-      with ``uv sync --inexact --extra optix``. It does not support particles or deformable surfaces.
+      with ``uv sync --inexact --extra optix``. It requires Python 3.12 on Linux x86-64 or Windows x64;
+      ARM64 systems, including NVIDIA DGX Spark, are not supported. It does not support particles or
+      deformable surfaces.
 
    .. grid-item-card:: OVRTX :bdg-success:`Recommended`
 
@@ -101,6 +103,11 @@ use case.
    - **Runtime and physics:** The Newton renderer ray traced in hardware with OptiX on RTX GPUs.
      Install it with ``uv sync --inexact --extra optix`` (Linux x86-64 and Windows x64) and select it
      with ``renderer=newton_optix``. Pairs with the same physics backends as Newton Warp.
+   - **Platform limitations:** Requires Python 3.12. The ``warp-optix`` dependency does not provide
+     ARM64 wheels, so Newton excludes it on ARM64 systems, including NVIDIA DGX Spark. On these
+     systems, selecting the ``optix`` extra skips this dependency, and camera initialization fails
+     with ``RuntimeError: The OptiX camera backend requires the newton[optix] extra``. Use
+     ``renderer=newton_warp`` on ARM64.
    - **Output coverage:** Same outputs and settings as Newton Warp. It does not render particles,
      deformable surfaces, or Gaussian splats, and it ignores ``use_cuda_graph``.
    - **Configuration:** :class:`~isaaclab_newton.renderers.NewtonOptixRendererCfg`
