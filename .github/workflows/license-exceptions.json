@@ -553,6 +553,15 @@
     "comment": "NVIDIA component imported into the Isaac Lab Python process"
   },
   {
+    "package": "warp-optix",
+    "package_type": "Python",
+    "license": "Apache-2.0 AND BSD-3-Clause AND LicenseRef-NVIDIA-OptiX",
+    "usage": "runtime_dependency",
+    "interaction": "same_process_dynamic",
+    "linkage": "dynamic",
+    "comment": "Optional newton[optix] renderer backend imported into the Isaac Lab Python process; includes NVIDIA OptiX license terms, so OSRB review is required"
+  },
+  {
     "package": "physx-usd-schemas",
     "package_type": "Python",
     "license": "LicenseRef-NVIDIA-Omniverse",
