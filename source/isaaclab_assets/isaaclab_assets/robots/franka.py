@@ -23,6 +23,8 @@ available as an explicit USD-path override.
 Reference: https://github.com/frankaemika/franka_ros
 """
 
+import os
+
 from isaaclab_isaacsim.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 from isaaclab_newton.sim.schemas import MujocoRigidBodyCfg, NewtonArticulationCfg
 
@@ -31,6 +33,8 @@ from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.utils import clone
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+
+from isaaclab_assets import ISAACLAB_ASSETS_EXT_DIR
 
 ##
 # Configuration
@@ -185,12 +189,11 @@ FRANKA_PANDA_MENAGERIE_CFG.actuators = {
 
 
 FRANKA_ROBOTIQ_GRIPPER_CFG = clone(FRANKA_PANDA_LEGACY_CFG)
-# TODO: Temporary location. Replace the Hugging Face URL with the Isaac Lab Nucleus path once the asset is uploaded
-# there. The asset is the Isaac Sim Franka with the Isaac Lab Franka arm inertias; its Robotiq gripper variant sits on
-# the flange ``panda_link8`` with rubber finger pads.
-FRANKA_ROBOTIQ_GRIPPER_CFG.spawn.usd_path = (
-    "https://huggingface.co/datasets/LiFanxing/franka_robotiq/resolve/47163169a7decfe1131d3734b51007f74fe0f594"
-    "/franka.usd"
+# TODO: Temporary location. Replace the file in the repository's ``robots`` directory with the Isaac Lab Nucleus path
+# once the asset is uploaded there. The asset is the Isaac Sim Franka with the Isaac Lab Franka arm inertias; its
+# Robotiq gripper variant sits on the flange ``panda_link8`` with rubber finger pads.
+FRANKA_ROBOTIQ_GRIPPER_CFG.spawn.usd_path = os.path.abspath(
+    os.path.join(ISAACLAB_ASSETS_EXT_DIR, os.pardir, os.pardir, "robots", "franka.usd")
 )
 FRANKA_ROBOTIQ_GRIPPER_CFG.spawn.variants = {"Gripper": "Robotiq_2F_85"}
 # PhysX switches gravity off per body, while Newton reads gravity switches only on the physics scene, so MuJoCo Warp
