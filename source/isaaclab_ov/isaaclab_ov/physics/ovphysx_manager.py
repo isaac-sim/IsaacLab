@@ -783,8 +783,10 @@ class OvPhysxManager(PhysicsManager):
         for source, targets, transforms, env_ids, _ in native_clones:
             self.backend.physx.wait_task(self.backend.physx.clone(source, targets, transforms or None, env_ids=env_ids))
 
-        # Native metadata and bindings must see the newly attached bodies, including on CPU.
-        self.backend.physx.warmup()
+        # Pinned runtimes need explicit warmup before metadata and binding access, including on CPU.
+        # Newer runtimes finish construction and DirectGPU upload in the attach/clone tasks above.
+        if hasattr(self.backend.physx, "warmup"):
+            self.backend.physx.warmup()
 
         # The central SceneDataProvider can request these bindings later. Headless
         # training never consumes them, so avoid binding every rigid link here.

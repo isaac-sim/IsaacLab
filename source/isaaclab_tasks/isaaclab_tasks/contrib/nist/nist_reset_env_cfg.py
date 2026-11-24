@@ -3,35 +3,22 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Reset composition for the homogeneous NIST scene."""
+
 from __future__ import annotations
 
-from isaaclab.envs.reset import BetaSamplingScoreCfg, ResetStateSamplerCfg
+from isaaclab.envs.reset import ResetStateSamplerCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ManagerTermBaseCfg, SceneEntityCfg
 
-from isaaclab_tasks.utils import preset
 from isaaclab_tasks.utils.success_monitor import SuccessMonitorCfg
 
 from . import mdp
 from .assembly_profile_cfg import UniformPoseNoiseCfg
-from .factory_presets import (
-    GRASPED_POSE_RANGE,
-    GRASPED_POSE_RANGE_CENTERED,
-    EndEffectorBodyCfg,
-    FactoryAssemblyProfileCfg,
-    FixedAssetMapCfg,
-    FixedAssetTipCfg,
-    GripperGraspOffsetCfg,
-    GripperJointNamesCfg,
-    HeldAssetAlignOffsetCfg,
-    HeldAssetGraspDiameterCfg,
-    HeldAssetGraspMiddleCfg,
-    HeldAssetGraspPointCfg,
-    HeldAssetObstaclesCfg,
-    IKJointNamesCfg,
-    ResetAssetsCfg,
-    RobotObstaclesCfg,
-)
+from .nist_presets import EndEffectorBodyCfg, GripperGraspOffsetCfg, GripperJointNamesCfg, IKJointNamesCfg
+from .utils.variant_sampling import BalancedVariantScoreCfg
+
+RESET_ASSETS = ["nistboard", "fixed_asset", "held_asset", "robot"]
 
 START_RANDOM = EventTerm(
     func=mdp.ChainedResetTerms,
@@ -64,11 +51,11 @@ START_RANDOM = EventTerm(
                 },
             ),
             "reset_end_effector": EventTerm(
-                func=mdp.reset_end_effector_around_asset,
+                func=mdp.reset_variant_end_effector_around_asset,
                 mode="reset",
                 params={
                     "fixed_asset_cfg": SceneEntityCfg("held_asset"),
-                    "fixed_asset_offset": HeldAssetGraspMiddleCfg(),
+                    "fixed_asset_offset": "held_grasp_middle",
                     "pose_range_b": {
                         "x": (-0.005, 0.005),
                         "y": (-0.005, 0.005),
@@ -86,11 +73,10 @@ START_RANDOM = EventTerm(
                 },
             ),
             "grasp_held_asset": EventTerm(
-                func=mdp.grasp_held_asset,
+                func=mdp.grasp_variant_held_asset,
                 mode="reset",
                 params={
                     "robot_cfg": SceneEntityCfg("robot", joint_names=GripperJointNamesCfg()),
-                    "held_asset_diameter": HeldAssetGraspDiameterCfg(),
                 },
             ),
         }
@@ -113,11 +99,9 @@ START_ASSEMBLED = EventTerm(
                 },
             ),
             "reset_held_asset": EventTerm(
-                func=mdp.reset_held_asset_on_fixed_asset,
+                func=mdp.reset_variant_held_asset_on_fixed_asset,
                 mode="reset",
                 params={
-                    "assembly_profile": FactoryAssemblyProfileCfg(),
-                    "held_asset_align_offset": HeldAssetAlignOffsetCfg(),
                     # Stop at the entry: past it the part is no longer assembled, and that stretch
                     # is what ``START_NEAR_ASSEMBLED`` below covers.
                     "assembly_fraction_range": (0.0, 1.0),
@@ -126,11 +110,11 @@ START_ASSEMBLED = EventTerm(
                 },
             ),
             "reset_end_effector": EventTerm(
-                func=mdp.reset_end_effector_around_asset,
+                func=mdp.reset_variant_end_effector_around_asset,
                 mode="reset",
                 params={
                     "fixed_asset_cfg": SceneEntityCfg("held_asset"),
-                    "fixed_asset_offset": HeldAssetGraspMiddleCfg(),
+                    "fixed_asset_offset": "held_grasp_middle",
                     "pose_range_b": {
                         "x": (-0.005, 0.005),
                         "y": (-0.005, 0.005),
@@ -150,11 +134,10 @@ START_ASSEMBLED = EventTerm(
                 },
             ),
             "grasp_held_asset": EventTerm(
-                func=mdp.grasp_held_asset,
+                func=mdp.grasp_variant_held_asset,
                 mode="reset",
                 params={
                     "robot_cfg": SceneEntityCfg("robot", joint_names=GripperJointNamesCfg()),
-                    "held_asset_diameter": HeldAssetGraspDiameterCfg(),
                 },
             ),
         }
@@ -196,12 +179,12 @@ start_near_grasped = EventTerm(
                 },
             ),
             "reset_end_effector": EventTerm(
-                func=mdp.reset_end_effector_around_asset,
+                func=mdp.reset_variant_end_effector_around_asset,
                 mode="reset",
                 params={
                     "fixed_asset_cfg": SceneEntityCfg("fixed_asset"),
-                    "fixed_asset_offset": FixedAssetTipCfg(),
-                    "pose_range_b": GRASPED_POSE_RANGE,
+                    "fixed_asset_offset": "fixed_tip",
+                    "pose_range_b": "grasped",
                     "robot_ik_cfg": SceneEntityCfg(
                         "robot", joint_names=IKJointNamesCfg(), body_names=EndEffectorBodyCfg()
                     ),
@@ -210,12 +193,11 @@ start_near_grasped = EventTerm(
                 },
             ),
             "reset_held_asset": EventTerm(
-                func=mdp.reset_held_asset_in_gripper,
+                func=mdp.reset_variant_held_asset_in_gripper,
                 mode="reset",
                 params={
                     "holding_body_cfg": SceneEntityCfg("robot", body_names=EndEffectorBodyCfg()),
                     "held_asset_cfg": SceneEntityCfg("held_asset"),
-                    "held_asset_graspable_offset": HeldAssetGraspPointCfg(),
                     "held_asset_inhand_range": {
                         "x": (-0.005, 0.005),
                         "y": (-0.005, 0.005),
@@ -226,11 +208,10 @@ start_near_grasped = EventTerm(
                 },
             ),
             "grasp_held_asset": EventTerm(
-                func=mdp.grasp_held_asset,
+                func=mdp.grasp_variant_held_asset,
                 mode="reset",
                 params={
                     "robot_cfg": SceneEntityCfg("robot", joint_names=GripperJointNamesCfg()),
-                    "held_asset_diameter": HeldAssetGraspDiameterCfg(),
                     "flexible_angle": True,
                 },
             ),
@@ -245,30 +226,23 @@ ASSET_IN_GRIPPER.params["terms"]["grasp_held_asset"].params["flexible_angle"] = 
 
 # Identical to ASSET_IN_GRIPPER but with the gripper sampled close to the fixed asset.
 GRASPED_NEAR_GOAL = ASSET_IN_GRIPPER.copy()
-GRASPED_NEAR_GOAL.params["terms"]["reset_end_effector"].params["pose_range_b"] = GRASPED_POSE_RANGE_CENTERED
+GRASPED_NEAR_GOAL.params["terms"]["reset_end_effector"].params["pose_range_b"] = "grasped_centered"
 
 
 START_PICK = START_RANDOM.copy()
 _drop = START_PICK.params["terms"]["reset_held_asset"]
 _drop.params["pose_range"]["z"] = (0.03, 0.05)
-START_PICK.params["terms"]["reset_held_asset"] = EventTerm(
-    func=mdp.ChainedResetTerms,
+_SETTLE_HELD_ASSET = EventTerm(
+    func=mdp.sample_settled_asset_pose,
     mode="reset",
     params={
-        "terms": {
-            "drop": _drop,
-            "settle": EventTerm(
-                func=mdp.settle_held_asset,
-                mode="reset",
-                params={
-                    "held_asset_cfg": SceneEntityCfg("held_asset"),
-                    "scene_assets": ResetAssetsCfg(),
-                    "num_steps": 20,
-                },
-            ),
-        }
+        "held_asset_cfg": SceneEntityCfg("held_asset"),
+        "drop_term": _drop,
+        "scene_assets": RESET_ASSETS,
+        "num_steps": 20,
     },
 )
+START_PICK.params["terms"]["reset_held_asset"] = _SETTLE_HELD_ASSET
 START_PICK.params["terms"]["reset_end_effector"].params.update(
     ik_iterations=(25, 35),
     pose_tolerance=(0.001, 0.05),
@@ -283,6 +257,11 @@ SCENE_RESET = EventTerm(
     mode="reset",
     params={
         "terms": {
+            "select_assembly": EventTerm(
+                func=mdp.select_assembly_variant,
+                mode="reset",
+                params={},
+            ),
             "reset_robot": EventTerm(
                 func=mdp.reset_joints_by_offset,
                 mode="reset",
@@ -293,23 +272,20 @@ SCENE_RESET = EventTerm(
                 },
             ),
             "reset_fixed_asset": EventTerm(
-                func=mdp.reset_fixed_asset_uniform,
+                func=mdp.reset_variant_fixed_asset_uniform,
                 mode="reset",
                 params={
-                    "asset_map": FixedAssetMapCfg(),
                     "pose_range": {"x": (0.075, 0.25), "y": (-0.25, 0.25), "yaw": (-3.14, 3.14)},
                 },
             ),
-            # Board follows: seat it (and any extra board assets) under the placed fixed asset.
+            # Board follows the placed fixed asset.
             "reset_board": EventTerm(
-                func=mdp.reset_board_under_fixed_asset,
+                func=mdp.reset_variant_board_under_fixed_asset,
                 mode="reset",
-                params={
-                    "asset_map": FixedAssetMapCfg(),
-                },
+                params={},
             ),
             "reset_strategies": EventTerm(
-                func=mdp.TermChoice,
+                func=mdp.PreparedTermChoice,
                 mode="reset",
                 params={
                     "terms": {
@@ -321,13 +297,6 @@ SCENE_RESET = EventTerm(
                         "start_grasped": ASSET_IN_GRIPPER,
                         "start_near_grasped": start_near_grasped,
                     },
-                    "sampling": ResetStateSamplerCfg(
-                        history_length=1,
-                        scores=[BetaSamplingScoreCfg(metric="monitor_success_rate", target=0.5, kappa=1.0, weight=0.5)],
-                        uniform_weight=1e-4,
-                    ),
-                    "success_monitor_cfg": SuccessMonitorCfg(monitored_history_len=100),
-                    "report": preset(accumulator=False, choice=True, default=False),
                 },
             ),
         }
@@ -335,25 +304,34 @@ SCENE_RESET = EventTerm(
 )
 
 
-ACCUMULATOR_RESET = EventTerm(
-    func=mdp.reset_accumulator,
+VARIANT_ACCUMULATOR_RESET = EventTerm(
+    func=mdp.variant_reset_accumulator,
     mode="reset",
     params={
-        "reset_assets": ResetAssetsCfg(),
+        "reset_assets": RESET_ASSETS,
         "acceptance_conditions": {
             "object_collision_free": mdp.CollisionAnalyzerCfg(
                 num_points=256,
                 max_dist=0.5,
                 min_dist=-0.0005,
                 asset_cfg=SceneEntityCfg("held_asset"),
-                obstacle_cfgs=HeldAssetObstaclesCfg(),
+                obstacle_cfgs=[
+                    SceneEntityCfg("fixed_asset"),
+                    SceneEntityCfg("robot"),
+                    SceneEntityCfg("nistboard"),
+                    SceneEntityCfg("table"),
+                ],
             ),
             "robot_collision_free": mdp.CollisionAnalyzerCfg(
                 num_points=1024,
                 max_dist=0.5,
                 min_dist=-0.002,
                 asset_cfg=SceneEntityCfg("robot", body_names="panda_link[2-7]|panda_hand|panda_(left|right)finger"),
-                obstacle_cfgs=RobotObstaclesCfg(),
+                obstacle_cfgs=[
+                    SceneEntityCfg("table"),
+                    SceneEntityCfg("nistboard"),
+                    SceneEntityCfg("fixed_asset"),
+                ],
             ),
             "object_in_bound": ManagerTermBaseCfg(
                 func=mdp.in_bound,
@@ -363,19 +341,11 @@ ACCUMULATOR_RESET = EventTerm(
                 },
             ),
         },
-        "state_table_size": 32768,
-        "state_tag_names_bind": "list(reset_term.func.terms['reset_strategies'].func.term_partitions.keys())",
-        "state_tag_indices_bind": "reset_term.func.terms['reset_strategies'].func.term_samples",
-        "sampling": ResetStateSamplerCfg(
-            history_length=1,
-            scores=[
-                BetaSamplingScoreCfg(
-                    metric="monitor_success_rate", target=0.66, kappa=1.0, weight=0.66**0.66 * 0.34**0.34
-                )
-            ],
-            uniform_weight=1e-4,
-        ),
+        "state_table_size": 8192,
+        "state_tag_term": "reset_strategies",
+        "variant_context": "assembly_variants",
         "success_monitor_cfg": SuccessMonitorCfg(monitored_history_len=50),
+        "sampling": ResetStateSamplerCfg(history_length=1, scores=[BalancedVariantScoreCfg()], uniform_weight=0.0),
         "reset_term": SCENE_RESET,
         "report": True,
     },
