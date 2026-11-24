@@ -20,6 +20,7 @@ from isaaclab_tasks.utils import PresetCfg
 from . import mdp
 from .cartpole_common import CartpoleTiledCameraCfg, cartpole_lidar_cfg
 from .cartpole_manager_env_cfg import CartpoleEnvCfg, CartpoleSceneCfg, ObservationsCfg
+from .mdp.observations import _LidarRangeImage
 
 ##
 # Scene definition
@@ -104,7 +105,7 @@ def lidar_observations_cfg():
         @configclass
         class PolicyCfg(ObsGroup):
             lidar_range = ObsTerm(
-                func=mdp.LidarRangeImage,
+                func=_LidarRangeImage,
                 params={"sensor_cfg": SceneEntityCfg("lidar"), "channel_first": True, "frame_stack": 2},
             )
 

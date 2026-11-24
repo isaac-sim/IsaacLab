@@ -52,11 +52,12 @@ class CameraImageStack(ManagerTermBase):
         return self._frames(images, functools.partial(normalize_camera_image, data_type=data_type))
 
 
-class LidarRangeImage(ManagerTermBase):
-    """Experimental stacked lidar range image, channel-first, for the cartpole policy.
+class _LidarRangeImage(ManagerTermBase):
+    """Private stacked lidar range image, channel-first, for the cartpole policy.
 
-    Packing the scan into an image lets the existing camera CNN train on lidar. This is a stand-in.
-    A native point-cloud network is the architecture to explore next.
+    Packing the scan into an image lets the existing camera CNN train on lidar. This is a
+    cartpole-local stand-in, not a public MDP term. A native point-cloud network is the
+    architecture to explore next. Do not use this term in your code.
 
     Each frame is :func:`~isaaclab_tasks.core.cartpole.cartpole_common.cartpole_lidar_range_image`:
     hit distance divided by the far range, with misses at 0. Frames are stacked oldest to newest.
