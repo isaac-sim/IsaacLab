@@ -613,7 +613,8 @@ def _validate_feet_air_time_variance(ctx: TermContext, **_params) -> None:
 feet_air_time_variance = Term(
     torch=_feet_air_time_variance_torch, warp=_feet_air_time_variance, init=_validate_feet_air_time_variance
 )
-"""Sum of the sample variances of completed swing and stance times [s²], each capped at ``max_time``.
+"""Sum of the sample variances [s²] across feet of the completed swing and stance times, with each time capped at
+``max_time`` [s] before the variances are taken.
 
 ``body_ids`` must select at least two feet. Zero for planar velocity commands at most 0.1 m/s.
 """

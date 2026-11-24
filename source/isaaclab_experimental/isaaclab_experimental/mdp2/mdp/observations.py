@@ -241,7 +241,8 @@ body_incoming_wrench = Term(
     warp=_body_incoming_wrench,
     shape=("worlds", "body_ids", 6),
 )
-"""Force followed by torque for each selected body, in the incoming joint frame."""
+"""Force [N] followed by torque [N·m] for each selected body, in the incoming joint frame, of shape
+``(worlds, bodies, 6)``."""
 
 
 # Actions.

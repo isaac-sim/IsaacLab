@@ -33,8 +33,9 @@ CAPTURED_ACTUATORS = (ImplicitActuatorCfg, IdealPDActuatorCfg, DCMotorCfg)
 delayed actuators, may draw from Torch's random generators on reset, which a replayed graph repeats."""
 
 NEWTON_NETWORK_ACTUATORS = (ActuatorNetLSTMCfg, ActuatorNetMLPCfg)
-"""Actuator network configs that MDP2 supports when Newton runs them: Newton resets them, and the environment captures
-the physics only if Newton can capture them."""
+"""Actuator network configs that MDP2 supports when Newton runs them as its own neural drives
+(``use_newton_actuators``), not as Isaac Lab's Torch models. Newton resets them. Newton cannot capture networks loaded
+from TorchScript checkpoints, so for them the environment runs the physics and the scene reset between its graphs."""
 
 
 class InteractiveSceneData:
@@ -50,8 +51,8 @@ class InteractiveSceneData:
       [rad/s], in the world frame;
     - ``body_link_pose_w``: ``wp.transformf`` per world and body, in the world frame.
 
-    Articulations provide ``body_com_vel_w`` (a world-frame ``wp.spatial_vectorf`` per world and body, linear then
-    angular velocity). They also provide ``joint_pos``, ``joint_vel``, ``joint_acc`` [rad/s^2 or m/s^2],
+    Articulations provide ``body_com_vel_w`` (a world-frame ``wp.spatial_vectorf`` per world and body, linear [m/s]
+    then angular [rad/s]). They also provide ``joint_pos``, ``joint_vel``, ``joint_acc`` [rad/s^2 or m/s^2],
     ``default_joint_pos``, ``default_joint_vel``, ``joint_pos_target``, ``joint_effort_target``,
     ``applied_effort`` [N·m or N], ``soft_joint_vel_limits``, and ``soft_joint_pos_limits`` (``wp.vec2f``), per world
     and joint. The ``scene`` entity provides ``env_origins`` [m] and ``gravity_w`` (``wp.vec3f``, with magnitude)
