@@ -5,8 +5,8 @@ MDP2: Compiled MDPs
 
 .. note::
 
-   MDP2 lives in ``isaaclab_experimental.mdp2``, and its tasks in ``isaaclab_tasks.mdp2``. It is an experimental
-   feature: expect its API to change.
+   MDP2 lives in ``isaaclab_experimental.mdp2``, and its tasks in ``isaaclab_tasks.mdp2`` and
+   ``isaaclab_tasks_experimental.mdp2``. It is an experimental feature: expect its API to change.
 
 MDP2 describes a task's MDP (actions, observations, rewards, terminations, commands, events, and quantities) as
 configuration, and compiles it into a few kernels per step. With the Warp backend, a whole environment step, physics
