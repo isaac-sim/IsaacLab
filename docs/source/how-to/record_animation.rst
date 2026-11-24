@@ -95,12 +95,12 @@ OVD Recorder
 ------------
 
 The animation recording CLI uses the Isaac Sim PhysX backend to capture a single interval and bake it
-into a new USD stage. It requires an Isaac Sim session with headless mode disabled.
+into a new USD stage. Use ``--viz kit`` to open a window and leave ``HEADLESS`` unset or set to ``0``.
 
 .. note::
 
    Select Isaac Sim PhysX by adding ``physics=isaacsim_physx`` to the command line, as shown below.
-   If the active backend does not support the animation recorder, Isaac Lab reports the backend at startup.
+   Kit-less OVPhysX uses the live capture API described below.
 
    If Isaac Sim is not installed, add ``--extra isaacsim`` to the ``uv run`` command.
    See :ref:`installation-optional-extras` for details.
@@ -128,14 +128,14 @@ To record an animation:
 
       .. code-block:: bash
 
-         uv run python scripts/tutorials/03_envs/run_cartpole_rl_env.py --anim_recording_enabled --anim_recording_start_time 1 --anim_recording_stop_time 3 physics=isaacsim_physx
+         uv run python scripts/tutorials/03_envs/run_cartpole_rl_env.py --anim_recording_enabled --anim_recording_start_time 1 --anim_recording_stop_time 3 physics=isaacsim_physx --viz kit
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code-block:: batch
 
-         uv run python scripts\tutorials\03_envs\run_cartpole_rl_env.py --anim_recording_enabled --anim_recording_start_time 1 --anim_recording_stop_time 3 physics=isaacsim_physx
+         uv run python scripts\tutorials\03_envs\run_cartpole_rl_env.py --anim_recording_enabled --anim_recording_start_time 1 --anim_recording_stop_time 3 physics=isaacsim_physx --viz kit
 
 .. note::
 
