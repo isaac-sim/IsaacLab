@@ -196,7 +196,6 @@ _NEWTON_MJCF = str(Path(importlib.util.find_spec("newton").origin).parent / "exa
 
 OVERRIDES = {
     "examples/demos/nist.py": ScriptOverride(
-        fixed_physics_backend="newton_mjwarp",
         visualizers=(None, "newton"),
     ),
     "examples/sharpa_rj45.py": ScriptOverride(

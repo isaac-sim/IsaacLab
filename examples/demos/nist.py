@@ -6,7 +6,7 @@
 """Run a ten-part NIST assembly policy.
 
     uv run --extra ovrtx isaaclab demo nist
-    uv run isaaclab demo nist --solver steel --visualizer none --num_envs 16
+    uv run isaaclab demo nist --physics newton_steel --visualizer none --num_envs 4096
 
 The pretrained TorchScript policy is downloaded automatically.
 The exported policy includes normalization and takes robot history [N, 195] and
@@ -584,7 +584,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--num_envs", type=int, default=1, help="Independent boards simulated in parallel.")
     parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
-    parser.add_argument("--solver", choices=("mjwarp", "steel"), default="mjwarp", help="Newton rigid-body solver.")
+    parser.add_argument(
+        "--physics", default="newton_mjwarp", choices=["newton_mjwarp", "newton_steel"], help="Physics backend."
+    )
     add_launcher_args(parser)
     parser.set_defaults(visualizer=["newton"])
     args = parser.parse_args()
@@ -597,12 +599,13 @@ def main() -> None:
         map_location=args.device,
     ).eval()
     cfg = NistEnvCfg(scene=NistSceneCfg(num_envs=args.num_envs))
-    if args.solver == "steel":
+    if args.physics == "newton_steel":
         cfg.sim.physics.solver_cfg = SteelSolverCfg(articulation_constraint_max=512, free_body_constraint_max=4096)
     cfg.sim.device = args.device
     cfg.sim.visualizer_cfgs = VisualizerCfg(backend=NewtonGLBackendCfg(initial_renderer="rtx"))
     print("Assets:", ", ".join(part.name for part in cfg.assemblies), flush=True)
-    with launch_simulation(cfg=cfg, launcher_args=args) as physics:
+    # Physics is selected above; preserve the demo's tuned solver and collision settings.
+    with launch_simulation(cfg=cfg, launcher_args=vars(args) | {"physics": None}) as physics:
         cfg.sim.physics = physics
         env = ManagerBasedRLEnv(cfg)
         try:
