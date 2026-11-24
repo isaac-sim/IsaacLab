@@ -20,8 +20,8 @@ from newton.actuators import (
     ClampingDCMotor,
     ClampingMaxEffort,
     ClampingPositionBased,
-    Delay,
     DrivePD,
+    InputProcessorDelay,
     parse_actuator_prim,
 )
 
@@ -248,12 +248,14 @@ def test_from_usd_groups_by_structure_and_preserves_per_dof_values():
     np.testing.assert_allclose(pd.drive.kp.numpy(), [11.0, 22.0, 11.0, 22.0])
     np.testing.assert_allclose(pd.drive.kd.numpy(), [1.5, 2.5, 1.5, 2.5])
     np.testing.assert_allclose(pd.clamping[0].max_effort.numpy(), [21.0, 32.0, 21.0, 32.0])
-    np.testing.assert_array_equal(pd.delay.delay_steps.numpy(), [2, 4, 2, 4])
-    assert pd.delay.buf_depth == 4
+    (delay,) = pd.input_processors
+    assert type(delay) is InputProcessorDelay
+    np.testing.assert_array_equal(delay.delay_steps.numpy(), [2, 4, 2, 4])
+    assert delay.buf_depth == 4
 
     dc = next(actuator for actuator in actuators if [type(c) for c in actuator.clamping] == [ClampingDCMotor])
     assert type(dc.drive) is DrivePD
-    assert dc.delay is None
+    assert dc.input_processors == []
     np.testing.assert_array_equal(dc.indices.numpy(), [2, 3, 8, 9])
     np.testing.assert_allclose(dc.drive.kp.numpy(), [33.0, 44.0, 33.0, 44.0])
     np.testing.assert_allclose(dc.drive.kd.numpy(), [3.5, 4.5, 3.5, 4.5])
@@ -388,8 +390,14 @@ def test_configuration_overrides_only_the_values_it_sets(tmp_path, caplog):
 
     dc_b_curve = {"saturation_effort": 64.0, "velocity_limit": 8.0, "max_motor_effort": 54.0}
     expected = {
-        "pd_a": ({"kp": 99.0, "kd": 1.5}, {ClampingMaxEffort: {"max_effort": 5.0}, Delay: {"delay_steps": 2}}),
-        "pd_b": ({"kp": 22.0, "kd": 2.5}, {ClampingMaxEffort: {"max_effort": 81.0}, Delay: {"delay_steps": 4}}),
+        "pd_a": (
+            {"kp": 99.0, "kd": 1.5},
+            {ClampingMaxEffort: {"max_effort": 5.0}, InputProcessorDelay: {"delay_steps": 2}},
+        ),
+        "pd_b": (
+            {"kp": 22.0, "kd": 2.5},
+            {ClampingMaxEffort: {"max_effort": 81.0}, InputProcessorDelay: {"delay_steps": 4}},
+        ),
         "dc_a": ({"kp": 33.0, "kd": 3.5}, {ClampingMaxEffort: {"max_effort": 82.0}}),
         "dc_b": ({"kp": 1.0, "kd": 4.5}, {ClampingDCMotor: dc_b_curve}),
         "remote_a": ({"kp": 55.0, "kd": 5.5}, {ClampingDCMotor: {"saturation_effort": 5.0, "max_motor_effort": 84.0}}),
@@ -398,7 +406,7 @@ def test_configuration_overrides_only_the_values_it_sets(tmp_path, caplog):
             {"kp": 99.0, "kd": 5.5},
             {
                 ClampingPositionBased: {"lookup_positions": [-1.0, 1.0], "lookup_efforts": [11.0, 21.0]},
-                Delay: {"delay_steps": 1},
+                InputProcessorDelay: {"delay_steps": 1},
             },
         ),
         "mlp": (

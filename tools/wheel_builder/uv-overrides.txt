@@ -4,7 +4,7 @@ mujoco~=3.17.0
 mujoco-warp~=3.17.0
 newton[sim] @ git+https://github.com/newton-physics/newton.git@d31603ff5e8389d1d6b2a5daef6ea2cb074c26ff ; extra != 'optix'
 newton[sim,optix] @ git+https://github.com/newton-physics/newton.git@d31603ff5e8389d1d6b2a5daef6ea2cb074c26ff ; extra == 'optix'
-newton-usd-schemas>=0.5.0
+newton-usd-schemas @ git+https://github.com/jvonmuralt/newton-usd-schemas.git@d062f323071140c49dda040fc30a37035b3662c6
 usd-exchange==3.0.1
 usd-optimize~=1.3.1
 urdf-usd-converter==0.3.4

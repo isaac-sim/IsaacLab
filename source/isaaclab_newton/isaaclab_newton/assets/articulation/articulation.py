@@ -3411,6 +3411,7 @@ class Articulation(BaseArticulation):
 
     def _invalidate_initialize_callback(self, event):
         """Invalidates the scene elements."""
+        self._backend_manager.release_solver_observables(self)
         # call parent
         super()._invalidate_initialize_callback(event)
         self._root_view = None

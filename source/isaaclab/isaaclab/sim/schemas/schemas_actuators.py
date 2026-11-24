@@ -31,9 +31,9 @@ from typing import Any
 
 import torch
 
-from pxr import Sdf, Usd, UsdPhysics
+from pxr import Sdf, Usd, UsdPhysics, Vt
 
-from ...actuators.actuator_bam_cfg import BAM_DRIVE_API, BAM_MODEL_FLAGS, BamActuatorCfg
+from ...actuators.actuator_bam_cfg import BAM_STIFF_SOLIMP_FRICTION, BAM_STIFF_SOLREF_FRICTION, BamActuatorCfg
 from ...actuators.actuator_base import ActuatorBase
 from ...actuators.actuator_base_cfg import ActuatorBaseCfg, _is_implicit_actuator_cfg
 from ...actuators.actuator_net import ActuatorNetLSTM, ActuatorNetMLP
@@ -64,6 +64,8 @@ logger = logging.getLogger(__name__)
 
 _JOINT_TYPES = frozenset({"PhysicsRevoluteJoint", "PhysicsPrismaticJoint"})
 
+_BAM_LEGACY_API = "NewtonBamDriveAPI"
+
 _PD_API = "NewtonPDControlAPI"
 _PID_API = "NewtonPIDControlAPI"
 _NEURAL_API = "NewtonNeuralControlAPI"
@@ -72,7 +74,7 @@ _DC_MOTOR_API = "NewtonDCMotorClampingAPI"
 _POSITION_BASED_API = "NewtonPositionBasedClampingAPI"
 _DELAY_API = "NewtonActuatorDelayAPI"
 
-_DRIVE_APIS = frozenset({_PD_API, _PID_API, _NEURAL_API, BAM_DRIVE_API})
+_DRIVE_APIS = frozenset({_PD_API, _PID_API, _NEURAL_API, _BAM_LEGACY_API})
 """Drive schemas; Newton rejects an actuator prim with more than one."""
 
 _COMPONENT_APIS = _DRIVE_APIS | {_MAX_EFFORT_API, _DC_MOTOR_API, _POSITION_BASED_API, _DELAY_API}
@@ -250,6 +252,11 @@ def author_actuator_prims(
             continue
 
         validate(cfg)
+        if isinstance(cfg, BamActuatorCfg):
+            _author_bam_group(
+                stage, articulation_prim_path, group_name, cfg, joint_names, joint_inventory, actuator_prims
+            )
+            continue
         joints = {name: stage.GetPrimAtPath(joint_inventory[name]) for name in joint_names}
         _author_group(stage, articulation_prim_path, group_name, cfg, joints, actuator_prims)
 
@@ -388,9 +395,135 @@ def _author_group(
             if attr.GetTypeName() != field.type_name:
                 attr.SetTypeName(field.type_name)
             attr.Set(value)
-        if layout.drive == BAM_DRIVE_API:
-            # Allocate the joint friction constraint; BAM overwrites this seed before each solve.
-            joint_prim.CreateAttribute("newton:friction", _FLOAT).Set(1.0)
+
+
+def _author_bam_group(
+    stage: Usd.Stage,
+    root_path: str,
+    group_name: str,
+    cfg: BamActuatorCfg,
+    joint_names: list[str],
+    joint_inventory: dict[str, str],
+    actuator_prims: dict[str, list[Usd.Prim]],
+) -> None:
+    """Author a complete BAM fit using Newton's duty drive, clamp, motor, and shared battery."""
+    battery_path = f"{root_path}/{group_name}_battery"
+    _define_bam_battery(stage, battery_path, cfg)
+    for name in joint_names:
+        joint_path = joint_inventory[name]
+        schemas = ["NewtonPDControlAPI", "NewtonCurrentDutyClampingAPI", "NewtonDCMotorAPI"]
+        attrs = {
+            "kp": float(cfg.kp_fw * cfg.motor.error_gain),
+            "kd": 0.0,
+            "max_current": float(cfg.motor.max_current),
+            "max_duty": float(cfg.motor.max_pwm),
+            "kt": float(cfg.motor.kt),
+            "resistance": float(cfg.motor.resistance),
+            "vin": float(cfg.vin),
+        }
+        relationships = {"targets": joint_path, "battery": battery_path}
+        if cfg.max_delay > 0:
+            schemas.append("NewtonActuatorDelayAPI")
+            attrs["delay_steps"] = cfg.max_delay
+        if cfg.backlash_joint_template is not None:
+            schemas.append("NewtonActuatorEncoderAPI")
+            relationships["output_joint"] = _bam_play_hinge_path(
+                stage, joint_path, cfg.backlash_joint_template.format(name)
+            )
+        prim_path = f"{root_path}/{group_name}_{name}_actuator"
+        for old in actuator_prims.get(joint_path, []):
+            old.SetActive(False)
+        prim = stage.DefinePrim(prim_path, "NewtonActuator")
+        prim.SetActive(True)
+        prim.SetMetadata("apiSchemas", Sdf.TokenListOp.CreateExplicit(schemas))
+        _set_actuator_properties(prim, attrs, {}, relationships, None)
+        prim.CreateAttribute("newton:outputSpace", Sdf.ValueTypeNames.Token).Set("duty")
+        joint = stage.GetPrimAtPath(joint_path)
+        joint.CreateAttribute("newton:friction", _FLOAT).Set(1.0)
+        if cfg.stiff_frictionloss:
+            for attr, value in (
+                ("mjc:solreffriction", BAM_STIFF_SOLREF_FRICTION),
+                ("mjc:solimpfriction", BAM_STIFF_SOLIMP_FRICTION),
+            ):
+                joint.CreateAttribute(attr, Sdf.ValueTypeNames.DoubleArray).Set(Vt.DoubleArray(value))
+
+
+def _set_actuator_properties(
+    act_prim: Usd.Prim,
+    attrs: dict[str, bool | float | int],
+    array_attrs: dict[str, list[float]],
+    relationships: dict[str, str],
+    model_path: str | None,
+) -> None:
+    """Author a Newton actuator or battery prim's ``newton:`` attributes and relationships.
+
+    A reused prim path keeps the replaced actuator's properties, and Newton reads every ``newton:`` attribute for a
+    schema without a registered definition. Properties this call does not author are blocked.
+    """
+    authored = {f"newton:{to_camel_case(name)}" for name in (*attrs, *array_attrs, *relationships)}
+    if model_path is not None:
+        act_prim.CreateAttribute("newton:modelPath", Sdf.ValueTypeNames.Asset).Set(Sdf.AssetPath(model_path))
+        authored.add("newton:modelPath")
+
+    for attr_name, attr_val in attrs.items():
+        usd_name = f"newton:{to_camel_case(attr_name)}"
+        if isinstance(attr_val, bool):
+            act_prim.CreateAttribute(usd_name, Sdf.ValueTypeNames.Bool).Set(attr_val)
+        elif isinstance(attr_val, int):
+            act_prim.CreateAttribute(usd_name, Sdf.ValueTypeNames.Int).Set(attr_val)
+        else:
+            act_prim.CreateAttribute(usd_name, Sdf.ValueTypeNames.Float).Set(float(attr_val))
+
+    for attr_name, attr_val in array_attrs.items():
+        usd_name = f"newton:{to_camel_case(attr_name)}"
+        act_prim.CreateAttribute(usd_name, Sdf.ValueTypeNames.FloatArray).Set(attr_val)
+
+    for rel_name, target in relationships.items():
+        act_prim.CreateRelationship(f"newton:{to_camel_case(rel_name)}").SetTargets([Sdf.Path(target)])
+
+    for prop in act_prim.GetAuthoredPropertiesInNamespace("newton"):
+        if prop.GetName() in authored:
+            continue
+        if isinstance(prop, Usd.Attribute):
+            prop.Block()
+        else:
+            # An explicit empty target list overrides the weaker layers' targets.
+            prop.SetTargets([])
+
+
+def _define_bam_battery(stage: Usd.Stage, battery_path: str, cfg: BamActuatorCfg) -> None:
+    """Author the ``NewtonConstantResistanceBattery`` prim a BAM group's servos draw from.
+
+    Newton replicates the prim per environment. Isaac Lab writes each environment's nominal voltage and resistance at
+    start-up, sampled from their ranges when set.
+    """
+    battery = stage.DefinePrim(battery_path, "NewtonConstantResistanceBattery")
+    battery.SetActive(True)
+    attrs = {
+        "nominal_voltage": float(cfg.vin),
+        "resistance": float(cfg.battery_resistance),
+        "min_voltage": max(float(cfg.vin_min), 0.0),
+    }
+    _set_actuator_properties(battery, attrs, {}, {}, None)
+
+
+def _bam_play_hinge_path(stage: Usd.Stage, servo_path: str, hinge_name: str) -> str:
+    """Return the path of a BAM servo's sibling play hinge.
+
+    Raises:
+        ValueError: If the servo or its play hinge is missing or not revolute.
+    """
+
+    def is_revolute(path: str) -> bool:
+        prim = stage.GetPrimAtPath(path)
+        return prim.IsValid() and prim.GetTypeName() == "PhysicsRevoluteJoint"
+
+    if not is_revolute(servo_path):
+        raise ValueError(f"BAM backlash requires a revolute servo joint: {servo_path}")
+    hinge_path = f"{servo_path.rsplit('/', 1)[0]}/{hinge_name}"
+    if not is_revolute(hinge_path):
+        raise ValueError(f"BAM backlash requires a revolute sibling play hinge: {hinge_path}")
+    return hinge_path
 
 
 def _override_target(prims: list[Usd.Prim], drive: str) -> tuple[Usd.Prim | None, str | None]:
@@ -489,40 +622,6 @@ def _exported_model_path(cfg: ActuatorNetMLPCfg | ActuatorNetLSTMCfg, joint_name
     return dict.fromkeys(joint_names, Sdf.AssetPath(resave_checkpoint_with_metadata(cfg.network_file, meta)))
 
 
-def _bam_value(
-    name: str, type_name: Sdf.ValueTypeName = _FLOAT, default: float | None = None, required: bool = False
-) -> ActuatorField:
-    """Return the BAM drive attribute set by a :class:`BamActuatorCfg` field, named after its DriveBam argument."""
-    attr = f"newton:{to_camel_case(name.removeprefix('motor.'))}"
-    return ActuatorField(name, BAM_DRIVE_API, attr, type_name, default=default, required=required)
-
-
-def _bam_model_flag(flag: str) -> ActuatorField:
-    """Return a BAM drive flag set by the friction model of the :class:`BamMotorCfg`."""
-
-    def source(cfg: BamActuatorCfg, joint_names: list[str]) -> dict[str, int]:
-        model = cfg.motor.model
-        return _configured_values(BAM_MODEL_FLAGS[model][flag] if model is not None else None, joint_names, int)
-
-    return ActuatorField("motor.model", BAM_DRIVE_API, f"newton:{to_camel_case(flag)}", _INT, source, required=True)
-
-
-def _bam_effort_limits(cfg: BamActuatorCfg, joint_names: list[str]) -> dict[str, float]:
-    """Return the configured BAM effort limit, defaulting to the stall torque at the highest sampled voltage."""
-    if cfg.actuator_effort_limit is not None:
-        return _configured_values(cfg.actuator_effort_limit, joint_names)
-    voltage = max(cfg.vin_range) if cfg.vin_range is not None else cfg.vin
-    if cfg.motor.kt is None or cfg.motor.resistance is None or voltage is None:
-        if any(v is not None for v in (voltage, cfg.motor.kt, cfg.motor.resistance)):
-            logger.warning(
-                f"The BAM configuration of joints {joint_names} changes only part of the stall torque inputs, so their"
-                " limit stays the USD actuator's authored one or, without it, the drive's vin * kt / resistance"
-                " default, which ignores vin_range. Set actuator_effort_limit to choose it."
-            )
-        return {}
-    return dict.fromkeys(joint_names, voltage * cfg.motor.kt / cfg.motor.resistance)
-
-
 _PD_GAINS = (
     ActuatorField("stiffness", _PD_API, "newton:kp", default=0.0),
     ActuatorField("damping", _PD_API, "newton:kd", default=0.0),
@@ -553,41 +652,6 @@ _NEURAL_MODEL = ActuatorField(
     "network_file", _NEURAL_API, "newton:modelPath", Sdf.ValueTypeNames.Asset, _exported_model_path, required=True
 )
 
-# A new prim requires the fit and supply: the drive would silently fall back to m1 friction and no current limit.
-_BAM_FIELDS = (
-    *(_bam_value(f"motor.{name}", required=True) for name in ("kt", "resistance", "error_gain")),
-    *(_bam_value(f"motor.{name}", required=True) for name in ("max_current", "friction_base")),
-    *(_bam_value(f"motor.{name}", default=1.0) for name in ("max_pwm", "dtheta_stribeck", "alpha")),
-    *(
-        _bam_value(f"motor.{name}", default=0.0)
-        for name in (
-            "friction_stribeck",
-            "load_friction_motor",
-            "load_friction_external",
-            "load_friction_motor_stribeck",
-            "load_friction_external_stribeck",
-            "load_friction_motor_quad",
-            "load_friction_external_quad",
-        )
-    ),
-    *(_bam_model_flag(flag) for flag in ("stribeck", "load_dependent", "quadratic")),
-    *(_bam_value(name, required=True) for name in ("kp_fw", "vin")),
-    *(_bam_value(name) for name in ("vin_min", "delay_hold_prob")),
-    *(_bam_value(name, _INT) for name in ("min_delay", "max_delay", "delay_update_period")),
-    # Flag backlash drives so they never merge with regular ones; without a hinge template, keep the USD flag.
-    ActuatorField(
-        "backlash_joint_template",
-        BAM_DRIVE_API,
-        "newton:hasBacklash",
-        _INT,
-        lambda cfg, names: dict.fromkeys(names, 1) if cfg.backlash_joint_template is not None else {},
-    ),
-    # A new prim requires kt, resistance and vin, so the default only fills joints a configured mapping skips.
-    ActuatorField(
-        "actuator_effort_limit", BAM_DRIVE_API, "newton:maxEffort", _FLOAT, _bam_effort_limits, _default_effort_limit
-    ),
-)
-
 _ACTUATOR_LAYOUTS: dict[type, ActuatorLayout] = {
     IdealPDActuatorCfg: ActuatorLayout(IdealPDActuator, _PD_API, (*_PD_GAINS, _MAX_EFFORT)),
     DelayedPDActuatorCfg: ActuatorLayout(DelayedPDActuator, _PD_API, (*_PD_GAINS, _MAX_EFFORT, _DELAY)),
@@ -595,7 +659,7 @@ _ACTUATOR_LAYOUTS: dict[type, ActuatorLayout] = {
     DCMotorCfg: ActuatorLayout(DCMotor, _PD_API, (*_PD_GAINS, *_DC_MOTOR)),
     ActuatorNetMLPCfg: ActuatorLayout(ActuatorNetMLP, _NEURAL_API, (_NEURAL_MODEL, *_DC_MOTOR)),
     ActuatorNetLSTMCfg: ActuatorLayout(ActuatorNetLSTM, _NEURAL_API, (_NEURAL_MODEL, *_DC_MOTOR)),
-    BamActuatorCfg: ActuatorLayout(None, BAM_DRIVE_API, _BAM_FIELDS),
+    BamActuatorCfg: ActuatorLayout(None, "NewtonPDControlAPI", ()),
 }
 """Newton actuator layout of each supported config type; subclasses use their closest base's layout."""
 

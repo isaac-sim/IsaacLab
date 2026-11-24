@@ -14,7 +14,7 @@ import warp as wp
 from ...utils import index_fill_
 
 # ---------------------------------------------------------------------------
-# Adapter / per-actuator helper kernels: per-DOF zeroing, env-mask building,
+# Adapter / per-actuator helper kernels: per-DOF zeroing and copies, env-mask building,
 # and per-DOF env-mask projection (used by :meth:`NewtonActuatorAdapter.reset`).
 # Parameter reads and writes go through Newton's selection API instead.
 # ---------------------------------------------------------------------------
@@ -25,6 +25,15 @@ def zero_at_indices_kernel(data: wp.array(dtype=wp.float32), indices: wp.array(d
     """Zero a flat ``data`` buffer at the given flat ``indices``."""
     i = wp.tid()
     data[indices[i]] = 0.0
+
+
+@wp.kernel(enable_backward=False)
+def copy_at_indices_kernel(
+    src: wp.array(dtype=wp.float32), indices: wp.array(dtype=wp.uint32), dst: wp.array(dtype=wp.float32)
+):
+    """Copy a flat ``src`` buffer into ``dst`` at the given flat ``indices``."""
+    i = indices[wp.tid()]
+    dst[i] = src[i]
 
 
 @wp.kernel(enable_backward=False)
