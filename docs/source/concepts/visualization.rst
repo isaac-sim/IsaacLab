@@ -836,7 +836,9 @@ the experiment's log directory or ``--checkpoint_ghost_root``. Each ghost can be
 opacity and tint under **Appearance**. The controls are disabled in the RTX view; switch the Renderer to OpenGL.
 
 * Startup and interval events, curriculum terms, and observation noise are disabled, since they cannot be mirrored
-  between slots. Reset randomization is mirrored: each ghost resets from the reference's random state.
+  between slots, so the reference plays without disturbances such as pushes and can look steadier than in training.
+  Reset randomization is mirrored: each ghost resets from the reference's random state. Randomness that does not come
+  from torch's generators (numpy, warp) is not mirrored.
 * Only RSL-RL and manager-based environments are supported. Tasks whose curriculum selects the reset state (such as
   Franka Pour) are rejected at launch.
 

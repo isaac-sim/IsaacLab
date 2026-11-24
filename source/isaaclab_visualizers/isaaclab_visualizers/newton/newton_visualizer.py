@@ -1660,7 +1660,6 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self._checkpoint_ghost_panel: NewtonCheckpointGhostPanel | None = None
         self._base_world_offsets: np.ndarray | None = None
         """World offsets without the Checkpoint Ghost overlay, which the overlay is added to every frame it changes."""
-        """Checkpoint Ghost offsets last given to the OVRTX view, to skip rewriting poses when they are unchanged."""
 
     # ------------------------------------------------------------------
     # GL lifecycle

@@ -5,3 +5,5 @@
 * Fixed the session failing with recurrent policies when a ghost is added or removed, and handled a ghost added,
   changed, or removed on an empty or unknown slot, and a failed re-split, without ending the session. It reuses one
   action tensor for every step.
+* Fixed the session resetting policies with a stale slice size when a ghost is added or removed while the environment
+  steps, and a failed rollback after a failed re-split raising out of the viewer instead of returning a message.

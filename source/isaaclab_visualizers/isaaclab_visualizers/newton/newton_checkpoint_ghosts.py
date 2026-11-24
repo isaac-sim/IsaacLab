@@ -66,6 +66,8 @@ class NewtonCheckpointGhostPanel:
         self._directory: str | None = None
         """Directory the checkpoint window shows; it keeps the last one across openings and selections."""
         self._folders: list[str] = []
+        self._task_cache: dict[str, str | None] = {}
+        """Task of each directory read so far, so reopening or navigating does not read every run manifest again."""
         self._other_tasks: dict[str, str] = {}
         """Task of each listed folder (and of the current one, under ``""``) that is a run of another task."""
         self._files: list[CheckpointGhostCheckpoint] = []
@@ -279,14 +281,20 @@ class NewtonCheckpointGhostPanel:
             self._other_tasks = {
                 name: task
                 for name, task in (
-                    ("", self.controller.other_task(self._directory)),
-                    *((f, self.controller.other_task(os.path.join(self._directory, f))) for f in self._folders),
+                    ("", self._other_task(self._directory)),
+                    *((f, self._other_task(os.path.join(self._directory, f))) for f in self._folders),
                 )
                 if task is not None
             }
         except OSError as error:
             self._folders, self._files, self._other_tasks = [], [], {}
             self._browse_error = f"Cannot read this folder: {error.strerror or error}"
+
+    def _other_task(self, directory: str) -> str | None:
+        """Return the other task a run directory belongs to, reading its manifest only once."""
+        if directory not in self._task_cache:
+            self._task_cache[directory] = self.controller.other_task(directory)
+        return self._task_cache[directory]
 
     def _go(self, directory: str) -> None:
         self._directory = os.path.abspath(directory)
@@ -306,6 +314,7 @@ class NewtonCheckpointGhostPanel:
                 imgui.set_tooltip("Go to the parent folder")
             imgui.same_line()
             if imgui.button("Refresh"):
+                self._task_cache.clear()  # a run may have been added or changed since it was read
                 self._refresh()
             if imgui.is_item_hovered():
                 imgui.set_tooltip("List this folder again, such as for checkpoints training just saved")

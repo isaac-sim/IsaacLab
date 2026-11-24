@@ -251,3 +251,30 @@ def test_a_run_of_another_task_is_named_and_a_matching_or_unknown_directory_is_n
 
     session._run_task = None  # without a reader, no run is flagged
     assert session.other_task("/runs/osc") is None
+
+
+def test_a_ghost_added_while_the_environment_steps_skips_the_stale_policy_resets():
+    session, env, policy = _session(pending=False)
+    session._obs = torch.zeros(6, 1)
+    env.num_envs, env.num_actions = 6, 1
+    policy.return_value = torch.zeros(6, 1)
+
+    def step(actions):
+        session._restart_pending = True  # the viewer added a ghost during the step, changing the split
+        return torch.zeros(6, 1), torch.zeros(6), torch.zeros(6, dtype=torch.bool), {}
+
+    env.step.side_effect = step
+
+    session.step()
+
+    policy.reset.assert_not_called()  # the pending restart resets every policy before the next step
+
+
+def test_a_failed_rollback_after_a_failed_resplit_still_returns_a_message(monkeypatch):
+    session, sync = _start(monkeypatch, [None])
+    sync.side_effect = ValueError("no room")  # both the new split and the rollback fail
+
+    message = session.add_ghost(CHECKPOINT)
+
+    assert "no room" in message  # reported to the viewer instead of raised
+    assert not session.layout.slots[1].active and session._sync is None

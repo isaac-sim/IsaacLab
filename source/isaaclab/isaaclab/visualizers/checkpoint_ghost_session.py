@@ -157,7 +157,10 @@ class CheckpointGhostSession(CheckpointGhostController):
             self._policies[empty.index] = None
             empty.checkpoint = None
             empty.label = ""
-            self._resplit()
+            try:
+                self._resplit()
+            except Exception:  # the previous split cannot be rebuilt either: leave the environment unsynchronized
+                logger.exception("Could not restore the previous Checkpoint Ghost split.")
             return f"Could not add {checkpoint.name}: {error}"
         return None
 
@@ -212,6 +215,10 @@ class CheckpointGhostSession(CheckpointGhostController):
             chunk = slice(start, start + size)
             actions[chunk] = self._policies[slot.index](self._obs[chunk])
         self._obs, _, dones, _ = self._env.step(actions)
+        if self._restart_pending:
+            # The viewer can add or remove a ghost while the environment steps. The split then changed, so this step's
+            # dones no longer line up with the slots; the restart resets every environment and policy before the next.
+            return
         reference_dones = dones[:size]
         for slot in self.layout.active_slots:
             # A ghost resets with its reference, so a ghost that fell alone keeps its memory until then.

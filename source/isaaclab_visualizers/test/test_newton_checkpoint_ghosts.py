@@ -426,3 +426,20 @@ def test_the_ghost_controls_are_disabled_in_the_rtx_view_with_a_note_to_switch_r
     assert not any("RTX:" in text for text in imgui.texts)
     assert imgui.depth == 0 and not any(disabled for _, disabled in imgui.disabled_buttons)
     panel._draw_window.assert_called_once()
+
+
+def test_run_manifests_are_read_once_per_folder_until_refresh_is_clicked():
+    tree = {"/runs/task": (["a", "b"], []), "/runs/task/a": ([], []), "/runs/task/b": ([], [])}
+    controller = _Browser(CheckpointGhostLayout(POOL, 3), tree)
+    reads = []
+    controller.other_task = lambda directory: reads.append(directory)
+    panel = NewtonCheckpointGhostPanel(controller)
+
+    panel._open_window()
+    panel._open_window()  # reopening the window lists the folder again
+
+    assert sorted(reads) == ["/runs/task", "/runs/task/a", "/runs/task/b"]
+
+    panel._draw_window(_BrowserImgui(clicks=["Refresh"]))
+
+    assert len(reads) == 6  # Refresh reads them again, since a run may have changed
