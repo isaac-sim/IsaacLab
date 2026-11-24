@@ -11,6 +11,8 @@ import pytest
 import torch
 import warp as wp
 
+from pxr import UsdGeom
+
 pytest.importorskip("newton")
 
 from isaaclab_newton.assets import CableObject as NewtonCableObject
@@ -405,3 +407,73 @@ def test_cable_callback_does_not_retain_asset():
         gc.collect()
 
         assert cable_ref() is None
+
+
+@pytest.mark.parametrize("periodic", [False, True])
+def test_authored_cable_topology_and_state(tmp_path, periodic):
+    """Open and periodic USD cables retain all links through steps and indexed resets."""
+    stage = sim_utils.create_new_stage()
+    spawn_cfg = CableCfg(
+        positions=((0.0, 0.0, 1.0), (0.2, 0.0, 1.0), (0.2, 0.2, 1.0), (0.0, 0.2, 1.0)),
+        physics_material=CableMaterialCfg(thickness=0.02, density=500.0),
+    )
+    root = spawn_cfg.func("/Cable", spawn_cfg)
+    stage.SetDefaultPrim(root)
+    curve = UsdGeom.BasisCurves(stage.GetPrimAtPath("/Cable/geometry/mesh"))
+    curve.CreateWrapAttr(UsdGeom.Tokens.periodic if periodic else UsdGeom.Tokens.nonperiodic)
+    usd_path = str(tmp_path / "cable.usda")
+    stage.GetRootLayer().Export(usd_path)
+
+    sim_cfg = SimulationCfg(
+        dt=1.0 / 120.0,
+        device="cpu",
+        physics=NewtonCfg(solver_cfg=VBDSolverCfg(iterations=2), num_substeps=1, use_cuda_graph=False),
+    )
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        scene_cfg = _CableSceneCfg(num_envs=2, env_spacing=1.0)
+        scene_cfg.cable.spawn = sim_utils.UsdFileCfg(usd_path=usd_path)
+        scene = InteractiveScene(scene_cfg)
+        sim.reset()
+        scene.update(0.0)
+        cable = scene["cable"]
+        num_segments = 4 if periodic else 3
+        assert cable.num_segments == num_segments
+        assert cable.data.segment_pose_w.torch.shape == (2, num_segments, 7)
+        assert cable.data.segment_velocity_w.torch.shape == (2, num_segments, 6)
+
+        model = sim.backend_manager.backend.model
+        parents, children = model.joint_parent.numpy(), model.joint_child.numpy()
+        body_ids = cable.root_view.get_attribute("joint_child", model).numpy()[:, 0]
+        for ids in body_ids:
+            edges = {(int(a), int(b)) for a, b in zip(parents, children) if a in ids and b in ids}
+            assert len(edges) == num_segments - 1 + int(periodic)
+            assert ((int(ids[-1]), int(ids[0])) in edges) == periodic
+
+        default_pose = cable.data.default_segment_pose_w.torch.clone()
+        default_velocity = cable.data.default_segment_velocity_w.torch.clone()
+        scene.reset()
+        for _ in range(3):
+            scene.write_data_to_sim()
+            sim.step(render=False)
+            scene.update(sim.cfg.dt)
+        assert torch.isfinite(cable.data.segment_pose_w.torch).all()
+        assert torch.isfinite(cable.data.segment_velocity_w.torch).all()
+        assert torch.any(cable.data.segment_pose_w.torch[..., 2] < default_pose[..., 2])
+        expected_pose, expected_velocity = _expected_segment_state(cable, sim.backend_manager.backend.state_0, model)
+        torch.testing.assert_close(cable.data.segment_pose_w.torch, expected_pose)
+        torch.testing.assert_close(cable.data.segment_velocity_w.torch, expected_velocity)
+
+        other_pose, other_velocity = expected_pose[1].clone(), expected_velocity[1].clone()
+        env_ids = torch.tensor([0], dtype=torch.long)
+        reset_scene_to_default(SimpleNamespace(scene=scene), env_ids)
+        for state in (sim.backend_manager.backend.state_0, sim.backend_manager.backend.state_1):
+            pose, velocity = _expected_segment_state(cable, state, model)
+            torch.testing.assert_close(pose[0], default_pose[0])
+            torch.testing.assert_close(velocity[0], default_velocity[0])
+            torch.testing.assert_close(pose[1], other_pose)
+            torch.testing.assert_close(velocity[1], other_velocity)
+        scene.write_data_to_sim()
+        sim.step(render=False)
+        scene.update(sim.cfg.dt)
+        assert torch.isfinite(cable.data.segment_pose_w.torch).all()
+        assert torch.isfinite(cable.data.segment_velocity_w.torch).all()
