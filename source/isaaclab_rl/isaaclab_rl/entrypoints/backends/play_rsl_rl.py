@@ -198,8 +198,6 @@ def _offer_checkpoint_ghosts(env: RslRlVecEnvWrapper, env_cfg: object) -> None:
     """Show the greyed-out Checkpoint Ghosts section in the Newton GL HUD of a run that started without the feature."""
     if not isinstance(env_cfg, ManagerBasedRLEnvCfg):
         return
-    if _scene_cameras_use_ovrtx(env_cfg):  # not supported with OVRTX cameras yet
-        return
     for visualizer in env.unwrapped.sim.visualizers:
         if hasattr(visualizer, "offer_checkpoint_ghosts"):
             visualizer.offer_checkpoint_ghosts()
@@ -246,23 +244,6 @@ def _validate_checkpoint_ghosts(args_cli: argparse.Namespace, env_cfg: object) -
             raise SystemExit(
                 f"--checkpoint_ghosts does not support this task: its curriculum term '{name}' sets the reset state."
             )
-    if _scene_cameras_use_ovrtx(env_cfg):
-        raise SystemExit(
-            "--checkpoint_ghosts does not support tasks whose cameras use the OVRTX renderer yet."
-            " Use another renderer, such as renderer=newton_warp."
-        )
-
-
-def _scene_cameras_use_ovrtx(env_cfg: object) -> bool:
-    """Whether a scene sensor renders with OVRTX, which Checkpoint Ghosts do not support yet."""
-    scene = getattr(env_cfg, "scene", None)
-    for value in vars(scene).values() if scene is not None else ():
-        if getattr(value, "render_on_demand", False) is True:
-            continue  # the Newton viewer's own RTX camera, which launch adds and which no policy observes
-        renderer_cfg = getattr(value, "renderer_cfg", None)
-        if getattr(renderer_cfg, "renderer_type", None) == "ovrtx":
-            return True
-    return False
 
 
 def run(argv: list[str]) -> None:

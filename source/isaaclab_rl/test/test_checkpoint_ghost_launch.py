@@ -37,23 +37,6 @@ def test_without_newton_the_run_is_rejected():
         play_rsl_rl._validate_checkpoint_ghosts(SimpleNamespace(), _env_cfg(SimpleNamespace(visualizer_type="viser")))
 
 
-def test_cameras_that_render_with_ovrtx_are_rejected():
-    camera = SimpleNamespace(renderer_cfg=SimpleNamespace(renderer_type="ovrtx"))
-    cfg = _env_cfg(SimpleNamespace(visualizer_type="newton"), SimpleNamespace(camera=camera))
-
-    with pytest.raises(SystemExit, match="OVRTX"):
-        play_rsl_rl._validate_checkpoint_ghosts(SimpleNamespace(), cfg)
-
-
-def test_the_viewer_s_own_rtx_camera_is_not_a_task_camera():
-    renderer_cfg = SimpleNamespace(renderer_type="ovrtx")
-    scene = SimpleNamespace(viewer_camera_0_rtx=SimpleNamespace(renderer_cfg=renderer_cfg, render_on_demand=True))
-
-    assert not play_rsl_rl._scene_cameras_use_ovrtx(SimpleNamespace(scene=scene))
-    scene.task_camera = SimpleNamespace(renderer_cfg=renderer_cfg, render_on_demand=False)
-    assert play_rsl_rl._scene_cameras_use_ovrtx(SimpleNamespace(scene=scene))
-
-
 def _slots(total: int, slots: int | None):
     args = SimpleNamespace(checkpoint_ghost_slots=slots)
     play_rsl_rl._resolve_ghost_slots(args, SimpleNamespace(scene=SimpleNamespace(num_envs=total)))

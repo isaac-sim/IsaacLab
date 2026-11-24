@@ -3,7 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Playback of several checkpoints of one task side by side as Checkpoint Ghosts."""
+"""Playback of several checkpoints of one task side by side as Checkpoint Ghosts.
+
+Only RSL-RL is supported for now. The session drives each slot through RSL-RL's pieces: the vectorized-environment
+wrapper (``step`` returning observations, rewards, dones and extras, plus ``get_observations`` and ``num_actions``), an
+inference policy obtained from a runner with ``runner.get_inference_policy``, and ``model_*.pt`` checkpoint files. Other
+libraries differ in each of these (rl_games, skrl and Stable-Baselines3 wrap environments, call policies, and name or
+store checkpoints differently), so each needs a small adapter before it can share this session.
+"""
 
 from __future__ import annotations
 
