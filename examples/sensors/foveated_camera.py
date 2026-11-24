@@ -33,7 +33,6 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 import gymnasium as gym
-import numpy as np
 import torch
 import warp as wp
 from fovi.sensing.projection import gaze_rotation
@@ -44,7 +43,6 @@ from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
 from isaaclab_newton.physics import NewtonCfg, XPBDSolverCfg
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
-from PIL import Image, ImageDraw, ImageFont
 
 import isaaclab.sim as sim_utils
 from isaaclab.app import add_launcher_args, launch_simulation
@@ -259,17 +257,7 @@ def camera_comparison(
 ) -> tuple[Callable[[], None], Callable[[torch.Tensor], wp.array]]:
     """Draw the lens and gaze on the viewing sphere used in the docs, beside the retina."""
     size, gap = PREVIEW_SIZE, 6
-    header_height = 28
-    image_width = 2 * size + gap
-    header_color = (25, 28, 32, 255)
-    header = Image.new("RGBA", (image_width, header_height), header_color)
-    draw = ImageDraw.Draw(header)
-    font = ImageFont.load_default(size=17)
-    draw.text((8, header_height / 2), "Viewing sphere", font=font, fill="white", anchor="lm")
-    draw.text((size + gap + 8, header_height / 2), "Retina", font=font, fill="white", anchor="lm")
-    labels = torch.from_numpy(np.array(header)).to(camera.device)
-    divider = labels[:1, size : size + gap].expand(size, -1, -1)
-    displayed_cmf_a = None
+    divider = torch.tensor((25, 28, 32, 255), dtype=torch.uint8, device=camera.device).expand(size, gap, -1)
 
     coords = overview.sampling_coords
     pixels = torch.arange(size, device=camera.device)
@@ -293,15 +281,8 @@ def camera_comparison(
 
     def compose(retina: torch.Tensor) -> wp.array:
         """The view for one RGB retina image (H, W, 3): the viewing sphere, then the retina."""
-        nonlocal displayed_cmf_a
         # The retina may change its foveation at runtime, so its coordinates are read for every frame.
         retina_coords = camera.sampling_coords
-        if camera.cfg.cmf_a_deg != displayed_cmf_a:
-            displayed_cmf_a = camera.cfg.cmf_a_deg
-            draw.rectangle((image_width - 140, 0, image_width - 1, header_height - 1), fill=header_color)
-            text = f"cmf_a {displayed_cmf_a:g} deg"
-            draw.text((image_width - 8, header_height / 2), text, font=font, fill="white", anchor="rm")
-            labels.copy_(torch.from_numpy(np.array(header)))
         detail = torch.cat((retina, torch.full_like(retina[..., :1], 255)), dim=-1)
 
         # Transform the fixed observer into the live camera frame, independently of active gaze.
@@ -365,7 +346,7 @@ def camera_comparison(
         detail = detail.permute(2, 0, 1).unsqueeze(0)
         detail = torch.nn.functional.interpolate(detail, size=(size, size), mode="nearest")[0].permute(1, 2, 0)
         detail[..., :3].masked_fill_(~retina_disc[..., None], 0)
-        return wp.from_torch(torch.cat((labels, torch.cat((full, divider, detail), dim=1)), dim=0))
+        return wp.from_torch(torch.cat((full, divider, detail), dim=1).contiguous())
 
     return prepare, compose
 
