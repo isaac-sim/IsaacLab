@@ -313,6 +313,11 @@ types are accepted here too, e.g. ``VideoRecorderCfg(source="newton")`` is equiv
    The Newton viewport can be recorded with ``"viz:newton"`` while it renders with RTX, but
    recording its streaming view is not supported.
 
+.. note::
+
+   Recording a Tracking Camera with ``"viz:newton:tracking"`` while the window shows another source briefly draws the
+   tracking view in the window on each recorded frame.
+
 
 Clip control
 ------------

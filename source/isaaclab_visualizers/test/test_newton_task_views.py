@@ -342,3 +342,15 @@ def test_the_camera_speed_slider_sets_the_free_cameras_keyboard_speed():
     viz.current_image_view = free
     viz._draw_camera_speed(imgui)
     assert viz._viewer.camera_speed == 12.0 and viz._viewer.camera_speed_boost == 12.0
+
+
+def test_a_window_that_forbids_the_rtx_camera_takes_no_viewer_camera():
+    from isaaclab_visualizers.newton.newton_visualizer import NewtonGLVisualizer
+
+    viz = NewtonGLVisualizer.__new__(NewtonGLVisualizer)
+    viz._rtx_camera_path = None
+
+    viz.cfg = SimpleNamespace(backend=SimpleNamespace(rtx_camera=None))
+    assert viz._is_viewer_camera("/World/viewer_camera_0")
+    viz.cfg = SimpleNamespace(backend=SimpleNamespace(rtx_camera=False))
+    assert not viz._is_viewer_camera("/World/viewer_camera_0")

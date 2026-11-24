@@ -2187,7 +2187,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             return
         if not (arrows_changed or self._rtx_arrows_pending or view.frame.timestamp < 0):
             return
-        view.camera._is_outdated.fill_(True)
+        view.camera._invalidate_buffers()  # also marks the data dirty, which a zero-step update needs to render
         view.camera.update(0.0, force_recompute=True)
         view.invalidate()
         self._rtx_arrows_pending = arrows_changed  # One more render shows the arrows gone.
@@ -2218,6 +2218,8 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
 
     def _is_viewer_camera(self, prim_path: str) -> bool:
         """Whether *prim_path* is the viewer camera launch declared for this window, or any viewer camera if none."""
+        if getattr(self.cfg.backend, "rtx_camera", None) is False:  # this window opted out, so it takes no camera
+            return False
         declared = self._rtx_camera_path
         return prim_path == declared if declared else prim_path.startswith("/World/viewer_camera_")
 

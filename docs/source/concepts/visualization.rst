@@ -822,7 +822,7 @@ share button in the native UI.
 Every Newton viewer has a **Visible Envs** slider in its left panel that sets how many
 environments are drawn. It changes only what is rendered, not the simulation. In the RTX view the OVRTX renderer is
 shared with scene cameras, so the hidden environments also drop out of their images while the RTX view is shown;
-the HUD notes this next to the slider.
+the HUD notes this next to the slider. Deformable (soft) objects are not hidden in the RTX view.
 
 Resolution Rules
 ~~~~~~~~~~~~~~~~
@@ -1003,7 +1003,9 @@ authored scene through Isaac Lab's OVRTX renderer, shared with cameras using the
 ``OVRTXRendererCfg``. The Newton window displays the rendered GPU image and handles window controls;
 Newton's ``ViewerRTX`` is not constructed. Scene transforms, deformable geometry, and material
 updates follow the camera renderer's normal synchronization. Perspective resolution stays
-fixed when the window is resized; the window scales the image for presentation.
+fixed when the window is resized; the window scales the image for presentation. Use the RTX view in one Newton
+window per run: windows with equal renderer settings share the renderer, the viewer camera and the viewer lights.
+Visualization markers appear in the RTX view through the viewer camera, not through an ordinary scene camera.
 Configure lights and environment placement in the scene. Viewer-only ``rtx_environment`` rigs
 and ``world_spacing`` are no longer supported: declare scene lights for studio lighting, remove
 scene lights for an unlit scene, and set ``InteractiveSceneCfg.env_spacing`` for world placement.

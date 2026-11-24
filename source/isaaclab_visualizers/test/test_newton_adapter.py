@@ -1503,6 +1503,7 @@ def test_a_mesh_logged_to_the_rtx_view_refreshes_its_cached_image():
     view = Mock(camera=camera)
     renderer = Mock()
     visualizer._is_initialized, visualizer._viewer = True, object()
+    visualizer.cfg = SimpleNamespace(backend=SimpleNamespace(rtx_camera=None))
     visualizer._pending_mesh_submissions = {}
     visualizer._image_views, visualizer._sim = [view], SimpleNamespace(get_or_create_backend=lambda cfg: renderer)
     visualizer.current_image_view = object()
