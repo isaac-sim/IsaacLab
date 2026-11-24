@@ -35,7 +35,7 @@ class task_success(ManagerTermBase):
 
     def __call__(self, env: ManagerBasedRLEnv) -> torch.Tensor:
         state = self._tabletop
-        poses = torch.stack([asset.data.root_link_pose_w.torch for asset in state.assets], dim=1)
+        poses = state.objects.data.body_link_pose_w.torch
         source, target = state.object_ids, state.target_ids
         source_pose, target_pose = poses[self._envs, source], poses[self._envs, target]
         corners = quat_apply(source_pose[:, None, 3:].expand(-1, 8, 4), state.local_corners[self._envs, source])

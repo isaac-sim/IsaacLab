@@ -88,9 +88,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                     orientation=rigid_body_cfg.init_state.rot,
                 )
             # check that spawn was successful
-            matching_prims = sim_utils.find_matching_prims(rigid_body_cfg.prim_path)
-            if len(matching_prims) == 0:
-                raise RuntimeError(f"Could not find prim with path {rigid_body_cfg.prim_path}.")
+            sim_utils.resolve_matching_prims_from_source(rigid_body_cfg.prim_path)
         # stores object names
         self._body_names_list = []
 
@@ -1159,6 +1157,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self._root_view = ArticulationView(
             self._backend_manager.backend.model,
             root_prim_path_exprs,
+            # Body state is rectangular even when collection members have different shape counts.
+            homogeneous=False,
             verbose=False,
         )
         # Newton matches each body once, so members whose prim paths alias the same prim come up short here.

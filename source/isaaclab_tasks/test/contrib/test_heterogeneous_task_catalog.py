@@ -5,6 +5,7 @@
 
 """Bounded, factorized scene combinations and the task-package ownership boundary."""
 
+import ast
 from pathlib import Path
 
 import numpy as np
@@ -31,9 +32,38 @@ def test_bounded_combinations_do_not_expand_the_object_product():
         )
         for i in range(1000)
     }
-    cfg = catalog.VLAHeterogeneousEnvCfg(objects=objects)
-    names = cfg.events.place_objects.params["objects"]
-    candidates = [getattr(cfg.scene, name).spawn.assets_cfg for name in names]
+    tree = ast.parse(Path(catalog.__file__).read_text())
+    assert not any(isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) for node in ast.walk(tree)), (
+        "The scene must be declared through config composition, without factories or post-init rewriting"
+    )
+    cfg = catalog.VLAHeterogeneousEnvCfg()
+    source = catalog.OBJECTS_CFG
+    cfg.scene.objects = source.replace(
+        rigid_objects={
+            name: member.replace(
+                spawn=member.spawn.replace(
+                    assets_cfg=[
+                        spawn.replace(
+                            semantic_tags=[
+                                *spawn.semantic_tags,
+                                ("_catalog_key", label),
+                                *[
+                                    (tag, value)
+                                    for tag, value in member.spawn.assets_cfg[0].semantic_tags
+                                    if tag == "object_count"
+                                ],
+                            ]
+                        )
+                        for label, spawn in objects.items()
+                    ]
+                    + [member.spawn.assets_cfg[-1].copy()]
+                )
+            )
+            for name, member in source.rigid_objects.items()
+        }
+    )
+    candidates = [member.spawn.assets_cfg for member in cfg.scene.objects.rigid_objects.values()]
+    names = ["objects"] * len(candidates)
     groups, weights = make_valid_clone_combinations(names, candidates, cfg.scene.clone_cfg.clone_combinations)
     assert len(groups) <= 8, "Object combinations must stay factorized, rather than expanding the product"
     flattened = [candidate for row in candidates for candidate in row]
@@ -78,11 +108,9 @@ def test_bounded_combinations_do_not_expand_the_object_product():
     assert len(frequencies) == 5 and ((frequencies > 0.1) & (frequencies < 0.3)).all()
     assert 0.3 < common_halves[0] / sum(common_halves) < 0.7
     assert all(dict(spawn.semantic_tags).get("object_count") is None for spawn in objects.values())
-    ten = catalog.VLAHeterogeneousEnvCfg(objects={"one": objects["item_0"]}, object_count=(8, 10))
-    ten_names = ten.events.place_objects.params["objects"]
-    ten_candidates = [getattr(ten.scene, name).spawn.assets_cfg for name in ten_names]
-    ten_groups, _ = make_valid_clone_combinations(ten_names, ten_candidates, ten.scene.clone_cfg.clone_combinations)
-    assert len(ten_names) == 10 and len(ten_groups) == 3
     resolved, _ = resolve_task_config("IsaacContrib-VLA-Heterogeneous-Franka", "", overrides=[])
     assert type(resolved) is catalog.VLAHeterogeneousEnvCfg
-    assert len(resolved.objects) == 159 and set(resolved.tasks) == {"put_on_plate", "put_in_container"}
+    assert len(catalog.ASSET_CATALOG) == 159 and set(resolved.tasks) == {"put_on_plate", "put_in_container"}
+    assert resolved.scene.objects is not catalog.OBJECTS_CFG
+    assert len(resolved.scene.objects.rigid_objects) == catalog.OBJECT_COUNT[1]
+    assert isinstance(resolved.scene.work_table.spawn, sim_utils.UsdFileCfg), "Use the real table asset"

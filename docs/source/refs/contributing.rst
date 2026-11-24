@@ -447,8 +447,12 @@ before changing an interface. Apply these rules when adding code or cleaning up 
   Keep inclusion interpretation and task-specific matching classes out of replication execution.
   Keep task-specific sampling, placement and instruction binding in the task package. Define tabletop
   tasks as category requirements over a shared flat asset catalog, not per-combination environment
-  configurations. Bound object cardinality without enumerating combinations, and keep reset placement
-  inside the intersection of the work surface and supplied reachable workspace. Reject impossible
+  configurations. Declare complete configs with named constants and ``copy``/``replace`` composition;
+  do not generate or repair scene fields in ``__post_init__`` or add functions that only return configs.
+  Bound object cardinality without enumerating combinations, and keep reset placement inside the
+  intersection of the measured support outline and supplied reachable workspace. Measured asset
+  dimensions may be constants in the scene configuration. Preserve surface outlines and holes; do not
+  substitute a box or its bounding rectangle for the actual table. Reject impossible
   placements instead of silently accepting overlap.
 * Give each piece of state and validation one owner. Consumers should use the owner's contract instead
   of repairing results or maintaining duplicate state. Cache derived values only when their lifetime and

@@ -11,7 +11,7 @@ from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionP
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
+from isaaclab.assets import AssetBaseCfg, RigidObjectCfg, RigidObjectCollectionCfg
 from isaaclab.cloner import CloneCfg, InclusionSet
 from isaaclab.cloner.cloner_strategies import random
 from isaaclab.envs import ManagerBasedRLEnvCfg
@@ -33,166 +33,36 @@ GRIPPER_BODY = "robot/Robotiq_2F_85_edit/Robotiq_2F_85/left_inner_finger"
 """Gripper link, relative to the environment prim, whose contacts decide whether an object is held."""
 
 
-def _camera(prim_path: str, focal_length: float, pos: tuple, rot: tuple, follow_link: bool = False) -> CameraCfg:
-    """Return a 448 x 252 RGB camera with the RoboLab lens (the 1280 x 720 view, downsampled)."""
-    return CameraCfg(
-        prim_path=prim_path,
-        width=448,
-        height=252,
-        data_types=["rgb"],
-        update_period=0.0,
-        update_latest_camera_pose=follow_link,
-        # The renderer that draws the objects selected as mesh variants.
-        renderer_cfg=NewtonWarpRendererCfg(),
-        spawn=sim_utils.PinholeCameraCfg(
-            focal_length=focal_length,
-            focus_distance=28.0,
-            horizontal_aperture=5.376,
-            vertical_aperture=3.024,
-            clipping_range=(0.01, 1.0e6),
-        ),
-        offset=CameraCfg.OffsetCfg(pos=pos, rot=rot, convention="opengl"),
-    )
+CAMERA_CFG = CameraCfg(
+    prim_path="{ENV_REGEX_NS}/camera",
+    width=448,
+    height=252,
+    data_types=["rgb"],
+    update_period=0.0,
+    renderer_cfg=NewtonWarpRendererCfg(),
+    spawn=sim_utils.PinholeCameraCfg(
+        focal_length=2.1,
+        focus_distance=28.0,
+        horizontal_aperture=5.376,
+        vertical_aperture=3.024,
+        clipping_range=(0.01, 1.0e6),
+    ),
+)
 
+OBJECT_COUNT = (2, 8)
+"""Inclusive cardinality bounds, excluding the robot and table."""
 
-@configclass
-class TabletopSceneCfg(InteractiveSceneCfg):
-    """Robot, robot table, ground, lights, cameras and contact sensor of the VLA benchmark tasks.
+TABLETOP_OUTLINE = ((-0.4557, -0.76215), (0.4557, -0.76215), (0.4557, 0.76215), (-0.4557, 0.76215))
+TABLETOP_HEIGHT = 0.762
+"""Measured flat support surface of av_eastrural_table, in its local frame (metres)."""
 
-    An inclusion set samples bounded combinations from the tagged object catalog below. The contact sensor
-    senses every rigid object and the gripper link against each other.
-    """
-
-    clone_cfg = CloneCfg(clone_strategy=random)
-
-    robot = FRANKA_ROBOTIQ_GRIPPER_CFG.replace(
-        prim_path="{ENV_REGEX_NS}/robot",
-        init_state=FRANKA_ROBOTIQ_GRIPPER_CFG.init_state.replace(pos=(0.0, 0.0, 0.0)),
-    )
-    table_fixture = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/table_fixture",
-        spawn=sim_utils.UsdFileCfg(usd_path=f"{VLA_BENCHMARKS_ASSETS_DIR}/scene/franka_table/franka_table.usd"),
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(-0.087, 0.0, 0.0), rot=(0.0, 0.0, 1.0, 0.0)),
-    )
-    work_table = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/work_table",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.9, 1.0, 0.06),
-            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
-            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.35, 0.28, 0.20)),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.65, 0.0, -0.03)),
-    )
-    # Ground under the shared work surface.
-    ground = AssetBaseCfg(
-        prim_path="/World/ground",
-        spawn=sim_utils.GroundPlaneCfg(size=(500.0, 500.0)),
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, -0.697)),
-    )
-    dome_light = AssetBaseCfg(
-        prim_path="/World/background",
-        spawn=sim_utils.DomeLightCfg(
-            intensity=500.0,
-            texture_file=f"{VLA_BENCHMARKS_ASSETS_DIR}/scene/home_office.exr",
-            texture_format="latlong",
-            visible_in_primary_ray=True,
-        ),
-    )
-    sphere_light = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/sphere",
-        spawn=sim_utils.SphereLightCfg(intensity=5000.0, radius=0.5),
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, -0.6, 0.7)),
-    )
-    over_shoulder_left_camera = _camera(
-        "{ENV_REGEX_NS}/over_shoulder_left_camera", 2.1, (0.05, 0.57, 0.66), (-0.195, 0.399, 0.805, -0.393)
-    )
-    # The wrist camera rides on the gripper, so its pose follows the simulated link.
-    wrist_cam = _camera(
-        "{ENV_REGEX_NS}/robot/Robotiq_2F_85_edit/Robotiq_2F_85/base_link/wrist_cam",
-        2.8,
-        (-0.074, 0.031, 0.011),
-        (0.704, -0.692, -0.11, 0.114),
-        follow_link=True,
-    )
-    contact = ContactSensorCfg(
-        prim_path=f"{{ENV_REGEX_NS}}/([^/]+|{GRIPPER_BODY})",
-        filter_prim_paths_expr=[f"{{ENV_REGEX_NS}}/([^/]+|{GRIPPER_BODY})"],
-        update_period=0.0,
-    )
-
-
-@configclass
-class ActionsCfg:
-    """Arm joint position targets and a binary gripper command (negative closes)."""
-
-    arm = isaaclab_mdp.JointPositionActionCfg(
-        asset_name="robot", joint_names=["panda_joint.*"], preserve_order=True, use_default_offset=False
-    )
-    gripper = isaaclab_mdp.BinaryJointPositionActionCfg(
-        asset_name="robot",
-        joint_names=["finger_joint"],
-        open_command_expr={"finger_joint": 0.0},
-        close_command_expr={"finger_joint": math.pi / 4},
-    )
-
-
-@configclass
-class ObservationsCfg:
-    """Camera images and arm and gripper positions for the policy."""
-
-    @configclass
-    class PolicyCfg(ObsGroup):
-        over_shoulder_left_camera = ObsTerm(
-            func=isaaclab_mdp.image_rgb,
-            params={"sensor_cfg": SceneEntityCfg("over_shoulder_left_camera"), "normalize": False},
-        )
-        wrist_cam = ObsTerm(
-            func=isaaclab_mdp.image_rgb, params={"sensor_cfg": SceneEntityCfg("wrist_cam"), "normalize": False}
-        )
-        arm_joint_pos = ObsTerm(
-            func=isaaclab_mdp.joint_pos,
-            params={"asset_cfg": SceneEntityCfg("robot", joint_names=["panda_joint.*"], preserve_order=True)},
-        )
-        # Gripper opening from 0 (open) to 1 (closed).
-        gripper_pos = ObsTerm(
-            func=isaaclab_mdp.joint_pos,
-            params={"asset_cfg": SceneEntityCfg("robot", joint_names=["finger_joint"])},
-            clip=(0.0, math.pi / 4),
-            scale=4.0 / math.pi,
-        )
-
-        def __post_init__(self):
-            self.concatenate_terms = False
-
-    policy = PolicyCfg()
-
-
-@configclass
-class EventsCfg:
-    """Reset the robot and the objects to their start states."""
-
-    reset = EventTerm(func=isaaclab_mdp.reset_scene_to_default, mode="reset", params={"reset_joint_targets": True})
-    place_objects = EventTerm(
-        func=mdp.reset_tabletop,
-        mode="reset",
-        params={
-            "objects": [],
-            "table": SceneEntityCfg("work_table"),
-            "workspace": ((0.25, -0.4, 0.0), (0.85, 0.4, 0.6)),
-            "gripper_body": GRIPPER_BODY.rsplit("/", 1)[-1],
-            "clearance": 0.005,
-            "max_attempts": 128,
-        },
-    )
-
-
-@configclass
-class TerminationsCfg:
-    """Episode timeout and success of the selected available task."""
-
-    time_out = DoneTerm(func=isaaclab_mdp.time_out, time_out=True)
-    success = DoneTerm(func=mdp.task_success)
+EMPTY_OBJECT_CFG = sim_utils.SphereCfg(
+    radius=0.001,
+    visible=False,
+    mass_props=sim_utils.MassCfg(mass=0.001),
+    rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+    collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
+)
 
 
 # Each movable asset has one sampling category. Task families use these same semantic tags.
@@ -364,14 +234,193 @@ ASSET_CATALOG = {
     }.items()
 }
 
+OBJECTS_CFG = RigidObjectCollectionCfg(
+    rigid_objects={
+        f"object_{slot}": RigidObjectCfg(
+            prim_path=f"{{ENV_REGEX_NS}}/object_{slot}",
+            spawn=sim_utils.MultiAssetSpawnerCfg(
+                assets_cfg=[
+                    spawn.replace(
+                        semantic_tags=[
+                            *(spawn.semantic_tags or ()),
+                            ("_catalog_key", label),
+                            *[
+                                ("object_count", str(count))
+                                for count in range(max(OBJECT_COUNT[0], slot + 1), OBJECT_COUNT[1] + 1)
+                            ],
+                        ]
+                    )
+                    for label, spawn in ASSET_CATALOG.items()
+                ]
+                + [
+                    EMPTY_OBJECT_CFG.replace(
+                        semantic_tags=[
+                            ("_catalog_key", "__empty__"),
+                            ("category", "__empty__"),
+                            *[("object_count", str(count)) for count in range(OBJECT_COUNT[0], slot + 1)],
+                        ]
+                    )
+                ],
+                static=False,
+                random_choice=False,
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -10.0, 0.5)),
+        )
+        for slot in range(OBJECT_COUNT[1])
+    },
+)
+"""Complete object group; inclusion matching selects count, then category and asset per occupied slot."""
+
+
+@configclass
+class TabletopSceneCfg(InteractiveSceneCfg):
+    """Robot, robot table, ground, lights, cameras and contact sensor of the VLA benchmark tasks.
+
+    An inclusion set samples bounded combinations from the tagged object catalog. The contact sensor
+    senses every rigid object and the gripper link against each other.
+    """
+
+    clone_cfg = CloneCfg(
+        clone_strategy=random,
+        clone_combinations=[InclusionSet(assets=["objects"], match_tags=["object_count"], sample_by="category")],
+    )
+    objects = OBJECTS_CFG
+
+    robot = FRANKA_ROBOTIQ_GRIPPER_CFG.replace(
+        prim_path="{ENV_REGEX_NS}/robot",
+        init_state=FRANKA_ROBOTIQ_GRIPPER_CFG.init_state.replace(pos=(0.0, 0.0, 0.0)),
+    )
+    table_fixture = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/table_fixture",
+        spawn=sim_utils.UsdFileCfg(usd_path=f"{VLA_BENCHMARKS_ASSETS_DIR}/scene/franka_table/franka_table.usd"),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(-0.087, 0.0, 0.0), rot=(0.0, 0.0, 1.0, 0.0)),
+    )
+    work_table = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/work_table",
+        spawn=sim_utils.UsdFileCfg(
+            usd_path=f"{VLA_BENCHMARKS_ASSETS_DIR}/objects/av_eastrural_table/av_eastrural_table.usd",
+            func=mdp.spawn_table,
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.65, 0.0, -0.697)),
+    )
+    # Ground under the shared work surface.
+    ground = AssetBaseCfg(
+        prim_path="/World/ground",
+        spawn=sim_utils.GroundPlaneCfg(size=(500.0, 500.0)),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, -0.697)),
+    )
+    dome_light = AssetBaseCfg(
+        prim_path="/World/background",
+        spawn=sim_utils.DomeLightCfg(
+            intensity=500.0,
+            texture_file=f"{VLA_BENCHMARKS_ASSETS_DIR}/scene/home_office.exr",
+            texture_format="latlong",
+            visible_in_primary_ray=True,
+        ),
+    )
+    sphere_light = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/sphere",
+        spawn=sim_utils.SphereLightCfg(intensity=5000.0, radius=0.5),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, -0.6, 0.7)),
+    )
+    over_shoulder_left_camera = CAMERA_CFG.replace(
+        prim_path="{ENV_REGEX_NS}/over_shoulder_left_camera",
+        offset=CameraCfg.OffsetCfg(pos=(0.05, 0.57, 0.66), rot=(-0.195, 0.399, 0.805, -0.393), convention="opengl"),
+    )
+    wrist_cam = CAMERA_CFG.replace(
+        prim_path="{ENV_REGEX_NS}/robot/Robotiq_2F_85_edit/Robotiq_2F_85/base_link/wrist_cam",
+        update_latest_camera_pose=True,
+        spawn=CAMERA_CFG.spawn.replace(focal_length=2.8),
+        offset=CameraCfg.OffsetCfg(pos=(-0.074, 0.031, 0.011), rot=(0.704, -0.692, -0.11, 0.114), convention="opengl"),
+    )
+    contact = ContactSensorCfg(
+        prim_path=f"{{ENV_REGEX_NS}}/([^/]+|{GRIPPER_BODY})",
+        filter_prim_paths_expr=[f"{{ENV_REGEX_NS}}/([^/]+|{GRIPPER_BODY})"],
+        update_period=0.0,
+    )
+
+
+@configclass
+class ActionsCfg:
+    """Arm joint position targets and a binary gripper command (negative closes)."""
+
+    arm = isaaclab_mdp.JointPositionActionCfg(
+        asset_name="robot", joint_names=["panda_joint.*"], preserve_order=True, use_default_offset=False
+    )
+    gripper = isaaclab_mdp.BinaryJointPositionActionCfg(
+        asset_name="robot",
+        joint_names=["finger_joint"],
+        open_command_expr={"finger_joint": 0.0},
+        close_command_expr={"finger_joint": math.pi / 4},
+    )
+
+
+@configclass
+class ObservationsCfg:
+    """Camera images and arm and gripper positions for the policy."""
+
+    @configclass
+    class PolicyCfg(ObsGroup):
+        over_shoulder_left_camera = ObsTerm(
+            func=isaaclab_mdp.image_rgb,
+            params={"sensor_cfg": SceneEntityCfg("over_shoulder_left_camera"), "normalize": False},
+        )
+        wrist_cam = ObsTerm(
+            func=isaaclab_mdp.image_rgb, params={"sensor_cfg": SceneEntityCfg("wrist_cam"), "normalize": False}
+        )
+        arm_joint_pos = ObsTerm(
+            func=isaaclab_mdp.joint_pos,
+            params={"asset_cfg": SceneEntityCfg("robot", joint_names=["panda_joint.*"], preserve_order=True)},
+        )
+        # Gripper opening from 0 (open) to 1 (closed).
+        gripper_pos = ObsTerm(
+            func=isaaclab_mdp.joint_pos,
+            params={"asset_cfg": SceneEntityCfg("robot", joint_names=["finger_joint"])},
+            clip=(0.0, math.pi / 4),
+            scale=4.0 / math.pi,
+        )
+
+        concatenate_terms = False
+
+    policy = PolicyCfg()
+
+
+@configclass
+class EventsCfg:
+    """Reset the robot and the objects to their start states."""
+
+    reset = EventTerm(func=isaaclab_mdp.reset_scene_to_default, mode="reset", params={"reset_joint_targets": True})
+    place_objects = EventTerm(
+        func=mdp.reset_tabletop,
+        mode="reset",
+        params={
+            "objects": SceneEntityCfg("objects"),
+            "table": SceneEntityCfg("work_table"),
+            "surface_outline": TABLETOP_OUTLINE,
+            "surface_height": TABLETOP_HEIGHT,
+            "workspace": ((0.25, -0.4, 0.0), (0.85, 0.4, 0.6)),
+            "gripper_body": GRIPPER_BODY.rsplit("/", 1)[-1],
+            "clearance": 0.005,
+            "max_attempts": 128,
+        },
+    )
+
+
+@configclass
+class TerminationsCfg:
+    """Episode timeout and success of the selected available task."""
+
+    time_out = DoneTerm(func=isaaclab_mdp.time_out, time_out=True)
+    success = DoneTerm(func=mdp.task_success)
+
 
 @configclass
 class VLAHeterogeneousEnvCfg(ManagerBasedRLEnvCfg):
     """Sample any bounded object combination; tasks become available from categories and geometric fit.
 
-    ``object_count`` bounds the number of real objects, excluding the table and robot. Empty
-    placeholders keep runtime views rectangular. Inclusion matching encodes the permitted counts
-    as factorized groups; category-first inclusion sampling selects only the requested worlds.
+    ``OBJECTS_CFG`` declares the object collection before environment construction. Empty placeholders
+    keep runtime views rectangular; inclusion matching selects the count, category and concrete assets.
     """
 
     scene: TabletopSceneCfg = TabletopSceneCfg(num_envs=1, env_spacing=10.0, lazy_sensor_update=True)
@@ -406,64 +455,8 @@ class VLAHeterogeneousEnvCfg(ManagerBasedRLEnvCfg):
         ),
     )
 
-    objects: dict[str, sim_utils.SpawnerCfg] = ASSET_CATALOG
-    object_count: tuple[int, int] = (2, 8)
     tasks: dict[str, dict[str, str]] = {
         "put_on_plate": {"target": "plate", "relation": "on", "instruction": "Place {object} on {target}."},
         "put_in_container": {"target": "container", "relation": "in", "instruction": "Put {object} in {target}."},
     }
     episode_length_s = 60.0
-
-    def __post_init__(self):
-        super().__post_init__()
-        lower, upper = self.object_count
-        if not self.objects or not 1 <= lower <= upper:
-            raise ValueError("Select a nonempty object catalog and positive, ordered object counts.")
-        for name, rule in self.tasks.items():
-            if set(rule) != {"target", "relation", "instruction"} or rule["relation"] not in ("on", "in"):
-                raise ValueError(
-                    f"Task family {name!r} requires a target category, relation ('on' or 'in') and instruction."
-                )
-        previous = self.events.place_objects.params["objects"]
-        for name in previous:
-            vars(self.scene).pop(name, None)
-        names = []
-        for slot in range(upper):
-            name = f"object_{slot}"
-            names.append(name)
-            candidates = []
-            for label, spawn in self.objects.items():
-                spawn = spawn.copy()
-                spawn.semantic_tags = [
-                    *(spawn.semantic_tags or ()),
-                    ("_catalog_key", label),
-                    *[("object_count", str(count)) for count in range(max(lower, slot + 1), upper + 1)],
-                ]
-                candidates.append(spawn)
-            candidates.append(
-                sim_utils.SphereCfg(
-                    radius=0.001,
-                    visible=False,
-                    mass_props=sim_utils.MassCfg(mass=0.001),
-                    rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
-                    collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
-                    semantic_tags=[
-                        ("_catalog_key", "__empty__"),
-                        ("category", "__empty__"),
-                        *[("object_count", str(count)) for count in range(lower, slot + 1)],
-                    ],
-                )
-            )
-            setattr(
-                self.scene,
-                name,
-                RigidObjectCfg(
-                    prim_path=f"{{ENV_REGEX_NS}}/{name}",
-                    spawn=sim_utils.MultiAssetSpawnerCfg(assets_cfg=candidates, static=False, random_choice=False),
-                    init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -10.0, 0.5)),
-                ),
-            )
-        self.events.place_objects.params["objects"] = names
-        self.scene.clone_cfg.clone_combinations = [
-            InclusionSet(assets=names, match_tags=["object_count"], sample_by="category")
-        ]

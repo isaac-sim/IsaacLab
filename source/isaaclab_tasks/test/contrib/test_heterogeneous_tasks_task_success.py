@@ -9,13 +9,14 @@ import itertools
 from pathlib import Path
 
 import pytest
+import shapely
 import torch
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
 
 from pxr import Usd, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
+from isaaclab.assets import AssetBaseCfg, RigidObjectCfg, RigidObjectCollectionCfg
 from isaaclab.cloner import InclusionSet
 from isaaclab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg
 from isaaclab.envs import mdp as isaaclab_mdp
@@ -61,18 +62,36 @@ def _container(path: Path):
     stage.GetRootLayer().Save()
 
 
+def _table(path: Path):
+    """A real mesh table with a central opening that a bounding rectangle would incorrectly fill."""
+    stage = Usd.Stage.CreateNew(str(path))
+    UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
+    UsdGeom.SetStageMetersPerUnit(stage, 1.0)
+    root = UsdGeom.Xform.Define(stage, "/table").GetPrim()
+    stage.SetDefaultPrim(root)
+    vertices, indices = [], []
+    faces = [0, 1, 3, 2, 4, 6, 7, 5, 0, 4, 5, 1, 2, 3, 7, 6, 0, 2, 6, 4, 1, 5, 7, 3]
+    for half, center in (
+        ((0.18, 0.5, 0.025), (-0.27, 0, 0)),
+        ((0.18, 0.5, 0.025), (0.27, 0, 0)),
+        ((0.09, 0.2, 0.025), (0, -0.3, 0)),
+        ((0.09, 0.2, 0.025), (0, 0.3, 0)),
+    ):
+        offset = len(vertices)
+        vertices.extend(
+            tuple(center[j] + sign[j] * half[j] for j in range(3)) for sign in itertools.product((-1, 1), repeat=3)
+        )
+        indices.extend(index + offset for index in faces)
+    mesh = UsdGeom.Mesh.Define(stage, "/table/surface")
+    mesh.CreatePointsAttr(vertices)
+    mesh.CreateFaceVertexCountsAttr([4] * 24)
+    mesh.CreateFaceVertexIndicesAttr(indices)
+    stage.GetRootLayer().Save()
+
+
 @configclass
 class _SceneCfg(InteractiveSceneCfg):
     ground = AssetBaseCfg(prim_path="/World/ground", spawn=sim_utils.GroundPlaneCfg())
-    work_table = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/work_table",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.9, 1.0, 0.05),
-            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
-            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.6, 0.0, 0.175), rot=(0.0, 0.0, 0.14943813, 0.98877108)),
-    )
     gripper = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/gripper",
         spawn=sim_utils.SphereCfg(
@@ -153,9 +172,21 @@ def env(request, tmp_path):
         ("large", "plate", "__empty__"),
         ("small", "box", "plate"),
     )
+    table_path = tmp_path / "table.usda"
+    _table(table_path)
     cfg = _EnvCfg(seed=42)
+    cfg.scene.work_table = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/work_table",
+        spawn=sim_utils.UsdFileCfg(
+            usd_path=str(table_path),
+            func=mdp.spawn_table,
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.6, 0.0, 0.175), rot=(0.0, 0.0, 0.14943813, 0.98877108)),
+    )
     cfg.sim.device = request.param
     names = [f"object_{slot}" for slot in range(3)]
+    collection = {}
     for slot, name in enumerate(names):
         candidates = []
         for label in dict.fromkeys(row[slot] for row in worlds):
@@ -172,24 +203,24 @@ def env(request, tmp_path):
             if label in ("plate", "box"):
                 spawn.semantic_tags.append(("category", "plate" if label == "plate" else "container"))
             candidates.append(spawn)
-        setattr(
-            cfg.scene,
-            name,
-            RigidObjectCfg(
-                prim_path=f"{{ENV_REGEX_NS}}/{name}",
-                spawn=sim_utils.MultiAssetSpawnerCfg(assets_cfg=candidates, static=False, random_choice=False),
-                init_state=RigidObjectCfg.InitialStateCfg(pos=(0, -10, 0.5)),
-            ),
+        collection[name] = RigidObjectCfg(
+            prim_path=f"{{ENV_REGEX_NS}}/{name}",
+            spawn=sim_utils.MultiAssetSpawnerCfg(assets_cfg=candidates, static=False, random_choice=False),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0, -10, 0.5)),
         )
-    cfg.scene.clone_cfg.clone_combinations = [InclusionSet(assets=names, match_tags=["case"])]
+    cfg.scene.objects = RigidObjectCollectionCfg(rigid_objects=collection)
+    cfg.scene.clone_cfg.clone_combinations = [InclusionSet(assets=["objects"], match_tags=["case"])]
     cfg.events = {
         "reset": EventTermCfg(func=isaaclab_mdp.reset_scene_to_default, mode="reset"),
         "place_objects": EventTermCfg(
             func=mdp.reset_tabletop,
             mode="reset",
             params={
-                "objects": names,
+                "objects": SceneEntityCfg("objects"),
                 "table": SceneEntityCfg("work_table"),
+                "surface_outline": ((-0.45, -0.5), (0.45, -0.5), (0.45, 0.5), (-0.45, 0.5)),
+                "surface_height": 0.025,
+                "surface_holes": (((-0.09, -0.1), (0.09, -0.1), (0.09, 0.1), (-0.09, 0.1)),),
                 "workspace": ((0.25, -0.35, 0.1), (0.9, 0.35, 0.6)),
                 "gripper_body": "gripper",
                 "clearance": 0.005,
@@ -212,15 +243,17 @@ def test_reset_intersects_workspace_and_table_and_binds_only_feasible_tasks(env)
     assert [len(state.available_tasks[i]) for i in (0, 1, large_world, container_world)] == [1, 0, 0, 2]
     assert sorted(state.active.sum(1).tolist()) == [2, 2, 2, 3]
     assert not state.penetrating_worlds().any()
+    assert state.surface.area == pytest.approx(0.864, abs=1e-6)
+    assert len(state.surface.interiors) == 1
     assert state.instructions[0] and state.instructions[container_world]
     assert [state.instructions[i] for i in (1, large_world)] == ["", ""]
     with pytest.raises(ValueError, match="Unavailable"):
         state.set_task([1], [0])
-    poses = torch.stack([asset.data.root_link_pose_w.torch for asset in state.assets], 1)
+    poses = state.objects.data.body_link_pose_w.torch
     before = poses.clone()
     for _ in range(3):
         env.reset(env_ids=torch.tensor([0, container_world], device=env.device))
-        poses = torch.stack([asset.data.root_link_pose_w.torch for asset in state.assets], 1)
+        poses = state.objects.data.body_link_pose_w.torch
         torch.testing.assert_close(poses[[1, large_world]], before[[1, large_world]])
         assert not torch.equal(poses[0], before[0])
         corners = quat_apply(poses[..., None, 3:].expand(-1, -1, 8, 4), state.local_corners) + poses[..., None, :3]
@@ -233,19 +266,22 @@ def test_reset_intersects_workspace_and_table_and_binds_only_feasible_tasks(env)
         )
         assert (table_local[..., :2][state.active] >= table_local.new_tensor([-0.45, -0.5]) + 0.005 - 1e-6).all()
         assert (table_local[..., :2][state.active] <= table_local.new_tensor([0.45, 0.5]) - 0.005 + 1e-6).all()
+        hole = shapely.box(-0.09, -0.1, 0.09, 0.1)
+        for points in table_local[..., :2][state.active].cpu().numpy():
+            assert shapely.MultiPoint(points).convex_hull.disjoint(hole)
         assert not state.penetrating_worlds().any()
     assert not env.termination_manager.compute().any()
     inside = next(i for i, task in enumerate(state.available_tasks[container_world]) if task.family == "in_box")
     state.set_task([0, container_world], [0, inside])
     env.reset()
-    target = torch.stack([asset.data.root_link_pose_w.torch for asset in state.assets], 1)
+    target = state.objects.data.body_link_pose_w.torch
     for world, height in ((0, 0.032), (container_world, 0.031)):
         pose = target[world, state.target_ids[world]].clone()
         pose[:3] += quat_apply(pose[3:][None], pose.new_tensor([[0, 0, height]]))[0]
         ids = torch.tensor([world], device=env.device)
-        state.assets[0].write_root_pose_to_sim_index(root_pose=pose[None], env_ids=ids)
-        state.assets[0].write_root_velocity_to_sim_index(
-            root_velocity=torch.zeros(1, 6, device=env.device), env_ids=ids
+        state.objects.write_body_pose_to_sim_index(body_poses=pose[None, None], body_ids=[0], env_ids=ids)
+        state.objects.write_body_velocity_to_sim_index(
+            body_velocities=torch.zeros(1, 1, 6, device=env.device), body_ids=[0], env_ids=ids
         )
     for _ in range(60):
         env.sim.step(render=False)
@@ -254,5 +290,9 @@ def test_reset_intersects_workspace_and_table_and_binds_only_feasible_tasks(env)
     expected[0] = expected[container_world] = True
     assert env.termination_manager.compute().tolist() == expected
     params = dict(env.cfg.events["place_objects"].params, workspace=((2, 2, 0), (3, 3, 1)))
+    with pytest.raises(RuntimeError, match="intersection"):
+        state(env, torch.tensor([0], device=env.device), **params)
+    # The rectangle lies wholly inside the table's opening, while still inside its outer bounds.
+    params = dict(env.cfg.events["place_objects"].params, workspace=((0.58, -0.02, 0.1), (0.62, 0.02, 0.6)))
     with pytest.raises(RuntimeError, match="intersection"):
         state(env, torch.tensor([0], device=env.device), **params)

@@ -205,8 +205,9 @@ resolved definitions without applying tag matching or task-specific rules.
 The tabletop example in ``contrib/heterogeneous_tasks`` samples arbitrary object combinations with a
 bounded count. It samples the count uniformly, then a category independently for each occupied slot,
 then an asset uniformly within each chosen category. The catalog distinguishes books, bottles, cans,
-food, toys, utensils, miscellaneous objects, plates and containers. Ordinary inclusion matching represents count
-groups without expanding their products; ``sample_by="category"`` balances the category selection. Objects carry semantic category tags; task families become available only when distinct
+food, toys, utensils, miscellaneous objects, plates and containers. Ordinary inclusion matching represents
+count groups without expanding their products; ``sample_by="category"`` balances the category selection.
+Objects carry semantic category tags; task families become available only when distinct
 instances have the required categories and compatible sizes. Task binding and geometric reset stay
 local to the example, outside replication execution.
 
@@ -214,21 +215,38 @@ For example:
 
 .. code-block:: python
 
-   cfg = VLAHeterogeneousEnvCfg(object_count=(2, 8))
-   cfg.scene.num_envs = 128
+   cfg = VLAHeterogeneousEnvCfg(
+       scene=TabletopSceneCfg(num_envs=128, env_spacing=10.0, objects=OBJECTS_CFG.copy()),
+   )
    cfg.events.place_objects.params["workspace"] = ((0.25, -0.4, 0.0), (0.85, 0.4, 0.6))
+   cfg.events.place_objects.params["surface_outline"] = TABLETOP_OUTLINE
+   cfg.events.place_objects.params["surface_height"] = TABLETOP_HEIGHT
+
+``OBJECT_COUNT = (2, 8)`` sets the bounds in the scene definition. ``OBJECTS_CFG`` is a complete
+``RigidObjectCollectionCfg`` declaration; the scene references it directly. Customize or compose
+collection members using ``.copy()`` and ``.replace()`` before constructing the environment. Likewise,
+``CAMERA_CFG`` supplies the camera defaults and each view replaces its path, lens and offset. No
+config factory or ``__post_init__`` hook generates scene fields or rewrites the event configuration.
 
 The workspace is an axis-aligned reachable volume in the environment frame. Reset intersects it with
-the table's actual collision bounds, supports horizontal tables with arbitrary yaw, and keeps every
-object's convex collision footprint and height inside both regions. Larger objects are placed first, with random yaw, a mixture of boundary and interior position proposals,
+the table's declared, measured support outline, preserving its boundaries and any ``surface_holes``.
+The intersection is a polygon region, not a bounding rectangle.
+Horizontal tables with arbitrary yaw are supported. Every object's full conservative collision
+footprint must be covered by that region; its height must also remain inside the reachable volume.
+Larger objects are placed first, with random yaw, a mixture of boundary and interior position proposals,
 and clearance from earlier convex footprints, so round plates can be packed without reserving empty
 bounding-box corners. Newton's narrow-phase collision detection rejects penetrating
 placements, including robot intersections, without stepping physics. Placement retries are bounded;
 a workspace that cannot hold the selected objects raises a clear error instead of accepting overlaps.
+The shared scene uses the actual ``av_eastrural_table`` mesh with triangle collisions on its authored
+geometry. Its declared tabletop has about 1.389 square metres of horizontal support area at 0.762 m
+above the asset origin. The root is placed on the floor; no proxy box replaces the table. The measured
+usable dimensions and height are plain constants in the scene configuration; reset does
+not parse meshes or infer a surface. Other table assets supply their own measured outline and height.
 The reachable volume is user-supplied; this example does not compute inverse-kinematics reachability.
 
 Combinations are sampled once when the scene is built; reset randomizes poses. The table and robot do
-not count toward ``object_count``. The example retains rectangular object views using hidden inactive
+not count toward ``OBJECT_COUNT``. The example retains a rectangular object collection using hidden inactive
 bodies and Newton mesh variants; inactive bodies are parked away from the workspace. Any combination
 may be selected, including repeated instances and worlds without a usable target. There is no
 conditioning on the presence of a plate or container and no list of authored benchmark layouts.

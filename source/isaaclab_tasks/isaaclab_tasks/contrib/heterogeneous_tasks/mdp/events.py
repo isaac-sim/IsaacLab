@@ -12,15 +12,17 @@ import math
 from typing import TYPE_CHECKING, NamedTuple
 
 import numpy as np
+import shapely
 import torch
 import warp as wp
 from scipy.spatial import ConvexHull, HalfspaceIntersection
+from shapely.affinity import affine_transform
 
 from pxr import Usd, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.managers import ManagerTermBase, SceneEntityCfg
-from isaaclab.utils.math import quat_apply, quat_apply_inverse
+from isaaclab.utils.math import quat_apply
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -84,6 +86,16 @@ def _collision_geometry(spawn: sim_utils.SpawnerCfg) -> tuple[np.ndarray, np.nda
     return np.array([vertices.min(axis=0), vertices.max(axis=0)]), footprint
 
 
+def spawn_table(prim_path: str, cfg: sim_utils.UsdFileCfg, translation=None, orientation=None):
+    """Spawn the visual table asset and enable triangle collisions on its actual meshes."""
+    prim = sim_utils.spawn_from_usd(prim_path, cfg, translation=translation, orientation=orientation)
+    for mesh in Usd.PrimRange(prim, Usd.TraverseInstanceProxies()):
+        if mesh.IsA(UsdGeom.Mesh):
+            UsdPhysics.CollisionAPI.Apply(mesh).CreateCollisionEnabledAttr(True)
+            UsdPhysics.MeshCollisionAPI.Apply(mesh).CreateApproximationAttr("none")
+    return prim
+
+
 class reset_tabletop(ManagerTermBase):
     """Place sampled objects on the reachable part of a table, then select an available task.
 
@@ -99,16 +111,22 @@ class reset_tabletop(ManagerTermBase):
 
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
-        self.names = list(cfg.params["objects"])
-        self.assets = [env.scene[name] for name in self.names]
+        self.objects = env.scene[cfg.params["objects"].name]
+        self.names = list(self.objects.body_names)
         self.table = env.scene[cfg.params["table"].name]
         self.gripper_body = cfg.params["gripper_body"]
         self.families = env.cfg.tasks
-        self._table_bounds = torch.as_tensor(_collision_geometry(self.table.cfg.spawn)[0], device=env.device)
-        self._table_bounds = self._table_bounds.float()
+        for name, rule in self.families.items():
+            if set(rule) != {"target", "relation", "instruction"} or rule["relation"] not in ("on", "in"):
+                raise ValueError(f"Task family {name!r} requires a target, relation ('on' or 'in') and instruction.")
+        self.surface = shapely.Polygon(cfg.params["surface_outline"], cfg.params.get("surface_holes", ()))
+        self.surface_height = cfg.params["surface_height"]
+        if not self.surface.is_valid or self.surface.is_empty or not math.isfinite(self.surface_height):
+            raise ValueError("Tabletop requires a valid support outline and a finite local surface height.")
+        self.placement_regions = np.empty(env.num_envs, dtype=object)
         plan = env.sim.get_clone_plan()
         topology = plan.topology
-        slots = {asset.cfg.prim_path: index for index, asset in enumerate(self.assets)}
+        slots = {cfg.prim_path: index for index, cfg in enumerate(self.objects.cfg.rigid_objects.values())}
         geometry, metadata, cache = {}, {}, {}
         for prototype in np.unique(topology.world_prototypes):
             declaration = plan.asset_cfgs[prototype]
@@ -195,12 +213,15 @@ class reset_tabletop(ManagerTermBase):
         self,
         env: ManagerBasedRLEnv,
         env_ids: torch.Tensor | slice,
-        objects: list[str],
+        objects: SceneEntityCfg,
         table: SceneEntityCfg,
+        surface_outline: tuple[tuple[float, float], ...],
+        surface_height: float,
         workspace: tuple[tuple[float, float, float], tuple[float, float, float]],
         gripper_body: str,
         clearance: float = 0.005,
         max_attempts: int = 128,
+        surface_holes: tuple[tuple[tuple[float, float], ...], ...] = (),
     ) -> None:
         ids = torch.arange(env.num_envs, device=env.device)[env_ids]
         if not len(ids):
@@ -210,16 +231,31 @@ class reset_tabletop(ManagerTermBase):
         workspace = torch.as_tensor(workspace, dtype=torch.float32, device=env.device)
         if workspace.shape != (2, 3) or not torch.isfinite(workspace).all() or (workspace[0] >= workspace[1]).any():
             raise ValueError("Workspace must contain finite, ordered XYZ lower and upper bounds.")
+        table_poses = self.table.data.root_link_pose_w.torch[ids]
+        up = quat_apply(table_poses[:, 3:], table_poses.new_tensor([0.0, 0.0, 1.0]).expand(len(ids), 3))
+        if (up[:, 2] < 1 - 1e-6).any():
+            raise ValueError("Tabletop reset requires a horizontal table; yaw rotation is supported.")
+        origins = env.scene.env_origins[ids].cpu().numpy()
+        limits = workspace.cpu().numpy()
+        for world, pose, origin in zip(ids.tolist(), table_poses.cpu().numpy(), origins, strict=True):
+            x, y, z, w = pose[3:]
+            cosine, sine = 1 - 2 * (y * y + z * z), 2 * (w * z + x * y)
+            tabletop = affine_transform(self.surface, [cosine, -sine, sine, cosine, pose[0], pose[1]])
+            reachable = shapely.box(*(limits[0, :2] + origin[:2]), *(limits[1, :2] + origin[:2]))
+            region = tabletop.intersection(reachable).buffer(-clearance)
+            top = pose[2] + self.surface_height
+            if region.is_empty or top < limits[0, 2] + origin[2] - 1e-5 or top + clearance >= limits[1, 2] + origin[2]:
+                raise RuntimeError("The measured table surface and workspace have no usable intersection.")
+            self.placement_regions[world] = region
         remaining = ids
         for _ in range(max_attempts):
             poses, placed = self._sample(remaining, workspace, clearance, max_attempts)
             accepted = remaining[placed]
             if len(accepted):
-                for slot, asset in enumerate(self.assets):
-                    asset.write_root_pose_to_sim_index(root_pose=poses[placed, slot].contiguous(), env_ids=accepted)
-                    asset.write_root_velocity_to_sim_index(
-                        root_velocity=torch.zeros(len(accepted), 6, device=env.device), env_ids=accepted
-                    )
+                self.objects.write_body_pose_to_sim_index(body_poses=poses[placed].contiguous(), env_ids=accepted)
+                self.objects.write_body_velocity_to_sim_index(
+                    body_velocities=torch.zeros(len(accepted), len(self.names), 6, device=env.device), env_ids=accepted
+                )
                 bad = self.penetrating_worlds()
                 placed &= ~bad[remaining]
             remaining = remaining[~placed]
@@ -249,25 +285,11 @@ class reset_tabletop(ManagerTermBase):
     ) -> tuple[torch.Tensor, torch.Tensor]:
         env = self._env
         count, width = len(ids), len(self.names)
-        table_pose = self.table.data.root_link_pose_w.torch[ids]
-        table_pos, table_quat = table_pose[:, :3], table_pose[:, 3:]
-        table_up = quat_apply(table_quat, table_quat.new_tensor([0.0, 0.0, 1.0]).expand(count, 3))
-        if (table_up[:, 2] < 0.9999).any():
-            raise ValueError("Tabletop reset requires a horizontal table; yaw rotation is supported.")
         origin = env.scene.env_origins[ids]
-        table_corners = self._table_bounds.new_tensor(list(itertools.product((0, 1), repeat=3)), dtype=torch.long)
-        table_corners = self._table_bounds[table_corners, torch.arange(3, device=env.device)]
-        table_points = quat_apply(table_quat[:, None].expand(count, 8, 4), table_corners.expand(count, 8, 3))
-        table_points += table_pos[:, None]
-        lo = torch.maximum(table_points.amin(1)[:, :2], workspace[0, :2] + origin[:, :2])
-        hi = torch.minimum(table_points.amax(1)[:, :2], workspace[1, :2] + origin[:, :2])
-        top = table_points[..., 2].amax(1)
-        if (
-            (lo >= hi).any()
-            or (top < workspace[0, 2] + origin[:, 2] - 1e-5).any()
-            or (top + clearance >= workspace[1, 2] + origin[:, 2]).any()
-        ):
-            raise RuntimeError("The table and reachable workspace have no usable intersection.")
+        regions = self.placement_regions[ids.cpu().numpy()]
+        bounds = torch.as_tensor(shapely.bounds(regions), dtype=torch.float32, device=env.device)
+        lo, hi = bounds[:, :2], bounds[:, 2:]
+        top = self.table.data.root_link_pose_w.torch[ids, 2] + self.surface_height
         poses = torch.zeros(count, width, 7, device=env.device)
         poses[..., 6] = 1.0
         poses[..., :3] = origin[:, None] + poses.new_tensor([0.0, -10.0, 0.5])
@@ -296,7 +318,7 @@ class reset_tabletop(ManagerTermBase):
                     self.local_bounds[ids, slots, 0, 2],
                     self.local_bounds[ids, slots, 1, 2],
                 )
-                lower, upper = lo - extent_lo[:, :2] + clearance + 1e-5, hi - extent_hi[:, :2] - clearance - 1e-5
+                lower, upper = lo - extent_lo[:, :2] + 1e-5, hi - extent_hi[:, :2] - 1e-5
                 pos = torch.zeros(count, 3, device=env.device)
                 # Boundary proposals leave contiguous free space; interior samples retain pose variety.
                 fraction = torch.rand(count, 2, device=env.device)
@@ -304,12 +326,9 @@ class reset_tabletop(ManagerTermBase):
                 pos[:, :2] = lower + fraction * (upper - lower).clamp_min(0)
                 pos[:, 2] = top - extent_lo[:, 2] + clearance
                 world_points = rotated + pos[:, None]
-                table_local = quat_apply_inverse(
-                    table_quat[:, None].expand(count, rotated.shape[1], 4), world_points - table_pos[:, None]
-                )
                 valid = (upper >= lower).all(1)
-                valid &= (table_local[..., :2] >= self._table_bounds[0, :2] + clearance).all(dim=(1, 2))
-                valid &= (table_local[..., :2] <= self._table_bounds[1, :2] - clearance).all(dim=(1, 2))
+                supported = shapely.covers(regions, shapely.polygons(world_points[..., :2].cpu().numpy()))
+                valid &= torch.as_tensor(supported, device=env.device)
                 candidate_low, candidate_high = extent_lo + pos, extent_hi + pos
                 valid &= (candidate_low >= workspace[0] + origin).all(1) & (
                     candidate_high <= workspace[1] + origin
