@@ -5,6 +5,7 @@
 
 """Tests for backend-aware pretrained checkpoint paths."""
 
+import importlib
 from argparse import Namespace
 from pathlib import Path
 
@@ -44,7 +45,7 @@ class _EnvCfg:
     camera: _CameraCfg | None = None
 
 
-def test_checkpoint_filename_includes_backends():
+def test_checkpoint_filename_includes_backends() -> None:
     """Test that backend-aware filenames follow the published naming pattern."""
     checkpoint = pretrained_checkpoint.PretrainedCheckpointId(
         "rsl_rl", "Isaac-Cartpole", "newtonmjwarp", "rtx", ("depth",)
@@ -53,7 +54,7 @@ def test_checkpoint_filename_includes_backends():
     assert checkpoint.filename == "Isaac-Cartpole_depth_newtonmjwarp_rtx_rsl_rl.pt"
 
 
-def test_checkpoint_filename_appends_agent_variant():
+def test_checkpoint_filename_appends_agent_variant() -> None:
     """Test that a non-default agent's checkpoint sits next to the default one instead of replacing it."""
     checkpoint = pretrained_checkpoint.PretrainedCheckpointId(
         "rsl_rl", "Isaac-Ant", "newtonmjwarp", "none", variant="sac"
@@ -95,7 +96,7 @@ def test_get_pretrained_checkpoint_filename_preserves_legacy_layout(monkeypatch:
     assert pretrained_checkpoint.get_published_pretrained_checkpoint("rl_games", "Isaac-Cartpole") == str(cached_path)
 
 
-def test_log_root_path_preserves_legacy_task_name(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+def test_log_root_path_preserves_legacy_task_name(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Test that callers omitting both backends retain the task-specific log root."""
     monkeypatch.chdir(tmp_path)
 
@@ -104,7 +105,7 @@ def test_log_root_path_preserves_legacy_task_name(monkeypatch: pytest.MonkeyPatc
     assert path == str(tmp_path / "logs" / "rsl_rl" / "Isaac-Cartpole")
 
 
-def test_checkpoint_requires_both_backends():
+def test_checkpoint_requires_both_backends() -> None:
     """Test that partial backend identifiers are rejected."""
     with pytest.raises(ValueError, match="must be provided together"):
         pretrained_checkpoint.PretrainedCheckpointId("rsl_rl", "Isaac-Cartpole", physics_backend="newtonmjwarp")
@@ -168,7 +169,7 @@ def test_get_pretrained_checkpoint_backend_names_identifies_automatic_rtx_render
     assert pretrained_checkpoint.get_pretrained_checkpoint_backend_names(env_cfg) == ("physx", "rtx")
 
 
-def test_checkpoint_remote_path_uses_flat_workflow_directory(monkeypatch: pytest.MonkeyPatch):
+def test_checkpoint_remote_path_uses_flat_workflow_directory(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test that backend-aware checkpoints are fetched from and published to one flat workflow directory."""
     monkeypatch.setattr(pretrained_checkpoint, "ISAACLAB_NUCLEUS_DIR", "omniverse://IsaacLab")
 
@@ -273,17 +274,17 @@ def test_get_published_pretrained_checkpoint_raises_on_unwritable_cache(
 @pytest.mark.parametrize(
     ("agent", "variant"), [("rsl_rl_cfg_entry_point", None), ("rsl_rl_sac_cfg_entry_point", "sac")]
 )
-def test_rsl_rl_pretrained_checkpoint_matches_agent(monkeypatch: pytest.MonkeyPatch, backend, agent, variant):
+def test_rsl_rl_pretrained_checkpoint_matches_agent(
+    monkeypatch: pytest.MonkeyPatch, backend: str, agent: str, variant: str | None
+) -> None:
     """Test that playback and export fetch the published checkpoint of the selected agent's algorithm."""
-    import importlib
-
     import isaaclab_tasks  # noqa: F401
     from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
     module = importlib.import_module(f"isaaclab_rl.entrypoints.backends.{backend}")
     requested = {}
 
-    def _resolve_published_checkpoint(library, task, env_cfg, variant=None):
+    def _resolve_published_checkpoint(library: str, task: str, env_cfg: object, variant: str | None = None) -> str:
         requested.update(library=library, task=task, variant=variant)
         return "/tmp/checkpoint.pt"
 
