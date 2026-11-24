@@ -32,9 +32,10 @@ class GazeRigCfg:
     joint_signs: tuple[float, float] = (1.0, 1.0)
     """Sign of each joint's angle for a turn of the camera to the left and up."""
     max_step_deg: float = 6.0
-    """Largest change of each joint target per step in hybrid gaze [deg]: how fast the head catches up."""
+    """Largest offset [deg] of each joint target from the joint's measured angle in hybrid gaze, which each step sets
+    from where the head stands: how fast the head catches up."""
 
-    def validate_config(self):
+    def validate_config(self) -> None:
         """Reject a rig without two distinct joints, a sign of 1 or -1 for each, and a positive, finite step."""
         if not _positive_finite(self.max_step_deg):
             raise ValueError(f"GazeRigCfg.max_step_deg must be positive and finite, got {self.max_step_deg!r}.")
@@ -64,7 +65,7 @@ class GazeActionCfg(ActionTermCfg):
     mount: str = "fixed"
     """Teacher's mount: ``"fixed"`` at the action's creation, or ``"tracked"`` on a moving body (Newton, OVRTX)."""
 
-    def validate_config(self):
+    def validate_config(self) -> None:
         """Reject invalid gaze bounds, modes and mounts, and rig settings that a mode cannot use."""
         for name, value in (("step_size", self.step_size), ("gaze_limit", self.gaze_limit)):
             if not _positive_finite(value):
@@ -84,5 +85,6 @@ class GazeActionCfg(ActionTermCfg):
         self.rig.validate_config()
 
 
-def _positive_finite(value) -> bool:
+def _positive_finite(value: object) -> bool:
+    """Whether ``value`` is a finite real number above zero; strings and other types are not."""
     return isinstance(value, (int, float)) and math.isfinite(value) and value > 0

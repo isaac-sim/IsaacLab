@@ -22,19 +22,26 @@ from isaaclab_fovi.mdp.gaze import (
     gaze_step_kernel,
     gaze_teacher_labels,
     make_rig_gaze_step,
-    pending_head_turn_kernel,
 )
 from isaaclab_fovi.mdp.gaze_cfg import GazeActionCfg, GazeRigCfg
 from isaaclab_fovi.sensors.gaze_kernels import camera_params, torch_stream
 
 from isaaclab.managers import ObservationTermCfg, SceneEntityCfg
 from isaaclab.test.utils import DeviceScope, test_devices
-from isaaclab.utils.math import quat_apply, quat_apply_inverse
+from isaaclab.utils.math import quat_apply, quat_apply_inverse, quat_from_angle_axis, quat_mul
 from isaaclab.utils.warp import ProxyArray
 
 pytestmark = pytest.mark.kitless
 
 DEVICES = test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA)
+
+# The rig cases: a 45-degree field radius, and a rig whose pan joint is 1 and tilt joint 0 of three, with sign -1.
+FIELD_RADIUS = 45.0
+RADIUS_RAD = math.radians(FIELD_RADIUS)
+STEP, LIMIT, HEAD_STEP = 0.1, 1.0, 0.05
+JOINTS, SIGNS = (1, 0), (1.0, -1.0)
+PINHOLE = CameraModel("pinhole", (480, 640), (200.0, 200.0, 319.5, 239.5))
+"""A wide pinhole for the rig teacher, so its targets stay in view."""
 
 
 def angles_to_direction(angles_deg: torch.Tensor) -> torch.Tensor:
@@ -52,6 +59,119 @@ def direction_to_angles(direction: torch.Tensor) -> torch.Tensor:
 def clamp_gaze(gaze: torch.Tensor, limit: float) -> torch.Tensor:
     """Gazes scaled back onto the circle of radius ``limit`` when they leave it: the reference for the step kernel."""
     return gaze * (limit / gaze.norm(dim=-1, keepdim=True).clamp_min(limit))
+
+
+def turn(tilt_deg: float, pan_deg: float) -> torch.Tensor:
+    """The rotation (x, y, z, w), ROS camera frame, that pans left by ``pan_deg`` about the up axis (-y) and then tilts
+    up by ``tilt_deg`` about the turned x axis, as a pan-tilt head or a retina does."""
+    pan = quat_from_angle_axis(torch.tensor([math.radians(pan_deg)]), torch.tensor([[0.0, -1.0, 0.0]]))
+    tilt = quat_from_angle_axis(torch.tensor([math.radians(tilt_deg)]), torch.tensor([[1.0, 0.0, 0.0]]))
+    return quat_mul(pan, tilt)
+
+
+def yaw_left(degrees: float) -> torch.Tensor:
+    """A camera mount (x, y, z, w), ROS convention, turned left by ``degrees``: about the camera's up axis, -y."""
+    half = math.radians(degrees) / 2
+    return torch.tensor([[0.0, -math.sin(half), 0.0, math.cos(half)]])
+
+
+class RigStep:
+    """One camera's rig stepped by :func:`make_rig_gaze_step`'s kernel."""
+
+    def __init__(self, mode: int, joint_pos=(0.1, 0.0, 0.0)):
+        self.mode = mode
+        self.joint_pos = torch.tensor([joint_pos])
+        self.limits = torch.tensor([[[-0.5, 0.5], [-0.2, 0.2], [-1.0, 1.0]]])
+        self.mount = yaw_left(0.0)
+        # Only hybrid gaze holds a fixation; the other modes get empty buffers, as the term gives them.
+        held = 1 if mode == HYBRID else 0
+        self.held = torch.zeros(held, 3)
+        self.held_valid = torch.zeros(held, dtype=torch.int32)
+        self.angles = torch.zeros(1, 2)
+        self.state = torch.zeros(1, 4)
+        self.targets = torch.zeros(1, 2)
+
+    def __call__(self, actions) -> None:
+        with torch_stream("cpu"):
+            wp.launch(
+                make_rig_gaze_step(self.mode),
+                dim=1,
+                inputs=[
+                    wp.from_torch(torch.tensor([actions], dtype=torch.float32)),
+                    wp.from_torch(self.joint_pos),
+                    wp.from_torch(self.limits, dtype=wp.vec2f),
+                    wp.vec2i(*JOINTS),
+                    wp.vec2f(*SIGNS),
+                    wp.from_torch(self.mount, dtype=wp.quatf),
+                    STEP,
+                    LIMIT,
+                    HEAD_STEP,
+                    0.5,
+                    FIELD_RADIUS,
+                ],
+                outputs=[
+                    wp.from_torch(self.held, dtype=wp.vec3f),
+                    wp.from_torch(self.held_valid),
+                    wp.from_torch(self.angles, dtype=wp.vec2f),
+                    wp.from_torch(self.state, dtype=wp.vec4f),
+                    wp.from_torch(self.targets),
+                ],
+            )
+
+
+class _Camera:
+    """The parts of a foveated camera a rig gaze action uses, which counts its gaze writes as the camera does."""
+
+    def __init__(self, mount: torch.Tensor):
+        self.gaze_angles = ProxyArray(wp.zeros(1, dtype=wp.vec2f, device="cpu"))
+        self.mount = ProxyArray(wp.from_torch(mount.contiguous(), dtype=wp.quatf))
+        self.gaze_writes = 0
+        self.data = SimpleNamespace(pos_w=ProxyArray(wp.zeros(1, dtype=wp.vec3f, device="cpu")))
+        self.image_frame = wp.mat33f(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
+        self.projection_params = camera_params(PINHOLE)
+
+    def set_gaze_angles(self, angles: torch.Tensor) -> None:
+        self.gaze_writes += 1
+        self.gaze_angles.torch.copy_(angles)
+
+    def update_mount(self) -> ProxyArray:
+        return self.mount
+
+    @property
+    def mount_quat_w_ros(self) -> ProxyArray:
+        return self.mount
+
+
+def rig_term(mode: str, joint_pos=(0.0, 0.0, 0.0), mount: torch.Tensor | None = None) -> GazeAction:
+    """A rig gaze action of one environment, built through its own rig setup on a stand-in rig and camera."""
+    joint_pos = torch.tensor([joint_pos])
+    rig = SimpleNamespace(
+        find_joints=lambda names, preserve_order: (list(JOINTS), list(names)),
+        data=SimpleNamespace(
+            joint_pos=ProxyArray(wp.from_torch(joint_pos)),
+            default_joint_pos=ProxyArray(wp.from_torch(torch.zeros(1, 3))),
+            soft_joint_pos_limits=ProxyArray(wp.from_torch(torch.tensor([[[-1.0, 1.0]] * 3]), dtype=wp.vec2f)),
+        ),
+    )
+    term = object.__new__(GazeAction)
+    term._env = SimpleNamespace(num_envs=1, device="cpu", step_dt=0.5, scene={"rig": rig})
+    term.cfg = GazeActionCfg(
+        asset_name="eye",
+        mode=mode,
+        mount="tracked",
+        step_size=STEP,
+        rig=GazeRigCfg(asset_name="rig", joint_signs=SIGNS, max_step_deg=HEAD_STEP * FIELD_RADIUS),
+    )
+    term._asset = _Camera(yaw_left(0.0) if mount is None else mount)
+    term.tracked_mount = True
+    term.field_radius_deg = FIELD_RADIUS
+    term._state = ProxyArray(wp.zeros(1, dtype=wp.vec4f, device="cpu"))
+    term._velocity = term._state.torch[:, 2:]
+    term._raw = None
+    term._heads = ProxyArray(wp.zeros(1, dtype=wp.vec4f, device="cpu"))
+    term._own_gaze_writes = 0
+    term._init_rig(term._env)
+    return term
 
 
 @pytest.mark.parametrize(("device", "body_id"), [("cpu", None), (DEVICES[-1] if DEVICES else "cpu", 1)])
@@ -74,8 +194,6 @@ def test_teacher_labels_and_diagnostics_match_the_torch_reference(device, body_i
     orientations = torch.nn.functional.normalize(torch.randn(count, 4, generator=generator), dim=-1)
     offset = torch.tensor([0.0, 0.0, 0.3])
     gaze = torch.zeros(count, 2) if body_id is None else (torch.rand(count, 2, generator=generator) * 2 - 1) * 0.7
-    # A head turn already commanded, as physical gaze queues one; the labels cover only what is left.
-    pending = torch.zeros(count, 2) if body_id is None else (torch.rand(count, 2, generator=generator) * 2 - 1) * 0.05
 
     # The torch path the kernel replaces: the point fixed to each target, the teacher, then the labels and logs.
     points = targets + quat_apply(orientations, offset.expand(count, -1))
@@ -95,7 +213,7 @@ def test_teacher_labels_and_diagnostics_match_the_torch_reference(device, body_i
     decisive = torch.stack(
         [teachable(torch.nn.functional.normalize(direction + nudge, dim=-1)) == valid for nudge in nudges]
     ).all(0)
-    delta = (desired - gaze - pending) / step
+    delta = (desired - gaze) / step
     action = torch.where(valid[:, None], delta.clamp(-1, 1), 0.0)
     looking = angles_to_direction(gaze * field_radius)
     error = torch.atan2(torch.cross(looking, upright, dim=-1).norm(dim=-1), (looking * upright).sum(-1)).rad2deg()
@@ -111,7 +229,8 @@ def test_teacher_labels_and_diagnostics_match_the_torch_reference(device, body_i
             bodies = torch.stack((torch.zeros_like(poses), poses), dim=1)
             asset_data = SimpleNamespace(body_pose_w=ProxyArray(wp.from_torch(bodies, dtype=wp.transformf)))
         mounts = ProxyArray(wp.from_torch(mount.to(device), dtype=wp.quatf))
-        pending_turn = ProxyArray(wp.from_torch(pending.to(device), dtype=wp.vec2f))
+        # Software gaze labels the retina, so the head angles go unused.
+        heads = ProxyArray(wp.zeros(count, dtype=wp.vec4f, device=device))
         sensor = SimpleNamespace(
             data=SimpleNamespace(pos_w=ProxyArray(wp.from_torch(positions.to(device), dtype=wp.vec3f))),
             gaze_angles=ProxyArray(wp.from_torch((gaze * field_radius).to(device), dtype=wp.vec2f)),
@@ -121,7 +240,7 @@ def test_teacher_labels_and_diagnostics_match_the_torch_reference(device, body_i
     gaze_term = SimpleNamespace(
         camera=sensor,
         teacher_mounts=lambda: mounts,
-        pending_head_turn=lambda: pending_turn,
+        head_and_target=lambda: heads,
         field_radius_deg=field_radius,
         cfg=GazeActionCfg(asset_name="camera", step_size=step),
     )
@@ -139,7 +258,7 @@ def test_teacher_labels_and_diagnostics_match_the_torch_reference(device, body_i
     labelled = labels[:, 2] > 0.5
     reachable = labelled & decisive & (delta.abs().amax(dim=-1) < 1.0)
     assert reachable.any()
-    fixation = angles_to_direction((gaze + pending + labels[:, :2] * step) * field_radius) @ frame.T
+    fixation = angles_to_direction((gaze + labels[:, :2] * step) * field_radius) @ frame.T
     torch.testing.assert_close(fixation[reachable], direction[reachable], atol=1e-5, rtol=0)
     log = env.extras["log"]
     assert float(log["Gaze/valid_target_fraction"]) == pytest.approx(float(labelled.float().mean()))
@@ -298,64 +417,6 @@ def test_fixed_mount_teacher_rejects_only_turns_after_capture():
 
 # -- Gaze modes that turn a rig ----------------------------------------------------------------------------------------
 
-FIELD_RADIUS = 45.0
-STEP, LIMIT, HEAD_STEP = 0.1, 1.0, 0.05
-
-
-def yaw_left(degrees: float) -> torch.Tensor:
-    """A camera mount (x, y, z, w), ROS convention, turned left by ``degrees``: about the camera's up axis, -y."""
-    half = math.radians(degrees) / 2
-    return torch.tensor([[0.0, -math.sin(half), 0.0, math.cos(half)]])
-
-
-class RigStep:
-    """One camera's rig, with pan joint 1 and tilt joint 0 of three, stepped by :func:`make_rig_gaze_step`'s kernel."""
-
-    def __init__(self, mode: int, joint_pos=(0.1, 0.0, 0.0)):
-        self.mode = mode
-        self.joint_pos = torch.tensor([joint_pos])
-        self.limits = torch.tensor([[[-0.5, 0.5], [-0.2, 0.2], [-1.0, 1.0]]])
-        self.mount = yaw_left(0.0)
-        # Only hybrid gaze holds a fixation; the other modes get empty buffers, as the term gives them.
-        held = 1 if mode == HYBRID else 0
-        self.held = torch.zeros(held, 3)
-        self.written = torch.zeros(held, 2)
-        self.held_valid = torch.zeros(held, dtype=torch.int32)
-        self.angles = torch.zeros(1, 2)
-        self.state = torch.zeros(1, 4)
-        self.targets = torch.zeros(1, 2)
-
-    def __call__(self, actions) -> None:
-        with torch_stream("cpu"):
-            wp.launch(
-                make_rig_gaze_step(self.mode),
-                dim=1,
-                inputs=[
-                    wp.from_torch(torch.tensor([actions], dtype=torch.float32)),
-                    wp.from_torch(self.joint_pos),
-                    wp.from_torch(self.limits, dtype=wp.vec2f),
-                    wp.vec2i(1, 0),
-                    wp.vec2f(1.0, -1.0),
-                    wp.from_torch(self.mount, dtype=wp.quatf),
-                    STEP,
-                    LIMIT,
-                    HEAD_STEP,
-                    0.5,
-                    FIELD_RADIUS,
-                ],
-                outputs=[
-                    wp.from_torch(self.held, dtype=wp.vec3f),
-                    wp.from_torch(self.written, dtype=wp.vec2f),
-                    wp.from_torch(self.held_valid),
-                    wp.from_torch(self.angles, dtype=wp.vec2f),
-                    wp.from_torch(self.state, dtype=wp.vec4f),
-                    wp.from_torch(self.targets),
-                ],
-            )
-
-
-RADIUS_RAD = math.radians(FIELD_RADIUS)
-
 
 def test_physical_gaze_steps_the_joint_targets_and_leaves_the_retina_alone():
     rig = RigStep(PHYSICAL, joint_pos=(0.0, 0.0, 0.0))
@@ -390,10 +451,24 @@ def test_hybrid_gaze_moves_the_retina_at_once_and_holds_the_fixation_while_the_h
     # From where it is, the head steps the remaining 1.5 degrees (under HEAD_STEP) onto the fixation.
     pan_target = math.radians(STEP * FIELD_RADIUS)
     torch.testing.assert_close(rig.targets[0, 0], torch.tensor(pan_target), atol=1e-5, rtol=0)
-    # A gaze set on the camera between steps starts a new fixation instead of being aimed back at the old one.
-    rig.angles[0] = torch.tensor([2.0, -1.0])
-    rig([0.0, 0.0])
-    torch.testing.assert_close(rig.angles[0], torch.tensor([2.0, -1.0]), atol=1e-5, rtol=0)
+
+
+def test_hybrid_gaze_starts_a_new_fixation_when_the_camera_gaze_is_set_directly():
+    term = rig_term("hybrid")
+    camera = term.camera
+    term.process_actions(torch.tensor([[0.0, 1.0]]))  # pan the retina left a full step
+    first = camera.gaze_angles.torch.clone()
+    # The head turns left 1 degree before the next step, which aims the retina back by as much.
+    camera.mount = ProxyArray(wp.from_torch(yaw_left(1.0).contiguous(), dtype=wp.quatf))
+    term.process_actions(torch.zeros(1, 2))
+    torch.testing.assert_close(camera.gaze_angles.torch, first - torch.tensor([[0.0, 1.0]]), atol=1e-4, rtol=0)
+    # Setting the gaze through the camera, even to the angles it holds, starts a new fixation there: the head turns
+    # again, and the retina stays where it was set rather than being aimed back at the old fixation.
+    held = camera.gaze_angles.torch.clone()
+    camera.set_gaze_angles(held.clone())
+    camera.mount = ProxyArray(wp.from_torch(yaw_left(2.0).contiguous(), dtype=wp.quatf))
+    term.process_actions(torch.zeros(1, 2))
+    torch.testing.assert_close(camera.gaze_angles.torch, held, atol=1e-5, rtol=0)
 
 
 def test_dual_gaze_moves_the_head_and_the_retina_independently_and_composes_them():
@@ -402,34 +477,37 @@ def test_dual_gaze_moves_the_head_and_the_retina_independently_and_composes_them
     torch.testing.assert_close(rig.targets[0], torch.tensor([STEP * RADIUS_RAD, 0.0]))
     torch.testing.assert_close(rig.angles[0], torch.tensor([STEP * FIELD_RADIUS, 0.0]))
     # With the head tilted up 20 degrees, the retina pans left 30: the observed gaze is the direction the turns
-    # compose to from the rig's zero pose, not the sum of their angles.
+    # compose to from the rig's zero pose, by quaternion composition, not the sum of their angles.
     rig.joint_pos[0, 0] = -math.radians(20.0)  # tilt joint 0 turns the camera up with sign -1
     rig.angles[0] = torch.tensor([0.0, 30.0])
     rig([0.0, 0.0, 0.0, 0.0])
-    retina = angles_to_direction(torch.tensor([0.0, 30.0]))
-    c, s = math.cos(math.radians(20.0)), math.sin(math.radians(20.0))
-    x, y, z = retina.tolist()
-    composed = direction_to_angles(torch.tensor([x, c * y - s * z, s * y + c * z])) / FIELD_RADIUS
+    direction = quat_apply(quat_mul(turn(20.0, 0.0), turn(0.0, 30.0)), torch.tensor([[0.0, 0.0, 1.0]]))
+    composed = direction_to_angles(direction)[0] / FIELD_RADIUS
     torch.testing.assert_close(rig.state[0, :2], composed, atol=1e-5, rtol=0)
     assert not torch.allclose(composed, torch.tensor([20.0, 30.0]) / FIELD_RADIUS, atol=1e-3)
 
 
-def test_pending_head_turn_is_what_the_joint_targets_still_hold():
-    joint_pos = torch.tensor([[0.1, 0.05, 0.0]])  # tilt joint 0, pan joint 1
-    targets = torch.tensor([[0.15, -0.1]])  # (pan, tilt)
-    pending = torch.zeros(1, 2)
-    with torch_stream("cpu"):
-        wp.launch(
-            pending_head_turn_kernel,
-            dim=1,
-            inputs=[
-                wp.from_torch(joint_pos),
-                wp.from_torch(targets),
-                wp.vec2i(1, 0),
-                wp.vec2f(1.0, -1.0),
-                FIELD_RADIUS,
-            ],
-            outputs=[wp.from_torch(pending, dtype=wp.vec2f)],
-        )
-    # (tilt, pan): the tilt joint has 0.2 rad to go down, which with sign -1 is up; the pan joint 0.1 rad to the left.
-    torch.testing.assert_close(pending[0], torch.tensor([0.2, 0.1]) / RADIUS_RAD)
+def test_physical_teacher_labels_only_the_head_turn_not_yet_commanded():
+    # The head stands tilted up 20 degrees, and its joint targets already command a 5-degree pan left.
+    term = rig_term("physical", joint_pos=(-math.radians(20.0), 0.0, 0.0), mount=turn(20.0, 0.0))
+    term._targets.torch[0] = torch.tensor([math.radians(5.0), -math.radians(20.0)])  # (pan, tilt)
+    torch.testing.assert_close(
+        term.head_and_target().torch[0], torch.tensor([20.0, 0.0, 20.0, 5.0]) / FIELD_RADIUS, atol=1e-6, rtol=0
+    )
+    # A point 22 degrees up and 7 left of the rig's zero pose.
+    point = quat_apply(turn(22.0, 7.0), torch.tensor([[0.0, 0.0, 1.0]]))
+    pose = torch.cat((point, torch.tensor([[0.0, 0.0, 0.0, 1.0]])), dim=-1)
+    target = SimpleNamespace(data=SimpleNamespace(root_pose_w=ProxyArray(wp.from_torch(pose, dtype=wp.transformf))))
+    env = SimpleNamespace(
+        device="cpu",
+        num_envs=1,
+        scene={"target": target},
+        action_manager=SimpleNamespace(get_term=lambda name: term),
+        extras={},
+    )
+    labels = gaze_teacher_labels(ObservationTermCfg(func=gaze_teacher_labels), env)(env, SceneEntityCfg("target"))
+    assert labels[0, 2] == 1.0
+    # Adding the label to the commanded head faces the point exactly, so the label leaves out the queued 5 degrees.
+    tilt, pan = (torch.tensor([20.0, 5.0]) + labels[0, :2] * STEP * FIELD_RADIUS).tolist()
+    facing = quat_apply(turn(tilt, pan), torch.tensor([[0.0, 0.0, 1.0]]))
+    torch.testing.assert_close(facing, point, atol=1e-5, rtol=0)

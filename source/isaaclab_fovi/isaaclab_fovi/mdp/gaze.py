@@ -40,6 +40,9 @@ if TYPE_CHECKING:
 
 RAD_TO_DEG = 180.0 / math.pi
 
+PHYSICAL, HYBRID, DUAL = 1, 2, 3
+"""Codes of the gaze modes that turn a rig, for :func:`make_rig_gaze_step`."""
+
 
 @wp.func
 def clamp_unit(a: wp.vec2f) -> wp.vec2f:
@@ -54,12 +57,50 @@ def within(g: wp.vec2f, limit: wp.float32) -> wp.vec2f:
 
 
 @wp.func
+def gaze_direction(g: wp.vec2f, field_radius_deg: wp.float32) -> wp.vec3f:
+    """Upright-frame unit direction of a gaze (tilt, pan) in field radii."""
+    tilt = g[0] * field_radius_deg * wp.float32(DEG_TO_RAD)
+    pan = g[1] * field_radius_deg * wp.float32(DEG_TO_RAD)
+    return wp.vec3f(-wp.cos(tilt) * wp.sin(pan), -wp.sin(tilt), wp.cos(tilt) * wp.cos(pan))
+
+
+@wp.func
+def gaze_of(u: wp.vec3f, field_radius_deg: wp.float32) -> wp.vec2f:
+    """Gaze (tilt, pan) in field radii of an upright-frame direction."""
+    tilt = -wp.atan2(u[1], wp.sqrt(u[0] * u[0] + u[2] * u[2])) * wp.float32(RAD_TO_DEG)
+    pan = -wp.atan2(u[0], u[2]) * wp.float32(RAD_TO_DEG)
+    return wp.vec2f(tilt, pan) / field_radius_deg
+
+
+@wp.func
+def head_angles(joint_pos: wp.array2d(dtype=wp.float32), i: wp.int32, joints: wp.vec2i, signs: wp.vec2f) -> wp.vec2f:
+    """The head's (tilt, pan) [rad], left and up positive, from the rig's (pan, tilt) ``joints``."""
+    return wp.vec2f(signs[1] * joint_pos[i, joints[1]], signs[0] * joint_pos[i, joints[0]])
+
+
+@wp.func
+def rig_gaze(head_rad: wp.vec2f, soft: wp.vec2f, field_radius_deg: wp.float32) -> wp.vec2f:
+    """Gaze (tilt, pan) in field radii, from the rig's zero pose, of a software gaze ``soft`` [field radii] seen
+    through a head turned by ``head_rad`` (tilt, pan) [rad].
+
+    The head pans and then tilts, as the retina does within it, so their rotations compose rather than add.
+    """
+    d = gaze_direction(soft, field_radius_deg)
+    c, s = wp.cos(head_rad[0]), wp.sin(head_rad[0])
+    d = wp.vec3f(d[0], c * d[1] - s * d[2], s * d[1] + c * d[2])
+    c, s = wp.cos(head_rad[1]), wp.sin(head_rad[1])
+    d = wp.vec3f(c * d[0] - s * d[2], d[1], s * d[0] + c * d[2])
+    return gaze_of(d, field_radius_deg)
+
+
+@wp.func
 def teach(
     point: wp.vec3f,
     position: wp.vec3f,
     mount: wp.quatf,
     g: wp.vec2f,
-    pending: wp.vec2f,
+    head: wp.vec4f,
+    physical: wp.int32,
     frame: wp.mat33f,
     field_radius_deg: wp.float32,
     step_size: wp.float32,
@@ -68,23 +109,25 @@ def teach(
 ) -> wp.vec4f:
     """The teacher's action (x, y) toward a point, 1 for a valid target or else 0, and the gaze's error [deg].
 
-    ``g`` is the gaze as the camera looks now and ``pending`` the turn already commanded but not yet made, both in
-    field radii; the action covers what is left. ``frame`` carries the upright image frame, in which gazes are
-    measured, into the physical camera's frame.
+    ``g`` is the software gaze in field radii, which the action moves. In physical gaze (``physical``) the action
+    moves the head instead: ``head`` holds its measured and commanded (tilt, pan) in field radii, and the action takes
+    the commanded head to the pose that faces the point, so it does not repeat a turn the head has yet to make.
+    ``frame`` carries the upright image frame, in which gazes are measured, into the physical camera's frame.
     """
     d = wp.normalize(wp.quat_rotate_inv(mount, point - position))
     # The fixation reaches the physical camera at frame * gaze * z, so the gaze looks along frame^T d.
     u = wp.transpose(frame) * d
-    tilt = -wp.atan2(u[1], wp.sqrt(u[0] * u[0] + u[2] * u[2])) * wp.float32(RAD_TO_DEG)
-    pan = -wp.atan2(u[0], u[2]) * wp.float32(RAD_TO_DEG)
-    desired = wp.vec2f(tilt, pan) / field_radius_deg
+    desired = gaze_of(u, field_radius_deg)
     ok = project_direction(d, camera)[2] > 0.5 and wp.length(desired) <= gaze_limit
     step = wp.vec2f(0.0, 0.0)
     if ok:
-        step = clamp_unit((desired - g - pending) / step_size)
-    g_tilt = g[0] * field_radius_deg * wp.float32(DEG_TO_RAD)
-    g_pan = g[1] * field_radius_deg * wp.float32(DEG_TO_RAD)
-    looking = wp.vec3f(-wp.cos(g_tilt) * wp.sin(g_pan), -wp.sin(g_tilt), wp.cos(g_tilt) * wp.cos(g_pan))
+        if physical != 0:
+            measured = wp.vec2f(head[0], head[1]) * field_radius_deg * wp.float32(DEG_TO_RAD)
+            facing = rig_gaze(measured, desired, field_radius_deg)
+            step = clamp_unit((facing - wp.vec2f(head[2], head[3])) / step_size)
+        else:
+            step = clamp_unit((desired - g) / step_size)
+    looking = gaze_direction(g, field_radius_deg)
     # atan2 stays accurate near perfect alignment, unlike acos of the dot product.
     error = wp.atan2(wp.length(wp.cross(looking, u)), wp.dot(looking, u)) * wp.float32(RAD_TO_DEG)
     return wp.vec4f(step[0], step[1], wp.where(ok, 1.0, 0.0), error)
@@ -97,7 +140,8 @@ def teacher_labels_kernel(
     positions: wp.array(dtype=wp.vec3f),
     mounts: wp.array(dtype=wp.quatf),
     angles_deg: wp.array(dtype=wp.vec2f),
-    pending: wp.array(dtype=wp.vec2f),
+    heads: wp.array(dtype=wp.vec4f),
+    physical: wp.int32,
     frame: wp.mat33f,
     field_radius_deg: wp.float32,
     step_size: wp.float32,
@@ -110,8 +154,8 @@ def teacher_labels_kernel(
     error to valid targets [deg] with the fraction of valid targets.
 
     ``mounts`` holds each camera's mount (ROS convention); ``angles_deg`` the camera's stored gaze angles [deg];
-    ``pending`` the head turn in field radii that physical gaze has commanded but not yet made.
-    One block labels every environment and reduces the logs itself, so the launch needs no zeroed accumulators.
+    ``heads`` the head's measured and commanded (tilt, pan) in field radii, which physical gaze (``physical``) labels
+    from. One block labels every environment and reduces the logs itself, so the launch needs no zeroed accumulators.
     """
     _block, lane = wp.tid()
     count = target_poses.shape[0]
@@ -122,7 +166,17 @@ def teacher_labels_kernel(
         point = wp.transform_point(target_poses[i], offset)
         gaze = angles_deg[i] / field_radius_deg
         result = teach(
-            point, positions[i], mounts[i], gaze, pending[i], frame, field_radius_deg, step_size, gaze_limit, camera
+            point,
+            positions[i],
+            mounts[i],
+            gaze,
+            heads[i],
+            physical,
+            frame,
+            field_radius_deg,
+            step_size,
+            gaze_limit,
+            camera,
         )
         labels[i] = wp.vec3f(result[0], result[1], result[2])
         if result[2] > 0.5:
@@ -185,47 +239,6 @@ def gaze_step_kernel(
     state[i] = wp.vec4f(current[0], current[1], rate[0], rate[1])
 
 
-PHYSICAL, HYBRID, DUAL = 1, 2, 3
-"""Codes of the gaze modes that turn a rig, for :func:`make_rig_gaze_step`."""
-
-
-@wp.func
-def gaze_direction(g: wp.vec2f, field_radius_deg: wp.float32) -> wp.vec3f:
-    """Upright-frame unit direction of a gaze (tilt, pan) in field radii."""
-    tilt = g[0] * field_radius_deg * wp.float32(DEG_TO_RAD)
-    pan = g[1] * field_radius_deg * wp.float32(DEG_TO_RAD)
-    return wp.vec3f(-wp.cos(tilt) * wp.sin(pan), -wp.sin(tilt), wp.cos(tilt) * wp.cos(pan))
-
-
-@wp.func
-def gaze_of(u: wp.vec3f, field_radius_deg: wp.float32) -> wp.vec2f:
-    """Gaze (tilt, pan) in field radii of an upright-frame direction."""
-    tilt = -wp.atan2(u[1], wp.sqrt(u[0] * u[0] + u[2] * u[2])) * wp.float32(RAD_TO_DEG)
-    pan = -wp.atan2(u[0], u[2]) * wp.float32(RAD_TO_DEG)
-    return wp.vec2f(tilt, pan) / field_radius_deg
-
-
-@wp.func
-def head_angles(joint_pos: wp.array2d(dtype=wp.float32), i: wp.int32, joints: wp.vec2i, signs: wp.vec2f) -> wp.vec2f:
-    """The head's (tilt, pan) [rad], left and up positive, from the rig's (pan, tilt) ``joints``."""
-    return wp.vec2f(signs[1] * joint_pos[i, joints[1]], signs[0] * joint_pos[i, joints[0]])
-
-
-@wp.func
-def rig_gaze(head_rad: wp.vec2f, soft: wp.vec2f, field_radius_deg: wp.float32) -> wp.vec2f:
-    """Gaze (tilt, pan) in field radii, from the rig's zero pose, of a software gaze ``soft`` [field radii] seen
-    through a head turned by ``head_rad`` (tilt, pan) [rad].
-
-    The head pans and then tilts, as the retina does within it, so their rotations compose rather than add.
-    """
-    d = gaze_direction(soft, field_radius_deg)
-    c, s = wp.cos(head_rad[0]), wp.sin(head_rad[0])
-    d = wp.vec3f(d[0], c * d[1] - s * d[2], s * d[1] + c * d[2])
-    c, s = wp.cos(head_rad[1]), wp.sin(head_rad[1])
-    d = wp.vec3f(c * d[0] - s * d[2], d[1], s * d[0] + c * d[2])
-    return gaze_of(d, field_radius_deg)
-
-
 @cache
 def make_rig_gaze_step(mode: int) -> wp.Kernel:
     """Return the gaze step of one rig mode: :data:`PHYSICAL`, :data:`HYBRID` or :data:`DUAL`."""
@@ -246,7 +259,6 @@ def make_rig_gaze_step(mode: int) -> wp.Kernel:
         step_dt: wp.float32,
         field_radius_deg: wp.float32,
         held: wp.array(dtype=wp.vec3f),
-        written: wp.array(dtype=wp.vec2f),
         held_valid: wp.array(dtype=wp.int32),
         angles_deg: wp.array(dtype=wp.vec2f),
         state: wp.array(dtype=wp.vec4f),
@@ -256,9 +268,9 @@ def make_rig_gaze_step(mode: int) -> wp.Kernel:
 
         Gazes are (tilt, pan) in field radii, in the camera's frame, which needs no image roll; the rig's ``joints``
         are (pan, tilt) with ``signs`` that turn the camera left and up. ``mounts`` holds each camera's mount (ROS
-        convention) as of its last pose update. ``head_step`` bounds the hybrid head's step, in field radii. Hybrid
-        gaze holds each fixation as a world direction in ``held``, with the software gaze [deg] it wrote in
-        ``written``, once ``held_valid`` is set; the other modes leave those arrays alone, so they may be empty.
+        convention) as of its last pose update. ``head_step`` bounds the hybrid head target's offset from the measured
+        joints, in field radii. Hybrid gaze holds each fixation as a world direction in ``held`` once ``held_valid``
+        is set; the other modes leave those arrays alone, so they may be empty.
         Writes the software gaze ``angles_deg``, the joint ``targets`` (pan, tilt) and ``state``: the fixation's
         direction from the rig's zero pose and its velocity.
         """
@@ -276,16 +288,12 @@ def make_rig_gaze_step(mode: int) -> wp.Kernel:
             turn = clamp_unit(wp.vec2f(actions[i, 0], actions[i, 1])) * step_size
             soft = within(soft + clamp_unit(wp.vec2f(actions[i, 2], actions[i, 3])) * step_size, gaze_limit)
         if wp.static(mode == HYBRID):
-            last = written[i]
-            if held_valid[i] != 0 and angles_deg[i][0] == last[0] and angles_deg[i][1] == last[1]:
-                # The head turned since the last step: aim the software gaze back at the fixation it holds in the
-                # world. A gaze set on the camera since then starts a new fixation instead.
+            if held_valid[i] != 0:
+                # The head turned since the last step: aim the software gaze back at the fixation it holds in the world.
                 soft = gaze_of(wp.quat_rotate_inv(mounts[i], held[i]), field_radius_deg)
             soft = within(soft + clamp_unit(wp.vec2f(actions[i, 0], actions[i, 1])) * step_size, gaze_limit)
-            # The head steps from where it is toward the fixation, at most head_step per coordinate.
             turn = wp.vec2f(wp.clamp(soft[0], -head_step, head_step), wp.clamp(soft[1], -head_step, head_step))
             held[i] = wp.quat_rotate(mounts[i], gaze_direction(soft, field_radius_deg))
-            written[i] = soft * field_radius_deg
             held_valid[i] = 1
             pan_base = joint_pos[i, joints[0]]
             tilt_base = joint_pos[i, joints[1]]
@@ -334,20 +342,20 @@ def rig_gaze_reset_kernel(
 
 
 @wp.kernel(enable_backward=False)
-def pending_head_turn_kernel(
+def head_and_target_kernel(
     joint_pos: wp.array2d(dtype=wp.float32),
     targets: wp.array2d(dtype=wp.float32),
     joints: wp.vec2i,
     signs: wp.vec2f,
     field_radius_deg: wp.float32,
-    pending: wp.array(dtype=wp.vec2f),
+    heads: wp.array(dtype=wp.vec4f),
 ):
-    """The head turn (tilt, pan) in field radii that each rig's joint targets still hold over its joints."""
+    """Each head's measured (tilt, pan) and the (tilt, pan) its joint targets (pan, tilt) command, in field radii."""
     i = wp.tid()
     radius_rad = field_radius_deg * wp.float32(DEG_TO_RAD)
-    pan = targets[i, 0] - joint_pos[i, joints[0]]
-    tilt = targets[i, 1] - joint_pos[i, joints[1]]
-    pending[i] = wp.vec2f(signs[1] * tilt, signs[0] * pan) / radius_rad
+    head = head_angles(joint_pos, i, joints, signs) / radius_rad
+    target = head_angles(targets, i, wp.vec2i(0, 1), signs) / radius_rad
+    heads[i] = wp.vec4f(head[0], head[1], target[0], target[1])
 
 
 def gaze_state(env: ManagerBasedEnv, action_name: str = "gaze") -> torch.Tensor:
@@ -440,8 +448,10 @@ class GazeAction(ActionTerm):
         self._reset_ids = ProxyArray(wp.zeros(self.num_envs, dtype=wp.int32, device=self.device))
         self._reset_start = ProxyArray(wp.zeros(self.num_envs, dtype=wp.vec2f, device=self.device))
         self._reset_launches: dict[tuple[bool, bool], wp.Launch] = {}
-        self._pending = ProxyArray(wp.zeros(self.num_envs, dtype=wp.vec2f, device=self.device))
-        """The head turn [field radii] physical gaze has commanded but not made, for the teacher; zero otherwise."""
+        self._heads = ProxyArray(wp.zeros(self.num_envs, dtype=wp.vec4f, device=self.device))
+        """The head's measured and commanded (tilt, pan) [field radii], which the teacher labels physical gaze from."""
+        self._own_gaze_writes = 0
+        """The camera's :attr:`~isaaclab_fovi.sensors.FoveatedCamera.gaze_writes` after this term's last write."""
         self.rig = None
         """The articulation that turns the camera, for every mode but software gaze."""
         if cfg.mode != "software":
@@ -587,26 +597,26 @@ class GazeAction(ActionTerm):
             )
         return self._fixed_mount
 
-    def pending_head_turn(self) -> ProxyArray:
-        """The head turn (tilt, pan) in field radii that physical gaze has commanded and the rig not yet made, shape
-        (num_envs,) of ``vec2f``; zero in the other modes, whose actions do not queue head turns.
+    def head_and_target(self) -> ProxyArray:
+        """The head's measured (tilt, pan) and the (tilt, pan) its joint targets command, in field radii, shape
+        (num_envs,) of ``vec4f``; zero but in physical gaze, the one mode whose actions turn the head.
 
-        The teacher subtracts it, so it does not command a turn again while the head catches up.
+        The teacher labels physical gaze from them, so it does not command a turn again while the head catches up.
         """
         if self.rig is not None and self._mode_code == PHYSICAL:
             # Reading the property refreshes the rig's joint buffer.
             joint_pos = self.rig.data.joint_pos.warp
-            if self._pending_launch is None or self._pending_launch[0] is not joint_pos:
+            if self._heads_launch is None or self._heads_launch[0] is not joint_pos:
                 launch = record_launch(
-                    pending_head_turn_kernel,
+                    head_and_target_kernel,
                     self.num_envs,
                     [joint_pos, self._targets, self._joints, self._signs, self.field_radius_deg],
-                    [self._pending],
+                    [self._heads],
                     self.device,
                 )
-                self._pending_launch = (joint_pos, launch)
-            self._pending_launch[1].launch(warp_stream(self.device))
-        return self._pending
+                self._heads_launch = (joint_pos, launch)
+            self._heads_launch[1].launch(warp_stream(self.device))
+        return self._heads
 
     def _init_rig(self, env: ManagerBasedEnv) -> None:
         """Find the rig's joints and allocate the joint targets and, in hybrid gaze, the fixation it holds."""
@@ -618,18 +628,17 @@ class GazeAction(ActionTerm):
         self._signs = wp.vec2f(*rig_cfg.joint_signs)
         self._mode_code = {"physical": PHYSICAL, "hybrid": HYBRID, "dual": DUAL}[self.cfg.mode]
         default = self.rig.data.default_joint_pos.torch[:, self._joint_ids]
-        self._targets = ProxyArray(wp.from_torch(default.clone().contiguous()))
+        # Indexing the selected joints copies them, so the targets own their storage.
+        self._targets = ProxyArray(wp.from_torch(default.contiguous()))
         """Joint position targets (pan, tilt) [rad] the rig drives to."""
         # Only hybrid gaze holds a fixation; the other modes' kernels never touch these, so they stay empty.
         held = self.num_envs if self._mode_code == HYBRID else 0
         self._held = ProxyArray(wp.zeros(held, dtype=wp.vec3f, device=self.device))
         """The world fixation hybrid gaze holds (ROS world directions), once ``_held_valid`` is set."""
-        self._written = ProxyArray(wp.zeros(held, dtype=wp.vec2f, device=self.device))
-        """The software gaze [deg] hybrid gaze last wrote, to tell a gaze set on the camera since then."""
         self._held_valid = ProxyArray(wp.zeros(held, dtype=wp.int32, device=self.device))
         self._rig_launch: tuple[tuple, wp.Launch] | None = None
         self._rig_reset_launches: dict[bool, wp.Launch] = {}
-        self._pending_launch: tuple[wp.array, wp.Launch] | None = None
+        self._heads_launch: tuple[wp.array, wp.Launch] | None = None
 
     def _process_rig_actions(self, actions: torch.Tensor) -> None:
         """Move the gaze with the rig's joints and the software gaze, in one launch."""
@@ -638,7 +647,9 @@ class GazeAction(ActionTerm):
         # now, which a lazily updated camera has not read yet.
         joint_pos, limits = data.joint_pos.warp, data.soft_joint_pos_limits.warp
         mounts = self.camera.update_mount() if self._mode_code == HYBRID else self.camera.mount_quat_w_ros
-        # The launch reads the actions in place, like the software step; it is recorded again for another buffer.
+        if self._mode_code == HYBRID and self.camera.gaze_writes != self._own_gaze_writes:
+            # A gaze set on the camera since this term's last write, even to the same angles, starts a new fixation.
+            self._held_valid.torch.zero_()
         key = (actions.data_ptr(), actions.stride(), actions.device)
         arrays = (joint_pos, limits, mounts)
         cached = self._rig_launch
@@ -659,20 +670,13 @@ class GazeAction(ActionTerm):
                     self._env.step_dt,
                     self.field_radius_deg,
                 ],
-                [
-                    self._held,
-                    self._written,
-                    self._held_valid,
-                    self.camera.gaze_angles,
-                    self._state,
-                    self._targets,
-                ],
+                [self._held, self._held_valid, self.camera.gaze_angles, self._state, self._targets],
                 self.device,
             )
             self._rig_launch = ((key, arrays), launch)
         self._raw = actions
         self._rig_launch[1].launch(warp_stream(self.device))
-        self.camera.set_gaze_angles(self.camera.gaze_angles.torch)
+        self._write_gaze()
 
     def _reset_rig(self, indexed: bool, count: int) -> None:
         """Put the reset environments, the first ``count`` of :attr:`_reset_ids` if ``indexed``, at the rig's default
@@ -699,7 +703,12 @@ class GazeAction(ActionTerm):
             )
         launch.set_dim(count)
         launch.launch(warp_stream(self.device))
+        self._write_gaze()
+
+    def _write_gaze(self) -> None:
+        """Publish the camera's stored gaze, which the kernels wrote, and note the write as this term's own."""
         self.camera.set_gaze_angles(self.camera.gaze_angles.torch)
+        self._own_gaze_writes = self.camera.gaze_writes
 
 
 class gaze_teacher_labels(ManagerTermBase):
@@ -736,10 +745,10 @@ class gaze_teacher_labels(ManagerTermBase):
         point = tuple(float(value) for value in offset)
         gaze = self._gaze
         mounts = gaze.teacher_mounts()
-        pending = gaze.pending_head_turn()
+        heads = gaze.head_and_target()
         camera_positions = gaze.camera.data.pos_w.warp
         # Warp retains the selected view and its backing array in the recorded launch.
-        key = (id(poses), body_id, id(camera_positions), id(mounts), id(pending), point)
+        key = (id(poses), body_id, id(camera_positions), id(mounts), id(heads), point)
         if self._launch is None or self._launch[0] != key:
             # Warp runs CPU blocks as one thread.
             block = 1024 if torch.device(env.device).type == "cuda" else 1
@@ -752,7 +761,8 @@ class gaze_teacher_labels(ManagerTermBase):
                     camera_positions,
                     mounts,
                     gaze.camera.gaze_angles,
-                    pending,
+                    heads,
+                    int(gaze.cfg.mode == "physical"),
                     gaze.camera.image_frame,
                     gaze.field_radius_deg,
                     gaze.cfg.step_size,

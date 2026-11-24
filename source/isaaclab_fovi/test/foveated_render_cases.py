@@ -301,7 +301,6 @@ def hybrid_gaze_turns_the_head_onto_the_fixation(backend: tuple):
 
     @configclass
     class SceneCfg(InteractiveSceneCfg):
-        ground = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
         rig = PAN_TILT_CFG.replace(init_state=PAN_TILT_CFG.init_state.replace(pos=(0.0, 0.0, 0.5)))
         eye = FoveatedCameraCfg(
             prim_path="{ENV_REGEX_NS}/PanTilt/Geometry/world/pan_link/tilt_link/Eye",

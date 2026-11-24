@@ -72,6 +72,9 @@ class FoveatedCamera(Camera):
 
     cfg: FoveatedCameraCfg
 
+    gaze_writes: int = 0
+    """How many times :meth:`set_gaze_angles` has been called, so a gaze action can tell another caller's writes."""
+
     def __new__(cls, cfg: FoveatedCameraCfg, *args, **kwargs):
         """Create the implementation that matches the configured renderer.
 
@@ -213,6 +216,7 @@ class FoveatedCamera(Camera):
         Raises:
             ValueError: The angles do not hold one row per camera.
         """
+        self.gaze_writes += 1
         stored = self._gaze_angles is not None and angles_deg is self._gaze_angles.torch
         if stored and self.turns_pose_by_gaze:
             # The next pose update reads the stored angles; nothing has to happen now.
