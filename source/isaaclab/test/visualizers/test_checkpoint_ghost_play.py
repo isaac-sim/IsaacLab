@@ -233,3 +233,14 @@ def test_a_direct_environment_with_discrete_or_composite_actions_is_rejected(act
 def test_a_non_torch_skrl_framework_is_rejected():
     with pytest.raises(SystemExit, match="torch"):
         play.check(_args(ml_framework="jax"), object())
+
+
+def test_a_deprecated_combined_config_holds_its_own_newton_options():
+    combined = SimpleNamespace(visualizer_type="newton", backend=_newton(), checkpoint_ghost_slots=3)
+    cfg = ManagerBasedRLEnvCfg.__new__(ManagerBasedRLEnvCfg)
+    cfg.sim = SimpleNamespace(visualizer_cfgs=[combined])
+    cfg.curriculum = None
+
+    play.check(_args(), cfg)
+
+    assert play._slot_count(cfg, 16) == 3

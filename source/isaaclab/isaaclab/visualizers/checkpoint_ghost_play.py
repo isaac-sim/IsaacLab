@@ -59,9 +59,11 @@ def _newton_cfg(env_cfg: Any) -> Any | None:
         visualizers = [visualizers]
     # A shared visualizer configuration names its type on its backend; a deprecated combined one names it directly.
     for cfg in visualizers:
+        if getattr(cfg, "visualizer_type", None) == "newton":
+            return cfg  # a deprecated combined configuration holds the backend options itself
         backend = getattr(cfg, "backend", None)
         for chosen in backend if isinstance(backend, (list, tuple)) else [backend]:  # --viz newton,viser selects both
-            if (getattr(chosen, "visualizer_type", None) or getattr(cfg, "visualizer_type", None)) == "newton":
+            if getattr(chosen, "visualizer_type", None) == "newton":
                 return chosen
     return None
 
@@ -69,6 +71,8 @@ def _newton_cfg(env_cfg: Any) -> Any | None:
 def _slot_count(env_cfg: Any, num_envs: int) -> int:
     """Return how many checkpoints can be shown at once: the configured count, capped at the environments."""
     slots = getattr(_newton_cfg(env_cfg), "checkpoint_ghost_slots", None) or MAX_CHECKPOINT_GHOST_SLOTS
+    if slots > num_envs:
+        logger.warning(f"checkpoint_ghost_slots {slots} exceeds --num_envs {num_envs}; using {num_envs} slots.")
     return min(slots, num_envs)
 
 
@@ -111,9 +115,6 @@ def prepare(args_cli: argparse.Namespace, env_cfg: ManagerBasedRLEnvCfg | Direct
     total = env_cfg.scene.num_envs
     if total < 2:
         raise SystemExit("--checkpoint_ghosts needs --num_envs of at least 2: one environment per checkpoint.")
-    requested = getattr(_newton_cfg(env_cfg), "checkpoint_ghost_slots", None)
-    if requested is not None and requested > total:
-        logger.warning(f"checkpoint_ghost_slots {requested} exceeds --num_envs {total}; using {total} slots.")
     CheckpointGhostSync.configure_env_cfg(env_cfg)
     if isinstance(env_cfg, DirectRLEnvCfg):
         logger.warning(
@@ -161,7 +162,7 @@ def run(
         env.unwrapped,  # the Isaac Lab environment: its observation groups and 5-tuple step, free of library wrappers
         num_slots=_slot_count(env.unwrapped.cfg, env.unwrapped.num_envs),
         task=args_cli.task,
-        checkpoint_root=os.path.abspath(root),
+        checkpoint_root=os.path.abspath(os.path.expanduser(root)),
         checkpoint_pattern=checkpoint_pattern,
         policy_factory=policy_factory,
         reference=CheckpointGhostCheckpoint(
