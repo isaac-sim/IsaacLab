@@ -237,6 +237,21 @@ def test_split_render_data_rejects_incomplete_camera_paths(camera_spec):
         _make_render_data(spec, 1)
 
 
+def test_render_data_keeps_the_single_product_attributes_as_deprecated_properties(camera_spec):
+    """The former attributes give the only render product and warn. A split sensor raises, as it has several."""
+    render_data = _make_render_data(camera_spec, "all")
+    with pytest.warns(DeprecationWarning, match="OVRTXCameraRenderData.products"):
+        assert render_data.render_product_path == "/RenderCamera_0/RenderProduct"
+    # The 4 environments of the sensor make a tiled image of 2 x 2 tiles.
+    with pytest.warns(DeprecationWarning, match="OVRTXCameraRenderData.products"):
+        assert (render_data.num_cols, render_data.num_rows) == (2, 2)
+
+    split = _make_render_data(camera_spec, 2)
+    for name in ("render_product_path", "num_cols", "num_rows"):
+        with pytest.warns(DeprecationWarning), pytest.raises(RuntimeError, match="this sensor has 2"):
+            getattr(split, name)
+
+
 def test_ovrtx_primary_render_var_follows_the_first_requested_data_type():
     """The primary render var follows the order of the requested outputs."""
     assert get_render_var_configs(["rgb", "motion_vectors"], render_scope_name="RenderCamera_0")[0] == (
