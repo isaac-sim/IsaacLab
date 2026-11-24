@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import ast
 import inspect
+import json
+import struct
 import subprocess
 import sys
 import textwrap
@@ -541,6 +543,93 @@ def _run_ovd_child(tmp_path: Path, checks: str) -> None:
     _assert_no_atexit_errors(output)
 
 
+def _read_recorded_cube_heights(capture: Path) -> list[tuple[int, float]]:
+    """Read fresh cube poses in completed frames of the single-scene test capture."""
+    # The pinned OVPhysX wheel writes OmniPVD 0.4.0 without shipping a reader.
+    # Command layouts follow PhysX's OmniPvdReaderImpl.cpp at tag ovphysx-0.8.0.
+    with capture.open("rb") as stream:
+
+        def read(size: int) -> bytes:
+            data = stream.read(size)
+            assert len(data) == size, f"Truncated OVD record in {capture}"
+            return data
+
+        def unpack(fmt: str) -> tuple:
+            layout = struct.Struct(f"<{fmt}")
+            return layout.unpack(read(layout.size))
+
+        def read_name() -> bytes:
+            (size,) = unpack("H")
+            return read(size)
+
+        assert unpack("III") == (0, 4, 0), "Expected an OmniPVD 0.4.0 stream"
+        classes = {}
+        attributes = {}
+        dynamic_objects = set()
+        scene = None
+        cube = None
+        frame = None
+        height = None
+        samples = []
+        for opcode in iter(lambda: stream.read(1), b""):
+            match opcode[0]:
+                case 1:  # Register class
+                    class_id, _ = unpack("II")
+                    classes[class_id] = read_name()
+                case 3:  # Register typed attribute
+                    class_id, attribute, datatype, elements = unpack("IIHI")
+                    attributes[attribute] = (classes[class_id], read_name(), datatype, elements)
+                case 4 | 5:  # Register class or list attribute
+                    read(12 if opcode[0] == 4 else 10)
+                    read_name()
+                case 6 | 7 | 8:  # Set an attribute or edit a list attribute
+                    context, obj, depth = unpack("QQB")
+                    handles = unpack(f"{depth}I")
+                    (size,) = unpack("I")
+                    data = read(size)
+                    key = (context, obj)
+                    if opcode[0] != 6 or depth != 1 or key not in dynamic_objects:
+                        continue
+                    attribute = attributes.get(handles[0])
+                    if attribute == (b"PxActor", b"name", 10, 1) and data.rstrip(b"\x00") == b"/World/Cube":
+                        assert cube is None or cube == key, "Expected one recorded cube"
+                        cube = key
+                    elif key == cube and frame is not None and attribute == (b"PxRigidActor", b"globalPose", 8, 7):
+                        # PxTransform stores the quaternion followed by the XYZ position.
+                        height = struct.unpack("<7f", data)[-1]
+                case 9:  # Create object
+                    context, class_id, obj = unpack("QIQ")
+                    read_name()
+                    if classes[class_id] == b"PxScene":
+                        assert scene is None, "Expected a single scene"
+                        scene = obj
+                    elif classes[class_id] == b"PxRigidDynamic":
+                        dynamic_objects.add((context, obj))
+                case 10:  # Destroy object
+                    dynamic_objects.discard(unpack("QQ"))
+                case 11:  # Start frame
+                    context, timestamp = unpack("QQ")
+                    assert context == scene and frame is None, "Expected one open scene frame at a time"
+                    frame = timestamp
+                    height = None
+                case 12:  # Stop frame
+                    context, timestamp = unpack("QQ")
+                    assert context == scene and frame is not None and timestamp >= frame, "Unmatched scene frame"
+                    if height is not None:
+                        samples.append((frame, height))
+                    frame = None
+                case 13:  # Record message
+                    read(8)
+                    read_name()
+                    read_name()
+                    read(12)
+                case other:
+                    raise AssertionError(f"Unexpected OVD 0.4.0 command {other} in {capture}")
+        # The SDK can leave an empty frame open after the final completed step.
+        assert cube is not None, "Expected the existing /World/Cube rigid body"
+        return samples
+
+
 @pytest.mark.kitless
 @pytest.mark.integration
 @pytest.mark.skipif(not _CPU_DEVICES, reason="Requires a selected CPU test device")
@@ -566,16 +655,18 @@ def test_default_ovd_capability_overrides_unfrozen_native_opt_in(tmp_path):
 @pytest.mark.kitless
 @pytest.mark.integration
 @pytest.mark.skipif(not _CPU_DEVICES, reason="Requires a selected CPU test device")
-def test_ovd_recording_lifecycle_and_conflicting_owner(tmp_path):
+def test_ovd_recording_lifecycle_and_conflicting_owner(tmp_path: Path) -> None:
     """Record on a live shared stage, retain the native owner, and restore the default."""
     _run_ovd_child(
         tmp_path,
         """
+        import json
         from contextlib import closing
         from unittest.mock import patch
 
         from isaaclab_ov.physics import OvPhysxBackendCfg
         from isaaclab_ov.physics.ovphysx_manager import OvPhysxBackend
+        from isaaclab_ov.sim.views import OvPhysxView
         from isaaclab_ov.stage import OvstageBackendCfg
 
         def start(physx, label):
@@ -612,12 +703,15 @@ def test_ovd_recording_lifecycle_and_conflicting_owner(tmp_path):
                     constructor.assert_not_called()
                 assert sim.get_backends(OvPhysxBackendCfg) == (manager.backend,)
 
-                first = start(physx, "first")
-                t = manager.get_simulation_time()
-                sim.step(render=False)
-                assert manager.get_simulation_time() > t
-                physx.stop_recording()
+                with closing(OvPhysxView(physx, pattern="/World/Cube", device="cpu")) as view:
+                    first = start(physx, "first")
+                    heights = []
+                    for _ in range(3):
+                        sim.step(render=False)
+                        heights.append(float(view.get_attribute("rigid_body_pose").numpy()[0, 2]))
+                    physx.stop_recording()
                 assert not physx.is_recording() and first.stat().st_size > 0
+                (output / "first-heights.json").write_text(json.dumps(heights), encoding="utf-8")
                 t = manager.get_simulation_time()
                 sim.step(render=False)
                 assert manager.get_simulation_time() > t and manager.get_physx_instance() is physx
@@ -654,6 +748,13 @@ def test_ovd_recording_lifecycle_and_conflicting_owner(tmp_path):
             ovphysx.set_global_config(key, initial)
         """,
     )
+    samples = _read_recorded_cube_heights(tmp_path / "first.ovd")
+    live_heights = json.loads((tmp_path / "first-heights.json").read_text(encoding="utf-8"))
+    assert len(samples) == len(live_heights) > 1, "Expected a recorded cube pose for each captured step"
+    frames, recorded_heights = zip(*samples)
+    assert all(later > earlier for earlier, later in zip(frames, frames[1:]))
+    assert recorded_heights[-1] < recorded_heights[0], "Expected the cube to fall during recording"
+    assert recorded_heights == pytest.approx(live_heights, abs=1e-5, rel=0)
 
 
 @pytest.mark.parametrize(("query_fails", "cleanup_fails"), [(False, False), (True, False), (False, True)])
