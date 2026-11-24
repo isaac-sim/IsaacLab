@@ -15,13 +15,13 @@ several minutes with a cold shader cache:
 
    uv run --extra fovi [--extra ovrtx] isaaclab example foveated-camera [renderer=ovrtx]
 
-The Newton viewer shows the camera's image, the retina's cortical view (see `Sampling`_), covered at launch by a window
-that shows the fisheye on a curved viewing sphere beside that view: the green lens boundary follows the camera mount,
-and the blue gaze circle and sampling grid show the retina's coverage. Use WASD or the arrow keys to move the camera and
-Q/E to lower or raise it. Drag with the left mouse button, or press I/K and J/L, to steer the gaze. Below the side
-panel's Camera Source selector, gaze sliders follow the gaze and set it, and on Newton a foveation slider steps the CMF
-constant, through other stops with ``--cmf_a_values 0.2,2,20`` plus the camera's own. H shows or hides the viewer
-controls. Pass ``--target power_drill`` to start fixating the drill.
+The Newton viewer shows the camera's image, the foveated camera's cortical view (see `Sampling`_), covered at launch by
+a window that shows the fisheye on a curved viewing sphere beside that view: the green lens boundary follows the camera
+mount, and the blue gaze circle and sampling grid show the retina's coverage. Use WASD or the arrow keys to move the
+camera and Q/E to lower or raise it. Drag with the left mouse button, or press I/K and J/L, to steer the gaze. Below
+the side panel's Camera Source selector, gaze sliders follow the gaze and set it, and on Newton a foveation slider
+steps the CMF constant, through other stops with ``--cmf_a_values 0.2,2,20`` plus the camera's own. H shows or hides
+the viewer controls. Pass ``--target power_drill`` to start fixating the drill.
 
 .. figure:: ../_static/overview/sensors/foveated_camera_overview.jpg
    :alt: A retina behind a 180-degree fisheye lens on the viewing sphere, and its rendered images at two fixations.
@@ -53,7 +53,8 @@ The default ``foveated_style="warped_cartesian_as_grid"`` warps an :math:`N \tim
    r(\rho) = a\left[\left(1 + \frac{r_{\max}}{a}\right)^{\rho} - 1\right],
 
 where :math:`r_{\max}` is half the retina's field of view, and the camera publishes the lattice as an upright
-``(num_envs, N, N, channels)`` image: the retina's cortical view, laid out by cortical distance rather than by angle.
+``(num_envs, N, N, channels)`` image: the foveated camera's cortical view, laid out by cortical distance rather than
+by angle.
 
 ``foveated_style="isotropic"`` instead places rings evenly in :math:`w`, and gives each ring as many samples as keep
 neighbours about equally far apart in every direction:

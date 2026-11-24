@@ -5,8 +5,8 @@
 
 """Explore a cluttered scene through the experimental foveated camera.
 
-The viewer shows the camera's image, the retina's cortical view, covered at launch by a window that shows the gaze on
-the viewing sphere beside that view; move or resize that window to see the viewer's own.
+The viewer shows the camera's image, the foveated camera's cortical view, covered at launch by a window that shows the
+gaze on the viewing sphere beside that view; move or resize that window to see the viewer's own.
 Use WASD or the arrow keys to move the camera, and Q/E to lower or raise it.
 Drag with the left mouse button, or press I/K and J/L, to steer the gaze.
 Below the side panel's Camera Source selector, gaze sliders follow the gaze and set it, and on Newton a foveation
@@ -107,7 +107,7 @@ FISHEYE = sim_utils.PinholeCameraCfg(
 )
 PREVIEW_SIZE = 256
 COMPARISON_WINDOW = "Foveated camera"
-"""Title of the window that shows the viewing sphere beside the retina's cortical view."""
+"""Title of the window that shows the viewing sphere beside the foveated camera's cortical view."""
 
 
 def viewing_sphere_rays(screen: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
@@ -255,7 +255,7 @@ def gaze_toward(centre: tuple[float, float, float], camera_cfg: FoveatedCameraCf
 def camera_comparison(
     camera: FoveatedCamera, overview: FoveatedCamera
 ) -> tuple[Callable[[], None], Callable[[torch.Tensor], wp.array]]:
-    """Draw the lens and gaze on the viewing sphere used in the docs, beside the retina's cortical view."""
+    """Draw the lens and gaze on the viewing sphere used in the docs, beside the foveated camera's cortical view."""
     size, gap = PREVIEW_SIZE, 6
     divider = torch.tensor((25, 28, 32, 255), dtype=torch.uint8, device=camera.device).expand(size, gap, -1)
 
@@ -280,7 +280,8 @@ def camera_comparison(
             overview.update_batch((overview,), 0.0)
 
     def compose(retina: torch.Tensor) -> wp.array:
-        """The view for one RGB image of the retina (H, W, 3): the viewing sphere, then that cortical view."""
+        """The view for one RGB cortical-view image of the foveated camera (H, W, 3): the viewing sphere, then that
+        image."""
         # The retina may change its foveation at runtime, so its coordinates are read for every frame.
         retina_coords = camera.sampling_coords
         detail = torch.cat((retina, torch.full_like(retina[..., :1], 255)), dim=-1)
