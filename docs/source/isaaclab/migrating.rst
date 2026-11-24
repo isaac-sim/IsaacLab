@@ -1195,6 +1195,63 @@ Named regular-expression groups retain their configuration behavior; use the can
 names in each group.
 
 
+.. _actuators-usd-override-migration:
+
+.. rubric:: Unset values in explicit actuator configurations
+
+**Behavior change — configurations override only the values they set.** With native actuators
+(:attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators`, on by default on every backend), an
+explicit actuator configuration in Isaac Lab 3.0.0 replaced a joint's USD ``NewtonActuator`` prim
+and filled the values it left unset with code defaults. It is now authored onto that prim when the
+prim is the joint's only actuator and has the configuration's drive schema, so a value left unset
+keeps the asset's value. See :ref:`Existing USD actuators <actuators-usd-override>` for the rules.
+Set the value to get the earlier result:
+
+.. list-table:: Values left unset on a joint whose USD actuator is kept
+   :header-rows: 1
+   :widths: 60 40
+
+   * - Left unset
+     - Earlier result
+   * - ``stiffness`` or ``damping``: ``None``, or a mapping that skips the joint
+     - 0
+   * - ``actuator_effort_limit`` of an ideal PD, delayed PD, DC motor, or neural configuration
+     - The joint's USD drive limit (``float("inf")`` without one), or 0 for a joint a mapping skips
+   * - ``actuator_velocity_limit`` of a DC motor or neural configuration
+     - No velocity limit (``float("inf")``)
+   * - ``max_delay`` of a delayed or remotized PD configuration, whose default changed from ``0`` to
+       ``None``
+     - No delay (``max_delay=0``)
+
+A kept PD actuator also keeps its ``newton:constEffort`` bias, which was 0 earlier and has no
+configuration field. A joint without USD actuators, or with ones the configuration cannot keep,
+still gets a new actuator with the earlier defaults. A warning names the joints whose USD actuators
+are replaced.
+
+**Behavior change — required values and mappings.** These checks changed with or without USD
+actuators:
+
+* ``saturation_effort``, ``joint_parameter_lookup``, and ``network_file`` with its MLP settings
+  (``input_order``, ``input_idx``, ``pos_scale``, ``vel_scale``, and ``torque_scale``) default to
+  ``None`` instead of being required, so omitting one no longer raises ``TypeError`` at configuration
+  validation. With native actuators, the joint keeps its USD actuator's value; if no USD actuator
+  provides one, authoring raises ``ValueError`` when the asset is spawned. With
+  ``use_newton_actuators=False``, the DC motor, remotized PD, and neural models still need the value
+  and raise ``ValueError`` when the articulation initializes. An MLP configuration must set
+  ``network_file`` and its settings together or leave them all unset; otherwise validation raises
+  ``ValueError``.
+* With native actuators, a joint that a ``saturation_effort`` mapping skips no longer gets a
+  saturation effort of 0. It counts as unset, so give every joint of the group a value.
+* With native actuators, the ``saturation_effort`` and ``actuator_velocity_limit`` mappings of a DC
+  motor or neural configuration are resolved strictly, like the other fields: a pattern that matches
+  no joint of the group, or a joint that matches two patterns, raises ``ValueError``. In 3.0.0,
+  unmatched patterns were ignored and the first match won.
+* ``isaaclab.sim.schemas.schemas_actuators.resolve_per_dof`` is deprecated and applies the same strict
+  matching. Use :func:`~isaaclab.utils.string.resolve_matching_names_values` for mappings and
+  broadcast scalars directly.
+* Code that reads ``max_delay`` from a delayed or remotized PD configuration must handle ``None``.
+
+
 .. rubric:: Actuator API Moves to ``ActuatorCollection``
 
 In Isaac Lab 3.x, actuator ownership moves from :class:`~isaaclab.assets.Articulation` to a
@@ -2605,8 +2662,9 @@ Visualizers are lightweight viewer apps for monitoring, debugging, and recording
 The details below describe how CLI visualizer arguments resolve together with
 ``SimulationCfg.visualizer_cfgs``.
 
-- ``--viz`` accepts **comma-separated** values (for example ``--viz kit,newton_gl``).
-  ``"newton"`` is a deprecated alias for ``"newton_gl"``; prefer ``"newton_gl"`` or ``"newton_rtx"``.
+- ``--viz`` accepts **comma-separated** values (for example ``--viz kit,newton``).
+  ``"newton_gl"`` is an alias for ``"newton"``. ``"newton_rtx"`` launches ``"newton"`` started in RTX, which adds the viewer camera the Renderer
+  selector needs; plain ``"newton"`` opens in OpenGL with the selector greyed out.
 - ``SimulationCfg.visualizer_cfgs`` defaults to ``VisualizerCfg(backend=[])``. A concrete backend
   runs as declared; ``--viz`` selects backends while preserving the common view and window settings.
 - Task commands accept ``visualizer=NAME`` as an alias of ``--viz NAME``. Custom alternatives belong
@@ -2652,10 +2710,10 @@ Its ``backend`` contains only implementation-specific options. For example:
        ),
    )
 
-The old ``KitVisualizerCfg``, ``NewtonVisualizerCfg``, ``NewtonGLVisualizerCfg``, ``NewtonRTXVisualizerCfg``,
+The old ``KitVisualizerCfg``, ``NewtonVisualizerCfg``, ``NewtonGLVisualizerCfg``,
 ``RerunVisualizerCfg``, and ``ViserVisualizerCfg`` declarations are deprecated in Isaac Lab 3.2
 and remain available as configuration-only adapters. Launch translates their fields into ``VisualizerCfg``
-plus the corresponding ``KitBackendCfg``, ``NewtonGLBackendCfg``, ``NewtonRTXBackendCfg``,
+plus the corresponding ``KitBackendCfg``, ``NewtonGLBackendCfg``,
 ``RerunBackendCfg``, or ``ViserBackendCfg``. ``default_visualizer_cfg`` is also deprecated in Isaac Lab 3.2
 and translated once, preserving explicit per-view overrides. Both forms use the same runtime implementation.
 Deprecated declarations emit ``DeprecationWarning``; update the configuration at its declaration site.
@@ -2674,7 +2732,7 @@ For registered tasks, no backend declaration is needed unless customizing its op
 .. code-block:: python
 
    sim_cfg = SimulationCfg(visualizer_cfgs=VisualizerCfg(max_visible_envs=16))
-   # Select with --viz newton_gl or --viz newton_gl,newton_rtx.
+   # Select with --viz newton or --viz kit,newton.
 
 Use ``isaaclab_tasks.utils.presets.MultiBackendVisualizerCfg`` to customize selectable alternatives.
 Registered tasks complete composition in ``resolve_task_config``. Standalone scripts declaring presets
@@ -2686,8 +2744,8 @@ Custom backend configs inherit ``VisualizerBackendCfg``. Constructors receive th
 ``VisualizerCfg`` and read implementation options from ``cfg.backend``. ``launcher_type`` and
 ``cloning_contexts`` are class-level framework requirements, rather than per-instance user options.
 
-Recording with ``--video viz:newton_gl:streaming_view`` enables the requested camera view,
-with or without a visible ``--viz newton_gl`` window.
+Recording with ``--video viz:newton:streaming_view`` enables the requested camera view,
+with or without a visible ``--viz newton`` window.
 
 **Breaking change — ``--headless`` is removed.**
 
@@ -2695,7 +2753,7 @@ In Isaac Lab 2.x, passing ``--headless`` disabled all visualizers regardless of 
 In Isaac Lab 3.0 the flag is removed: a run opens windows for the visualizers selected by CLI or config,
 with no visualizers selected by default. To keep a selected visualizer windowless, e.g. on a
 machine without a display, set ``HEADLESS=1``: ``--viz kit`` then renders through the Replicator offscreen
-renderer and ``--viz newton_gl`` through pyglet's EGL backend.
+renderer and ``--viz newton`` through pyglet's EGL backend.
 
 .. list-table:: Headless visualizer requirements
    :header-rows: 1
@@ -2708,17 +2766,14 @@ renderer and ``--viz newton_gl`` through pyglet's EGL backend.
      - Replicator offscreen renderer (no display)
      - ``--enable_cameras`` is removed; the launcher enables the Kit camera rendering that
        ``render_rgb_array()`` needs itself, for example for ``--video viz:kit``.
-   * - ``newton_gl``
+   * - ``newton``
      - pyglet EGL backend (no display)
      - None — ``NewtonGLVisualizer`` auto-detects a missing ``$DISPLAY`` and selects EGL.
-   * - ``newton_rtx``
-     - Not supported headlessly
-     - ``render_rgb_array()`` returns ``None``; frame capture requires a display.
 
 **Headless video recording (``--video`` without ``--viz``).**
 
 In Isaac Lab 2.x, ``--video`` alone would use the Kit Replicator pipeline implicitly.
-In Isaac Lab 3.0, ``--video`` alone records from a headless Newton GL visualizer. The equivalent of the
+In Isaac Lab 3.0, ``--video`` alone records from a headless Newton visualizer. The equivalent of the
 2.x behavior records from a headless Kit visualizer, configured by the Kit visualizer of the task config
 if it lists one:
 
@@ -2858,43 +2913,40 @@ camera, force a capture, or remove camera prims on close. See :ref:`visualizatio
 
 .. note::
    :class:`~isaaclab_visualizers.newton.NewtonVisualizerCfg` is deprecated in Isaac Lab 3.2.
-   Use ``VisualizerCfg(backend=NewtonGLBackendCfg())`` (OpenGL rasterizer) or
-   ``VisualizerCfg(backend=NewtonRTXBackendCfg())`` (OVRTX path tracer) instead.
+   Use ``VisualizerCfg(backend=NewtonGLBackendCfg())`` instead; set ``initial_renderer="rtx"`` to start in the
+   OVRTX path tracer.
 
 
-.. rubric:: Newton Visualizer Type Split (``newton`` → ``newton_gl`` / ``newton_rtx``)
+.. rubric:: Newton Visualizer Type (``newton_rtx`` → ``newton`` with RTX rendering)
 
-The single ``NewtonVisualizerCfg`` (``visualizer_type="newton"``) has been split into two
-dedicated configs with separate type identifiers:
+The Newton visualizer is one window that renders with OpenGL or RTX (OVRTX path tracer). ``--viz newton_rtx`` still
+works and launches that window started in RTX, with the **Renderer** selector available to switch back:
 
 .. list-table::
    :header-rows: 1
    :widths: 30 30 40
 
-   * - Old (removed / deprecated)
+   * - Old
      - New
      - Notes
-   * - ``NewtonVisualizerCfg`` (``visualizer_type="newton"``)
-     - :class:`~isaaclab_visualizers.newton.NewtonGLBackendCfg` (``visualizer_type="newton_gl"``)
-     - OpenGL rasterizer; default Newton visualizer
-   * - —
-     - :class:`~isaaclab_visualizers.newton.NewtonRTXBackendCfg` (``visualizer_type="newton_rtx"``)
-     - OVRTX path tracer (experimental)
+   * - ``NewtonVisualizerCfg``, ``--viz newton_gl``
+     - :class:`~isaaclab_visualizers.newton.NewtonGLBackendCfg` (``visualizer_type="newton"``)
+     - OpenGL rasterizer; ``newton_gl`` stays an alias of ``newton``
+   * - ``NewtonRTXBackendCfg``, ``--viz newton_rtx``
+     - :class:`~isaaclab_visualizers.newton.NewtonGLBackendCfg` with ``initial_renderer="rtx"``, or ``--viz newton_rtx``
+     - OVRTX path tracer; the HUD **Renderer** selector switches at runtime
 
-The ``--viz newton`` CLI argument remains as a **deprecated alias** for ``--viz newton_gl``.
-Update scripts and config files to use the explicit form:
+The RTX camera is off for plain ``--viz newton`` because it adds startup time and some frame time, so the selector is
+greyed out there. Use ``--viz newton_rtx`` or ``NewtonGLBackendCfg(rtx_camera=True)`` to enable it:
 
-.. code-block:: bash
+.. code-block:: python
 
-   # Before (Isaac Lab 2.x)
-   uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --viz newton
+   # Start in RTX
+   VisualizerCfg(backend=NewtonGLBackendCfg(initial_renderer="rtx"))
 
-   # After (Isaac Lab 3.x)
-   uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --viz newton_gl
-
-The ``newton`` type in a :class:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg` source (e.g.
-``source="visualizer:newton"``) continues to work as a deprecated alias for ``newton_gl``; use
-``"viz:newton_gl"`` or ``"viz:newton_rtx"``.
+The RTX view needs the ``ovrtx`` package, a physics backend other than PhysX, and no Kit in the process. A
+:class:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg` source of ``"viz:newton_rtx"`` records the ``newton``
+visualizer. ``"viz:newton_gl"`` and ``"visualizer:newton_gl"`` remain accepted aliases.
 
 
 .. rubric:: Window settings and RTX scene ownership
@@ -2922,13 +2974,13 @@ Move Newton's ``window_width`` and ``window_height`` into ``WindowCfg.size``. Re
 steps. Choose the desired display rate; there is no fixed conversion from ``update_frequency``
 when simulation speed varies. Headless recording captures on demand independently of this limit.
 
-Newton RTX now uses authored scene lighting and environment placement. Remove ``rtx_environment``
+The RTX view uses authored scene lighting and environment placement. Remove ``rtx_environment``
 and RTX ``world_spacing`` settings; author lights and transforms in the scene instead. An unlit
 scene stays unlit. ``background_color=None`` preserves the scene background; an explicit color
-changes only the visible background. Use Newton GL for model overlays, live plots, and rigid-body
-dragging; RTX retains visualization markers and camera controls.
+changes only the visible background. Model overlays and rigid-body dragging are available in the OpenGL
+view; RTX retains visualization markers and camera controls.
 
-Newton RTX perspective declarations now become ordinary ``CameraCfg`` entries during
+The RTX view's viewer camera becomes an ordinary ``CameraCfg`` entry during
 ``launch_simulation(env_cfg, ...)``, before scene construction. Pass the configuration containing
 both ``sim`` and ``scene`` to the launcher. Scripts without ``SceneCfg`` declare assets through
 ``ReplicateSession``, call ``instantiate(camera_cfg)``, and select its prim path with ``SceneCameraCfg``;
@@ -2936,13 +2988,12 @@ the visualizer no longer creates cameras or render products. See the standalone 
 :doc:`/source/how-to/visualizer_streaming_camera_view`.
 Per-camera RTX product attributes can be declared in ``CameraCfg.render_settings``.
 
-Newton RTX no longer automatically offers scene sensors or reads ``streaming_sensor_prim_path``.
-Select them explicitly with ``cameras=[SceneCameraCfg(prim_path=...)]`` or
-``view=ImageViewCfg(source="scene_sensor_name")``; otherwise it declares one perspective camera.
-Set its initial pose and window size on the visualizer configuration, rather than deprecated ``env_cfg.viewer``.
+Select scene sensors explicitly with ``cameras=[SceneCameraCfg(prim_path=...)]`` or
+``view=ImageViewCfg(source="scene_sensor_name")``.
+Set the initial pose and window size on the visualizer configuration, rather than deprecated ``env_cfg.viewer``.
 
-Sensor image dimensions remain configured on ``CameraCfg``. Newton RTX perspective resolution
-uses the initial ``WindowCfg.size`` and scales for later window resizes. Newton GL perspective
+Sensor image dimensions remain configured on ``CameraCfg``. RTX perspective resolution
+uses the initial ``WindowCfg.size`` and scales for later window resizes. OpenGL perspective
 resolution follows its framebuffer. For windows and recorders sharing one image selection, use
 ``ImageViewCfg`` as described in :doc:`/source/how-to/visualizer_streaming_camera_view`; existing CLI
 recording source strings remain supported. Pass the shared declaration as ``VideoRecorderCfg(source=view)``.
@@ -2974,9 +3025,9 @@ environment config, sourcing frames from the active visualizer or a scene sensor
    ]
    env = gym.make(task, cfg=env_cfg)
 
-Available sources: ``"viz"`` (auto-pick), ``"viz:kit"``, ``"viz:newton_gl"``, ``"viz:newton_rtx"``,
+Available sources: ``"viz"`` (auto-pick), ``"viz:kit"``, ``"viz:newton"``,
 ``"viz:<type>:streaming_view"``, ``"sensor:<name>[:<channel>]"``. ``visualizer`` is accepted as the long
-form of ``viz``; the ``newton`` type remains a deprecated alias of ``newton_gl``.
+form of ``viz``; ``newton_gl`` is an alias of ``newton``.
 The ``eye`` and ``lookat`` fields have been removed from ``VideoRecorderCfg``; position the
 camera via ``sim.visualizer_cfgs`` instead.
 

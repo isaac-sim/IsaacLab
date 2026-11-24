@@ -344,7 +344,7 @@ class RslRlBaseRunnerCfg:
     resume: bool = False
     """Whether to resume a previous training. Defaults to False.
 
-    This flag will be ignored for distillation.
+    For distillation, resume restores a student checkpoint; a fresh student requires an explicit teacher checkpoint.
     """
 
     load_run: str = ".*"

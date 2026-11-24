@@ -48,6 +48,8 @@ sys.path.insert(0, os.path.abspath("../source/isaaclab_ov"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_ov/isaaclab_ov"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_visualizers"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_visualizers/isaaclab_visualizers"))
+# Only the package root: the package's ``rsl_rl`` subpackage would shadow RSL-RL as a top-level module.
+sys.path.insert(0, os.path.abspath("../source/isaaclab_fovi"))
 
 # -- Project information -----------------------------------------------------
 
@@ -293,12 +295,14 @@ autodoc_mock_imports = [
     "ipywidgets",
     "mpl_toolkits",
     "isaacteleop",
+    "isaaccapture",
     "scipy",
     "hydra",
     "hydra.core",
     "hydra.core.config_store",
     "omegaconf",
     "newton",
+    "fovi",
 ]
 
 # List of zero or more Sphinx-specific warning categories to be squelched (i.e.,
@@ -348,11 +352,13 @@ html_css_files = [
     "css/environment-browser.css",
     "css/demo-browser.css",
     "css/guide-browser.css",
+    "css/foveation-viewer.css",
 ]
 html_js_files = [
     "css/environment-browser.js",
     "css/demo-browser.js",
     "css/guide-browser.js",
+    "css/foveation-viewer.js",
 ]
 
 html_theme_options = {

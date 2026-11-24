@@ -32,6 +32,8 @@ from isaaclab.managers import ActionManager, ObservationManager
 
 from isaaclab_tasks.utils import load_cfg_from_registry
 
+pytestmark = pytest.mark.kitless
+
 _UR10_TASK = "Isaac-Reach-UR10"
 _DIRECT_TASK = "Isaac-Leapp-Direct-Tensor"
 _CREATORS = {
@@ -253,6 +255,10 @@ def test_leapp_export_flow(
         model = description["models"][task]
         connections = {item["isaaclab_connection"] for item in model["inputs"] if "isaaclab_connection" in item}
         assert {"state:robot:joint_pos", "state:robot:joint_vel"} <= connections
+        for port in model["inputs"] + model["outputs"]:
+            if "isaaclab_connection" in port:
+                assert port["axes"][0] == {"kind": "system"}
+                assert len(port["axes"]) == len(port["shape"])
         action_output = next(item for item in model["outputs"] if item["name"] == "actions")
         assert action_output["isaaclab_connection"] == "write:robot:set_joint_position_target_index"
         if backend != "sb3":
@@ -270,7 +276,10 @@ def test_leapp_export_flow(
             (item["name"], item["isaaclab_connection"]) for item in model["outputs"] if "isaaclab_connection" in item
         ] == [("actions", "write:robot:set_joint_position_target_index")]
         action_output = next(item for item in model["outputs"] if item["name"] == "actions")
-        assert action_output["element_names"] == [[f"joint_{index}" for index in range(10)]]
+        assert action_output["axes"] == [
+            {"kind": "system"},
+            {"kind": "element", "names": [f"joint_{index}" for index in range(10)]},
+        ]
         deployment = object.__new__(LeappDeploymentEnv)
         deployment.scene = env.scene
         deployment._leapp_desc = description

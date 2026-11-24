@@ -66,8 +66,12 @@ if args_cli.external_callback:
     external_callback_function = string_to_callable(args_cli.external_callback, separator=".")
     remaining_args_env_registration = external_callback_function()
 
-# Error on unrecognized arguments.
-unrecognized_args = list_intersection(remaining_args, remaining_args_env_registration)
+# Extras of the form "key=value" are Hydra-style task config overrides forwarded to
+# parse_env_cfg(); everything else must be consumed by the external callback or is an error.
+hydra_overrides = [arg for arg in remaining_args if "=" in arg]
+unrecognized_args = list_intersection(
+    [arg for arg in remaining_args if arg not in hydra_overrides], remaining_args_env_registration
+)
 if unrecognized_args:
     parser.error(f"unrecognized arguments: {' '.join(unrecognized_args)}")
 
@@ -92,6 +96,12 @@ logger = logging.getLogger(__name__)
 
 
 def main():
+    logger.warning(
+        "Isaac Lab Mimic is deprecated. Use AutoData for new data generation workflows.\n"
+        "AutoData documentation https://isaac-sim.github.io/AutoData/main/\n"
+        "Migration guide https://isaac-sim.github.io/AutoData/main/pages/workflows/migrate_isaac_lab_mimic.html"
+    )
+
     num_envs = args_cli.num_envs
 
     # Get env name
@@ -109,7 +119,7 @@ def main():
     env_name = task_name
 
     # Launch the runtime the task needs before loading the mimic helpers, which import USD
-    env_cfg = parse_env_cfg(env_name, device=args_cli.device, num_envs=num_envs)
+    env_cfg = parse_env_cfg(env_name, device=args_cli.device, num_envs=num_envs, overrides=hydra_overrides)
     with launch_simulation(env_cfg, args_cli):
         generate(env_name, env_cfg)
 

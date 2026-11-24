@@ -1,6 +1,8 @@
 ﻿isaaclab_mimic.datagen
 ======================
 
+.. include:: /source/features/imitation-learning/_mimic_deprecation.include
+
 .. automodule:: isaaclab_mimic.datagen
 
   .. rubric:: Classes

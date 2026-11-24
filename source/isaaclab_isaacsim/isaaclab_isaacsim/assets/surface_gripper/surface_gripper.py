@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -14,6 +15,8 @@ import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBase
+from isaaclab.assets.surface_gripper import BaseSurfaceGripper
+from isaaclab.assets.surface_gripper import SurfaceGripperCfg as LabSurfaceGripperCfg
 from isaaclab.utils import clone
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
 from isaaclab.utils.warp.memory import resolve_1d_indices, resolve_ids
@@ -53,7 +56,7 @@ def fill_scalar_at_indices(
     out[env_ids[i]] = value
 
 
-class SurfaceGripper(AssetBase):
+class SurfaceGripper(AssetBase, BaseSurfaceGripper):
     """A surface gripper actuator class.
 
     Surface grippers are actuators capable of grasping objects when in close proximity with them.
@@ -77,12 +80,25 @@ class SurfaceGripper(AssetBase):
         Use `--device cpu` to run the simulation on CPU.
     """
 
-    def __init__(self, cfg: SurfaceGripperCfg):
+    def __init__(self, cfg: SurfaceGripperCfg, *, sim: sim_utils.SimulationContext | None = None) -> None:
         """Initialize the surface gripper.
 
         Args:
             cfg: A configuration instance.
+            sim: Simulation context supplied by the scene; the native asset uses its existing lifecycle.
         """
+        if sim is not None and sim is not sim_utils.SimulationContext.instance():
+            raise ValueError("PhysX surface grippers require the current simulation context.")
+        defaults = LabSurfaceGripperCfg()
+        for name, value, default in (
+            ("target_prim_path", cfg.target_prim_path, defaults.target_prim_path),
+            ("tool_offset", tuple(cfg.tool_offset), defaults.tool_offset),
+            ("pad_spacing", cfg.pad_spacing, defaults.pad_spacing),
+            ("pad_radius", cfg.pad_radius, defaults.pad_radius),
+        ):
+            if value != default:
+                raise NotImplementedError(f"PhysX surface grippers do not support the Newton property {name!r}.")
+
         # copy the configuration
         self._cfg = clone(cfg)
 
@@ -148,7 +164,10 @@ class SurfaceGripper(AssetBase):
     """
 
     def set_grippers_command_index(
-        self, states: torch.Tensor | wp.array, env_ids: wp.array | None = None, full_data: bool = False
+        self,
+        states: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | slice | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
     ) -> None:
         """Set the internal gripper command buffer. This function does not write to the simulation.
 
@@ -162,8 +181,7 @@ class SurfaceGripper(AssetBase):
             env_ids: Environment indices. Defaults to None (all environments).
             full_data: Whether ``states`` is indexed by ``env_ids`` (True) or is compact (False).
         """
-        if env_ids is None:
-            env_ids = self._ALL_INDICES
+        env_ids = self._resolve_env_ids(env_ids)
         if full_data:
             self.assert_shape_and_dtype(states, (self.num_instances,), wp.float32, "states")
         else:
@@ -181,7 +199,9 @@ class SurfaceGripper(AssetBase):
             device=self._device,
         )
 
-    def set_grippers_command_mask(self, states: torch.Tensor | wp.array, env_mask: torch.Tensor | None = None) -> None:
+    def set_grippers_command_mask(
+        self, states: torch.Tensor | wp.array, env_mask: torch.Tensor | wp.array | None = None
+    ) -> None:
         """Set the internal gripper command buffer using a boolean mask.
 
         Args:
@@ -191,7 +211,9 @@ class SurfaceGripper(AssetBase):
         env_ids = self._resolve_env_ids(env_mask=env_mask)
         self.set_grippers_command_index(states, env_ids, full_data=True)
 
-    def set_grippers_command(self, states: torch.Tensor, indices: torch.Tensor | None = None) -> None:
+    def set_grippers_command(
+        self, states: torch.Tensor, indices: Sequence[int] | slice | torch.Tensor | wp.array | None = None
+    ) -> None:
         """Set the internal gripper command buffer. This function does not write to the simulation.
 
         .. deprecated:: v2.0.0
@@ -201,8 +223,7 @@ class SurfaceGripper(AssetBase):
             states: A tensor of integers representing the gripper command.
             indices: A tensor of integers representing the indices. Defaults to None.
         """
-        env_ids = self._resolve_env_ids(indices)
-        self.set_grippers_command_index(states, env_ids)
+        self.set_grippers_command_index(states, indices)
 
     def update_gripper_properties_index(
         self,
@@ -362,13 +383,16 @@ class SurfaceGripper(AssetBase):
             self._gripper_view.apply_gripper_action(command_torch.tolist(), indices)
 
     def reset_index(self, env_ids: wp.array | None = None) -> None:
-        """Reset the gripper command buffer.
+        """Open the selected grippers and clear their commands.
 
         Args:
             env_ids: Environment indices. Defaults to None (all environments).
         """
         if env_ids is None:
             env_ids = self._ALL_INDICES
+
+        if env_ids.shape[0] == 0:
+            return
 
         # Reset the selected grippers to an open status
         wp.launch(
@@ -378,7 +402,9 @@ class SurfaceGripper(AssetBase):
             outputs=[self._gripper_command],
             device=self._device,
         )
-        self.write_data_to_sim()
+        # Forward only the reset selection. Other worlds may have staged commands.
+        indices = wp.to_torch(env_ids).reshape(-1, 1).tolist()
+        self._gripper_view.apply_gripper_action(wp.to_torch(self._gripper_command).tolist(), indices)
         # Sets the gripper last command to be 0.0 (do nothing)
         wp.launch(
             fill_scalar_at_indices,
@@ -396,7 +422,7 @@ class SurfaceGripper(AssetBase):
             device=self._device,
         )
 
-    def reset_mask(self, env_mask: torch.Tensor | None = None) -> None:
+    def reset_mask(self, env_mask: torch.Tensor | wp.array | None = None) -> None:
         """Reset the gripper command buffer using a boolean mask.
 
         Args:
@@ -405,7 +431,11 @@ class SurfaceGripper(AssetBase):
         env_ids = self._resolve_env_ids(env_mask=env_mask)
         self.reset_index(env_ids)
 
-    def reset(self, env_ids: torch.Tensor | None = None, env_mask: wp.array | None = None) -> None:
+    def reset(
+        self,
+        env_ids: Sequence[int] | slice | torch.Tensor | wp.array | None = None,
+        env_mask: torch.Tensor | wp.array | None = None,
+    ) -> None:
         """Reset the gripper command buffer.
 
         Args:
@@ -414,13 +444,17 @@ class SurfaceGripper(AssetBase):
                 ``env_ids``. Defaults to None.
         """
         if env_mask is not None:
-            self.reset_mask(wp.to_torch(env_mask))
+            self.reset_mask(env_mask)
         else:
             self.reset_index(self._resolve_env_ids(env_ids))
 
     """
     Initialization.
     """
+
+    def close(self) -> None:
+        """Release lifecycle callbacks; repeated calls are safe."""
+        self._clear_callbacks()
 
     def _initialize_impl(self) -> None:
         """Initializes the gripper-related handles and internal buffers.

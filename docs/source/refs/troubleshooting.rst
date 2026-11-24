@@ -41,6 +41,10 @@ install time. Most packages cannot be deselected at all.
        checkout's uv environment.
    * - ``isaaclab_mimic``, ``isaaclab_teleop``
      - Optional integrations. Select the ``mimic`` or ``teleop`` extra for your workflow.
+   * - ``isaaclab_fovi``, ``fovi``
+     - The optional, experimental foveated camera. Select the ``fovi`` extra, for example
+       ``uv run --extra fovi isaaclab example foveated-camera``. Without it, the
+       ``IsaacContrib-Cartpole-Camera-Fovi`` task is not registered.
    * - ``rsl_rl``, ``rl_games``, ``skrl``, ``stable_baselines3``
      - ``rsl_rl`` is installed by default. Select ``rl-games``, ``skrl``, or ``sb3``
        for the other frameworks, for example ``uv run --extra skrl isaaclab train ...``.
