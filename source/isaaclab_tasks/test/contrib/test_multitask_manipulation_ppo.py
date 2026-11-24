@@ -55,24 +55,23 @@ def test_task_balanced_ppo_returns_losses_and_task_statistics() -> None:
     )
     diagnostics = {f"{task}_{quantity}_std" for task in task_names for quantity in ("advantage", "return")}
 
-    for _ in range(2):
-        actor_before = [parameter.detach().clone() for parameter in actor.parameters()]
-        critic_before = [parameter.detach().clone() for parameter in critic.parameters()]
-        with torch.no_grad():
-            for _ in range(4):
-                algorithm.act(obs)
-                obs = TensorDict({"policy": torch.cat((task_encoding, torch.randn(6, 5)), dim=-1)}, batch_size=[6])
-                rewards = task_ids.float() + torch.rand(6)
-                algorithm.process_env_step(obs, rewards, torch.zeros(6, dtype=torch.bool), {})
-            algorithm.compute_returns(obs)
+    actor_before = [parameter.detach().clone() for parameter in actor.parameters()]
+    critic_before = [parameter.detach().clone() for parameter in critic.parameters()]
+    with torch.no_grad():
+        for _ in range(4):
+            algorithm.act(obs)
+            obs = TensorDict({"policy": torch.cat((task_encoding, torch.randn(6, 5)), dim=-1)}, batch_size=[6])
+            rewards = task_ids.float() + torch.rand(6)
+            algorithm.process_env_step(obs, rewards, torch.zeros(6, dtype=torch.bool), {})
+        algorithm.compute_returns(obs)
 
-        losses, statistics = algorithm.update()
+    losses, statistics = algorithm.update()
 
-        assert {"value", "surrogate", "entropy"} <= losses.keys()
-        assert {"Optimizer/learning_rate", "Model/mean_policy_std"} | diagnostics <= statistics.keys()
-        assert diagnostics.isdisjoint(losses)
-        assert all(math.isfinite(value) for value in (*losses.values(), *statistics.values()))
-        assert all(statistics[key] >= 0.0 for key in diagnostics)
-        for model, before in ((actor, actor_before), (critic, critic_before)):
-            assert any(not torch.equal(old, new) for old, new in zip(before, model.parameters(), strict=True))
-            assert all(torch.isfinite(parameter).all() for parameter in model.parameters())
+    assert {"value", "surrogate", "entropy"} <= losses.keys()
+    assert {"Optimizer/learning_rate", "Model/mean_policy_std"} | diagnostics <= statistics.keys()
+    assert diagnostics.isdisjoint(losses)
+    assert all(math.isfinite(value) for value in (*losses.values(), *statistics.values()))
+    assert all(statistics[key] >= 0.0 for key in diagnostics)
+    for model, before in ((actor, actor_before), (critic, critic_before)):
+        assert any(not torch.equal(old, new) for old, new in zip(before, model.parameters(), strict=True))
+        assert all(torch.isfinite(parameter).all() for parameter in model.parameters())

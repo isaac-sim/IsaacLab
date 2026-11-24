@@ -16,6 +16,8 @@ from isaaclab.sim import RigidBodyMaterialBaseCfg, SimulationCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
+from isaaclab_tasks.contrib.factory.factory_env_cfg import FRANKA_MIMIC_ISAACSIM_BODY_ORDER
+
 from .disassembly_tasks_cfg import ASSET_DIR, Extraction
 
 OBS_DIM_CFG = {
@@ -86,21 +88,7 @@ class DisassemblySceneCfg(InteractiveSceneCfg):
         init_state=AssetBaseCfg.InitialStateCfg(pos=(0.55, 0.0, 0.0), rot=(0.0, 0.0, 0.70711, 0.70711)),
     )
     robot = ArticulationCfg(
-        body_ordering=(
-            "panda_link0",
-            "panda_link1",
-            "panda_link2",
-            "panda_link3",
-            "panda_link4",
-            "panda_link5",
-            "panda_link6",
-            "panda_link7",
-            "force_sensor",
-            "panda_hand",
-            "panda_leftfinger",
-            "panda_rightfinger",
-            "panda_fingertip_centered",
-        ),
+        body_ordering=FRANKA_MIMIC_ISAACSIM_BODY_ORDER,
         prim_path="{ENV_REGEX_NS}/Robot",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ASSET_DIR}/franka_mimic.usd",

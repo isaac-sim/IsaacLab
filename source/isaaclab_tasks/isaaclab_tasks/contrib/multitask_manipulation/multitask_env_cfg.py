@@ -24,6 +24,10 @@ from isaaclab.scene import add as add_scene
 from isaaclab.utils import clone, configclass, replace
 from isaaclab.visualizers import VisualizerCfg
 
+from isaaclab_tasks.contrib.cabinet.config.openarm.joint_pos_env_cfg import (
+    CABINET_ISAACSIM_BODY_ORDER,
+    CABINET_ISAACSIM_JOINT_ORDER,
+)
 from isaaclab_tasks.contrib.lift.config.openarm.joint_pos_env_cfg import OpenArmCubeLiftEnvCfg
 from isaaclab_tasks.core.cabinet.cabinet_env_cfg import LIGHT_CFG, PLANE_CFG
 from isaaclab_tasks.core.cabinet.config.franka.joint_pos_env_cfg import FrankaCabinetEnvCfg
@@ -109,23 +113,8 @@ def _make_scene_cfg() -> InteractiveSceneCfg:
     scene = OpenArmCubeLiftEnvCfg().scene
     scene.table = None
     cabinet_scene = FrankaCabinetEnvCfg().scene
-    cabinet_scene.cabinet.joint_ordering = (
-        "drawer_bottom_joint",
-        "drawer_top_joint",
-        "door_left_joint",
-        "door_right_joint",
-    )
-    cabinet_scene.cabinet.body_ordering = (
-        "sektion",
-        "drawer_bottom",
-        "drawer_top",
-        "door_left_link",
-        "door_right_link",
-        "drawer_handle_bottom",
-        "drawer_handle_top",
-        "door_left_nob_link",
-        "door_right_nob_link",
-    )
+    cabinet_scene.cabinet.joint_ordering = CABINET_ISAACSIM_JOINT_ORDER
+    cabinet_scene.cabinet.body_ordering = CABINET_ISAACSIM_BODY_ORDER
     add_scene(scene, cabinet_scene, asset_skip=_skip_global_asset)
     reach_scene = UR10ReachEnvCfg().scene
     reach_scene.table = None

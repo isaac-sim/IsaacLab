@@ -24,6 +24,25 @@ from isaaclab_tasks.contrib.cabinet.config.openarm.cabinet_openarm_env_cfg impor
 )
 
 
+CABINET_ISAACSIM_JOINT_ORDER = (
+    "drawer_bottom_joint",
+    "drawer_top_joint",
+    "door_left_joint",
+    "door_right_joint",
+)
+CABINET_ISAACSIM_BODY_ORDER = (
+    "sektion",
+    "drawer_bottom",
+    "drawer_top",
+    "door_left_link",
+    "door_right_link",
+    "drawer_handle_bottom",
+    "drawer_handle_top",
+    "door_left_nob_link",
+    "door_right_nob_link",
+)
+
+
 @configclass
 class OpenArmCabinetEnvCfg(CabinetEnvCfg):
     def __post_init__(self):
@@ -31,23 +50,8 @@ class OpenArmCabinetEnvCfg(CabinetEnvCfg):
         super().__post_init__()
 
         # Preserve the original policy-facing cabinet axes.
-        self.scene.cabinet.joint_ordering = (
-            "drawer_bottom_joint",
-            "drawer_top_joint",
-            "door_left_joint",
-            "door_right_joint",
-        )
-        self.scene.cabinet.body_ordering = (
-            "sektion",
-            "drawer_bottom",
-            "drawer_top",
-            "door_left_link",
-            "door_right_link",
-            "drawer_handle_bottom",
-            "drawer_handle_top",
-            "door_left_nob_link",
-            "door_right_nob_link",
-        )
+        self.scene.cabinet.joint_ordering = CABINET_ISAACSIM_JOINT_ORDER
+        self.scene.cabinet.body_ordering = CABINET_ISAACSIM_BODY_ORDER
 
         # Set OpenArm as robot
         self.scene.robot = replace(

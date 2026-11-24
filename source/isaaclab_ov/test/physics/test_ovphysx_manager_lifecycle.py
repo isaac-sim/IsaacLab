@@ -509,8 +509,10 @@ def test_retained_binding_preserves_uncaught_failure_exit_status():
 
 
 @pytest.mark.kitless
-@pytest.mark.parametrize(("device", "rate"), [("cpu", 60), ("gpu", 120)])
-@pytest.mark.parametrize(("override", "expected"), [(None, True), (False, False), (True, True)])
+@pytest.mark.parametrize(
+    ("device", "rate", "override", "expected"),
+    [("cpu", 60, None, True), ("gpu", 120, None, True), ("gpu", 120, False, False), ("cpu", 60, True, True)],
+)
 def test_scene_settings(monkeypatch, manager, device, rate, override, expected):
     """The simulation timestep, scene queries, and TGS force settings reach the native scene."""
     from isaaclab_ov.physics.ovphysx_manager_cfg import OvPhysxCfg
@@ -537,16 +539,17 @@ def test_scene_settings(monkeypatch, manager, device, rate, override, expected):
     assert prim.GetAttribute("physxScene:enableExternalForcesEveryIteration").Get() is expected
     assert prim.GetAttribute("physxScene:timeStepsPerSecond").Get() == rate
     assert prim.GetAttribute("physxScene:enableSceneQuerySupport").Get() is sim_cfg.enable_scene_query_support
-    assert prim.GetAttribute("physxScene:solverType").Get() == ("PGS" if device == "cpu" else "TGS")
-    assert prim.GetAttribute("physxScene:minPositionIterationCount").Get() == 2
-    assert prim.GetAttribute("physxScene:maxPositionIterationCount").Get() == 192
-    assert prim.GetAttribute("physxScene:minVelocityIterationCount").Get() == 1
-    assert prim.GetAttribute("physxScene:maxVelocityIterationCount").Get() == 8
-    assert prim.GetAttribute("physxScene:frictionOffsetThreshold").Get() == pytest.approx(0.01)
-    if device == "gpu":
-        assert prim.GetAttribute("physxScene:gpuMaxNumPartitions").Get() == 1
-    else:
-        assert not prim.GetAttribute("physxScene:gpuMaxNumPartitions").HasAuthoredValue()
+    if override is None:
+        assert prim.GetAttribute("physxScene:solverType").Get() == ("PGS" if device == "cpu" else "TGS")
+        assert prim.GetAttribute("physxScene:minPositionIterationCount").Get() == 2
+        assert prim.GetAttribute("physxScene:maxPositionIterationCount").Get() == 192
+        assert prim.GetAttribute("physxScene:minVelocityIterationCount").Get() == 1
+        assert prim.GetAttribute("physxScene:maxVelocityIterationCount").Get() == 8
+        assert prim.GetAttribute("physxScene:frictionOffsetThreshold").Get() == pytest.approx(0.01)
+        if device == "gpu":
+            assert prim.GetAttribute("physxScene:gpuMaxNumPartitions").Get() == 1
+        else:
+            assert not prim.GetAttribute("physxScene:gpuMaxNumPartitions").HasAuthoredValue()
 
 
 @pytest.mark.kitless

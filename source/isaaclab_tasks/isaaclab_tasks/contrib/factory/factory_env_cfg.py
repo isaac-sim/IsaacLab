@@ -18,6 +18,22 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from .factory_tasks_cfg import ASSET_DIR, FactoryTask, GearMesh, NutThread, PegInsert
 
+FRANKA_MIMIC_ISAACSIM_BODY_ORDER = (
+    "panda_link0",
+    "panda_link1",
+    "panda_link2",
+    "panda_link3",
+    "panda_link4",
+    "panda_link5",
+    "panda_link6",
+    "panda_link7",
+    "force_sensor",
+    "panda_hand",
+    "panda_leftfinger",
+    "panda_rightfinger",
+    "panda_fingertip_centered",
+)
+
 OBS_DIM_CFG = {
     "fingertip_pos": 3,
     "fingertip_pos_rel_fixed": 3,
@@ -100,21 +116,7 @@ class FactorySceneCfg(InteractiveSceneCfg):
     )
 
     robot = ArticulationCfg(
-        body_ordering=(
-            "panda_link0",
-            "panda_link1",
-            "panda_link2",
-            "panda_link3",
-            "panda_link4",
-            "panda_link5",
-            "panda_link6",
-            "panda_link7",
-            "force_sensor",
-            "panda_hand",
-            "panda_leftfinger",
-            "panda_rightfinger",
-            "panda_fingertip_centered",
-        ),
+        body_ordering=FRANKA_MIMIC_ISAACSIM_BODY_ORDER,
         prim_path="{ENV_REGEX_NS}/Robot",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ASSET_DIR}/franka_mimic.usd",
