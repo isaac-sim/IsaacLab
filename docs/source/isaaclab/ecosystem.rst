@@ -214,8 +214,9 @@ Concretely, Isaac Lab offers:
   Kit-based RTX, or OvRTX for rendering pipelines.
 * **Rich sensor suite** — cameras, ray-casters, contact sensors, IMU,
   frame transformers, joint-wrench sensors, and visuo-tactile sensors.
-* **Imitation learning tooling** — ``isaaclab_mimic`` provides cuRobo-based planners and a
-  full dataset-generation pipeline for human demonstration collection.
+* **Imitation learning tooling** — ``isaaclab_mimic`` (deprecated) provides cuRobo-based planners
+  and a dataset-generation pipeline for human demonstrations. Use
+  `AutoData <https://isaac-sim.github.io/AutoData/main/>`__ for new data generation workflows.
 * **Teleoperation and XR** — ``isaaclab_teleop`` supports OpenXR, CloudXR, gamepads,
   spacemouses, and Haply devices with retargeters for manipulators and humanoids.
 * **Hydra configuration management** — hierarchical configs with command-line overrides and a

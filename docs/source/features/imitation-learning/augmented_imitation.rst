@@ -3,6 +3,8 @@
 Augmented Imitation Learning
 ============================
 
+.. include:: /source/features/imitation-learning/_mimic_deprecation.include
+
 Use `Cosmos <https://www.nvidia.com/en-us/ai/cosmos/>`_ to add visual variation to
 Isaac Lab demonstrations, then train visuomotor policies on the augmented data.
 

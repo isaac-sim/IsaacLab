@@ -282,6 +282,13 @@ EXAMPLES = (
         "Inspect camera and force-field tactile data.",
         **_ISAACSIM,
     ),
+    ProgramSpec(
+        "foveated-camera",
+        "examples/sensors/foveated_camera.py",
+        "Explore a cluttered scene through an experimental foveated camera.",
+        extras=("fovi",),
+        required_modules=("isaaclab_fovi", "fovi"),
+    ),
 )
 
 
@@ -361,7 +368,7 @@ def run_program(command: str, program: ProgramSpec, args: list[str] | None = Non
                 next_program.name,
                 *(next_program.newton_gl_args or ()),
                 "--viz",
-                "newton_gl",
+                "newton",
             ],
         )
 

@@ -68,6 +68,7 @@
             ["IsaacContrib-Assemble-Trocar-G129-Dex3", "rlinf", "isaacsim_physx,newton_mjwarp", "", "", "environments/previews/manipulation/g1_assemble_trocar.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||", "newton_mjwarp||"]],
             ["IsaacContrib-AutoMate-Assembly-Direct", "rl_games", "", "", "", "environment-previews/automate_assembly.jpg"],
             ["IsaacContrib-AutoMate-Disassembly-Direct", "rl_games", "", "", "", "environment-previews/automate_disassembly.jpg"],
+            ["IsaacContrib-Cartpole-Camera-Fovi", "rsl_rl", "isaacsim_physx,newton_kamino,newton_mjwarp,newton_steel,ovphysx", "isaacsim_rtx,newton_optix,newton_warp,ovrtx", "depth,rgb", "", false, {}, {}, "", null, ["||", "||depth", "||rgb", "|isaacsim_rtx|", "|isaacsim_rtx|depth", "|isaacsim_rtx|rgb", "|newton_optix|", "|newton_optix|depth", "|newton_optix|rgb", "|newton_warp|", "|newton_warp|depth", "|newton_warp|rgb", "|ovrtx|", "|ovrtx|depth", "|ovrtx|rgb", "isaacsim_physx||", "isaacsim_physx||depth", "isaacsim_physx||rgb", "isaacsim_physx|isaacsim_rtx|", "isaacsim_physx|isaacsim_rtx|depth", "isaacsim_physx|isaacsim_rtx|rgb", "isaacsim_physx|newton_optix|", "isaacsim_physx|newton_optix|depth", "isaacsim_physx|newton_optix|rgb", "isaacsim_physx|newton_warp|", "isaacsim_physx|newton_warp|depth", "isaacsim_physx|newton_warp|rgb", "newton_kamino||", "newton_kamino||depth", "newton_kamino||rgb", "newton_kamino|isaacsim_rtx|", "newton_kamino|isaacsim_rtx|depth", "newton_kamino|isaacsim_rtx|rgb", "newton_kamino|newton_optix|", "newton_kamino|newton_optix|depth", "newton_kamino|newton_optix|rgb", "newton_kamino|newton_warp|", "newton_kamino|newton_warp|depth", "newton_kamino|newton_warp|rgb", "newton_kamino|ovrtx|", "newton_kamino|ovrtx|depth", "newton_kamino|ovrtx|rgb", "newton_mjwarp||", "newton_mjwarp||depth", "newton_mjwarp||rgb", "newton_mjwarp|isaacsim_rtx|", "newton_mjwarp|isaacsim_rtx|depth", "newton_mjwarp|isaacsim_rtx|rgb", "newton_mjwarp|newton_optix|", "newton_mjwarp|newton_optix|depth", "newton_mjwarp|newton_optix|rgb", "newton_mjwarp|newton_warp|", "newton_mjwarp|newton_warp|depth", "newton_mjwarp|newton_warp|rgb", "newton_mjwarp|ovrtx|", "newton_mjwarp|ovrtx|depth", "newton_mjwarp|ovrtx|rgb", "newton_steel||", "newton_steel||depth", "newton_steel||rgb", "newton_steel|isaacsim_rtx|", "newton_steel|isaacsim_rtx|depth", "newton_steel|isaacsim_rtx|rgb", "newton_steel|newton_optix|", "newton_steel|newton_optix|depth", "newton_steel|newton_optix|rgb", "newton_steel|newton_warp|", "newton_steel|newton_warp|depth", "newton_steel|newton_warp|rgb", "newton_steel|ovrtx|", "newton_steel|ovrtx|depth", "newton_steel|ovrtx|rgb", "ovphysx||", "ovphysx||depth", "ovphysx||rgb", "ovphysx|newton_optix|", "ovphysx|newton_optix|depth", "ovphysx|newton_optix|rgb", "ovphysx|newton_warp|", "ovphysx|newton_warp|depth", "ovphysx|newton_warp|rgb", "ovphysx|ovrtx|", "ovphysx|ovrtx|depth", "ovphysx|ovrtx|rgb"]],
             ["IsaacContrib-Cartpole-Camera-Showcase-Direct", "skrl", "", "", "box_box,box_discrete,box_multidiscrete,dict_box,dict_discrete,dict_multidiscrete,tuple_box,tuple_discrete,tuple_multidiscrete", "", false, {}, {}, "", null, ["||", "||box_box", "||box_discrete", "||box_multidiscrete", "||dict_box", "||dict_discrete", "||dict_multidiscrete", "||tuple_box", "||tuple_discrete", "||tuple_multidiscrete"]],
             ["IsaacContrib-Cartpole-Showcase-Direct", "skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,newton_steel,ovphysx", "", "box_box,box_discrete,box_multidiscrete,dict_box,dict_discrete,dict_multidiscrete,discrete_box,discrete_discrete,discrete_multidiscrete,multidiscrete_box,multidiscrete_discrete,multidiscrete_multidiscrete,tuple_box,tuple_discrete,tuple_multidiscrete", "environment-previews/cartpole.jpg", false, {}, {}, "", null, ["||", "||box_box", "||box_discrete", "||box_multidiscrete", "||dict_box", "||dict_discrete", "||dict_multidiscrete", "||discrete_box", "||discrete_discrete", "||discrete_multidiscrete", "||multidiscrete_box", "||multidiscrete_discrete", "||multidiscrete_multidiscrete", "||tuple_box", "||tuple_discrete", "||tuple_multidiscrete", "isaacsim_physx||", "isaacsim_physx||box_box", "isaacsim_physx||box_discrete", "isaacsim_physx||box_multidiscrete", "isaacsim_physx||dict_box", "isaacsim_physx||dict_discrete", "isaacsim_physx||dict_multidiscrete", "isaacsim_physx||discrete_box", "isaacsim_physx||discrete_discrete", "isaacsim_physx||discrete_multidiscrete", "isaacsim_physx||multidiscrete_box", "isaacsim_physx||multidiscrete_discrete", "isaacsim_physx||multidiscrete_multidiscrete", "isaacsim_physx||tuple_box", "isaacsim_physx||tuple_discrete", "isaacsim_physx||tuple_multidiscrete", "newton_kamino||", "newton_kamino||box_box", "newton_kamino||box_discrete", "newton_kamino||box_multidiscrete", "newton_kamino||dict_box", "newton_kamino||dict_discrete", "newton_kamino||dict_multidiscrete", "newton_kamino||discrete_box", "newton_kamino||discrete_discrete", "newton_kamino||discrete_multidiscrete", "newton_kamino||multidiscrete_box", "newton_kamino||multidiscrete_discrete", "newton_kamino||multidiscrete_multidiscrete", "newton_kamino||tuple_box", "newton_kamino||tuple_discrete", "newton_kamino||tuple_multidiscrete", "newton_mjwarp||", "newton_mjwarp||box_box", "newton_mjwarp||box_discrete", "newton_mjwarp||box_multidiscrete", "newton_mjwarp||dict_box", "newton_mjwarp||dict_discrete", "newton_mjwarp||dict_multidiscrete", "newton_mjwarp||discrete_box", "newton_mjwarp||discrete_discrete", "newton_mjwarp||discrete_multidiscrete", "newton_mjwarp||multidiscrete_box", "newton_mjwarp||multidiscrete_discrete", "newton_mjwarp||multidiscrete_multidiscrete", "newton_mjwarp||tuple_box", "newton_mjwarp||tuple_discrete", "newton_mjwarp||tuple_multidiscrete", "newton_steel||", "newton_steel||box_box", "newton_steel||box_discrete", "newton_steel||box_multidiscrete", "newton_steel||dict_box", "newton_steel||dict_discrete", "newton_steel||dict_multidiscrete", "newton_steel||discrete_box", "newton_steel||discrete_discrete", "newton_steel||discrete_multidiscrete", "newton_steel||multidiscrete_box", "newton_steel||multidiscrete_discrete", "newton_steel||multidiscrete_multidiscrete", "newton_steel||tuple_box", "newton_steel||tuple_discrete", "newton_steel||tuple_multidiscrete", "ovphysx||", "ovphysx||box_box", "ovphysx||box_discrete", "ovphysx||box_multidiscrete", "ovphysx||dict_box", "ovphysx||dict_discrete", "ovphysx||dict_multidiscrete", "ovphysx||discrete_box", "ovphysx||discrete_discrete", "ovphysx||discrete_multidiscrete", "ovphysx||multidiscrete_box", "ovphysx||multidiscrete_discrete", "ovphysx||multidiscrete_multidiscrete", "ovphysx||tuple_box", "ovphysx||tuple_discrete", "ovphysx||tuple_multidiscrete"]],
             ["IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav", "rsl_rl", "", "", "", "environment-previews/rizon4s_gear_assembly.jpg"],
@@ -83,7 +84,6 @@
             ["IsaacContrib-DrLegs-HoldPose", "rsl_rl", "isaacsim_physx,newton_kamino", "", "", "environment-previews/dr_legs.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||", "newton_kamino||"]],
             ["IsaacContrib-DrLegs-Walk", "rsl_rl", "isaacsim_physx,newton_kamino", "", "", "environment-previews/dr_legs.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||", "newton_kamino||"]],
             ["IsaacContrib-ExhaustPipe-GR1T2-Pink-IK-Abs", "", "", "", "", "environment-previews/gr1_exhaust_pipe.jpg"],
-            ["IsaacContrib-Factory-Franka", "rsl_rl", "isaacsim_physx", "", "accumulator,choice,gear_mesh_large,gear_mesh_medium,gear_mesh_small,nut_thread_m16,peg_insert_12mm,peg_insert_16mm,peg_insert_4mm,peg_insert_8mm,rod_insert_12mm,rod_insert_16mm,rod_insert_4mm,rod_insert_8mm", "environment-previews/factory_franka_nist.jpg", false, {}, {}, "", null, ["||", "||accumulator", "||choice", "||gear_mesh_large", "||gear_mesh_medium", "||gear_mesh_small", "||nut_thread_m16", "||peg_insert_12mm", "||peg_insert_16mm", "||peg_insert_4mm", "||peg_insert_8mm", "||rod_insert_12mm", "||rod_insert_16mm", "||rod_insert_4mm", "||rod_insert_8mm", "isaacsim_physx||", "isaacsim_physx||accumulator", "isaacsim_physx||choice", "isaacsim_physx||gear_mesh_large", "isaacsim_physx||gear_mesh_medium", "isaacsim_physx||gear_mesh_small", "isaacsim_physx||nut_thread_m16", "isaacsim_physx||peg_insert_12mm", "isaacsim_physx||peg_insert_16mm", "isaacsim_physx||peg_insert_4mm", "isaacsim_physx||peg_insert_8mm", "isaacsim_physx||rod_insert_12mm", "isaacsim_physx||rod_insert_16mm", "isaacsim_physx||rod_insert_4mm", "isaacsim_physx||rod_insert_8mm"]],
             ["IsaacContrib-Factory-GearMesh-Direct", "rl_games", "", "", "", "environment-previews/gear_mesh.jpg"],
             ["IsaacContrib-Factory-NutThread-Direct", "rl_games", "", "", "", "environment-previews/nut_thread.jpg"],
             ["IsaacContrib-Factory-PegInsert-Direct", "rl_games", "", "", "", "environment-previews/peg_insert.jpg"],
@@ -101,17 +101,20 @@
             ["IsaacContrib-Lift-Cube-Franka-IK-Rel", "", "", "", "", "environment-previews/franka_lift.jpg"],
             ["IsaacContrib-Lift-Cube-OpenArm", "rl_games,rsl_rl", "", "", "", "environment-previews/openarm_uni_lift.jpg"],
             ["IsaacContrib-Multitask-Manipulation", "rsl_rl", "", "", "", "environment-previews/multitask_manipulation.jpg"],
+            ["IsaacContrib-NIST-Franka", "rsl_rl", "", "", "", "environment-previews/nist_franka.jpg"],
             ["IsaacContrib-Navigation-3DObstacles-ARL-Robot-1", "rl_games,rsl_rl,skrl", "", "", "", "environments/previews/drone_arl/arl_robot_1_navigation.jpg"],
             ["IsaacContrib-Navigation-Flat-AnymalC", "rsl_rl,skrl", "", "", "", "environment-previews/anymal_c_nav.jpg"],
             ["IsaacContrib-NutPour-GR1T2-Pink-IK-Abs", "", "", "", "", "environment-previews/gr1_nut_pour.jpg"],
             ["IsaacContrib-Open-Drawer-Franka-IK-Abs", "rsl_rl", "isaacsim_physx,newton_mjwarp,newton_steel,ovphysx", "", "", "environment-previews/franka_open_drawer.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||", "newton_mjwarp||", "newton_steel||", "ovphysx||"]],
             ["IsaacContrib-Open-Drawer-Franka-IK-Rel", "rsl_rl", "isaacsim_physx,newton_mjwarp,newton_steel,ovphysx", "", "", "environment-previews/franka_open_drawer.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||", "newton_mjwarp||", "newton_steel||", "ovphysx||"]],
             ["IsaacContrib-Open-Drawer-OpenArm", "rl_games,rsl_rl", "", "", "", "environment-previews/openarm_uni_open_drawer.jpg"],
-            ["IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs", "", "", "isaacsim_rtx,newton_optix,newton_warp", "", "environment-previews/g1_pick_place_fixed_base.jpg", false, {}, {}, "", null, ["||", "|isaacsim_rtx|", "|newton_optix|", "|newton_warp|"]],
+            ["IsaacContrib-Pack-AGX-Orin-H2-Sharpa", "rlinf", "", "", ""],
+            ["IsaacContrib-Pick-And-Place-Apple-H2-Sharpa", "rlinf", "", "", ""],
+            ["IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs", "", "isaacsim_physx,newton_mjwarp,ovphysx", "isaacsim_rtx,newton_optix,newton_warp,ovrtx", "rgb", "environment-previews/g1_pick_place_fixed_base.jpg", false, {}, {}, "", null, ["||", "||rgb", "|isaacsim_rtx|", "|isaacsim_rtx|rgb", "|newton_optix|", "|newton_optix|rgb", "|newton_warp|", "|newton_warp|rgb", "isaacsim_physx||", "isaacsim_physx||rgb", "isaacsim_physx|isaacsim_rtx|", "isaacsim_physx|isaacsim_rtx|rgb", "isaacsim_physx|newton_optix|", "isaacsim_physx|newton_optix|rgb", "isaacsim_physx|newton_warp|", "isaacsim_physx|newton_warp|rgb", "newton_mjwarp||", "newton_mjwarp||rgb", "newton_mjwarp|isaacsim_rtx|", "newton_mjwarp|isaacsim_rtx|rgb", "newton_mjwarp|newton_optix|", "newton_mjwarp|newton_optix|rgb", "newton_mjwarp|newton_warp|", "newton_mjwarp|newton_warp|rgb", "newton_mjwarp|ovrtx|", "newton_mjwarp|ovrtx|rgb", "ovphysx|newton_optix|", "ovphysx|newton_optix|rgb", "ovphysx|newton_warp|", "ovphysx|newton_warp|rgb", "ovphysx|ovrtx|", "ovphysx|ovrtx|rgb"]],
             ["IsaacContrib-PickPlace-G1-InspireFTP-Abs", "", "", "", "", "environment-previews/g1_pick_place.jpg"],
-            ["IsaacContrib-PickPlace-GR1T2-Abs", "", "", "isaacsim_rtx,newton_optix,newton_warp", "", "environment-previews/gr_1_pick_place.jpg", false, {}, {}, "", null, ["||", "|isaacsim_rtx|", "|newton_optix|", "|newton_warp|"]],
-            ["IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs", "", "", "", "", "environment-previews/gr_1_pick_place_waist.jpg"],
-            ["IsaacContrib-PickPlace-Locomanipulation-G1-Abs", "", "", "isaacsim_rtx,newton_optix,newton_warp", "", "environment-previews/g1_pick_place_locomanipulation.jpg", false, {}, {}, "", null, ["||", "|isaacsim_rtx|", "|newton_optix|", "|newton_warp|"]],
+            ["IsaacContrib-PickPlace-GR1T2-Abs", "", "isaacsim_physx,newton_mjwarp,ovphysx", "isaacsim_rtx,newton_optix,newton_warp,ovrtx", "", "environment-previews/gr_1_pick_place.jpg", false, {}, {}, "", null, ["||", "|isaacsim_rtx|", "|newton_optix|", "|newton_warp|", "isaacsim_physx||", "isaacsim_physx|isaacsim_rtx|", "isaacsim_physx|newton_optix|", "isaacsim_physx|newton_warp|", "newton_mjwarp||", "newton_mjwarp|isaacsim_rtx|", "newton_mjwarp|newton_optix|", "newton_mjwarp|newton_warp|", "newton_mjwarp|ovrtx|", "ovphysx|newton_optix|", "ovphysx|newton_warp|", "ovphysx|ovrtx|"]],
+            ["IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs", "", "isaacsim_physx,newton_mjwarp,ovphysx", "", "", "environment-previews/gr_1_pick_place_waist.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||", "newton_mjwarp||", "ovphysx||"]],
+            ["IsaacContrib-PickPlace-Locomanipulation-G1-Abs", "", "isaacsim_physx,newton_mjwarp,ovphysx", "isaacsim_rtx,newton_optix,newton_warp,ovrtx", "", "environment-previews/g1_pick_place_locomanipulation.jpg", false, {}, {}, "", null, ["||", "|isaacsim_rtx|", "|newton_optix|", "|newton_warp|", "isaacsim_physx||", "isaacsim_physx|isaacsim_rtx|", "isaacsim_physx|newton_optix|", "isaacsim_physx|newton_warp|", "newton_mjwarp||", "newton_mjwarp|isaacsim_rtx|", "newton_mjwarp|newton_optix|", "newton_mjwarp|newton_warp|", "newton_mjwarp|ovrtx|", "ovphysx|newton_optix|", "ovphysx|newton_warp|", "ovphysx|ovrtx|"]],
             ["IsaacContrib-Place-Mug-Agibot-Left-Arm-RmpFlow", "", "isaacsim_physx", "", "", "environment-previews/agibot_place_mug.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||"]],
             ["IsaacContrib-Place-Toy2Box-Agibot-Right-Arm-RmpFlow", "", "isaacsim_physx", "", "", "environment-previews/agibot_place_toy.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||"]],
             ["IsaacContrib-Reach-OpenArm", "rl_games,rsl_rl,skrl", "", "", "", "environment-previews/openarm_uni_reach.jpg"],
@@ -138,7 +141,7 @@
             ["IsaacContrib-Stack-Cube-Instance-Randomize-Franka-IK-Rel", "", "", "", "", "environment-previews/franka_instance_randomize_stack.jpg"],
             ["IsaacContrib-Stack-Cube-RedGreen-Franka-IK-Rel", "", "isaacsim_physx", "", "", "environment-previews/franka_stack.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||"]],
             ["IsaacContrib-Stack-Cube-RedGreenBlue-Franka-IK-Rel", "", "isaacsim_physx", "", "", "environment-previews/franka_stack.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||"]],
-            ["IsaacContrib-Stack-Cube-SO101-IK-Abs-v0", "", "isaacsim_physx", "", "", "environment-previews/so101_stack.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||"]],
+            ["IsaacContrib-Stack-Cube-SO101-IK-Abs-v0", "", "isaacsim_physx,ovphysx", "", "", "environment-previews/so101_stack.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||", "ovphysx||"]],
             ["IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0", "", "isaacsim_physx", "", "", "environment-previews/so101_stack.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||"]],
             ["IsaacContrib-Stack-Cube-SO101-v0", "", "isaacsim_physx", "", "", "environment-previews/so101_stack.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||"]],
             ["IsaacContrib-Stack-Cube-UR10-Long-Suction-IK-Rel", "", "isaacsim_physx", "", "", "environment-previews/ur10_stack_surface_gripper.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||"]],
@@ -230,7 +233,7 @@
         if (/Velocity|Navigation|TrackPosition|Locomanip|Humanoid/.test(task)) {
             return "locomotion";
         }
-        if (/Lift|Reach|Reorient|Drawer|Handover|Keyboard|Assemble|Assembly|Factory|Forge|Stack|PickPlace|Place|Particle|Cabinet|Gear|Trocar/.test(task)) {
+        if (/Lift|Reach|Reorient|Drawer|Handover|Keyboard|Assemble|Assembly|Factory|NIST|Forge|Stack|PickPlace|Place|Particle|Cabinet|Gear|Trocar/.test(task)) {
             return "manipulation";
         }
         return "classic";
@@ -385,6 +388,9 @@
     const failedPreviewVideos = new Set();
 
     const previewImageUrl = (task) => {
+        if (taskPreviewVideoUrls[task.task]) {
+            return null;
+        }
         const imagePath = previewImageFor(task);
         return imagePath.startsWith("environments/previews/")
             ? new URL(imagePath, previewBaseUrl).href
@@ -402,7 +408,16 @@
         Object.entries(previewClipNames).flatMap(([folder, names]) => names.map((name) => [name, folder])),
     );
 
+    const taskPreviewVideoUrls = {
+        "Isaac-Velocity-Flat-H2": "https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/environments/previews/locomotion/h2_flat.mp4",
+        "Isaac-Velocity-Rough-H2": "https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/environments/previews/locomotion/h2_rough.mp4",
+        "Isaac-Motion-Tracking-G1": "https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/environments/previews/locomotion/g1_jump_and_turn.mp4",
+    };
+
     const previewVideoUrl = (task) => {
+        if (taskPreviewVideoUrls[task.task]) {
+            return taskPreviewVideoUrls[task.task];
+        }
         const name = previewImageFor(task).split("/").pop().replace(/\.[^.]+$/, "");
         const folder = previewClipFolders[name];
         return folder ? new URL(`environments/previews/${folder}/${name}.mp4`, previewBaseUrl).href : null;
@@ -551,7 +566,13 @@
         const previewImage = preview.querySelector("[data-preview-image]");
         const previewVideo = preview.querySelector("[data-preview-video]");
         const videoUrl = previewVideoUrl(selectedTask());
-        previewImage.src = previewImageUrl(selectedTask());
+        const imageUrl = previewImageUrl(selectedTask());
+        if (imageUrl) {
+            previewImage.src = imageUrl;
+        } else {
+            previewImage.removeAttribute("src");
+        }
+        previewImage.hidden = !imageUrl;
         previewImage.alt = `${state.task} preview`;
         // Keep the image up until the clip has a frame; tasks without a clip keep their image.
         const showVideo = () => {
@@ -566,14 +587,14 @@
                 if (previewVideo.src === videoUrl) {
                     failedPreviewVideos.add(videoUrl);
                     previewVideo.hidden = true;
-                    previewImage.hidden = false;
+                    previewImage.hidden = !imageUrl;
                 }
             };
             previewVideo.onloadeddata = showVideo;
             previewVideo.setAttribute("aria-label", `${state.task} preview`);
             if (previewVideo.src !== videoUrl) {
                 previewVideo.hidden = true;
-                previewImage.hidden = false;
+                previewImage.hidden = !imageUrl;
                 previewVideo.src = videoUrl;
             } else if (previewVideo.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
                 showVideo();
@@ -583,7 +604,7 @@
             previewVideo.onloadeddata = null;
             previewVideo.pause();
             previewVideo.hidden = true;
-            previewImage.hidden = false;
+            previewImage.hidden = !imageUrl;
         }
         preview.querySelector("[data-preview-task]").textContent = state.task;
         const supportsRl = selectedTask().rl.length > 0;
@@ -634,9 +655,17 @@
         selectButton.type = "button";
         selectButton.className = "environment-task-card-select";
 
-        const image = document.createElement("img");
-        image.alt = "";
-        image.loading = "lazy";
+        const hasVideo = Boolean(taskPreviewVideoUrls[variants[0].task]);
+        const media = document.createElement(hasVideo ? "video" : "img");
+        if (hasVideo) {
+            media.muted = true;
+            media.playsInline = true;
+            media.preload = "metadata";
+            media.setAttribute("aria-hidden", "true");
+        } else {
+            media.alt = "";
+            media.loading = "lazy";
+        }
 
         const content = document.createElement("span");
         content.className = "environment-task-card-content";
@@ -645,7 +674,7 @@
         const symbolsEl = document.createElement("span");
         symbolsEl.className = "environment-task-symbols";
         content.append(nameEl);
-        selectButton.append(image, content);
+        selectButton.append(media, content);
 
         const variantsRow = document.createElement("div");
         variantsRow.className = "environment-task-variants";
@@ -668,8 +697,10 @@
         const refreshCard = () => {
             const activeTask = variants.find((task) => task.task === state.task) || variants[0];
             const isSelected = variants.includes(activeTask) && activeTask.task === state.task;
-            image.src = previewImageUrl(activeTask);
-            image.alt = "";
+            const mediaUrl = hasVideo ? previewVideoUrl(activeTask) : previewImageUrl(activeTask);
+            if (media.src !== mediaUrl) {
+                media.src = mediaUrl;
+            }
             selectButton.dataset.taskName = activeTask.task;
             selectButton.setAttribute("aria-pressed", String(isSelected));
             nameEl.textContent = activeTask.task;
