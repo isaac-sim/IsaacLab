@@ -3,6 +3,40 @@
 Controlling conveyors
 =====================
 
+.. _tutorial-conveyor-suction:
+
+Using a conveyor with suction
+-----------------------------
+
+This standalone Newton MJWarp example has one static belt, one parcel, and one kinematic
+suction tool. It builds the scene from primitives. The belt moves the parcel, the tool seals
+against its top face and lifts it, and opening the gripper releases it onto the belt.
+
+.. code-block:: bash
+
+   uv run python scripts/tutorials/01_assets/run_conveyor_suction.py --device cuda:0 --viz newton
+
+Use ``--viz none`` to run the same sequence without a window.
+
+Create the scene and conveyor before resetting the simulation. Name the belt's collision
+surface and the parcel body in the controller configuration. The belt and parcel use low
+contact friction because the conveyor controller supplies their tangential traction.
+After stopping the belt, command the kinematic tool above the parcel with its pads facing
+down. Stage the gripper command, write the scene before stepping, and refresh it afterward.
+Close the conveyor and scene before tearing down the simulation.
+
+.. dropdown:: Code for run_conveyor_suction.py
+   :icon: code
+
+   .. literalinclude:: ../../../scripts/tutorials/01_assets/run_conveyor_suction.py
+      :language: python
+      :linenos:
+
+See :ref:`tutorial-interact-surface-gripper` for backend-specific gripper configuration.
+
+Configuring a controller
+------------------------
+
 Create a controller after authoring the collision geometry and before the first simulation
 reset. This example assumes ``sim`` is a simulation context and each environment already
 contains a ``Belt`` collision surface and five parcels named ``Parcel0`` through ``Parcel4``:
