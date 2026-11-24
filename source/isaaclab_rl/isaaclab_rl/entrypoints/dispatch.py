@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 
 _BACKEND_MODULES = {
     "export": {
+        "model_based": "isaaclab_rl.entrypoints.backends.export_model_based",
         "rl_games": "isaaclab_rl.entrypoints.backends.export_rl_games",
         "rsl_rl": "isaaclab_rl.entrypoints.backends.export_rsl_rl",
         "sb3": "isaaclab_rl.entrypoints.backends.export_sb3",
