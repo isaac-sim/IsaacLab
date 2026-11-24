@@ -14,7 +14,7 @@ Use --target to choose where the retina looks at launch.
 .. code-block:: bash
 
     uv run --extra fovi isaaclab example foveated-camera
-    uv run --extra fovi --extra ovrtx isaaclab example foveated-camera renderer=ovrtx --viz newton_gl
+    uv run --extra fovi --extra ovrtx isaaclab example foveated-camera renderer=ovrtx --viz newton
     # A large CMF constant gives the matched non-foveated retina, for comparison:
     uv run --extra fovi isaaclab example foveated-camera env.scene.eye.cmf_a_deg=1000
 """
@@ -22,6 +22,7 @@ Use --target to choose where the retina looks at launch.
 from __future__ import annotations
 
 import argparse
+import logging
 import math
 import time
 from collections.abc import Callable
@@ -62,6 +63,8 @@ from isaaclab.visualizers import SceneCameraCfg, VisualizerCfg
 from isaaclab_tasks.utils import preset, setup_preset_cli
 from isaaclab_tasks.utils.hydra import resolve_task_config
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
+
+logger = logging.getLogger("isaaclab.examples.foveated_camera")
 
 OFFSET = (0.5, 0.5)
 """Shift of the whole scene [m], which keeps the ground plane's origin marker behind the camera."""
@@ -119,7 +122,7 @@ parser.add_argument(
 )
 parser.add_argument("--target", choices=OBJECTS, help="Set the initial gaze toward this object.")
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["newton_gl"])
+parser.set_defaults(visualizer=["newton"])
 args_cli, overrides = setup_preset_cli(parser)
 if args_cli.max_steps == 0 or args_cli.max_steps < -1:
     parser.error("--max_steps must be positive or -1.")
@@ -354,10 +357,17 @@ def main() -> None:
     if cfg.scene.eye.renderer_cfg.renderer_type == "ovrtx":
         print("Starting OVRTX. The first frame can take several minutes with a cold shader cache.", flush=True)
     with launch_simulation(cfg, args_cli):
+        visualizer_types = {v.backend.visualizer_type for v in cfg.sim.visualizer_cfgs}
+        if visualizer_types - {"newton"}:
+            logger.warning(
+                "The foveated-camera example's gaze keys and viewing-sphere panel need the Newton visualizer"
+                " (--viz newton). With %s, the gaze stays where it starts (see --target).",
+                ", ".join(sorted(visualizer_types - {"newton"})),
+            )
         sim_utils.create_new_stage()
         sim = sim_utils.SimulationContext(cfg.sim)
         centres = _add_clutter(cfg.scene)
-        compare = any(v.backend.visualizer_type == "newton" for v in cfg.sim.visualizer_cfgs)
+        compare = "newton" in visualizer_types
         if compare:
             cfg.scene.eye.mask_to_sensor_fov = True
             cfg.scene.overview = cfg.scene.eye.replace(
