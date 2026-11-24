@@ -78,7 +78,7 @@ def test_reference_reset_mirrors_spawn_state_to_ghost_counterparts() -> None:
 
     env._reset_idx(torch.tensor([1, 2]))
 
-    assert sorted(env.reset_calls[0]) == [1, 2, 4, 5, 7, 8]
+    assert env.reset_calls == [[1, 2], [4, 5], [7, 8]]  # the reference first, then each ghost slice
     root_pos = env.scene.root_pos
     assert torch.equal(root_pos[[4, 5]], root_pos[[1, 2]])
     assert torch.equal(root_pos[[7, 8]], root_pos[[1, 2]])
@@ -248,7 +248,7 @@ def test_a_larger_pool_resets_the_environments_beyond_the_slices_on_their_own() 
     assert env.reset_calls == [[NUM_ENVS + 1]]
 
     env._reset_idx(torch.tensor([0]))
-    assert sorted(env.reset_calls[1]) == [0, 3, 6]
+    assert env.reset_calls[1:] == [[0], [3], [6]]
     env.command_manager.compute(0.02)
     command = env.command_manager.term.command
     assert torch.equal(command[SLICE_SIZE : 2 * SLICE_SIZE], command[:SLICE_SIZE])
@@ -272,30 +272,26 @@ def test_close_puts_the_ghost_environments_back_on_their_own_terrain() -> None:
     assert torch.equal(env.scene.terrain.terrain_levels, torch.arange(NUM_ENVS))
 
 
-def test_configure_env_cfg_also_disables_reset_events_that_randomize_physics_but_keeps_a_task_s_own() -> None:
-    from isaaclab.envs.mdp import events as mdp_events
+def test_ghosts_draw_the_same_reset_randomization_as_their_reference() -> None:
+    env = _make_env()
+    sampled = torch.zeros(NUM_ENVS)  # a per-environment value a reset event draws, such as a mass or a target choice
+    reset_idx = env._reset_idx
 
-    def randomize_gear_type() -> None:  # a task's own event: it creates state that its later reset events read
-        pass
+    def reset_with_randomization(env_ids: torch.Tensor) -> None:
+        reset_idx(env_ids)
+        sampled[env_ids] = torch.rand(len(env_ids))
 
-    def reset_root_state_uniform() -> None:
-        pass
+    env._reset_idx = reset_with_randomization
+    env.scene.reset_to = lambda state, env_ids, is_relative=False: None  # only the random draws are under test
+    sync = CheckpointGhostSync(env, SLICE_SIZE, NUM_SLICES)
 
-    def term(mode: str, func) -> SimpleNamespace:
-        return SimpleNamespace(mode=mode, func=func)
+    env._reset_idx(torch.arange(SLICE_SIZE))
 
-    cfg = SimpleNamespace(
-        events=SimpleNamespace(
-            mass=term("reset", mdp_events.randomize_rigid_body_mass),
-            pose=term("reset", reset_root_state_uniform),
-            gear=term("reset", randomize_gear_type),
-            startup_mass=term("startup", mdp_events.randomize_rigid_body_mass),
-        ),
-        curriculum=None,
-        observations=None,
-    )
-
-    removed = CheckpointGhostSync.configure_env_cfg(cfg)
-
-    assert sorted(removed) == ["events.mass", "events.startup_mass"]
-    assert cfg.events.pose is not None and cfg.events.gear is not None  # these are mirrored or the task's own
+    reference = sampled[:SLICE_SIZE].clone()
+    assert (reference > 0).all()
+    for slot in range(1, NUM_SLICES):
+        assert torch.equal(sampled[slot * SLICE_SIZE : (slot + 1) * SLICE_SIZE], reference)
+    env._reset_idx(torch.arange(SLICE_SIZE))
+    assert not torch.equal(sampled[:SLICE_SIZE], reference)  # the next reset draws new values: the stream moves on
+    assert torch.equal(sampled[SLICE_SIZE : 2 * SLICE_SIZE], sampled[:SLICE_SIZE])
+    sync.close()

@@ -19,22 +19,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_PHYSICS_RANDOMIZERS = frozenset(
-    {
-        "randomize_rigid_body_scale",
-        "randomize_rigid_body_material",
-        "randomize_rigid_body_mass",
-        "randomize_rigid_body_inertia",
-        "randomize_rigid_body_com",
-        "randomize_rigid_body_collider_offsets",
-        "randomize_physics_scene_gravity",
-        "randomize_actuator_gains",
-        "randomize_joint_parameters",
-        "randomize_fixed_tendon_parameters",
-    }
-)
-"""Events of :mod:`isaaclab.envs.mdp.events` that draw physics parameters per environment."""
-
 _TERRAIN_FIELDS = ("terrain_levels", "terrain_types", "env_origins")
 """Terrain placement tensors of every environment that the ghosts copy from the reference."""
 
@@ -90,9 +74,9 @@ class CheckpointGhostSync:
     def configure_env_cfg(env_cfg: ManagerBasedRLEnvCfg) -> list[str]:
         """Remove per-environment randomization that cannot be mirrored between slices.
 
-        Startup and interval events, reset events that randomize physics parameters, curriculum terms, and observation
-        corruption are disabled. The other reset events are kept because the reference's reset state is
-        copied to the ghosts.
+        Startup and interval events, curriculum terms, and observation corruption are disabled. Reset events are kept:
+        every slice resets from the same random state as the reference, and the reference's reset state is copied to the
+        ghosts.
 
         Args:
             env_cfg: Environment config to modify in place.
@@ -106,16 +90,7 @@ class CheckpointGhostSync:
         for name, term in vars(events).items() if events is not None else ():
             if term is None:
                 continue
-            mode = term.mode
-            # A reset event that draws physics parameters (mass, friction, gains) per environment cannot be
-            # mirrored, since the scene state copied to a ghost does not carry them. Pose resets are mirrored.
-            func = term.func
-            randomizes = (
-                mode == "reset"
-                and getattr(func, "__module__", None) == "isaaclab.envs.mdp.events"
-                and getattr(func, "__name__", None) in _PHYSICS_RANDOMIZERS
-            )
-            if mode in ("startup", "interval") or randomizes:
+            if term.mode in ("startup", "interval"):
                 setattr(events, name, None)
                 removed.append(f"events.{name}")
         for name, term in vars(curriculum).items() if curriculum is not None else ():
@@ -181,8 +156,18 @@ class CheckpointGhostSync:
         if reference.numel() == 0:
             # ghost-only terminations wait for the reference to reset
             return
-        ghosts = (reference[None, :] + self._ghost_offsets[:, None]).reshape(-1)
-        self._reset_idx_original(torch.cat([reference, ghosts]))
+        ghost_slices = [reference + offset for offset in self._ghost_offsets.tolist()]
+        ghosts = torch.cat(ghost_slices)
+        # Every slice resets from the same random state as the reference, so reset events that draw per-environment
+        # values (physics parameters, a task's own sampled state such as a target choice) give each ghost the values
+        # of its reference environment.
+        start = _rng_state(self._device)
+        self._reset_idx_original(reference)
+        end = _rng_state(self._device)
+        for ids in ghost_slices:
+            _set_rng_state(self._device, start)
+            self._reset_idx_original(ids)
+        _set_rng_state(self._device, end)
         scene = self._env.scene
         state = scene.get_state(is_relative=True)
         source = reference.repeat(self._num_slices - 1)
@@ -234,6 +219,19 @@ class CheckpointGhostSync:
 
 _OWN_POSE_KEYS = ("pos_command_b", "heading_command_b")
 """Command tensors that express the target relative to the robot, such as those of ``UniformPose2dCommand``."""
+
+
+def _rng_state(device: Any) -> tuple[torch.Tensor, torch.Tensor | None]:
+    """Return the CPU and, for a CUDA device, the CUDA random state."""
+    cuda = torch.device(device).type == "cuda"
+    return torch.get_rng_state(), torch.cuda.get_rng_state(device) if cuda else None
+
+
+def _set_rng_state(device: Any, state: tuple[torch.Tensor, torch.Tensor | None]) -> None:
+    """Restore a random state returned by :func:`_rng_state`."""
+    torch.set_rng_state(state[0])
+    if state[1] is not None:
+        torch.cuda.set_rng_state(state[1], device)
 
 
 def _gather(state: dict[str, Any], ids: torch.Tensor) -> dict[str, Any]:

@@ -5,7 +5,6 @@
 * Fixed Checkpoint Ghosts holding joints the actions do not drive, such as the fingers of a reaching arm, at different
   targets than the reference after a reset. A ghost now takes the reference's joint targets, so an identical
   checkpoint follows the reference.
-* Fixed Checkpoint Ghosts running with different physics than the reference when a reset event randomizes mass,
-  friction, or actuator gains per environment. The physics randomization reset events of ``isaaclab.envs.mdp.events``
-  are now disabled, like startup and interval events. Pose and velocity resets, and a task's own reset events, are
-  still kept and mirrored.
+* Fixed Checkpoint Ghosts running with different reset randomization than the reference, such as per-environment mass,
+  friction, actuator gains, or a task's own sampled target. Each ghost slice now resets from the same random state as
+  the reference, so it draws the reference's values.
