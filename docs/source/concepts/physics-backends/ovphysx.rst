@@ -310,6 +310,8 @@ readiness predicate for the current simulation context. Manager teardown release
 and clears this handle. Initialize and reset the current context before access, and always
 reacquire the handle before creating new bindings or views.
 
+.. _ovphysx-live-ovd-recording:
+
 Record OVD during a running simulation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
