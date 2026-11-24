@@ -139,3 +139,8 @@ class RslRlSacRunnerCfg(RslRlBaseRunnerCfg):
 
     algorithm: RslRlSacAlgorithmCfg = MISSING
     """SAC learning and replay configuration."""
+
+
+def rsl_rl_checkpoint_variant(agent_cfg: RslRlBaseRunnerCfg) -> str | None:
+    """Return the pretrained-checkpoint variant of an RSL-RL agent: ``"sac"`` for SAC runners, None for the default."""
+    return "sac" if isinstance(agent_cfg, RslRlSacRunnerCfg) else None

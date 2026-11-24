@@ -108,7 +108,7 @@ def run(argv: list[str]) -> BenchmarkResult:
     from isaaclab.benchmark.schema import StartupTime
 
     from isaaclab_rl.entrypoints.backends.runner_rsl_rl import create_rsl_rl_runner
-    from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
+    from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper, rsl_rl_checkpoint_variant
 
     # Importing the task packages registers their gym environments so the
     # requested ``--task`` can be resolved.
@@ -150,7 +150,9 @@ def run(argv: list[str]) -> BenchmarkResult:
                     metadata={"agent": args.agent},
                 )
             else:
-                resume_path = common.resolve_play_checkpoint(args.checkpoint, "rsl_rl", args.task, env_cfg)
+                resume_path = common.resolve_play_checkpoint(
+                    args.checkpoint, "rsl_rl", args.task, env_cfg, variant=rsl_rl_checkpoint_variant(agent_cfg)
+                )
 
             cfg = capture.run_config_from_env_cfg(env_cfg)
             formatter_types = [value.strip() for value in args.benchmark_formatter.split(",") if value.strip()]

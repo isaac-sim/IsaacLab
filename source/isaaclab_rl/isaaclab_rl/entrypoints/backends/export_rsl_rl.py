@@ -27,7 +27,7 @@ from isaaclab.utils.assets import retrieve_file_path
 
 import isaaclab_tasks  # noqa: F401
 
-from ...rsl_rl import RslRlBaseRunnerCfg, RslRlDistillationRunnerCfg, RslRlSacRunnerCfg, RslRlVecEnvWrapper
+from ...rsl_rl import RslRlBaseRunnerCfg, RslRlDistillationRunnerCfg, RslRlVecEnvWrapper, rsl_rl_checkpoint_variant
 from ..common import resolve_published_checkpoint, resolve_seed
 from .export_common import (
     add_common_export_args,
@@ -115,9 +115,9 @@ def _resolve_checkpoint(
 ) -> str | None:
     """Resolve the checkpoint to export, or None when no published checkpoint exists."""
     if args_cli.checkpoint == "pretrained":
-        if isinstance(agent_cfg, RslRlSacRunnerCfg):
-            raise ValueError("Published checkpoints are PPO policies and cannot be loaded by OffPolicyRunner agents.")
-        return resolve_published_checkpoint("rsl_rl", args_cli.task, env_cfg)
+        return resolve_published_checkpoint(
+            "rsl_rl", args_cli.task, env_cfg, variant=rsl_rl_checkpoint_variant(agent_cfg)
+        )
     if args_cli.checkpoint and os.path.isdir(args_cli.checkpoint):
         return get_checkpoint_path(
             os.path.dirname(args_cli.checkpoint), os.path.basename(args_cli.checkpoint), agent_cfg.load_checkpoint

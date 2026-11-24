@@ -171,8 +171,8 @@ The rough ANYmal-D and G1 agents were tuned with ``--num_envs 1024``.
 The actor's ``action_range`` specifies bounds in the raw coordinates accepted by the
 environment. ``clip_actions=None`` preserves that range.
 
-Use the same agent entry point with the playback and export commands. Published
-``pretrained`` checkpoints are PPO policies and cannot be loaded by ``OffPolicyRunner`` agents.
+Use the same agent entry point with the playback and export commands. With a SAC agent,
+``--checkpoint pretrained`` fetches the task's published SAC checkpoint, whose name ends in ``_rsl_rl_sac.pt``.
 
 .. _Stable-Baselines3: https://stable-baselines3.readthedocs.io/en/master/
 .. _RL-Games: https://github.com/Denys88/rl_games

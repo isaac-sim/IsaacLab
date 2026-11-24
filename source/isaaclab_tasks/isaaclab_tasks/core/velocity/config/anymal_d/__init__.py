@@ -42,6 +42,7 @@ gym.register(
         "env_cfg_entry_point": f"{__name__}.rough_env_cfg:AnymalDRoughEnvCfg",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:AnymalDRoughPPORunnerCfg",
         "rsl_rl_sac_cfg_entry_point": f"{agents.__name__}.rsl_rl_sac_cfg:AnymalDRoughSACRunnerCfg",
+        "pretrained_checkpoint_num_envs": {"rsl_rl_sac": 1024},
         "default_agent": "rsl_rl",
         "rsl_rl_with_symmetry_cfg_entry_point": (
             f"{agents.__name__}.rsl_rl_ppo_cfg:AnymalDRoughPPORunnerWithSymmetryCfg"

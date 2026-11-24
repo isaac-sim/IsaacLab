@@ -155,7 +155,7 @@ def test_play_backend_configures_video_before_environment_creation(
         pass
 
     entrypoint = importlib.import_module(dispatch._workflow_module("play", "rsl_rl"))
-    monkeypatch.setattr(entrypoint.common, "resolve_play_checkpoint", lambda *args: "/tmp/checkpoint")
+    monkeypatch.setattr(entrypoint.common, "resolve_play_checkpoint", lambda *args, **kwargs: "/tmp/checkpoint")
 
     import isaaclab.app as app
 
@@ -318,7 +318,7 @@ def test_backend_entrypoints_close_environment_when_wrapping_fails(
             raise WrappingFailed(name)
 
     entrypoint = importlib.import_module(dispatch._workflow_module(workflow, backend))
-    monkeypatch.setattr(entrypoint.common, "resolve_play_checkpoint", lambda *args: "/tmp/checkpoint")
+    monkeypatch.setattr(entrypoint.common, "resolve_play_checkpoint", lambda *args, **kwargs: "/tmp/checkpoint")
 
     import isaaclab.app as app
 

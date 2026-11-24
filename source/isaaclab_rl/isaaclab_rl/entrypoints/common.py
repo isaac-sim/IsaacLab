@@ -573,13 +573,14 @@ Checkpoints.
 """
 
 
-def resolve_published_checkpoint(library: str, task: str, env_cfg: Any) -> str | None:
+def resolve_published_checkpoint(library: str, task: str, env_cfg: Any, variant: str | None = None) -> str | None:
     """Fetch the published pre-trained checkpoint of a task for the configured backends.
 
     Args:
         library: RL library name.
         task: Gym task id; namespaces are ignored.
         env_cfg: Resolved environment config used to identify the active backends.
+        variant: Filename suffix of a checkpoint trained with a non-default agent, such as ``"sac"``.
 
     Returns:
         Local checkpoint path, or None when no checkpoint is published for this combination.
@@ -591,7 +592,7 @@ def resolve_published_checkpoint(library: str, task: str, env_cfg: Any) -> str |
     )
 
     backend_names = get_pretrained_checkpoint_backend_names(env_cfg)
-    return get_published_pretrained_checkpoint(library, normalize_task_name(task), *backend_names)
+    return get_published_pretrained_checkpoint(library, normalize_task_name(task), *backend_names, variant=variant)
 
 
 def resolve_play_checkpoint(
@@ -599,6 +600,7 @@ def resolve_play_checkpoint(
     framework: str,
     task: str,
     env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg | None = None,
+    variant: str | None = None,
 ) -> str:
     """Resolve an explicit or published checkpoint for a play workflow.
 
@@ -607,6 +609,7 @@ def resolve_play_checkpoint(
         framework: RL library name.
         task: Gym task id; namespaces are ignored for published lookups.
         env_cfg: Resolved environment config used to identify the active backends.
+        variant: Filename suffix of a checkpoint trained with a non-default agent, such as ``"sac"``.
 
     Returns:
         Local checkpoint path.
@@ -626,7 +629,7 @@ def resolve_play_checkpoint(
     backend_names = ()
     if env_cfg is not None:
         backend_names = get_pretrained_checkpoint_backend_names(env_cfg)
-    path = get_published_pretrained_checkpoint(framework, normalize_task_name(task), *backend_names)
+    path = get_published_pretrained_checkpoint(framework, normalize_task_name(task), *backend_names, variant=variant)
     if path is None:
         raise FileNotFoundError(
             f"No checkpoint available for framework {framework!r} and task {task!r}; pass --checkpoint"

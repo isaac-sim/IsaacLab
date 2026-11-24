@@ -20,6 +20,7 @@ __all__ = [
     "RslRlRndCfg",
     "RslRlSymmetryCfg",
     "RslRlVecEnvWrapper",
+    "rsl_rl_checkpoint_variant",
 ]
 
 from .distillation_cfg import RslRlDistillationAlgorithmCfg, RslRlDistillationRunnerCfg
@@ -35,6 +36,6 @@ from .rl_cfg import (
     RslRlRNNModelCfg,
 )
 from .rnd_cfg import RslRlRndCfg
-from .sac_cfg import RslRlSacAlgorithmCfg, RslRlSacRunnerCfg
+from .sac_cfg import RslRlSacAlgorithmCfg, RslRlSacRunnerCfg, rsl_rl_checkpoint_variant
 from .symmetry_cfg import RslRlSymmetryCfg
 from .vecenv_wrapper import RslRlVecEnvWrapper

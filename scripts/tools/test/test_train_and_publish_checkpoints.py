@@ -149,6 +149,42 @@ def test_build_core_jobs_includes_declared_checkpoint_presets(monkeypatch: pytes
     assert task_spec.kwargs == registry_kwargs
 
 
+def test_build_core_jobs_adds_sac_checkpoint_next_to_ppo(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A task with an RSL-RL SAC agent gets a second, separately named Newton checkpoint trained with that agent."""
+    task_spec = SimpleNamespace(
+        id="Isaac-Test",
+        kwargs={
+            "env_cfg_entry_point": "isaaclab_tasks.core.test:TestEnvCfg",
+            "rsl_rl_cfg_entry_point": "isaaclab_tasks.core.test:TestAgentCfg",
+            "rsl_rl_sac_cfg_entry_point": "isaaclab_tasks.core.test:TestSacAgentCfg",
+            "pretrained_checkpoint_num_envs": {"rsl_rl_sac": 1024},
+        },
+    )
+    monkeypatch.setattr("scripts.tools.train_and_publish_checkpoints.gym.registry", {task_spec.id: task_spec})
+    monkeypatch.setattr("scripts.tools.train_and_publish_checkpoints.parse_env_cfg", lambda _: object())
+    monkeypatch.setattr(
+        "scripts.tools.train_and_publish_checkpoints.enumerate_task_presets",
+        lambda _: {PresetTarget.PHYSICS: ["isaacsim_physx", "newton_mjwarp"]},
+    )
+    monkeypatch.setattr(
+        "scripts.tools.train_and_publish_checkpoints._resolve_physics_backend",
+        lambda _task, selector, _default: "physx" if selector == "isaacsim_physx" else "newtonmjwarp",
+    )
+    args = Namespace(physics_backends="physx,newtonmjwarp", render_backends="rtx", max_iterations=1500, num_envs=None)
+
+    ppo_physx, ppo, sac = _build_core_jobs(args)
+
+    assert ppo_physx.physics_backend == "physx"
+    assert (ppo.agent, ppo.variant, ppo.experiment_name) == (None, None, "Isaac-Test_newtonmjwarp_none_rsl_rl")
+    assert sac.job_id == "rsl_rl_sac:Isaac-Test:newtonmjwarp:none"
+    assert sac.experiment_name == "Isaac-Test_newtonmjwarp_none_rsl_rl_sac"
+    for command in (_training_command(sac, args, smoke=False), _play_command(sac, args, "/tmp/checkpoint.pt")):
+        assert command[command.index("--agent") + 1] == "rsl_rl_sac_cfg_entry_point"
+    sac_train, ppo_train = _training_command(sac, args, smoke=False), _training_command(ppo, args, smoke=False)
+    assert sac_train[sac_train.index("--num_envs") + 1] == "1024" and "--max_iterations" not in sac_train
+    assert ppo_train[ppo_train.index("--max_iterations") + 1] == "1500" and "--num_envs" not in ppo_train
+
+
 def test_build_core_jobs_includes_franka_holding_training_jobs(monkeypatch: pytest.MonkeyPatch) -> None:
     """Unpublished Franka holding policies remain trainable under their preset-specific checkpoint names."""
     task_spec = gym.spec("Isaac-Reach-Franka")
