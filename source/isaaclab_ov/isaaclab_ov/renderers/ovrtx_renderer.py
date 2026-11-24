@@ -388,8 +388,9 @@ class OVRTXCameraRenderData:
         max_envs = spec.cfg.max_envs_per_render_product
         # Whether the split search may halve the environments per render product of this sensor.
         self.searches_split = max_envs == "auto" and len(camera_paths) == self.num_envs
-        # The error of the first frame if the split search gave up on this sensor. Later renders raise at once.
-        self.first_frame_error: RuntimeError | None = None
+        # The error that ended the split search before the first frame of this sensor. It is the failed frame if the
+        # search gave up, or a failed scene write. Later renders raise at once, with this error as the cause.
+        self.first_frame_error: Exception | None = None
         # "auto" and "all" both start with one render product for all environments.
         self._set_layout(render_scope_name, max_envs if isinstance(max_envs, int) else self.num_envs)
         self.warp_buffers: dict[str, wp.array] = {}
@@ -1450,7 +1451,9 @@ class OVRTXRenderer(BaseRenderer):
 
         Raises:
             RuntimeError: If the scene is uninitialized, if a requested product returns no frame, or if the
-                first frame fails and the search gives up. A camera whose search gave up raises in every later call.
+                first frame fails and the search gives up. A camera whose search failed raises in every later call.
+                The cause is the failed frame or the failed scene write.
+            Exception: If a scene write of the search fails.
         """
         if not render_data:
             return
@@ -1459,7 +1462,7 @@ class OVRTXRenderer(BaseRenderer):
         failed = next((data for data in render_data if data.first_frame_error is not None), None)
         if failed is not None:
             raise RuntimeError(
-                f"Camera {failed.spec.cfg.prim_path} renders no frames, because the split search gave up."
+                f"Camera {failed.spec.cfg.prim_path} renders no frames, because the split search failed."
             ) from failed.first_frame_error
         if self.backend.renderer is None or not self._camera_render_data:
             return
@@ -1489,8 +1492,12 @@ class OVRTXRenderer(BaseRenderer):
         product again. So each such sensor gets a new scope, and its old render products leave the steps. The new
         render products get the attributes of the first old one, see :meth:`_copy_render_product_attributes`. Of the
         sensors with ``"auto"``, the one with the highest :func:`_split_priority` gets half as many environments
-        per render product. The others keep their split. The search gives up when no sensor can be halved or
-        after ``_MAX_SMALLER_LAYOUTS`` smaller layouts. A sensor with ``"auto"`` then renders no frames.
+        per render product. The others keep their split.
+
+        The search gives up when no sensor can be halved or after ``_MAX_SMALLER_LAYOUTS`` smaller layouts. A sensor
+        with ``"auto"`` then renders no frames. A failed scene write also ends the search. The sensor of that write
+        and the sensors that the search did not move yet then render no frames. Sensors that the search moved
+        before that write keep their new render products.
 
         OVRTX reports a failed frame only in its error text. The search starts only when the error contains
         ``_FAILED_FRAME_TEXT``, and any other error reaches the caller. Each failed layout stays in the scene
@@ -1502,6 +1509,9 @@ class OVRTXRenderer(BaseRenderer):
 
         Returns:
             ``True`` if the next step uses a smaller layout. ``False`` if the caller must raise ``error``.
+
+        Raises:
+            Exception: If a scene write fails.
         """
         cameras = self.backend.unrendered
         if _FAILED_FRAME_TEXT not in str(error) or not cameras:
@@ -1513,7 +1523,8 @@ class OVRTXRenderer(BaseRenderer):
         # write below fails, the set then holds no failed render product.
         for data in cameras:
             self.backend.render_products.difference_update(data.render_product_paths)
-        for data, renderer in list(cameras.items()):
+        unrendered = list(cameras.items())
+        for index, (data, renderer) in enumerate(unrendered):
             if halved is None and data.searches_split:
                 # The search gave up on this sensor. Another step cannot render it, so it leaves the steps
                 # for good, and a later render of it raises at once. Its old scope stays until the cleanup.
@@ -1521,13 +1532,22 @@ class OVRTXRenderer(BaseRenderer):
                 cameras.pop(data)
                 continue
             failed = data.products[0]
-            data._set_layout(
-                f"RenderCamera_{renderer.scene.next_camera_id}",
-                math.ceil(failed.num_envs / 2) if data is halved else failed.num_envs,
-            )
-            renderer.scene.next_camera_id += 1
-            renderer._add_render_products(data, data.spec)
-            renderer._copy_render_product_attributes(failed.path, data.render_product_paths)
+            try:
+                data._set_layout(
+                    f"RenderCamera_{renderer.scene.next_camera_id}",
+                    math.ceil(failed.num_envs / 2) if data is halved else failed.num_envs,
+                )
+                renderer.scene.next_camera_id += 1
+                renderer._add_render_products(data, data.spec)
+                renderer._copy_render_product_attributes(failed.path, data.render_product_paths)
+            except Exception as write_error:
+                # This sensor and the ones after it leave the steps for good. Their next renders then name this error,
+                # not a missing frame. A failed copy can leave new render products of this sensor in the steps.
+                for rest, _ in unrendered[index:]:
+                    rest.first_frame_error = write_error
+                    cameras.pop(rest)
+                    self.backend.render_products.difference_update(rest.render_product_paths)
+                raise
         return halved is not None
 
     def _copy_render_product_attributes(self, source: str, targets: Sequence[str]) -> None:

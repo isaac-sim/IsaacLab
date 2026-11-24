@@ -708,15 +708,23 @@ def test_ovrtx_split_search_names_an_auto_sensor_without_one_camera_path_per_env
     assert [product.num_envs for product in camera.products] == [8]
 
 
-@pytest.mark.parametrize("written", [0, 1], ids=["first-write-fails", "last-write-fails"])
-def test_ovrtx_split_search_retires_every_failed_product_before_a_scene_write(monkeypatch, written):
-    """A scene write that fails during the search leaves no failed render product in the submitted set."""
+@pytest.mark.parametrize(
+    "written, failing_write",
+    [(0, "add_usd_reference_from_string"), (1, "add_usd_reference_from_string"), (1, "query_prims")],
+    ids=["first-write-fails", "last-write-fails", "last-copy-fails"],
+)
+def test_ovrtx_split_search_retires_every_failed_product_before_a_scene_write(monkeypatch, written, failing_write):
+    """A scene write that fails during the search leaves no failed render product in the submitted set.
+
+    The sensors without new render products leave the search. Their later renders name the write error as the cause.
+    """
     renderer, cameras = _make_search_cameras(monkeypatch, False, 8, [("auto", 64), ("auto", 64)])
     failed = set(renderer.backend.render_products)
-    _install_step(renderer, lambda products: True)
-    # The scene writes of the first ``written`` sensors succeed, and the write of the next sensor fails.
-    scene_writes = [object()] * written + [OSError("scene write")]
-    renderer.backend.renderer.add_usd_reference_from_string.side_effect = scene_writes
+    submissions = _install_step(renderer, lambda products: True)
+    # The scene writes of the first ``written`` sensors succeed, and the write of the next sensor fails. query_prims
+    # starts the copy of the render product attributes, after the new render products joined the steps.
+    scene_writes = [MagicMock()] * written + [OSError("scene write")]
+    getattr(renderer.backend.renderer, failing_write).side_effect = scene_writes
 
     with pytest.raises(OSError, match="scene write") as error:
         renderer.render_batch(cameras)
@@ -725,6 +733,13 @@ def test_ovrtx_split_search_retires_every_failed_product_before_a_scene_write(mo
     # Only the new render products of the written sensors remain. No sensor keeps a failed one.
     assert renderer.backend.render_products == set().union(*(c.render_product_paths for c in cameras[:written]))
     assert not renderer.backend.render_products & failed
+    assert list(renderer.backend.unrendered) == cameras[:written]
+    # A later render batch raises at once and steps nothing.
+    steps = len(submissions)
+    with pytest.raises(RuntimeError, match="renders no frames") as later:
+        renderer.render_batch(cameras)
+    assert later.value.__cause__ is error.value
+    assert len(submissions) == steps
 
 
 def test_ovrtx_split_search_leaves_out_a_sensor_removed_before_its_first_frame(monkeypatch):
