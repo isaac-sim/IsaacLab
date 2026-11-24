@@ -19,7 +19,7 @@ from pxr import Usd, UsdGeom, UsdPhysics
 
 from ... import sim as sim_utils
 from ...app.logging_utils import force_log_level
-from ...renderers import BaseRenderer, SensorRenderSpec
+from ...renderers import BaseRenderer, CameraRenderSpec
 from ...sim.views import FrameView
 from ...utils import replace
 from ...utils.math import (
@@ -717,13 +717,16 @@ class Camera(SensorBase):
         cam_paths = tuple(str(p.GetPath()) for p in sim_utils.find_matching_prims(self.cfg.prim_path, self.stage))
         # The renderer produces processor inputs instead of processor outputs.
         render_cfg = replace(self.cfg, data_types=self._render_data_types) if self.cfg.tensor_processors else self.cfg
-        render_spec = SensorRenderSpec(
-            cfg=render_cfg,
-            device=str(self._device),
-            num_instances=self._num_envs,
-            prim_paths=cam_paths,
-            view_count=self._num_envs,
-        )
+        # Existing backend callbacks receive CameraRenderSpec throughout its deprecation period.
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message="^CameraRenderSpec is deprecated", category=DeprecationWarning)
+            render_spec = CameraRenderSpec(
+                cfg=render_cfg,
+                device=str(self._device),
+                num_instances=self._num_envs,
+                prim_paths=cam_paths,
+                view_count=self._num_envs,
+            )
 
         # Stage preprocessing must happen before creating the view because the view keeps
         # references to prims located in the stage.

@@ -23,6 +23,7 @@ import warp as wp
 from pxr import Gf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
+from isaaclab.renderers import CameraRenderSpec
 from isaaclab.sensors.camera import Camera, CameraCfg
 from isaaclab.test.utils import DeviceScope, test_devices
 
@@ -94,7 +95,7 @@ def setup_sim_camera():
     teardown(sim)
 
 
-def test_camera_init(setup_sim_camera):
+def test_camera_init(setup_sim_camera, monkeypatch):
     """Test camera initialization."""
     # Create camera configuration
     sim, camera_cfg, dt = setup_sim_camera
@@ -104,6 +105,16 @@ def test_camera_init(setup_sim_camera):
     # Check simulation parameter is set correctly
     assert sim.get_setting("/isaaclab/render/rtx_sensors")
     assert sim.get_setting("/physics/fabricUpdateTransformations")
+    # Exercise the input contract of a renderer written against the camera API.
+    renderer = sim.get_or_create_backend(camera_cfg.renderer_cfg)
+    create_render_data = renderer.create_render_data
+
+    def legacy_create_render_data(spec):
+        assert isinstance(spec, CameraRenderSpec)
+        assert spec.camera_prim_paths == (camera_cfg.prim_path,)
+        return create_render_data(spec)
+
+    monkeypatch.setattr(renderer, "create_render_data", legacy_create_render_data)
     # Play sim
     sim.reset()
     # Check if camera is initialized
