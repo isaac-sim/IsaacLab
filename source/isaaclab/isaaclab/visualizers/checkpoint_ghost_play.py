@@ -21,6 +21,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+import gymnasium as gym
 import torch
 
 from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
@@ -80,6 +81,8 @@ def check(args_cli: argparse.Namespace, env_cfg: Any) -> None:
         return
     if not isinstance(env_cfg, (ManagerBasedRLEnvCfg, DirectRLEnvCfg)):
         raise SystemExit("--checkpoint_ghosts only supports single-agent environments.")
+    if isinstance(env_cfg, DirectRLEnvCfg) and not isinstance(env_cfg.action_space, (int, gym.spaces.Box)):
+        raise SystemExit("--checkpoint_ghosts only supports direct environments with continuous (Box) actions.")
     newton = _newton_cfg(env_cfg)
     if newton is None:
         raise SystemExit("--checkpoint_ghosts requires the Newton GL visualizer; pass --visualizer newton.")

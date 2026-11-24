@@ -190,6 +190,7 @@ def test_a_direct_environment_is_accepted():
 
     cfg = DirectRLEnvCfg.__new__(DirectRLEnvCfg)
     cfg.sim = SimpleNamespace(visualizer_cfgs=[SimpleNamespace(backend=_newton())])
+    cfg.action_space = 6
 
     play.check(_args(), cfg)
 
@@ -215,3 +216,15 @@ def test_observation_groups_are_sliced_per_slot():
     sliced = _slice(obs, slice(2, 4))
 
     assert sliced["policy"].tolist() == [[2], [3]] and sliced["critic"]["a"].tolist() == [2, 3]
+
+
+@pytest.mark.parametrize("action_space", [{3}, {"a": 2}])
+def test_a_direct_environment_with_discrete_or_composite_actions_is_rejected(action_space):
+    from isaaclab.envs import DirectRLEnvCfg
+
+    cfg = DirectRLEnvCfg.__new__(DirectRLEnvCfg)
+    cfg.sim = SimpleNamespace(visualizer_cfgs=[SimpleNamespace(backend=_newton())])
+    cfg.action_space = action_space
+
+    with pytest.raises(SystemExit, match="continuous"):
+        play.check(_args(), cfg)

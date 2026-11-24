@@ -146,6 +146,10 @@ def run(argv: list[str]) -> None:
                     name = Path(path).name.replace("model", "model_vecnormalize", 1).replace(".zip", ".pkl")
                     stats = Path(path).with_name(name)
                     norm = VecNormalize.load(stats, env) if stats.exists() else None  # each checkpoint has its own
+                    if norm is None and agent_cfg.get("normalize_input"):
+                        raise FileNotFoundError(
+                            f"{stats.name} is missing next to it, and this task normalizes observations"
+                        )
 
                     def act(obs):
                         obs = env._process_obs(obs)
