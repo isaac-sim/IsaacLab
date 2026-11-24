@@ -620,7 +620,7 @@ def test_ovrtx_render_batch_halves_envs_per_render_product_while_the_first_frame
     }
     assert renderer.backend.render_products == layouts[2]
     assert not renderer.backend.unrendered
-    assert "max_envs_per_render_product=2 " in caplog.text
+    assert "OVRTXRendererCfg.max_envs_per_render_product=2 " in caplog.text
     assert renderer._process_render_frame.call_count == 3
 
     # A layout that rendered is final: a later failure reaches the caller.

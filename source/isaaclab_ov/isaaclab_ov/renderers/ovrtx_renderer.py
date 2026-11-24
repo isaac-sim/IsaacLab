@@ -123,10 +123,11 @@ from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 _RENDER_DELTA_TIME = 1.0 / 60.0
 _FAILED_FRAME_TEXT = "failed to produce a frame"
 _FAILED_FRAME_NOTE = (
-    "A tiled atlas above a renderer buffer limit is one cause of a failed frame."
-    " Set OVRTXRendererCfg.max_envs_per_render_product to an integer to split a camera sensor"
-    ' over several render products with smaller atlases. The value "auto" searches for this split'
-    " after a failed first frame, but only with one camera path per environment."
+    "A tiled image above a renderer buffer limit is one cause of a failed frame."
+    " Set OVRTXRendererCfg.max_envs_per_render_product to an integer to split the camera sensors of a renderer"
+    " over several render products with smaller tiled images. Use the same value on every OVRTX renderer"
+    ' configuration of the task. The value "auto" searches for this split after a failed first frame, but only'
+    " with one camera path per environment."
 )
 _MAX_SMALLER_LAYOUTS = 4
 _PER_PRODUCT_ATTRIBUTES = frozenset({"camera", "orderedVars", "resolution", "usd-path"})
@@ -1613,7 +1614,8 @@ class OVRTXRenderer(BaseRenderer):
             if data.searches_split and len(data.products) > 1:
                 logger.warning(
                     "Camera %s: the first frame failed with one render product. It now uses %d render products."
-                    " Set OVRTXRendererCfg.max_envs_per_render_product=%d to skip this search.",
+                    " Set OVRTXRendererCfg.max_envs_per_render_product=%d on every OVRTX renderer configuration of"
+                    " the task to skip this search.",
                     data.spec.cfg.prim_path,
                     len(data.products),
                     data.products[0].num_envs,  # The first render product has the most environments.
