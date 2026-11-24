@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Factory assembly environments adapted from AlphaNIST:
+"""NIST assembly environments adapted from AlphaNIST:
 
 @article{zhang2026alphanist,
   title={AlphaNIST: Emergent Assembly Skills from Binary Task Rewards},

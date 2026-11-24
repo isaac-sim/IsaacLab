@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Reset terms for the homogeneous Factory scene."""
+"""Reset terms for the homogeneous NIST scene."""
 
 from __future__ import annotations
 

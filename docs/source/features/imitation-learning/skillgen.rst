@@ -3,6 +3,8 @@
 SkillGen for Automated Demonstration Generation
 ===============================================
 
+.. include:: /source/features/imitation-learning/_mimic_deprecation.include
+
 SkillGen extends Isaac Lab Mimic with motion planning. It combines annotated human
 skill segments with cuRobo plans to generate demonstrations for new object placements.
 
