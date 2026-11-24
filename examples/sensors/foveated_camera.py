@@ -101,6 +101,8 @@ FISHEYE = sim_utils.PinholeCameraCfg(
     distortion=sim_utils.OpenCvFisheyeDistortionCfg(fx=FOCAL, fy=FOCAL, cx=511.5, cy=511.5, image_size=(1024, 1024)),
 )
 PREVIEW_SIZE = 256
+COMPARISON_WINDOW = "Foveated camera"
+"""Title of the window that shows the viewing sphere beside the retina."""
 
 
 def viewing_sphere_rays(screen: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
@@ -346,10 +348,6 @@ def newton_window(visualizer):
     return visualizer._viewer
 
 
-COMPARISON_WINDOW = "Foveated camera"
-"""Title of the window that shows the viewing sphere beside the retina."""
-
-
 def comparison_image_hovered(imgui, edge: float = 8.0) -> bool:
     """Whether the mouse is inside the comparison window's image: below its title bar and away from its resize edges."""
     window = imgui.get_current_context().hovered_window
@@ -362,19 +360,24 @@ def comparison_image_hovered(imgui, edge: float = 8.0) -> bool:
     return left <= mouse.x <= right and top <= mouse.y <= bottom
 
 
-def cover_view_with_comparison(frames: int = 30):
-    """A side-panel callback that stretches the comparison window over the whole view beside the panel for its first
-    ``frames`` frames, then leaves its size and position to the user."""
-    remaining = [frames]
+def cover_view_with_comparison():
+    """A side-panel callback that stretches the comparison window over the whole view beside the panel.
+
+    It places the window once it exists, and again only when that view changes size, as while the viewer opens or when
+    its window or side panel is resized; otherwise the window's size and position are the user's.
+    """
+    covered = [None]
 
     def cover(imgui) -> None:
-        if remaining[0] <= 0:
-            return
-        remaining[0] -= 1
         # The callback draws inside the side panel, whose right edge is where the view begins.
         viewport = imgui.get_main_viewport()
         left = imgui.get_window_pos().x + imgui.get_window_width()
         width = viewport.work_pos.x + viewport.work_size.x - left
+        view = (left, viewport.work_pos.y, width, viewport.work_size.y)
+        # Placing a window by name does nothing before its first frame.
+        if view == covered[0] or imgui.internal.find_window_by_name(COMPARISON_WINDOW) is None:
+            return
+        covered[0] = view
         imgui.set_window_pos(COMPARISON_WINDOW, imgui.ImVec2(left, viewport.work_pos.y))
         imgui.set_window_size(COMPARISON_WINDOW, imgui.ImVec2(width, viewport.work_size.y))
 
@@ -403,6 +406,22 @@ class GazeSteering:
             if native is not None:
                 native.push_handlers(on_mouse_press=self._on_mouse_press, on_mouse_drag=self._on_mouse_drag)
 
+    def steer(self, tilt_deg: float, pan_deg: float) -> None:
+        """Turn the gaze by (tilt, pan) [deg], starting from wherever the sliders or a drag left it."""
+        # Dragging right looks right (negative pan); dragging up looks up.
+        pan_deg -= self.drag[0] * self.DRAG_DEG_PER_PIXEL
+        tilt_deg += self.drag[1] * self.DRAG_DEG_PER_PIXEL
+        self.drag = [0.0, 0.0]
+        if not tilt_deg and not pan_deg:
+            return
+        self.angles.copy_(self.camera.gaze_angles.torch)
+        step = self.angles.new_tensor((tilt_deg, pan_deg))
+        self.angles.copy_((self.angles + step).clamp(-self.GAZE_LIMIT_DEG, self.GAZE_LIMIT_DEG))
+        self.camera.set_gaze_angles(self.angles)
+        for visualizer in self.visualizers:
+            # The viewer shows the eye; a new gaze redraws it even while paused.
+            visualizer.current_image_view.invalidate()
+
     def _on_mouse_press(self, x, y, button, modifiers):
         """Decide where a press's drag goes: inside the comparison image or on the bare view it steers the gaze; on any
         other panel, or on the comparison window's title bar or edges, it stays with the panel."""
@@ -426,22 +445,6 @@ class GazeSteering:
         self.drag[0] += dx
         self.drag[1] += dy
         return event.EVENT_HANDLED
-
-    def steer(self, tilt_deg: float, pan_deg: float) -> None:
-        """Turn the gaze by (tilt, pan) [deg], starting from wherever the sliders or a drag left it."""
-        # Dragging right looks right (negative pan); dragging up looks up.
-        pan_deg -= self.drag[0] * self.DRAG_DEG_PER_PIXEL
-        tilt_deg += self.drag[1] * self.DRAG_DEG_PER_PIXEL
-        self.drag = [0.0, 0.0]
-        if not tilt_deg and not pan_deg:
-            return
-        self.angles.copy_(self.camera.gaze_angles.torch)
-        step = self.angles.new_tensor((tilt_deg, pan_deg))
-        self.angles.copy_((self.angles + step).clamp(-self.GAZE_LIMIT_DEG, self.GAZE_LIMIT_DEG))
-        self.camera.set_gaze_angles(self.angles)
-        for visualizer in self.visualizers:
-            # The viewer shows the eye; a new gaze redraws it even while paused.
-            visualizer.current_image_view.invalidate()
 
 
 def main() -> None:
@@ -500,6 +503,7 @@ def main() -> None:
 
         last_gaze_update = time.monotonic()
         shown_frame = None  # The viewer's frame of the eye that the comparison window shows.
+        shown_state = None  # The gaze and CMF constant it was drawn with.
         frame = 0
         while sim.is_running() and (args_cli.max_steps < 0 or frame < args_cli.max_steps):
             now = time.monotonic()
@@ -513,12 +517,17 @@ def main() -> None:
             scene.update(sim.get_physics_dt())
             sim.render()
             if viewers:
-                # The comparison is redrawn only when the viewer shows a new frame of the eye, and from that very
-                # frame. The viewer keeps showing one frame until the eye moves, its gaze or foveation changes;
-                # re-rendering in between would show OVRTX's frame-to-frame sampling noise as jitter.
+                # The comparison is redrawn from the viewer's frame of the eye, only when that frame changes or the
+                # gaze or foveation it overlays does. The viewer keeps showing one frame until the eye moves, its gaze
+                # or foveation changes; re-rendering in between would show OVRTX's frame-to-frame sampling noise as
+                # jitter.
                 latest = viewers[0].current_image_view.frame.data
-                if latest is not None and (shown_frame is None or not torch.equal(wp.to_torch(latest), shown_frame)):
+                state = (tuple(camera.gaze_angles.torch[0].tolist()), camera.cfg.cmf_a_deg)
+                if latest is not None and (
+                    shown_frame is None or state != shown_state or not torch.equal(wp.to_torch(latest), shown_frame)
+                ):
                     shown_frame = wp.to_torch(latest).clone()
+                    shown_state = state
                     prepare()
                     view = compose(shown_frame[..., :3])
                     for viewer in viewers:

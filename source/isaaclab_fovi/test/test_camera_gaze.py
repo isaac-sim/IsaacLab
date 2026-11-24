@@ -575,12 +575,23 @@ class _Imgui:
         self.button_pressed = button
         self.foveation = foveation
         self.shown = []
+        self.ids = []
+        self.scopes = []
+
+    def push_id(self, name):
+        self.ids.append(name)
+        self.scopes.append(name)
+
+    def pop_id(self):
+        self.ids.pop()
 
     def collapsing_header(self, label):
         self.shown.append(label)
         return True
 
     def slider_float(self, label, value, *_args):
+        # Widgets with the same label in two cameras' sections need distinct ID scopes.
+        assert self.ids, "slider drawn outside its camera's ID scope"
         self.shown.append((label, value))
         return self.sliders.pop(0) if self.sliders else (False, value)
 
@@ -625,6 +636,16 @@ def test_viewer_gaze_sliders_follow_and_set_the_gaze_in_newton_windows() -> None
     imgui = _Imgui()
     render(imgui)
     assert ("Gaze tilt", 5.0) in imgui.shown and ("Gaze pan", -10.0) in imgui.shown and not camera.written
+    assert not imgui.ids  # Each draw closes the ID scope it opens.
+    # A gaze set elsewhere, as by a gaze action, shows on the next draw.
+    camera.gaze_angles.torch[:] = torch.tensor([-30.0, 40.0])
+    imgui = _Imgui()
+    render(imgui)
+    assert ("Gaze tilt", -30.0) in imgui.shown and ("Gaze pan", 40.0) in imgui.shown and not camera.written
+    # Two cameras' sections open different ID scopes, so their same-named widgets stay apart.
+    other, other_camera = _Imgui(), _SliderCamera(num_envs=1)
+    ViewerGazeControls(other_camera)._render_callback(newton)(other)
+    assert imgui.scopes and other.scopes and imgui.scopes != other.scopes
     # Moving one sets that gaze in every environment and redraws the window's camera view.
     render(_Imgui(sliders=[(True, 20.0), (False, -10.0)]))
     assert torch.equal(camera.written[-1], torch.tensor([[20.0, -10.0]]).repeat(3, 1))
@@ -638,6 +659,10 @@ def test_viewer_gaze_sliders_follow_and_set_the_gaze_in_newton_windows() -> None
     assert ("Foveation", 1, 0, 3, "cmf_a 0.591 deg") in imgui.shown  # 0.1, 0.591, 1, 10
     render(_Imgui(foveation=3))
     assert camera.cfg.cmf_a_deg == 10.0 and newton.current_image_view.invalidated == 3
+    # The starting constant stays an option after the switch, so the panel can switch back to it.
+    imgui = _Imgui()
+    render(imgui)
+    assert ("Foveation", 3, 0, 3, "cmf_a 10 deg") in imgui.shown
     # A camera that cannot switch shows its constant as fixed instead.
     fixed = _SliderCamera(num_envs=1, switchable=False)
     fixed_controls = ViewerGazeControls(fixed)
@@ -664,3 +689,20 @@ def test_every_foveated_camera_adds_its_sliders_on_reset_until_it_is_gone() -> N
     assert len(newton.callbacks) == 1
     del camera
     assert name not in SimulationContext._reset_callbacks
+
+
+class _UnbuiltRTXCamera(FoveatedRTXCamera):
+    """An RTX camera made without a simulation, which has nothing to release when collected."""
+
+    def __del__(self):
+        pass
+
+
+def test_rtx_cameras_refuse_runtime_cmf_a() -> None:
+    # OVRTX and Isaac RTX share FoveatedRTXCamera, whose renderers read the retina's lens textures once.
+    camera = object.__new__(_UnbuiltRTXCamera)
+    camera._is_initialized = True
+    camera.cfg = SimpleNamespace(foveated_style="warped_cartesian_as_grid", cmf_a_deg=1.0)
+    assert not camera.supports_runtime_cmf_a
+    with pytest.raises(NotImplementedError, match="lens textures"):
+        camera.set_cmf_a(10.0)

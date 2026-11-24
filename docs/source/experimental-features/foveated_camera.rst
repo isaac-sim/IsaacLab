@@ -16,11 +16,11 @@ several minutes with a cold shader cache:
    uv run --extra fovi [--extra ovrtx] isaaclab example foveated-camera [renderer=ovrtx]
 
 The Newton viewer shows the retina, covered at launch by a window that shows the fisheye on a curved viewing sphere
-beside the retina: the green lens boundary follows the camera mount, and the blue gaze circle and sampling grid show the retina's coverage. Use WASD or
-the arrow keys to move the camera and Q/E to lower or raise it. Drag with the left mouse button, or press I/K and J/L, to steer the gaze; the
-side panel's sliders follow the gaze and set it, and on Newton its foveation slider steps the CMF constant through
-``env.scene.eye.viewer_cmf_a_values``. H shows or hides the viewer controls. Pass ``--target power_drill`` to start
-fixating the drill.
+beside the retina: the green lens boundary follows the camera mount, and the blue gaze circle and sampling grid show
+the retina's coverage. Use WASD or the arrow keys to move the camera and Q/E to lower or raise it. Drag with the left
+mouse button, or press I/K and J/L, to steer the gaze; the side panel's sliders follow the gaze and set it, and on
+Newton its foveation slider steps the CMF constant through ``env.scene.eye.viewer_cmf_a_values``. H shows or hides
+the viewer controls. Pass ``--target power_drill`` to start fixating the drill.
 
 .. figure:: ../_static/overview/sensors/foveated_camera_overview.jpg
    :alt: A retina behind a 180-degree fisheye lens on the viewing sphere, and its rendered images at two fixations.
@@ -107,10 +107,10 @@ step. A foveation slider beside them switches the CMF constant among
 :attr:`~sensors.FoveatedCameraCfg.viewer_cmf_a_values` with :meth:`~sensors.FoveatedCamera.set_cmf_a`, which
 re-samples the retina in place. That works on Newton for styles whose sample count does not depend on the constant,
 the warped-Cartesian and ``_fixn`` isotropic ones; OVRTX and Isaac RTX read their lens textures once, so there the
-slider shows the constant as fixed. Set :attr:`~sensors.FoveatedCameraCfg.viewer_gaze_controls` to ``False`` to leave a
-camera out.
-:meth:`~sensors.FoveatedCamera.get_world_poses` reports the mount pose. Enable :attr:`~sensors.FoveatedCameraCfg.mask_to_sensor_fov` to zero rays that fall
-outside the physical image as the gaze moves.
+slider shows the constant as fixed. Set :attr:`~sensors.FoveatedCameraCfg.viewer_gaze_controls` to ``False`` to
+leave a camera out. :meth:`~sensors.FoveatedCamera.get_world_poses` reports the mount pose. Enable
+:attr:`~sensors.FoveatedCameraCfg.mask_to_sensor_fov` to zero rays that fall outside the physical image as the gaze
+moves.
 
 Pooling
 -------

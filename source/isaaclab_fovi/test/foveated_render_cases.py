@@ -23,11 +23,12 @@ import torch
 from fovi.sensing.coords import SamplingCoords
 from fovi.sensing.projection import angular_directions
 from isaaclab_fovi.sensors import FoveatedCamera, FoveatedCameraCfg
+from isaaclab_fovi.sensors.gaze_controls import ViewerGazeControls
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-from isaaclab.sim import SimulationCfg, build_simulation_context
+from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.test.utils.devices import resolve_test_sim_device
 from isaaclab.utils.configclass import configclass
@@ -285,14 +286,16 @@ def foveated_camera_samples_densest_at_the_fixation(ground: GroundScene):
 
 def cmf_a_switches_the_retina_at_runtime(ground: GroundScene):
     """Newton re-samples the retina for a new CMF constant in place: each sample renders along its new ray, the outputs
-    keep their shape, and switching back restores the first image. Renderers that read a lens texture refuse."""
+    keep their shape, and switching back restores the first image. Building the camera added its viewer controls."""
     camera = ground.calibrated
+    controls = [
+        callback.__self__
+        for callback in SimulationContext._reset_callbacks.values()
+        if isinstance(getattr(callback, "__self__", None), ViewerGazeControls)
+    ]
+    assert any(control._camera() is camera for control in controls)
     ground.reset_mounts(camera)
     camera.set_gaze_angles(torch.zeros(NUM_ENVS, 2, device=ground.sim.device))
-    if not camera.supports_runtime_cmf_a:
-        with pytest.raises(NotImplementedError, match="lens textures"):
-            camera.set_cmf_a(10.0)
-        return
     first = camera.cfg.cmf_a_deg
     before, _, first_angles, _ = ground.render(camera)
     camera.set_cmf_a(10.0)
