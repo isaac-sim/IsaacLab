@@ -272,8 +272,10 @@ def test_close_puts_the_ghost_environments_back_on_their_own_terrain() -> None:
     assert torch.equal(env.scene.terrain.terrain_levels, torch.arange(NUM_ENVS))
 
 
-def test_configure_env_cfg_also_disables_reset_events_that_randomize_physics() -> None:
-    def randomize_rigid_body_mass() -> None:
+def test_configure_env_cfg_also_disables_reset_events_that_randomize_physics_but_keeps_a_task_s_own() -> None:
+    from isaaclab.envs.mdp import events as mdp_events
+
+    def randomize_gear_type() -> None:  # a task's own event: it creates state that its later reset events read
         pass
 
     def reset_root_state_uniform() -> None:
@@ -284,9 +286,10 @@ def test_configure_env_cfg_also_disables_reset_events_that_randomize_physics() -
 
     cfg = SimpleNamespace(
         events=SimpleNamespace(
-            mass=term("reset", randomize_rigid_body_mass),
+            mass=term("reset", mdp_events.randomize_rigid_body_mass),
             pose=term("reset", reset_root_state_uniform),
-            startup_mass=term("startup", randomize_rigid_body_mass),
+            gear=term("reset", randomize_gear_type),
+            startup_mass=term("startup", mdp_events.randomize_rigid_body_mass),
         ),
         curriculum=None,
         observations=None,
@@ -295,4 +298,4 @@ def test_configure_env_cfg_also_disables_reset_events_that_randomize_physics() -
     removed = CheckpointGhostSync.configure_env_cfg(cfg)
 
     assert sorted(removed) == ["events.mass", "events.startup_mass"]
-    assert cfg.events.pose is not None and cfg.events.mass is None  # the pose reset is mirrored, so it stays
+    assert cfg.events.pose is not None and cfg.events.gear is not None  # these are mirrored or the task's own

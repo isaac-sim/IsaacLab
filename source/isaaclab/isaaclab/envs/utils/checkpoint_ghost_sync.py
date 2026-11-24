@@ -19,6 +19,22 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_PHYSICS_RANDOMIZERS = frozenset(
+    {
+        "randomize_rigid_body_scale",
+        "randomize_rigid_body_material",
+        "randomize_rigid_body_mass",
+        "randomize_rigid_body_inertia",
+        "randomize_rigid_body_com",
+        "randomize_rigid_body_collider_offsets",
+        "randomize_physics_scene_gravity",
+        "randomize_actuator_gains",
+        "randomize_joint_parameters",
+        "randomize_fixed_tendon_parameters",
+    }
+)
+"""Events of :mod:`isaaclab.envs.mdp.events` that draw physics parameters per environment."""
+
 _TERRAIN_FIELDS = ("terrain_levels", "terrain_types", "env_origins")
 """Terrain placement tensors of every environment that the ghosts copy from the reference."""
 
@@ -74,8 +90,8 @@ class CheckpointGhostSync:
     def configure_env_cfg(env_cfg: ManagerBasedRLEnvCfg) -> list[str]:
         """Remove per-environment randomization that cannot be mirrored between slices.
 
-        Startup and interval events, reset events that randomize physics parameters (``randomize_*``), curriculum terms,
-        and observation corruption are disabled. The other reset events are kept because the reference's reset state is
+        Startup and interval events, reset events that randomize physics parameters, curriculum terms, and observation
+        corruption are disabled. The other reset events are kept because the reference's reset state is
         copied to the ghosts.
 
         Args:
@@ -93,7 +109,12 @@ class CheckpointGhostSync:
             mode = term.mode
             # A reset event that draws physics parameters (mass, friction, gains) per environment cannot be
             # mirrored, since the scene state copied to a ghost does not carry them. Pose resets are mirrored.
-            randomizes = mode == "reset" and getattr(term.func, "__name__", "").startswith("randomize_")
+            func = term.func
+            randomizes = (
+                mode == "reset"
+                and getattr(func, "__module__", None) == "isaaclab.envs.mdp.events"
+                and getattr(func, "__name__", None) in _PHYSICS_RANDOMIZERS
+            )
             if mode in ("startup", "interval") or randomizes:
                 setattr(events, name, None)
                 removed.append(f"events.{name}")
