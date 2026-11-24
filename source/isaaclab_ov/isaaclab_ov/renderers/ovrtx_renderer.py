@@ -1606,27 +1606,28 @@ class OVRTXRenderer(BaseRenderer):
             if writes:
                 with self.scene.query(targets) as query:
                     stage.write_attributes(query, writes, ordinal=self.scene.ordinal).wait()
-            return
-        renderer = self.backend.renderer
-        render_products = renderer.query_prims(
-            require_all=[(FilterKind.PRIM_TYPE, "RenderProduct")], attribute_filter_mode=AttributeFilterMode.ALL
-        )
-        for name, info in render_products[source].items():
-            # A tag is the name of an applied schema and has no value.
-            if name in _PER_PRODUCT_ATTRIBUTES or info.semantic == Semantic.TAG:
-                continue
-            if info.is_array:
-                try:
-                    (value,) = renderer.read_array_attribute(name, [source]).values()
-                except RuntimeError:
-                    # OVRTX raises for an array without elements. The new render products then keep their own value.
+        else:
+            renderer = self.backend.renderer
+            render_products = renderer.query_prims(
+                require_all=[(FilterKind.PRIM_TYPE, "RenderProduct")], attribute_filter_mode=AttributeFilterMode.ALL
+            )
+            for name, info in render_products[source].items():
+                # A tag is the name of an applied schema and has no value.
+                if name in _PER_PRODUCT_ATTRIBUTES or info.semantic == Semantic.TAG:
                     continue
-                renderer.write_array_attribute(list(targets), name, [value] * len(targets), semantic=info.semantic)
-            else:
-                value = np.from_dlpack(renderer.read_attribute(name, [source]))
-                renderer.write_attribute(
-                    list(targets), name, np.repeat(value, len(targets), axis=0), semantic=info.semantic
-                )
+                if info.is_array:
+                    try:
+                        (value,) = renderer.read_array_attribute(name, [source]).values()
+                    except RuntimeError:
+                        # OVRTX raises for an array without elements.
+                        # The new render products then keep their own value.
+                        continue
+                    renderer.write_array_attribute(list(targets), name, [value] * len(targets), semantic=info.semantic)
+                else:
+                    value = np.from_dlpack(renderer.read_attribute(name, [source]))
+                    renderer.write_attribute(
+                        list(targets), name, np.repeat(value, len(targets), axis=0), semantic=info.semantic
+                    )
 
     def _render_batch_once(self, render_data: Sequence[OVRTXCameraRenderData]) -> None:
         """Render one step with every registered render product, and read back the images of ``render_data``."""
