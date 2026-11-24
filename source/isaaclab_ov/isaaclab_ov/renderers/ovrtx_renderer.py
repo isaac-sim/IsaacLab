@@ -1155,7 +1155,7 @@ class OVRTXRenderer(BaseRenderer):
                 errors.append(error)
         return errors
 
-    def _note_failed_frame(self, error: Exception, smaller_layouts: int = 0) -> None:
+    def _note_failed_frame(self, error: Exception, num_smaller_layouts: int = 0) -> None:
         """Add a note about render product splits to an error about a failed frame.
 
         The renderer error about a failed frame does not name the camera setting that can fix a tiled atlas above a
@@ -1165,7 +1165,7 @@ class OVRTXRenderer(BaseRenderer):
 
         Args:
             error: Error of the failed frame.
-            smaller_layouts: Number of smaller layouts that the split search tried before it gave up.
+            num_smaller_layouts: Number of smaller layouts that the split search tried before it gave up.
         """
         notes = getattr(error, "__notes__", ())
         if _FAILED_FRAME_TEXT not in str(error) or any(note.startswith(_FAILED_FRAME_NOTE) for note in notes):
@@ -1177,10 +1177,11 @@ class OVRTXRenderer(BaseRenderer):
             if data.products[0].num_envs > 1
         ]
         note = _FAILED_FRAME_NOTE
-        if smaller_layouts:
+        if num_smaller_layouts:
             note += (
-                f" The first frame also failed with {smaller_layouts} smaller render product layout(s) of this search."
-                " Smaller render products do not fix a lack of GPU memory. The renderer log shows the cause."
+                f" The first frame also failed with {num_smaller_layouts} smaller render product layout(s)"
+                " of this search. Smaller render products do not fix a lack of GPU memory. The renderer log shows"
+                " the cause."
             )
         if cameras:
             note += f" Camera sensors with several environments in one render product: {', '.join(cameras)}."
@@ -1476,13 +1477,13 @@ class OVRTXRenderer(BaseRenderer):
             ) from failed.first_frame_error
         if self.backend.renderer is None or not self._camera_render_data:
             return
-        for smaller_layouts in itertools.count():
+        for num_smaller_layouts in itertools.count():
             try:
                 self._render_batch_once(render_data)
                 break
             except RuntimeError as error:
-                if not self._replace_failed_layouts(error, smaller_layouts):
-                    self._note_failed_frame(error, smaller_layouts)
+                if not self._replace_failed_layouts(error, num_smaller_layouts):
+                    self._note_failed_frame(error, num_smaller_layouts)
                     raise
         for data in self.backend.unrendered:
             if data.spec.cfg.max_envs_per_render_product == "auto" and len(data.products) > 1:
@@ -1495,7 +1496,7 @@ class OVRTXRenderer(BaseRenderer):
                 )
         self.backend.unrendered.clear()
 
-    def _replace_failed_layouts(self, error: RuntimeError, smaller_layouts: int) -> bool:
+    def _replace_failed_layouts(self, error: RuntimeError, num_smaller_layouts: int) -> bool:
         """After a failed first frame, move every camera sensor without a rendered frame to new render products.
 
         A failed step fails for every sensor on the engine, and OVRTX can abort when it renders a failed render
@@ -1515,7 +1516,7 @@ class OVRTXRenderer(BaseRenderer):
 
         Args:
             error: Error of the failed step.
-            smaller_layouts: Number of smaller layouts that this render batch tried before ``error``.
+            num_smaller_layouts: Number of smaller layouts that this render batch tried before ``error``.
 
         Returns:
             ``True`` if the next step uses a smaller layout. ``False`` if the caller must raise ``error``.
@@ -1528,7 +1529,9 @@ class OVRTXRenderer(BaseRenderer):
             return False
         # The first render product of a sensor has the most environments.
         candidates = [data for data in cameras if data.searches_split and data.products[0].num_envs > 1]
-        halved = max(candidates, key=_split_priority) if candidates and smaller_layouts < _MAX_SMALLER_LAYOUTS else None
+        halved = (
+            max(candidates, key=_split_priority) if candidates and num_smaller_layouts < _MAX_SMALLER_LAYOUTS else None
+        )
         # First remove every failed render product from the set that each step renders. If a scene
         # write below fails, the set then holds no failed render product.
         for data in cameras:
