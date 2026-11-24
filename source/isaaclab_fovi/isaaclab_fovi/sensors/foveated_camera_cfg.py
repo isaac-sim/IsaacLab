@@ -62,6 +62,13 @@ class FoveatedCameraCfg(CameraCfg):
     mask_to_sensor_fov: bool = False
     """Zero the samples outside the physical camera's image at the current gaze."""
 
+    viewer_gaze_controls: bool = True
+    """Add this camera's gaze and foveation controls to the side panel of each Newton viewer window."""
+
+    viewer_cmf_a_values: tuple[float, ...] = (0.1, 0.3, 1.0, 3.0, 10.0, 30.0, 100.0)
+    """CMF constants [deg] the viewer's foveation control offers, with :attr:`cmf_a_deg` added; see
+    :meth:`FoveatedCamera.set_cmf_a`."""
+
     retinal_window_fraction: float = 1.0
     """Diameter of the retinal window as a fraction of the reference image side."""
 
