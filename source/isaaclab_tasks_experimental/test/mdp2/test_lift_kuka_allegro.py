@@ -94,19 +94,6 @@ def stored_and_scene_state(env: MDP2RLEnv, state: mdp2.MDPState) -> dict[str, tu
     return {name: (stored[name].torch.clone(), field.torch.clone()) for name, field in fields.items()}
 
 
-def sampler_arrays(state: mdp2.MDPState) -> dict[str, torch.Tensor]:
-    """Return views of the reset states' device state: its sampler's assignments, outcome history, and draw weights,
-    and their own flags."""
-    reset_states = mdp2.mdp.get_reset_states(state)
-    arrays = {
-        f"{owner}.{name}": value
-        for owner, holder in (("sampler", reset_states.sampler), ("reset_states", reset_states))
-        for name, value in vars(holder).items()
-        if isinstance(value, (wp.array, ProxyArray))
-    }
-    return {name: wp.to_torch(value.warp if isinstance(value, ProxyArray) else value) for name, value in arrays.items()}
-
-
 def build(scenario: SimpleNamespace, backend: str) -> tuple[mdp2.MDP, mdp2.MDPState]:
     """Compile the task for a backend, with the environment's term state, its point clouds, and its reset states."""
     env = scenario.env
@@ -253,14 +240,11 @@ def test_step_replays_as_one_graph_with_curriculum_and_reset_states(scenario: Si
     env = scenario.env
     assert env.mdp.is_fully_capturable and env.is_captured and env.num_graphs == 1
 
-    # Both backends draw the same stored state for every world from the same sampler state, and restore it.
+    # Freshly built, both backends draw the same stored state for every world, and restore it.
     mask = ProxyArray(wp.ones(NUM_ENVS, dtype=wp.bool, device=env.device))
-    before = {name: value.clone() for name, value in sampler_arrays(env.state).items()}
     playing = {}
     for backend in ("torch", "warp"):
         mdp, state = build(scenario, backend)
-        for name, value in sampler_arrays(state).items():
-            value.copy_(before[name])
         mdp2.reset(mdp, state, mask)
         playing[backend] = mdp2.mdp.get_reset_states(state).sampler.indices.torch.clone()
         for name, (stored, restored) in stored_and_scene_state(env, state).items():

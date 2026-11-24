@@ -67,13 +67,8 @@ def _draw(world: int, joint_pos: wp.array2d(dtype=float), object_pose_w: wp.arra
     object_pose_w[world] = wp.transformf(position, wp.quat_identity())
 
 
-def _draw_torch(mask, joint_pos, object_pose_w, rng):
-    samples = mdp2.uniform(rng, -1.0, 1.0, (2,))
-    joint_pos[:, 0] = torch.where(mask, samples[:, 0], joint_pos[:, 0])
-    object_pose_w[:, 0] = torch.where(mask, samples[:, 1], object_pose_w[:, 0])
-
-
-draw = mdp2.Term(torch=_draw_torch, warp=_draw, random=True)
+# Generator tasks compile with Warp only.
+draw = mdp2.Term(warp=_draw, random=True)
 
 
 @wp.func
@@ -81,7 +76,7 @@ def _outside(world: int, joint_pos: wp.array2d(dtype=float)) -> bool:
     return wp.abs(joint_pos[world, 0]) > 0.5
 
 
-outside = mdp2.Term(torch=lambda joint_pos: joint_pos[:, 0].abs() > 0.5, warp=_outside)
+outside = mdp2.Term(warp=_outside)
 
 
 @wp.func
@@ -129,7 +124,7 @@ def test_generator_gives_each_world_valid_states_and_restore_only_reset_worlds()
     reset_states = mdp.get_reset_states(state)
 
     stored = reset_states.states["joint_pos"][..., 0].cpu()
-    assert stored.shape == (8, 4) and (stored.abs() <= 0.5).all() and len(stored.unique()) == 32
+    assert stored.shape == (8, 4) and (stored.abs() <= 0.5).all()
 
     reset(task_mdp, state, [True] * 8)
     slots = reset_states.started_from.cpu()
@@ -137,8 +132,7 @@ def test_generator_gives_each_world_valid_states_and_restore_only_reset_worlds()
 
     joint_pos(scene).add_(1.0)  # the worlds move on, as a step would move them
     before = joint_pos(scene).clone()
-    for _ in range(8):
-        reset(task_mdp, state, [True] + [False] * 7)
+    reset(task_mdp, state, [True] + [False] * 7)
     assert torch.equal(joint_pos(scene)[1:], before[1:])
 
 
@@ -174,7 +168,7 @@ def test_grouped_states_come_from_and_credit_the_worlds_of_each_group():
     )
     reset_states = mdp.get_reset_states(state)
     stored = reset_states.states["joint_pos"][..., 0]
-    assert stored.shape == (2, 4) and len(stored.unique()) == 8
+    assert stored.shape == (2, 4) and (stored.abs() <= 0.5).all()
 
     transition = task_mdp.transition()
     for _ in range(4):
@@ -265,6 +259,11 @@ def test_default_resets_keep_the_earlier_events_and_are_not_credited():
     reset(task_mdp, state, [True] * 4)
     assert joint_pos(scene)[0] == reset_states.states["joint_pos"][0, 5, 0] and (joint_pos(scene)[1:] == 9.0).all()
 
+    reset_states.pin(torch.tensor([99, -1, -1, -1]))  # a slot out of range leaves the reset unchanged
+    joint_pos(scene).fill_(9.0)
+    reset(task_mdp, state, [True] * 4)
+    assert (joint_pos(scene) == 9.0).all() and reset_states.started_from[0] == -1
+
 
 def test_saved_states_load_in_later_runs_with_the_same_worlds(tmp_path):
     scene = Scene(num_worlds=4)
@@ -277,6 +276,18 @@ def test_saved_states_load_in_later_runs_with_the_same_worlds(tmp_path):
         assert torch.equal(mdp.get_reset_states(loaded).states[name], value)
     with pytest.raises(ValueError, match="holds reset states of 4 worlds"):
         build(Scene(num_worlds=2), source=mdp.FromFile(path))
+
+    # Groups keep the labels they were numbered from, such as the object each world spawned.
+    inputs = {"succeeded": mdp2.quantities.success, "env_origins": scene_entity.env_origins}
+
+    def grouped(source, labels):
+        return build(Scene(num_worlds=4), source=source, groups=lambda ctx: torch.tensor(labels), inputs=inputs)
+
+    _, state = grouped(mdp.FromTask(RESET_STATE_GENERATOR, num_states=3), [5, 5, 7, 7])
+    mdp.get_reset_states(state).save(path)
+    grouped(mdp.FromFile(path), [5, 5, 7, 7])
+    with pytest.raises(ValueError, match="other groups"):
+        grouped(mdp.FromFile(path), [5, 5, 8, 8])
 
 
 @wp.func

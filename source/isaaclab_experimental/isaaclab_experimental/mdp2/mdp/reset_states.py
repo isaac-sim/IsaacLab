@@ -24,7 +24,7 @@ to inspect, pin, or save them.
 from __future__ import annotations
 
 import functools
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Collection, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -80,9 +80,12 @@ class FromFile:
 
     def __call__(self, ctx: TermContext, groups: torch.Tensor | None) -> dict[str, torch.Tensor]:
         saved = torch.load(self.path, map_location=ctx.rng.device)
-        held = saved["groups"]
+        # The labels the groups were numbered from, such as prototype IDs, so that states fit the same objects.
+        held, labels = saved["groups"], ctx.cache.get("group_labels")
         if (held is None) != (groups is None) or groups is not None and not torch.equal(held, groups):
             raise ValueError(f"{self.path} holds {_describe(held)}, but the event needs {_describe(groups)}.")
+        if labels is not None and not torch.equal(saved.get("labels", labels), labels):
+            raise ValueError(f"{self.path} holds states of other groups, such as other objects, than the event's.")
         return saved["states"]
 
 
@@ -101,7 +104,7 @@ def prototype_groups(ctx: TermContext) -> torch.Tensor:
     from isaaclab.sim import SimulationContext
 
     layout = SimulationContext.instance().get_clone_plan().topology.world_prototype_layout
-    return torch.unique(torch.as_tensor(layout, device=ctx.rng.device), return_inverse=True)[1]
+    return torch.as_tensor(layout, device=ctx.rng.device)
 
 
 class StateGenerator:
@@ -152,11 +155,11 @@ class FromTask:
         num_worlds, device = ctx.num_worlds, ctx.rng.device
         group = groups if groups is not None else torch.zeros(num_worlds, dtype=torch.long, device=device)
         num_groups = int(group.max()) + 1
+        if self.num_states < 1 or self.oversample_factor < 1.0:
+            raise ValueError("FromTask must harvest at least as many states as it keeps, and keep at least one.")
         generator = StateGenerator(self.task, ctx.scene_data, str(device), seed=int(ctx.rng[0]))
         descriptor = generator.transition.observations.get("descriptor")
         size = self.num_states if descriptor is None else round(self.num_states * self.oversample_factor)
-        if self.num_states < 1 or size < self.num_states:
-            raise ValueError("FromTask must harvest at least as many states as it keeps, and keep at least one.")
         # Scene outputs are read from the scene the generator writes; commands from the generator's own state.
         fields = {
             name: value if ctx.selectors[name].scene else generator.field(ctx.selectors[name])
@@ -164,9 +167,9 @@ class FromTask:
         }
         if descriptor is not None:
             fields["descriptor"] = descriptor.torch
-        # Root poses are kept relative to the environment origins when the use binds them.
+        # World-frame poses are kept relative to the environment origins when the use binds them.
         origins = ctx.inputs.get("env_origins")
-        poses = {name for name in ctx.outputs if origins is not None and _warp_view(ctx, name).dtype == wp.transformf}
+        poses = _world_poses(ctx) if origins is not None else set()
 
         harvest = {name: value.new_zeros(num_groups, size, *value.shape[1:]) for name, value in fields.items()}
         filled = torch.zeros(num_groups, dtype=torch.long, device=device)
@@ -198,15 +201,15 @@ class FromTask:
             # Keep the most spread states, each descriptor axis rescaled to unit span so that all axes count.
             points = harvest.pop("descriptor")
             span = (points.amax(dim=(0, 1)) - points.amin(dim=(0, 1))).clamp(min=1e-6)
-            kept = farthest_points(points / span, self.num_states)
+            kept = _farthest_points(points / span, self.num_states)
             rows = torch.arange(num_groups, device=device)
             harvest = {name: value[rows[:, None], kept] for name, value in harvest.items()}
         return harvest if groups is not None else {name: value[0] for name, value in harvest.items()}
 
 
-def farthest_points(points: torch.Tensor, count: int) -> torch.Tensor:
-    """Return, for each batch of ``points`` of shape ``(batch, n, dim)``, the indices of ``count`` points spread as far
-    apart as possible."""
+def _farthest_points(points: torch.Tensor, count: int) -> torch.Tensor:
+    """Return, for each batch of ``points`` of shape ``(batch, n, dim)``, the indices of ``count`` points chosen by
+    greedy farthest-point selection: from the first point, each next one is the farthest from those chosen."""
     batch = torch.arange(len(points), device=points.device)
     chosen = torch.zeros(len(points), count, dtype=torch.long, device=points.device)
     nearest = torch.full(points.shape[:2], float("inf"), device=points.device)
@@ -233,7 +236,10 @@ class ResetStates:
         sampler: ResetStateSamplerCfg,
         *,
         groups: torch.Tensor | None,
+        labels: torch.Tensor | None,
         origins: wp.array | None,
+        poses: Collection[str],
+        uniform: bool,
         default_reset_probability: float,
         record: RecordVisited | None,
     ) -> None:
@@ -244,6 +250,8 @@ class ResetStates:
         recorded = 0 if record is None else record.num_states
         self.num_worlds, self.shared, self.size = num_worlds, shared, filled + recorded
         self.groups = groups  # The group of each world, None if shared
+        self.labels = labels  # The labels the groups were numbered from, such as prototype IDs, if given
+        self._uniform = uniform  # Uniform draws use no outcome history
         self.num_groups = 1 if shared else int(groups.max()) + 1
         self._group = torch.zeros(num_worlds, dtype=torch.long, device=wp.device_to_torch(device))
         if not shared:
@@ -271,9 +279,8 @@ class ResetStates:
         self._prior = scores[0].target if scores else 0.0
 
         self._outputs, self._origins = dict(outputs), origins
-        self._poses = (
-            [value for value in outputs.values() if value.dtype == wp.transformf] if origins is not None else []
-        )
+        # World-frame poses, which restore shifts by the origins: one per world, or more, such as of bodies.
+        self._poses = {name: outputs[name] for name in poses}
         zeros = functools.partial(wp.zeros, num_worlds, device=device)
         self._requests = wp.full(num_worlds, -1, dtype=wp.int32, device=device)
         self._restored, self._credit, self._valid = zeros(dtype=wp.bool), zeros(dtype=wp.bool), zeros(dtype=wp.bool)
@@ -282,8 +289,7 @@ class ResetStates:
         self._cursor = zeros(dtype=wp.int32)
         # Recording stores poses relative to the origins, from copies of the outputs.
         self._record_values = {
-            name: wp.empty_like(value) if any(value is pose for pose in self._poses) else value
-            for name, value in self._outputs.items()
+            name: wp.empty_like(value) if name in self._poses else value for name, value in self._outputs.items()
         }
 
     @property
@@ -347,7 +353,7 @@ class ResetStates:
 
     def save(self, path: str | Path) -> None:
         """Save the states, for a later run to load with :class:`FromFile`."""
-        torch.save({"states": self.states, "groups": self.groups}, path)
+        torch.save({"states": self.states, "groups": self.groups, "labels": self.labels}, path)
 
     def restore(self, mask: wp.array, rng: wp.array, succeeded: wp.array | None) -> None:
         """Credit the ended episodes, choose the next starts, and write the restored ones to the outputs."""
@@ -357,10 +363,18 @@ class ResetStates:
             [mask, rng, self._requests, self._default, self._credit, self._valid, self._restored, self._writes],
             device=mask.device,
         )
-        self.sampler.reset(mask, success=succeeded, valid=self._valid, state_ids=self._requests, rng=rng)
+        success = None if self._uniform else succeeded
+        self.sampler.reset(mask, success=success, valid=self._valid, state_ids=self._requests, rng=rng)
+        # A rejected request leaves the world's reset as the earlier events wrote it.
+        wp.launch(
+            _skip_invalid,
+            mask.shape,
+            [self.sampler.invalid_requests.warp, self._writes, self._restored, self._credit],
+            device=mask.device,
+        )
         self.buffer.get_state(self.sampler.indices, out=self._outputs, mask=self._writes)
-        for pose in self._poses:
-            wp.launch(_shift_poses, mask.shape, [self._writes, self._origins, pose, pose, 1.0], device=mask.device)
+        for pose in self._poses.values():
+            _shift(self._writes, self._origins, pose, pose, 1.0)
 
     def record(self, rng: wp.array, terminated: wp.array, record_if: wp.array | None) -> None:
         """Record the states of the worlds selected this step into their oldest recorded slots."""
@@ -383,14 +397,8 @@ class ResetStates:
             ],
             device=rng.device,
         )
-        for name, pose in self._outputs.items():
-            if self._record_values[name] is not pose:
-                wp.launch(
-                    _shift_poses,
-                    self.num_worlds,
-                    [self._recording, self._origins, pose, self._record_values[name], -1.0],
-                    device=rng.device,
-                )
+        for name, pose in self._poses.items():
+            _shift(self._recording, self._origins, pose, self._record_values[name], -1.0)
         self.sampler.forget(self._record_rows, self._recording, success_rate=self._prior)
         self.buffer.set_state(self._record_rows, self._record_values, mask=self._recording)
 
@@ -418,7 +426,8 @@ def _init(
 ) -> None:
     """Build the reset states once from the source, then the sampler and bind the outputs it restores."""
     outputs = {name: _warp_view(ctx, name) for name in ctx.outputs}
-    has_poses = any(value.dtype == wp.transformf for value in outputs.values())
+    poses = _world_poses(ctx)
+    has_poses = bool(poses)
     if shared and groups is not None:
         raise ValueError("Reset states are either shared or per group of worlds, not both.")
     if (shared or groups is not None) and "env_origins" not in ctx.inputs and has_poses:
@@ -434,11 +443,13 @@ def _init(
     if not 0.0 <= default_reset_probability <= 1.0:
         raise ValueError(f"default_reset_probability must be in [0, 1], got {default_reset_probability}.")
     device = ctx.rng.device
+    labels = None
     if shared:
         group = None
     elif groups is not None:
-        # Number the groups 0, 1, ..., so that any labels work.
-        group = torch.unique(torch.as_tensor(groups(ctx), device=device), return_inverse=True)[1]
+        # Number the groups 0, 1, ..., so that any labels work; the labels are saved with the states.
+        labels = ctx.cache["group_labels"] = torch.as_tensor(groups(ctx), device=device)
+        group = torch.unique(labels, return_inverse=True)[1]
         if group.shape != (ctx.num_worlds,):
             raise ValueError(f"groups must give one group per world, got shape {tuple(group.shape)}.")
     else:
@@ -461,7 +472,10 @@ def _init(
         outputs,
         sampler if sampler is not None else ResetStateSamplerCfg(history_length=1, scores=[]),
         groups=group,
+        labels=labels,
         origins=None if origins is None else wp.from_torch(origins.contiguous(), dtype=wp.vec3f),
+        poses=poses if origins is not None else (),
+        uniform=sampler is None,
         default_reset_probability=default_reset_probability,
         record=record,
     )
@@ -476,11 +490,23 @@ def _init(
         reset_states.record(rng, wp.ones_like(nothing), None if when is None else _as_warp(when))
 
 
-def _restore(mask: Any, cache: dict, rng: Any, succeeded: Any = None, **_: Any) -> None:
+def _restore(
+    mask: wp.array | torch.Tensor,
+    cache: dict[str, Any],
+    rng: wp.array | torch.Tensor,
+    succeeded: wp.array | torch.Tensor | None = None,
+    **_: Any,
+) -> None:
     cache["reset_states"].restore(_as_warp(mask), _as_warp(rng), None if succeeded is None else _as_warp(succeeded))
 
 
-def _record(cache: dict, rng: Any, terminated: Any = None, record_if: Any = None, **_: Any) -> None:
+def _record(
+    cache: dict[str, Any],
+    rng: wp.array | torch.Tensor,
+    terminated: wp.array | torch.Tensor | None = None,
+    record_if: wp.array | torch.Tensor | None = None,
+    **_: Any,
+) -> None:
     reset_states: ResetStates = cache["reset_states"]
     if reset_states._record is not None:
         reset_states.record(_as_warp(rng), _as_warp(terminated), None if record_if is None else _as_warp(record_if))
@@ -506,8 +532,10 @@ Params:
 - ``record``: :class:`RecordVisited`, to store states visited during training.
 
 Inputs: ``succeeded``, the ended episode's success, credited to the slot it started from when bound;
-``env_origins``, which stores the poses relative to the environment origins; ``terminated`` (``mdp2.terminated``),
-required to record; and ``record_if``, a quantity above 0.5 where a state may be recorded.
+``env_origins``, which stores the world-frame poses (scene fields ``*_w`` of transforms, such as
+``root_link_pose_w``) relative to the environment origins, while local ones, such as ``default_root_pose``, stay;
+``terminated`` (``mdp2.terminated``), required to record; and ``record_if``, a quantity above 0.5 where a state
+may be recorded.
 
 Place it after the other reset events: it overwrites the outputs they wrote. The states and the sampler's history
 persist across episodes; :func:`get_reset_states` returns them.
@@ -567,6 +595,20 @@ def _choose_records(
 
 
 @wp.kernel
+def _skip_invalid(
+    invalid: wp.array(dtype=wp.bool),
+    writes: wp.array(dtype=wp.bool),
+    restored: wp.array(dtype=wp.bool),
+    credit: wp.array(dtype=wp.bool),
+):
+    world = wp.tid()
+    if invalid[world]:
+        writes[world] = False
+        restored[world] = False
+        credit[world] = False
+
+
+@wp.kernel
 def _shift_poses(
     mask: wp.array(dtype=wp.bool),
     origins: wp.array(dtype=wp.vec3f),
@@ -581,18 +623,57 @@ def _shift_poses(
         )
 
 
+@wp.kernel
+def _shift_pose_rows(
+    mask: wp.array(dtype=wp.bool),
+    origins: wp.array(dtype=wp.vec3f),
+    pose: wp.array2d(dtype=wp.transformf),
+    out: wp.array2d(dtype=wp.transformf),
+    sign: float,
+):
+    world, k = wp.tid()
+    if mask[world]:
+        out[world, k] = wp.transformf(
+            wp.transform_get_translation(pose[world, k]) + sign * origins[world],
+            wp.transform_get_rotation(pose[world, k]),
+        )
+
+
+def _shift(mask: wp.array, origins: wp.array, pose: wp.array, out: wp.array, sign: float) -> None:
+    """Shift the masked worlds' poses by ``sign`` times their origins into ``out``: one pose per world, or more, such
+    as of bodies, whose arrays are then contiguous."""
+    if pose.ndim == 1:
+        wp.launch(_shift_poses, pose.shape, [mask, origins, pose, out, sign], device=pose.device)
+        return
+    rows = (pose.shape[0], -1)
+    pose, out = pose.reshape(rows), out.reshape(rows)
+    wp.launch(_shift_pose_rows, pose.shape, [mask, origins, pose, out, sign], device=pose.device)
+
+
 def _warp_view(ctx: TermContext, name: str) -> wp.array:
     """Return a Warp view of an output, keeping the element type of scene fields such as ``wp.transformf``."""
     selector = ctx.selectors[name]
-    if getattr(selector, "scene", False):
+    if selector.scene:
         return ctx.scene_data.data(selector.entity, selector.field).warp
     return wp.from_torch(ctx.outputs[name])
 
 
+def _world_poses(ctx: TermContext) -> set[str]:
+    """Return the outputs that are poses in the world frame: scene fields of transforms named ``*_w``."""
+    return {
+        name
+        for name, selector in ctx.selectors.items()
+        if name in ctx.outputs
+        and selector.scene
+        and selector.field.endswith("_w")
+        and _warp_view(ctx, name).dtype == wp.transformf
+    }
+
+
 def _minus_origin(pose: torch.Tensor, origins: torch.Tensor) -> torch.Tensor:
-    """Return root poses of shape ``(num_worlds, 7)`` relative to the environment origins."""
+    """Return poses of shape ``(num_worlds, ..., 7)`` relative to the environment origins."""
     relative = pose.clone()
-    relative[:, :3] -= origins
+    relative[..., :3] -= origins.view(len(origins), *(1,) * (pose.dim() - 2), 3)
     return relative
 
 
