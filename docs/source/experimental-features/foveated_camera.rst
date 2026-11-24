@@ -180,10 +180,11 @@ Binocular gaze
 
 :class:`~mdp.BinocularGazeActionCfg` moves two foveated cameras on one body with three actions: the version, their
 shared line of sight (tilt, pan), and the vergence, the angle between their lines of sight. Each eye turns from the
-version by half the vergence toward the other, in the plane of the version and the baseline, so the lines of sight
-always meet. The version moves as a single camera's gaze does in ``"software"``, ``"physical"`` or ``"hybrid"``
-mode; the vergence always turns the retinas. The eyes need parallel optical axes, the same retina, and Newton or
-OVRTX. :data:`~assets.PAN_TILT_STEREO_OFFSETS` places two eyes 6.5 cm apart on the pan-tilt mount:
+version by half the vergence toward the other, in the plane of the version and the baseline, so with any vergence
+above zero the lines of sight meet; at zero they are parallel. The version moves as a single camera's gaze does in
+``"software"``, ``"physical"`` or ``"hybrid"`` mode; the vergence always turns the retinas. The eyes need one body
+to carry them, parallel optical axes, the same retina, and Newton or OVRTX. :data:`~assets.PAN_TILT_STEREO_OFFSETS`
+places two eyes 6.5 cm apart on the pan-tilt mount:
 
 .. code-block:: python
 
@@ -201,11 +202,12 @@ OVRTX. :data:`~assets.PAN_TILT_STEREO_OFFSETS` places two eyes 6.5 cm apart on t
 :class:`~mdp.binocular_gaze_teacher_labels` labels the actions that fixate a point with both eyes. The
 ``foveated-stereo`` example steps both eyes with these labels from object to object: the retinas jump to each object
 while the head turns after them, and the eyes converge on near objects. The viewer shows the left eye; its camera menu
-switches to the right eye or an overview. The bracketed options render with OVRTX:
+switches to the right eye or an overview. Run it with Newton's renderer, or with OVRTX:
 
 .. code-block:: bash
 
-   uv run --extra fovi [--extra ovrtx] isaaclab example foveated-stereo [renderer=ovrtx]
+   uv run --extra fovi isaaclab example foveated-stereo
+   uv run --extra fovi --extra ovrtx isaaclab example foveated-stereo renderer=ovrtx
 
 .. figure:: ../_static/overview/sensors/foveated_camera_binocular.jpg
    :alt: Left and right eye images at four fixations, with the version, head pan and vergence over time.

@@ -112,8 +112,11 @@ class BinocularGazeActionCfg(ActionTermCfg):
 
     def validate_config(self) -> None:
         """Reject invalid steps, limits and modes, and rig settings that a mode cannot use."""
-        for name in ("step_size", "gaze_limit", "vergence_limit"):
-            value = getattr(self, name)
+        for name, value in (
+            ("step_size", self.step_size),
+            ("gaze_limit", self.gaze_limit),
+            ("vergence_limit", self.vergence_limit),
+        ):
             if not _positive_finite(value):
                 raise ValueError(f"BinocularGazeActionCfg.{name} must be positive and finite, got {value!r}.")
         if self.asset_name == self.right_asset_name:

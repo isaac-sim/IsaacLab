@@ -7,8 +7,8 @@
 
 The version is the shared line of sight, (tilt, pan) as for a single camera's gaze; the vergence is the angle between
 the two eyes' lines of sight. Each eye turns from the version by half the vergence, toward the other eye, in the plane
-that holds the version and the baseline between the eyes, so the two lines of sight always meet. Both are in field
-radii, half the retina's field of view.
+that holds the version and the baseline between the eyes, so with any vergence above zero the two lines of sight
+meet; at zero they are parallel. Both are in field radii, half the retina's field of view.
 """
 
 from __future__ import annotations
@@ -21,6 +21,7 @@ import torch
 import warp as wp
 
 from isaaclab.managers import ActionTerm, ManagerTermBase, ObservationTermCfg, SceneEntityCfg
+from isaaclab.utils.math import quat_apply_inverse
 from isaaclab.utils.warp import ProxyArray
 
 from ..sensors.gaze_kernels import DEG_TO_RAD, CameraParams, project_direction, record_launch, warp_stream
@@ -34,7 +35,9 @@ from .gaze import (
     head_and_target_kernel,
     head_angles,
     rig_gaze,
+    target_body_index,
     within,
+    write_head_targets,
 )
 
 if TYPE_CHECKING:
@@ -72,7 +75,6 @@ def make_binocular_gaze_step(mode: int) -> wp.Kernel:
         held: wp.array(dtype=wp.vec3f),
         held_valid: wp.array(dtype=wp.int32),
         version: wp.array(dtype=wp.vec2f),
-        vergence: wp.array(dtype=wp.float32),
         left_deg: wp.array(dtype=wp.vec2f),
         right_deg: wp.array(dtype=wp.vec2f),
         state: wp.array2d(dtype=wp.float32),
@@ -85,7 +87,8 @@ def make_binocular_gaze_step(mode: int) -> wp.Kernel:
         the unit direction from the left eye to the right in the upright frame, and ``mounts`` the eyes' shared mount.
         Software gaze reads no joints, and only hybrid gaze holds a fixation, so the arrays a mode leaves alone may be
         empty. Writes both eyes' gaze angles ``left_deg`` and ``right_deg``, the joint ``targets`` (pan, tilt) and
-        ``state``: the version's direction from the rig's zero pose, the vergence, and their velocities.
+        ``state``: the version's direction from the rig's zero pose, the vergence, which the state alone holds, and
+        their velocities.
         """
         i = wp.tid()
         radius_rad = field_radius_deg * wp.float32(DEG_TO_RAD)
@@ -97,8 +100,7 @@ def make_binocular_gaze_step(mode: int) -> wp.Kernel:
         if wp.static(mode != SOFTWARE):
             head = head_angles(joint_pos, i, joints, signs)
             # Commanded head steps add to the last targets; hybrid gaze steps from where the head is.
-            pan_base = targets[i, 0]
-            tilt_base = targets[i, 1]
+            base = wp.vec2f(targets[i, 0], targets[i, 1])
             turn = action * step_size
             if wp.static(mode == HYBRID):
                 if held_valid[i] != 0:
@@ -108,13 +110,9 @@ def make_binocular_gaze_step(mode: int) -> wp.Kernel:
                 turn = wp.vec2f(wp.clamp(soft[0], -head_step, head_step), wp.clamp(soft[1], -head_step, head_step))
                 held[i] = wp.quat_rotate(mounts[i], gaze_direction(soft, field_radius_deg))
                 held_valid[i] = 1
-                pan_base = joint_pos[i, joints[0]]
-                tilt_base = joint_pos[i, joints[1]]
-            pan_limit = limits[i, joints[0]]
-            tilt_limit = limits[i, joints[1]]
-            targets[i, 0] = wp.clamp(pan_base + signs[0] * turn[1] * radius_rad, pan_limit[0], pan_limit[1])
-            targets[i, 1] = wp.clamp(tilt_base + signs[1] * turn[0] * radius_rad, tilt_limit[0], tilt_limit[1])
-        verge = wp.clamp(vergence[i] + wp.clamp(actions[i, 2], -1.0, 1.0) * step_size, 0.0, vergence_limit)
+                base = wp.vec2f(joint_pos[i, joints[0]], joint_pos[i, joints[1]])
+            write_head_targets(targets, limits, i, joints, signs, base, turn * radius_rad)
+        verge = wp.clamp(state[i, 2] + wp.clamp(actions[i, 2], -1.0, 1.0) * step_size, 0.0, vergence_limit)
         # Each eye turns by half the vergence toward the other, in the plane of the version and the baseline.
         d = gaze_direction(soft, field_radius_deg)
         toward_right = wp.normalize(baseline - wp.dot(baseline, d) * d)
@@ -122,7 +120,6 @@ def make_binocular_gaze_step(mode: int) -> wp.Kernel:
         left_deg[i] = gaze_of(wp.cos(half) * d + wp.sin(half) * toward_right, field_radius_deg) * field_radius_deg
         right_deg[i] = gaze_of(wp.cos(half) * d - wp.sin(half) * toward_right, field_radius_deg) * field_radius_deg
         version[i] = soft
-        vergence[i] = verge
         gaze = rig_gaze(head, soft, field_radius_deg)
         state[i, 3] = (gaze[0] - state[i, 0]) / step_dt
         state[i, 4] = (gaze[1] - state[i, 1]) / step_dt
@@ -147,7 +144,6 @@ def binocular_gaze_reset_kernel(
     targets: wp.array2d(dtype=wp.float32),
     held_valid: wp.array(dtype=wp.int32),
     version: wp.array(dtype=wp.vec2f),
-    vergence: wp.array(dtype=wp.float32),
     left_deg: wp.array(dtype=wp.vec2f),
     right_deg: wp.array(dtype=wp.vec2f),
     state: wp.array2d(dtype=wp.float32),
@@ -159,7 +155,6 @@ def binocular_gaze_reset_kernel(
     if use_ids != 0:
         i = ids[k]
     version[i] = wp.vec2f(0.0, 0.0)
-    vergence[i] = 0.0
     left_deg[i] = wp.vec2f(0.0, 0.0)
     right_deg[i] = wp.vec2f(0.0, 0.0)
     head = wp.vec2f(0.0, 0.0)
@@ -182,23 +177,29 @@ def binocular_teacher_kernel(
     right_positions: wp.array(dtype=wp.vec3f),
     mounts: wp.array(dtype=wp.quatf),
     version: wp.array(dtype=wp.vec2f),
-    vergence: wp.array(dtype=wp.float32),
+    state: wp.array2d(dtype=wp.float32),
     heads: wp.array(dtype=wp.vec4f),
-    physical: wp.int32,
+    held: wp.array(dtype=wp.vec3f),
+    held_valid: wp.array(dtype=wp.int32),
+    mode: wp.int32,
     frame: wp.mat33f,
     field_radius_deg: wp.float32,
     step_size: wp.float32,
     gaze_limit: wp.float32,
     vergence_limit: wp.float32,
-    camera: CameraParams,
+    left_camera: CameraParams,
+    right_camera: CameraParams,
     labels: wp.array2d(dtype=wp.float32),
 ):
     """Labels (version tilt, version pan, vergence, valid) that fixate each point with both eyes.
 
     The version that fixates a point bisects the two eyes' lines of sight to it, and the vergence is the angle between
-    them. A point is a valid target when both physical cameras see it and the fixation is within the limits. In
-    physical gaze (``physical``) the version actions turn the head, so they are labelled from ``heads``, the head's
-    measured and commanded (tilt, pan) in field radii, and never repeat a turn the head has yet to make.
+    them; ``state`` holds the current vergence in its third column. A point is a valid target when each eye's camera
+    sees it and the fixation is within the limits. The version is labelled from where the next step starts: in hybrid
+    gaze the version re-aimed at the fixation it holds in ``held``, once ``held_valid`` is set. In physical gaze the
+    version actions turn the head, so they are labelled from ``heads``, the head's measured and commanded (tilt, pan)
+    in field radii, and never repeat a turn the head has yet to make. ``mode`` is the mode's code, and the arrays it
+    does not use may be empty.
     """
     i = wp.tid()
     mount = mounts[i]
@@ -208,20 +209,24 @@ def binocular_teacher_kernel(
     angle = wp.atan2(wp.length(wp.cross(left, right)), wp.dot(left, right)) * wp.float32(RAD_TO_DEG)
     verge = angle / field_radius_deg
     ok = (
-        project_direction(left, camera)[2] > 0.5
-        and project_direction(right, camera)[2] > 0.5
+        project_direction(left, left_camera)[2] > 0.5
+        and project_direction(right, right_camera)[2] > 0.5
         and wp.length(desired) <= gaze_limit
         and verge <= vergence_limit
     )
     step = wp.vec3f(0.0, 0.0, 0.0)
     if ok:
-        turn = desired - version[i]
-        if physical != 0:
+        start = version[i]
+        if mode == HYBRID:
+            if held_valid[i] != 0:
+                start = gaze_of(wp.transpose(frame) * wp.quat_rotate_inv(mount, held[i]), field_radius_deg)
+        turn = desired - start
+        if mode == PHYSICAL:
             head = heads[i]
             measured = wp.vec2f(head[0], head[1]) * field_radius_deg * wp.float32(DEG_TO_RAD)
             turn = rig_gaze(measured, desired, field_radius_deg) - wp.vec2f(head[2], head[3])
         turn = clamp_unit(turn / step_size)
-        step = wp.vec3f(turn[0], turn[1], wp.clamp((verge - vergence[i]) / step_size, -1.0, 1.0))
+        step = wp.vec3f(turn[0], turn[1], wp.clamp((verge - state[i, 2]) / step_size, -1.0, 1.0))
     labels[i, 0] = step[0]
     labels[i, 1] = step[1]
     labels[i, 2] = step[2]
@@ -272,7 +277,14 @@ class BinocularGazeAction(ActionTerm):
 
     def __init__(self, cfg: BinocularGazeActionCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
+        self._right: FoveatedCamera = env.scene[cfg.right_asset_name]
         left, right = self.left, self.right
+        if left.cfg.prim_path.rpartition("/")[0] != right.cfg.prim_path.rpartition("/")[0]:
+            # The version, the vergence and the baseline assume one rigid head that carries both eyes.
+            raise ValueError(
+                "Both eyes of a binocular gaze must be on one body: their prims need the same parent, got"
+                f" {left.cfg.prim_path!r} and {right.cfg.prim_path!r}."
+            )
         if not (left.turns_pose_by_gaze and right.turns_pose_by_gaze):
             raise ValueError("Binocular gaze needs eyes whose renderer turns their pose by the gaze: Newton or OVRTX.")
         if cfg.mode != "software" and left.cfg.image_rotation_deg != 0:
@@ -294,8 +306,8 @@ class BinocularGazeAction(ActionTerm):
         """Unit direction from the left eye to the right, in the upright image frame."""
         self._raw: torch.Tensor | None = None
         self._version = ProxyArray(wp.zeros(self.num_envs, dtype=wp.vec2f, device=self.device))
-        self._vergence = ProxyArray(wp.zeros(self.num_envs, dtype=wp.float32, device=self.device))
         self._state = ProxyArray(wp.zeros((self.num_envs, 6), dtype=wp.float32, device=self.device))
+        """Version, vergence and their velocities; the vergence lives here alone."""
         self._mode_code = {"software": SOFTWARE, "physical": PHYSICAL, "hybrid": HYBRID}[cfg.mode]
         # Only hybrid gaze holds a fixation; the other modes' kernels never touch these, so they stay empty.
         held = self.num_envs if self._mode_code == HYBRID else 0
@@ -334,7 +346,7 @@ class BinocularGazeAction(ActionTerm):
     @property
     def right(self) -> FoveatedCamera:
         """The right eye."""
-        return self._env.scene[self.cfg.right_asset_name]
+        return self._right
 
     @property
     def action_dim(self) -> int:
@@ -358,7 +370,7 @@ class BinocularGazeAction(ActionTerm):
     @property
     def vergence(self) -> torch.Tensor:
         """The vergence, the angle between the lines of sight, in field radii, shape (num_envs,)."""
-        return self._vergence.torch
+        return self._state.torch[:, 2]
 
     @property
     def state(self) -> torch.Tensor:
@@ -403,7 +415,6 @@ class BinocularGazeAction(ActionTerm):
                     self._held,
                     self._held_valid,
                     self._version,
-                    self._vergence,
                     left.gaze_angles,
                     right.gaze_angles,
                     self._state,
@@ -453,7 +464,6 @@ class BinocularGazeAction(ActionTerm):
                     self._targets,
                     self._held_valid,
                     self._version,
-                    self._vergence,
                     left.gaze_angles,
                     right.gaze_angles,
                     self._state,
@@ -505,15 +515,18 @@ class BinocularGazeAction(ActionTerm):
                     right_positions,
                     mounts,
                     self._version,
-                    self._vergence,
+                    self._state,
                     heads,
-                    int(self._mode_code == PHYSICAL),
+                    self._held,
+                    self._held_valid,
+                    self._mode_code,
                     left.image_frame,
                     self.field_radius_deg,
                     self.cfg.step_size,
                     self.cfg.gaze_limit,
                     self.cfg.vergence_limit,
                     left.projection_params,
+                    right.projection_params,
                 ],
                 [labels],
                 self.device,
@@ -523,12 +536,7 @@ class BinocularGazeAction(ActionTerm):
 
     def _baseline(self, mount: torch.Tensor, left: torch.Tensor, right: torch.Tensor) -> wp.vec3f:
         """The unit direction from the left eye to the right in the upright frame; it must cross the optical axes."""
-        x, y, z, w = mount.tolist()
-        q = torch.tensor([x, y, z], device=mount.device)
-        offset = right - left
-        # Rotate the world offset into the camera frame by the mount's inverse.
-        t = 2 * torch.linalg.cross(-q, offset)
-        local = offset + w * t + torch.linalg.cross(-q, t)
+        local = quat_apply_inverse(mount[None], (right - left)[None])[0]
         upright = torch.tensor(_rows(self.left.image_frame), device=mount.device).T @ local
         length = float(upright.norm())
         if length < 1e-6 or abs(float(upright[2])) > 0.1 * length:
@@ -561,10 +569,10 @@ class binocular_gaze_teacher_labels(ManagerTermBase):
         action_name: str = "gaze",
     ) -> torch.Tensor:
         data = env.scene[target_cfg.name].data
-        if target_cfg.body_names is None:
+        body = target_body_index(target_cfg)
+        if body is None:
             positions, orientations = data.root_pos_w.warp, data.root_quat_w.warp
         else:
-            body = target_cfg.body_ids[0]
             positions = wp.from_torch(data.body_pos_w.torch[:, body], dtype=wp.vec3f)
             orientations = wp.from_torch(data.body_quat_w.torch[:, body], dtype=wp.quatf)
         wp.launch(

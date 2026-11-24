@@ -145,6 +145,7 @@ class StereoExampleCfg(ManagerBasedEnvCfg):
 
     decimation = 4
     actions = ActionsCfg()
+    # The example reads no observations, but a manager-based environment needs at least one group.
     observations = ObservationsCfg()
     ui_window_class_type = None
     scene: StereoSceneCfg = StereoSceneCfg(num_envs=1, env_spacing=0.0)
@@ -173,20 +174,22 @@ def main() -> None:
     cfg, _ = resolve_task_config("FoveatedStereoExample", None, overrides=overrides)
     with launch_simulation(cfg, args_cli):
         env = ManagerBasedEnv(cfg)
-        env.reset()
-        gaze = env.action_manager.get_term("gaze")
-        centres = torch.tensor([centre for centre, _, _ in OBJECTS.values()], device=env.device)
-        point = centres[:1].clone()
-        labels = torch.zeros(1, 4, device=env.device)
-        point_wp, labels_wp = wp.from_torch(point, dtype=wp.vec3f), wp.from_torch(labels)
-        step = 0
-        while env.sim.is_running() and (args_cli.max_steps < 0 or step < args_cli.max_steps):
-            point.copy_(centres[(step // args_cli.dwell) % len(centres)] + env.scene.env_origins[:1])
-            # The teacher's labels step both eyes toward the object; an invalid target holds them still.
-            gaze.teacher_labels(point_wp, labels_wp)
-            env.step(labels[:, :3])
-            step += 1
-        env.close()
+        try:
+            env.reset()
+            gaze = env.action_manager.get_term("gaze")
+            centres = torch.tensor([centre for centre, _, _ in OBJECTS.values()], device=env.device)
+            point = centres[:1].clone()
+            labels = torch.zeros(1, 4, device=env.device)
+            point_wp, labels_wp = wp.from_torch(point, dtype=wp.vec3f), wp.from_torch(labels)
+            step = 0
+            while env.sim.is_running() and (args_cli.max_steps < 0 or step < args_cli.max_steps):
+                point.copy_(centres[(step // args_cli.dwell) % len(centres)] + env.scene.env_origins[:1])
+                # The teacher's labels step both eyes toward the object; an invalid target holds them still.
+                gaze.teacher_labels(point_wp, labels_wp)
+                env.step(labels[:, :3])
+                step += 1
+        finally:
+            env.close()
 
 
 if __name__ == "__main__":
