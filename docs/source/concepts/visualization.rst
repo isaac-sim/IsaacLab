@@ -835,13 +835,16 @@ In the **Checkpoint Ghosts** section, **Add Checkpoint...** browses folders for 
 the experiment's log directory or ``--checkpoint_ghost_root``. Each ghost can be shown, changed, or removed, and has
 opacity and tint under **Appearance**. The controls are disabled in the RTX view; switch the Renderer to OpenGL.
 
-* Startup and interval events, curriculum terms, and observation noise are disabled, since they cannot be mirrored
-  between slots, so the reference plays without disturbances such as pushes and can look steadier than in training.
-  Reset randomization is mirrored: each ghost resets from the reference's random state. Randomness that does not come
-  from torch's generators (numpy, warp) is not mirrored.
-* RSL-RL, rl_games, skrl, and Stable-Baselines3 playback support it, for single-agent manager-based and direct
-  environments. A direct environment mirrors its reset state, but goals or commands it resamples during an episode are
-  not mirrored. Tasks whose curriculum selects the reset state (such as Franka Pour) are rejected at launch.
+Limitations:
+
+* Startup and interval events, curriculum terms, and action and observation noise are disabled, since they cannot be
+  mirrored, so the reference can look steadier than in training. Reset randomization is mirrored from torch's random
+  state; numpy and warp randomness is not.
+* Playback with RSL-RL, rl_games, skrl (``--ml_framework torch``), and Stable-Baselines3 is supported, for
+  single-agent manager-based and direct environments. torchrl, rlinf, and multi-agent environments are not.
+* A direct environment mirrors its reset state, but not goals or commands it resamples during an episode.
+* Tasks whose curriculum selects the reset state (such as Franka Pour) are rejected at launch.
+* It needs the Newton viewer, and tint and opacity need the OpenGL renderer.
 
 **Choosing how many environments are drawn**
 
