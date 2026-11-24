@@ -158,7 +158,7 @@ def test_g1_differentiable_velocity_matches_reward_and_termination_managers():
             clock_state[7] = torch.full_like(clock_state[7], 0.2)
             clock_state[8] = torch.full_like(clock_state[8], 0.1)
             clock_state[9] = torch.full_like(clock_state[9], 0.15)
-            advanced = task.post_dynamics(tuple(clock_state), successor, labels)
+            advanced = task.post_dynamics(tuple(clock_state), successor, labels, actions, obs["context"])
             sum(value.sum() for value in advanced[7:]).backward()
             assert torch.isfinite(labels.grad).all() and labels.grad.abs().sum() > 0
             # Imagined rewards must differentiate with respect to actions and state.

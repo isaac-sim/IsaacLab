@@ -258,7 +258,7 @@ class VelocityTask(DifferentiableTask):
         return torch.cat((torch.log1p(context), prev_actions.flatten(-2)), dim=-1)
 
     def critic_obs(
-        self, state: State, goal: torch.Tensor, context: torch.Tensor, prev_actions: torch.Tensor
+        self, state: State, goal: torch.Tensor, context: torch.Tensor, prev_actions: torch.Tensor, history: torch.Tensor
     ) -> torch.Tensor:
         """Allow the critic privileged physical state and mass information."""
         return torch.cat(
@@ -271,7 +271,9 @@ class VelocityTask(DifferentiableTask):
         """Hold the command over the short imagined horizon."""
         return goal, context
 
-    def post_dynamics(self, state: State, next_state: State, labels: torch.Tensor) -> State:
+    def post_dynamics(
+        self, state: State, next_state: State, labels: torch.Tensor, actions: torch.Tensor, context: torch.Tensor
+    ) -> State:
         """Advance contact clocks from soft contact events at policy resolution."""
         contact = labels[..., : self.num_feet]
         first = labels[..., self.num_feet + self.num_bodies :]
