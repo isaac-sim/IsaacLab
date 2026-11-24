@@ -33,7 +33,7 @@ from isaaclab_assets.robots.franka import FRANKA_ROBOTIQ_GRIPPER_CFG
 
 from . import VLA_BENCHMARKS_ASSETS_DIR, mdp
 
-GRIPPER_BODY = "robot/Robotiq_2F_85_edit/Robotiq_2F_85/left_inner_finger"
+GRIPPER_BODY = "robot/Gripper/Robotiq_2F_85/left_inner_finger"
 """Gripper link, relative to the environment prim, whose contacts decide whether an object is held."""
 
 
@@ -455,10 +455,10 @@ class TabletopSceneCfg(InteractiveSceneCfg):
         ),
     )
     wrist_cam = CAMERA_CFG.replace(
-        prim_path="{ENV_REGEX_NS}/robot/Robotiq_2F_85_edit/Robotiq_2F_85/base_link/wrist_cam",
+        prim_path="{ENV_REGEX_NS}/robot/Gripper/Robotiq_2F_85/base_link/wrist_cam",
         update_latest_camera_pose=True,
         spawn=CAMERA_CFG.spawn.replace(focal_length=2.8),
-        offset=CameraCfg.OffsetCfg(pos=(-0.074, 0.031, 0.011), rot=(0.704, -0.692, -0.11, 0.114), convention="opengl"),
+        offset=CameraCfg.OffsetCfg(pos=(0.011, -0.031, -0.074), rot=(0.57, 0.576, -0.409, -0.42), convention="opengl"),
     )
     contact = ContactSensorCfg(
         prim_path=f"{{ENV_REGEX_NS}}/([^/]+|{GRIPPER_BODY})",
