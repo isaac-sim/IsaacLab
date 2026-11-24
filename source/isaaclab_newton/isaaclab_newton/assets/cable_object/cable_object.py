@@ -35,7 +35,7 @@ if TYPE_CHECKING:
 
 
 class CableObject(BaseCableObject):
-    """A Newton cable that requires the VBD solver."""
+    """An open or periodic Newton cable that requires the VBD solver."""
 
     cfg: CableObjectCfg
     """Configuration instance for the cable object."""
@@ -191,7 +191,9 @@ class CableObject(BaseCableObject):
 
         resolve_kwargs = {"predicate": is_cable_curve, "expected_num_matches": 1}
         curve_prim, curve_path_expr = resolve_matching_prims_from_source(self.cfg.prim_path, **resolve_kwargs)[0]
-        num_segments = int(UsdGeom.BasisCurves(curve_prim).GetCurveVertexCountsAttr().Get()[0]) - 1
+        curve = UsdGeom.BasisCurves(curve_prim)
+        periodic = curve.GetWrapAttr().Get() == UsdGeom.Tokens.periodic
+        num_segments = int(curve.GetCurveVertexCountsAttr().Get()[0]) - (0 if periodic else 1)
 
         model = self._backend_manager.backend.model
         articulation_path_expr = f"{curve_path_expr}_articulation"

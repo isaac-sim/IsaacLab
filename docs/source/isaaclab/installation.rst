@@ -433,7 +433,9 @@ have dedicated commands below.
    * - ``ovphysx`` / ``ovrtx``
      - OV PhysX only / OV RTX only.
    * - ``optix``
-     - The Newton OptiX renderer runtime for RTX GPUs.
+     - The Newton OptiX renderer runtime for RTX GPUs, available with Python 3.12 on
+       Linux x86-64 and Windows x64 only. ARM64 systems, including NVIDIA DGX Spark,
+       are not supported.
    * - ``sb3`` / ``skrl`` / ``rsl-rl`` / ``rlinf`` / ``torchrl``
      - The corresponding RL framework.
    * - ``skrl-jax``

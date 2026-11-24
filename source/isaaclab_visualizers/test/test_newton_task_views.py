@@ -229,6 +229,37 @@ def test_leaving_rtx_hides_the_overlays_and_suspends_the_viewer_lights():
     assert viz.hidden == [("ovrtx",)] and suspended == [True]
 
 
+class _RenderData:
+    """Render data of the viewer camera; a class, not a namespace, so that it can key the engine's dictionary."""
+
+    def __init__(self, path):
+        self.products = [SimpleNamespace(path=path)]
+
+
+def test_the_rtx_appearance_controls_take_the_render_product_after_the_first_rendered_frame(monkeypatch):
+    """A failed first frame can move the viewer camera to a new render product, so the controls wait for a frame."""
+    rtx = _rtx_view()
+    rtx.camera.cfg.background_color = None
+    rtx.camera._render_data = render_data = _RenderData("/RenderCamera_0/RenderProduct")
+    backend = SimpleNamespace(unrendered={render_data: None})
+    viz = _switchable([_view(PerspectiveCameraCfg()), rtx])
+    viz._sim.get_or_create_backend = lambda cfg: SimpleNamespace(backend=backend)
+    viz._sim.stage = None
+    viz._rtx_appearance, viz._rtx_appearance_failed = None, False
+    monkeypatch.setattr(
+        "isaaclab_visualizers.newton.newton_visualizer.RtxAppearance",
+        lambda stage, renderer, product, background_color: SimpleNamespace(product=product),
+    )
+
+    assert viz._rtx_appearance_controller() is None
+    assert not viz._rtx_appearance_failed  # The controls are not ready yet, but they did not fail.
+
+    render_data.products = [SimpleNamespace(path="/RenderCamera_1/RenderProduct")]  # The split search moved the camera.
+    backend.unrendered.clear()  # A frame rendered.
+
+    assert viz._rtx_appearance_controller().product == "/RenderCamera_1/RenderProduct"
+
+
 def test_leaving_rtx_without_a_free_perspective_view_shows_the_first_other_source():
     sensor = _View("sensor", camera=SimpleNamespace(cfg=SimpleNamespace(prim_path="/World/envs/env_0/Camera")))
     rtx = _rtx_view()

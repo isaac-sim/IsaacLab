@@ -3,19 +3,26 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Command-line arguments shared by the RSL-RL entrypoints."""
+"""Arguments and training checkpoint policy shared by RSL-RL entrypoints.
+
+Keep training checkpoint selection here; benchmarks must not import another entrypoint
+or add a separate resume policy. Explicit references must not overwrite filename patterns.
+"""
 
 from __future__ import annotations
 
 import argparse
-from typing import TYPE_CHECKING
+import re
+from pathlib import Path
 
+from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.string import string_to_callable
 
-from ..common import resolve_seed
+from isaaclab_tasks.utils import get_checkpoint_path
 
-if TYPE_CHECKING:
-    from ...rsl_rl import RslRlBaseRunnerCfg
+from ...rsl_rl import RslRlBaseRunnerCfg, RslRlDistillationRunnerCfg
+from ...utils.wandb import is_wandb_checkpoint, resolve_wandb_checkpoint
+from ..common import CHECKPOINT_SELECTORS, resolve_checkpoint_selector, resolve_seed
 
 
 def add_rsl_rl_args(parser: argparse.ArgumentParser) -> None:
@@ -98,8 +105,6 @@ def update_rsl_rl_cfg(agent_cfg: RslRlBaseRunnerCfg, args_cli: argparse.Namespac
     if getattr(args_cli, "seed", None) is not None:
         args_cli.seed = resolve_seed(args_cli.seed)
         agent_cfg.seed = args_cli.seed
-    if args_cli.checkpoint is not None:
-        agent_cfg.load_checkpoint = args_cli.checkpoint
     if args_cli.experiment_name is not None:
         agent_cfg.experiment_name = args_cli.experiment_name
     if args_cli.run_name is not None:
@@ -110,3 +115,50 @@ def update_rsl_rl_cfg(agent_cfg: RslRlBaseRunnerCfg, args_cli: argparse.Namespac
         agent_cfg.wandb_project = args_cli.log_project_name
         agent_cfg.neptune_project = args_cli.log_project_name
     return agent_cfg
+
+
+def resolve_rsl_rl_training_checkpoint(
+    args_cli: argparse.Namespace, agent_cfg: RslRlBaseRunnerCfg, log_root_path: str
+) -> str | None:
+    """Select the initial checkpoint for training and training benchmarks.
+
+    An explicit reference takes precedence over configured resume. RSL-RL decides whether
+    the checkpoint initializes a distillation teacher or restores a student.
+
+    Args:
+        args_cli: Training arguments containing checkpoint, task, and agent selections.
+        agent_cfg: Runner configuration containing the resume policy and filename pattern.
+        log_root_path: Experiment directory searched only for configured resume or selectors.
+
+    Returns:
+        The checkpoint path, or None for fresh on-policy or off-policy training.
+    """
+    if args_cli.checkpoint and is_wandb_checkpoint(args_cli.checkpoint):
+        return resolve_wandb_checkpoint(args_cli.checkpoint)
+    if args_cli.checkpoint in CHECKPOINT_SELECTORS:
+        return resolve_checkpoint_selector(
+            log_root_path,
+            args_cli.checkpoint,
+            library="rsl_rl",
+            task=args_cli.task,
+            checkpoint_pattern=r"model_.*\.pt",
+            metadata={"agent": args_cli.agent},
+        )
+    if args_cli.checkpoint:
+        run_dir = Path(args_cli.checkpoint)
+        if not run_dir.is_dir():
+            return retrieve_file_path(args_cli.checkpoint)
+        checkpoints = [
+            path for path in run_dir.iterdir() if path.is_file() and re.fullmatch(r"model_.*\.pt", path.name)
+        ]
+        if not checkpoints:
+            raise ValueError(f"No checkpoints in the directory: '{run_dir}'.")
+        checkpoints.sort(
+            key=lambda path: [int(token) if token.isdigit() else token for token in re.split(r"(\d+)", path.name)]
+        )
+        return str(checkpoints[-1].resolve())
+    if agent_cfg.resume:
+        return get_checkpoint_path(log_root_path, agent_cfg.load_run, agent_cfg.load_checkpoint)
+    if isinstance(agent_cfg, RslRlDistillationRunnerCfg):
+        raise ValueError("Distillation training requires --checkpoint.")
+    return None
