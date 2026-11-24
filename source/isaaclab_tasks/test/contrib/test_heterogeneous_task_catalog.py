@@ -10,9 +10,6 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-import trimesh
-
-from pxr import Usd, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.cloner import make_clone_plan, make_valid_clone_combinations
@@ -21,44 +18,6 @@ from isaaclab_tasks.contrib.heterogeneous_tasks import heterogeneous_tasks_env_c
 from isaaclab_tasks.utils import resolve_task_config
 
 pytestmark = [pytest.mark.unit, pytest.mark.kitless]
-
-
-def test_object_spawning_reduces_collision_geometry_without_changing_visuals(tmp_path):
-    """The real catalog spawner preserves the visual mesh and the hole in a reduced collision surface."""
-    path = tmp_path / "ring.usda"
-    source = Usd.Stage.CreateNew(str(path))
-    UsdGeom.SetStageMetersPerUnit(source, 1.0)
-    root = UsdGeom.Xform.Define(source, "/Asset").GetPrim()
-    source.SetDefaultPrim(root)
-    UsdPhysics.RigidBodyAPI.Apply(root)
-    ring = trimesh.creation.annulus(r_min=0.04, r_max=0.05, height=0.03, sections=64)
-    visual = UsdGeom.Mesh.Define(source, "/Asset/visual")
-    # Duplicated vertices model UV/normal seams in the catalog's authored visual meshes.
-    visual.CreatePointsAttr(ring.vertices[ring.faces].reshape(-1, 3))
-    visual.CreateFaceVertexCountsAttr(np.full(len(ring.faces), 3, dtype=np.int32))
-    visual.CreateFaceVertexIndicesAttr(np.arange(ring.faces.size, dtype=np.int32))
-    UsdGeom.Xformable(visual).AddTranslateOp().Set((0.03, -0.02, 0.01))
-    UsdPhysics.CollisionAPI.Apply(visual.GetPrim()).CreateCollisionEnabledAttr(True)
-    source.GetRootLayer().Save()
-    cfg = next(iter(catalog.ASSET_CATALOG.values())).replace(usd_path=str(path))
-    assert cfg.to_dict()["triangle_reduction"] == 0.75
-    stage = Usd.Stage.CreateInMemory()
-    with sim_utils.use_stage(stage):
-        cfg.func("/World/Object", cfg)
-    spawned = UsdGeom.Mesh(stage.GetPrimAtPath("/World/Object/visual"))
-    collision = UsdGeom.Mesh(stage.GetPrimAtPath("/World/Object/visual/collision"))
-    np.testing.assert_array_equal(spawned.GetPointsAttr().Get(), visual.GetPointsAttr().Get())
-    np.testing.assert_array_equal(spawned.GetFaceVertexIndicesAttr().Get(), visual.GetFaceVertexIndicesAttr().Get())
-    assert not UsdPhysics.CollisionAPI(spawned.GetPrim()).GetCollisionEnabledAttr().Get()
-    assert UsdPhysics.CollisionAPI(collision.GetPrim()).GetCollisionEnabledAttr().Get()
-    assert len(collision.GetFaceVertexIndicesAttr().Get()) <= ring.faces.size * 0.3
-    assert collision.GetPrim().GetAttribute("newton:sdfTargetVoxelSize").Get() == pytest.approx(0.00075)
-    visual_transform = UsdGeom.XformCache().GetLocalToWorldTransform(spawned.GetPrim())
-    assert UsdGeom.XformCache().GetLocalToWorldTransform(collision.GetPrim()) == visual_transform
-    vertices = np.asarray(collision.GetPointsAttr().Get())
-    faces = np.asarray(collision.GetFaceVertexIndicesAttr().Get()).reshape(-1, 3)
-    # Every triangle remains on one side of the central opening, rather than bridging it with a hull.
-    assert np.linalg.norm(vertices[faces].mean(axis=1)[:, :2], axis=1).min() > 0.035
 
 
 def test_bounded_combinations_do_not_expand_the_object_product():
@@ -76,6 +35,13 @@ def test_bounded_combinations_do_not_expand_the_object_product():
     tree = ast.parse(Path(catalog.__file__).read_text())
     assert not any(isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) for node in ast.walk(tree)), (
         "The scene must be declared through config composition, without factories or post-init rewriting"
+    )
+    assert all(type(spawn) is sim_utils.UsdFileCfg for spawn in catalog.ASSET_CATALOG.values()), (
+        "Catalog assets must compose the existing USD config, without task-local cooking subclasses"
+    )
+    default_spawner = sim_utils.UsdFileCfg(usd_path="").func
+    assert all(spawn.func == default_spawner for spawn in catalog.ASSET_CATALOG.values()), (
+        "Collision cooking belongs to the backend, not custom catalog spawning hooks"
     )
     cfg = catalog.VLAHeterogeneousEnvCfg()
     source = catalog.OBJECTS_CFG

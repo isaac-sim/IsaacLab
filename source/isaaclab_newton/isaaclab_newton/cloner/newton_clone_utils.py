@@ -106,6 +106,7 @@ def build_source_builders(
     load_visual_shapes: bool = True,
     skip_mesh_approximation: bool = False,
     import_results_out: dict[str, dict[str, Any]] | None = None,
+    sdf_mesh_reduction: float | None = None,
 ) -> dict[str, ModelBuilder]:
     """Build one Newton builder for each clone source prim path.
 
@@ -123,6 +124,8 @@ def build_source_builders(
             USD parse time and memory that only pays off when the shapes are rendered
             or ray cast.
         skip_mesh_approximation: Whether to skip collision mesh approximation during import.
+        sdf_mesh_reduction: Optional target fraction of triangles removed from SDF collision meshes.
+            Visual geometry and body inertia are retained; reduction precedes replication and SDF cooking.
         import_results_out: Optional caller-owned output mapping populated in place with each
             source's USD import result.
     """
@@ -141,6 +144,24 @@ def build_source_builders(
             return_deformable_results=True,
             allow_unsafe_torch_checkpoints=True,
         )
+        if sdf_mesh_reduction is not None and not skip_mesh_approximation:
+            sdf_shapes = [
+                i
+                for i, flags in enumerate(builder.shape_flags)
+                if flags & ShapeFlags.COLLIDE_SHAPES
+                and (
+                    builder.shape_sdf_max_resolution[i] is not None
+                    or builder.shape_sdf_target_voxel_size[i] is not None
+                )
+            ]
+            if sdf_shapes:
+                builder.approximate_meshes(
+                    method="quadratic",
+                    shape_indices=sdf_shapes,
+                    target_reduction=sdf_mesh_reduction,
+                    keep_visual_shapes=load_visual_shapes,
+                    raise_on_failure=True,
+                )
         replace_newton_builder_shape_colors(builder, stage)
         if load_visual_shapes:
             # Newton groups all static shapes under body -1. Use imported visual paths to

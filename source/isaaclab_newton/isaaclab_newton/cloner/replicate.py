@@ -204,6 +204,8 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
     import_results: dict[str, dict[str, Any]] = {}
     options = dict(ignore_paths=ignore_paths, load_visual_shapes=load_visual_shapes)
     options.update(skip_mesh_approximation=not newton_physics, import_results_out=import_results)
+    if newton_physics:
+        options["sdf_mesh_reduction"] = cfg.sdf_mesh_reduction
     retained_sources = build_source_builders(stage, source_paths, builder_factory, schema_resolvers, **options)
     source_builders = dict(retained_sources)
     initial_selections = []

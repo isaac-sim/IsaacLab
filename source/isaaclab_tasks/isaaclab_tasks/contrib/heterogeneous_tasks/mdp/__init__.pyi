@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-__all__ = ["reset_tabletop", "spawn_object", "spawn_table", "task_success"]
+__all__ = ["reset_tabletop", "spawn_table", "task_success"]
 
-from .events import reset_tabletop, spawn_object, spawn_table
+from .events import reset_tabletop, spawn_table
 from .terminations import task_success

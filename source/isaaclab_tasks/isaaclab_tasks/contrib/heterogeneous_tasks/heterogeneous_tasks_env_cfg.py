@@ -224,9 +224,6 @@ ASSET_NAMES = {
 CONTACT_CFG = [sim_utils.UsdPhysicsCollisionCfg(), MujocoCollisionCfg(solref=(0.005, 1.0))]
 """A 5 ms contact response for the gripper and props, resolved with contacts refreshed at each solver substep."""
 
-OBJECT_TRIANGLE_REDUCTION = 0.75
-"""Target fraction of collision triangles removed by Newton; visual geometry remains unchanged."""
-
 OBJECT_COLLISION_CFG = [
     sim_utils.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="none"),
     NewtonSDFCollisionCfg(sdf_target_voxel_size=0.00075, sdf_narrow_band_inner=-0.01, sdf_narrow_band_outer=0.01),
@@ -234,16 +231,8 @@ OBJECT_COLLISION_CFG = [
 """Native SDF collision with 0.75 mm voxels, preserving receiver cavities."""
 
 
-@configclass
-class ObjectCfg(sim_utils.UsdFileCfg):
-    """A catalog USD whose collision mesh is reduced independently of its authored visual mesh."""
-
-    func = mdp.spawn_object
-    triangle_reduction: float = OBJECT_TRIANGLE_REDUCTION
-
-
 ASSET_CATALOG = {
-    path.split("/")[-2]: ObjectCfg(
+    path.split("/")[-2]: sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/SimReady/{path}",
         make_uninstanceable=True,
         move_rigid_body_to_root=True,
@@ -710,6 +699,7 @@ class VLAHeterogeneousEnvCfg(ManagerBasedRLEnvCfg):
             collision_cfg=NewtonCollisionPipelineCfg(
                 broad_phase="sap", rigid_contact_max=1048576, max_triangle_pairs=33554432
             ),
+            sdf_mesh_reduction=0.75,
             num_substeps=4,
             collision_decimation=1,
             # Thousands of small hull meshes: cuBQL takes about 0.1 s to build each one's BVH, LBVH a few ms.

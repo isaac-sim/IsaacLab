@@ -10,16 +10,12 @@ from __future__ import annotations
 import itertools
 import math
 import re
-from functools import cache
 from typing import TYPE_CHECKING, NamedTuple
 
-import newton
 import numpy as np
 import shapely
 import torch
 import warp as wp
-from newton.usd import get_mesh
-from newton.utils import remesh_mesh
 from scipy.spatial import ConvexHull, HalfspaceIntersection
 from shapely.affinity import affine_transform
 
@@ -34,7 +30,7 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
     from isaaclab.managers import EventTermCfg
 
-    from ..heterogeneous_tasks_env_cfg import ObjectCfg, TableCfg
+    from ..heterogeneous_tasks_env_cfg import TableCfg
 
 
 class Task(NamedTuple):
@@ -106,44 +102,6 @@ def spawn_table(prim_path: str, cfg: sim_utils.UsdFileCfg, translation=None, ori
             UsdPhysics.CollisionAPI.Apply(mesh).CreateCollisionEnabledAttr(True)
             UsdPhysics.MeshCollisionAPI.Apply(mesh).CreateApproximationAttr("none")
     return prim
-
-
-@cache
-def _reduced_collision_mesh(usd_path: str, mesh_path: str, reduction: float) -> newton.Mesh:
-    """Cook each source mesh once across the object slots that reference the same catalog asset."""
-    stage = Usd.Stage.Open(retrieve_file_path(usd_path))
-    mesh = get_mesh(
-        stage.GetPrimAtPath(stage.GetDefaultPrim().GetPath().AppendPath(mesh_path)),
-        compute_inertia=False,
-        apply_stage_units=False,
-        load_visual_materials=False,
-    )
-    return remesh_mesh(mesh, method="quadratic", target_reduction=reduction)
-
-
-def spawn_object(prim_path: str, cfg: ObjectCfg, translation=None, orientation=None):
-    """Keep the authored visual meshes and cook separate, reduced SDF collision meshes with Newton."""
-    root = sim_utils.spawn_from_usd(prim_path, cfg, translation=translation, orientation=orientation)
-    stage = root.GetStage()
-    for prim in list(Usd.PrimRange(root)):
-        if not prim.IsA(UsdGeom.Mesh) or not prim.HasAPI(UsdPhysics.CollisionAPI):
-            continue
-        if not UsdPhysics.CollisionAPI(prim).GetCollisionEnabledAttr().Get():
-            continue
-        relative_path = str(prim.GetPath().MakeRelativePath(root.GetPath()))
-        reduced = _reduced_collision_mesh(cfg.usd_path, relative_path, cfg.triangle_reduction)
-        # A child inherits the visual mesh's transform and physics material, without copying its appearance.
-        collision = UsdGeom.Mesh.Define(stage, prim.GetPath().AppendChild("collision"))
-        collision.CreatePointsAttr(reduced.vertices)
-        collision.CreateFaceVertexCountsAttr(np.full(len(reduced.indices) // 3, 3, dtype=np.int32))
-        collision.CreateFaceVertexIndicesAttr(reduced.indices)
-        collision.CreateSubdivisionSchemeAttr("none")
-        collision.CreatePurposeAttr("guide")
-        UsdPhysics.CollisionAPI.Apply(collision.GetPrim()).CreateCollisionEnabledAttr(True)
-        sim_utils.apply_collision_properties(str(collision.GetPath()), cfg.collision_props, stage=stage)
-        sim_utils.apply_mesh_collision_properties(str(collision.GetPath()), cfg.mesh_collision_props, stage=stage)
-        UsdPhysics.CollisionAPI(prim).GetCollisionEnabledAttr().Set(False)
-    return root
 
 
 _ASSET_CODE = re.compile(r"[A-Za-z]{1,2}\d+|\d+(in)?")
