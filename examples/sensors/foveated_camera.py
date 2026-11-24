@@ -279,12 +279,12 @@ def camera_comparison(
         if overview.supports_batch_update:
             overview.update_batch((overview,), 0.0)
 
-    def compose(retina: torch.Tensor) -> wp.array:
+    def compose(image: torch.Tensor) -> wp.array:
         """The view for one RGB cortical-view image of the foveated camera (H, W, 3): the viewing sphere, then that
         image."""
         # The retina may change its foveation at runtime, so its coordinates are read for every frame.
         retina_coords = camera.sampling_coords
-        detail = torch.cat((retina, torch.full_like(retina[..., :1], 255)), dim=-1)
+        detail = torch.cat((image, torch.full_like(image[..., :1], 255)), dim=-1)
 
         # Transform the fixed observer into the live camera frame, independently of active gaze.
         position, orientation = camera.get_world_poses(convention="opengl")
