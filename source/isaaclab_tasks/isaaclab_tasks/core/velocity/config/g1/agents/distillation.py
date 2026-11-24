@@ -94,7 +94,7 @@ class MirrorDistillation(Distillation):
 
     def process_env_step(
         self, obs: TensorDict, rewards: torch.Tensor, dones: torch.Tensor, extras: dict[str, torch.Tensor]
-    ) -> None:
+    ) -> dict[str, torch.Tensor]:
         """Record the transition and update normalization with both observation orientations.
 
         Args:
@@ -102,6 +102,9 @@ class MirrorDistillation(Distillation):
             rewards: Per-environment rewards.
             dones: Per-environment termination flags.
             extras: Additional environment information passed to RSL-RL.
+
+        Returns:
+            Per-environment values that RSL-RL's logger sums over each episode.
         """
         mirrored = TensorDict(
             {"proprio_history": _mirror_group(self.mirror.env, "proprio_history", obs["proprio_history"])},
@@ -109,7 +112,7 @@ class MirrorDistillation(Distillation):
         )
         self.student.update_normalization(mirrored)
         self.student.update_normalization(obs)
-        super().process_env_step(obs, rewards, dones, extras)
+        return super().process_env_step(obs, rewards, dones, extras)
 
     def load(self, loaded_dict: dict, load_cfg: dict | None = None, strict: bool = True) -> bool:
         """Load a distillation checkpoint, or only the teacher from a PPO checkpoint.
@@ -126,11 +129,11 @@ class MirrorDistillation(Distillation):
             load_cfg = {"teacher": True, "student": False, "optimizer": False, "iteration": False}
         return super().load(loaded_dict, load_cfg, strict)
 
-    def update(self) -> dict[str, float]:
+    def update(self) -> tuple[dict[str, float], dict[str, float]]:
         """Optimize paired rollout samples, then clear storage.
 
         Returns:
-            Mean behavior-cloning loss across rollout steps and learning epochs.
+            Mean behavior-cloning loss across rollout steps and learning epochs, and optimizer and policy statistics.
         """
         self.num_updates += 1
         mean_loss = 0.0
@@ -154,4 +157,7 @@ class MirrorDistillation(Distillation):
                     self.optimizer.step()
                     loss = 0.0
         self.storage.clear()
-        return {"behavior": mean_loss / count}
+        stats = {"Optimizer/learning_rate": self.learning_rate}
+        if self.student.distribution is not None:
+            stats["Model/mean_policy_std"] = self.student.output_std.mean().item()
+        return {"behavior": mean_loss / count}, stats
