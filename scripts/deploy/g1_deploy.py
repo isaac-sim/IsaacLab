@@ -200,6 +200,27 @@ def run_runtime(manifest: dict) -> int:
         if event.returncode != 0:
             failed_processes.append(event.process_name)
 
+    publisher = ExecuteProcess(
+        condition=IfCondition("true" if manifest.get("motion") else "false"),
+        cmd=[
+            sys.executable,
+            str(Path(__file__).resolve()),
+            "--publish-motion",
+            "--pipeline",
+            manifest["pipeline"],
+            "--motion",
+            manifest.get("motion") or "",
+            "--imu_topic",
+            manifest["imu_topic"],
+        ],
+    )
+
+    def publisher_exited(event, context):
+        if context.is_shutdown:
+            return []
+        failed_processes.append(event.process_name)
+        return [EmitEvent(event=Shutdown(reason="Motion reference publisher exited"))]
+
     service.include_launch_description(
         LaunchDescription(
             [
@@ -224,20 +245,8 @@ def run_runtime(manifest: dict) -> int:
                     )
                 ),
                 load_stop,
-                ExecuteProcess(
-                    condition=IfCondition("true" if manifest.get("motion") else "false"),
-                    cmd=[
-                        sys.executable,
-                        str(Path(__file__).resolve()),
-                        "--publish-motion",
-                        "--pipeline",
-                        manifest["pipeline"],
-                        "--motion",
-                        manifest.get("motion") or "",
-                        "--imu_topic",
-                        manifest["imu_topic"],
-                    ],
-                ),
+                RegisterEventHandler(OnProcessExit(target_action=publisher, on_exit=publisher_exited)),
+                publisher,
                 IncludeLaunchDescription(
                     PythonLaunchDescriptionSource(str(inference)),
                     launch_arguments={
@@ -304,6 +313,7 @@ class MotionSequence:
         self.transition_s = transition_s
         self.started = self.returned = None
         self.return_frame, self.return_blend = 0, 0.0
+        self.played = False
 
     def start(self, now, quat_xyzw):
         import numpy as np
@@ -311,11 +321,14 @@ class MotionSequence:
 
         if self.started is not None:
             raise ValueError("A motion is already active")
+        if self.played:
+            raise ValueError("This reference has already played; reposition the robot before restarting deployment")
         rotation = Rotation.from_quat(quat_xyzw).as_matrix()
         reference = self.rotation[0].as_matrix()
         angle = np.arctan2(rotation[1, 0], rotation[0, 0]) - np.arctan2(reference[1, 0], reference[0, 0])
         self.alignment = Rotation.from_euler("z", angle)
         self.started, self.returned = now, None
+        self.played = True
 
     def stop(self, now):
         frame, blend = self._position(now)
@@ -373,13 +386,21 @@ def publish_motion(args):
     def receive_imu(msg):
         q = msg.orientation
         value = np.asarray([q.x, q.y, q.z, q.w])
-        if np.isfinite(value).all() and np.isclose(np.linalg.norm(value), 1, atol=1e-3):
-            imu[0] = (value, node.get_clock().now().nanoseconds * 1e-9)
+        captured = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
+        now = node.get_clock().now().nanoseconds * 1e-9
+        if (
+            captured > 0
+            and -0.05 <= now - captured <= 0.2
+            and (imu[0] is None or captured >= imu[0][1])
+            and np.isfinite(value).all()
+            and np.isclose(np.linalg.norm(value), 1, atol=1e-3)
+        ):
+            imu[0] = (value, captured)
 
     def start(request, response):
         now = node.get_clock().now().nanoseconds * 1e-9
         try:
-            if imu[0] is None or now - imu[0][1] > 0.2:
+            if imu[0] is None or not -0.05 <= now - imu[0][1] <= 0.2:
                 raise ValueError("A recent pelvis IMU measurement is required")
             sequence.start(now, imu[0][0])
             response.success = True
@@ -442,6 +463,14 @@ def main() -> int:
         directory = Path(temporary)
         pipeline, ports = prepare_pipeline(args.pipeline, directory)
         names = ports["state:robot:joint_pos"]["element_names"][-1]
+        if "command:motion" in ports:
+            if not args.motion:
+                parser.error("A motion bundle requires --motion or motion.npz beside the pipeline YAML")
+            if ports["command:motion"]["shape"] != [1, 10, 63]:
+                parser.error("The reference publisher requires motion shape [1, 10, 63]")
+            MotionSequence(args.motion, names)
+        else:
+            args.motion = None
         urdf, controllers = prepare_hardware(directory, args.interface, names)
         return run_runtime(
             {

@@ -197,7 +197,9 @@ The controller blends into motion over one second, plays the clip once, then
 blends back to tracking the final pose with zero reference velocity. The actor
 continues receiving joint and IMU feedback throughout; the history contains the
 blended action actually sent to the joint controller. Choose clips whose initial
-and final poses support standing. To return early to a stationary reference:
+and final poses support standing. Each deployment session plays the clip once;
+reposition the robot before restarting deployment for another playback.
+To return early to a stationary reference:
 
 .. code-block:: bash
 
@@ -210,3 +212,11 @@ per frame. Frames are spaced by five control steps, clamped at the clip boundary
 The graph receives pelvis orientation in XYZW order, pelvis-frame angular
 velocity, and joint positions/velocities in the order declared in its YAML.
 At motion start the publisher aligns the reference heading to the pelvis IMU.
+
+To stop policy control, activate the driver's damping controller:
+
+.. code-block:: bash
+
+   ros2 control switch_controllers \
+       --activate freeze_controller \
+       --deactivate forward_joint_command_controller safety_controller

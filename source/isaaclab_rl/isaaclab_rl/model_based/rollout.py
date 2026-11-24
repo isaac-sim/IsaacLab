@@ -288,6 +288,10 @@ class MultiTaskWorldModelEnv:
         if self.history_length > 1:
             self._past_sensors = self._warmstart_past_sensors(batch["sensor_window"], batch["pad_mask"])
         self._latest_sensor = self._synth_sensor()
+        if self.history_length > 1:
+            # At episode start, every predecessor repeats the current noisy observation.
+            padded = batch["pad_mask"][:, :-1].all(dim=1)
+            self._past_sensors = torch.where(padded[:, None, None], self._latest_sensor[:, None], self._past_sensors)
 
     def _compute_commands(self) -> None:
         """Advance the reference clip one frame (clamped at clip ends) and refresh."""

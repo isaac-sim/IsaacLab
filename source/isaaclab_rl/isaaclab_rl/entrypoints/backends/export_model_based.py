@@ -44,6 +44,9 @@ class MotionPolicy(torch.nn.Module):
 
     def __init__(self, actor, default_joint_pos, action_scale, action_offset):
         super().__init__()
+        active = [name for name, fraction in zip(actor._task_names, actor._slot_fractions) if fraction > 0]
+        if active != ["motion"]:
+            raise ValueError("Motion export requires a motion-only actor slot allocation.")
         self.actor = actor
         self.register_buffer("default_joint_pos", default_joint_pos)
         self.register_buffer("action_scale", action_scale)
@@ -210,6 +213,8 @@ def run(argv: list[str] | None = None) -> int:
     cfg, agent = resolve_task_config(args.task, checkpoint["agent"], overrides=[])
     _restore_environment(cfg, checkpoint["env_cfg"])
     update_from_dict(agent, checkpoint["agent_cfg"])
+    if [name for name, fraction in agent.slot_mix.items() if fraction > 0] != ["motion"]:
+        parser.error("Motion export requires a motion-only actor slot allocation.")
     cfg.scene.num_envs = 1
     cfg.sim.device = args.device
     cfg.commands.motion.evaluation = True

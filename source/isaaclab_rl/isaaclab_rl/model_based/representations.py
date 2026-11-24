@@ -796,10 +796,13 @@ class GenCoordRepresentation(StateRepresentation):
         self.prediction_dim = 6 + num_joints  # [Δv_b(3), Δw_b(3), Δvj(N)]
         self._default_joint_pos = default_joint_pos
         self.fk: ForwardKinematics  # set by bind
+        self._encoder_bias: tuple[slice, SimulationContext] | None = None
 
     def bind(self, fk, soft_joint_pos_limits: torch.Tensor, sim_context: SimulationContext, reward_fn) -> None:
         super().bind(fk, soft_joint_pos_limits, sim_context, reward_fn)
         self.fk = fk
+        columns = sim_context.find("encoder_bias")
+        self._encoder_bias = None if columns is None else (columns, sim_context)
 
     def represent(self, full_state: torch.Tensor) -> torch.Tensor:
         flat = full_state.reshape(-1, self.full_state_dim)
@@ -906,10 +909,14 @@ class GenCoordRepresentation(StateRepresentation):
         joint_state: torch.Tensor,
         sim_ctx: torch.Tensor,
     ) -> torch.Tensor:
-        del aux_state, sim_ctx
+        del aux_state
         _, g_b, _, w_b, _, _ = decompose_rep_state(rep_state)
         qj, vj = joint_state.chunk(2, dim=-1)
-        return torch.cat([g_b, w_b, qj - self._default_joint_pos, vj], dim=-1)
+        joint_pos_rel = qj - self._default_joint_pos
+        if self._encoder_bias is not None:
+            columns, sim_context = self._encoder_bias
+            joint_pos_rel = joint_pos_rel + sim_context.denormalize(sim_ctx, columns)
+        return torch.cat([g_b, w_b, joint_pos_rel, vj], dim=-1)
 
 
 class MaxCoordRepresentation(StateRepresentation):

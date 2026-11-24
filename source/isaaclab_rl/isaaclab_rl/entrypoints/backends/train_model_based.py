@@ -45,11 +45,14 @@ def run(argv: list[str]) -> None:
         agent_default="model_based_cfg_entry_point",
         agent_help="Model-based learning configuration.",
     )
+    parser.add_argument("--checkpoint", help="Checkpoint resume is not supported by this training backend.")
     parser.add_argument("--log_dir", help="Directory for checkpoints and metrics.jsonl.")
     parser.add_argument("--motion_dir", help="Reference clips at the task's configured source frame rate.")
     parser.add_argument("--asset_path", help="Matching USD articulation.")
     add_launcher_args(parser)
     args, overrides = setup_preset_cli(parser, argv)
+    if args.checkpoint is not None:
+        parser.error("Model-based training does not support --checkpoint resume; no training was started.")
     if args.frontend != "torch":
         parser.error("The model-based learner requires the Torch environment frontend.")
     env_cfg, cfg = resolve_task_config(args.task, args.agent, overrides=overrides)

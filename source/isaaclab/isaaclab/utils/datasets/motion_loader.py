@@ -286,6 +286,8 @@ class MotionLibrary:
     velocities are estimated within each clip, never across clip boundaries.
     Stored root quaternions use Isaac Lab's XYZW convention. NPZ files must
     already match ``target_fps`` (50 Hz when their ``fps`` field is omitted).
+    Named NPZ joints are reordered to ``joint_names``; unnamed NPZ arrays must
+    already use that order.
     """
 
     def __init__(
@@ -302,7 +304,9 @@ class MotionLibrary:
     ):
         if not all(np.isfinite(rate) and rate > 0 for rate in (source_fps, target_fps)):
             raise ValueError("Motion frame rates must be finite and positive.")
-        names = joint_names
+        names = list(joint_names)
+        if len(set(names)) != len(names):
+            raise ValueError("Target joint names must be unique.")
         self.device = device
         path = Path(motion_dir)
         directory = path.parent if path.is_file() else path
@@ -326,6 +330,19 @@ class MotionLibrary:
             if path.suffix == ".npz":
                 with np.load(path, allow_pickle=False) as data:
                     clip = {key: torch.as_tensor(data[key], dtype=torch.float32, device=device) for key in fields}
+                    if "joint_names" in data:
+                        source_names = data["joint_names"].tolist()
+                        if (
+                            data["joint_names"].ndim != 1
+                            or len(set(source_names)) != len(source_names)
+                            or set(source_names) != set(names)
+                        ):
+                            raise ValueError(f"Reference joint names must match the target joints in {path}.")
+                        indices = [source_names.index(name) for name in names]
+                        for key in ("joint_pos", "joint_vel"):
+                            if clip[key].ndim != 2 or clip[key].shape[1] != len(source_names):
+                                raise ValueError(f"Invalid {key} layout in {path}.")
+                            clip[key] = clip[key][:, indices]
                     if (float(data["fps"]) if "fps" in data else 50.0) != target_fps:
                         raise ValueError(f"Reference clip {path} must be sampled at {target_fps} Hz.")
             else:
@@ -341,6 +358,9 @@ class MotionLibrary:
                 raise ValueError(f"Invalid reference layout in {path}.")
             if any(not torch.isfinite(value).all() for value in clip.values()):
                 raise ValueError(f"Nonfinite reference in {path}.")
+            norms = clip["root_quat_w"].norm(dim=-1)
+            if not torch.allclose(norms, torch.ones_like(norms), atol=1e-3, rtol=0):
+                raise ValueError(f"Non-unit root quaternions in {path}.")
             if path.suffix == ".npz":
                 clip["root_quat_w"] = clip["root_quat_w"][:, [1, 2, 3, 0]]
             clips.append(clip)
