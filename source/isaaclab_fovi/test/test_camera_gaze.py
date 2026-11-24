@@ -6,6 +6,7 @@
 """The camera's gaze, mount and sensor mask, and the Warp kernels behind them, without launching a simulator."""
 
 import math
+import weakref
 from dataclasses import asdict
 from types import SimpleNamespace
 
@@ -549,7 +550,6 @@ class _SliderCamera:
         self.cfg = SimpleNamespace(
             prim_path="/World/envs/env_.*/Eye",
             cmf_a_deg=0.591,
-            viewer_cmf_a_values=(0.1, 1.0, 10.0),
             foveated_style="warped_cartesian_as_grid",
         )
         self.is_initialized = True
@@ -609,22 +609,40 @@ class _Imgui:
         return self.button_pressed
 
 
-def _visualizer(kind: str) -> SimpleNamespace:
-    """A visualizer of ``kind`` that records its UI callbacks and counts redraws of its camera view."""
-    view = SimpleNamespace(invalidated=0)
-    view.invalidate = lambda: setattr(view, "invalidated", view.invalidated + 1)
+class _View:
+    """A window's camera view: the camera it shows, held weakly as the test drops cameras, and its redraw count."""
+
+    def __init__(self, camera=None):
+        self.camera = camera
+        self.invalidated = 0
+
+    @property
+    def camera(self):
+        return None if self._camera is None else self._camera()
+
+    @camera.setter
+    def camera(self, camera):
+        self._camera = None if camera is None else weakref.ref(camera)
+
+    def invalidate(self):
+        self.invalidated += 1
+
+
+def _visualizer(kind: str, shows=None) -> SimpleNamespace:
+    """A visualizer of ``kind`` whose camera view shows ``shows``, recording its UI callbacks."""
     callbacks = []
     return SimpleNamespace(
         cfg=SimpleNamespace(backend=SimpleNamespace(visualizer_type=kind)),
         register_ui_callback=lambda callback, position: callbacks.append((callback, position)),
-        current_image_view=view,
+        current_image_view=_View(shows),
         callbacks=callbacks,
     )
 
 
-def test_viewer_gaze_sliders_follow_and_set_the_gaze_in_newton_windows() -> None:
+def test_viewer_gaze_sliders_follow_and_set_the_gaze_in_newton_windows(monkeypatch) -> None:
+    monkeypatch.setattr(ViewerGazeControls, "cmf_a_values", (0.1, 1.0, 10.0))
     camera = _SliderCamera(num_envs=3)
-    newton, kit = _visualizer("newton"), _visualizer("kit")
+    newton, kit = _visualizer("newton", camera), _visualizer("kit", camera)
     controls = ViewerGazeControls(camera)
     # Each simulation reset attaches again; a window gets the sliders once, and only Newton windows get them.
     controls.attach(SimpleNamespace(visualizers=[newton, kit]))
@@ -644,18 +662,25 @@ def test_viewer_gaze_sliders_follow_and_set_the_gaze_in_newton_windows() -> None
     assert ("Gaze tilt", -30.0) in imgui.shown and ("Gaze pan", 40.0) in imgui.shown and not camera.written
     # Two cameras' sections open different ID scopes, so their same-named widgets stay apart.
     other, other_camera = _Imgui(), _SliderCamera(num_envs=1)
-    ViewerGazeControls(other_camera)._render(other)
+    ViewerGazeControls(other_camera)._render(_visualizer("newton", other_camera), other)
     assert imgui.scopes and other.scopes and imgui.scopes != other.scopes
-    # Moving one sets that gaze in every environment and redraws the camera view of every window, even another one.
-    second = _visualizer("newton")
+    # A window draws the controls only while its view shows the camera.
+    second = _visualizer("newton", other_camera)
     controls.attach(SimpleNamespace(visualizers=[newton, second]))
+    imgui = _Imgui()
+    second.callbacks[0][0](imgui)
+    assert not imgui.shown
+    second.current_image_view.camera = camera
+    second.callbacks[0][0](imgui)
+    assert ("Gaze tilt", -30.0) in imgui.shown
+    # Moving one sets that gaze in every environment and redraws the camera view of every window, even another one.
     render(_Imgui(sliders=[(True, 20.0), (False, -10.0)]))
     assert torch.equal(camera.written[-1], torch.tensor([[20.0, -10.0]]).repeat(3, 1))
     assert newton.current_image_view.invalidated == 1 and second.current_image_view.invalidated == 1
     render(_Imgui(button=True))
     assert not camera.written[-1].any()
 
-    # The foveation slider steps through the configured CMF constants with the camera's own added, in order.
+    # The foveation slider steps through ViewerGazeControls.cmf_a_values with the camera's own added, in order.
     imgui = _Imgui()
     render(imgui)
     assert ("Foveation", 1, 0, 3, "cmf_a 0.591 deg") in imgui.shown  # 0.1, 0.591, 1, 10
@@ -668,7 +693,7 @@ def test_viewer_gaze_sliders_follow_and_set_the_gaze_in_newton_windows() -> None
     # A camera that cannot switch shows its constant as fixed instead.
     fixed = _SliderCamera(num_envs=1, switchable=False)
     fixed_controls = ViewerGazeControls(fixed)
-    fixed_window = _visualizer("newton")
+    fixed_window = _visualizer("newton", fixed)
     fixed_controls.attach(SimpleNamespace(visualizers=[fixed_window]))
     imgui = _Imgui(foveation=0)
     fixed_window.callbacks[0][0](imgui)

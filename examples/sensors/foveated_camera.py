@@ -9,8 +9,8 @@ The viewer shows the camera's retina, covered at launch by a window that shows t
 the retina; move or resize that window to see the viewer's own view of the retina.
 Use WASD or the arrow keys to move the camera, and Q/E to lower or raise it.
 Drag with the left mouse button, or press I/K and J/L, to steer the gaze.
-The side panel's sliders follow the gaze and set it, and step the foveation (cmf_a) through
-``env.scene.eye.viewer_cmf_a_values`` on Newton. Press H to show or hide the viewer controls.
+The side panel's sliders follow the gaze and set it, and on Newton step the foveation (cmf_a) through
+--cmf_a_values. Press H to show or hide the viewer controls.
 Use --target to choose where the retina looks at launch.
 
 .. code-block:: bash
@@ -19,6 +19,8 @@ Use --target to choose where the retina looks at launch.
     uv run --extra fovi --extra ovrtx isaaclab example foveated-camera renderer=ovrtx --viz newton
     # A large CMF constant gives the matched non-foveated retina, for comparison:
     uv run --extra fovi isaaclab example foveated-camera env.scene.eye.cmf_a_deg=1000
+    # Other stops for the foveation slider, with the camera's own cmf_a added:
+    uv run --extra fovi isaaclab example foveated-camera --cmf_a_values 0.2,2,20
 """
 
 from __future__ import annotations
@@ -125,11 +127,29 @@ def outline(mask: torch.Tensor) -> torch.Tensor:
     return mask & torch.nn.functional.max_pool2d((~mask)[None, None].float(), 3, 1, 1)[0, 0].bool()
 
 
+def _cmf_a_values(text: str) -> tuple[float, ...]:
+    """Parse comma-separated CMF constants [deg], each positive and finite."""
+    try:
+        values = tuple(float(value) for value in text.split(","))
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"expected comma-separated numbers, got {text!r}") from None
+    if not all(0 < value < math.inf for value in values):
+        raise argparse.ArgumentTypeError(f"expected positive, finite CMF constants, got {text!r}")
+    return values
+
+
 parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
 parser.add_argument(
     "--max_steps", type=int, default=-1, help="Number of render frames; -1 runs until the viewer closes."
 )
 parser.add_argument("--target", choices=OBJECTS, help="Set the initial gaze toward this object.")
+parser.add_argument(
+    "--cmf_a_values",
+    type=_cmf_a_values,
+    metavar="DEG,DEG,...",
+    help="Comma-separated CMF constants [deg] the side panel's foveation slider steps through, with the camera's own"
+    " added.",
+)
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["newton"])
 args_cli, overrides = setup_preset_cli(parser)
@@ -404,6 +424,11 @@ def main() -> None:
     if cfg.scene.eye.renderer_cfg.renderer_type == "ovrtx":
         print("Starting OVRTX. The first frame can take several minutes with a cold shader cache.", flush=True)
     with launch_simulation(cfg, args_cli):
+        if args_cli.cmf_a_values is not None:
+            # The panel's controls load USD, so they are imported once the simulation has launched.
+            from isaaclab_fovi.sensors import ViewerGazeControls
+
+            ViewerGazeControls.cmf_a_values = args_cli.cmf_a_values
         visualizer_types = {v.backend.visualizer_type for v in cfg.sim.visualizer_cfgs}
         if visualizer_types - {"newton"}:
             logger.warning(
@@ -428,8 +453,6 @@ def main() -> None:
                 pool_enabled=False,
                 mask_to_sensor_fov=True,
                 data_types=["rgb"],
-                # The overview only draws the panel; the viewer's gaze sliders are for the eye.
-                viewer_gaze_controls=False,
             )
         scene = instantiate(cfg.scene)
         sim.register_interactive_scene(scene)

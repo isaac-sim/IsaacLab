@@ -165,8 +165,8 @@ class FoveatedCamera(Camera):
         self.mount_turns = 0
         """How many times :meth:`set_world_poses` or :meth:`set_world_poses_from_view` has turned the camera's mount."""
         super().__init__(cfg)
-        if cfg.viewer_gaze_controls:
-            add_viewer_gaze_controls(self)
+        # Each Newton viewer window draws the controls while it shows this camera.
+        add_viewer_gaze_controls(self)
 
     @property
     def image_shape(self) -> tuple[int, int]:
