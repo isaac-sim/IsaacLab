@@ -49,10 +49,11 @@ def pace_ovxr_control_loop(
     """Limit host control independently of the XR frame clock.
 
     Credit elapsed input, physics and publication work; an overrun adds no wait
-    or catch-up steps. Each iteration lasts ``action_period_s``, the environment
-    step, so simulation time keeps pace with real time when the host can. A
-    positive ``step_hz`` replaces that period. Zero leaves active control
-    unpaced, and paused polling keeps ``action_period_s``.
+    or catch-up steps. By default the target period is ``action_period_s``, the
+    environment step, so simulation time keeps pace with real time when the host
+    can. A positive ``step_hz`` replaces it with ``1 / step_hz``. Zero leaves
+    active control unpaced. Paused polling targets ``action_period_s`` unless a
+    positive ``step_hz`` is given.
 
     ``clock`` is the clock that measured ``iteration_started_s``; it defaults to
     :func:`time.perf_counter`.

@@ -174,8 +174,8 @@ def run_live_workflow(monkeypatch):
     return run
 
 
-def test_ovxr_pacing_follows_the_environment_step_unless_overridden(monkeypatch):
-    """Control paces to the environment step by default; a rate replaces it and zero frees active control."""
+def test_ovxr_pacing_helper_skips_unthrottled_work_and_waits_out_paused_polling(monkeypatch):
+    """No wait without OVXR or for unthrottled active control; paused polling waits out the environment step."""
     from isaaclab_teleop.entrypoints import _ovxr_runtime
 
     sleeps = []
@@ -189,12 +189,7 @@ def test_ovxr_pacing_follows_the_environment_step_unless_overridden(monkeypatch)
     assert sleeps == []
 
     pace(using_ovxr=True, action_applied=False, **timing)
-    pace(using_ovxr=True, action_applied=True, **timing)
-    pace(using_ovxr=True, action_applied=False, step_hz=0.0, **timing)
-    assert sleeps == pytest.approx([0.017] * 3)
-    sleeps.clear()
-    pace(using_ovxr=True, action_applied=True, step_hz=10.0, **timing)
-    assert sleeps == pytest.approx([0.097])
+    assert sleeps == pytest.approx([0.017])
     sleeps.clear()
     pace(using_ovxr=True, action_applied=True, iteration_started_s=9.9, action_period_s=0.02)
     assert sleeps == []  # Slow work needs no added delay.
@@ -244,7 +239,7 @@ def test_kitless_loop_respects_control_rate_and_processes_reset(
         nonlocal advances, clock
         assert anchor_ready, "Input cannot read an unseeded post-reset anchor"
         advances += 1
-        clock += 0.003  # Caller work consumes part of the independent 20ms action budget.
+        clock += 0.003  # Caller input work consumes part of each iteration.
         return torch.ones((1, 36)) if active or (sequence and advances != 4) else None
 
     def step(value):

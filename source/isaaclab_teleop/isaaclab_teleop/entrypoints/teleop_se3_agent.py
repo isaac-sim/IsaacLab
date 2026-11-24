@@ -182,7 +182,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     if args_cli.ovxr_step_hz is not None:
         if not math.isfinite(args_cli.ovxr_step_hz) or args_cli.ovxr_step_hz < 0.0:
             parser.error("--ovxr_step_hz must be finite and non-negative; 0 disables active-control pacing")
-        if not args_cli.using_ovxr:
+        if args_cli.ovxr_step_hz > 0.0 and not args_cli.using_ovxr:
             parser.error("--ovxr_step_hz requires --ovxr")
     if not args_cli.using_ovxr and args_cli.ovrtx_active_cuda_gpus is not None:
         parser.error("--ovrtx_active_cuda_gpus requires --ovxr")
