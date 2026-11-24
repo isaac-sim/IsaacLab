@@ -13,15 +13,14 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import warp as wp
-from isaaclab_newton.physics import NewtonBackend, NewtonSolver
+from isaaclab_newton.physics import NewtonSolver
 from newton import Model
 from newton.solvers import SolverBase, SolverMuJoCo
 from newton_neural.models import NeRDBase
-from newton_neural.solvers import SolverNeRD, SolverNeRDMuJoCo, load_nerd, same_duration
+from newton_neural.solvers import SolverNeRD, SolverNeRDMuJoCo, same_duration
 from newton_neural.systems import SystemArticulation
 
 from isaaclab.cloner import expand_env_regex_ns
-from isaaclab.sim import SimulationContext
 
 if TYPE_CHECKING:
     from .nerd_solver_cfg import NeRDSolverCfg
@@ -73,6 +72,11 @@ class NeRDSolver(NewtonSolver):
         """Return why neural solvers cannot run inside Isaac Lab's coupled-solver wrapper."""
         return COUPLING_ERROR
 
+    def __init__(self, cfg, model, mode, env_template=None, *, nerd, contact_sensors):
+        self.nerd = nerd
+        self._contact_sensors = contact_sensors
+        super().__init__(cfg, model, mode, env_template)
+
     def build(self, model: Model, mode: wp.DeterministicMode, env_template: str | None) -> SolverNeRD:
         """Build ``SolverNeRD`` for the configured articulation and validate task timing and actuators."""
         cfg = self.cfg
@@ -84,24 +88,15 @@ class NeRDSolver(NewtonSolver):
                 "next state computes no accelerations and no joint reaction forces, so these would stay zero. "
                 "Remove what reads them from the scene configuration"
             )
-        # The kind of the model is checked before a solver is built around it.
-        manager = SimulationContext.instance().backend_manager
-        pop_initial = getattr(manager, "pop_initial_nerd", None)
-        nerd = pop_initial(cfg.checkpoint) if pop_initial is not None else None
-        if nerd is None:
-            nerd = load_nerd(cfg.checkpoint, "cpu")
-            require_articulation(nerd)
         solver = SolverNeRD(
             model,
-            nerd,
+            self.nerd,
             articulation=articulation_pattern(model, cfg.articulation, env_template),
             precision=cfg.precision,
             compile=cfg.compile,
             # Disable internal solver graphs because Isaac Lab captures the full physics step itself.
             use_cuda_graph=False,
         )
-        check_task(solver)
-        forget_setup_changes()
         logger.info(f"Built {solver}")
         return solver
 
@@ -117,7 +112,7 @@ class NeRDSolver(NewtonSolver):
         """Return ``True`` if any contact sensor exists or the model's contact input reads detected contacts."""
         contact_input = self.native.nerd.contact_input
         reads_contacts = contact_input is not None and contact_input.reads_contacts
-        return reads_contacts or bool(_backend().contact_sensors)
+        return reads_contacts or self._contact_sensors
 
 
 def require_articulation(nerd: NeRDBase) -> SystemArticulation:
@@ -146,9 +141,9 @@ def articulation_pattern(model: Model, articulation: str, env_template: str | No
     return pattern
 
 
-def check_task(solver: SolverNeRD | SolverNeRDMuJoCo) -> None:
+def check_task(solver: SolverNeRD | SolverNeRDMuJoCo, backend, use_newton_actuators: bool) -> None:
     """Verify that a solver step is the frame of the model and that no actuator model drives a robot it stands for."""
-    backend, model, nerd = _backend(), solver.model, solver.nerd
+    model, nerd = solver.model, solver.nerd
     system = require_articulation(nerd)
     frame_dt = nerd.frame_dt
     if not same_duration(backend.solver_dt, frame_dt):
@@ -165,7 +160,7 @@ def check_task(solver: SolverNeRD | SolverNeRDMuJoCo) -> None:
         )
     if not system.includes_actuators:
         return
-    if not SimulationContext.instance().cfg.use_newton_actuators:
+    if not use_newton_actuators:
         raise ValueError(
             f"the checkpoint consumes {', '.join(system.spec.control)} and no joint forces, so it stands for the "
             "robot together with its actuators, and sim.use_newton_actuators is off. Isaac Lab then runs actuator "
@@ -183,11 +178,26 @@ def check_task(solver: SolverNeRD | SolverNeRDMuJoCo) -> None:
         )
 
 
-def forget_setup_changes() -> None:
-    """Clear setup-time ``model_changes`` queued before solver construction to avoid spurious startup warnings."""
-    _backend().model_changes.clear()
+def physical_contract(model, binding, *, free_motion: bool) -> dict:
+    """Read the robot properties that a fixed learned model cannot observe as inputs.
 
-
-def _backend() -> NewtonBackend:
-    """Return the active simulation context's ``NewtonBackend``."""
-    return SimulationContext.instance().backend_manager.backend
+    Every recorded world must describe the same robot. World placement and native actuator replacement are
+    intentionally excluded; binding validates kinematics and gravity independently.
+    """
+    bodies = binding.body_ids.numpy()
+    dofs = binding.joint_dof_ids
+    arrays = {
+        "body_mass": model.body_mass.numpy()[bodies],
+        "body_inertia": model.body_inertia.numpy()[bodies],
+        "body_com": model.body_com.numpy()[bodies],
+        "joint_armature": model.joint_armature.numpy()[dofs],
+    }
+    if free_motion:
+        arrays.update(
+            joint_target_ke=model.joint_target_ke.numpy()[dofs],
+            joint_target_kd=model.joint_target_kd.numpy()[dofs],
+        )
+    for name, values in arrays.items():
+        if not np.allclose(values, values[:1], rtol=1e-6, atol=1e-7):
+            raise ValueError(f"NeRD requires uniform {name} across recorded worlds")
+    return {name: values[0].tolist() for name, values in arrays.items()}

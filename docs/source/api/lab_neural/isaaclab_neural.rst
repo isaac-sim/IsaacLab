@@ -3,45 +3,26 @@ isaaclab\_neural
 
 .. automodule:: isaaclab_neural
 
-  .. rubric:: Submodules
+Model definition
+----------------
 
-  .. autosummary::
+.. autoclass:: isaaclab_neural.NeRDCfg
+   :members:
+   :exclude-members: __init__
 
-    physics
+Optimization
+------------
 
-  .. rubric:: Classes
+.. autoclass:: isaaclab_neural.NeRDTrainingCfg
+   :members:
+   :exclude-members: __init__
 
-  .. autosummary::
-
-    NeRDRecipeCfg
-    NeRDRecordCfg
-    NeRDTrainCfg
-    NeRDRecipe
-    RecordingSimulation
-
-.. currentmodule:: isaaclab_neural
-
-Recipe Settings
+Recording terms
 ---------------
 
-.. autoclass:: NeRDRecipeCfg
-  :members:
-  :exclude-members: __init__
+.. autoclass:: isaaclab_neural.recording_cfg.NeRDExplorationActionCfg
+   :members:
+   :exclude-members: __init__
 
-.. autoclass:: NeRDRecordCfg
-  :members:
-  :exclude-members: __init__
-
-.. autoclass:: NeRDTrainCfg
-  :members:
-  :exclude-members: __init__
-
-Recipe
-------
-
-.. autoclass:: NeRDRecipe
-  :members:
-
-.. autoclass:: RecordingSimulation
-  :members:
-  :show-inheritance:
+.. automodule:: isaaclab_neural.recording
+   :members:

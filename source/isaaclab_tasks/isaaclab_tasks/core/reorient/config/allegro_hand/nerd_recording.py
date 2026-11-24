@@ -3,24 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Recipe of the neural robot dynamics model behind ``physics=newton_mjwarp_nerd`` of the Allegro reorient task."""
-
-from __future__ import annotations
-
-from typing import TYPE_CHECKING
+"""Independent hand-state and joint-target exploration."""
 
 import torch
-from isaaclab_neural import NeRDRecipe, RecordingSimulation
-from newton_neural.backbones import BackboneFlash
+from isaaclab_neural.recording import NeRDExplorationAction
 from newton_neural.data import CommandBase, SamplerBase
-from newton_neural.models import FlashNeRD
-from newton_neural.predictions import PredictionFreeMotion
 from torch import Tensor
-
-if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnvCfg
-
-    from .nerd_recipe_cfg import AllegroHandNeRDRecipeCfg
 
 
 def sample_regimes(scales: tuple[float, ...], hand_count: int, low: Tensor, finger_joint_count: int) -> Tensor:
@@ -32,7 +20,7 @@ def sample_regimes(scales: tuple[float, ...], hand_count: int, low: Tensor, fing
     choice = torch.randint(len(scales), (hand_count, joint_count // finger_joint_count), device=device)
     together = torch.rand(hand_count, 1, device=device) < 0.5
     choice = torch.where(together, choice[:, :1], choice)
-    scale = torch.tensor(scales, device=device)[choice].repeat_interleave(finger_joint_count, dim=1)
+    scale = scales[choice].repeat_interleave(finger_joint_count, dim=1)
     return scale * (2.0 * torch.rand_like(scale) - 1.0)
 
 
@@ -40,7 +28,9 @@ class SamplerHandStates(SamplerBase):
     """Joint angles uniform within ``[low, high]`` [rad], and joint speeds in the regime of each finger."""
 
     def __init__(self, low: Tensor, high: Tensor, speeds: tuple[float, ...], finger_joint_count: int) -> None:
-        self.low, self.high, self.speeds, self.finger_joint_count = low, high, speeds, finger_joint_count
+        self.low, self.high = low, high
+        self.speeds = torch.tensor(speeds, device=low.device)
+        self.finger_joint_count = finger_joint_count
 
     def sample(self, count: int) -> dict[str, Tensor]:
         angles = self.low + (self.high - self.low) * torch.rand(count, len(self.low), device=self.low.device)
@@ -58,27 +48,20 @@ class CommandHandTargets(CommandBase):
         self.reaches, self.finger_joint_count = reaches, finger_joint_count
 
     def next(self, frames: dict[str, Tensor]) -> Tensor:
-        offsets = sample_regimes(self.reaches, self.world_count, self.low, self.finger_joint_count)
+        offsets = sample_regimes(
+            torch.as_tensor(self.reaches, device=self.low.device), self.world_count, self.low, self.finger_joint_count
+        )
         return (frames["joint_q"] + offsets).clamp(self.low, self.high)
 
 
-class AllegroHandNeRDRecipe(NeRDRecipe):
-    """Records independent samples of the hand, a random state and a random target in every frame."""
+class AllegroHandNeRDExploration(NeRDExplorationAction):
+    """Record the hand's free acceleration at independent states and targets."""
 
-    cfg: AllegroHandNeRDRecipeCfg
-
-    def configure(self, env_cfg: ManagerBasedEnvCfg) -> None:
-        # Random poses of the hand touch themselves, which takes more constraint rows than the task.
-        env_cfg.sim.physics.solver_cfg.njmax = self.cfg.constraint_count
-
-    def model(self, simulation: RecordingSimulation) -> FlashNeRD:
-        backbone = BackboneFlash(spans=self.cfg.backbone_spans)
-        return FlashNeRD(simulation.system, backbone=backbone, prediction=PredictionFreeMotion())
-
-    def start_states(self, simulation: RecordingSimulation) -> SamplerHandStates:
-        cfg = self.cfg
-        low, high = simulation.state_bounds()["joint_q"]
-        return SamplerHandStates(low - cfg.limit_margin, high + cfg.limit_margin, cfg.speeds, cfg.finger_joint_count)
-
-    def joint_targets(self, simulation: RecordingSimulation) -> CommandHandTargets:
-        return CommandHandTargets(self.cfg.target_reaches, self.cfg.finger_joint_count)
+    def __init__(self, cfg, env):
+        super().__init__(cfg, env)
+        low, high = self.binding.state_bounds()["joint_q"]
+        self.states = SamplerHandStates(
+            low - cfg.limit_margin, high + cfg.limit_margin, cfg.speeds, cfg.finger_joint_count
+        )
+        self.commands = CommandHandTargets(cfg.target_reaches, cfg.finger_joint_count)
+        self.initialize_sampling()

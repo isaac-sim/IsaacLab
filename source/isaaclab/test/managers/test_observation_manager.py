@@ -117,6 +117,14 @@ def setup_env():
     )
 
 
+def test_empty_term_dictionary(setup_env):
+    """An explicit empty configuration initializes the manager without placeholder config classes."""
+    manager = ObservationManager({}, setup_env)
+    assert manager.compute() == {}
+    assert manager.reset() == {}
+    assert manager.active_terms == {}
+
+
 def test_str(setup_env):
     env = setup_env
     """Test the string representation of the observation manager."""

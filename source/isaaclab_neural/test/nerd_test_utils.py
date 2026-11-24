@@ -121,13 +121,12 @@ def refused(task: str, env_cfg: Any, error: type[Exception], match: str) -> None
         pass
 
 
-def record_dataset(task: str, dataset: Path | None, num_envs: int, num_frames: int, device: str) -> None:
+def record_dataset(task: str, dataset: Path, num_envs: int, num_frames: int, device: str) -> None:
     """Record a dataset of ``task`` with ``scripts/neural/record.py``, in ``dataset`` or where the script puts it."""
-    from scripts.neural import record  # noqa: PLC0415
+    from isaaclab_neural.entrypoints import record  # noqa: PLC0415
 
     argv = ["--task", task, "--num_envs", str(num_envs), "--num_frames", str(num_frames), "--device", device]
-    if dataset is not None:
-        argv += ["--dataset", str(dataset)]
+    argv += ["--dataset", str(dataset)]
     try:
         record.main(argv)
     finally:
@@ -138,17 +137,17 @@ def record_and_train(task: str, folder: Path, *, num_envs: int, num_frames: int,
     """Record a small dataset of ``task`` and train its model on it, with the scripts under ``scripts/neural``.
 
     Args:
-        task: Task whose recipe the scripts follow.
+        task: Task declaring the model, recording environment and optimization settings.
         folder: Folder that receives the dataset and the model.
         num_envs: Robots recorded in parallel.
         num_frames: Frames recorded per robot.
         max_steps: Optimizer steps.
 
     Returns:
-        The file of the trained model. The dataset lies next to it in the folder ``dataset``, which also holds
-        the untrained model under the name of the trained one, as the scripts lay them out.
+        The trained model file. The adjacent ``dataset`` folder holds native trajectories and the
+        recorded, untrained ``model.pt``.
     """
-    from scripts.neural import train  # noqa: PLC0415
+    from isaaclab_neural.entrypoints import train  # noqa: PLC0415
 
     device = cuda_device()
     dataset, checkpoint = folder / "dataset", folder / "flashnerd.pt"

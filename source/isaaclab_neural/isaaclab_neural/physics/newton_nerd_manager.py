@@ -3,32 +3,37 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Newton manager (:class:`NewtonNeRDManager`) that steps a state-increment model once per environment step."""
+"""Newton construction owner for standalone and MuJoCo-coupled learned dynamics."""
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-from isaaclab_newton.physics import NewtonManager
+import warp as wp
+from isaaclab_newton.physics import NewtonCfg, NewtonManager
+from newton import Model
 from newton_neural.solvers import load_nerd, same_duration
 
-from .nerd_solver import require_articulation
-from .nerd_solver_cfg import NeRDSolverCfg
+from isaaclab.envs.mdp.actions.joint_actions import JointPositionAction
+from isaaclab.managers import ActionManager
+from isaaclab.scene import InteractiveScene
+from isaaclab.utils.string import resolve_matching_names_values
 
-if TYPE_CHECKING:
-    from isaaclab_newton.physics import NewtonCfg
+from .mjwarp_nerd_solver import MJWarpNeRDSolver
+from .mjwarp_nerd_solver_cfg import MJWarpNeRDSolverCfg
+from .nerd_solver import NeRDSolver, check_task, physical_contract, require_articulation
+from .nerd_solver_cfg import NeRDSolverCfg
 
 
 class NewtonNeRDManager(NewtonManager):
-    """Newton manager of a task whose solver is a state-increment model.
+    """Load one learned model and supply it explicitly through Newton's normal solver construction.
 
-    A numerical solver takes several small steps per environment step. A model takes one, of the frame it was trained
+    A standalone state-increment model takes one step of the frame it was trained
     on, and that frame is one environment step of the task, ``sim.dt * decimation``. This manager makes the frame its
     physics step and takes one solver step per environment step, so actions, actuators, collision detection and
     sensors run once per environment step. The task keeps its own ``sim.dt`` and ``decimation``.
 
-    Select it with ``class_type`` of a :class:`~isaaclab_newton.physics.NewtonCfg` whose solver configuration is a
-    :class:`~isaaclab_neural.physics.NeRDSolverCfg` and whose ``num_substeps`` is 1.
+    For standalone dynamics, select :class:`~isaaclab_neural.physics.NeRDSolverCfg` and ``num_substeps=1``.
+    For free-motion coupling, select :class:`~isaaclab_neural.physics.MJWarpNeRDSolverCfg`; ordinary Newton
+    timing and decimation apply, and the checkpoint frame must match each MuJoCo Warp solver substep.
 
     .. code-block:: python
 
@@ -53,33 +58,68 @@ class NewtonNeRDManager(NewtonManager):
         # Set before the base class clears its state. A hard reset keeps the declared decimation.
         self._frame_checked = False
         super().__init__(cfg)
-        if not isinstance(cfg.solver_cfg, NeRDSolverCfg):
+        if not isinstance(cfg.solver_cfg, NeRDSolverCfg | MJWarpNeRDSolverCfg):
             raise ValueError(
                 f"NewtonNeRDManager steps a model, and the solver of its NewtonCfg is configured by a "
-                f"{type(cfg.solver_cfg).__name__}. Give it a NeRDSolverCfg"
+                f"{type(cfg.solver_cfg).__name__}. Give it a NeRDSolverCfg or MJWarpNeRDSolverCfg"
             )
-        if cfg.num_substeps != 1:
+        if isinstance(cfg.solver_cfg, NeRDSolverCfg) and cfg.num_substeps != 1:
             raise ValueError(
                 f"a model advances one environment step per solver step, got num_substeps {cfg.num_substeps}. "
                 "Set num_substeps of the NewtonCfg to 1"
             )
-        # The frame is needed before the backend exists; cache the loaded model so the first solver build reuses it.
-        nerd = load_nerd(cfg.solver_cfg.checkpoint, "cpu")
-        require_articulation(nerd)
-        self._frame_dt: float = nerd.frame_dt
-        self._initial_nerd: tuple[str, object] | None = (cfg.solver_cfg.checkpoint, nerd)
+        self.nerd = load_nerd(cfg.solver_cfg.checkpoint, "cpu")
+        require_articulation(self.nerd)
+        if "isaaclab" not in self.nerd.metadata:
+            raise ValueError("Checkpoint has no Isaac Lab model contract; record and train it with scripts/neural")
+        self._frame_dt = self.nerd.frame_dt
+        self._integrates = self.nerd.prediction.integrates
+        if isinstance(cfg.solver_cfg, NeRDSolverCfg) != self._integrates:
+            raise ValueError("The checkpoint prediction does not match the configured NeRD solver kind")
 
-    def pop_initial_nerd(self, checkpoint: str):
-        """Return and clear the startup-loaded model if ``checkpoint`` matches, avoiding a duplicate disk read."""
-        cached = self._initial_nerd
-        self._initial_nerd = None
-        if cached is not None and cached[0] == checkpoint:
-            return cached[1]
-        return None
+    def create_solver(
+        self,
+        cfg: NeRDSolverCfg | MJWarpNeRDSolverCfg,
+        model: Model,
+        mode: wp.DeterministicMode,
+        env_template: str | None,
+    ) -> NeRDSolver | MJWarpNeRDSolver:
+        """Pass resolved resources to the adapter and validate the checkpoint before stepping."""
+        if self._integrates:
+            adapter = NeRDSolver(
+                cfg, model, mode, env_template, nerd=self.nerd, contact_sensors=bool(self.backend.contact_sensors)
+            )
+        else:
+            adapter = MJWarpNeRDSolver(cfg, model, mode, env_template, nerd=self.nerd)
+        check_task(adapter.native, self.backend, self._sim.cfg.use_newton_actuators)
+        expected = self.nerd.metadata["isaaclab"]["physical_model"]
+        actual = physical_contract(model, adapter.native.binding, free_motion=not self._integrates)
+        if actual != expected:
+            raise ValueError("NeRD checkpoint physical model differs from the live scene; record and train it again")
+        return adapter
 
     def get_physics_dt(self) -> float:
         """Duration of one physics step [s], which is the frame of the model."""
-        return self._frame_dt
+        return self._frame_dt if self._integrates else super().get_physics_dt()
+
+    def handle_actions(self, actions: ActionManager, scene: InteractiveScene, *, enabled: bool = True) -> bool:
+        """Validate declared action clipping against the checkpoint before registering action callbacks."""
+        bounds = self.nerd.metadata["isaaclab"]["action_bounds"]
+        if bounds:
+            for name in actions.active_terms:
+                term = actions.get_term(name)
+                if not isinstance(term, JointPositionAction):
+                    raise ValueError("A bounded NeRD checkpoint requires joint-position actions")
+                if term.cfg.clip is None:
+                    raise ValueError("The NeRD checkpoint requires the recorded joint-target clipping bounds")
+                ids, names, limits = resolve_matching_names_values(term.cfg.clip, term._joint_names)
+                if len(ids) != len(term._joint_names):
+                    raise ValueError("Every NeRD joint target needs an explicit clipping bound")
+                for joint, (low, high) in zip(names, limits, strict=True):
+                    index = bounds["joints"].index(joint)
+                    if low < bounds["low"][index] - 1e-6 or high > bounds["high"][index] + 1e-6:
+                        raise ValueError(f"Joint {joint} clipping exceeds the NeRD checkpoint's recorded bounds")
+        return super().handle_actions(actions, scene, enabled=enabled)
 
     def set_decimation(self, decimation: int) -> None:
         """Check that the frame of the model is one environment step of ``decimation`` physics steps of ``sim.dt``.
@@ -89,6 +129,9 @@ class NewtonNeRDManager(NewtonManager):
         Raises:
             ValueError: If ``sim.dt * decimation`` differs from the frame of the model.
         """
+        if not self._integrates:
+            super().set_decimation(decimation)
+            return
         decimation = max(1, decimation)
         sim_dt = self._sim.cfg.dt
         if not same_duration(sim_dt * decimation, self._frame_dt):
@@ -102,7 +145,7 @@ class NewtonNeRDManager(NewtonManager):
 
     def handles_decimation(self) -> bool:
         """Return ``True``, since one :meth:`step` advances the whole environment step."""
-        return True
+        return self._integrates or super().handles_decimation()
 
     def step(self) -> None:
         """Advance the physics by one frame of the model, which is one environment step.
@@ -112,7 +155,7 @@ class NewtonNeRDManager(NewtonManager):
                 :meth:`set_decimation`.
         """
         sim = self._sim
-        if not self._frame_checked and sim is not None and sim.is_playing():
+        if self._integrates and not self._frame_checked and sim is not None and sim.is_playing():
             raise RuntimeError(
                 "a model that replaces the solver advances one environment step per sim.step(), and no environment "
                 "declared its decimation to the physics manager. Step the simulation from an environment that calls "

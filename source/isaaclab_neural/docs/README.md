@@ -1,17 +1,16 @@
 # Isaac Lab Neural Robot Dynamics
 
-This extension (`isaaclab_neural`) runs Isaac Lab tasks on neural robot dynamics models from the `newton-neural`
-library. A model steps the robot of a task in place of a numerical solver, or inside one. The library is the optional
-`newton-neural` extra of the Isaac Lab source checkout, and it is imported when a model is built or recorded.
+`NeRDCfg` defines the model architecture and physical inputs. Task-specific definitions such as
+`AnymalCNeRDCfg` do not contain recording, optimization or inference workflows.
 
-The extension provides two parts.
+`NeRDTrainingCfg` independently configures optimization. Recording uses task-declared environment
+configurations, exploration actions, reset/termination events and existing RecorderManager terms.
+The native `TrajectoryWriter` stores captured fields without owning simulation stepping.
 
-- `isaaclab_neural.physics` holds what makes a trained model a physics preset of a task. `NeRDSolverCfg` with the
-  `NewtonNeRDManager` runs a model in place of the solver (`physics=newton_nerd`), and `MJWarpNeRDSolverCfg` runs a
-  model inside MuJoCo Warp (`physics=newton_mjwarp_nerd`).
-- `NeRDRecipeCfg` and `NeRDRecipe` are the settings and the code by which a task says how its model is recorded and
-  trained. A task registers its settings as `nerd_recipe_cfg_entry_point`.
+`NeRDSolverCfg` and `MJWarpNeRDSolverCfg` configure runtime inference. `NewtonNeRDManager` loads the
+checkpoint once and supplies its resources to the adapters through Newton's construction boundary.
+The backend owns state, contacts, graph capture and queued model changes.
 
-The scripts `record.py`, `train.py` and `evaluate.py` under `scripts/neural` read the recipe of the task given with
-`--task`. Presets and recipes ship for Franka reach, ANYmal C flat walking and Allegro cube reorientation. See the
-guide "Training on neural robot dynamics" in the Isaac Lab documentation for the workflow.
+The scripts in `scripts/neural` are thin launchers for the package-owned entrypoints. Dataset and
+checkpoint paths are explicit. Evaluation follows standard RSL-RL play configuration and evaluates
+one selected checkpoint per invocation, with training physics separate from evaluation physics.

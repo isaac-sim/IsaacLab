@@ -8,10 +8,11 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 
-from isaaclab.envs.manager_based_env import _physics_can_handle_actions
+from isaaclab.envs.manager_based_env import ManagerBasedEnv, _physics_can_handle_actions
 
 pytestmark = pytest.mark.unit
 
@@ -48,3 +49,9 @@ def _env(*, render_interval=2, records_physics_steps=False, lazy_sensor_update=F
 def test_physics_handles_actions_only_when_nothing_runs_between_physics_steps(env, handled):
     """Renders, per-physics-step recorders and sensors sampled within an environment step keep actions in the loop."""
     assert _physics_can_handle_actions(env) is handled
+    backend = SimpleNamespace(handle_actions=Mock(return_value=handled), handles_decimation=lambda: handled)
+    env.sim = SimpleNamespace(backend_manager=backend)
+    env.action_manager = object()
+    ManagerBasedEnv._handle_physics_actions(env)
+    backend.handle_actions.assert_called_once_with(env.action_manager, env.scene, enabled=handled)
+    assert env._physics_handles_actions is handled

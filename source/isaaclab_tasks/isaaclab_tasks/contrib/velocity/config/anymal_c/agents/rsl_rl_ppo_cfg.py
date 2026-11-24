@@ -10,6 +10,8 @@ from isaaclab_rl.rsl_rl import RslRlMLPModelCfg, RslRlOnPolicyRunnerCfg, RslRlPp
 from isaaclab_tasks.core.velocity.mdp.symmetry import anymal
 from isaaclab_tasks.utils import preset
 
+from ..flat_env_cfg import ANYMAL_C_NERD_TARGET_REACH
+
 
 @configclass
 class AnymalCRoughPPORunnerCfg(RslRlOnPolicyRunnerCfg):
@@ -54,7 +56,7 @@ class AnymalCFlatPPORunnerCfg(AnymalCRoughPPORunnerCfg):
         self.experiment_name = preset(default="anymal_c_flat", newton_nerd="anymal_c_flat_nerd")
         # Under physics=newton_nerd the task clips its joint targets to the range the model was recorded on. Clipping
         # the actions to the same range lets the policy observe the action that was applied.
-        self.clip_actions = preset(default=self.clip_actions, newton_nerd=1.5)
+        self.clip_actions = preset(default=self.clip_actions, newton_nerd=ANYMAL_C_NERD_TARGET_REACH / 0.5)
         self.actor.hidden_dims = [128, 128, 128]
         self.critic.hidden_dims = [128, 128, 128]
 

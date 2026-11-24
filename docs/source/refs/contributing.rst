@@ -412,6 +412,11 @@ before changing an interface. Apply these rules when adding code or cleaning up 
 * Before removing a sensor data hierarchy, compare the same ownership pattern across sensor families.
   Keep public base classes, backend data classes, and factories available through a deprecation release
   when the broader consolidation is not part of the same change.
+* Keep learned model definitions independent of recording, optimization and inference. Register model
+  configuration, optimizer configuration and recording environments separately. Reuse the existing recorder
+  manager and environment lifecycle for capture. Pass loaded models and required scene capabilities from
+  the construction owner to solver adapters; adapters must not consult the simulation singleton or clear
+  the backend's pending model changes. Do not reconstruct environments to rediscover workflow paths.
 * Prefer a functional approach for stateless computations and transformations: use plain functions with
   explicit inputs and outputs, keeping side effects at clear boundaries. Use classes when they own
   meaningful state or resources, enforce invariants over a lifecycle, or implement an interface required

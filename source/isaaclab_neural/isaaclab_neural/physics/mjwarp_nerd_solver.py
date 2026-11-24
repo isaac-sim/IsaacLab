@@ -14,14 +14,11 @@ import warp as wp
 from isaaclab_newton.physics import MJWarpSolver
 from isaaclab_newton.physics.newton_solver import solver_kwargs
 from newton import Model
-from newton_neural.solvers import SolverNeRDMuJoCo, load_nerd
+from newton_neural.solvers import SolverNeRDMuJoCo
 
 from .nerd_solver import (
     COUPLING_ERROR,
     articulation_pattern,
-    check_task,
-    forget_setup_changes,
-    require_articulation,
 )
 
 if TYPE_CHECKING:
@@ -48,6 +45,10 @@ class MJWarpNeRDSolver(MJWarpSolver):
         """Return why neural solvers cannot run inside Isaac Lab's coupled-solver wrapper."""
         return COUPLING_ERROR
 
+    def __init__(self, cfg, model, mode, env_template=None, *, nerd):
+        self.nerd = nerd
+        super().__init__(cfg, model, mode, env_template)
+
     def build(self, model: Model, mode: wp.DeterministicMode, env_template: str | None) -> SolverNeRDMuJoCo:
         """Build ``SolverNeRDMuJoCo`` from ``self.cfg`` and validate task timing and actuators."""
         # Collect matching MJWarpSolverCfg constructor kwargs (no determinism overrides since NOT_GUARANTEED).
@@ -56,13 +57,8 @@ class MJWarpNeRDSolver(MJWarpSolver):
         if model._has_body_variants:
             options["separate_worlds"] = True
         options["articulation"] = articulation_pattern(model, self.cfg.articulation, env_template)
-        # The kind of the model is checked before a solver is built around it.
-        nerd = load_nerd(self.cfg.checkpoint, "cpu")
-        require_articulation(nerd)
         # Disable internal solver graphs because Isaac Lab captures the full physics step itself.
-        solver = self.solver_class(model, nerd, use_cuda_graph=False, **options)
-        check_task(solver)
-        forget_setup_changes()
+        solver = self.solver_class(model, self.nerd, use_cuda_graph=False, **options)
         logger.info(f"Built {solver}")
         return solver
 

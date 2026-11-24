@@ -4,12 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
-    "NeRDRecipe",
-    "NeRDRecipeCfg",
-    "NeRDRecordCfg",
-    "NeRDTrainCfg",
-    "RecordingSimulation",
+    "NeRDCfg",
+    "NeRDTrainingCfg",
 ]
 
-from .nerd_recipe import NeRDRecipe, RecordingSimulation
-from .nerd_recipe_cfg import NeRDRecipeCfg, NeRDRecordCfg, NeRDTrainCfg
+from .nerd_cfg import NeRDCfg
+from .nerd_training_cfg import NeRDTrainingCfg

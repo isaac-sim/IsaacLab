@@ -693,7 +693,7 @@ class PhysicsManager(metaclass=_PhysicsManagerMeta):
         """
         return False
 
-    def handle_actions(self, actions: ActionManager, scene: InteractiveScene) -> bool:
+    def handle_actions(self, actions: ActionManager, scene: InteractiveScene, *, enabled: bool = True) -> bool:
         """Run the environment's actions and asset writes inside :meth:`step`, before every physics step.
 
         The default implementation handles nothing.
@@ -701,6 +701,7 @@ class PhysicsManager(metaclass=_PhysicsManagerMeta):
         Args:
             actions: Environment action manager.
             scene: Scene whose assets write to the simulation.
+            enabled: Whether actions may run inside the physics step. Validation still runs when disabled.
 
         Returns:
             Whether :meth:`step` now applies the actions and writes the assets.

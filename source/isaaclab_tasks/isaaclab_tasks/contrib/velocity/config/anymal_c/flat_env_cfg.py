@@ -10,8 +10,9 @@ from isaaclab.utils import configclass, replace
 
 from isaaclab_tasks.utils import preset
 
-from .nerd_recipe_cfg import AnymalCFlatNeRDRecipeCfg
 from .rough_env_cfg import AnymalCRoughEnvCfg
+
+ANYMAL_C_NERD_TARGET_REACH = 0.75
 
 
 @configclass
@@ -69,7 +70,7 @@ class AnymalCFlatEnvCfg(AnymalCRoughEnvCfg):
         )
         self.scene.robot.actuators["legs"] = preset(default=legs, newton_nerd=pass_through)
         # The joint targets [rad] stay within the range that the model was recorded on, whatever sets the actions.
-        reach = AnymalCFlatNeRDRecipeCfg().target_reach
+        reach = ANYMAL_C_NERD_TARGET_REACH
         recorded = {
             joints: (angle - reach, angle + reach) for joints, angle in self.scene.robot.init_state.joint_pos.items()
         }

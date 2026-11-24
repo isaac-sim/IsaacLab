@@ -27,7 +27,7 @@ from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import use_stage
 from isaaclab.test.utils import DeviceScope, test_devices
 
-from isaaclab_tasks.utils import load_cfg_from_registry
+from isaaclab_tasks.contrib.velocity.config.anymal_c.flat_env_cfg import ANYMAL_C_NERD_TARGET_REACH
 
 from nerd_test_utils import (  # isort: skip
     ANYMAL_C_FLAT,
@@ -149,9 +149,9 @@ def test_nerd_task(checkpoint: Path, device: str, caplog: pytest.LogCaptureFixtu
         assert compared.sum() > WORLD_COUNT // 2
 
         # Actions far outside the range that the model was recorded on leave the target of every joint within it,
-        # which is the default pose plus and minus the reach that the recipe gives the recorded targets.
+        # which is the default pose plus and minus the task's shared target reach.
         env.reset()
-        reach = load_cfg_from_registry(TASK, "nerd_recipe_cfg_entry_point").target_reach
+        reach = ANYMAL_C_NERD_TARGET_REACH
         far = torch.full_like(actions.raw_actions, 100.0)
         far[:, ::2] = -100.0
         _, _, terminated, truncated, _ = env.step(far)
@@ -268,7 +268,7 @@ def test_refusals(checkpoint: Path, device: str, tmp_path: Path):
     env_cfg.sim.physics.solver_cfg = NeRDSolverCfg(
         checkpoint=str(checkpoint), articulation=env_cfg.scene.robot.prim_path
     )
-    refused(TASK, env_cfg, ValueError, "Set class_type of the NewtonCfg to 'isaaclab_neural.*:NewtonNeRDManager'")
+    refused(TASK, env_cfg, TypeError, "required keyword-only arguments")
 
     # The physics of the model, with the actuator network of the task still running.
     env_cfg = nerd_task_cfg(TASK, checkpoint, 4, device)
@@ -293,10 +293,33 @@ def test_refusals(checkpoint: Path, device: str, tmp_path: Path):
     refused(TASK, env_cfg, ValueError, r"body_qdd \(.*\) and body_parent_f \(")
 
     # The untrained model that the record script leaves in the dataset, which has no frame to step the task by.
-    env_cfg = nerd_task_cfg(TASK, checkpoint.parent / "dataset" / checkpoint.name, 4, device)
+    env_cfg = nerd_task_cfg(TASK, checkpoint.parent / "dataset" / "model.pt", 4, device)
     refused(TASK, env_cfg, ValueError, "no frame duration.*Fit its normalization")
 
     # A task drives the joints and the actuators of a robot, so a model of another kind of system is refused, and
     # that before a solver is built on it, which the system of this model does not allow.
     env_cfg = nerd_task_cfg(TASK, save_point_model(tmp_path / "point.pt"), 4, device)
     refused(TASK, env_cfg, TypeError, "is a SystemPoint, and an Isaac Lab task runs on models of articulated")
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_checkpoint_contract_mismatches(checkpoint, device, tmp_path):
+    """Reject a physically different model and action bounds narrower than the deployed clipping."""
+    from newton_neural.models import NeRDBase
+
+    nerd = NeRDBase.load(checkpoint, device="cpu")
+    nerd.metadata["isaaclab"]["physical_model"]["body_mass"][0] += 1.0
+    wrong_mass = tmp_path / "wrong_mass.pt"
+    nerd.save(wrong_mass)
+    refused(TASK, nerd_task_cfg(TASK, wrong_mass, 4, device), ValueError, "physical model differs")
+
+    nerd = NeRDBase.load(checkpoint, device="cpu")
+    bounds = nerd.metadata["isaaclab"]["action_bounds"]
+    bounds["low"] = [v + 0.1 for v in bounds["low"]]
+    bounds["high"] = [v - 0.1 for v in bounds["high"]]
+    narrow = tmp_path / "narrow.pt"
+    nerd.save(narrow)
+    with environment(TASK, nerd_task_cfg(TASK, narrow, 4, device)) as env:
+        env.reset()
+        with pytest.raises(ValueError, match="clipping exceeds"):
+            env.step(_random_actions(env))
