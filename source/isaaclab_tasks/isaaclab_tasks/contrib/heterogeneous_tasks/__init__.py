@@ -35,8 +35,8 @@ def _assets_dir() -> str:
 
 # TODO: Point to the Isaac Lab Nucleus once the assets are uploaded there.
 VLA_BENCHMARKS_ASSETS_DIR = _assets_dir()
-"""Root of the tasks' assets: the objects from the RoboLab and Omniverse libraries as complete USD files, and the
-robot table and dome light texture. Taken from the environment variable of the same name if set, e.g. a local copy;
+"""Root of the tasks' table, stand and lighting assets. Movable props are referenced directly from NVIDIA
+SimReady in the scene configuration. Taken from the environment variable of the same name if set, e.g. a local copy;
 otherwise from the Hugging Face cache when it holds the dataset's fixed commit, which
 ``hf download LiFanxing/HeteroTask --repo-type dataset --revision <commit>`` puts there (``HF_HUB_CACHE`` selects the
 cache directory); otherwise from that commit on Hugging Face. A local copy avoids checking every cached remote file

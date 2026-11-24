@@ -7,8 +7,11 @@
   The nine real table assets retain
   their actual collisions, without a box proxy. Reset jointly samples a different table and feasible object placement, retrying smaller tables
   that cannot fit the sampled objects. Table variants switch on reset with their matching
-  poses and measured surfaces; category and size requirements expose plate-placement and container-placement instructions only where evaluable.
+  poses and measured surfaces; category and size requirements expose plate-, tray- and container-placement
+  instructions only where evaluable.
   Camera and object collection constants compose directly through config copies and replacements, without
   config factories or post-init scene generation. The robot preserves its original home pose, arm impedance and
-  disabled self-collisions, preventing internal collision hulls from deforming the open Robotiq linkage. Objects use the pinned
-  HeteroTask dataset, its local cache, or ``VLA_BENCHMARKS_ASSETS_DIR``.
+  disabled self-collisions, preventing internal collision hulls from deforming the open Robotiq linkage.
+  The flat catalog references 100 NVIDIA-hosted SimReady props, with large assets restricted to sparse worlds through
+  inclusion tags and receiver cavities preserved by triangle collisions. The known failing large plastic plate is excluded.
+  Table and stand assets continue to use the pinned HeteroTask dataset, its local cache, or ``VLA_BENCHMARKS_ASSETS_DIR``.

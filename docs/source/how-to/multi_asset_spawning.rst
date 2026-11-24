@@ -227,6 +227,16 @@ collection members using ``.copy()`` and ``.replace()`` before constructing the 
 ``CAMERA_CFG`` supplies the camera defaults and each view replaces its path, lens and offset. No
 config factory or ``__post_init__`` hook generates scene fields or rewrites the event configuration.
 
+``ASSET_CATALOG`` contains 100 NVIDIA-hosted SimReady movable assets: food, cans, bottles, bowls,
+small tools, utensils, trays, a small plate and a notebook. It declares relative USD paths, sampling
+categories and maximum world counts directly in the scene config. Assets wider than 25 cm are limited
+to two-object worlds; assets wider than 15 cm to at most four; smaller assets allow up to eight.
+These measured limits restrict candidates through ``object_count`` tags before category and asset sampling;
+they do not guarantee that every composition fits every table. The known failing large plastic plate is
+excluded. Triangle collisions preserve receiver cavities; SimReady PhysX certification alone does not
+validate contact behavior under Newton. Assets are downloaded through the normal cache at scene construction,
+not when importing the configuration. The tables and robot stand still use the pinned HeteroTask dataset.
+
 ``ROBOT_WORKSPACE`` defines an axis-aligned placement volume by hand in the environment frame. Reset intersects it with
 the selected table's declared, measured support outline, preserving its boundaries and any ``surface_holes``.
 The intersection is a polygon region, not a bounding rectangle.
@@ -270,8 +280,8 @@ conditioning on the presence of a plate or container and no list of authored ben
 
 After reset, ``env.tabletop.available_tasks[world]`` lists the evaluable instruction bindings.
 ``put_on_plate`` requires a plate and a distinct movable object that fits its inset footprint;
-``put_in_container`` similarly requires a container. The current fit check uses conservative collision
-bounds with an inset for walls; it is not a grasp or motion planner. Reset selects an available binding
+``put_in_container`` similarly requires a container, and ``put_on_tray`` requires a tray. The current fit
+check uses conservative collision bounds with an inset for walls; it is not a grasp or motion planner. Reset selects an available binding
 and publishes ``env.tabletop.instructions``. To request another binding on the next reset, use
 ``env.tabletop.set_task([world], [binding_index])``. A world with no binding keeps its sampled objects,
 has an empty instruction and does not report task success. Success requires the selected object to be

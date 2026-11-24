@@ -22,6 +22,7 @@ from pxr import Usd, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.managers import ManagerTermBase, SceneEntityCfg
+from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.math import quat_apply
 
 if TYPE_CHECKING:
@@ -52,7 +53,7 @@ def _collision_geometry(spawn: sim_utils.SpawnerCfg) -> tuple[np.ndarray, np.nda
         return np.array([[-spawn.radius] * 3, [spawn.radius] * 3]), footprint
     if not isinstance(spawn, sim_utils.UsdFileCfg):
         raise ValueError(f"Tabletop placement needs USD meshes, cuboids or spheres, got {type(spawn).__name__}.")
-    stage = Usd.Stage.Open(spawn.usd_path)
+    stage = Usd.Stage.Open(retrieve_file_path(spawn.usd_path))
     if stage is None:
         raise ValueError(f"Cannot read collision geometry: {spawn.usd_path}")
     root = stage.GetDefaultPrim()

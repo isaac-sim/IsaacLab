@@ -118,7 +118,8 @@ def test_bounded_combinations_do_not_expand_the_object_product():
     assert all(dict(spawn.semantic_tags).get("object_count") is None for spawn in objects.values())
     resolved, _ = resolve_task_config("IsaacContrib-VLA-Heterogeneous-Franka", "", overrides=[])
     assert type(resolved) is catalog.VLAHeterogeneousEnvCfg
-    assert len(catalog.ASSET_CATALOG) == 159 and set(resolved.tasks) == {"put_on_plate", "put_in_container"}
+    assert len(catalog.ASSET_CATALOG) == 100
+    assert set(resolved.tasks) == {"put_on_plate", "put_in_container", "put_on_tray"}
     assert resolved.scene.objects is not catalog.OBJECTS_CFG
     assert len(resolved.scene.objects.rigid_objects) == catalog.OBJECT_COUNT[1]
     tables = resolved.scene.work_table.spawn
@@ -129,3 +130,23 @@ def test_bounded_combinations_do_not_expand_the_object_product():
         == len(catalog.TABLE_VARIANTS)
     )
     assert all(isinstance(table, sim_utils.UsdFileCfg) for table in tables.assets_cfg), "Use real table assets"
+
+    assert "Big_Plastic_Plate_A01" not in catalog.ASSET_CATALOG
+    assert len({spawn.usd_path for spawn in catalog.ASSET_CATALOG.values()}) == 100
+    # The default catalog must retain its size limits when composing slot-level count tags.
+    candidates = [member.spawn.assets_cfg for member in resolved.scene.objects.rigid_objects.values()]
+    candidates.append(tables.assets_cfg)
+    groups, weights = make_valid_clone_combinations(names, candidates, resolved.scene.clone_cfg.clone_combinations)
+    flattened = [candidate for row in candidates for candidate in row]
+    plan = make_clone_plan(flattened, groups, 128, weights=weights)
+    seen_large = set()
+    for composition in plan.topology.world_prototype_layout:
+        start, end = plan.topology.world_prototype_starts[composition + 1 : composition + 3]
+        members = [flattened[index] for index in plan.topology.world_prototypes[start:end]]
+        labels = [dict(spawn.semantic_tags or ()).get("_catalog_key") for spawn in members]
+        count = sum(label not in (None, "__empty__") for label in labels)
+        for label in labels:
+            if label in ("Tray_A01", "Bowl_N01"):
+                assert count <= {"Tray_A01": 2, "Bowl_N01": 4}[label]
+                seen_large.add(label)
+    assert seen_large == {"Tray_A01", "Bowl_N01"}
