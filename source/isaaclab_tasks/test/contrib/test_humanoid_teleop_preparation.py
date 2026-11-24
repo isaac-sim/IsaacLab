@@ -43,7 +43,9 @@ def test_registered_construction_prepares_only_standalone_backends(monkeypatch, 
 
     def inspect_before_simulation(self, cfg, *args, **kwargs):
         self._is_closed = True
-        assert cfg._prepared_physics_backend == (physics if physics in ("ovphysx", "newton_mjwarp") else None)
+        selected_physics = "ovphysx" if physics is None else physics
+        expected = selected_physics if selected_physics in ("ovphysx", "newton_mjwarp") else None
+        assert cfg._prepared_physics_backend == expected
         raise ConstructionReached
 
     monkeypatch.setattr(ManagerBasedRLEnv, "__init__", inspect_before_simulation)
@@ -130,8 +132,8 @@ def test_humanoid_preparation_preserves_caller_changes_and_rejects_backend_switc
 
 def test_humanoid_preparation_resolves_directly_built_configs():
     """A configuration built without task resolution is prepared with the default of every preset."""
-    from isaaclab_isaacsim.physics import PhysxCfg
-    from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
+    from isaaclab_ov.physics import OvPhysxCfg
+    from isaaclab_ov.renderers import OVRTXRendererCfg
 
     from isaaclab_tasks.contrib.locomanip_pick_place.fixed_base_upper_body_ik_g1_env_cfg import (
         FixedBaseUpperBodyIKG1EnvCfg,
@@ -140,8 +142,8 @@ def test_humanoid_preparation_resolves_directly_built_configs():
 
     cfg = FixedBaseUpperBodyIKG1EnvCfg()
     prepare_humanoid_teleop_environment(cfg)
-    assert type(cfg.sim.physics) is PhysxCfg
-    assert type(cfg.scene.robot_pov_cam.renderer_cfg) is IsaacRtxRendererCfg
+    assert type(cfg.sim.physics) is OvPhysxCfg
+    assert type(cfg.scene.robot_pov_cam.renderer_cfg) is OVRTXRendererCfg
 
 
 @pytest.mark.parametrize("kit", [False, True])

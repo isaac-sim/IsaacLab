@@ -63,7 +63,9 @@ def create_test_env(env_name, num_envs):
     sim_utils.create_new_stage()
 
     try:
-        env_cfg = remove_camera_configs(parse_env_cfg(env_name, device=device, num_envs=num_envs))
+        env_cfg = remove_camera_configs(
+            parse_env_cfg(env_name, device=device, num_envs=num_envs, overrides=["physics=isaacsim_physx"])
+        )
         # Deterministic seed so IK convergence residual is reproducible across runs / machines.
         env_cfg.seed = 42
         # Modify scene config to not spawn the packing table to avoid collision with the robot

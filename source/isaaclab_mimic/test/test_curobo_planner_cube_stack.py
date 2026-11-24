@@ -95,7 +95,7 @@ def cube_stack_test_env() -> Generator[dict[str, Any], None, None]:
     random.seed(SEED)
     torch.manual_seed(SEED)
 
-    env_cfg = parse_env_cfg("Isaac-Stack-Cube-Franka-IK-Rel-Mimic-v0", num_envs=1)
+    env_cfg = parse_env_cfg("Isaac-Stack-Cube-Franka-IK-Rel-Mimic-v0", num_envs=1, overrides=["physics=isaacsim_physx"])
     for frame in env_cfg.scene.ee_frame.target_frames:
         if frame.name == "end_effector":
             print(f"Setting end effector offset from {frame.offset.pos} to (0.0, 0.0, 0.0) for SkillGen parity")

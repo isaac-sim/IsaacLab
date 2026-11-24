@@ -1070,8 +1070,8 @@ def test_ovxr_rejects_task_conflicts_before_generic_launch_validation(monkeypatc
 def test_teleop_launcher_prepares_humanoid_backends(monkeypatch, task_name, physics):
     """The entrypoint runs the task's preparation hook for the selected standalone backend."""
     # Standalone backends run under --ovxr, which removes the task cameras before launch validation.
-    ovxr = () if physics == "isaacsim_physx" else ("--ovxr",)
-    agent = _load_teleop_agent(monkeypatch, "--task", task_name, "--physics", physics, *ovxr)
+    runtime_args = ("--renderer", "isaacsim_rtx") if physics == "isaacsim_physx" else ("--ovxr",)
+    agent = _load_teleop_agent(monkeypatch, "--task", task_name, "--physics", physics, *runtime_args)
     env_cfg, _teleop_cfg, _use_isaac_teleop, _selected_cameras = agent._resolve_env_cfg()
     assert env_cfg._prepared_physics_backend == (None if physics == "isaacsim_physx" else physics)
 
@@ -1647,6 +1647,7 @@ def _unset_task_physics(monkeypatch, module):
     real_resolve = module.resolve_task_config
 
     def resolve(*args, **kwargs):
+        kwargs["overrides"] = [*(kwargs.get("overrides") or ()), "renderer=isaacsim_rtx"]
         env_cfg, agent_cfg = real_resolve(*args, **kwargs)
         env_cfg.sim.physics = None
         return env_cfg, agent_cfg

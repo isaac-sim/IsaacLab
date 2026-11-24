@@ -50,7 +50,7 @@ def test_g1_xr_camera_uses_calibration_and_head_locked_panel(env_cfg_type):
     assert feed_cfg.enable_dlss_ray_reconstruction is True
     assert feed_cfg.dlss_exec_mode == "quality"
     assert feed_cfg.max_update_hz == (20.0 if env_cfg_type is FixedBaseUpperBodyIKG1EnvCfg else 0.0)
-    assert camera_cfg.renderer_cfg.default == IsaacRtxRendererCfg()
+    assert camera_cfg.renderer_cfg.default == OVRTXRendererCfg()
     assert camera_cfg.renderer_cfg.isaacsim_rtx == IsaacRtxRendererCfg()
 
 
@@ -90,7 +90,7 @@ def test_locomanipulation_g1_retains_recorded_camera():
 
 
 def test_xr_camera_reference_renderer_resolves_for_supported_backends():
-    """Reference cameras retain Isaac RTX defaults and OVRTX compatibility."""
+    """Reference cameras default to OVRTX and retain explicit Isaac RTX compatibility."""
     camera_renderer_cfg = PickPlaceGR1T2EnvCfg().scene.robot_pov_cam.renderer_cfg
     default = resolve_presets(camera_renderer_cfg)
     isaacsim_rtx = resolve_presets(
@@ -100,7 +100,7 @@ def test_xr_camera_reference_renderer_resolves_for_supported_backends():
     ovrtx = resolve_presets(camera_renderer_cfg, selected=("ovrtx",))
     expected_rtx = IsaacRtxRendererCfg()
 
-    assert default == expected_rtx
+    assert default == OVRTXRendererCfg()
     assert isaacsim_rtx == expected_rtx
     assert isinstance(ovrtx, OVRTXRendererCfg)
 
