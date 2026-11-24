@@ -130,7 +130,9 @@ and works with `DISPLAY` unset when the mirror is disabled. PiP is independent o
 Renderer startup waits up to 20 minutes for attachment; it does not bound waiting for a
 client to establish its OpenXR session. A first start compiles shaders, and other rendering
 processes on the same GPU slow attachment; either can take several minutes. Attachment cannot be
-interrupted: Ctrl+C takes effect once it completes.
+interrupted: Ctrl+C takes effect once it completes. While it runs, the application logs a progress
+line every 30 s and, when attachment ends, a line reporting that the renderer is ready. No client
+can connect before that, because CloudXR starts afterwards; connect once its WSS proxy is listening.
 Installing Capture and resolving
 Python packages do not warm application-specific RTX shaders or Newton/Warp
 physics kernels. First runtime preparation and the first physics step can take
