@@ -52,6 +52,7 @@ from ..common import (
     show_run_summary,
     startup_screen,
 )
+from . import checkpoint_ghost_policies
 from . import cli_args_skrl as cli_args
 
 logger = logging.getLogger(__name__)
@@ -172,27 +173,9 @@ def _run(args_cli: argparse.Namespace) -> None:
             experiment_cfg["checkpoint_interval"] = 0
             # Checkpoint Ghosts: --checkpoint is the reference; the viewer HUD adds ghosts of other checkpoints.
             if args_cli.checkpoint_ghosts:
-
-                def policy_factory(path: str):
-                    agent = runner_cls(env, agent_cfg).agent  # one agent per checkpoint, since they run side by side
-                    agent.load(path)
-                    agent.enable_training_mode(False, apply_to_models=True)
-
-                    def act(obs):
-                        outputs = agent.act(obs["policy"], obs.get("critic"), timestep=0, timesteps=0)
-                        return outputs[-1].get("mean_actions", outputs[0])
-
-                    return checkpoint_ghost_play.PolicyAdapter(act)
-
                 screen.close()
-                checkpoint_ghost_play.run(
-                    env,
-                    args_cli,
-                    policy_factory=policy_factory,
-                    checkpoint_pattern=r".*\.pt",
-                    reference_path=resume_path,
-                    log_root_path=log_root_path,
-                    run_playback=run_playback,
+                checkpoint_ghost_policies.run_skrl(
+                    env, args_cli, runner_cls, agent_cfg, resume_path, log_root_path, run_playback
                 )
                 return
             runner = runner_cls(env, agent_cfg)

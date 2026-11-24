@@ -13,7 +13,6 @@ import logging
 import os
 from pathlib import Path
 
-import torch
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import VecNormalize
 
@@ -43,6 +42,7 @@ from ..common import (
     show_run_summary,
     startup_screen,
 )
+from . import checkpoint_ghost_policies
 from . import cli_args_sb3 as cli_args
 
 logger = logging.getLogger(__name__)
@@ -139,34 +139,9 @@ def run(argv: list[str]) -> None:
             env = Sb3VecEnvWrapper(env, fast_variant=not args_cli.keep_all_info)
             # Checkpoint Ghosts: --checkpoint is the reference; the viewer HUD adds ghosts of other checkpoints.
             if args_cli.checkpoint_ghosts:
-
-                def policy_factory(path: str):
-                    # each checkpoint has its own policy and its own normalization statistics
-                    model = PPO.load(path, device=agent_cfg["device"])
-                    name = Path(path).name.replace("model", "model_vecnormalize", 1).replace(".zip", ".pkl")
-                    stats = Path(path).with_name(name)
-                    norm = VecNormalize.load(stats, env) if stats.exists() else None  # each checkpoint has its own
-                    if norm is None and agent_cfg.get("normalize_input"):
-                        raise FileNotFoundError(
-                            f"{stats.name} is missing next to it, and this task normalizes observations"
-                        )
-
-                    def act(obs):
-                        obs = env._process_obs(obs)
-                        actions, _ = model.predict(norm.normalize_obs(obs) if norm else obs, deterministic=True)
-                        return torch.as_tensor(actions, device=env.unwrapped.device)
-
-                    return checkpoint_ghost_play.PolicyAdapter(act)
-
                 screen.close()
-                checkpoint_ghost_play.run(
-                    env,
-                    args_cli,
-                    policy_factory=policy_factory,
-                    checkpoint_pattern=r"model(?:_.*)?\.zip",
-                    reference_path=checkpoint_path,
-                    log_root_path=log_root_path,
-                    run_playback=run_playback,
+                checkpoint_ghost_policies.run_sb3(
+                    env, args_cli, agent_cfg, checkpoint_path, log_root_path, run_playback
                 )
                 return
             vec_norm_path = checkpoint_path.replace("/model", "/model_vecnormalize").replace(".zip", ".pkl")

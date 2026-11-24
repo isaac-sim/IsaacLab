@@ -44,6 +44,7 @@ from ..common import (
     show_run_summary,
     startup_screen,
 )
+from . import checkpoint_ghost_policies
 from . import cli_args_rl_games as cli_args
 
 logger = logging.getLogger(__name__)
@@ -156,39 +157,9 @@ def run(argv: list[str]) -> None:
             runner.load(agent_cfg)
             # Checkpoint Ghosts: --checkpoint is the reference; the viewer HUD adds ghosts of other checkpoints.
             if args_cli.checkpoint_ghosts:
-
-                def policy_factory(path: str):
-                    # a ghost gets its own player, so every slot keeps its own policy and recurrent state
-                    player = runner.create_player()
-                    player.restore(path)
-                    player.reset()
-
-                    def act(obs):
-                        obs = player.obs_to_torch(env._process_obs(obs)["obs"])
-                        player.get_batch_size(obs, 1)
-                        if player.is_rnn and player.states is None:
-                            player.init_rnn()
-                        return player.get_action(obs, is_deterministic=player.is_deterministic)
-
-                    def reset(dones):
-                        if dones is None:  # the slot was resized: its recurrent states are rebuilt on the next act
-                            player.states = None
-                        elif player.states is not None:
-                            for state in player.states:
-                                index_fill_(state, dones, 0.0, dim=1)
-
-                    clip = params.get("env", {}).get("clip_actions")
-                    return checkpoint_ghost_play.PolicyAdapter(act, reset, clip)
-
                 screen.close()
-                checkpoint_ghost_play.run(
-                    env,
-                    args_cli,
-                    policy_factory=policy_factory,
-                    checkpoint_pattern=r".*\.pth",
-                    reference_path=resume_path,
-                    log_root_path=log_root_path,
-                    run_playback=run_playback,
+                checkpoint_ghost_policies.run_rl_games(
+                    env, args_cli, runner, params, resume_path, log_root_path, run_playback
                 )
                 return
             agent: BasePlayer = runner.create_player()

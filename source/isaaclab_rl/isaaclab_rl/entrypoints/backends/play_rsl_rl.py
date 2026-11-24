@@ -12,9 +12,6 @@ import contextlib
 import logging
 import os
 
-from tensordict import TensorDict
-from torch.utils._pytree import tree_leaves
-
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs import DirectMARLEnvCfg
 from isaaclab.utils.assets import retrieve_file_path
@@ -44,6 +41,7 @@ from ..common import (
     show_run_summary,
     startup_screen,
 )
+from . import checkpoint_ghost_policies
 from . import cli_args_rsl_rl as cli_args
 from .runner_rsl_rl import create_rsl_rl_runner
 
@@ -147,28 +145,8 @@ def run(argv: list[str]) -> None:
             logger.info(f"Loading model checkpoint from: {resume_path}")
             # Checkpoint Ghosts: --checkpoint is the reference; the viewer HUD adds ghosts of other checkpoints.
             if args_cli.checkpoint_ghosts:
-
-                def policy_factory(path: str):
-                    # a ghost loads a checkpoint into its own runner, so every slot keeps its own policy
-                    runner = create_rsl_rl_runner(env, agent_cfg, inference=True)
-                    runner.load(path)
-                    policy = runner.get_inference_policy(device=env.unwrapped.device)
-                    return checkpoint_ghost_play.PolicyAdapter(
-                        lambda obs: policy(TensorDict(obs, batch_size=[tree_leaves(obs)[0].shape[0]])),
-                        policy.reset,
-                        agent_cfg.clip_actions,
-                    )
-
                 screen.close()
-                checkpoint_ghost_play.run(
-                    env,
-                    args_cli,
-                    policy_factory=policy_factory,
-                    checkpoint_pattern=r"model_.*\.pt",
-                    reference_path=resume_path,
-                    log_root_path=log_root_path,
-                    run_playback=run_playback,
-                )
+                checkpoint_ghost_policies.run_rsl_rl(env, args_cli, agent_cfg, resume_path, log_root_path, run_playback)
                 return
             runner = create_rsl_rl_runner(env, agent_cfg, inference=True)
             # configure_seed must run after runner construction so torch determinism does not disturb its initialization
