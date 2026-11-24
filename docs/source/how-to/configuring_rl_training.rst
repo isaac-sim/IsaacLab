@@ -174,6 +174,46 @@ environment. ``clip_actions=None`` preserves that range.
 Use the same agent entry point with the playback and export commands. Published
 ``pretrained`` checkpoints are PPO policies and cannot be loaded by ``OffPolicyRunner`` agents.
 
+Training the G1 velocity task with SuperMimic
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+SuperMimic uses the same G1 velocity MDP with noise-free physical observation groups.
+Select its agent and the shared ``state_obs`` observation preset together:
+
+.. code-block:: bash
+
+   uv run isaaclab train --rl_library rsl_rl \
+      --task Isaac-Velocity-Flat-G1 --agent rsl_rl_supermimic_cfg_entry_point \
+      presets=state_obs physics=newton_mjwarp visualizer=none
+
+The agent configuration enables ``final_obs_every_step`` before environment creation.
+These observations describe the physical transition before resets, command resampling
+and interval pushes. The environment signals this capture explicitly. SuperMimic cuts
+world-model training windows at continuing-state edits and retains the physical successor.
+
+The differentiable velocity task owns the state coordinates, deployable actor features,
+reward terms and contact probabilities. Joint torque rewards use a PD approximation.
+Acceleration rewards use policy-rate differences. Contact timers advance analytically
+at the policy timestep using predicted event labels.
+
+Pass the same agent and ``presets=state_obs`` to playback, which also writes JIT and ONNX exports.
+The preset collects one step before applying fractional learner updates. See the
+`RSL-RL SuperMimic guide <https://leggedrobotics.github.io/rsl_rl/guide/overview.html#supermimic-contract>`__
+for checkpoint and deployment inputs. LEAPP requires an MLPModel policy and rejects this actor representation.
+
+``Isaac-Motion-Tracking-G1`` provides a SuperMimic agent for the same reference-motion MDP as its PPO agent:
+
+.. code-block:: bash
+
+   uv run isaaclab train --rl_library rsl_rl \
+      --task Isaac-Motion-Tracking-G1 --agent rsl_rl_supermimic_cfg_entry_point \
+      presets=state_obs visualizer=none
+
+The world model predicts the root link and joint state. Tracked-body poses and velocities follow from differentiable
+forward kinematics of the simulated articulation, so imagined tracking rewards use the environment's reward
+definitions. The reference frame advances one frame per imagined step. The actor receives the default policy's
+proprioceptive and anchor-orientation terms in its history and the reference joint command as its goal.
+
 .. _Stable-Baselines3: https://stable-baselines3.readthedocs.io/en/master/
 .. _RL-Games: https://github.com/Denys88/rl_games
 .. _RSL-RL: https://github.com/leggedrobotics/rsl_rl
