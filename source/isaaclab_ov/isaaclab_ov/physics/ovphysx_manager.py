@@ -21,7 +21,6 @@ import stat
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from enum import Enum
-from threading import Lock
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -60,25 +59,21 @@ if TYPE_CHECKING:
 
 __all__ = ["OvPhysxManager", "OvPhysxSceneDataBackend"]
 
-_ATTACH_LOCK = Lock()
-
 
 @contextmanager
 def _compiled_stage_cache_for_attach(disable: bool) -> Iterator[None]:
-    """Scope the runtime's process-wide cache mode to one Isaac Lab attachment."""
-    # OvPhysX captures the cache mode at submission. Serialize submissions so an attachment
-    # that inherits the runtime mode cannot pick up another attachment's override.
-    with _ATTACH_LOCK:
-        if not disable:
-            yield
-            return
-        key = GlobalConfigKey.COMPILED_STAGE_CACHE
-        previous = CompiledStageCacheMode(ovphysx.get_global_config(key))
-        ovphysx.set_global_config(key, CompiledStageCacheMode.DISABLED)
-        try:
-            yield
-        finally:
-            ovphysx.set_global_config(key, previous)
+    """Scope the runtime's process-wide cache mode to attach submission."""
+    if not disable:
+        yield
+        return
+    # OvPhysX captures the cache mode at submission during the synchronous simulation reset.
+    key = GlobalConfigKey.COMPILED_STAGE_CACHE
+    previous = CompiledStageCacheMode(ovphysx.get_global_config(key))
+    ovphysx.set_global_config(key, CompiledStageCacheMode.DISABLED)
+    try:
+        yield
+    finally:
+        ovphysx.set_global_config(key, previous)
 
 
 def _prepare_default_cache_dir(cache_dir: str) -> str:
