@@ -781,6 +781,59 @@ def test_ovrtx_split_search_leaves_out_a_sensor_removed_before_its_first_frame(m
     assert submissions == [set(failed), set(kept.render_product_paths)]
 
 
+def test_ovrtx_split_search_skips_a_sensor_removed_during_the_search(monkeypatch):
+    """A sensor that a cleanup removes during the search gets no new render products. The search goes on."""
+    renderer, (first, removed, last) = _make_search_cameras(monkeypatch, False, 8, [("auto", 64)] * 3)
+    failed = set(renderer.backend.render_products)
+    removed_paths = removed.render_product_paths
+    add_usd_reference = renderer.backend.renderer.add_usd_reference_from_string
+    add_usd_reference.reset_mock()
+
+    def write_and_clean_up(usd, path):
+        # The scene write of the first sensor cleans up the second sensor, for example through a callback.
+        add_usd_reference.side_effect = None
+        renderer.cleanup(removed)
+        return MagicMock()
+
+    add_usd_reference.side_effect = write_and_clean_up
+    submissions = _install_step(renderer, lambda products: bool(products & failed))
+
+    renderer.render_batch([first, last])
+
+    # Of equal sensors, the first in the order of the engine is halved. The last sensor keeps its split.
+    assert [[product.num_envs for product in camera.products] for camera in (first, last)] == [[4, 4], [8]]
+    assert [c.args[1] for c in add_usd_reference.call_args_list] == [
+        f"/{first.render_scope_name}",
+        f"/{last.render_scope_name}",
+    ]
+    assert removed.render_product_paths == removed_paths
+    assert not renderer.backend.render_products & set(removed_paths)
+    assert submissions[-1] == {*first.render_product_paths, *last.render_product_paths}
+
+
+def test_ovrtx_split_search_gives_up_with_a_sensor_removed_during_the_search(monkeypatch):
+    """A search that gives up raises the failed frame, also if a cleanup removes a sensor during the search."""
+    # A sensor with 1 environment cannot be halved, so the search gives up on the "auto" sensor. It still moves the
+    # sensor with an integer split to new render products, and that scene write cleans up the "auto" sensor.
+    renderer, (fixed, removed) = _make_search_cameras(monkeypatch, False, 1, [(1, 64), ("auto", 64)])
+    failed = set(renderer.backend.render_products)
+    add_usd_reference = renderer.backend.renderer.add_usd_reference_from_string
+
+    def write_and_clean_up(usd, path):
+        add_usd_reference.side_effect = None
+        renderer.cleanup(removed)
+        return MagicMock()
+
+    add_usd_reference.side_effect = write_and_clean_up
+    _install_step(renderer, lambda products: True)
+
+    with pytest.raises(RuntimeError, match="failed to produce a frame"):
+        renderer.render_batch([fixed])
+
+    assert renderer.backend.render_products == set(fixed.render_product_paths)
+    assert not renderer.backend.render_products & failed
+
+
 def test_ovrtx_render_batch_does_not_search_after_another_error(monkeypatch):
     """An error other than a failed frame reaches the caller unchanged and leaves the render products alone."""
     renderer, (camera,) = _make_search_cameras(monkeypatch, False, 8, [("auto", 64)])
@@ -794,6 +847,88 @@ def test_ovrtx_render_batch_does_not_search_after_another_error(monkeypatch):
     assert not hasattr(error.value, "__notes__")
     assert camera.render_product_paths == layout
     assert renderer.backend.render_products == set(layout)
+
+
+def _plan_sensor(*num_envs: int, searches_split: bool = True, spp: int = 1) -> types.SimpleNamespace:
+    """Stand-in with the fields that the split plan reads.
+
+    It has one render product for each number in ``num_envs``. Each atlas is one row of 64 x 64 tiles.
+    """
+    products = [types.SimpleNamespace(num_envs=count, num_cols=count, num_rows=1) for count in num_envs]
+    cfg = types.SimpleNamespace(render_settings={"omni:rtx:rtpt:spp": ("Int", spp)})
+    return types.SimpleNamespace(
+        searches_split=searches_split, products=products, width=64, height=64, spec=types.SimpleNamespace(cfg=cfg)
+    )
+
+
+def _plan_ids(plan) -> list[tuple[int, int | None]]:
+    """Each sensor of ``plan`` by its identity with its next number of environments per render product.
+
+    Two stand-ins with the same fields are equal, so only the identity tells them apart.
+    """
+    return [(id(data), max_envs) for data, max_envs in plan.max_envs_per_render_product]
+
+
+def test_ovrtx_split_plan_halves_the_auto_sensor_with_the_largest_buffer():
+    """The plan halves the "auto" sensor with the most atlas pixels times samples per pixel. Others keep their split.
+
+    The halved sensor is not the first, so the test also checks that the plan keeps the order of the engine.
+    """
+    small, large, fixed = _plan_sensor(8, spp=4), _plan_sensor(16), _plan_sensor(64, searches_split=False)
+    error = RuntimeError("OVRTX failed to produce a frame")
+
+    plan = ovrtx_renderer_module._plan_split([large, small, fixed], error, 0)
+
+    assert plan.halved is small
+    assert _plan_ids(plan) == [(id(large), 16), (id(small), 4), (id(fixed), 64)]
+
+
+def test_ovrtx_split_plan_halves_the_first_and_largest_render_product():
+    """The plan halves the environments of the first render product, which has the most environments.
+
+    10 environments with a limit of 3 give render products of 3, 3, 3 and 1 environments. The next limit is 2, not 1.
+    """
+    sensor = _plan_sensor(3, 3, 3, 1)
+
+    plan = ovrtx_renderer_module._plan_split([sensor], RuntimeError("failed to produce a frame"), 0)
+
+    assert plan.halved is sensor
+    assert _plan_ids(plan) == [(id(sensor), 2)]
+
+
+def test_ovrtx_split_plan_halves_the_first_of_equal_auto_sensors():
+    """Of "auto" sensors with the same buffer size, the plan halves the first in the order of the engine."""
+    first, second = _plan_sensor(16), _plan_sensor(16)
+
+    plan = ovrtx_renderer_module._plan_split([first, second], RuntimeError("failed to produce a frame"), 0)
+
+    assert plan.halved is first
+    assert _plan_ids(plan) == [(id(first), 8), (id(second), 16)]
+
+
+# "limit" stands for _MAX_SMALLER_LAYOUTS. Without ovrtx, ovrtx_renderer_module is None when pytest collects the tests.
+@pytest.mark.parametrize(
+    ("num_envs", "num_smaller_layouts"), [(16, "limit"), (1, 0)], ids=["after-the-limit", "one-environment"]
+)
+def test_ovrtx_split_plan_gives_up_on_every_auto_sensor(num_envs, num_smaller_layouts):
+    """Without a sensor to halve, the plan gives up on the "auto" sensors and keeps the split of the others."""
+    if num_smaller_layouts == "limit":
+        num_smaller_layouts = ovrtx_renderer_module._MAX_SMALLER_LAYOUTS
+    auto, fixed = _plan_sensor(num_envs), _plan_sensor(16, searches_split=False)
+
+    plan = ovrtx_renderer_module._plan_split(
+        [auto, fixed], RuntimeError("failed to produce a frame"), num_smaller_layouts
+    )
+
+    assert plan.halved is None
+    assert _plan_ids(plan) == [(id(auto), None), (id(fixed), 16)]
+
+
+def test_ovrtx_split_plan_is_empty_for_another_error():
+    """Only a failed frame starts the search, so another error gives an empty plan."""
+    plan = ovrtx_renderer_module._plan_split([_plan_sensor(16)], RuntimeError("device lost"), 0)
+
+    assert plan == ovrtx_renderer_module._SplitPlan()
 
 
 @pytest.mark.parametrize(
@@ -861,7 +996,8 @@ def _install_attribute_store(renderer: OVRTXRenderer, use_ovstage: bool) -> dict
     """Replace the attribute reads and writes of the scene with fakes over a dictionary.
 
     Like OVRTX, the legacy fake raises when it reads a tag or an array without elements. Like OVStage, the OVStage fake
-    rejects a write of the prim path.
+    rejects a write of the prim path, and both a write and the release of a read group invalidate the data of the reads.
+    A write of the OVStage fake reads its data only in its wait, because only the wait guarantees that OVStage read it.
 
     Returns:
         The attributes of each render product: ``{path: {name: (value, is_array, semantic)}}``.
@@ -874,25 +1010,50 @@ def _install_attribute_store(renderer: OVRTXRenderer, use_ovstage: bool) -> dict
         renderer.scene.stage.query_from_path_list.side_effect = contextlib.nullcontext
         renderer.scene.paths.intern_token.side_effect = lambda name: types.SimpleNamespace(raw_id=0, name=name)
         renderer.scene.paths.token_to_string.side_effect = lambda token: token.name
+        # The data that the read groups borrow. In OVStage, a write that adds attributes to other prims can change the
+        # data of an open read group. So a write invalidates this data like the release of a group.
+        borrowed = []
+
+        def invalidate_borrowed(*exc_info):
+            # A write that reads invalid data copies the sentinel 99.
+            for tensor in borrowed:
+                tensor[...] = np.array(99).astype(tensor.dtype)
 
         def column(name, value, is_array, semantic):
             # OVStage can map the row of a prim in the query to another data row of the column. So the fake puts
             # the value of the one prim after a row of zeros.
-            rows = [np.zeros_like(value), value]
+            rows = [np.zeros_like(value), np.array(value)]
+            # An array column has one tensor per data row. A fixed-size column has one tensor with all data rows.
+            tensors = rows if is_array else [np.stack(rows)]
+            borrowed.extend(tensors)
             return types.SimpleNamespace(
                 attribute=types.SimpleNamespace(name=name),
                 is_array=is_array,
                 semantic=semantic,
                 data_row_index=lambda local: local + 1,
-                # An array column has one tensor per data row. A fixed-size column has one tensor with all data rows.
-                array=lambda index: rows[index] if is_array else np.stack(rows),
+                # Like OVStage, the NumPy view of a column gives a half as uint16.
+                array=lambda index: tensors[index].view(np.uint16) if value.dtype == np.float16 else tensors[index],
+                # Like the borrowed view of OVStage, a NumPy array supports DLPack and keeps a half as float16.
+                dlpack=lambda index: tensors[index],
             )
+
+        def array_values(tensor):
+            # Like OVStage, an array write takes the components of an element only from the lanes, not from the
+            # shape. So a float3[] in the shape (n, 3) without lanes arrives as a float[] of 3 * n values.
+            if not isinstance(tensor, ovstage.DLTensor):
+                return np.from_dlpack(tensor).reshape(-1)
+            values = ovstage.dltensor_to_numpy(tensor)
+            if (tensor.dtype.code, tensor.dtype.bits) == (ovstage.DLDataTypeCode.kDLFloat, 16):
+                # dltensor_to_numpy gives a half as uint16.
+                values = values.view(np.float16)
+            return values.reshape(-1, tensor.dtype.lanes) if tensor.dtype.lanes > 1 else values
 
         def read_attributes(query, attributes, ordinal_range):
             assert [token.name for token in attributes] == ["*"]
             (path,) = query
             group = MagicMock(columns=[column(name, *entry) for name, entry in store[path].items()])
             group.__enter__.return_value = group
+            group.__exit__.side_effect = invalidate_borrowed
             read = MagicMock()
             read.__enter__.return_value.groups.return_value = [group]
             return read
@@ -903,11 +1064,18 @@ def _install_attribute_store(renderer: OVRTXRenderer, use_ovstage: bool) -> dict
                     ovstage.ErrorCode.NOT_SUPPORTED,
                     "built-in attribute 'usd-path' is derived on demand and cannot be written",
                 )
-            for index, path in enumerate(query):
+            invalidate_borrowed()
+
+            def wait():
                 for write in writes:
-                    value = write.tensors[write.index_map[index]]
-                    store[path][write.attribute.name] = (value, write.is_array, write.semantic)
-            return MagicMock()
+                    # Target i reads the source data row index_map[i]. An array has one tensor per data row. A
+                    # fixed-size attribute has all data rows in one tensor. Like OVStage, the write copies the data.
+                    tensors = write.tensors if isinstance(write.tensors, (list, tuple)) else [write.tensors]
+                    rows = [array_values(tensor) for tensor in tensors] if write.is_array else np.from_dlpack(*tensors)
+                    for path, index in zip(query, write.index_map, strict=True):
+                        store[path][write.attribute.name] = (np.array(rows[index]), write.is_array, write.semantic)
+
+            return types.SimpleNamespace(wait=wait)
 
         renderer.scene.stage.read_attributes.side_effect = read_attributes
         renderer.scene.stage.write_attributes.side_effect = write_attributes
@@ -998,6 +1166,12 @@ def test_ovrtx_split_search_copies_the_attributes_of_the_failed_render_product(m
         "omni:rtx:post:aa:op": (np.uint64(42), False, token),
         "omni:rtx:waitForEvents": (np.array([7, 8], dtype=np.uint64), True, token),
     }
+    if use_ovstage:
+        # The NumPy view of an OVStage column gives a half as uint16, which OVStage does not write as a half.
+        store[failed]["omni:test:half"] = (np.float16(0.5), False, 0)
+        store[failed]["omni:test:half_array"] = (np.array([0.5, 1.5], dtype=np.float16), True, 0)
+        # An OVStage read gives the 3 components of each element of a float3[] as an axis.
+        store[failed]["omni:test:float3s"] = (np.array([[1, 2, 3], [4, 5, 6]], dtype=np.float32), True, 0)
     _install_step(renderer, lambda products: len(products) < 2)
 
     renderer.render_batch([camera])
@@ -1018,8 +1192,13 @@ def test_ovrtx_split_search_copies_the_attributes_of_the_failed_render_product(m
         }
         if use_ovstage:
             expected["usd-path"] = (path, False, 0)
+            expected["omni:test:half"] = (0.5, False, 0)
+            expected["omni:test:half_array"] = ([0.5, 1.5], True, 0)
+            expected["omni:test:float3s"] = ([[1, 2, 3], [4, 5, 6]], True, 0)
         # No tag and no array without elements reach the new render products.
         assert attributes == expected
+        if use_ovstage:
+            assert store[path]["omni:test:half"][0].dtype == store[path]["omni:test:half_array"][0].dtype == np.float16
 
 
 @pytest.mark.integration
