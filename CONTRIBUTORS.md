@@ -235,6 +235,7 @@ Guidelines for modifications:
 * Wei Yang
 * Weihua Zhang
 * Welf Rehberg
+* Will C. Forte
 * Xavier Nal
 * Xiaodi Yuan
 * Xinjie Yao
