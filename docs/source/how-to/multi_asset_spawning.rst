@@ -218,7 +218,7 @@ For example:
    cfg = VLAHeterogeneousEnvCfg(
        scene=TabletopSceneCfg(num_envs=128, env_spacing=10.0, objects=OBJECTS_CFG.copy()),
    )
-   cfg.events.place_objects.params["workspace"] = ((0.25, -0.4, -0.1), (0.85, 0.4, 0.6))
+   cfg.events.place_objects.params["workspace"] = ROBOT_WORKSPACE
    cfg.events.place_objects.params["table_variants"] = TABLE_VARIANTS
 
 ``OBJECT_COUNT = (2, 8)`` sets the bounds in the scene definition. ``OBJECTS_CFG`` is a complete
@@ -227,11 +227,11 @@ collection members using ``.copy()`` and ``.replace()`` before constructing the 
 ``CAMERA_CFG`` supplies the camera defaults and each view replaces its path, lens and offset. No
 config factory or ``__post_init__`` hook generates scene fields or rewrites the event configuration.
 
-The workspace is an axis-aligned reachable volume in the environment frame. Reset intersects it with
+``ROBOT_WORKSPACE`` defines an axis-aligned placement volume by hand in the environment frame. Reset intersects it with
 the selected table's declared, measured support outline, preserving its boundaries and any ``surface_holes``.
 The intersection is a polygon region, not a bounding rectangle.
 Horizontal tables with arbitrary yaw are supported. Every object's full conservative collision
-footprint must be covered by that region; its height must also remain inside the reachable volume.
+footprint must be covered by that region; its height must also remain inside the workspace bounds.
 Larger objects are placed first, with random yaw, a mixture of boundary and interior position proposals,
 and clearance from earlier convex footprints, so round plates can be packed without reserving empty
 bounding-box corners. Newton's narrow-phase collision detection rejects penetrating
@@ -259,7 +259,7 @@ The scene preserves the original task's robot home pose, arm impedance and disab
 The Robotiq base hull overlaps its internal knuckles, so enabling self-contact deforms the open linkage.
 External contacts remain enabled.
 
-The reachable volume is user-supplied; this example does not compute inverse-kinematics reachability.
+The workspace is hand-defined; this example does not compute inverse-kinematics reachability.
 
 Movable-object combinations are sampled once when the scene is built; reset changes the table and
 randomizes object poses. The table and robot do

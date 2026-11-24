@@ -55,6 +55,9 @@ CAMERA_CFG = CameraCfg(
 OBJECT_COUNT = (2, 8)
 """Inclusive cardinality bounds, excluding the robot and table."""
 
+ROBOT_WORKSPACE = ((0.25, -0.35, -0.10), (0.75, 0.35, 0.50))
+"""Hand-defined placement bounds in each environment's frame, intersected with the measured tabletop."""
+
 
 @configclass
 class TableCfg(RigidObjectCfg):
@@ -557,7 +560,7 @@ class EventsCfg:
             "objects": SceneEntityCfg("objects"),
             "table": SceneEntityCfg("work_table"),
             "table_variants": TABLE_VARIANTS,
-            "workspace": ((0.25, -0.4, -0.1), (0.85, 0.4, 0.6)),
+            "workspace": ROBOT_WORKSPACE,
             "gripper_body": GRIPPER_BODY.rsplit("/", 1)[-1],
             "clearance": 0.005,
             "max_attempts": 128,

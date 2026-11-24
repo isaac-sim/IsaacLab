@@ -2,7 +2,7 @@
   on Newton, with bounded combinations from a tagged object catalog instead of fixed per-benchmark layouts.
   Sampling chooses categories uniformly before assets uniformly within each category, without enumerating combinations.
   Reset places objects collision-free inside the polygon intersection of the declared, measured tabletop outline and a
-  supplied reachable workspace, preserving outlines and holes. Placement samples COM poses using
+  hand-defined robot workspace, preserving outlines and holes. Placement samples COM poses using
   collision geometry relative to the simulator COM, accounting for mesh and COM offsets from the asset origin.
   The nine real table assets retain
   their actual collisions, without a box proxy. Reset jointly samples a different table and feasible object placement, retrying smaller tables
