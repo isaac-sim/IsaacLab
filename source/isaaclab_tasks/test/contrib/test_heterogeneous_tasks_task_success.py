@@ -156,7 +156,9 @@ def env(request, tmp_path):
     root = UsdGeom.Xform.Define(stage, "/plate").GetPrim()
     stage.SetDefaultPrim(root)
     UsdPhysics.RigidBodyAPI.Apply(root)
+    UsdPhysics.MassAPI.Apply(root).CreateCenterOfMassAttr((0.065, -0.035, 0.046))
     cube = UsdGeom.Cube.Define(stage, "/plate/collider")
+    UsdGeom.Xformable(cube).AddTranslateOp().Set((0.04, -0.02, 0.04))
     UsdGeom.Xformable(cube).AddScaleOp().Set((0.11, 0.1, 0.01))
     UsdPhysics.CollisionAPI.Apply(cube.GetPrim())
     stage.GetRootLayer().Save()
@@ -286,6 +288,13 @@ def test_reset_intersects_workspace_and_table_and_binds_only_feasible_tasks(env)
         torch.testing.assert_close(table_after[[1, large_world]], table_before[[1, large_world]])
         torch.testing.assert_close(state.tabletop_heights, torch.full_like(state.tabletop_heights, 0.2))
         corners = quat_apply(poses[..., None, 3:].expand(-1, -1, 8, 4), state.local_corners) + poses[..., None, :3]
+        # Contact bounds must land at table + clearance even with mesh and COM offsets from the origin.
+        torch.testing.assert_close(
+            corners[..., 2].amin(-1)[state.active],
+            (state.tabletop_heights[:, None] + 0.005).expand_as(state.active)[state.active],
+            atol=1e-6,
+            rtol=0,
+        )
         local = corners - env.scene.env_origins[:, None, None]
         assert (local[state.active] >= local.new_tensor([0.25, -0.35, 0.1])).all()
         assert (local[state.active] <= local.new_tensor([0.9, 0.35, 0.6])).all()
@@ -307,7 +316,7 @@ def test_reset_intersects_workspace_and_table_and_binds_only_feasible_tasks(env)
     state.set_task([0, container_world], [0, inside])
     env.reset()
     target = state.objects.data.body_link_pose_w.torch
-    for world, height in ((0, 0.032), (container_world, 0.031)):
+    for world, height in ((0, 0.072), (container_world, 0.031)):
         pose = target[world, state.target_ids[world]].clone()
         pose[:3] += quat_apply(pose[3:][None], pose.new_tensor([[0, 0, height]]))[0]
         ids = torch.tensor([world], device=env.device)

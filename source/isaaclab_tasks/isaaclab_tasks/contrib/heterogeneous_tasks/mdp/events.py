@@ -102,9 +102,10 @@ class reset_tabletop(ManagerTermBase):
     """Place sampled objects on the reachable part of a table, then select an available task.
 
     Object combinations come from the scene's inclusion set and stay fixed for the lifetime of the
-    scene. Resets change the table variant and randomize object poses. Convex footprints reject overlaps;
-    Newton's collision pipeline screens the resulting poses against the robot and actual collision shapes without
-    stepping physics. Infeasible placements raise instead of accepting overlaps.
+    scene. Resets change the table variant and sample object COM poses from collision geometry relative to COM.
+    Convex footprints reject overlaps; Newton's collision pipeline screens the resulting poses against the
+    robot and actual collision shapes without stepping physics. Infeasible placements raise instead of
+    accepting overlaps.
 
     ``env.tabletop.available_tasks[world]`` lists category- and size-compatible bindings. A reset
     chooses one unless :meth:`set_task` requests a particular binding. A world with no available task
@@ -293,7 +294,7 @@ class reset_tabletop(ManagerTermBase):
             poses, placed = self._sample(remaining, workspace, clearance, max_attempts)
             accepted = remaining[placed]
             if len(accepted):
-                self.objects.write_body_pose_to_sim_index(body_poses=poses[placed].contiguous(), env_ids=accepted)
+                self.objects.write_body_com_pose_to_sim_index(body_poses=poses[placed].contiguous(), env_ids=accepted)
                 self.objects.write_body_velocity_to_sim_index(
                     body_velocities=torch.zeros(len(accepted), len(self.names), 6, device=env.device), env_ids=accepted
                 )
@@ -324,8 +325,13 @@ class reset_tabletop(ManagerTermBase):
     def _sample(
         self, ids: torch.Tensor, workspace: torch.Tensor, clearance: float, max_attempts: int
     ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Sample COM positions and link orientations using geometry relative to each body's COM."""
         env = self._env
         count, width = len(ids), len(self.names)
+        # The simulator owns the COM offset; geometry remains stored in the asset's link frame.
+        com = self.objects.data.body_com_pos_b.torch[ids]
+        local_bounds = self.local_bounds[ids] - com[:, :, None]
+        local_footprints = self.local_footprints[ids] - com[:, :, None]
         origin = env.scene.env_origins[ids]
         regions = self.placement_regions[ids.cpu().numpy()]
         bounds = torch.as_tensor(shapely.bounds(regions), dtype=torch.float32, device=env.device)
@@ -338,7 +344,7 @@ class reset_tabletop(ManagerTermBase):
         low, high = torch.zeros_like(poses[..., :3]), torch.zeros_like(poses[..., :3])
         footprints = torch.zeros(count, width, self.local_footprints.shape[2], 3, device=env.device)
         placed = torch.zeros(count, width, dtype=torch.bool, device=env.device)
-        sizes = self.local_bounds[ids, :, 1] - self.local_bounds[ids, :, 0]
+        sizes = local_bounds[:, :, 1] - local_bounds[:, :, 0]
         order = (sizes[..., 0] * sizes[..., 1]).masked_fill(~self.active[ids], -1).argsort(dim=1, descending=True)
         rows = torch.arange(count, device=env.device)
         failed = torch.zeros(count, dtype=torch.bool, device=env.device)
@@ -352,12 +358,12 @@ class reset_tabletop(ManagerTermBase):
                 quat = torch.zeros(count, 4, device=env.device)
                 quat[:, 2], quat[:, 3] = (yaw / 2).sin(), (yaw / 2).cos()
                 rotated = quat_apply(
-                    quat[:, None].expand(count, self.local_footprints.shape[2], 4), self.local_footprints[ids, slots]
+                    quat[:, None].expand(count, local_footprints.shape[2], 4), local_footprints[rows, slots]
                 )
                 extent_lo, extent_hi = rotated.amin(1), rotated.amax(1)
                 extent_lo[:, 2], extent_hi[:, 2] = (
-                    self.local_bounds[ids, slots, 0, 2],
-                    self.local_bounds[ids, slots, 1, 2],
+                    local_bounds[rows, slots, 0, 2],
+                    local_bounds[rows, slots, 1, 2],
                 )
                 lower, upper = lo - extent_lo[:, :2] + 1e-5, hi - extent_hi[:, :2] - 1e-5
                 pos = torch.zeros(count, 3, device=env.device)
