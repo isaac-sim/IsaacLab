@@ -700,6 +700,27 @@ def test_ovd_constructor_releases_candidate_after_failed_readback(
         assert any("new process" in note for note in error.value.__notes__)
 
 
+def test_ovd_capability_preserves_positional_determinism():
+    """Existing positional construction leaves recording capability off."""
+    from isaaclab_ov.physics import OvPhysxCfg
+
+    defaults = OvPhysxCfg()
+    args = (
+        defaults.class_type,
+        defaults.launcher_type,
+        defaults.mesh_variant_source_root,
+        defaults.deterministic,
+        defaults.legacy_joint_friction_replacements,
+        defaults.cooked_collider_cache_dir,
+        True,
+    )
+
+    cfg = OvPhysxCfg(*args)
+    assert cfg.enable_enhanced_determinism is True
+    assert cfg.ovd_recording_capable is False
+    assert OvPhysxCfg(*args, ovd_recording_capable=True).ovd_recording_capable is True
+
+
 def test_ovd_capability_requires_bool_before_native_startup(monkeypatch, manager_module):
     """Non-bools, including integers and other boolean-like types, never reach the SDK."""
     import numpy as np

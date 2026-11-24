@@ -85,7 +85,7 @@ class OvPhysxCfg(PhysicsCfg):
     This does not disable the cooked-collider cache.
     """
 
-    ovd_recording_capable: bool = False
+    ovd_recording_capable: bool = field(default=False, kw_only=True)
     """Provision OVD recording capability at startup, without starting a capture.
 
     This is shared by all native OVPhysX instances in a process. Changing it
