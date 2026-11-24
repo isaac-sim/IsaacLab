@@ -17,9 +17,16 @@ from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionP
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
+from isaaclab.cloner import InclusionSet
 from isaaclab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg
 from isaaclab.envs import mdp as isaaclab_mdp
-from isaaclab.managers import HeterogeneousTaskManager, ObservationGroupCfg, ObservationTermCfg, SceneEntityCfg
+from isaaclab.managers import (
+    HeterogeneousTaskCfg,
+    HeterogeneousTaskManager,
+    ObservationGroupCfg,
+    ObservationTermCfg,
+    SceneEntityCfg,
+)
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
@@ -49,6 +56,15 @@ class _SceneCfg(InteractiveSceneCfg):
     gripper = _object(sim_utils.SphereCfg(radius=0.03), (1.5, 1.0, 0.03)).replace(
         prim_path=f"{{ENV_REGEX_NS}}/{GRIPPER}"
     )
+    box = _object(sim_utils.CuboidCfg(size=(0.3, 0.3, 0.1)), (0.0, 0.0, 0.05), kinematic=True).replace(
+        prim_path="{ENV_REGEX_NS}/box"
+    )
+    ball = _object(sim_utils.SphereCfg(radius=0.03), (0.5, 0.0, 0.03)).replace(prim_path="{ENV_REGEX_NS}/ball")
+    medium_ball = ball.copy().replace(prim_path="{ENV_REGEX_NS}/medium_ball")
+    medium_ball.spawn.mass_props.mass = 0.2
+    heavy_ball = ball.copy().replace(prim_path="{ENV_REGEX_NS}/heavy_ball")
+    heavy_ball.spawn.mass_props.mass = 0.3
+    ball_b = _object(sim_utils.SphereCfg(radius=0.03), (1.0, 0.0, 0.03)).replace(prim_path="{ENV_REGEX_NS}/ball_b")
     contact = ContactSensorCfg(
         prim_path="{ENV_REGEX_NS}/[^/]+", filter_prim_paths_expr=["{ENV_REGEX_NS}/[^/]+"], update_period=0.0
     )
@@ -94,16 +110,14 @@ class _EnvCfg(ManagerBasedRLEnvCfg):
     terminations = _TerminationsCfg()
 
 
-def _task(func, ball: str) -> _EnvCfg:
-    """A task of the box and the balls that succeeds by ``func`` of one ball and the box."""
-    task = _EnvCfg()
-    task.scene.gripper = None
-    task.scene.box = _object(sim_utils.CuboidCfg(size=(0.3, 0.3, 0.1)), (0.0, 0.0, 0.05), kinematic=True)
-    task.scene.ball = _object(sim_utils.SphereCfg(radius=0.03), (0.5, 0.0, 0.03))
-    task.scene.ball_b = _object(sim_utils.SphereCfg(radius=0.03), (1.0, 0.0, 0.03))
+def _task(func, ball: str, first_ball: str = "ball") -> HeterogeneousTaskCfg:
+    """One predicate and inclusion over the shared flat catalog."""
     params = {"objects": [SceneEntityCfg(ball)], "container": SceneEntityCfg("box")}
-    task.terminations.success = DoneTerm(func=func, params=params)
-    return task
+    return HeterogeneousTaskCfg(
+        inclusion=InclusionSet(assets=["box", first_ball, "ball_b"]),
+        episode_length_s=100.0,
+        terminations={"success": DoneTerm(func=func, params=params)},
+    )
 
 
 @pytest.fixture(scope="module", params=test_devices(DeviceScope.CUDA))
@@ -113,8 +127,8 @@ def env(request) -> Iterator[ManagerBasedRLEnv]:
     cfg.terminations.success = DoneTerm(func=mdp.task_success)
     tasks = {
         "first_in": _task(mdp.object_in_container, "ball"),
-        "second_in": _task(mdp.object_in_container, "ball_b"),
-        "first_out": _task(mdp.object_outside_of, "ball"),
+        "second_in": _task(mdp.object_in_container, "ball_b", first_ball="medium_ball"),
+        "first_out": _task(mdp.object_outside_of, "heavy_ball", first_ball="heavy_ball"),
     }
     HeterogeneousTaskManager.compose_tasks(cfg, tasks)
     env = ManagerBasedRLEnv(cfg)

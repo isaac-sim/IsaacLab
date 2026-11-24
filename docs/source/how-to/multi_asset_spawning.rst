@@ -131,13 +131,107 @@ variant because their batched Newton views currently require a uniform body layo
    :end-at: scene_cfg.robot.spawn.usd_path = scene_cfg.robot.spawn.usd_path[0]
    :dedent: 8
 
+An :class:`~isaaclab.cloner.InclusionSet` declares which assets are active and which semantic tag
+values must match. No subclass or callback is needed. For a scene with ``gear`` and ``fixture`` assets:
+
+.. code-block:: python
+
+   scene_cfg.clone_cfg.clone_combinations = [
+       InclusionSet(assets=["gear", "fixture"], match_tags=["size", "assembly"]),
+   ]
+
+Tag the individual spawner configurations using the existing semantic API:
+
+.. code-block:: python
+
+   small_gear_cfg.semantic_tags = [("size", "small"), ("assembly", "drive")]
+   small_fixture_cfg.semantic_tags = [("size", "small"), ("assembly", "drive")]
+   universal_fixture_cfg.semantic_tags = [
+       ("size", "small"), ("size", "medium"), ("size", "large"),
+       ("assembly", "drive"),
+   ]
+
+Every selected gear and fixture must share a value for each requested tag type. The universal fixture
+can therefore match small, medium, or large gears in the drive assembly. Missing requested tags do not
+match. Tag values are compared exactly; there are no reserved wildcard values or implicit regex rules.
+Tags inherited from ``MultiAssetSpawnerCfg`` also participate. ``MultiUsdFileCfg`` candidates inherit
+the wrapper's tags and retain their individual USD paths.
+
+Repeat an asset name to request multiple instances:
+
+.. code-block:: python
+
+   InclusionSet(assets=["gear", "gear", "fixture"], match_tags=["size", "assembly"])
+
+This requests two gear instances and one fixture, all sharing a size and assembly. It does not express
+separate pairwise constraints. Repeated instances may use the same variant. Assets not referenced by
+any inclusion definition remain active independently and do not participate in tag matching. Collection
+members retain their separate candidate slots even when they share a scene asset name.
+
+Matching definitions remain compact until clone-plan construction. For example, 1,000 candidates across
+five categories and eight asset slots can be represented as five compatible groups, rather than
+expanding every valid concrete world. The scene's ``num_envs`` determines how many worlds to instantiate.
+Its :attr:`~isaaclab.cloner.CloneCfg.clone_strategy` selects compatible groups according to their weights,
+then selects each slot's concrete variant within the chosen group. Identical concrete worlds share a
+prototype. The inclusion weight is divided equally across its compatible groups; this gives equal
+weight to tag-value groups, rather than to every possible concrete combination. Multi-valued tags can
+make groups overlap.
+
+The existing ``sequential`` strategy distributes environments across groups and candidate lists in order.
+The ``random`` strategy draws groups by weight and candidates uniformly, using the existing NumPy random
+state. ``InclusionSet`` does not own an environment count or random seed. Planning cost depends on
+candidate metadata and selected worlds, without expanding the product within each matching group;
+loading and simulating concrete assets still has its own cost.
+
+With ``match_tags=[]`` (the default), the existing independent Cartesian product and assignment behavior
+are preserved. Inclusion interpretation stays in scene planning. ``ReplicateSession`` forwards the
+resolved definitions without applying tag matching or task-specific rules.
+
+A task bank uses one flat scene and :class:`~isaaclab.managers.HeterogeneousTaskCfg` records. Declare
+objects once in the scene; each record selects those names and supplies only task-specific data:
+
+.. code-block:: python
+
+   tasks = {
+       "place_gear": HeterogeneousTaskCfg(
+           inclusion=InclusionSet(assets=["gear", "fixture"]),
+           init_states={"gear": RigidObjectCfg.InitialStateCfg(pos=(0.4, 0.1, 0.1))},
+           instruction="put the gear in the fixture",
+           episode_length_s=30.0,
+           terminations={"success": success_term},
+       ),
+   }
+   HeterogeneousTaskManager.compose_tasks(env_cfg, tasks)
+
+The shared scene must already declare ``gear`` and ``fixture`` as rigid objects. Requested semantic
+``match_tags`` are validated against those concrete source assets. Initial-state overrides and success
+terms use the original asset names. Other scene entities, such as the robot and cameras, stay shared.
+
+The task manager moves selected source assets into one catalog owned by its reset configuration, then
+compiles them into the fixed slots required by reset-time mesh switching. Task records contain no scene
+or environment configuration. Equal spawn definitions share a candidate; pose differences remain in the
+records. The composer derives ``task`` tags on candidate copies and marks the first task's candidates
+with ``initial_task``. Its default clone inclusion matches ``initial_task``, retaining one initial task
+world while keeping every candidate available for later resets.
+
+The 256 VLA benchmarks use one inline table and one shared environment class in
+``contrib/heterogeneous_tasks/heterogeneous_tasks_env_cfg.py``. Individual benchmark IDs select a record
+from that table; there are no per-task modules or generated environment subclasses. Instructions,
+durations, poses and success predicates remain explicit data, independent of asset compatibility.
+
+Caller-supplied clone inclusions remain authoritative. Matching ``task`` can describe other legal task
+families, but does not bind runtime task IDs, poses, instructions, or success terms: custom initial
+layouts must still agree with the first task. Selecting several initial task families and binding their
+runtime task IDs is a separate capability.
+
 For more detail on prototype assignment and replication, see :doc:`cloning`.
 
 Reset-time selection
 ~~~~~~~~~~~~~~~~~~~~
 
 A rigid object's multi-asset spawner defines the variants and their IDs in list order. Clone composition chooses
-the initial variant for each world. A reset event can change it before writing the episode's pose and velocity:
+the initial variant for each world, using those same IDs. A reset event can change it before writing the
+episode's pose and velocity:
 
 .. code-block:: python
 

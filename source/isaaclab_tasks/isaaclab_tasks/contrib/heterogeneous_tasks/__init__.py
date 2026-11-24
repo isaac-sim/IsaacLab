@@ -6,9 +6,9 @@
 """Heterogeneous tasks for vision-language-action policies: a Franka with a Robotiq gripper manipulating objects, on
 Newton.
 
-The tasks share the environment configuration, objects and success terms of this package. ``tasks`` holds the tasks
-and the environment whose environments each run one of them, switched on reset by
-:class:`~isaaclab.managers.HeterogeneousTaskManager`; ``config/<robot>`` registers them for a robot.
+The environment configuration owns one flat asset catalog and declarative inclusion, pose, instruction and success
+records for all 256 tasks. :class:`~isaaclab.managers.HeterogeneousTaskManager` compiles their reset-time slots;
+``config/<robot>`` registers the shared environment and individual task selectors.
 """
 
 import os

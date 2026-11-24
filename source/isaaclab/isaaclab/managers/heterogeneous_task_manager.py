@@ -7,9 +7,8 @@
 
 from __future__ import annotations
 
-import itertools
 import math
-from collections.abc import Iterable, Sequence
+from collections.abc import Sequence
 from dataclasses import MISSING
 from typing import TYPE_CHECKING, Any
 
@@ -17,7 +16,7 @@ import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
-from isaaclab.cloner import InclusionSet
+from isaaclab.cloner import InclusionSet, make_valid_clone_combinations
 from isaaclab.utils import configclass, dict_to_md5_hash, string_to_callable
 
 from .manager_base import ManagerTermBase, _populate_term_defaults
@@ -28,36 +27,38 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg
 
 
+@configclass
+class HeterogeneousTaskCfg:
+    """One task over named assets in a shared flat scene, without a separate environment configuration."""
+
+    inclusion: InclusionSet = MISSING
+    """Named scene assets active in this task, in slot order."""
+
+    episode_length_s: float = MISSING
+    """Episode duration for this task [s]."""
+
+    instruction: str = ""
+    """Language instruction for this task."""
+
+    init_states: dict[str, RigidObjectCfg.InitialStateCfg] = {}
+    """Per-asset initial states; omitted entries use the flat scene asset's initial state."""
+
+    terminations: dict[str, TerminationTermCfg] = {}
+    """Task-specific termination terms referencing the original scene asset names."""
+
+
 class HeterogeneousTaskManager(ManagerTermBase):
-    """Manager for environments that each run one of several tasks.
+    """Run declarative tasks over a shared flat scene, switching on reset.
 
-    The tasks are complete environment configurations, of which the rigid objects, termination terms and episode
-    lengths are used; :meth:`compose_tasks` adds them to an environment configuration, with the reset event
-    ``select_task``, which is the manager itself, ``env.task_manager``. The other managers and scene entities are
-    shared by all tasks. Each environment runs the task set with :meth:`set_task` from its next reset on: the event
-    selects the task's objects in the slots, where the task changed, and makes their task poses the default root
-    poses, which the environment's later reset events write.
+    Declare rigid objects once in the scene. Each :class:`HeterogeneousTaskCfg` selects named assets
+    with an :class:`~isaaclab.cloner.InclusionSet`, supplies their task poses, instruction, episode
+    duration and termination terms. :meth:`compose_tasks` compiles that catalog into fixed runtime
+    slots, retaining the source catalog once in the reset term's configuration. No environment
+    instance or environment configuration is needed per task.
 
-    .. note::
-        The objects are selected as reset-time mesh variants, which decides the physics and the camera renderer
-        that the task manager supports:
-
-        * Physics: Newton, with the MJWarp solver and ``use_mujoco_contacts=False`` or with the XPBD solver.
-        * Camera renderer: the Newton Warp renderer, :class:`~isaaclab_newton.renderers.NewtonWarpRendererCfg`.
-          The renderers of the USD stage, Isaac RTX and OVRTX, show the objects of the first task in every
-          environment, and the Newton OptiX renderer rejects mesh variants.
-
-    .. code-block:: python
-
-        @configclass
-        class MultiTaskEnvCfg(ManagerBasedRLEnvCfg):
-            def __post_init__(self):
-                HeterogeneousTaskManager.compose_tasks(self, {"lift": LiftEnvCfg(), "stack": StackEnvCfg()})
-
-
-        env = ManagerBasedRLEnv(MultiTaskEnvCfg())
-        # the first two environments run the stack task from their next reset on
-        env.task_manager.set_task([0, 1], [1, 1])
+    Reset-time mesh switching requires Newton with XPBD or MJWarp with external contacts. Only the
+    Newton Warp camera renderer follows switched variants. Every environment starts with the first
+    task; :meth:`set_task` schedules a different task for its next reset.
     """
 
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedRLEnv):
@@ -68,10 +69,10 @@ class HeterogeneousTaskManager(ManagerTermBase):
             env: The environment instance, which gets the manager as ``env.task_manager``.
         """
         super().__init__(cfg, env)
-        self._tasks: dict[str, ManagerBasedRLEnvCfg] = cfg.params["tasks"]
+        self._tasks: dict[str, HeterogeneousTaskCfg] = cfg.params["tasks"]
         self.task_names = list(self._tasks)
         """Task names, in task index order."""
-        slots = _slot_objects(self._tasks)
+        slots = _slot_objects(self._tasks, cfg.params["objects"])
         self._slots = [env.scene[f"object_{slot}"] for slot in range(len(slots))]
         poses = [[(*obj.init_state.pos, *obj.init_state.rot) for obj in objects] for objects in slots]
         self._poses = torch.tensor(poses, device=env.device)
@@ -84,36 +85,31 @@ class HeterogeneousTaskManager(ManagerTermBase):
         self.task_ids = torch.zeros(env.num_envs, dtype=torch.long, device=env.device)
         """Index of the task each environment runs."""
         self._next_task_ids = self.task_ids.clone()
-        # Task whose objects the slots of each environment hold: the first task, whose candidates the clone plan pins.
+        # Track the loaded task; the initial-task tag selects the first task's variants.
         self._slot_task_ids = self.task_ids.clone()
         env.task_manager = self
 
     @staticmethod
-    def compose_tasks(cfg: ManagerBasedRLEnvCfg, tasks: dict[str, ManagerBasedRLEnvCfg]) -> None:
-        """Add the objects and terminations of ``tasks`` to ``cfg``, and the reset event that selects the tasks.
+    def compose_tasks(cfg: ManagerBasedRLEnvCfg, tasks: dict[str, HeterogeneousTaskCfg]) -> None:
+        """Compile task inclusions over a flat scene into reset-time variant slots.
 
-        The k-th rigid objects of the tasks are the candidates of the scene entity ``object_<k>``, spawned as the
-        reset-time mesh variants of a :class:`~isaaclab.sim.spawners.wrappers.MultiAssetSpawnerCfg`; objects with
-        equal spawn configurations share a candidate. Each task's terminations, other than time-outs and terms that
-        ``cfg`` defines itself, are added as ``<task>_<term>`` with their scene entities, the omitted defaults
-        included, renamed to the slots, and hold only in the environments running the task. A term that ``cfg``
-        defines itself can evaluate the tasks' terms of its name together (see :meth:`task_terms`). The ``time_out``
-        term ends episodes at the length of their task. The reset event ``select_task`` comes before the other
-        events of ``cfg``, which then write the default states of the selected tasks. Every environment starts
-        with the objects of the first task: the clone combinations of the scene pin the first candidate of every
-        slot, so that clone planning does not enumerate the combinations of all candidates.
+        Source assets are moved from the scene into the reset term's ``objects`` catalog. Task
+        poses stay in their task records; equal spawn configurations share a slot candidate.
+        Existing shared scene entities and manager terms remain independent. Termination entity
+        references are resolved to runtime slots on copies, leaving task definitions unchanged.
 
-        Call it once, before the environment is created, for example in the ``__post_init__`` of its
-        configuration. Where the scene, events or terminations of ``cfg`` or of the tasks are presets, call it after
-        they are resolved instead.
+        Candidate copies carry their task memberships as semantic tags. The default inclusion
+        matches ``initial_task`` to retain one initial world. Caller-supplied clone inclusions stay
+        authoritative and must agree with first-task initialization. Compose before creating the
+        environment, after resolving presets. Repeating composition for the same task names is safe.
 
         Args:
-            cfg: The environment configuration, modified in place.
-            tasks: The task configurations, keyed by task name.
+            cfg: Shared environment configuration, whose scene declares the source rigid objects.
+            tasks: Declarative task records keyed by task name.
 
         Raises:
-            ValueError: If ``cfg`` is composed of other tasks already, or if the objects of a slot do not agree on
-                being kinematic.
+            ValueError: Task names change after composition, an asset is unknown, semantic matching
+                fails, or a runtime slot mixes kinematic and dynamic assets.
         """
         if cfg.events is None:
             cfg.events = {}
@@ -124,17 +120,42 @@ class HeterogeneousTaskManager(ManagerTermBase):
         previous = events.pop("select_task", None)
         if previous is not None and list(previous.params["tasks"]) != list(tasks):
             raise ValueError("The configuration is composed of other tasks already: compose its tasks once.")
-        slots = _slot_objects(tasks)
-        for slot, objects in enumerate(slots):
-            spawn = sim_utils.MultiAssetSpawnerCfg(assets_cfg=_variants(objects)[0], static=False, random_choice=False)
+        objects = {}
+        for name in dict.fromkeys(name for task in tasks.values() for name in task.inclusion.assets):
+            if vars(cfg.scene).get(name) is not None:
+                objects[name] = getattr(cfg.scene, name)
+            elif previous is not None and name in previous.params["objects"]:
+                objects[name] = previous.params["objects"][name]
+            else:
+                raise ValueError(f"Unknown task asset {name!r}: declare it in the shared scene.")
+            if not isinstance(objects[name], RigidObjectCfg):
+                raise ValueError(f"Task asset {name!r} must be a RigidObjectCfg.")
+        for task in tasks.values():
+            if unknown := task.init_states.keys() - set(task.inclusion.assets):
+                raise ValueError(f"Initial states refer to inactive task assets: {sorted(unknown)}.")
+            if task.inclusion.match_tags:
+                names = list(dict.fromkeys(task.inclusion.assets))
+                make_valid_clone_combinations(names, [[objects[name].spawn] for name in names], [task.inclusion])
+        slots = _slot_objects(tasks, objects)
+        for name in objects:
+            setattr(cfg.scene, name, None)
+        for slot, slot_objects in enumerate(slots):
+            candidates, task_variants = _variants(slot_objects)
+            candidates = [candidate.copy() for candidate in candidates]
+            for task_name, variant in zip(tasks, task_variants, strict=True):
+                candidate = candidates[variant]
+                candidate.semantic_tags = [*(candidate.semantic_tags or ()), ("task", task_name)]
+            initial = candidates[task_variants[0]]
+            initial.semantic_tags.append(("initial_task", next(iter(tasks))))
+            spawn = sim_utils.MultiAssetSpawnerCfg(assets_cfg=candidates, static=False, random_choice=False)
             obj = RigidObjectCfg(
-                prim_path=f"{{ENV_REGEX_NS}}/object_{slot}", spawn=spawn, init_state=objects[0].init_state
+                prim_path=f"{{ENV_REGEX_NS}}/object_{slot}", spawn=spawn, init_state=slot_objects[0].init_state
             )
             setattr(cfg.scene, f"object_{slot}", obj)
         # Default layouts start with the first task; caller-supplied inclusion definitions stay authoritative.
         if not cfg.scene.clone_cfg.clone_combinations:
             cfg.scene.clone_cfg.clone_combinations = [
-                _TaskInclusionSet(assets=[f"object_{slot}" for slot in range(len(slots))])
+                InclusionSet(assets=[f"object_{slot}" for slot in range(len(slots))], match_tags=["initial_task"])
             ]
         terms = _terms(cfg.terminations)
         for index, (task_name, task) in enumerate(tasks.items()):
@@ -146,7 +167,8 @@ class HeterogeneousTaskManager(ManagerTermBase):
         terms["time_out"] = TerminationTermCfg(func=task_time_out, time_out=True)
         cfg.episode_length_s = max(task.episode_length_s for task in tasks.values())
         # The tasks are selected before the other reset events write the default states.
-        select = EventTermCfg(func=HeterogeneousTaskManager, mode="reset", params={"tasks": tasks})
+        select = EventTermCfg(func=HeterogeneousTaskManager, mode="reset")
+        select.params = {"tasks": tasks, "objects": objects}
         others = dict(events)
         events.clear()
         events.update({"select_task": select, **others})
@@ -212,7 +234,11 @@ class HeterogeneousTaskManager(ManagerTermBase):
         self._next_task_ids[torch.as_tensor(env_ids, device=device)] = task_ids
 
     def __call__(
-        self, env: ManagerBasedRLEnv, env_ids: torch.Tensor | slice, tasks: dict[str, ManagerBasedRLEnvCfg]
+        self,
+        env: ManagerBasedRLEnv,
+        env_ids: torch.Tensor | slice,
+        tasks: dict[str, HeterogeneousTaskCfg],
+        objects: dict[str, RigidObjectCfg],
     ) -> None:
         """Switch the slots of environments to the objects of their tasks, where the task changed, and to their poses.
 
@@ -221,7 +247,8 @@ class HeterogeneousTaskManager(ManagerTermBase):
         Args:
             env: The environment instance.
             env_ids: Environment indices.
-            tasks: The task configurations, the parameter of the event.
+            tasks: Declarative task records retained by the reset term.
+            objects: Shared source asset catalog, consumed during initialization.
         """
         self.task_ids[env_ids] = self._next_task_ids[env_ids]
         tasks = self.task_ids[env_ids]
@@ -236,18 +263,6 @@ class HeterogeneousTaskManager(ManagerTermBase):
             self._slot_task_ids[changed] = self.task_ids[changed]
         for slot, obj in enumerate(self._slots):
             obj.data.default_root_pose.torch[env_ids] = self._poses[slot, tasks]
-
-
-@configclass
-class _TaskInclusionSet(InclusionSet):
-    """Start task slots at their first candidate while retaining independent shared scene choices."""
-
-    def worlds(self, asset_names: Sequence[str], variants: Sequence[range]) -> Iterable[Sequence[int]]:
-        choices = [
-            range(1) if name in self.assets else candidates
-            for name, candidates in zip(asset_names, variants, strict=True)
-        ]
-        return itertools.product(*choices)
 
 
 class task_term(ManagerTermBase):
@@ -268,24 +283,27 @@ def task_time_out(env: ManagerBasedRLEnv) -> torch.Tensor:
     return env.episode_length_buf >= manager.max_episode_length[manager.task_ids]
 
 
-def _task_objects(task: ManagerBasedRLEnvCfg) -> list[tuple[str, RigidObjectCfg]]:
-    """Return the named rigid objects of a task's scene in declaration order."""
-    return [(name, value) for name, value in task.scene.__dict__.items() if isinstance(value, RigidObjectCfg)]
-
-
-def _slot_term(task: ManagerBasedRLEnvCfg, term: TerminationTermCfg) -> TerminationTermCfg:
+def _slot_term(task: HeterogeneousTaskCfg, term: TerminationTermCfg) -> TerminationTermCfg:
     """Return a copy of a task's term with its scene entities renamed to the slots of the task's objects."""
     term = term.copy()
-    _rename_entities(term, {name: f"object_{slot}" for slot, (name, _) in enumerate(_task_objects(task))})
+    _rename_entities(term, {name: f"object_{slot}" for slot, name in enumerate(task.inclusion.assets)})
     return term
 
 
-def _slot_objects(tasks: dict[str, ManagerBasedRLEnvCfg]) -> list[list[RigidObjectCfg]]:
+def _slot_objects(
+    tasks: dict[str, HeterogeneousTaskCfg], catalog: dict[str, RigidObjectCfg]
+) -> list[list[RigidObjectCfg]]:
     """Return the object of every task in every slot: its k-th rigid object, or a placeholder if it has fewer.
 
     The objects of a slot must agree on being kinematic, as the physics gives all candidates the body of the first.
     """
-    objects = [[obj for _, obj in _task_objects(task)] for task in tasks.values()]
+    objects = [
+        [
+            catalog[name].replace(init_state=task.init_states.get(name, catalog[name].init_state))
+            for name in task.inclusion.assets
+        ]
+        for task in tasks.values()
+    ]
     slots = []
     for slot in range(max(map(len, objects))):
         kinematic = {_kinematic(task[slot]) for task in objects if slot < len(task)}

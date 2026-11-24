@@ -439,9 +439,16 @@ before changing an interface. Apply these rules when adding code or cleaning up 
   required attribute; express optional fields explicitly in the interface.
   Use concrete defaults for known empty selections. Reserve ``None`` for a distinct policy or lifecycle
   state, such as choosing an environment's frame rate or waiting for a client to connect.
-* Inclusion definitions own legal world layouts, including explicit rows and pairing formulas. Resolve them
-  during scene planning before entering ``ReplicateSession``. Keep inclusion interpretation and task-specific
-  combination policies out of replication execution; do not add variant-pinning exceptions there.
+* Inclusion definitions declare membership and shared semantic tag types through ``match_tags``.
+  Reuse existing spawner ``semantic_tags`` rather than adding variant labels, positional pins, or
+  user-overridable matching callbacks. Inclusion sets do not own environment counts or random seeds.
+  Resolve compatibility into factorized candidate groups during scene planning; let clone-plan construction
+  and the scene's clone strategy select concrete worlds without expanding every valid combination.
+  Keep inclusion interpretation and task-specific matching classes out of replication execution.
+  Task composition derives membership tags on copies of deduplicated candidates; do not mutate source task
+  configurations or introduce inclusion subclasses to choose an initial task. Define task banks as records over
+  one flat scene catalog. Do not generate a module or environment subclass for each record; existing Gym IDs
+  may bind selectors on the shared configuration. Runtime slot projection belongs to the task manager.
 * Give each piece of state and validation one owner. Consumers should use the owner's contract instead
   of repairing results or maintaining duplicate state. Cache derived values only when their lifetime and
   invalidation are clear; do not expose mutable cached results for callers to modify accidentally.

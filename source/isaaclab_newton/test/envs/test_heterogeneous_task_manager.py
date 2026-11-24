@@ -18,9 +18,11 @@ from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
+from isaaclab.cloner import InclusionSet
 from isaaclab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg, mdp
 from isaaclab.managers import (
     EventTermCfg,
+    HeterogeneousTaskCfg,
     HeterogeneousTaskManager,
     ObservationGroupCfg,
     ObservationTermCfg,
@@ -52,6 +54,11 @@ def _table(width: float) -> RigidObjectCfg:
 @configclass
 class _SceneCfg(InteractiveSceneCfg):
     ground = AssetBaseCfg(prim_path="/World/ground", spawn=sim_utils.GroundPlaneCfg())
+    table = _table(0.6)
+    wide_table = _table(0.8).replace(prim_path="{ENV_REGEX_NS}/wide_table")
+    cube = _object("cube", sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)), (0.0, 0.0, 0.2), 1.0)
+    ball_a = _object("ball_a", sim_utils.SphereCfg(radius=0.05), (0.2, 0.0, 0.2), 2.0)
+    ball_b = _object("ball_b", sim_utils.SphereCfg(radius=0.05), (-0.2, 0.0, 0.2), 2.0)
 
 
 def _task_ids(env: ManagerBasedRLEnv) -> torch.Tensor:
@@ -101,41 +108,30 @@ class _EnvCfg(ManagerBasedRLEnvCfg):
     terminations = _TerminationsCfg()
 
 
-@configclass
-class _CubeTaskCfg(_EnvCfg):
-    episode_length_s = 0.04
-
-    def __post_init__(self):
-        self.scene.table = _table(0.6)
-        self.scene.cube = _object("cube", sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)), (0.0, 0.0, 0.2), 1.0)
-        self.terminations.success = DoneTerm(
-            func=mdp.root_height_below_minimum, params={"minimum_height": -1.0, "asset_cfg": SceneEntityCfg("cube")}
-        )
-
-
-@configclass
-class _SpheresTaskCfg(_EnvCfg):
-    episode_length_s = 1.0
-
-    def __post_init__(self):
-        self.scene.table = _table(0.8)
-        self.scene.ball_a = _object("ball_a", sim_utils.SphereCfg(radius=0.05), (0.2, 0.0, 0.2), 2.0)
-        self.scene.ball_b = _object("ball_b", sim_utils.SphereCfg(radius=0.05), (-0.2, 0.0, 0.2), 2.0)
-        self.terminations.success = DoneTerm(
-            func=mdp.root_height_below_minimum, params={"minimum_height": 10.0, "asset_cfg": SceneEntityCfg("ball_b")}
-        )
-
-
-@configclass
-class _CubeLeftTaskCfg(_CubeTaskCfg):
-    def __post_init__(self):
-        super().__post_init__()
-        self.scene.cube.init_state.pos = (0.0, 0.2, 0.2)
-
-
 @pytest.fixture(scope="module", params=test_devices(DeviceScope.CUDA))
 def env(request) -> Iterator[ManagerBasedRLEnv]:
-    tasks = {"cube": _CubeTaskCfg(), "spheres": _SpheresTaskCfg(), "cube_left": _CubeLeftTaskCfg()}
+    cube = HeterogeneousTaskCfg(
+        inclusion=InclusionSet(assets=["table", "cube"]),
+        episode_length_s=0.04,
+        terminations={
+            "success": DoneTerm(
+                func=mdp.root_height_below_minimum, params={"minimum_height": -1.0, "asset_cfg": SceneEntityCfg("cube")}
+            )
+        },
+    )
+    spheres = HeterogeneousTaskCfg(
+        inclusion=InclusionSet(assets=["wide_table", "ball_a", "ball_b"]),
+        episode_length_s=1.0,
+        terminations={
+            "success": DoneTerm(
+                func=mdp.root_height_below_minimum,
+                params={"minimum_height": 10.0, "asset_cfg": SceneEntityCfg("ball_b")},
+            )
+        },
+    )
+    left = cube.copy()
+    left.init_states = {"cube": RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.2, 0.2))}
+    tasks = {"cube": cube, "spheres": spheres, "cube_left": left}
     cfg = _EnvCfg(episode_length_s=0.0)
     HeterogeneousTaskManager.compose_tasks(cfg, tasks)
     cfg.sim.device = request.param
@@ -149,6 +145,7 @@ def env(request) -> Iterator[ManagerBasedRLEnv]:
 def test_environments_run_their_tasks(env: ManagerBasedRLEnv):
     """Reset places each task's objects, shared ones at the task's own pose; terminations and time-outs follow the
     task of each environment."""
+    assert env.cfg.scene.cube is None and env.cfg.scene.table is None
     assert env.task_manager.task_names == ["cube", "spheres", "cube_left"]
     assert set(env.termination_manager.active_terms) == {
         "time_out",
