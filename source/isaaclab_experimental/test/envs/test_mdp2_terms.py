@@ -23,9 +23,12 @@ from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sensors import JointWrenchSensorCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import math as math_utils
 from isaaclab.utils.warp import ProxyArray
+
+import isaaclab_tasks.core.velocity.mdp as velocity_mdp1
 
 pytestmark = [pytest.mark.kitless, pytest.mark.skipif(not torch.cuda.is_available(), reason="Newton needs a GPU")]
 
@@ -35,12 +38,14 @@ LEG_NAMES = ("LF_.*", "RH_KFE")
 
 robot = mdp2.Entity("robot")
 scene = mdp2.Entity("scene")
+joint_wrench = mdp2.Entity("joint_wrench")
 legs = robot.joints(*LEG_NAMES)
 
 
 @pytest.fixture(scope="module")
 def env() -> Iterator[MDP2Env]:
-    """Two-legged floating robots in random joint and root states, with random joint efforts."""
+    """Two-legged floating robots in random joint and root states, with random joint efforts and a joint wrench
+    sensor."""
     scene_cfg = InteractiveSceneCfg(num_envs=NUM_ENVS, env_spacing=3.0)
     scene_cfg.robot = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/Robot",
@@ -48,6 +53,7 @@ def env() -> Iterator[MDP2Env]:
         init_state=ArticulationCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0), joint_pos={".*HFE": 0.4, ".*KFE": -0.8}),
         actuators={"legs": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=0.0, damping=0.0)},
     )
+    scene_cfg.joint_wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
 
     task = mdp2.TaskCfg(actions={"joint_effort": mdp2.DirectAction(robot.joint_effort_target)})
     cfg = MDP2EnvCfg(
@@ -74,8 +80,9 @@ def env() -> Iterator[MDP2Env]:
         articulation.write_root_velocity_to_sim_index(root_velocity=rand(NUM_ENVS, 6, scale=3.0))
         articulation.set_joint_effort_target_index(target=rand(NUM_ENVS, 6, scale=5.0))
         articulation.write_data_to_sim()
-        env.sim.forward()
-        env.scene.update(dt=0.0)
+        # One physics step, so that the joint wrench sensor reports the wrenches that the joints transmit.
+        env.sim.step(render=False)
+        env.scene.update(dt=env.physics_dt)
 
         yield env
     finally:
@@ -87,6 +94,7 @@ class MDP1Env:
 
     def __init__(self, env: MDP2Env):
         self.scene = env.scene
+        self.num_envs = env.num_envs
         self.command_manager = self
 
     def get_command(self, name: str) -> torch.Tensor:
@@ -96,6 +104,13 @@ class MDP1Env:
 def robot_cfg(env: MDP2Env, joint_names: tuple[str, ...] | None = None) -> SceneEntityCfg:
     """Return the resolved MDP1 configuration of the robot, or of the named joints of the robot."""
     cfg = SceneEntityCfg("robot", joint_names=list(joint_names)) if joint_names else SceneEntityCfg("robot")
+    cfg.resolve(env.scene)
+    return cfg
+
+
+def bodies_cfg(env: MDP2Env, name: str, body_names: list[str]) -> SceneEntityCfg:
+    """Return the resolved MDP1 configuration of the named bodies of a scene entity."""
+    cfg = SceneEntityCfg(name, body_names=body_names)
     cfg.resolve(env.scene)
     return cfg
 
@@ -168,12 +183,29 @@ def test_observations_and_rewards_match_mdp1(env: MDP2Env, backend: str):
         "track_ang_vel_z_exp": mdp2.Observation(
             mdp.track_ang_vel_z_exp, inputs={**root_state, "command": robot.joint_pos}, params={"std": 0.5}
         ),
+        "track_lin_vel_xy_yaw_frame_exp": mdp2.Observation(
+            mdp.track_lin_vel_xy_yaw_frame_exp, inputs={**root_state, "command": robot.joint_pos}, params={"std": 0.5}
+        ),
+        "track_ang_vel_z_world_exp": mdp2.Observation(
+            mdp.track_ang_vel_z_world_exp,
+            inputs={"command": robot.joint_pos, "root_com_vel_w": robot.root_com_vel_w},
+            params={"std": 0.5},
+        ),
+        "body_incoming_wrench": mdp2.Observation(
+            mdp.body_incoming_wrench,
+            inputs={
+                "force": joint_wrench.force,
+                "torque": joint_wrench.torque,
+                "body_ids": joint_wrench.bodies(".*_SHANK"),
+            },
+        ),
     }
 
     values = mdp2_values(env, backend, uses)
 
     mdp1_env = MDP1Env(env)
     leg_cfg, root_cfg = robot_cfg(env, LEG_NAMES), robot_cfg(env)
+    wrench_cfg = bodies_cfg(env, "joint_wrench", [".*_SHANK"])
     expected = {
         "joint_pos": mdp1.joint_pos(mdp1_env, leg_cfg),
         "joint_pos_rel": mdp1.joint_pos_rel(mdp1_env, leg_cfg),
@@ -198,10 +230,16 @@ def test_observations_and_rewards_match_mdp1(env: MDP2Env, backend: str):
         "base_height_l2": mdp1.base_height_l2(mdp1_env, 0.4, root_cfg),
         "track_lin_vel_xy_exp": mdp1.track_lin_vel_xy_exp(mdp1_env, 0.5, "velocity", root_cfg),
         "track_ang_vel_z_exp": mdp1.track_ang_vel_z_exp(mdp1_env, 0.5, "velocity", root_cfg),
+        "track_lin_vel_xy_yaw_frame_exp": velocity_mdp1.track_lin_vel_xy_yaw_frame_exp(
+            mdp1_env, 0.5, "velocity", root_cfg
+        ),
+        "track_ang_vel_z_world_exp": velocity_mdp1.track_ang_vel_z_world_exp(mdp1_env, "velocity", 0.5, root_cfg),
+        "body_incoming_wrench": mdp1.body_incoming_wrench(mdp1_env, wrench_cfg),
     }
 
     assert values["joint_pos_limits"].abs().sum() > 0.0  # Some joints are beyond their limits.
     assert (values["joint_torques_l2"] > 0.0).all()  # The actuators apply efforts.
+    assert (values["body_incoming_wrench"] != 0.0).any()  # The joints transmit wrenches.
     for name, value in expected.items():
         torch.testing.assert_close(values[name], value.reshape(NUM_ENVS, -1), msg=name)
 
