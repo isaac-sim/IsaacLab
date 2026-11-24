@@ -1085,28 +1085,37 @@ def test_library_action_and_termination_terms():
         terminated = {"terminated": mdp2.terminated}
         builder.add_observation("policy", "is_alive", mdp2.Observation(mdp2.mdp.is_alive, inputs=terminated))
         builder.add_observation("policy", "is_terminated", mdp2.Observation(mdp2.mdp.is_terminated, inputs=terminated))
+        before_time_out = mdp2.Observation(
+            mdp2.mdp.is_terminated_before_time_out, inputs={**terminated, "time_out": mdp2.time_out}
+        )
+        builder.add_observation("policy", "is_terminated_before_time_out", before_time_out)
 
         out_of_bounds = mdp2.Termination(
             joint_pos_out_of_manual_limit, inputs={"joint_pos": robot.joint_pos}, params={"limit": 0.1}
         )
         builder.add_termination("out_of_bounds", out_of_bounds)
+        builder.add_termination("time_out", mdp2.TimeLimit(episode_length_s=0.04))  # Two steps
         mdp = builder.finalize(device=DEVICE, backend=backend)
         state, transition = mdp.state(scene), mdp.transition()
 
         steps = [
-            torch.tensor([[1.0, 2.0], [0.0, 0.0]], device=DEVICE),
+            torch.tensor([[1.0, 2.0], [500.0, 0.0]], device=DEVICE),
             torch.tensor([[0.0, 2.0], [500.0, 0.0]], device=DEVICE),
         ]
+        before_time_out = []
         for step_actions in steps:
             mdp2.apply_actions(mdp, state, ProxyArray(wp.from_torch(step_actions)))
             scene.step()
             mdp2.evaluate(mdp, state, transition)
+            before_time_out.append(transition.observations["policy"].torch[:, 6].tolist())
 
         policy = transition.observations["policy"].torch
         torch.testing.assert_close(policy[:, :2], steps[1])
         torch.testing.assert_close(policy[:, 2], steps[1].square().sum(-1))
         torch.testing.assert_close(policy[:, 3], (steps[1] - steps[0]).square().sum(-1))
         assert policy[:, 4].tolist() == [1.0, 0.0] and policy[:, 5].tolist() == [0.0, 1.0]
+        # World 1 terminates on its first step, before its time limit, and again on the step that reaches it.
+        assert before_time_out == [[0.0, 1.0], [0.0, 0.0]]
 
 
 def test_observation_noise_then_clip_then_scale():

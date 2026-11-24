@@ -15,7 +15,7 @@ import torch
 import warp as wp
 
 from isaaclab.utils import math as math_utils
-from isaaclab.utils.warp.math import yaw_quat
+from isaaclab.utils.warp.math import quat_error_magnitude, yaw_quat
 
 from ..eager import TermContext
 from ..terms import Implementation, State, Term
@@ -44,6 +44,20 @@ def _is_terminated(world: int, terminated: wp.array(dtype=wp.bool)) -> float:
 
 is_terminated = Term(torch=lambda terminated: terminated.float(), warp=_is_terminated)
 """One for worlds whose episode terminated this step, not by a time-out, bound to ``mdp2.terminated``."""
+
+
+@wp.func
+def _is_terminated_before_time_out(
+    world: int, terminated: wp.array(dtype=wp.bool), time_out: wp.array(dtype=wp.bool)
+) -> float:
+    return float(terminated[world] and not time_out[world])
+
+
+is_terminated_before_time_out = Term(
+    torch=lambda terminated, time_out: (terminated & ~time_out).float(), warp=_is_terminated_before_time_out
+)
+"""One for worlds whose episode terminated this step without a time-out, bound to ``mdp2.terminated`` and
+``mdp2.time_out``."""
 
 
 @wp.func
@@ -656,3 +670,58 @@ feet_slide = Term(
     state={"aligned_sensor_ids": State(("body_ids",), persistent=True)},
 )
 """Sum the planar speeds of matched articulation feet whose normal force history exceeded 1 N."""
+
+
+# Pose tracking.
+
+
+@wp.func
+def _position_command_error(
+    world: int,
+    command: wp.array2d(dtype=float),
+    root_link_pose_w: wp.array(dtype=wp.transformf),
+    body_link_pose_w: wp.array2d(dtype=wp.transformf),
+    body_ids: wp.array(dtype=wp.int32),
+) -> float:
+    target_b = wp.vec3f(command[world, 0], command[world, 1], command[world, 2])
+    target_w = wp.transform_point(root_link_pose_w[world], target_b)
+    position = wp.transform_get_translation(body_link_pose_w[world, body_ids[0]])
+    return wp.length(position - target_w)
+
+
+def _position_command_error_torch(
+    command: torch.Tensor, root_link_pose_w: torch.Tensor, body_link_pose_w: torch.Tensor, body_ids: torch.Tensor
+) -> torch.Tensor:
+    target = root_link_pose_w[:, :3] + math_utils.quat_apply(root_link_pose_w[:, 3:], command[:, :3])
+    body = body_link_pose_w[:, body_ids][:, 0, :3]
+    return (body - target).norm(dim=1)
+
+
+position_command_error = Term(torch=_position_command_error_torch, warp=_position_command_error)
+"""Position error [m] for the selected body and a pose command in the root frame."""
+
+
+@wp.func
+def _orientation_command_error(
+    world: int,
+    command: wp.array2d(dtype=float),
+    root_link_pose_w: wp.array(dtype=wp.transformf),
+    body_link_pose_w: wp.array2d(dtype=wp.transformf),
+    body_ids: wp.array(dtype=wp.int32),
+) -> float:
+    target_b = wp.quatf(command[world, 3], command[world, 4], command[world, 5], command[world, 6])
+    target_w = wp.transform_get_rotation(root_link_pose_w[world]) * target_b
+    orientation = wp.transform_get_rotation(body_link_pose_w[world, body_ids[0]])
+    return quat_error_magnitude(orientation, target_w)
+
+
+def _orientation_command_error_torch(
+    command: torch.Tensor, root_link_pose_w: torch.Tensor, body_link_pose_w: torch.Tensor, body_ids: torch.Tensor
+) -> torch.Tensor:
+    target = math_utils.quat_mul(root_link_pose_w[:, 3:], command[:, 3:])
+    body = body_link_pose_w[:, body_ids][:, 0, 3:]
+    return math_utils.quat_error_magnitude(body, target)
+
+
+orientation_command_error = Term(torch=_orientation_command_error_torch, warp=_orientation_command_error)
+"""Shortest orientation error [rad] for the selected body and a pose command in the root frame."""

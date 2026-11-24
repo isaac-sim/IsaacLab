@@ -41,6 +41,35 @@ scene = mdp2.Entity("scene")
 joint_wrench = mdp2.Entity("joint_wrench")
 legs = robot.joints(*LEG_NAMES)
 
+POSE_COMMAND = (0.2, -0.1, 0.3, 0.0, 0.0, 0.6, 0.8)
+"""A pose command in the root frame: a position and a unit quaternion (x, y, z, w)."""
+
+pose_tracking = {
+    "command": mdp2.commands.pose,
+    "root_link_pose_w": robot.root_link_pose_w,
+    "body_link_pose_w": robot.body_link_pose_w,
+    "body_ids": robot.bodies("LF_SHANK"),
+}
+
+
+@wp.func
+def _fixed_pose_command(world: int, command: wp.array2d(dtype=float)):
+    command[world, 0] = 0.2
+    command[world, 1] = -0.1
+    command[world, 2] = 0.3
+    command[world, 3] = 0.0
+    command[world, 4] = 0.0
+    command[world, 5] = 0.6
+    command[world, 6] = 0.8
+
+
+fixed_pose_command = mdp2.Term(
+    torch=lambda mask, command: command.copy_(command.new_tensor(POSE_COMMAND).expand_as(command)),
+    warp=_fixed_pose_command,
+    shape=("worlds", 7),
+)
+"""The pose command :data:`POSE_COMMAND` for every world."""
+
 
 @pytest.fixture(scope="module")
 def env() -> Iterator[MDP2Env]:
@@ -90,15 +119,24 @@ def env() -> Iterator[MDP2Env]:
 
 
 class MDP1Env:
-    """What the MDP1 functions read from an environment: the scene, and joint positions as the command."""
+    """What the MDP1 functions and commands read from an environment: the scene, :data:`POSE_COMMAND` as the
+    ``pose`` command, and joint positions as any other command."""
 
     def __init__(self, env: MDP2Env):
         self.scene = env.scene
+        self.sim = env.sim
         self.num_envs = env.num_envs
+        self.device = env.device
         self.command_manager = self
+        self.terms = {}
 
     def get_command(self, name: str) -> torch.Tensor:
+        if name == "pose":
+            return torch.tensor(POSE_COMMAND, device=self.device).expand(self.num_envs, -1)
         return self.scene["robot"].data.joint_pos.torch
+
+    def get_term(self, name: str):
+        return self.terms[name]
 
 
 def robot_cfg(env: MDP2Env, joint_names: tuple[str, ...] | None = None) -> SceneEntityCfg:
@@ -115,17 +153,27 @@ def bodies_cfg(env: MDP2Env, name: str, body_names: list[str]) -> SceneEntityCfg
     return cfg
 
 
-def mdp2_values(env: MDP2Env, backend: str, uses: dict[str, mdp2.Observation | mdp2.Termination]) -> dict:
-    """Evaluate term uses once on the environment's scene data, each in its own observation group or termination."""
+def mdp2_values(
+    env: MDP2Env, backend: str, uses: dict[str, mdp2.Command | mdp2.Quantity | mdp2.Observation | mdp2.Termination]
+) -> dict:
+    """Evaluate term uses once on the environment's scene data, each in its own observation group or termination.
+
+    The commands are sampled for every world first.
+    """
     builder = mdp2.MDPBuilder(env.scene_data.schema)
     for name, use in uses.items():
-        if isinstance(use, mdp2.Termination):
+        if isinstance(use, mdp2.Command):
+            builder.add_command(name, use)
+        elif isinstance(use, mdp2.Quantity):
+            builder.add_quantity(name, use)
+        elif isinstance(use, mdp2.Termination):
             builder.add_termination(name, use)
         else:
             builder.add_observation(name, name, use)
     model = builder.finalize(device=env.device, backend=backend, diagnostics=True)
 
     state, transition = model.state(env.scene_data), model.transition()
+    mdp2.reset(model, state, ProxyArray(wp.ones(NUM_ENVS, dtype=wp.bool, device=env.device)))
     mdp2.evaluate(model, state, transition)
 
     values = {group: buffer.torch.clone() for group, buffer in transition.observations.items()}
@@ -191,6 +239,9 @@ def test_observations_and_rewards_match_mdp1(env: MDP2Env, backend: str):
             inputs={"command": robot.joint_pos, "root_com_vel_w": robot.root_com_vel_w},
             params={"std": 0.5},
         ),
+        "pose": mdp2.Command(fixed_pose_command),
+        "position_command_error": mdp2.Observation(mdp.position_command_error, inputs=pose_tracking),
+        "orientation_command_error": mdp2.Observation(mdp.orientation_command_error, inputs=pose_tracking),
         "body_incoming_wrench": mdp2.Observation(
             mdp.body_incoming_wrench,
             inputs={
@@ -205,6 +256,7 @@ def test_observations_and_rewards_match_mdp1(env: MDP2Env, backend: str):
 
     mdp1_env = MDP1Env(env)
     leg_cfg, root_cfg = robot_cfg(env, LEG_NAMES), robot_cfg(env)
+    shank_cfg = bodies_cfg(env, "robot", ["LF_SHANK"])
     wrench_cfg = bodies_cfg(env, "joint_wrench", [".*_SHANK"])
     expected = {
         "joint_pos": mdp1.joint_pos(mdp1_env, leg_cfg),
@@ -234,6 +286,8 @@ def test_observations_and_rewards_match_mdp1(env: MDP2Env, backend: str):
             mdp1_env, 0.5, "velocity", root_cfg
         ),
         "track_ang_vel_z_world_exp": velocity_mdp1.track_ang_vel_z_world_exp(mdp1_env, "velocity", 0.5, root_cfg),
+        "position_command_error": mdp1.position_command_error(mdp1_env, "pose", shank_cfg),
+        "orientation_command_error": mdp1.orientation_command_error(mdp1_env, "pose", shank_cfg),
         "body_incoming_wrench": mdp1.body_incoming_wrench(mdp1_env, wrench_cfg),
     }
 
@@ -246,6 +300,29 @@ def test_observations_and_rewards_match_mdp1(env: MDP2Env, backend: str):
 
 @pytest.mark.parametrize("backend", ["torch", "warp"])
 def test_terminations_match_mdp1(env: MDP2Env, backend: str):
+    mdp1_env = MDP1Env(env)
+    leg_cfg, root_cfg = robot_cfg(env, LEG_NAMES), robot_cfg(env)
+
+    # Success thresholds halfway between the middle errors of the worlds, so that each one decides some worlds.
+    shank_cfg = bodies_cfg(env, "robot", ["LF_SHANK"])
+    thresholds = {}
+    for name, error in (("position", mdp1.position_command_error), ("orientation", mdp1.orientation_command_error)):
+        errors = error(mdp1_env, "pose", shank_cfg).sort().values
+        thresholds[name] = float(errors[NUM_ENVS // 2 - 1 : NUM_ENVS // 2 + 1].mean())
+    no_range = (0.0, 0.0)
+    pose_command_cfg = mdp1.UniformPoseCommandCfg(
+        asset_name="robot",
+        body_name="LF_SHANK",
+        resampling_time_range=(1.0, 1.0),
+        ranges=mdp1.UniformPoseCommandCfg.Ranges(
+            pos_x=no_range, pos_y=no_range, pos_z=no_range, roll=no_range, pitch=no_range, yaw=no_range
+        ),
+        position_success_threshold=thresholds["position"],
+        orientation_success_threshold=thresholds["orientation"],
+    )
+    mdp1_env.terms["pose"] = mdp1.UniformPoseCommand(pose_command_cfg, mdp1_env)
+    mdp1_env.terms["pose"].pose_command_b[:] = mdp1_env.get_command("pose")
+
     root_pose = {"root_link_pose_w": robot.root_link_pose_w}
     uses = {
         "joint_pos_out_of_manual_limit": mdp2.Termination(
@@ -259,16 +336,29 @@ def test_terminations_match_mdp1(env: MDP2Env, backend: str):
         "bad_orientation": mdp2.Termination(
             mdp.bad_orientation, inputs={**root_pose, "gravity_w": scene.gravity_w}, params={"limit_angle": 1.0}
         ),
+        "pose": mdp2.Command(fixed_pose_command),
+        "position_error": mdp2.Quantity(mdp.position_command_error, inputs=pose_tracking),
+        "orientation_error": mdp2.Quantity(mdp.orientation_command_error, inputs=pose_tracking),
+        "pose_command_success": mdp2.Termination(
+            mdp.pose_command_success,
+            inputs={
+                "position_error": mdp2.quantities.position_error,
+                "orientation_error": mdp2.quantities.orientation_error,
+            },
+            params={
+                "position_threshold": thresholds["position"],
+                "orientation_threshold": thresholds["orientation"],
+            },
+        ),
     }
 
     values = mdp2_values(env, backend, uses)
 
-    mdp1_env = MDP1Env(env)
-    leg_cfg, root_cfg = robot_cfg(env, LEG_NAMES), robot_cfg(env)
     expected = {
         "joint_pos_out_of_manual_limit": mdp1.joint_pos_out_of_manual_limit(mdp1_env, (-1.5, 1.5), leg_cfg),
         "root_height_below_minimum": mdp1.root_height_below_minimum(mdp1_env, 0.5, root_cfg),
         "bad_orientation": mdp1.bad_orientation(mdp1_env, 1.0, root_cfg),
+        "pose_command_success": mdp1.pose_command_success(mdp1_env, "pose"),
     }
 
     for name, value in expected.items():

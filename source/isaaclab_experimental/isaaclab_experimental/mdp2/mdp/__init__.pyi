@@ -43,6 +43,7 @@ __all__ = [
     "flat_orientation_l2",
     "is_alive",
     "is_terminated",
+    "is_terminated_before_time_out",
     "joint_acc_l2",
     "joint_deviation_l1",
     "joint_pos_limits",
@@ -51,6 +52,8 @@ __all__ = [
     "joint_vel_l1",
     "joint_vel_l2",
     "lin_vel_z_l2",
+    "orientation_command_error",
+    "position_command_error",
     "track_ang_vel_z_exp",
     "track_ang_vel_z_world_exp",
     "track_lin_vel_xy_exp",
@@ -62,6 +65,7 @@ __all__ = [
     "is_positive",
     "joint_pos_out_of_manual_limit",
     "joint_vel_out_of_limit",
+    "pose_command_success",
     "root_height_below_minimum",
 ]
 
@@ -111,6 +115,7 @@ from .rewards import (
     flat_orientation_l2,
     is_alive,
     is_terminated,
+    is_terminated_before_time_out,
     joint_acc_l2,
     joint_deviation_l1,
     joint_pos_limits,
@@ -119,6 +124,8 @@ from .rewards import (
     joint_vel_l1,
     joint_vel_l2,
     lin_vel_z_l2,
+    orientation_command_error,
+    position_command_error,
     track_ang_vel_z_exp,
     track_ang_vel_z_world_exp,
     track_lin_vel_xy_exp,
@@ -132,5 +139,6 @@ from .terminations import (
     is_positive,
     joint_pos_out_of_manual_limit,
     joint_vel_out_of_limit,
+    pose_command_success,
     root_height_below_minimum,
 )
