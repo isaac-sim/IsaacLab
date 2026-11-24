@@ -26,7 +26,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg, ContactSensorCfg
 from isaaclab.utils import configclass
 
-from isaaclab_assets.robots.franka import FRANKA_ROBOTIQ_GRIPPER_CFG
+from isaaclab_assets.robots.franka import FRANKA_PANDA_LEGACY_CFG, FRANKA_ROBOTIQ_GRIPPER_CFG
 
 from . import VLA_BENCHMARKS_ASSETS_DIR, mdp
 
@@ -325,6 +325,12 @@ class TabletopSceneCfg(InteractiveSceneCfg):
     robot = FRANKA_ROBOTIQ_GRIPPER_CFG.replace(
         prim_path="{ENV_REGEX_NS}/robot",
         init_state=FRANKA_ROBOTIQ_GRIPPER_CFG.init_state.replace(pos=(0.0, 0.0, 0.0)),
+        # Compose the standard arm impedance with the Robotiq gripper drives.
+        actuators={
+            **FRANKA_ROBOTIQ_GRIPPER_CFG.actuators,
+            "panda_shoulder": FRANKA_PANDA_LEGACY_CFG.actuators["panda_shoulder"].copy(),
+            "panda_forearm": FRANKA_PANDA_LEGACY_CFG.actuators["panda_forearm"].copy(),
+        },
     )
     table_fixture = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/table_fixture",

@@ -6,5 +6,6 @@
   a box proxy. Real table variants switch on reset with their matching poses and measured surfaces; category
   and size requirements expose plate-placement and container-placement instructions only where evaluable.
   Camera and object collection constants compose directly through config copies and replacements, without
-  config factories or post-init scene generation. Objects use the pinned HeteroTask dataset, its local cache,
+  config factories or post-init scene generation. The robot composes standard Franka arm impedance and
+  effort limits with Robotiq gripper drives. Objects use the pinned HeteroTask dataset, its local cache,
   or ``VLA_BENCHMARKS_ASSETS_DIR``.

@@ -250,6 +250,8 @@ config values; reset does not parse table meshes or infer a surface.
 
 ``CAMERA_CFG.renderer_cfg`` declares the Newton renderer's ambient and directional light colors.
 These control the camera image directly; USD dome and sphere lights do not currently control this renderer.
+The scene composes the standard Franka arm impedance and effort limits with the Robotiq gripper
+drives, rather than inheriting the Robotiq demonstration configuration's enlarged arm efforts.
 
 The reachable volume is user-supplied; this example does not compute inverse-kinematics reachability.
 
