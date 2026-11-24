@@ -995,6 +995,35 @@ class OVRTXRenderer(BaseRenderer):
         finally:
             mapping.unmap(stream=stream)
 
+    @contextlib.contextmanager
+    def _map_lidar_point_cloud(self, point_cloud, device: Device) -> Iterator[Any]:
+        """Map a lidar point cloud for reads and release it after the consumer returns.
+
+        CUDA maps wait for rendering on the consuming Warp stream, or on the host on Linux unless
+        :data:`_DISABLE_LINUX_CUDA_CPU_SYNC_ENV` is ``1``. Unmapping records that stream so native
+        release waits for queued copies. CPU maps use the native context manager.
+
+        Args:
+            point_cloud: OVRTX point-cloud render variable.
+            device: ``Device.CUDA`` or ``Device.CPU``.
+        """
+        if device is not Device.CUDA:
+            with point_cloud.map(device=device, sync_stream=0) as mapped:
+                if mapped.wait_event is not None:
+                    mapped.wait()
+                yield mapped
+            return
+
+        gpu_side_sync = _gpu_side_render_var_sync_enabled()
+        stream = self._warp_device.stream.cuda_stream or 1
+        mapping = point_cloud.map(device=Device.CUDA, sync_stream=stream if gpu_side_sync else 0)
+        try:
+            if not gpu_side_sync:
+                mapping.wait()
+            yield mapping
+        finally:
+            mapping.unmap(stream=stream)
+
     def _process_segmentation(
         self, render_data: OVRTXCameraRenderData, frame: FrameOutput, output_buffers: dict[str, wp.array]
     ) -> None:
@@ -1572,7 +1601,8 @@ class OVRTXRenderer(BaseRenderer):
         """Map one point cloud and copy it into the lidar buffers.
 
         A CUDA map that produces no coordinates raises so the caller can fall back to the CPU map.
-        The dense CUDA copy finishes before this returns, which lets the map be released.
+        The dense CUDA copy is queued on the consuming Warp stream. Unmapping records that stream so
+        the mapped views stay valid until the copy completes.
         """
 
         def mapped_point_count(mapped) -> int:
@@ -1589,10 +1619,7 @@ class OVRTXRenderer(BaseRenderer):
                 count *= int(dim)
             return count
 
-        with point_cloud.map(device=device, sync_stream=0) as mapped:
-            if mapped.wait_event is not None:
-                mapped.wait()
-
+        with self._map_lidar_point_cloud(point_cloud, device) as mapped:
             if device is Device.CUDA and mapped_point_count(mapped) == 0:
                 raise RuntimeError("OVRTX lidar CUDA point cloud was empty")
 

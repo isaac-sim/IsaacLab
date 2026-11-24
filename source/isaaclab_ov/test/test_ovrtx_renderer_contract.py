@@ -1113,6 +1113,56 @@ def test_ovrtx_map_render_var_orders_the_read_against_render_completion(
 
 
 @pytest.mark.parametrize(
+    ("gpu_side", "cuda_stream", "expected_stream", "consumer_fails"),
+    [(True, 0, 1, False), (True, 99, 99, True), (False, 0, 1, False)],
+)
+def test_ovrtx_lidar_map_orders_the_copy_against_map_release(
+    monkeypatch, gpu_side, cuda_stream, expected_stream, consumer_fails
+):
+    """Order CUDA lidar copies after rendering and release after the copy, including when it raises."""
+    events = []
+
+    class _Mapped:
+        wait_event = object()
+
+        def wait(self):
+            events.append("wait")
+
+        def unmap(self, *, stream):
+            events.append(("release", stream))
+
+        def __contains__(self, key):
+            return key == "Coordinates"
+
+        def __getitem__(self, key):
+            return types.SimpleNamespace(shape=(4, 3))
+
+    mapped = _Mapped()
+    point_cloud = types.SimpleNamespace(map=MagicMock(return_value=mapped))
+    monkeypatch.setattr(ovrtx_renderer_module, "_gpu_side_render_var_sync_enabled", lambda: gpu_side)
+
+    def consume(*_args, **_kwargs):
+        events.append("consume")
+        if consumer_fails:
+            raise ValueError("consumer failed")
+
+    monkeypatch.setattr(ovrtx_renderer_module, "copy_tiled_point_cloud", consume)
+
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._warp_device = types.SimpleNamespace(stream=types.SimpleNamespace(cuda_stream=cuda_stream))
+    lidar_data = types.SimpleNamespace(
+        points=types.SimpleNamespace(torch=object()),
+        intensity=types.SimpleNamespace(torch=object()),
+        valid=types.SimpleNamespace(torch=object()),
+    )
+    with pytest.raises(ValueError, match="consumer failed") if consumer_fails else contextlib.nullcontext():
+        renderer._copy_mapped_lidar_point_cloud(point_cloud, lidar_data, ovrtx_renderer_module.Device.CUDA)
+
+    assert point_cloud.map.call_args.kwargs["sync_stream"] == (expected_stream if gpu_side else 0)
+    assert events == ([] if gpu_side else ["wait"]) + ["consume", ("release", expected_stream)]
+
+
+@pytest.mark.parametrize(
     "use_ovstage, cleanup_directly, failure",
     [(stage, direct, None) for stage in (False, True) for direct in (False, True)]
     + [(False, False, "render"), (False, False, "write")],

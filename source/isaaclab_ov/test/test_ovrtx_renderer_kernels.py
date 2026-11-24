@@ -281,3 +281,26 @@ def test_copy_dense_lidar_points_kernel_keeps_hits_and_clears_misses():
     assert not np.isfinite(points_np[1]).any()
     np.testing.assert_allclose(out_intensity.numpy(), [0.5, 0.0])
     np.testing.assert_array_equal(valid.numpy(), [True, False])
+
+
+@pytest.mark.skipif(not wp.is_cuda_available(), reason="CUDA not available")
+def test_copy_dense_on_device_returns_without_waiting_for_the_device(monkeypatch):
+    """The CUDA copy queues the kernel; map release waits on the consuming stream."""
+    import torch
+    from isaaclab_ov.renderers.ovrtx_lidar import _copy_dense_on_device
+
+    monkeypatch.setattr(wp, "synchronize_device", lambda *_args, **_kwargs: pytest.fail("device sync"))
+    coordinates = torch.tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], device=DEVICE)
+    signal = torch.tensor([0.5, 0.25], device=DEVICE)
+    flags = torch.tensor([0x40, 0], dtype=torch.int32, device=DEVICE)
+    points = torch.zeros((1, 2, 3), device=DEVICE)
+    intensity = torch.zeros((1, 2), device=DEVICE)
+    valid = torch.zeros((1, 2), dtype=torch.bool, device=DEVICE)
+
+    _copy_dense_on_device(coordinates, signal, flags, points, intensity, valid, 1, 2)
+    wp.synchronize()
+
+    np.testing.assert_allclose(points[0, 0].cpu().numpy(), [1.0, 2.0, 3.0])
+    assert not np.isfinite(points[0, 1].cpu().numpy()).any()
+    np.testing.assert_allclose(intensity[0].cpu().numpy(), [0.5, 0.0])
+    np.testing.assert_array_equal(valid[0].cpu().numpy(), [True, False])

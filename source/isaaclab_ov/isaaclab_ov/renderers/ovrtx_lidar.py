@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+import contextlib
+
 import numpy as np
 import torch
 import warp as wp
@@ -23,7 +25,7 @@ def _as_torch(value, *, clone: bool = True) -> torch.Tensor:
     """Return a Torch view of a DLPack tensor.
 
     A cloned tensor outlives the mapped render variable. A CUDA view is only valid until the caller
-    finishes reading it and releases the map.
+    releases the map on the stream that consumed it.
     """
     try:
         tensor = torch.from_dlpack(value)
@@ -45,6 +47,18 @@ def _scalar(mapped, name: str) -> int | None:
     return int(values[0])
 
 
+def _consuming_torch_stream(device: str):
+    """Run Torch ops on the Warp stream that will consume the mapped views.
+
+    A CUDA stream handle of 0 is the legacy default stream and must be preserved. ``None`` means
+    Warp has no CUDA stream on this device.
+    """
+    cuda_stream = wp.get_stream(device).cuda_stream
+    if cuda_stream is None:
+        return contextlib.nullcontext()
+    return torch.cuda.stream(torch.cuda.ExternalStream(cuda_stream))
+
+
 def _channel(mapped, name: str, *, clone: bool = True) -> torch.Tensor | None:
     """Return one channel tensor, or None when the point cloud did not publish it."""
     if name not in mapped:
@@ -60,7 +74,8 @@ def copy_tiled_point_cloud(mapped, points: torch.Tensor, intensity: torch.Tensor
     per authored ray. A compacted cloud is rejected because it does not identify the authored ray.
 
     Args:
-        mapped: Mapped PointCloud render variable. It must stay mapped for this call.
+        mapped: Mapped PointCloud render variable. CUDA clouds must stay mapped until the
+            consuming stream completes.
         points: Destination positions.
         intensity: Destination intensity, shape ``(num_envs, num_rays)``.
         valid: Destination hit mask, shape ``(num_envs, num_rays)``.
@@ -92,48 +107,53 @@ def copy_tiled_point_cloud(mapped, points: torch.Tensor, intensity: torch.Tensor
         raise RuntimeError(
             f"OVRTX lidar point cloud is missing Coordinates, Intensity, or Flags. Available: {available}."
         )
-    if coordinates.shape[-1] != 3:
-        if coordinates.shape[0] == 3:
-            coordinates = coordinates.transpose(0, 1).contiguous()
+
+    # CUDA layout fixes and the copy kernel must share Warp's stream so unmap(stream=) can
+    # wait for every read of the mapped views.
+    stream_ctx = _consuming_torch_stream(str(points.device)) if on_device else contextlib.nullcontext()
+    with stream_ctx:
+        if coordinates.shape[-1] != 3:
+            if coordinates.shape[0] == 3:
+                coordinates = coordinates.transpose(0, 1).contiguous()
+            else:
+                raise RuntimeError(f"OVRTX lidar Coordinates have shape {tuple(coordinates.shape)}, expected (*, 3).")
+        coordinates = coordinates.reshape(-1, 3)
+        flags = flags.reshape(-1)
+        signal = signal.reshape(-1)
+        if coordinates.shape[0] != flags.shape[0] or coordinates.shape[0] != signal.shape[0]:
+            raise RuntimeError(
+                "OVRTX lidar point-cloud channels disagree:"
+                f" Coordinates {coordinates.shape[0]}, Flags {flags.shape[0]}, Intensity {signal.shape[0]}."
+            )
+
+        device = points.device
+        stride = _scalar(mapped, "tileStridePoints") or 0
+
+        if _scalar(mapped, "compactionType") == _COMPACTED:
+            raise RuntimeError(
+                "OVRTX returned a compacted lidar cloud. Missed rays must keep their authored slots"
+                " until each return can be placed by ray id."
+            )
+
+        if stride != num_rays:
+            raise RuntimeError(
+                f"OVRTX lidar tile has {stride} point slots, but the sensor authored {num_rays}. "
+                "include_invalid_points keeps one slot per ray."
+            )
+
+        if coordinates.shape[0] != tile_count * stride:
+            raise RuntimeError(
+                f"OVRTX lidar returned {coordinates.shape[0]} points for {tile_count} tiles of {stride} rays."
+            )
+
+        if on_device:
+            _copy_dense_on_device(coordinates, signal, flags, points, intensity, valid, tile_count, stride)
         else:
-            raise RuntimeError(f"OVRTX lidar Coordinates have shape {tuple(coordinates.shape)}, expected (*, 3).")
-    coordinates = coordinates.reshape(-1, 3)
-    flags = flags.reshape(-1)
-    signal = signal.reshape(-1)
-    if coordinates.shape[0] != flags.shape[0] or coordinates.shape[0] != signal.shape[0]:
-        raise RuntimeError(
-            "OVRTX lidar point-cloud channels disagree:"
-            f" Coordinates {coordinates.shape[0]}, Flags {flags.shape[0]}, Intensity {signal.shape[0]}."
-        )
+            coordinates = coordinates.to(device=device, dtype=points.dtype)
+            signal = signal.to(device=device, dtype=intensity.dtype)
+            hit_source = (flags.to(device=device, dtype=torch.int64) & _VALID_FLAG) != 0
 
-    device = points.device
-    stride = _scalar(mapped, "tileStridePoints") or 0
-
-    if _scalar(mapped, "compactionType") == _COMPACTED:
-        raise RuntimeError(
-            "OVRTX returned a compacted lidar cloud. Missed rays must keep their authored slots"
-            " until each return can be placed by ray id."
-        )
-
-    if stride != num_rays:
-        raise RuntimeError(
-            f"OVRTX lidar tile has {stride} point slots, but the sensor authored {num_rays}. "
-            "include_invalid_points keeps one slot per ray."
-        )
-
-    if coordinates.shape[0] != tile_count * stride:
-        raise RuntimeError(
-            f"OVRTX lidar returned {coordinates.shape[0]} points for {tile_count} tiles of {stride} rays."
-        )
-
-    if on_device:
-        _copy_dense_on_device(coordinates, signal, flags, points, intensity, valid, tile_count, stride)
-    else:
-        coordinates = coordinates.to(device=device, dtype=points.dtype)
-        signal = signal.to(device=device, dtype=intensity.dtype)
-        hit_source = (flags.to(device=device, dtype=torch.int64) & _VALID_FLAG) != 0
-
-        _copy_dense(coordinates, signal, hit_source, points, intensity, valid, tile_count, stride)
+            _copy_dense(coordinates, signal, hit_source, points, intensity, valid, tile_count, stride)
 
 
 def _copy_dense(coordinates, signal, hits, points, intensity, valid, tile_count: int, stride: int) -> None:
@@ -151,26 +171,26 @@ def _copy_dense(coordinates, signal, hits, points, intensity, valid, tile_count:
 def _copy_dense_on_device(coordinates, signal, flags, points, intensity, valid, tile_count: int, stride: int) -> None:
     """Copy a dense CUDA ``(tile, ray)`` cloud into the destination buffers.
 
-    The mapped channel views must stay alive through the launch. This waits for that launch before
-    returning so the caller can release the map.
+    Torch prep and the Warp launch share Warp's current stream. The caller releases the map on that
+    stream; this does not wait for the launch.
     """
     count = tile_count * stride
-    coordinates = coordinates.reshape(count, 3).contiguous()
-    signal = signal.reshape(count).contiguous().to(dtype=torch.float32)
-    flags = flags.reshape(count).contiguous().to(dtype=torch.int32)
-    # Warp resolves string device names. A torch.device object is not one of those names.
     launch_device = str(points.device)
-    wp.launch(
-        copy_dense_lidar_points_kernel,
-        dim=count,
-        inputs=[
-            wp.from_torch(coordinates, dtype=wp.float32),
-            wp.from_torch(signal, dtype=wp.float32),
-            wp.from_torch(flags, dtype=wp.int32),
-            wp.from_torch(points.reshape(count, 3), dtype=wp.vec3f),
-            wp.from_torch(intensity.reshape(count), dtype=wp.float32),
-            wp.from_torch(valid.reshape(count), dtype=wp.bool),
-        ],
-        device=launch_device,
-    )
-    wp.synchronize_device(launch_device)
+    with _consuming_torch_stream(launch_device):
+        coordinates = coordinates.reshape(count, 3).contiguous()
+        signal = signal.reshape(count).contiguous().to(dtype=torch.float32)
+        flags = flags.reshape(count).contiguous().to(dtype=torch.int32)
+        # Warp resolves string device names. A torch.device object is not one of those names.
+        wp.launch(
+            copy_dense_lidar_points_kernel,
+            dim=count,
+            inputs=[
+                wp.from_torch(coordinates, dtype=wp.float32),
+                wp.from_torch(signal, dtype=wp.float32),
+                wp.from_torch(flags, dtype=wp.int32),
+                wp.from_torch(points.reshape(count, 3), dtype=wp.vec3f),
+                wp.from_torch(intensity.reshape(count), dtype=wp.float32),
+                wp.from_torch(valid.reshape(count), dtype=wp.bool),
+            ],
+            device=launch_device,
+        )
