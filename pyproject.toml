@@ -117,7 +117,7 @@ video = ["moviepy>=1.0.3,<2.0.0.dev0"]
 optix = ["newton[optix]"]
 
 importers = [
-    "isaacsim-asset-isolated==6.2.0.1",
+    "isaacsim-asset>=7.0.0.dev0,<7.0.0rc0",
     "tinyobjloader==2.0.0rc13",
 ]
 
@@ -409,6 +409,8 @@ explicit = true
 [tool.uv]
 index-strategy = "unsafe-first-match"
 prerelease = "allow"
+# The standalone 7.0 importer replaces the asset distribution pinned by full Isaac Sim 6.3.
+conflicts = [[{ extra = "importers" }, { extra = "isaacsim" }]]
 # Platforms Isaac Lab supports (docs/source/isaaclab/installation.rst and the
 # install CI matrix): Ubuntu 22.04 x86_64, Linux aarch64 (DGX Spark / Jetson), and
 # Windows 11 x86_64. Restricting the resolution universe keeps macOS and other
@@ -423,9 +425,8 @@ environments = [
 # ``importers`` extras pin older versions of these packages, so the overrides prevent downgrades.
 # Direct torch-stack pins also apply to published wheels; overrides reconcile Isaac Sim's older pins.
 override-dependencies = [
-    # QA-only nightly ranges replace the published Isaac Sim and standalone importer pins.
-    "isaacsim[all,extscache]>=6.3.0.dev0,<6.3.0rc0",
-    "isaacsim-asset-isolated>=6.3.0.dev0,<6.3.0rc0",
+    # QA-only release-compatible range includes the latest Isaac Sim 6.3 candidates.
+    "isaacsim[all,extscache]>=6.3.0rc3,<6.4",
     "numpy>=2",
     "mujoco~=3.17.0",
     "mujoco-warp~=3.17.0",
@@ -455,7 +456,7 @@ egl-probe = { CMAKE_POLICY_VERSION_MINIMUM = "3.5" }
 
 [tool.uv.sources]
 isaacsim = { index = "isaacsim-internal" }
-isaacsim-asset-isolated = { index = "isaacsim-internal" }
+isaacsim-asset = { index = "isaacsim-internal" }
 ovstorage = { index = "pypi-public" }
 ovphysx = { index = "pypi-public" }
 ovrtx = { index = "pypi-public" }

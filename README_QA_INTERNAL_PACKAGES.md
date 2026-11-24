@@ -1,94 +1,108 @@
-# Isaac Lab 3.1 QA with internal Isaac Sim 6.3
+# Isaac Lab 3.1 internal package QA
 
-This temporary QA patch uses internal Isaac Sim 6.3 and its standalone asset
-importer. Run the commands from your Isaac Lab checkout on the NVIDIA network
-or VPN, with uv installed. The patch configures the internal registry.
+This branch tests the new standalone Isaac Sim 7 asset package and the latest
+Isaac Sim 6.3 runtime candidates. Run the commands from the repository root on
+the NVIDIA network or VPN. The branch configures the required registry.
 
 ## Apply the QA patch
 
-Start from the checkout you intend to test, with a clean working tree. Fetch the
-single QA commit from the fork and cherry-pick it onto a local QA branch:
+From a clean checkout, create a local QA branch and apply the QA commits:
 
 ```bash
-git switch -c qa/3.1-internal-isaacsim
+git switch -c qa/3.1-internal-packages
 git fetch https://github.com/kellyguo11/IsaacLab-public.git kellyg/release-3.1.0-qa-internal-isaacsim
-git cherry-pick FETCH_HEAD
+git cherry-pick 15077020d6..FETCH_HEAD
 ```
 
-The PR targets `main` until `release/3.1.0` exists. This patch changes only root
-dependency configuration and this README. The committed `uv.lock` stays at the
-base branch's versions; refresh it locally before installing or running QA.
+If the original QA commit `9376446a1c` is already applied, fetch the branch as
+above and cherry-pick only the new follow-up commit shown in the PR.
 
-## Refresh and install the nightly dependencies
+The committed `uv.lock` stays identical to the PR's base. Each QA pass generates
+a local lock; leave it uncommitted and attach it to the QA report.
 
-Run this same one-line command on Linux, Windows PowerShell, or Windows Command
-Prompt at the start of each QA pass:
+## Choose one package set
+
+The new standalone `isaacsim-asset` package replaces `isaacsim-asset-isolated`.
+Full Isaac Sim 6.3 also depends on a distribution named `isaacsim-asset`, but
+requires its own matching 6.3 build. Therefore `--extra importers` and
+`--extra isaacsim` are mutually exclusive on this QA branch. UV records separate
+resolutions and rejects commands that enable both extras.
+
+Use separate checkout environments when switching repeatedly between these
+workflows. A normal sync in one checkout replaces packages from the other set.
+
+### Standalone asset importer QA: latest 7.0 nightly
+
+The same one-line command works in Bash, PowerShell, and Command Prompt:
 
 ```bash
-uv sync --extra isaacsim --extra importers -P isaacsim -P isaacsim-asset-isolated -P urdf-usd-converter -P mujoco-usd-converter -P usd-optimize
+uv sync --extra importers -P isaacsim-asset -P isaacsim-common -P isaacsim-robot-schema -P urdf-usd-converter -P mujoco-usd-converter -P usd-optimize
 ```
 
-`-P` refreshes package metadata and ignores the corresponding versions in the
-existing local lock. Isaac Sim and the standalone importer use
-`>=6.3.0.dev0,<6.3.0rc0`, allowing new 6.3 alpha/beta nightlies without editing
-the version number. The previous converter and optimizer overrides are removed
-so the selected Isaac Sim packages determine their matched dependencies.
+The `importers` extra requires `isaacsim-asset>=7.0.0.dev0,<7.0.0rc0` from the
+internal index. The selected asset package determines its matching common,
+schema, converter, and optimizer dependencies. Add other extras such as `test`,
+`video`, or `ov` as needed.
 
-For importer-only QA, omit `--extra isaacsim`. To test OV integrations alongside
-Isaac Sim, add `--extra ov`; those packages retain the base branch's public pins.
+### Full Isaac Sim QA: latest compatible 6.3 candidate
 
-The command updates your local `uv.lock` and installs into `.venv`. Leave the
-generated lock uncommitted and attach it to the QA report. Do not use `--frozen`
-for the initial refresh: the committed lock still contains the public packages.
+```bash
+uv sync --extra isaacsim -P isaacsim -P isaacsim-asset -P isaacsim-robot-schema -P urdf-usd-converter -P mujoco-usd-converter -P usd-optimize
+```
+
+The runtime override is `isaacsim[all,extscache]>=6.3.0rc3,<6.4`. This includes
+RC3 and later 6.3 builds, with the matching 6.3 asset distribution. This workflow
+does not test the standalone 7.0 asset package.
+
+## Refresh versus reproduce
+
+`-P` refreshes registry metadata and replaces the selected package versions in
+the local lock. Run the appropriate refresh command at the start of each QA
+pass. Do not use `--frozen` before this initial refresh.
+
+To reproduce a report, place its generated `uv.lock` at the repository root and
+install the same package set without refreshing:
+
+```bash
+uv sync --frozen --extra importers
+```
+
+For a full-runtime report, use `--extra isaacsim` instead. The documented
+`uv run` commands work with the selected extra and locally refreshed lock.
+Add `--frozen` when a test must preserve the recorded resolution.
+
+Print the standalone importer versions without launching a runtime:
+
+```bash
+uv run --frozen --extra importers python -c "from importlib.metadata import version; packages = ('isaacsim-asset', 'isaacsim-common', 'isaacsim-robot-schema', 'urdf-usd-converter', 'mujoco-usd-converter', 'usd-optimize'); print({p: version(p) for p in packages})"
+```
 
 If registry requests time out, set `UV_HTTP_TIMEOUT` to `120` before retrying:
 `export UV_HTTP_TIMEOUT=120` in Bash, `$env:UV_HTTP_TIMEOUT="120"` in PowerShell,
 or `set UV_HTTP_TIMEOUT=120` in Command Prompt.
 
-## Install an already resolved QA package set
+## Package versions checked on November 23, 2026
 
-To reproduce a report, place its generated `uv.lock` in the repository root and
-run this instead of refreshing:
+| Package | Standalone importer QA | Full runtime QA |
+| --- | --- | --- |
+| Isaac Sim | Not installed | `6.3.0rc3+release.59333.3164eac4.gl` |
+| Isaac Sim asset | `7.0.0a2.dev58610+gl.698c657` | Same 6.3 build as the runtime |
+| Common and robot schema | Same 7.0 build as the asset package | Selected by the runtime |
+| URDF USD converter | `0.4.0` | Selected by the runtime |
+| MuJoCo USD converter | `0.9.0` | Selected by the runtime |
+| USD Optimize | `1.3.1` | Selected by the runtime |
 
-```bash
-uv sync --frozen --extra isaacsim --extra importers
-```
+The standalone set was installed on Linux x86_64 and exercised through Isaac
+Lab's URDF and MJCF converters. Both produced USD geometry, joints, articulation
+roots, and reusable cached outputs without launching Kit. The importer emitted
+warnings for unsupported MJCF procedural textures/lights and missing actuator
+gain data in the fixtures. Full Isaac Sim RC3 was validated by dependency
+resolution only; Windows and ARM64 runtime execution were not tested locally.
 
-## Use the documented uv commands
+Record installed versions and the generated lock for every QA result, since
+later nightly builds may select different dependencies. After recording the
+result, `git restore uv.lock` restores the committed public-package lock; refresh
+again before the next QA pass.
 
-After refreshing once, the normal documented `uv run --extra isaacsim ...`
-commands use the locally locked 6.3 packages. Ordinary `uv run` checks whether
-the lock matches the project; it does not automatically seek a newer nightly
-every run. Add `--frozen` to preserve a recorded lock, and include the same
-extras as the installation when you want both integrations present.
-
-Print installed versions without importing or launching Isaac Sim:
-
-```bash
-uv run --frozen --extra isaacsim --extra importers python -c "from importlib.metadata import version; packages = ('isaacsim', 'isaacsim-asset-isolated', 'isaacsim-robot-schema', 'urdf-usd-converter', 'mujoco-usd-converter', 'usd-optimize'); print({p: version(p) for p in packages})"
-```
-
-## Verified package set
-
-The full Linux x86_64 install dry-run on November 20, 2026, resolved 445 packages,
-including:
-
-| Package | Version |
-| --- | --- |
-| Isaac Sim and standalone importer | `6.3.0a43+release.58948.6d33ca13.gl` |
-| URDF USD converter | `0.4.0` |
-| MuJoCo USD converter | `0.9.0` |
-| USD Optimize | `1.4.0` |
-
-Later nightly builds may specify different converter versions. Record the
-installed-version output and the generated lock with every QA result.
-
-To discard only the locally generated lock after recording the result:
-
-```bash
-git restore uv.lock
-```
-
-Refresh again before the next QA run. GitHub-hosted jobs cannot access the
-internal index; frozen jobs using the committed lock exercise the public package
-set rather than this QA resolution.
+GitHub-hosted runners cannot access the internal registry. Frozen jobs using
+the committed lock exercise the public package set rather than these QA builds.
