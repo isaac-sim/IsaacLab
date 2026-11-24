@@ -62,6 +62,8 @@ after stepping. The scene also handles selected-environment resets. Manager-base
 use :class:`~isaaclab.envs.mdp.actions.SurfaceGripperBinaryActionCfg`, where negative policy
 actions close the gripper and nonnegative actions open it.
 
+For a runnable Newton MJWarp example, see :ref:`tutorial-conveyor-suction`.
+
 Managed environments close the scene grippers automatically. In a standalone scene, call
 ``scene.close()`` before destroying the simulation. If the scene is inside an enclosing CUDA graph,
 discard the graph before closing it. Custom ``SurfaceGripperCfg.class_type`` constructors continue
