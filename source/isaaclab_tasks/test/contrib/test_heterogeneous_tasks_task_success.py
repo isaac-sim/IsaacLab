@@ -161,6 +161,11 @@ def env(request, tmp_path):
     UsdGeom.Xformable(cube).AddTranslateOp().Set((0.04, -0.02, 0.04))
     UsdGeom.Xformable(cube).AddScaleOp().Set((0.11, 0.1, 0.01))
     UsdPhysics.CollisionAPI.Apply(cube.GetPrim())
+    # A rim post: the top of the plate's bounds is 4 cm above the surface that carries objects.
+    post = UsdGeom.Cube.Define(stage, "/plate/rim")
+    UsdGeom.Xformable(post).AddTranslateOp().Set((0.14, 0.07, 0.07))
+    UsdGeom.Xformable(post).AddScaleOp().Set((0.01, 0.01, 0.02))
+    UsdPhysics.CollisionAPI.Apply(post.GetPrim())
     stage.GetRootLayer().Save()
     bodies = {
         "small": sim_utils.CuboidCfg(size=(0.04, 0.04, 0.04)),
@@ -324,12 +329,28 @@ def test_reset_intersects_workspace_and_table_and_binds_only_feasible_tasks(env)
         state.objects.write_body_velocity_to_sim_index(
             body_velocities=torch.zeros(1, 1, 6, device=env.device), body_ids=[0], env_ids=ids
         )
-    for _ in range(60):
-        env.sim.step(render=False)
-        env.scene.update(env.physics_dt)
+
+    def settle(steps: int) -> list[bool]:
+        for _ in range(steps):
+            env.sim.step(render=False)
+            env.scene.update(env.physics_dt)
+            done = env.termination_manager.compute()
+        return done.tolist()
+
+    # The object rests on the plate, below its rim, and in the box: placed, but not yet for the hold time of 0.5 s.
+    assert settle(40) == [False] * env.num_envs
     expected = [False] * env.num_envs
     expected[0] = expected[container_world] = True
-    assert env.termination_manager.compute().tolist() == expected
+    assert settle(80) == expected
+    # The plate also carries an object whose corners overhang its edge by 5 mm.
+    pose = target[0, state.target_ids[0]].clone()
+    pose[:3] += quat_apply(pose[3:][None], pose.new_tensor([[-0.055, 0, 0.072]]))[0]
+    ids = torch.tensor([0], device=env.device)
+    state.objects.write_body_pose_to_sim_index(body_poses=pose[None, None], body_ids=[0], env_ids=ids)
+    state.objects.write_body_velocity_to_sim_index(
+        body_velocities=torch.zeros(1, 1, 6, device=env.device), body_ids=[0], env_ids=ids
+    )
+    assert settle(100) == expected
     params = dict(env.cfg.events["place_objects"].params, workspace=((2, 2, 0), (3, 3, 1)))
     with pytest.raises(RuntimeError, match="intersection"):
         state(env, torch.tensor([0], device=env.device), **params)
