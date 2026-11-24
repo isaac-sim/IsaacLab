@@ -1237,7 +1237,7 @@ class ArticulationData(BaseArticulationData):
                 articulation_kernels.get_joint_acc_from_joint_vel,
                 dim=(self._num_instances, self._num_joints),
                 inputs=[
-                    self.joint_vel,
+                    self.joint_vel.warp,
                     self._previous_joint_vel,
                     time_elapsed,
                 ],
