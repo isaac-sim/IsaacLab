@@ -13,7 +13,14 @@ from typing import Any
 
 import warp as wp
 
-from isaaclab.actuators import DCMotorCfg, IdealPDActuatorCfg, ImplicitActuatorCfg
+from isaaclab.actuators import (
+    ActuatorBase,
+    ActuatorNetLSTMCfg,
+    ActuatorNetMLPCfg,
+    DCMotorCfg,
+    IdealPDActuatorCfg,
+    ImplicitActuatorCfg,
+)
 from isaaclab.scene import InteractiveScene
 from isaaclab.sensors import BaseContactSensor, BaseJointWrenchSensor
 from isaaclab.sim import SimulationContext
@@ -24,6 +31,10 @@ from isaaclab_experimental.mdp2 import EntitySchema, FieldSchema, FieldSelector,
 CAPTURED_ACTUATORS = (ImplicitActuatorCfg, IdealPDActuatorCfg, DCMotorCfg)
 """Actuator configs whose actuators MDP2 can step and reset inside CUDA graphs. Matched exactly: subclasses, such as
 delayed actuators, may draw from Torch's random generators on reset, which a replayed graph repeats."""
+
+NEWTON_NETWORK_ACTUATORS = (ActuatorNetLSTMCfg, ActuatorNetMLPCfg)
+"""Actuator network configs that MDP2 supports when Newton runs them: Newton resets them, and the environment captures
+the physics only if Newton can capture them."""
 
 
 class InteractiveSceneData:
@@ -119,15 +130,19 @@ class InteractiveSceneData:
                         f"MDP2 needs the solver's joint and body order, but '{name}' sets a joint or body ordering."
                     )
                 # Captured steps replay the actuators' masked resets, so they must not draw from Torch's random
-                # generators, as delayed actuators do for their delays: a graph would repeat the same draws.
+                # generators, as delayed actuators do for their delays: a graph would repeat the same draws. Actuator
+                # networks are supported where Newton runs them, not Isaac Lab's Torch models.
                 unsupported = sorted(
-                    group for group, cfg in asset.cfg.actuators.items() if type(cfg) not in CAPTURED_ACTUATORS
+                    group
+                    for group, cfg in asset.cfg.actuators.items()
+                    if type(cfg) not in CAPTURED_ACTUATORS
+                    and (type(cfg) not in NEWTON_NETWORK_ACTUATORS or isinstance(asset.actuators[group], ActuatorBase))
                 )
                 if unsupported:
                     raise ValueError(
-                        f"MDP2 replays actuator resets inside CUDA graphs, so it supports"
-                        f" {', '.join(cfg.__name__ for cfg in CAPTURED_ACTUATORS)} only, but '{name}' has the"
-                        f" actuator groups {unsupported}."
+                        f"MDP2 supports {', '.join(cfg.__name__ for cfg in CAPTURED_ACTUATORS)}, and"
+                        f" {', '.join(cfg.__name__ for cfg in NEWTON_NETWORK_ACTUATORS)} that Newton runs, but"
+                        f" '{name}' has the actuator groups {unsupported}."
                     )
                 views |= {
                     "body_com_vel_w": data.body_com_vel_w,
