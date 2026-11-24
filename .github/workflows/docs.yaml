@@ -116,9 +116,11 @@ jobs:
         # "deploy" branches build the full set of versions so every page
         # has a complete version dropdown during the branch-name cutover: main,
         # develop (while it exists), and tags >= v2.0.0 (including pre-release
-        # suffixes like -beta, -rc1, or -EA). v1.x tags and release branches are
-        # excluded, along with the superseded v3.0.0 pre-releases.
-        SMV_BRANCH_WHITELIST: '^(main|develop)$'
+        # suffixes like -beta, -rc1, or -EA). Also publish release/3.0.0 because
+        # docs.nvidia.com links to its interactive environment browser here.
+        # Other release branches, v1.x tags, and superseded v3.0.0 pre-releases
+        # remain excluded.
+        SMV_BRANCH_WHITELIST: '^(main|develop|release/3\.0\.0)$'
         SMV_TAG_WHITELIST: '^(?!v3\.0\.0-)v[2-9]\d*\.\d+\.\d+(-[A-Za-z0-9.]+)?$'
       run: |
         git fetch --prune --unshallow --tags
@@ -134,9 +136,11 @@ jobs:
         rm -rf _build/develop
         cp -a _build/main _build/develop
 
-    - name: Verify default docs version
+    - name: Verify published documentation entry points
       working-directory: ./docs
-      run: grep -Fq "url=./$DOCS_DEFAULT_REF/index.html" _build/index.html
+      run: |
+        grep -Fq "url=./$DOCS_DEFAULT_REF/index.html" _build/index.html
+        test -f _build/release/3.0.0/source/isaaclab/environments.html
 
     - name: Write browser demo redirects
       run: bash .github/actions/_lib/write-browser-demo-redirects.sh
