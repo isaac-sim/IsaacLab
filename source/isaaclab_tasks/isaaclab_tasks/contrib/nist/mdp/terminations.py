@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Factory termination terms."""
+"""NIST termination terms."""
 
 from __future__ import annotations
 
@@ -14,11 +14,7 @@ import torch
 import isaaclab.utils.math as math_utils
 from isaaclab.managers import ManagerTermBase, SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTermCfg
-from isaaclab.utils import instantiate
 
-from ..assembly_keypoints import Offset
-from ..assembly_profile import AssemblyProfile
-from ..assembly_profile_cfg import AssemblyProfileCfg
 from .assembly_variants import assembly_variant_context
 
 if TYPE_CHECKING:
@@ -62,7 +58,9 @@ def in_bound(
     return ~out_of_bound(env, asset_cfg, in_bound_range)[env_ids]
 
 
-class _ProgressContextBase(ManagerTermBase):
+class variant_progress_context(ManagerTermBase):
+    """Track assembly progress using each environment's selected variant geometry."""
+
     def __init__(self, cfg: DoneTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
         self.held_asset: Articulation | RigidObject = env.scene[cfg.params["held_asset_cfg"].name]  # type: ignore
@@ -76,6 +74,7 @@ class _ProgressContextBase(ManagerTermBase):
         self.xy_distance = torch.zeros((env.num_envs), device=env.device)
         self.z_distance = torch.zeros((env.num_envs), device=env.device)
         self.dummy_false_tensor = torch.zeros((env.num_envs), dtype=torch.bool, device=env.device)
+        self.variants = assembly_variant_context(env, cfg.params.get("variant_context", "assembly_variants"))
 
     def _update(
         self,
@@ -94,37 +93,6 @@ class _ProgressContextBase(ManagerTermBase):
         self.is_success[:] = self.orientation_aligned & self.position_centered & self.z_distance_reached
         env.extras["successes"] = self.is_success
         return self.dummy_false_tensor
-
-
-class progress_context(_ProgressContextBase):
-    """Track assembly progress for a static Factory asset pair."""
-
-    def __init__(self, cfg: DoneTermCfg, env: ManagerBasedRLEnv):
-        super().__init__(cfg, env)
-        self.held_asset_offset: Offset = cfg.params["held_asset_offset"]  # type: ignore
-        profile_cfg: AssemblyProfileCfg = cfg.params["assembly_profile"]  # type: ignore
-        self.profile: AssemblyProfile = instantiate(profile_cfg)
-
-    def __call__(
-        self,
-        env: ManagerBasedRLEnv,
-        success_threshold: float,
-        held_asset_cfg: SceneEntityCfg,
-        fixed_asset_cfg: SceneEntityCfg,
-        held_asset_offset: Offset,
-        assembly_profile: AssemblyProfileCfg,
-    ) -> torch.Tensor:
-        held_pose = self.held_asset_offset.apply(self.held_asset)
-        fixed_pose = self.profile.assembled_offset.apply(self.fixed_asset)
-        return self._update(env, held_pose, fixed_pose)
-
-
-class variant_progress_context(_ProgressContextBase):
-    """Track assembly progress using each environment's selected variant geometry."""
-
-    def __init__(self, cfg: DoneTermCfg, env: ManagerBasedRLEnv):
-        super().__init__(cfg, env)
-        self.variants = assembly_variant_context(env, cfg.params.get("variant_context", "assembly_variants"))
 
     def __call__(
         self,

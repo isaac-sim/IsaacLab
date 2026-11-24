@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -185,3 +186,72 @@ def test_latest_rejects_unmanifested_historical_run(tmp_path: Path) -> None:
             task="Isaac-Cartpole",
             checkpoint_pattern=r"model_.*\.pt",
         )
+
+
+def _rsl_rl_resume_path(tmp_path: Path, *, distillation: bool, checkpoint: str | None = None, resume: bool = False):
+    from isaaclab_rl.entrypoints.backends.cli_args_rsl_rl import resolve_rsl_rl_training_checkpoint
+    from isaaclab_rl.rsl_rl import RslRlDistillationRunnerCfg, RslRlOnPolicyRunnerCfg
+
+    args_cli = SimpleNamespace(checkpoint=checkpoint, task="Isaac-Velocity-Rough-G1-Depth-Student", agent=None)
+    agent_cfg = RslRlDistillationRunnerCfg() if distillation else RslRlOnPolicyRunnerCfg()
+    agent_cfg.resume = resume
+    agent_cfg.load_run = ".*"
+    agent_cfg.load_checkpoint = r"model_.*\.pt"
+    return resolve_rsl_rl_training_checkpoint(args_cli, agent_cfg, str(tmp_path / "logs" / "student"))
+
+
+def test_rsl_rl_distillation_training_requires_explicit_teacher_checkpoint(tmp_path: Path) -> None:
+    """Existing student runs do not supply a teacher unless resume is requested."""
+    existing = tmp_path / "logs" / "student" / "existing"
+    existing.mkdir(parents=True)
+    (existing / "model_10.pt").touch()
+    with pytest.raises(ValueError, match="requires --checkpoint"):
+        _rsl_rl_resume_path(tmp_path, distillation=True)
+
+
+def test_rsl_rl_distillation_training_loads_explicit_teacher_checkpoint(tmp_path: Path) -> None:
+    """An explicit teacher file is used without searching the student experiment's runs."""
+    teacher = tmp_path / "teacher" / "model_1499.pt"
+    teacher.parent.mkdir()
+    teacher.touch()
+
+    assert _rsl_rl_resume_path(tmp_path, distillation=True, checkpoint=str(teacher)) == str(teacher)
+    with pytest.raises(FileNotFoundError):
+        _rsl_rl_resume_path(tmp_path, distillation=True, checkpoint=str(teacher.with_name("x.pt")))
+
+
+def test_rsl_rl_training_selects_latest_file_in_exact_directory(tmp_path: Path, monkeypatch) -> None:
+    """A teacher run directory resolves to its newest ``model_*.pt``, not to a pattern built from the directory path."""
+    monkeypatch.chdir(tmp_path)
+    run = tmp_path / "teacher[1]"
+    run.mkdir(parents=True)
+    for name in ("model_5.pt", "model_10.pt", "events.out.tfevents"):
+        (run / name).touch()
+
+    assert _rsl_rl_resume_path(tmp_path, distillation=True, checkpoint=str(run)) == str(run / "model_10.pt")
+
+    sibling = run.with_name(run.name + "-retry")
+    sibling.mkdir()
+    (sibling / "model_99.pt").touch()
+    assert _rsl_rl_resume_path(tmp_path, distillation=True, checkpoint=str(run)) == str(run / "model_10.pt")
+    assert _rsl_rl_resume_path(tmp_path, distillation=True, checkpoint=str(run) + "/") == str(run / "model_10.pt")
+    assert _rsl_rl_resume_path(tmp_path, distillation=True, checkpoint=run.name) == str(run / "model_10.pt")
+    (run / "model_100.pt").mkdir()
+    assert _rsl_rl_resume_path(tmp_path, distillation=True, checkpoint=run.name) == str(run / "model_10.pt")
+
+
+def test_rsl_rl_training_resume_searches_experiment_runs(tmp_path: Path) -> None:
+    """A configured resume without ``--checkpoint`` continues the newest run, not an older run with later iterations."""
+    older = tmp_path / "logs" / "student" / "2026-11-16_10-00-00" / "model_99.pt"
+    older.parent.mkdir(parents=True)
+    older.touch()
+    checkpoint = tmp_path / "logs" / "student" / "2026-11-17_10-00-00" / "model_10.pt"
+    checkpoint.parent.mkdir(parents=True)
+    checkpoint.touch()
+
+    assert _rsl_rl_resume_path(tmp_path, distillation=False, resume=True) == str(checkpoint)
+    assert _rsl_rl_resume_path(tmp_path, distillation=True, resume=True) == str(checkpoint)
+    assert _rsl_rl_resume_path(tmp_path, distillation=False) is None
+    teacher = tmp_path / "teacher.pt"
+    teacher.touch()
+    assert _rsl_rl_resume_path(tmp_path, distillation=True, resume=True, checkpoint=str(teacher)) == str(teacher)
