@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import itertools
 import math
+import re
 from typing import TYPE_CHECKING, NamedTuple
 
 import numpy as np
@@ -99,6 +100,16 @@ def spawn_table(prim_path: str, cfg: sim_utils.UsdFileCfg, translation=None, ori
     return prim
 
 
+_ASSET_CODE = re.compile(r"[A-Za-z]{1,2}\d+|\d+(in)?")
+"""A word of a catalog label that identifies the asset rather than names it: ``A01``, ``Ph1``, ``03``, ``16in``."""
+
+
+def _plain_name(label: str) -> str:
+    """Return a catalog label in plain lower-case words: ``"Socket_1_2in_B01"`` reads ``"socket"``."""
+    words = [word for word in label.replace("_", " ").split() if not _ASSET_CODE.fullmatch(word)]
+    return " ".join(words).lower() or label
+
+
 class reset_tabletop(ManagerTermBase):
     """Place sampled objects on the reachable part of a table, then select an available task.
 
@@ -108,9 +119,11 @@ class reset_tabletop(ManagerTermBase):
     robot and actual collision shapes without stepping physics. Infeasible placements raise instead of
     accepting overlaps.
 
-    ``env.tabletop.available_tasks[world]`` lists category- and size-compatible bindings. A reset
-    chooses one unless :meth:`set_task` requests a particular binding. A world with no available task
-    has an empty instruction and never reports task success; its object combination is retained.
+    ``env.tabletop.available_tasks[world]`` lists category- and size-compatible bindings whose instruction
+    singles out its object and its target: instructions name objects in plain words, without asset codes, so a
+    world that holds two objects of one name offers no task for them. A reset chooses one unless
+    :meth:`set_task` requests a particular binding. A world with no available task has an empty instruction
+    and never reports task success; its object combination is retained.
     """
 
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedRLEnv):
@@ -180,18 +193,19 @@ class reset_tabletop(ManagerTermBase):
         self.available_tasks = []
         for world in range(env.num_envs):
             tasks = []
+            names = [_plain_name(label) for label in labels[world]]
+            # An instruction has to single out its object and its target among the world's objects.
+            unique = [active[world, slot] and names.count(name) == 1 for slot, name in enumerate(names)]
             for family, rule in self.families.items():
                 for source, target in itertools.permutations(range(len(self.names)), 2):
-                    if not active[world, source] or rule["target"] not in categories[world][target]:
+                    if not (unique[source] and unique[target]) or rule["target"] not in categories[world][target]:
                         continue
                     size = np.sort(np.diff(bounds[world, source], axis=0)[0, :2])
                     support = np.sort(np.diff(bounds[world, target], axis=0)[0, :2])
                     # A conservative inset reserves room for a rim or container walls.
                     if np.any(size + 2 * cfg.params["clearance"] > support * 0.8):
                         continue
-                    instruction = rule["instruction"].format(
-                        object=labels[world][source].replace("_", " "), target=labels[world][target].replace("_", " ")
-                    )
+                    instruction = rule["instruction"].format(object=names[source], target=names[target])
                     tasks.append(Task(family, self.names[source], self.names[target], instruction))
             self.available_tasks.append(tuple(tasks))
         self.available_tasks = tuple(self.available_tasks)

@@ -171,14 +171,14 @@ def env(request, tmp_path):
         "small": sim_utils.CuboidCfg(size=(0.04, 0.04, 0.04)),
         "large": sim_utils.CuboidCfg(size=(0.3, 0.25, 0.06)),
         "plate": sim_utils.UsdFileCfg(usd_path=str(plate_path)),
-        "box": sim_utils.UsdFileCfg(usd_path=str(path)),
+        "Box_A01": sim_utils.UsdFileCfg(usd_path=str(path)),
         "__empty__": sim_utils.SphereCfg(radius=0.001, visible=False),
     }
     worlds = (
         ("small", "plate", "__empty__"),
-        ("small", "small", "__empty__"),
+        ("small", "small", "plate"),
         ("large", "plate", "__empty__"),
-        ("small", "box", "plate"),
+        ("small", "Box_A01", "plate"),
     )
     table_path = tmp_path / "table.usda"
     _table(table_path)
@@ -231,7 +231,7 @@ def env(request, tmp_path):
             ]
             if label != "__empty__":
                 spawn.semantic_tags.append(("category", "object"))
-            if label in ("plate", "box"):
+            if label in ("plate", "Box_A01"):
                 spawn.semantic_tags.append(("category", "plate" if label == "plate" else "container"))
             candidates.append(spawn)
         collection[name] = RigidObjectCfg(
@@ -267,10 +267,11 @@ def env(request, tmp_path):
 def test_reset_intersects_workspace_and_table_and_binds_only_feasible_tasks(env):
     env.reset()
     state = env.tabletop
-    container_world = next(i for i, names in enumerate(state.object_names) if "box" in names)
+    container_world = next(i for i, names in enumerate(state.object_names) if "Box_A01" in names)
     large_world = next(i for i, names in enumerate(state.object_names) if "large" in names)
+    # World 1 holds a plate too, but its two objects share a name: no instruction could single one out.
     assert [len(state.available_tasks[i]) for i in (0, 1, large_world, container_world)] == [1, 0, 0, 2]
-    assert sorted(state.active.sum(1).tolist()) == [2, 2, 2, 3]
+    assert sorted(state.active.sum(1).tolist()) == [2, 2, 3, 3]
     assert not state.penetrating_worlds().any()
     assert all(surface.area == pytest.approx(0.864, abs=1e-6) for surface in state.surfaces[:2])
     assert state.surfaces[2].area < 0.05
@@ -320,6 +321,8 @@ def test_reset_intersects_workspace_and_table_and_binds_only_feasible_tasks(env)
     inside = next(i for i, task in enumerate(state.available_tasks[container_world]) if task.family == "in_box")
     state.set_task([0, container_world], [0, inside])
     env.reset()
+    # Instructions name objects in plain words, without the asset code of the catalog label.
+    assert state.instructions[container_world] == "Put small in box."
     target = state.objects.data.body_link_pose_w.torch
     for world, height in ((0, 0.072), (container_world, 0.031)):
         pose = target[world, state.target_ids[world]].clone()

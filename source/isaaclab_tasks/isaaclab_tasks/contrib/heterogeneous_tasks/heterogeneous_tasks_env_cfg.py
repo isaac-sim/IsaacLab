@@ -582,8 +582,12 @@ class VLAHeterogeneousEnvCfg(ManagerBasedRLEnvCfg):
     )
 
     tasks: dict[str, dict[str, str]] = {
-        "put_on_plate": {"target": "plate", "relation": "on", "instruction": "Place {object} on {target}."},
-        "put_in_container": {"target": "container", "relation": "in", "instruction": "Put {object} in {target}."},
-        "put_on_tray": {"target": "tray", "relation": "on", "instruction": "Place {object} on {target}."},
+        "put_on_plate": {"target": "plate", "relation": "on", "instruction": "Place the {object} on the {target}."},
+        "put_in_container": {
+            "target": "container",
+            "relation": "in",
+            "instruction": "Put the {object} in the {target}.",
+        },
+        "put_on_tray": {"target": "tray", "relation": "on", "instruction": "Place the {object} on the {target}."},
     }
     episode_length_s = 60.0

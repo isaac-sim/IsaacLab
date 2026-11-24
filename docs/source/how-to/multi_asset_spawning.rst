@@ -230,7 +230,10 @@ conditioning on the presence of a plate or container and no list of authored ben
 After reset, ``env.tabletop.available_tasks[world]`` lists the evaluable instruction bindings.
 ``put_on_plate`` requires a plate and a distinct movable object that fits its inset footprint;
 ``put_in_container`` similarly requires a container, and ``put_on_tray`` requires a tray. The current fit
-check uses conservative collision bounds with an inset for walls; it is not a grasp or motion planner. Reset selects an available binding
+check uses conservative collision bounds with an inset for walls; it is not a grasp or motion planner.
+Instructions name objects in plain words, without the asset codes of the catalog labels (``Ketchup_A02`` reads
+"ketchup"), and a binding is offered only when its object and its target are the only objects of their name in
+the world, so that the instruction singles them out. Reset selects an available binding
 and publishes ``env.tabletop.instructions``. To request another binding on the next reset, use
 ``env.tabletop.set_task([world], [binding_index])``. A world with no binding keeps its sampled objects,
 has an empty instruction and does not report task success. Success requires the selected object to stay
