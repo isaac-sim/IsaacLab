@@ -172,7 +172,8 @@ For example:
 ``OBJECT_COUNT = (2, 8)`` sets the bounds in the scene definition. ``OBJECTS_CFG`` is a complete
 ``RigidObjectCollectionCfg`` declaration; the scene references it directly. Customize or compose
 collection members using ``.copy()`` and ``.replace()`` before constructing the environment. Likewise,
-``CAMERA_CFG`` supplies the camera defaults and each view replaces its path, lens and offset. No
+``CAMERA_CFG`` supplies the camera defaults and each view replaces its path and offset; the exterior view
+looks over the robot's left shoulder, as in the DROID setup, and the wrist view also replaces the lens. No
 config factory or ``__post_init__`` hook generates scene fields or rewrites the event configuration.
 
 ``ASSET_CATALOG`` contains 100 NVIDIA-hosted SimReady movable assets: food, cans, bottles, bowls,

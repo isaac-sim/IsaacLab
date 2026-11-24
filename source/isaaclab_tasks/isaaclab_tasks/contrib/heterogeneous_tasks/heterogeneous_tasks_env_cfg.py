@@ -447,12 +447,10 @@ class TabletopSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.SphereLightCfg(intensity=5000.0, radius=0.5),
         init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, -0.6, 0.7)),
     )
+    # The exterior view of the DROID setup: over the robot's left shoulder, looking at the workspace.
     over_shoulder_left_camera = CAMERA_CFG.replace(
         prim_path="{ENV_REGEX_NS}/over_shoulder_left_camera",
-        spawn=CAMERA_CFG.spawn.replace(focal_length=4.2),
-        offset=CameraCfg.OffsetCfg(
-            pos=(1.2, 1.4, 1.5), rot=(0.07322545, 0.38665175, 0.90325868, 0.17106223), convention="opengl"
-        ),
+        offset=CameraCfg.OffsetCfg(pos=(0.05, 0.57, 0.66), rot=(-0.195, 0.399, 0.805, -0.393), convention="opengl"),
     )
     wrist_cam = CAMERA_CFG.replace(
         prim_path="{ENV_REGEX_NS}/robot/Gripper/Robotiq_2F_85/base_link/wrist_cam",
