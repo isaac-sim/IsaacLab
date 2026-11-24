@@ -18,7 +18,9 @@ from pxr import Usd, UsdGeom, UsdPhysics
 from isaaclab.assets import Asset
 from isaaclab.cloner import make_clone_plan
 from isaaclab.managers import CommandTerm, ObservationTermCfg, SceneEntityCfg
+from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim import MeshCapsuleCfg, MeshCuboidCfg, MultiAssetSpawnerCfg, use_stage
+from isaaclab.utils import validate
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_tasks.core.lift import mdp
@@ -31,7 +33,7 @@ from isaaclab_tasks.core.lift.mdp.commands.pose_commands import (
     ObjectUniformPoseCommand,
 )
 from isaaclab_tasks.core.lift.mdp.utils import collect_collision_meshes
-from isaaclab_tasks.utils.hydra import resolve_presets
+from isaaclab_tasks.utils.hydra import resolve_presets, resolve_task_config
 
 
 class _MarkerSpy:
@@ -451,6 +453,53 @@ def test_lift_contact_terms_match_per_sensor_reference() -> None:
     assert torch.equal(mdp.contacts(env, threshold, "thumb", names[1:]), torch.tensor([False, True, False]))
     torch.testing.assert_close(mdp.contact_count(env, threshold, names), torch.tensor([1 / 3, 2 / 3, 1 / 3]))
     assert not mdp.contacts(env, threshold, "thumb", []).any()
+
+
+@pytest.mark.kitless
+def test_so101_lift_play_configuration_requires_both_jaw_contacts() -> None:
+    """The registered play configuration must require contact on both sides of the grasp."""
+    cfg, agent = resolve_task_config(
+        "Isaac-Lift-SO101",
+        "rsl_rl_cfg_entry_point",
+        play_mode=True,
+        overrides=("physics=newton_mjwarp",),
+    )
+    validate(cfg)
+    validate(agent)
+    for groups in agent.obs_groups.values():
+        assert set(groups) <= vars(cfg.observations).keys()
+
+    # At the goal, static-jaw-only and moving-jaw-only contact must not earn success.
+    sensors = {}
+    for name, sensor in vars(cfg.scene).items():
+        if not isinstance(sensor, ContactSensorCfg):
+            continue
+        paths = [sensor.prim_path, *(sensor.filter_prim_paths_expr or [])]
+        if any(path.endswith("/Robot/gripper") for path in paths):
+            magnitudes = [2.0, 0.0, 2.0]
+        elif any(path.endswith("/Robot/moving_jaw_so101_v1") for path in paths):
+            magnitudes = [0.0, 2.0, 2.0]
+        else:
+            continue
+        forces = torch.tensor([[value, 0.0, 0.0] for value in magnitudes]).reshape(3, 1, 1, 3)
+        sensors[name] = SimpleNamespace(data=SimpleNamespace(normal_force_matrix_w=ProxyArray(wp.from_torch(forces))))
+
+    pose = SimpleNamespace(
+        root_pos_w=SimpleNamespace(torch=torch.zeros((3, 3))),
+        root_quat_w=SimpleNamespace(torch=torch.tensor([[0.0, 0.0, 0.0, 1.0]] * 3)),
+    )
+    scene = _FakeScene(torch.arange(3), robot=SimpleNamespace(data=pose), object=SimpleNamespace(data=pose))
+    scene.sensors = sensors
+    command = torch.tensor([[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]] * 3)
+    env = SimpleNamespace(
+        scene=scene,
+        device="cpu",
+        num_envs=3,
+        command_manager=SimpleNamespace(get_command=lambda _: command),
+    )
+    success = cfg.rewards.success.func(cfg.rewards.success, env)
+
+    torch.testing.assert_close(success(env, **cfg.rewards.success.params), torch.tensor([0.0, 0.0, 1.0]))
 
 
 def test_lift_point_cloud_markers_repeat_environment_ids_per_point() -> None:
