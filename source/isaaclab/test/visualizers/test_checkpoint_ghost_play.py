@@ -27,20 +27,22 @@ def _env_cfg(backend, scene=None, curriculum=None):
 
 
 def _args(**kwargs):
-    return SimpleNamespace(checkpoint_ghosts=True, checkpoint_ghost_slots=None, **kwargs)
+    return SimpleNamespace(checkpoint_ghosts=True, **kwargs)
+
+
+def _newton(**options):
+    return SimpleNamespace(visualizer_type="newton", **options)
 
 
 def test_nothing_is_checked_or_changed_without_the_flag():
-    args = SimpleNamespace(checkpoint_ghosts=False, checkpoint_ghost_slots=99)
+    args = SimpleNamespace(checkpoint_ghosts=False)
 
     play.check(args, object())
     play.prepare(args, object())
 
-    assert args.checkpoint_ghost_slots == 99
-
 
 def test_newton_among_several_selected_viewers_is_accepted():
-    backends = [SimpleNamespace(visualizer_type="viser"), SimpleNamespace(visualizer_type="newton")]
+    backends = [SimpleNamespace(visualizer_type="viser"), _newton()]
 
     play.check(_args(), _env_cfg(backends))
 
@@ -50,15 +52,18 @@ def test_without_newton_the_run_is_rejected():
         play.check(_args(), _env_cfg(SimpleNamespace(visualizer_type="viser")))
 
 
-def test_a_slot_count_out_of_range_fails_at_argument_parsing():
+def test_a_slot_count_out_of_range_is_rejected():
+    with pytest.raises(SystemExit, match="between 2 and"):
+        play.check(_args(), _env_cfg(_newton(checkpoint_ghost_slots=1)))
+
+
+def test_the_flag_is_the_only_command_line_option():
     import argparse
 
     parser = argparse.ArgumentParser()
     play.add_args(parser)
 
-    assert parser.parse_args(["--checkpoint_ghost_slots", "4"]).checkpoint_ghost_slots == 4
-    with pytest.raises(SystemExit):
-        parser.parse_args(["--checkpoint_ghost_slots", "1"])
+    assert vars(parser.parse_args(["--checkpoint_ghosts"])) == {"checkpoint_ghosts": True}
 
 
 def test_a_task_whose_curriculum_selects_the_reset_state_is_rejected():
@@ -68,21 +73,20 @@ def test_a_task_whose_curriculum_selects_the_reset_state_is_rejected():
     curriculum = SimpleNamespace(reset_dataset=SimpleNamespace(func=_ResetStateCurriculum))
 
     with pytest.raises(SystemExit, match="reset_dataset"):
-        play.check(_args(), _env_cfg(SimpleNamespace(visualizer_type="newton"), curriculum=curriculum))
+        play.check(_args(), _env_cfg(_newton(), curriculum=curriculum))
 
 
 def test_an_ordinary_curriculum_term_is_accepted():
     curriculum = SimpleNamespace(terrain_levels=SimpleNamespace(func=lambda env, env_ids: None))
 
-    play.check(_args(), _env_cfg(SimpleNamespace(visualizer_type="newton"), curriculum=curriculum))
+    play.check(_args(), _env_cfg(_newton(), curriculum=curriculum))
 
 
 def _slots(monkeypatch, total: int, slots: int | None):
     monkeypatch.setattr(play.CheckpointGhostSync, "configure_env_cfg", Mock())
-    args = _args()
-    args.checkpoint_ghost_slots = slots
-    play.prepare(args, SimpleNamespace(scene=SimpleNamespace(num_envs=total)))
-    return args.checkpoint_ghost_slots
+    cfg = _env_cfg(_newton(checkpoint_ghost_slots=slots), scene=SimpleNamespace(num_envs=total))
+    play.prepare(_args(), cfg)
+    return play._slot_count(cfg, total)
 
 
 def test_the_slots_default_to_eight_capped_at_num_envs(monkeypatch):
@@ -100,7 +104,15 @@ def test_a_single_environment_cannot_be_split(monkeypatch):
         _slots(monkeypatch, 1, None)
 
 
-def test_the_session_is_built_from_the_play_arguments(monkeypatch, tmp_path):
+def _run_env(viewers, **options):
+    cfg = _env_cfg(_newton(**options))
+    cfg.seed = 0
+    return SimpleNamespace(
+        unwrapped=SimpleNamespace(sim=SimpleNamespace(visualizers=viewers), step_dt=0.02, num_envs=16, cfg=cfg)
+    )
+
+
+def test_the_session_is_built_from_the_play_arguments_and_newton_options(monkeypatch, tmp_path):
     created = {}
 
     class _Session:
@@ -118,10 +130,8 @@ def test_the_session_is_built_from_the_play_arguments(monkeypatch, tmp_path):
     checkpoint.parent.mkdir()
     checkpoint.touch()
     viewer = Mock()
-    env = SimpleNamespace(unwrapped=SimpleNamespace(sim=SimpleNamespace(visualizers=[viewer]), step_dt=0.02, cfg="cfg"))
-    args = SimpleNamespace(
-        checkpoint_ghost_root=None, checkpoint_ghost_slots=4, task="Isaac-Reach-Franka", deterministic=False
-    )
+    env = _run_env([viewer], checkpoint_ghost_slots=4, checkpoint_ghost_root=str(tmp_path / "ghosts"))
+    args = SimpleNamespace(task="Isaac-Reach-Franka", deterministic=False)
     run_playback = Mock()
 
     play.run(
@@ -136,7 +146,7 @@ def test_the_session_is_built_from_the_play_arguments(monkeypatch, tmp_path):
 
     assert created["num_slots"] == 4
     assert created["task"] == "Isaac-Reach-Franka"
-    assert created["checkpoint_root"] == str(tmp_path)
+    assert created["checkpoint_root"] == str(tmp_path / "ghosts")  # the configured folder, not the log directory
     assert created["reference"].name == "model_5.pt"
     viewer.attach_checkpoint_ghosts.assert_called_once()
     run_playback.assert_called_once()
@@ -147,8 +157,8 @@ def test_the_session_is_closed_when_no_viewer_can_attach(monkeypatch, tmp_path):
     monkeypatch.setattr(play, "CheckpointGhostSession", Mock(return_value=session))
     checkpoint = tmp_path / "model_5.pt"
     checkpoint.touch()
-    env = SimpleNamespace(unwrapped=SimpleNamespace(sim=SimpleNamespace(visualizers=[object()]), step_dt=0.02))
-    args = SimpleNamespace(checkpoint_ghost_root=None, checkpoint_ghost_slots=2, task="t", deterministic=False)
+    env = _run_env([object()])
+    args = SimpleNamespace(task="t", deterministic=False)
 
     with pytest.raises(RuntimeError, match="initialized Newton GL visualizer"):
         play.run(
@@ -179,7 +189,7 @@ def test_a_direct_environment_is_accepted():
     from isaaclab.envs import DirectRLEnvCfg
 
     cfg = DirectRLEnvCfg.__new__(DirectRLEnvCfg)
-    cfg.sim = SimpleNamespace(visualizer_cfgs=[SimpleNamespace(backend=SimpleNamespace(visualizer_type="newton"))])
+    cfg.sim = SimpleNamespace(visualizer_cfgs=[SimpleNamespace(backend=_newton())])
 
     play.check(_args(), cfg)
 

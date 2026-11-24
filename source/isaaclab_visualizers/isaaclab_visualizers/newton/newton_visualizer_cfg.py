@@ -26,6 +26,15 @@ class NewtonGLBackendCfg(VisualizerBackendCfg):
     visualizer_type: str = "newton"
     cloning_contexts: ClassVar[tuple[type | str, ...]] = ("isaaclab_newton.cloner:NewtonReplicateContext",)
 
+    checkpoint_ghost_slots: int | None = None
+    """Most checkpoints Checkpoint Ghosts show at once, including the reference (2 to 8).
+
+    Defaults to 8, capped at the number of environments. Only used with ``--checkpoint_ghosts``.
+    """
+
+    checkpoint_ghost_root: str | None = None
+    """Directory the Checkpoint Ghosts browser searches for checkpoints. Defaults to the experiment's log directory."""
+
     world_spacing: tuple[float, float, float] = (0.0, 0.0, 0.0)
     """Visual spacing between simulation worlds along each axis [m].
 

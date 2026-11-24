@@ -36,16 +36,8 @@ _RUN_MANIFEST_FILENAME = "run.json"
 """Name of the manifest that training writes into a run directory (``isaaclab_rl.entrypoints.common``)."""
 
 
-def _slot_count(value: str) -> int:
-    """Parse ``--checkpoint_ghost_slots``, so a bad count fails at argument parsing like any other flag."""
-    count = int(value)
-    if not 2 <= count <= MAX_CHECKPOINT_GHOST_SLOTS:
-        raise argparse.ArgumentTypeError(f"must be between 2 and {MAX_CHECKPOINT_GHOST_SLOTS}.")
-    return count
-
-
 def add_args(parser: argparse.ArgumentParser) -> None:
-    """Add the Checkpoint Ghosts flags to a play script's parser."""
+    """Add the Checkpoint Ghosts flag to a play script's parser."""
     parser.add_argument(
         "--checkpoint_ghosts",
         action="store_true",
@@ -53,23 +45,30 @@ def add_args(parser: argparse.ArgumentParser) -> None:
         help=(
             "Enable Checkpoint Ghosts, the checkpoint visualization in the Newton GL viewer. The --checkpoint drives"
             " the reference; ghosts are added from the viewer HUD. --num_envs is the total simulated and is split"
-            " evenly among the checkpoints shown."
+            " evenly among the checkpoints shown. The slot count and browser folder are Newton visualizer options"
+            " (checkpoint_ghost_slots, checkpoint_ghost_root)."
         ),
     )
-    parser.add_argument(
-        "--checkpoint_ghost_slots",
-        type=_slot_count,
-        default=None,
-        help=(
-            f"Most checkpoints shown at once, including the reference (2 to {MAX_CHECKPOINT_GHOST_SLOTS}). Defaults to"
-            f" {MAX_CHECKPOINT_GHOST_SLOTS}, capped at --num_envs."
-        ),
-    )
-    parser.add_argument(
-        "--checkpoint_ghost_root",
-        default=None,
-        help="Directory searched for ghost checkpoints. Defaults to the experiment's log directory.",
-    )
+
+
+def _newton_cfg(env_cfg: Any) -> Any | None:
+    """Return the Newton viewer's options from the environment config, or None when it is not selected."""
+    visualizers = env_cfg.sim.visualizer_cfgs or []
+    if not isinstance(visualizers, (list, tuple)):
+        visualizers = [visualizers]
+    # A shared visualizer configuration names its type on its backend; a deprecated combined one names it directly.
+    for cfg in visualizers:
+        backend = getattr(cfg, "backend", None)
+        for chosen in backend if isinstance(backend, (list, tuple)) else [backend]:  # --viz newton,viser selects both
+            if (getattr(chosen, "visualizer_type", None) or getattr(cfg, "visualizer_type", None)) == "newton":
+                return chosen
+    return None
+
+
+def _slot_count(env_cfg: Any, num_envs: int) -> int:
+    """Return how many checkpoints can be shown at once: the configured count, capped at the environments."""
+    slots = getattr(_newton_cfg(env_cfg), "checkpoint_ghost_slots", None) or MAX_CHECKPOINT_GHOST_SLOTS
+    return min(slots, num_envs)
 
 
 def check(args_cli: argparse.Namespace, env_cfg: Any) -> None:
@@ -81,17 +80,12 @@ def check(args_cli: argparse.Namespace, env_cfg: Any) -> None:
         return
     if not isinstance(env_cfg, (ManagerBasedRLEnvCfg, DirectRLEnvCfg)):
         raise SystemExit("--checkpoint_ghosts only supports single-agent environments.")
-    visualizers = env_cfg.sim.visualizer_cfgs or []
-    if not isinstance(visualizers, (list, tuple)):
-        visualizers = [visualizers]
-    # A shared visualizer configuration names its type on its backend; a deprecated combined one names it directly.
-    types = []
-    for cfg in visualizers:
-        backend = getattr(cfg, "backend", None)
-        for chosen in backend if isinstance(backend, (list, tuple)) else [backend]:  # --viz newton,viser selects both
-            types.append(getattr(chosen, "visualizer_type", None) or getattr(cfg, "visualizer_type", None))
-    if "newton" not in types:
+    newton = _newton_cfg(env_cfg)
+    if newton is None:
         raise SystemExit("--checkpoint_ghosts requires the Newton GL visualizer; pass --visualizer newton.")
+    slots = getattr(newton, "checkpoint_ghost_slots", None)
+    if slots is not None and not 2 <= slots <= MAX_CHECKPOINT_GHOST_SLOTS:
+        raise SystemExit(f"checkpoint_ghost_slots must be between 2 and {MAX_CHECKPOINT_GHOST_SLOTS}.")
     curriculum = getattr(env_cfg, "curriculum", None)
     for name, term in vars(curriculum).items() if curriculum is not None else ():
         # Checkpoint Ghosts disable curriculum terms, so a task whose reset events read a term's state cannot run.
@@ -112,14 +106,9 @@ def prepare(args_cli: argparse.Namespace, env_cfg: ManagerBasedRLEnvCfg | Direct
     total = env_cfg.scene.num_envs
     if total < 2:
         raise SystemExit("--checkpoint_ghosts needs --num_envs of at least 2: one environment per checkpoint.")
-    slots = args_cli.checkpoint_ghost_slots
-    if slots is None:
-        slots = MAX_CHECKPOINT_GHOST_SLOTS
-    if slots > total:
-        if args_cli.checkpoint_ghost_slots is not None:
-            logger.warning(f"--checkpoint_ghost_slots {slots} exceeds --num_envs {total}; using {total} slots.")
-        slots = total
-    args_cli.checkpoint_ghost_slots = min(slots, MAX_CHECKPOINT_GHOST_SLOTS)
+    requested = getattr(_newton_cfg(env_cfg), "checkpoint_ghost_slots", None)
+    if requested is not None and requested > total:
+        logger.warning(f"checkpoint_ghost_slots {requested} exceeds --num_envs {total}; using {total} slots.")
     CheckpointGhostSync.configure_env_cfg(env_cfg)
     if isinstance(env_cfg, DirectRLEnvCfg):
         logger.warning(
@@ -155,17 +144,19 @@ def run(
         policy_factory: Builds the inference policy of a checkpoint file.
         checkpoint_pattern: Regular expression matching the library's checkpoint file names.
         reference_path: Checkpoint driving the reference slot.
-        log_root_path: The experiment's log directory, where the checkpoint window starts by default.
+        log_root_path: The experiment's log directory, where the checkpoint window starts unless the Newton options name
+            a ``checkpoint_ghost_root``.
         run_playback: The play script's playback loop, called with ``step``, ``dt``, ``args_cli`` and ``env_cfg``.
     """
     if args_cli.deterministic:
         configure_seed(env.unwrapped.cfg.seed, torch_deterministic=True)  # no runner is built here, so seed up front
     reference_file = Path(reference_path)
+    root = getattr(_newton_cfg(env.unwrapped.cfg), "checkpoint_ghost_root", None) or log_root_path
     session = CheckpointGhostSession(
         env.unwrapped,  # the Isaac Lab environment: its observation groups and 5-tuple step, free of library wrappers
-        num_slots=args_cli.checkpoint_ghost_slots,
+        num_slots=_slot_count(env.unwrapped.cfg, env.unwrapped.num_envs),
         task=args_cli.task,
-        checkpoint_root=os.path.abspath(args_cli.checkpoint_ghost_root or log_root_path),
+        checkpoint_root=os.path.abspath(root),
         checkpoint_pattern=checkpoint_pattern,
         policy_factory=policy_factory,
         reference=CheckpointGhostCheckpoint(

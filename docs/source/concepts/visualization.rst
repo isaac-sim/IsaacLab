@@ -829,10 +829,11 @@ start from the same terrain, spawn pose, and commands, so the policy is the only
 
 ``--num_envs`` is the total simulated and is split evenly among the checkpoints shown: the reference starts with all of
 them, and each checkpoint you add resizes every slot. A plain ``play`` run shows a greyed-out section that explains the
-flag. ``--checkpoint_ghost_slots`` caps the checkpoints shown (default eight).
+flag. The Newton backend options ``checkpoint_ghost_slots`` (default eight) and ``checkpoint_ghost_root`` set how many
+checkpoints are shown at most and where the browser starts.
 
 In the **Checkpoint Ghosts** section, **Add Checkpoint...** browses folders for the library's checkpoint files, starting in
-the experiment's log directory or ``--checkpoint_ghost_root``. Each ghost can be shown, changed, or removed, and has
+the experiment's log directory or ``checkpoint_ghost_root``. Each ghost can be shown, changed, or removed, and has
 opacity and tint under **Appearance**. The controls are disabled in the RTX view; switch the Renderer to OpenGL.
 
 Limitations:
