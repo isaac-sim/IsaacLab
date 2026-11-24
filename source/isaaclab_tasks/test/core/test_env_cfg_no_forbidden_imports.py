@@ -63,7 +63,7 @@ _FORBIDDEN_PREFIXES = (
 )
 
 _ALL_ISAAC_TASKS = sorted(
-    name for name in gymnasium.registry if name.startswith("Isaac-") or name == "IsaacContrib-Factory-Franka"
+    name for name in gymnasium.registry if name.startswith("Isaac-") or name == "IsaacContrib-NIST-Franka"
 )
 
 # ---------------------------------------------------------------------------
