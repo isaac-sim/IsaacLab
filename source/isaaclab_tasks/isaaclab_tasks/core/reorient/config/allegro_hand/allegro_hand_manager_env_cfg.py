@@ -5,12 +5,14 @@
 
 """Manager-based counterpart of the Allegro Hand Direct reorientation task."""
 
+from isaaclab_neural.physics import MJWarpNeRDSolverCfg
+
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 
-from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.utils import PresetCfg, preset
 
 from isaaclab_assets.robots.allegro import ALLEGRO_ACTUATED_JOINT_NAMES, ALLEGRO_FINGERTIP_BODY_NAMES
 
@@ -23,6 +25,24 @@ from .allegro_hand_common import (
     GOAL_OBJECT_CFG,
     PhysicsCfg,
 )
+
+
+@configclass
+class AllegroHandManagerPhysicsCfg(PhysicsCfg):
+    """Physics presets of the manager-based task.
+
+    ``physics=newton_mjwarp_nerd`` predicts the free acceleration of the hand with a FlashNeRD model inside MuJoCo
+    Warp, which still resolves the contact with the cube.
+    """
+
+    newton_mjwarp_nerd = replace(
+        PhysicsCfg().newton_mjwarp,
+        solver_cfg=MJWarpNeRDSolverCfg.from_mjwarp(
+            PhysicsCfg().newton_mjwarp.solver_cfg,
+            checkpoint="logs/neural/allegro_hand/flashnerd.pt",
+            articulation=ALLEGRO_HAND_ROBOT_CFG.prim_path,
+        ),
+    )
 
 
 @configclass
@@ -143,4 +163,10 @@ class AllegroHandManagerEnvCfg(ReorientManagerEnvBaseCfg):
         super().__post_init__()
         self.commands.object_pose.marker_pos_offset = GOAL_MARKER_OFFSET
         # simulation settings
-        self.sim.physics = PhysicsCfg()
+        self.sim.physics = AllegroHandManagerPhysicsCfg()
+        # The model stands for the nominal hand and does not see a randomized mass or randomized gains of the hand.
+        randomized = self.events.randomized
+        randomized.robot_scale_mass = preset(default=randomized.robot_scale_mass, newton_mjwarp_nerd=None)
+        randomized.robot_joint_stiffness_and_damping = preset(
+            default=randomized.robot_joint_stiffness_and_damping, newton_mjwarp_nerd=None
+        )

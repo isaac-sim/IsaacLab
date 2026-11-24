@@ -465,10 +465,10 @@ Use ``all`` for the curated list above. Isaac Sim, standalone importers, special
 
 .. note::
 
-   RL-Games and Robomimic are not included in the published wheel metadata because the versions
-   used by Isaac Lab are installed from Git and do not provide package-index wheels. To use either
-   integration, install Isaac Lab from a source checkout and select the ``rl-games`` or ``mimic``
-   extra there.
+   RL-Games, Robomimic, and ``newton-neural`` are not included in the published wheel metadata because
+   the versions used by Isaac Lab are installed from Git and do not provide package-index wheels. To use
+   one of these integrations, install Isaac Lab from a source checkout and select the ``rl-games``,
+   ``mimic``, or ``newton-neural`` extra there.
 
 .. note::
 

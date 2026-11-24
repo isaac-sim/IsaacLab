@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 
 import torch
 from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
+from isaaclab_neural.physics import NeRDSolverCfg
 from isaaclab_newton.controllers.ik.newton_ik_objectives_cfg import (
     NewtonIKJointLimitObjectiveCfg,
     NewtonIKPoseObjectiveCfg,
@@ -145,6 +146,11 @@ class FrankaReachEnvCfg(ReachEnvCfg):
             self.sim.physics, NewtonCfg
         ):
             raise ValueError("The 'newton_ik' action preset requires a Newton physics preset.")
+        if isinstance(getattr(self.sim.physics, "solver_cfg", None), NeRDSolverCfg):
+            if not isinstance(self.actions.arm_action, mdp.JointPositionActionCfg):
+                raise ValueError("The 'newton_nerd' physics preset requires the Franka joint-position action.")
+            if self.observations.policy.ee_target_error is not None:
+                raise ValueError("The 'newton_nerd' physics preset does not support the 'hold' preset.")
 
     def __post_init__(self):
         super().__post_init__()
@@ -167,6 +173,16 @@ class FrankaReachEnvCfg(ReachEnvCfg):
         steel_solver.update_mass_matrix_interval = 4
         steel_solver.articulation_constraint_max = 16
         steel_solver.enable_joint_velocity_limits = False
+        # ``physics=newton_nerd`` steps the arm and its joint drives with a FlashNeRD model in place of MuJoCo Warp.
+        nerd = replace(
+            self.sim.physics.newton_mjwarp,
+            class_type="isaaclab_neural.physics.newton_nerd_manager:NewtonNeRDManager",
+            solver_cfg=NeRDSolverCfg(
+                checkpoint="logs/neural/reach_franka/flashnerd.pt", articulation=self.scene.robot.prim_path
+            ),
+            num_substeps=1,
+        )
+        self.sim.physics = preset(**vars(self.sim.physics), newton_nerd=nerd)
         self.scene.robot.spawn.variants["Colliders"] = preset(
             default=FRANKA_PANDA_CFG.spawn.variants["Colliders"],
             minimal=FRANKA_MINIMAL_CFG.spawn.variants["Colliders"],

@@ -66,6 +66,9 @@ class FrankaReachEnvCfg(franka_reach_env_cfg.FrankaReachEnvCfg):
         steel_solver.update_mass_matrix_interval = 2
         steel_solver.articulation_constraint_max = 64
         steel_solver.enable_joint_velocity_limits = True
+        # The model of the joint-position task stands for the arm with its position drives, not for this controller.
+        physics = {name: value for name, value in vars(self.sim.physics).items() if name != "newton_nerd"}
+        self.sim.physics = preset(**physics)
 
         # The OSC action term replaces the parent's arm-controller presets, so the parent's controller-keyed
         # variants would only zero the action-magnitude reward weight or attach 6D teleop devices here. Resolve

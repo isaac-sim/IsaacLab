@@ -3,8 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.utils import configclass
+from isaaclab_neural.physics import NeRDSolverCfg
 
+from isaaclab.actuators import ImplicitActuatorCfg
+from isaaclab.utils import configclass, replace
+
+from isaaclab_tasks.utils import preset
+
+from .nerd_recipe_cfg import AnymalCFlatNeRDRecipeCfg
 from .rough_env_cfg import AnymalCRoughEnvCfg
 
 
@@ -33,3 +39,43 @@ class AnymalCFlatEnvCfg(AnymalCRoughEnvCfg):
         self.rewards.feet_air_time.weight = 0.5
         # curriculum
         self.curriculum.terrain_levels = None
+
+        # ``physics=newton_nerd`` steps the robot with a FlashNeRD model, which stands for MuJoCo Warp and for the
+        # actuator network of the legs.
+        nerd = replace(
+            newton_mjwarp,
+            class_type="isaaclab_neural.physics.newton_nerd_manager:NewtonNeRDManager",
+            solver_cfg=NeRDSolverCfg(
+                checkpoint="logs/neural/anymal_c_flat/flashnerd.pt",
+                articulation=self.scene.robot.prim_path,
+                precision="fp16",
+            ),
+            num_substeps=1,
+            # A margin of 2 mm keeps the contact sensors on when a predicted foot hovers just above the ground.
+            default_shape_cfg=replace(newton_mjwarp.default_shape_cfg, margin=0.002),
+        )
+        self.sim.physics = preset(**vars(self.sim.physics), newton_nerd=nerd)
+        # The presets were built again, so the default is tied to its alternative once more.
+        self.sim.physics.default = self.sim.physics.isaacsim_physx
+        # The joint targets pass straight on to the model. The gains [N*m/rad, N*m*s/rad] only estimate the joint
+        # efforts that the torque penalty reads.
+        legs = self.scene.robot.actuators["legs"]
+        pass_through = ImplicitActuatorCfg(
+            joint_names_expr=legs.joint_names_expr,
+            stiffness=75.0,
+            damping=4.0,
+            actuator_effort_limit=legs.actuator_effort_limit,
+            actuator_velocity_limit=legs.actuator_velocity_limit,
+        )
+        self.scene.robot.actuators["legs"] = preset(default=legs, newton_nerd=pass_through)
+        # The joint targets [rad] stay within the range that the model was recorded on, whatever sets the actions.
+        reach = AnymalCFlatNeRDRecipeCfg().target_reach
+        recorded = {
+            joints: (angle - reach, angle + reach) for joints, angle in self.scene.robot.init_state.joint_pos.items()
+        }
+        self.actions.joint_pos.clip = preset(default=self.actions.joint_pos.clip, newton_nerd=recorded)
+        # The model carries the friction it was recorded with and stands for the nominal robot, so the startup events
+        # that set friction, mass and centre of mass are off.
+        self.events.physics_material = preset(default=self.events.physics_material, newton_nerd=None)
+        self.events.add_base_mass = preset(default=self.events.add_base_mass, newton_nerd=None)
+        self.events.base_com = preset(default=self.events.base_com, newton_nerd=None)
