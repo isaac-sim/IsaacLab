@@ -8,9 +8,12 @@
 import contextlib
 import ctypes
 import importlib.util
+import logging
 import sys
 import types
 from builtins import ExceptionGroup
+from collections.abc import Callable
+from typing import Literal
 from unittest.mock import MagicMock, call
 
 import numpy as np
@@ -118,6 +121,7 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer.scene.clone_env_paths = ["/World/envs/env_0", "/World/envs/env_1"]
     renderer.backend.attached = False
     renderer.backend.render_products = set()
+    renderer.backend.unrendered = {}
     cfg = OVRTXBackendCfg(scene_key=renderer.cfg, use_ovstage=False, read_gpu_transforms=True, device="cpu")
     renderer.scene.stage = renderer.scene.paths = None
     renderer.backend.cfg = cfg
@@ -473,6 +477,730 @@ def test_ovrtx_failed_frame_error_names_the_render_product_split(mode, failed_fr
         assert notes == []
 
 
+_FAILED_FRAME = (
+    "Operation 'step(dt=0.0)' failed:\n  Failed to step the stage: The renderer failed to produce a frame"
+    " (render_products='/RenderCamera_0/RenderProduct'). See the preceding errors."
+)
+
+
+def _add_search_camera(
+    renderer: OVRTXRenderer, name: str, num_envs: int, max_envs: int | Literal["auto", "all"], width: int
+):
+    """Register one square ``rgb`` sensor of ``num_envs`` environments with ``renderer``."""
+    cfg = _make_camera_cfg(["rgb"])
+    cfg.width = cfg.height = width
+    cfg.max_envs_per_render_product = max_envs
+    paths = tuple(f"/World/envs/env_{i}/{name}" for i in range(num_envs))
+    return renderer.create_render_data(CameraRenderSpec(cfg, "cpu", num_envs, paths, num_envs))
+
+
+def _make_search_cameras(
+    monkeypatch, use_ovstage: bool, num_envs: int, cameras: list[tuple[int | Literal["auto", "all"], int]]
+):
+    """Return a mocked renderer and one registered sensor per ``(max_envs_per_render_product, width)``."""
+    renderer = _make_mocked_scene_renderer(monkeypatch, use_ovstage, [f"/World/envs/env_{i}" for i in range(num_envs)])
+    renderer.scene.paths.intern_path.side_effect = lambda path: types.SimpleNamespace(raw_id=0)
+    renderer.scene.paths.intern_token.side_effect = lambda token: types.SimpleNamespace(raw_id=0)
+    monkeypatch.setattr(renderer, "_process_render_frame", MagicMock())
+    build = ovrtx_renderer_module.build_render_product_as_string
+    # The CPU device has the ordinal -1, and USD cannot parse -1 in the uint[] deviceIds of the layer.
+    monkeypatch.setattr(
+        ovrtx_renderer_module,
+        "build_render_product_as_string",
+        lambda *args, **kwargs: build(*args, **{**kwargs, "device_id": 0}),
+    )
+    return renderer, [
+        _add_search_camera(renderer, f"cam{index}", num_envs, max_envs, width)
+        for index, (max_envs, width) in enumerate(cameras)
+    ]
+
+
+def _install_step(renderer: OVRTXRenderer, fails: Callable[[set[str]], bool], error: str = _FAILED_FRAME) -> list:
+    """Replace the native steps with fakes that raise ``error`` when ``fails`` returns True for their render products.
+
+    Returns:
+        The render product set of every native step, in submission order.
+    """
+    submissions = []
+
+    def step(*, render_products, **kwargs):
+        submissions.append(set(render_products))
+        if fails(render_products):
+            raise RuntimeError(error)
+        return {path: types.SimpleNamespace(frames=[object()]) for path in render_products}
+
+    def step_async(**kwargs):
+        # Cameras keep operations in sets, so the fake must be hashable.
+        operation = MagicMock()
+        try:
+            operation.wait.return_value.fetch.return_value = step(**kwargs)
+        except RuntimeError as failure:
+            operation.wait.side_effect = failure
+        return operation
+
+    renderer.backend.renderer.step = step
+    renderer.backend.renderer.step_async = step_async
+    return submissions
+
+
+def _assert_no_product_stepped_twice(submissions: list[set[str]]) -> None:
+    """Check that no render product is in two steps. OVRTX can abort when it renders a failed render product again."""
+    assert sum(map(len, submissions)) == len(set().union(*submissions))
+
+
+def _referenced_render_vars(add_usd_reference: MagicMock) -> dict[str, list[str]]:
+    """Reference the layer of the last call to ``add_usd_reference`` at the path of that call, like the scene does.
+
+    Returns:
+        The RenderVar paths of each render product in the composed layer.
+    """
+    from pxr import Sdf, Usd
+
+    *_, usd, path = add_usd_reference.call_args.args
+    layer = Sdf.Layer.CreateAnonymous(".usda")
+    assert layer.ImportFromString(usd)
+    stage = Usd.Stage.CreateInMemory()
+    stage.DefinePrim(path).GetReferences().AddReference(layer.identifier)
+    return {
+        str(prim.GetPath()): [str(target) for target in prim.GetRelationship("orderedVars").GetTargets()]
+        for prim in stage.Traverse()
+        if prim.GetTypeName() == "RenderProduct"
+    }
+
+
+@pytest.mark.parametrize(
+    ("use_ovstage", "asynchronous"), [(False, False), (True, False), (False, True)], ids=["legacy", "ovstage", "async"]
+)
+def test_ovrtx_render_batch_halves_envs_per_render_product_while_the_first_frame_fails(
+    monkeypatch, caplog, use_ovstage, asynchronous
+):
+    """A sensor with "auto" starts with one product, and each failed first frame halves its environments per product."""
+    renderer, (camera,) = _make_search_cameras(monkeypatch, use_ovstage, 5, [("auto", 64)])
+    renderer.cfg.async_rendering = asynchronous
+    # The legacy path fails in its first step with zero time. The asynchronous mode fails in the wait for the operation.
+    renderer._needs_transform_initialization = not use_ovstage and not asynchronous
+    fail_all = False
+    submissions = _install_step(renderer, lambda products: fail_all or len(products) < 3)
+
+    with caplog.at_level(logging.WARNING):
+        renderer.render_batch([camera])
+    renderer.read_output(camera)
+
+    # 5 -> (3, 2) -> (2, 2, 1). Each layout has a scope of its own and no failed layout is stepped again.
+    layouts = [
+        {"/RenderCamera_0/RenderProduct"},
+        {"/RenderCamera_1/RenderProduct_0", "/RenderCamera_1/RenderProduct_1"},
+        {f"/RenderCamera_2/RenderProduct_{k}" for k in range(3)},
+    ]
+    # On the legacy path, the working layout is stepped two times: first with zero time, then for the frame.
+    assert submissions == layouts + ([] if use_ovstage or asynchronous else [layouts[2]])
+    assert [product.num_envs for product in camera.products] == [2, 2, 1]
+    # The scene references the layer of the last layout at its scope. The layer defines the stepped render products,
+    # and they render the RenderVar that the sensor reads its rgb output from.
+    population = ovrtx_renderer_module.ovstage.population if use_ovstage else renderer.backend.renderer
+    assert _referenced_render_vars(population.add_usd_reference_from_string) == {
+        path: [camera.render_var_keys["LdrColor"]] for path in layouts[2]
+    }
+    assert renderer.backend.render_products == layouts[2]
+    assert not renderer.backend.unrendered
+    assert "max_envs_per_render_product=2 " in caplog.text
+    assert renderer._process_render_frame.call_count == 3
+
+    # A layout that rendered is final: a later failure reaches the caller.
+    fail_all = True
+    if asynchronous:
+        renderer.render_batch([camera])
+        # A camera sensor that registers now first waits for the pending frame. Its error raises before the scene
+        # changes.
+        with pytest.raises(ExceptionGroup, match="before render product registration") as group:
+            _add_search_camera(renderer, "late", 5, "auto", 64)
+        (failure,) = group.value.exceptions
+        assert "failed to produce a frame" in str(failure)
+        camera.pending = camera.ready = None
+    else:
+        with pytest.raises(RuntimeError, match="failed to produce a frame"):
+            renderer.render_batch([camera])
+    assert submissions[-1] == layouts[2]
+    assert renderer.backend.render_products == layouts[2]
+
+    renderer.cleanup(camera)
+    assert population.remove_usd.call_count == 3
+    assert renderer.backend.render_products == set()
+
+
+@pytest.mark.parametrize(
+    ("use_ovstage", "asynchronous", "num_envs", "products_per_step"),
+    [
+        # 64 environments stop after the limit of 4 smaller layouts, with 4 environments per render product.
+        pytest.param(False, False, 64, [1, 2, 4, 8, 16], id="limit-legacy"),
+        pytest.param(False, True, 64, [1, 2, 4, 8, 16], id="limit-async"),
+        # 4 environments stop after 2 smaller layouts, because 1 environment per render product cannot be halved.
+        pytest.param(True, False, 4, [1, 2, 4], id="one-env-ovstage"),
+    ],
+)
+def test_ovrtx_render_batch_stops_the_split_search_after_the_last_smaller_layout(
+    monkeypatch, caplog, use_ovstage, asynchronous, num_envs, products_per_step
+):
+    """The search tries each smaller layout one time, down to 1 environment per render product.
+
+    It tries at most 4 smaller layouts. Then it raises the last failure.
+    """
+    renderer, (camera,) = _make_search_cameras(monkeypatch, use_ovstage, num_envs, [("auto", 64)])
+    renderer.cfg.async_rendering = asynchronous
+    submissions = _install_step(renderer, lambda products: True)
+
+    with pytest.raises(RuntimeError, match="failed to produce a frame") as error:
+        renderer.render_batch([camera])
+
+    assert [len(products) for products in submissions] == products_per_step
+    (note,) = error.value.__notes__
+    assert f"also failed with {len(products_per_step) - 1} smaller render product layout(s)" in note
+    assert "Smaller render products do not fix a lack of GPU memory" in note
+
+    # The camera left the steps. A later render batch raises at once and steps nothing.
+    assert camera not in renderer.backend.unrendered
+    assert renderer.backend.render_products == set()
+    with pytest.raises(RuntimeError, match="renders no frames.*max_envs_per_render_product") as later:
+        renderer.render_batch([camera])
+    assert later.value.__cause__ is error.value
+    assert [len(products) for products in submissions] == products_per_step
+    _assert_no_product_stepped_twice(submissions)
+    assert not caplog.records
+
+
+@pytest.mark.parametrize("max_envs, layout", [(4, [4, 4]), ("all", [8])], ids=["integer", "all"])
+def test_ovrtx_render_batch_does_not_search_without_auto(monkeypatch, caplog, max_envs, layout):
+    """A failed frame of a sensor with "all" or an integer reaches the caller after one step, with the same layout."""
+    renderer, (camera,) = _make_search_cameras(monkeypatch, False, 8, [(max_envs, 64)])
+    failed = camera.render_product_paths
+    submissions = _install_step(renderer, lambda products: True)
+
+    with caplog.at_level(logging.WARNING), pytest.raises(RuntimeError, match="failed to produce a frame") as error:
+        renderer.render_batch([camera])
+
+    assert submissions == [set(failed)]
+    (text,) = error.value.__notes__
+    assert f"{camera.camera_paths[0]!r} ({layout[0]} environments)" in text
+    # The same layout moves to a new scope, so a later render batch does not step the failed products again.
+    assert [product.num_envs for product in camera.products] == layout
+    assert renderer.backend.render_products == set(camera.render_product_paths)
+    assert not renderer.backend.render_products & set(failed)
+    assert camera.first_frame_error is None
+    assert not caplog.records
+
+
+def test_ovrtx_split_search_names_an_auto_sensor_without_one_camera_path_per_environment(monkeypatch, caplog):
+    """The search cannot split an "auto" sensor with only one camera path. A warning and the error note name it."""
+    renderer, _ = _make_search_cameras(monkeypatch, False, 8, [])
+    cfg = _make_camera_cfg(["rgb"])
+    # The camera is not below an environment root, so the renderer cannot complete its camera paths.
+    cfg.prim_path = "/World/Camera"
+    with caplog.at_level(logging.WARNING):
+        camera = renderer.create_render_data(CameraRenderSpec(cfg, "cpu", 8, ("/World/Camera",), 8))
+    assert not camera.searches_split
+    assert [record.levelno for record in caplog.records] == [logging.WARNING]
+    for text in ("/World/Camera", "1 camera path", "8 environments"):
+        assert text in caplog.messages[0]
+    submissions = _install_step(renderer, lambda products: True)
+
+    with pytest.raises(RuntimeError, match="failed to produce a frame") as error:
+        renderer.render_batch([camera])
+
+    assert len(submissions) == 1
+    (text,) = error.value.__notes__
+    assert "only with one camera path per environment" in text
+    assert "'/World/Camera' (8 environments)" in text
+    assert [product.num_envs for product in camera.products] == [8]
+
+
+@pytest.mark.parametrize(
+    "written, failing_write",
+    [(0, "add_usd_reference_from_string"), (1, "add_usd_reference_from_string"), (1, "query_prims")],
+    ids=["first-write-fails", "last-write-fails", "last-copy-fails"],
+)
+def test_ovrtx_split_search_retires_every_failed_product_before_a_scene_write(monkeypatch, written, failing_write):
+    """A scene write that fails during the search leaves no failed render product in the submitted set.
+
+    The sensors without new render products leave the search. Their later renders name the write error as the cause.
+    """
+    renderer, cameras = _make_search_cameras(monkeypatch, False, 8, [("auto", 64), ("auto", 64)])
+    failed = set(renderer.backend.render_products)
+    submissions = _install_step(renderer, lambda products: True)
+    # The scene writes of the first ``written`` sensors succeed, and the write of the next sensor fails. query_prims
+    # starts the copy of the render product attributes, after the new render products joined the steps.
+    scene_writes = [MagicMock()] * written + [OSError("scene write")]
+    getattr(renderer.backend.renderer, failing_write).side_effect = scene_writes
+
+    with pytest.raises(OSError, match="scene write") as error:
+        renderer.render_batch(cameras)
+
+    assert "failed to produce a frame" in str(error.value.__context__)
+    # Only the new render products of the written sensors remain. No sensor keeps a failed one.
+    assert renderer.backend.render_products == set().union(*(c.render_product_paths for c in cameras[:written]))
+    assert not renderer.backend.render_products & failed
+    assert list(renderer.backend.unrendered) == cameras[:written]
+    # A later render batch raises at once and steps nothing.
+    steps = len(submissions)
+    with pytest.raises(RuntimeError, match="renders no frames.*max_envs_per_render_product") as later:
+        renderer.render_batch(cameras)
+    assert later.value.__cause__ is error.value
+    assert len(submissions) == steps
+
+
+def test_ovrtx_split_search_retires_every_failed_product_before_an_interrupted_scene_write(monkeypatch):
+    """An interrupt in the first scene write of the search leaves no failed render product in the submitted set.
+
+    An interrupt, for example Ctrl+C, is no ``Exception``, so it skips the clean-up after a failed scene write. OVRTX
+    can abort when a later step renders a failed render product again.
+    """
+    renderer, cameras = _make_search_cameras(monkeypatch, False, 8, [("auto", 64), ("auto", 64)])
+    failed = set(renderer.backend.render_products)
+    _install_step(renderer, lambda products: True)
+    renderer.backend.renderer.add_usd_reference_from_string.side_effect = KeyboardInterrupt
+
+    with pytest.raises(KeyboardInterrupt):
+        renderer.render_batch(cameras)
+
+    # The second sensor gets no scene write, but its failed render products also left the steps.
+    assert not renderer.backend.render_products & failed
+
+
+def test_ovrtx_split_search_leaves_out_a_sensor_removed_before_its_first_frame(monkeypatch):
+    """A sensor removed before its first frame gets no new render products when the first frame fails."""
+    renderer, (kept, removed) = _make_search_cameras(monkeypatch, False, 8, [("auto", 64), ("auto", 64)])
+    renderer.cleanup(removed)
+    failed = kept.render_product_paths
+    add_usd_reference = renderer.backend.renderer.add_usd_reference_from_string
+    add_usd_reference.reset_mock()
+    submissions = _install_step(renderer, lambda products: len(products) < 2)
+
+    renderer.render_batch([kept])
+
+    # Only the kept sensor gets a new scope, and no step renders a render product of the removed sensor.
+    assert [c.args[1] for c in add_usd_reference.call_args_list] == [f"/{kept.render_scope_name}"]
+    assert submissions == [set(failed), set(kept.render_product_paths)]
+
+
+def test_ovrtx_split_search_skips_a_sensor_removed_during_the_search(monkeypatch):
+    """A sensor that a cleanup removes during the search gets no new render products. The search goes on."""
+    renderer, (first, removed, last) = _make_search_cameras(monkeypatch, False, 8, [("auto", 64)] * 3)
+    failed = set(renderer.backend.render_products)
+    removed_paths = removed.render_product_paths
+    add_usd_reference = renderer.backend.renderer.add_usd_reference_from_string
+    add_usd_reference.reset_mock()
+
+    def write_and_clean_up(usd, path):
+        # The scene write of the first sensor cleans up the second sensor, for example through a callback.
+        add_usd_reference.side_effect = None
+        renderer.cleanup(removed)
+        return MagicMock()
+
+    add_usd_reference.side_effect = write_and_clean_up
+    submissions = _install_step(renderer, lambda products: bool(products & failed))
+
+    renderer.render_batch([first, last])
+
+    # Of equal sensors, the first in the order of the engine is halved. The last sensor keeps its split.
+    assert [[product.num_envs for product in camera.products] for camera in (first, last)] == [[4, 4], [8]]
+    assert [c.args[1] for c in add_usd_reference.call_args_list] == [
+        f"/{first.render_scope_name}",
+        f"/{last.render_scope_name}",
+    ]
+    assert removed.render_product_paths == removed_paths
+    assert not renderer.backend.render_products & set(removed_paths)
+    assert submissions[-1] == {*first.render_product_paths, *last.render_product_paths}
+
+
+def test_ovrtx_split_search_gives_up_with_a_sensor_removed_during_the_search(monkeypatch):
+    """A search that gives up raises the failed frame, also if a cleanup removes a sensor during the search."""
+    # A sensor with 1 environment cannot be halved, so the search gives up on the "auto" sensor. It still moves the
+    # sensor with an integer split to new render products, and that scene write cleans up the "auto" sensor.
+    renderer, (fixed, removed) = _make_search_cameras(monkeypatch, False, 1, [(1, 64), ("auto", 64)])
+    failed = set(renderer.backend.render_products)
+    add_usd_reference = renderer.backend.renderer.add_usd_reference_from_string
+
+    def write_and_clean_up(usd, path):
+        add_usd_reference.side_effect = None
+        renderer.cleanup(removed)
+        return MagicMock()
+
+    add_usd_reference.side_effect = write_and_clean_up
+    _install_step(renderer, lambda products: True)
+
+    with pytest.raises(RuntimeError, match="failed to produce a frame"):
+        renderer.render_batch([fixed])
+
+    assert renderer.backend.render_products == set(fixed.render_product_paths)
+    assert not renderer.backend.render_products & failed
+
+
+def test_ovrtx_render_batch_does_not_search_after_another_error(monkeypatch):
+    """An error other than a failed frame reaches the caller unchanged and leaves the render products alone."""
+    renderer, (camera,) = _make_search_cameras(monkeypatch, False, 8, [("auto", 64)])
+    layout = camera.render_product_paths
+    submissions = _install_step(renderer, lambda products: True, "Operation 'step' failed: device lost")
+
+    with pytest.raises(RuntimeError, match="device lost") as error:
+        renderer.render_batch([camera])
+
+    assert submissions == [set(layout)]
+    assert not hasattr(error.value, "__notes__")
+    assert camera.render_product_paths == layout
+    assert renderer.backend.render_products == set(layout)
+
+
+def _plan_sensor(*num_envs: int, searches_split: bool = True, spp: int = 1) -> types.SimpleNamespace:
+    """Stand-in with the fields that the split plan reads.
+
+    It has one render product for each number in ``num_envs``. Each atlas is one row of 64 x 64 tiles.
+    """
+    products = [types.SimpleNamespace(num_envs=count, num_cols=count, num_rows=1) for count in num_envs]
+    cfg = types.SimpleNamespace(render_settings={"omni:rtx:rtpt:spp": ("Int", spp)})
+    return types.SimpleNamespace(
+        searches_split=searches_split, products=products, width=64, height=64, spec=types.SimpleNamespace(cfg=cfg)
+    )
+
+
+def _plan_ids(plan) -> list[tuple[int, int | None]]:
+    """Each sensor of ``plan`` by its identity with its next number of environments per render product.
+
+    Two stand-ins with the same fields are equal, so only the identity tells them apart.
+    """
+    return [(id(data), max_envs) for data, max_envs in plan.max_envs_per_render_product]
+
+
+def test_ovrtx_split_plan_halves_the_auto_sensor_with_the_largest_buffer():
+    """The plan halves the "auto" sensor with the most atlas pixels times samples per pixel. Others keep their split.
+
+    The halved sensor is not the first, so the test also checks that the plan keeps the order of the engine.
+    """
+    small, large, fixed = _plan_sensor(8, spp=4), _plan_sensor(16), _plan_sensor(64, searches_split=False)
+    error = RuntimeError("OVRTX failed to produce a frame")
+
+    plan = ovrtx_renderer_module._plan_split([large, small, fixed], error, 0)
+
+    assert plan.halved is small
+    assert _plan_ids(plan) == [(id(large), 16), (id(small), 4), (id(fixed), 64)]
+
+
+def test_ovrtx_split_plan_halves_the_first_and_largest_render_product():
+    """The plan halves the environments of the first render product, which has the most environments.
+
+    10 environments with a limit of 3 give render products of 3, 3, 3 and 1 environments. The next limit is 2, not 1.
+    """
+    sensor = _plan_sensor(3, 3, 3, 1)
+
+    plan = ovrtx_renderer_module._plan_split([sensor], RuntimeError("failed to produce a frame"), 0)
+
+    assert plan.halved is sensor
+    assert _plan_ids(plan) == [(id(sensor), 2)]
+
+
+def test_ovrtx_split_plan_halves_the_first_of_equal_auto_sensors():
+    """Of "auto" sensors with the same buffer size, the plan halves the first in the order of the engine."""
+    first, second = _plan_sensor(16), _plan_sensor(16)
+
+    plan = ovrtx_renderer_module._plan_split([first, second], RuntimeError("failed to produce a frame"), 0)
+
+    assert plan.halved is first
+    assert _plan_ids(plan) == [(id(first), 8), (id(second), 16)]
+
+
+# "limit" stands for _MAX_SMALLER_LAYOUTS. Without ovrtx, ovrtx_renderer_module is None when pytest collects the tests.
+@pytest.mark.parametrize(
+    ("num_envs", "num_smaller_layouts"), [(16, "limit"), (1, 0)], ids=["after-the-limit", "one-environment"]
+)
+def test_ovrtx_split_plan_gives_up_on_every_auto_sensor(num_envs, num_smaller_layouts):
+    """Without a sensor to halve, the plan gives up on the "auto" sensors and keeps the split of the others."""
+    if num_smaller_layouts == "limit":
+        num_smaller_layouts = ovrtx_renderer_module._MAX_SMALLER_LAYOUTS
+    auto, fixed = _plan_sensor(num_envs), _plan_sensor(16, searches_split=False)
+
+    plan = ovrtx_renderer_module._plan_split(
+        [auto, fixed], RuntimeError("failed to produce a frame"), num_smaller_layouts
+    )
+
+    assert plan.halved is None
+    assert _plan_ids(plan) == [(id(auto), None), (id(fixed), 16)]
+
+
+def test_ovrtx_split_plan_is_empty_for_another_error():
+    """Only a failed frame starts the search, so another error gives an empty plan."""
+    plan = ovrtx_renderer_module._plan_split([_plan_sensor(16)], RuntimeError("device lost"), 0)
+
+    assert plan == ovrtx_renderer_module._SplitPlan()
+
+
+@pytest.mark.parametrize(
+    "sensors, samples, too_large, layouts",
+    [
+        # Only sensors with "auto" are halved, the largest atlas first. Larger "all" and integer atlases stay whole.
+        ([(16, 128), ("all", 128), ("auto", 32), ("auto", 64)], {}, [3], [[16], [16], [16], [8, 8]]),
+        # 32 samples per pixel on a quarter of the pixels outrank the larger atlas with one sample per pixel.
+        ([("auto", 64), ("auto", 32)], {1: 32}, [1], [[16], [8, 8]]),
+        # Two sensors above the limit are halved one after the other.
+        ([("auto", 64), ("auto", 64)], {}, [0, 1], [[8, 8], [8, 8]]),
+    ],
+    ids=["largest-auto", "more-samples", "each-sensor"],
+)
+def test_ovrtx_split_search_halves_the_sensor_with_the_largest_buffer_first(
+    monkeypatch, caplog, sensors, samples, too_large, layouts
+):
+    """Each failed step halves one sensor with "auto", the highest pixels times samples per pixel first."""
+    renderer, cameras = _make_search_cameras(monkeypatch, False, 16, sensors)
+    for index, spp in samples.items():
+        cameras[index].spec.cfg.render_settings = {"omni:rtx:rtpt:spp": ("Int", spp)}
+    # A step fails while a sensor of too_large has more than 8 environments in its first and largest render product.
+    submissions = _install_step(renderer, lambda products: any(cameras[i].products[0].num_envs > 8 for i in too_large))
+
+    with caplog.at_level(logging.WARNING):
+        renderer.render_batch(cameras)
+
+    assert len(submissions) == len(too_large) + 1
+    _assert_no_product_stepped_twice(submissions)
+    assert [[product.num_envs for product in camera.products] for camera in cameras] == layouts
+    assert not renderer.backend.unrendered
+    assert len(caplog.records) == len(too_large)
+
+
+def test_ovrtx_split_search_covers_every_renderer_of_a_shared_engine(monkeypatch):
+    """One step renders the products of every renderer on the engine, so the search can halve another one's sensor."""
+    renderer, (small,) = _make_search_cameras(monkeypatch, True, 16, [("auto", 32)])
+    other = OVRTXRenderer(OVRTXRendererCfg(enable_shadows=True), sim=SimulationContext.instance())
+    other.backend = other.scene = renderer.backend
+    other._device = "cpu"
+    other._use_ovstage = other._initialized_scene = True
+    large = _add_search_camera(other, "large", 16, "auto", 64)
+    shadows = {}
+    build = ovrtx_renderer_module.build_render_product_as_string
+
+    def record_shadows(spec, render_data, **kwargs):
+        shadows[render_data.render_scope_name] = kwargs["enable_shadows"]
+        return build(spec, render_data, **kwargs)
+
+    monkeypatch.setattr(ovrtx_renderer_module, "build_render_product_as_string", record_shadows)
+    submissions = _install_step(renderer, lambda products: len(products) < 3)
+
+    # The renderer of the small sensor renders first. Its step fails for the sensor of the other renderer.
+    renderer.render_batch([small])
+
+    assert len(submissions) == 2
+    _assert_no_product_stepped_twice(submissions)
+    assert [[product.num_envs for product in camera.products] for camera in (small, large)] == [[16], [8, 8]]
+    assert not renderer.backend.unrendered
+    # Each sensor keeps the product settings of its own renderer.
+    assert shadows == {small.render_scope_name: False, large.render_scope_name: True}
+
+
+def _install_attribute_store(renderer: OVRTXRenderer, use_ovstage: bool) -> dict:
+    """Replace the attribute reads and writes of the scene with fakes over a dictionary.
+
+    Like OVRTX, the legacy fake raises when it reads a tag or an array without elements. Like OVStage, the OVStage fake
+    rejects a write of the prim path, and both a write and the release of a read group invalidate the data of the reads.
+    A write of the OVStage fake reads its data only in its wait, because only the wait guarantees that OVStage read it.
+
+    Returns:
+        The attributes of each render product: ``{path: {name: (value, is_array, semantic)}}``.
+    """
+    import ovrtx
+    import ovstage
+
+    store = {}
+    if use_ovstage:
+        renderer.scene.stage.query_from_path_list.side_effect = contextlib.nullcontext
+        renderer.scene.paths.intern_token.side_effect = lambda name: types.SimpleNamespace(raw_id=0, name=name)
+        renderer.scene.paths.token_to_string.side_effect = lambda token: token.name
+        # The data that the read groups borrow. In OVStage, a write that adds attributes to other prims can change the
+        # data of an open read group. So a write invalidates this data like the release of a group.
+        borrowed = []
+
+        def invalidate_borrowed(*exc_info):
+            # A write that reads invalid data copies the sentinel 99.
+            for tensor in borrowed:
+                tensor[...] = np.array(99).astype(tensor.dtype)
+
+        def column(name, value, is_array, semantic):
+            # OVStage can map the row of a prim in the query to another data row of the column. So the fake puts
+            # the value of the one prim after a row of zeros.
+            rows = [np.zeros_like(value), np.array(value)]
+            # An array column has one tensor per data row. A fixed-size column has one tensor with all data rows.
+            tensors = rows if is_array else [np.stack(rows)]
+            borrowed.extend(tensors)
+            return types.SimpleNamespace(
+                attribute=types.SimpleNamespace(name=name),
+                is_array=is_array,
+                semantic=semantic,
+                data_row_index=lambda local: local + 1,
+                # Like OVStage, the NumPy view of a column gives a half as uint16.
+                array=lambda index: tensors[index].view(np.uint16) if value.dtype == np.float16 else tensors[index],
+                # Like the borrowed view of OVStage, a NumPy array supports DLPack and keeps a half as float16.
+                dlpack=lambda index: tensors[index],
+            )
+
+        def array_values(tensor):
+            # Like OVStage, an array write takes the components of an element only from the lanes, not from the
+            # shape. So a float3[] in the shape (n, 3) without lanes arrives as a float[] of 3 * n values.
+            if not isinstance(tensor, ovstage.DLTensor):
+                return np.from_dlpack(tensor).reshape(-1)
+            values = ovstage.dltensor_to_numpy(tensor)
+            if (tensor.dtype.code, tensor.dtype.bits) == (ovstage.DLDataTypeCode.kDLFloat, 16):
+                # dltensor_to_numpy gives a half as uint16.
+                values = values.view(np.float16)
+            return values.reshape(-1, tensor.dtype.lanes) if tensor.dtype.lanes > 1 else values
+
+        def read_attributes(query, attributes, ordinal_range):
+            assert [token.name for token in attributes] == ["*"]
+            (path,) = query
+            group = MagicMock(columns=[column(name, *entry) for name, entry in store[path].items()])
+            group.__enter__.return_value = group
+            group.__exit__.side_effect = invalidate_borrowed
+            read = MagicMock()
+            read.__enter__.return_value.groups.return_value = [group]
+            return read
+
+        def write_attributes(query, writes, ordinal):
+            if any(write.attribute.name == "usd-path" for write in writes):
+                raise ovstage.OvstageError(
+                    ovstage.ErrorCode.NOT_SUPPORTED,
+                    "built-in attribute 'usd-path' is derived on demand and cannot be written",
+                )
+            invalidate_borrowed()
+
+            def wait():
+                for write in writes:
+                    # Target i reads the source data row index_map[i]. An array has one tensor per data row. A
+                    # fixed-size attribute has all data rows in one tensor. Like OVStage, the write copies the data.
+                    tensors = write.tensors if isinstance(write.tensors, (list, tuple)) else [write.tensors]
+                    rows = [array_values(tensor) for tensor in tensors] if write.is_array else np.from_dlpack(*tensors)
+                    for path, index in zip(query, write.index_map, strict=True):
+                        store[path][write.attribute.name] = (np.array(rows[index]), write.is_array, write.semantic)
+
+            return types.SimpleNamespace(wait=wait)
+
+        renderer.scene.stage.read_attributes.side_effect = read_attributes
+        renderer.scene.stage.write_attributes.side_effect = write_attributes
+        return store
+    native = renderer.backend.renderer
+
+    def write_attribute(prim_paths, attribute_name, tensor, semantic=ovrtx.Semantic.NONE):
+        for path, value in zip(prim_paths, tensor, strict=True):
+            store.setdefault(path, {})[attribute_name] = (np.asarray(value), False, semantic)
+
+    def write_array_attribute(prim_paths, attribute_name, tensors, semantic=ovrtx.Semantic.NONE):
+        for path, value in zip(prim_paths, tensors, strict=True):
+            store.setdefault(path, {})[attribute_name] = (np.asarray(value), True, semantic)
+
+    def read(name, paths):
+        entries = [store[path][name] for path in paths]
+        if any(
+            semantic == ovrtx.Semantic.TAG or (is_array and not value.size) for value, is_array, semantic in entries
+        ):
+            raise RuntimeError(f"Read returned no data for {name!r}")
+        return [value for value, _, _ in entries]
+
+    native.query_prims.side_effect = lambda **kwargs: {
+        path: {
+            name: ovrtx.AttributeInfo(name, None, is_array, semantic)
+            for name, (_, is_array, semantic) in entries.items()
+        }
+        for path, entries in store.items()
+    }
+    native.read_attribute.side_effect = lambda name, paths: np.stack(read(name, paths))
+    native.read_array_attribute.side_effect = lambda name, paths: dict(zip(paths, read(name, paths), strict=True))
+    native.write_attribute.side_effect = write_attribute
+    native.write_array_attribute.side_effect = write_array_attribute
+    return store
+
+
+@pytest.mark.parametrize("use_ovstage", [False, True], ids=["legacy", "ovstage"])
+def test_ovrtx_split_search_copies_the_attributes_of_the_failed_render_product(monkeypatch, use_ovstage):
+    """Attributes written onto the failed render product reach the new ones, which keep their own layout.
+
+    The copy skips the attributes of the layout, tags and arrays without elements, and goes on after each of them.
+    """
+    import ovrtx
+    import ovstage
+
+    renderer, (camera,) = _make_search_cameras(monkeypatch, use_ovstage, 4, [("auto", 64)])
+    store = _install_attribute_store(renderer, use_ovstage)
+    token, path_id = (
+        (ovstage.AttributeSemantic.TOKEN_ID, ovstage.AttributeSemantic.RELATIONSHIP_PATH_ID)
+        if use_ovstage
+        else (ovrtx.Semantic.TOKEN_ID, ovrtx.Semantic.PATH_ID)
+    )
+    add_render_products = renderer._add_render_products
+
+    def add_and_author(data, spec):
+        # The fake scene does not read the layer, so author the attributes that the layout owns here.
+        add_render_products(data, spec)
+        for product in data.products:
+            store[product.path] = {
+                "resolution": (np.array([product.num_cols * data.width, product.num_rows * data.height]), False, 0),
+                "camera": (np.arange(product.num_envs, dtype=np.uint64), True, path_id),
+                "orderedVars": (np.array([f"/{data.render_scope_name}/Vars/LdrColor"]), True, path_id),
+            }
+            if use_ovstage:
+                store[product.path]["usd-path"] = (np.array(product.path), False, 0)
+
+    monkeypatch.setattr(renderer, "_add_render_products", add_and_author)
+    (failed,) = camera.render_product_paths
+    # The copy leaves out these attributes. The layout of 4 environments has 2 x 2 tiles of 64 pixels.
+    left_out = {
+        "resolution": (np.array([128, 128]), False, 0),
+        "camera": (np.arange(4, dtype=np.uint64), True, path_id),
+        "orderedVars": (np.array(["/RenderCamera_0/Vars/LdrColor"]), True, path_id),
+    }
+    if use_ovstage:
+        # OVStage reads the path of a prim like an attribute, but rejects a write of it.
+        left_out["usd-path"] = (np.array(failed), False, 0)
+    else:
+        # OVRTX lists an applied schema as a tag without a value. Like OVRTX, the fake raises when it reads the tag
+        # or the array without elements.
+        left_out["OmniRtxSettingsCommonAdvancedAPI_1"] = (None, False, ovrtx.Semantic.TAG)
+        left_out["omni:rtx:debug:view:target"] = (np.array([], dtype=np.uint64), True, 0)
+    # A script writes the samples per pixel and the antialiasing mode. The layer authors waitForEvents. These
+    # attributes come after the left-out attributes, so the copy must go on after each skipped attribute.
+    store[failed] = {
+        **left_out,
+        "omni:rtx:rtpt:spp": (np.int32(5), False, 0),
+        "omni:rtx:post:aa:op": (np.uint64(42), False, token),
+        "omni:rtx:waitForEvents": (np.array([7, 8], dtype=np.uint64), True, token),
+    }
+    if use_ovstage:
+        # The NumPy view of an OVStage column gives a half as uint16, which OVStage does not write as a half.
+        store[failed]["omni:test:half"] = (np.float16(0.5), False, 0)
+        store[failed]["omni:test:half_array"] = (np.array([0.5, 1.5], dtype=np.float16), True, 0)
+        # An OVStage read gives the 3 components of each element of a float3[] as an axis.
+        store[failed]["omni:test:float3s"] = (np.array([[1, 2, 3], [4, 5, 6]], dtype=np.float32), True, 0)
+    _install_step(renderer, lambda products: len(products) < 2)
+
+    renderer.render_batch([camera])
+
+    assert [product.num_envs for product in camera.products] == [2, 2]
+    for path in camera.render_product_paths:
+        attributes = {
+            name: (value.tolist(), is_array, semantic) for name, (value, is_array, semantic) in store[path].items()
+        }
+        expected = {
+            # Each new render product keeps its own resolution, cameras and RenderVars: 2 x 1 tiles of 64 pixels.
+            "resolution": ([128, 64], False, 0),
+            "camera": ([0, 1], True, path_id),
+            "orderedVars": (["/RenderCamera_1/Vars/LdrColor"], True, path_id),
+            "omni:rtx:rtpt:spp": (5, False, 0),
+            "omni:rtx:post:aa:op": (42, False, token),
+            "omni:rtx:waitForEvents": ([7, 8], True, token),
+        }
+        if use_ovstage:
+            expected["usd-path"] = (path, False, 0)
+            expected["omni:test:half"] = (0.5, False, 0)
+            expected["omni:test:half_array"] = ([0.5, 1.5], True, 0)
+            expected["omni:test:float3s"] = ([[1, 2, 3], [4, 5, 6]], True, 0)
+        # No tag and no array without elements reach the new render products.
+        assert attributes == expected
+        if use_ovstage:
+            assert store[path]["omni:test:half"][0].dtype == store[path]["omni:test:half_array"][0].dtype == np.float16
+
+
 @pytest.mark.integration
 @pytest.mark.rendering
 @pytest.mark.parametrize(
@@ -787,15 +1515,18 @@ def test_ovrtx_split_sensor_outputs_match_single_product(
     """A sensor split into render products gives the outputs of one render product, in environment order.
 
     Each camera kind has two sensors: one with ``"all"``, so one render product, and one that the camera
-    configuration splits. The cameras of environments 0 to 3 see different parts of the near cube, so a swap of two
-    environments changes every output, also the mean colors. Only the camera of environment 4 sees the far cube, so
-    only the last render product of the split sees it.
+    configuration splits. One more sensor with ``"auto"`` gets its split from the search after a failed first
+    frame. The cameras of environments 0 to 3 see different parts of the near cube, so a swap of two environments
+    changes every output, also the mean colors. Only the camera of environment 4 sees the far cube, so only the
+    last render product of the split sees it.
 
     The colorize settings apply to every sensor of a renderer, and each renderer start and stop costs seconds. So
     the two rows swap the colorize values. Simple shading is a data type of a camera, so the rows spread the three
-    simple shading types over their camera kinds.
+    simple shading types over their camera kinds. An asynchronous row would not test the wait for a failed step,
+    because the injected failure raises before that wait.
     """
     import ovrtx
+    import ovstage
 
     from pxr import Gf, Usd, UsdGeom, UsdLux
 
@@ -834,8 +1565,8 @@ def test_ovrtx_split_sensor_outputs_match_single_product(
         *([data_type] for data_type in simple_shading_types),
     ]
     # One camera prim per sensor, so each sensor owns the pose binding of the prims it renders. Each kind has two
-    # sensors.
-    for index in range(2 * len(camera_kinds)):
+    # sensors, and the searched sensor has one more prim.
+    for index in range(2 * len(camera_kinds) + 1):
         camera = UsdGeom.Camera.Define(stage, env_template.format(0) + f"/cam{index}")
         camera.CreateProjectionAttr("orthographic")
         camera.CreateHorizontalApertureAttr(12.0)
@@ -849,10 +1580,13 @@ def test_ovrtx_split_sensor_outputs_match_single_product(
         add_labels(cube.GetPrim(), [label])
 
     submissions = []
+    failing = set()
 
     def record_products(native_step):
         def step(renderer, render_products, *args, **kwargs):
             submissions.append(set(render_products))
+            if failing & submissions[-1]:
+                raise RuntimeError(_FAILED_FRAME)
             return native_step(renderer, render_products, *args, **kwargs)
 
         return step
@@ -945,6 +1679,43 @@ def test_ovrtx_split_sensor_outputs_match_single_product(
             expected = [near_text] * (num_envs - 1) + [far_text]
             assert all(text in label for text, label in zip(expected, labels)), (output, labels)
 
+    # Two settings of a background texture. The scene has no background texture, so they do not change the images.
+    texture_settings = {
+        "omni:rtx:background:source:texture:luminanceScale": 0.5,
+        "omni:rtx:background:source:texture:colorSpace": "sRGB",
+    }
+
+    def write_texture_settings(path):
+        # A script writes the settings with the runtime API, directly onto a render product.
+        (scale_name, token_name), (scale, token) = texture_settings, texture_settings.values()
+        if not use_ovstage:
+            renderer.backend.renderer.write_attribute([path], scale_name, np.array([scale], np.float32))
+            renderer.backend.renderer.write_attribute([path], token_name, [token], semantic=ovrtx.Semantic.TOKEN_STRING)
+            return
+        token_id = np.array([renderer.scene.paths.intern_token(token).raw_id], np.uint64)
+        with renderer.scene.query([path]) as query:
+            for name, tensors, semantic in (
+                (scale_name, np.array([scale], np.float32), ovstage.AttributeSemantic.NONE),
+                (token_name, token_id, ovstage.AttributeSemantic.TOKEN_ID),
+            ):
+                renderer.scene.stage.write_attribute(
+                    query, name, ordinal=renderer.scene.ordinal, tensors=tensors, is_array=False, semantic=semantic
+                ).wait()
+
+    def read_texture_settings(path):
+        # A token reads back as its ID. Render products with the same token have the same ID.
+        if not use_ovstage:
+            return [
+                np.from_dlpack(renderer.backend.renderer.read_attribute(name, [path])).item()
+                for name in texture_settings
+            ]
+        names = [renderer.scene.paths.intern_token(name) for name in texture_settings]
+        current = ovstage.OrdinalRange.latest(ovstage.ORDINAL_MAX)
+        with renderer.scene.query([path]) as query, renderer.scene.stage.read_attributes(query, names, current) as read:
+            (group,) = read.groups()
+            with group:
+                return [column.array(0)[column.data_row_index(0)].item() for column in group.columns]
+
     def check_outputs(pairs):
         for (_, reference), (split_rd, split) in pairs:
             _assert_split_outputs_match(reference.output, split.output, split_rd.data_types)
@@ -973,8 +1744,30 @@ def test_ovrtx_split_sensor_outputs_match_single_product(
         render(cameras)
         check_outputs(pairs)
 
-        # Cleanup discards every render product of the sensor. The remaining sensors do not render again here.
-        # The multi-camera test checks rendering after a cleanup.
+        # A sensor with "auto" joins. Its one render product fails the first frame, which the step simulates
+        # here. The renderer halves the product in a new scope, and that layout renders for real.
+        searched, searched_data = add_camera(["rgb", "distance_to_image_plane"], "auto")
+        failed_scope = searched.render_scope_name
+        (failed,) = searched.render_product_paths
+        failing.add(failed)
+        write_texture_settings(failed)
+        render([(searched, searched_data)])
+        assert [product.num_envs for product in searched.products] == [3, 2]
+        # The new render products have the settings that the script wrote onto the failed one. Another render
+        # product has its default settings, so the comparison sees a missing copy.
+        (single, _), _ = pairs[0]
+        assert read_texture_settings(failed) != read_texture_settings(single.render_product_paths[0])
+        for path in searched.render_product_paths:
+            assert read_texture_settings(path) == read_texture_settings(failed)
+        assert not failing & renderer.backend.render_products
+        assert submissions[-1] == renderer.backend.render_products
+        check_depth(searched_data)
+        (_, reference), _ = pairs[0]
+        _assert_split_outputs_match(reference.output, searched_data.output, searched.spec.cfg.data_types)
+
+        # Cleanup discards every render product of the sensor. The failed layout stays in the scene until then.
+        # The remaining sensors do not render again here. The multi-camera test checks rendering after a cleanup.
+        assert _camera_scope_exists(renderer, failed_scope, use_ovstage)
         while cameras:
             rd, _ = cameras.pop()
             renderer.cleanup(rd)
@@ -982,6 +1775,7 @@ def test_ovrtx_split_sensor_outputs_match_single_product(
             assert renderer.backend.render_products == {
                 path for other, _ in cameras for path in other.render_product_paths
             }
+        assert not _camera_scope_exists(renderer, failed_scope, use_ovstage)
     finally:
         renderer.close()
         SimulationContext.instance().close_backend(renderer.backend)

@@ -75,7 +75,7 @@ See :doc:`/source/concepts/backends_and_presets` for preset discovery and
 
 With OVRTX, separate camera sensors share the scene and renderer when their renderer
 configurations match, while each sensor has its own tiled render products. By default, each sensor
-has one render product (see :ref:`camera-render-products-per-sensor`). For example,
+starts with one render product (see :ref:`camera-render-products-per-sensor`). For example,
 ``env_0/head_camera`` and ``env_1/head_camera`` form one product, while
 ``env_0/wrist_camera`` and ``env_1/wrist_camera`` form another. The sensors can use different
 resolutions and output types, and their poses update independently. Define all camera prims
@@ -379,14 +379,17 @@ products. Each render product has its own, smaller atlas, so a smaller value can
 below the limit. The output shapes and the environment order do not change: each data type still has
 one ``(num_envs, height, width, channels)`` buffer. The field accepts these values:
 
-* ``"all"`` (the default): The sensor has one render product.
-* An integer ``M`` of at least 1: The sensor has ``ceil(num_envs / M)`` render products. For example,
-  5 environments with ``M = 2`` give render products of 2, 2 and 1 environments. Only the OVRTX
-  renderer accepts an integer. The other renderers reject it when the camera is created.
+* ``"auto"`` (the default): The sensor starts with one render product. If its first frame fails, the
+  OVRTX renderer searches for a split. The search halves the number of environments per render
+  product and renders the frame again.
+* ``"all"``: The sensor always has one render product.
+* An integer ``M`` of at least 1: The sensor always has ``ceil(num_envs / M)`` render products. For
+  example, 5 environments with ``M = 2`` give render products of 2, 2 and 1 environments. Only the
+  OVRTX renderer accepts an integer. The other renderers reject it when the camera is created.
 
-A sensor with 2560 environments of 128 x 128 pixels at 16 samples per pixel can fail with one render
-product. Two render products of 1280 environments each can render it. The ``omni:rtx:rtpt:spp``
-render setting sets the samples per pixel:
+When a smaller layout renders, a warning gives the integer that skips this search. For example,
+2560 environments of 128 x 128 pixels at 16 samples per pixel can give 1280. The
+``omni:rtx:rtpt:spp`` render setting sets the samples per pixel. Set the integer on later runs:
 
 .. code-block:: python
 
@@ -405,9 +408,25 @@ render setting sets the samples per pixel:
        max_envs_per_render_product=1280,
    )
 
-Each extra render product adds a fixed cost to every frame, so use the largest integer that renders.
-Path tracing and DLSS depend on the pixel position in the atlas, so another split can change the color
-outputs a little.
+With several sensors, each failed frame halves the environments per render product of one sensor.
+The search takes the sensor with the most atlas pixels times samples per pixel. This sensor did not
+necessarily cause the failure, so the search can also split a sensor that renders with one render
+product.
+
+Each smaller layout has new render products. They get the attributes of the first render product
+of the failed layout, except the resolution, the cameras and the render variables. So render settings
+that a script writes directly onto a render product, for example after the reset, stay in effect.
+
+The search has limits. One frame tries at most four smaller layouts, counted over all camera
+sensors. If the frame still fails, the renderer error reaches the caller, and an ``"auto"`` sensor
+without a rendered frame renders no more frames. During the search, the renderer can need more GPU
+memory, because the failed layouts stay in the scene until the sensor is cleaned up.
+
+Set ``"all"`` or an integer to turn the search off for a sensor. The layout then does not depend on
+the GPU, the driver or the renderer version. Path tracing and DLSS depend on the pixel position in
+the atlas, so another layout can change the color outputs a little. A failed frame also never changes
+the layout of this sensor, so a layout that is too large gives the renderer error. Each extra render
+product adds a fixed cost to every frame, so use the largest integer that renders.
 
 Post-render image signal processing
 -----------------------------------
