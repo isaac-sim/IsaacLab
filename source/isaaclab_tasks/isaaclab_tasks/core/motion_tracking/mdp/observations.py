@@ -109,6 +109,13 @@ def motion_state(env: ManagerBasedEnv) -> torch.Tensor:
     )
 
 
+def motion_reference_action(env: ManagerBasedEnv, command_name: str) -> torch.Tensor:
+    """Return the current reference pose in the action manager's joint order and units."""
+    command: MotionCommand = env.command_manager.get_term(command_name)
+    action = env.action_manager.get_term(env.action_manager.active_terms[0])
+    return (command.joint_pos[..., action._joint_ids] - action._offset) / action._scale
+
+
 def motion_frame(env: ManagerBasedEnv, command_name: str) -> torch.Tensor:
     """Index of the current reference frame. Shape is (num_envs, 1)."""
     command: MotionCommand = env.command_manager.get_term(command_name)

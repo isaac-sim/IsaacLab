@@ -31,6 +31,7 @@ from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 from isaaclab_tasks.utils import preset
 
 from . import mdp
+from .mdp.observations import motion_reference_action
 
 
 @configclass
@@ -152,6 +153,16 @@ class ObservationsCfg:
             params={"sensor_cfg": SceneEntityCfg("self_collision"), "threshold": 10.0},
         )
 
+    @configclass
+    class ActorGoalCfg(ObsGroup):
+        command = ObsTerm(func=mdp.generated_commands, params={"command_name": "motion"})
+
+    @configclass
+    class ReferenceActionCfg(ObsGroup):
+        action = ObsTerm(func=motion_reference_action, params={"command_name": "motion"})
+
+    actor_goal = preset(default=None, state_obs=ActorGoalCfg())
+    reference_action = preset(default=None, state_obs=ReferenceActionCfg())
     state = preset(default=None, state_obs=StateCfg())
     goal = preset(default=None, state_obs=GoalCfg())
     context = preset(default=None, state_obs=ContextCfg())

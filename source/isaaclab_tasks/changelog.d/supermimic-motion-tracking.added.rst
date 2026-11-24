@@ -3,3 +3,4 @@
   tracking rewards and terminations match the environment's managers; terminations use sigmoids around the
   environment's thresholds during imagination.
 * Added the G1 motion tracking SuperMimic agent, available through ``rsl_rl_supermimic_cfg_entry_point``.
+* Exposed the reference command to the actor and applied reference corrections in the simulator.

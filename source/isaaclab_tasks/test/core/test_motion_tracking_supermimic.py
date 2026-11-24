@@ -84,7 +84,8 @@ def test_g1_differentiable_motion_tracking_matches_simulation_and_managers() -> 
                 torch.testing.assert_close(quat, data.body_link_quat_w.torch, atol=1e-4, rtol=0)
                 torch.testing.assert_close(lin, data.body_lin_vel_w.torch, atol=1e-3, rtol=1e-4)
                 torch.testing.assert_close(ang, data.body_ang_vel_w.torch, atol=1e-3, rtol=1e-4)
-                frame = task.actor_obs(state, goal, obs["context"], history)
+                inputs = task.actor_obs(state, goal, obs["context"], history)
+                frame = inputs["policy"]
                 if step < 4:
                     # the reference action commands the reference joint positions
                     action_term.process_actions(task.reference_action(state, goal))
@@ -102,7 +103,9 @@ def test_g1_differentiable_motion_tracking_matches_simulation_and_managers() -> 
                     mirrored_pos = task.kinematics.forward(task.representation.unflatten(mirrored))[0]
                     torch.testing.assert_close(mirrored_pos[:, task.body_perm], pos * reflect, atol=5e-3, rtol=0)
                 command = 2 * task.num_joints
-                torch.testing.assert_close(task.actor_goal(state, goal), obs["policy"][..., :command])
+                torch.testing.assert_close(inputs["actor_goal"], obs["policy"][..., :command])
+                torch.testing.assert_close(inputs["actor_goal"], obs["actor_goal"])
+                torch.testing.assert_close(task.reference_action(state, goal), obs["reference_action"])
                 torch.testing.assert_close(frame, obs["policy"][..., command:], atol=1e-4, rtol=1e-4)
                 actions = 0.5 * torch.sin(phase + step * 0.3)
                 obs, _, terminated, _, extras = env.step(actions)

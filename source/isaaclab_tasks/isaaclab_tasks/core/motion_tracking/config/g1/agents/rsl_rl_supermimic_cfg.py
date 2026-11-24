@@ -13,6 +13,7 @@ world-model-only warm-up.
 from isaaclab.utils import configclass
 
 from isaaclab_rl.rsl_rl import (
+    RslRlLearnedDynamicsCfg,
     RslRlMLPModelCfg,
     RslRlSuperMimicActorCfg,
     RslRlSuperMimicAlgorithmCfg,
@@ -31,24 +32,29 @@ class G1MotionSuperMimicRunnerCfg(RslRlSuperMimicRunnerCfg):
     save_interval = 1200
     experiment_name = "g1_motion_tracking_supermimic"
     clip_actions = None
+    separate_goal_terms = ("command",)
     obs_groups = {
+        "actor": ["policy", "history", "actor_goal"],
         "state": ["state"],
         "goal": ["goal"],
         "context": ["context"],
         "labels": ["labels"],
     }
-    actor = RslRlSuperMimicActorCfg(use_reference_action=True)
-    world_model = RslRlWorldModelCfg(hidden_dims=(1024, 1024, 1024))
+    actor = RslRlSuperMimicActorCfg()
     critic = RslRlMLPModelCfg(
         hidden_dims=[512, 256, 128],
         activation="elu",
         obs_normalization=True,
     )
     algorithm = RslRlSuperMimicAlgorithmCfg(
-        replay_buffer_capacity=4_096_000,
-        num_world_model_warmup_iterations=0,
-        num_world_model_updates=5,
-        world_model_mirror_fraction=0.5,
+        use_reference_action=True,
+        world_model_cfg=RslRlLearnedDynamicsCfg(
+            model=RslRlWorldModelCfg(hidden_dims=(1024, 1024, 1024)),
+            replay_buffer_capacity=4_096_000,
+            num_warmup_iterations=0,
+            num_updates=5,
+            mirror_fraction=0.5,
+        ),
         policy_batch_size=2048,
         action_noise=0.0,
         learning_rate=4e-4,

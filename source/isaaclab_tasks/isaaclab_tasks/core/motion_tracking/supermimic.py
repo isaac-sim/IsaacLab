@@ -20,7 +20,8 @@ from typing import TYPE_CHECKING
 
 import torch
 from newton import JointType
-from rsl_rl.algorithms.supermimic_task import DifferentiableTask, State
+from rsl_rl.env.differentiable_task import DifferentiableTask, State
+from tensordict import TensorDict
 
 from isaaclab.envs.mdp.actions import JointPositionAction
 from isaaclab.utils.math import (
@@ -300,8 +301,6 @@ class MotionTrackingTask(DifferentiableTask):
             for index, (name, width) in enumerate(terms)
             if getattr(policy_cfg, name, None) is not None
         ]
-        if policy_cfg.command is None:
-            raise ValueError("MotionTrackingTask expects the reference joint command in the default policy.")
         self.enable_corruption = policy_cfg.enable_corruption
         for _, _, term in self.actor_terms:
             if term.clip is not None or term.scale is not None:
@@ -310,14 +309,6 @@ class MotionTrackingTask(DifferentiableTask):
         self.num_labels = (
             owner.scene.sensors[collisions[0].params["sensor_cfg"].name].cfg.history_length if collisions else 0
         )
-
-    def to(self, device: torch.device | str) -> MotionTrackingTask:
-        """Move reference tables and kinematic constants."""
-        super().to(device)
-        self.kinematics.to(device)
-        for table in (self.termination_bodies, self.limit_joints):
-            table.update({name: ids.to(device) for name, ids in table.items()})
-        return self
 
     def _bodies(self, state: State) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """Forward kinematics of a state, reused while the same state is passed to several heads."""
@@ -336,7 +327,7 @@ class MotionTrackingTask(DifferentiableTask):
 
     def actor_obs(
         self, state: State, goal: torch.Tensor, context: torch.Tensor, prev_actions: torch.Tensor
-    ) -> torch.Tensor:
+    ) -> TensorDict:
         """Return the default policy's terms other than the reference joint command."""
         parts = (
             self._anchor_orientation(state, self._frame(goal)),
@@ -345,9 +336,11 @@ class MotionTrackingTask(DifferentiableTask):
             state[5] - self.default_vel,
             prev_actions[..., -1, :],
         )
-        return torch.cat(tuple(parts[index] for index, _, _ in self.actor_terms), dim=-1)
+        frame = torch.cat(tuple(parts[index] for index, _, _ in self.actor_terms), dim=-1)
 
-    def actor_goal(self, state: State, goal: torch.Tensor) -> torch.Tensor:
+        return TensorDict({"policy": frame, "actor_goal": self._joint_command(goal)}, batch_size=frame.shape[:-1])
+
+    def _joint_command(self, goal: torch.Tensor) -> torch.Tensor:
         """Return the reference joint positions and velocities."""
         frame = self._frame(goal)
         return torch.cat((self.ref_joint_pos[frame], self.ref_joint_vel[frame]), dim=-1)
@@ -395,7 +388,7 @@ class MotionTrackingTask(DifferentiableTask):
         return torch.cat(
             (
                 self.representation.features(state),
-                self.actor_goal(state, goal),
+                self._joint_command(goal),
                 anchor,
                 self.dynamics_context(state, context, prev_actions),
             ),
