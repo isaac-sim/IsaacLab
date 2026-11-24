@@ -259,8 +259,8 @@ class BinocularGazeAction(ActionTerm):
     the vergence by ``step_size``; the version stays within ``gaze_limit`` of the eyes' optical axes, and the vergence
     between zero, parallel lines of sight, and ``vergence_limit``.
 
-    Both eyes ride one body with parallel optical axes and the same retina, and their renderer turns their poses by
-    the gaze (Newton or OVRTX). :attr:`~isaaclab_fovi.mdp.BinocularGazeActionCfg.mode` sets what the version actions
+    Both eyes ride one body with parallel optical axes and the same retina, on any renderer.
+    :attr:`~isaaclab_fovi.mdp.BinocularGazeActionCfg.mode` sets what the version actions
     turn, as for a single camera's :class:`~isaaclab_fovi.mdp.GazeAction`: the retinas (``"software"``), the rig's
     joints (``"physical"``), or the retinas at once while the rig follows (``"hybrid"``). The vergence always turns
     the retinas. The modes that turn a rig need eyes without image roll, whose tilt and pan follow the rig's joints.
@@ -286,8 +286,6 @@ class BinocularGazeAction(ActionTerm):
                 "Both eyes of a binocular gaze must be on one body: their prims need the same parent, got"
                 f" {left.cfg.prim_path!r} and {right.cfg.prim_path!r}."
             )
-        if not (left.turns_pose_by_gaze and right.turns_pose_by_gaze):
-            raise ValueError("Binocular gaze needs eyes whose renderer turns their pose by the gaze: Newton or OVRTX.")
         if cfg.mode != "software" and left.cfg.image_rotation_deg != 0:
             raise ValueError(
                 f"BinocularGazeActionCfg.mode={cfg.mode!r} turns the eyes with a rig's pan and tilt joints, which a"

@@ -13,6 +13,7 @@ shows the left eye; switch to the right eye or the overview in its camera menu.
 
     uv run --extra fovi isaaclab example foveated-stereo
     uv run --extra fovi --extra ovrtx isaaclab example foveated-stereo renderer=ovrtx
+    uv run --extra fovi isaaclab example foveated-stereo renderer=isaacsim_rtx
 """
 
 from __future__ import annotations
@@ -43,13 +44,15 @@ import warp as wp
 from isaaclab_fovi.assets import PAN_TILT_CFG, PAN_TILT_STEREO_OFFSETS
 from isaaclab_fovi.mdp import BinocularGazeActionCfg, GazeRigCfg, binocular_gaze_state
 from isaaclab_fovi.sensors import FoveatedCameraCfg
+from isaaclab_isaacsim.physics import PhysxCfg
+from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
-from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
+from isaaclab.envs import ManagerBasedEnvCfg
 from isaaclab.managers import ObservationGroupCfg, ObservationTermCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.terrains import TerrainImporterCfg
@@ -99,6 +102,7 @@ def _eye(prim_path: str, offset) -> FoveatedCameraCfg:
             default=NewtonWarpRendererCfg(render_order="pixel_priority"),
             newton_warp=NewtonWarpRendererCfg(render_order="pixel_priority"),
             ovrtx=OVRTXRendererCfg(),
+            isaacsim_rtx=IsaacRtxRendererCfg(),
         ),
         # An ideal pinhole with a 90 degree field of view; the retina spans its short side.
         spawn=sim_utils.PinholeCameraCfg(focal_length=12.0, horizontal_aperture=24.0, clipping_range=(0.05, 100.0)),
@@ -141,7 +145,8 @@ class ObservationsCfg:
 
 @configclass
 class StereoExampleCfg(ManagerBasedEnvCfg):
-    """The head turns on Newton's MJWarp solver at Isaac Lab's usual 120 Hz physics and 30 Hz control."""
+    """The head turns at Isaac Lab's usual 120 Hz physics and 30 Hz control, on Newton's MJWarp solver, or on PhysX
+    with Isaac RTX."""
 
     decimation = 4
     actions = ActionsCfg()
@@ -152,7 +157,7 @@ class StereoExampleCfg(ManagerBasedEnvCfg):
     sim: sim_utils.SimulationCfg = sim_utils.SimulationCfg(
         dt=1 / 120,
         render_interval=4,
-        physics=NewtonCfg(solver_cfg=MJWarpSolverCfg()),
+        physics=preset(default=NewtonCfg(solver_cfg=MJWarpSolverCfg()), isaacsim_rtx=PhysxCfg()),
         visualizer_cfgs=VisualizerCfg(
             cameras=[
                 SceneCameraCfg(prim_path=EYE_PATHS[0]),
@@ -173,6 +178,9 @@ def main() -> None:
     )
     cfg, _ = resolve_task_config("FoveatedStereoExample", None, overrides=overrides)
     with launch_simulation(cfg, args_cli):
+        # The environment loads USD, which must come from Kit when the selected backends start it.
+        from isaaclab.envs import ManagerBasedEnv
+
         env = ManagerBasedEnv(cfg)
         try:
             env.reset()

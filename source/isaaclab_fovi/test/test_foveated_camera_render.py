@@ -54,8 +54,9 @@ def test_hybrid_gaze_turns_the_head_onto_the_fixation(backend):
     cases.hybrid_gaze_turns_the_head_onto_the_fixation(backend_cfg(backend))
 
 
-def test_binocular_gaze_fixates_a_near_point_with_both_eyes():
-    cases.binocular_gaze_fixates_a_near_point_with_both_eyes(backend_cfg("newton_warp"))
+@pytest.mark.parametrize("backend", ["newton_warp", "isaac_rtx"])
+def test_binocular_gaze_fixates_a_near_point_with_both_eyes(backend):
+    cases.binocular_gaze_fixates_a_near_point_with_both_eyes(backend_cfg(backend))
 
 
 @pytest.fixture(scope="module", params=list(BACKENDS))
