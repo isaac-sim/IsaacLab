@@ -387,7 +387,7 @@ class NewtonViewerGL(ViewerGL):
                     elif viewer.image_matches_camera:
                         viewer._draw_model_overlays(imgui, rtx=True)
                         imgui.text_disabled("Collision, visual, edges, and wireframes: OpenGL only")
-                        hud_note(imgui, "RTX: also changes what RTX sensor cameras see.")
+                        hud_note(imgui, "Note: with RTX on, this also changes RTX sensor cameras.")
                     else:
                         viewer._draw_model_overlays(imgui)
             if viewer.marker_groups:
@@ -482,7 +482,7 @@ class NewtonViewerGL(ViewerGL):
         if imgui.is_item_hovered():
             imgui.set_tooltip("Number of environments drawn in the viewer; simulation is unaffected")
         if getattr(owner, "rtx_rendering", False):
-            hud_note(imgui, "RTX: also changes what RTX sensor cameras see.")
+            hud_note(imgui, "Note: with RTX on, this also changes RTX sensor cameras.")
 
     def _draw_marker_controls(self, imgui) -> None:
         """Draw one toggle per visualization marker group the task registers."""
@@ -490,7 +490,7 @@ class NewtonViewerGL(ViewerGL):
         if (
             getattr(self._owner, "rtx_view_index", None) is not None
         ):  # OVRTX draws the markers as prims of the shared scene
-            hud_note(imgui, "RTX: markers also show up in RTX sensor cameras.")
+            hud_note(imgui, "Note: with RTX on, markers also show in RTX sensor cameras.")
         if not groups:
             imgui.text_disabled("This task registers no visualization markers")
             hover_tooltip(
@@ -1089,7 +1089,7 @@ class NewtonVisualizerBase(BaseVisualizer):
             return
         if rtx_rendering:
             self._draw_rtx_appearance(imgui)
-            hud_note(imgui, "RTX: lighting also changes what RTX sensor cameras see.")  # shown with the section closed
+            hud_note(imgui, "Note: with RTX on, lighting also changes RTX sensor cameras.")  # shown with the section closed
             return
         callbacks = self._viewer.gui._ui_callbacks.get("rendering") if self._viewer.gui is not None else None
         if callbacks and imgui.tree_node("Lighting & Appearance###appearance"):
@@ -1379,7 +1379,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         changed, only = imgui.checkbox("Show Only This Env", self._track_env_only)
         tip("Draw only the camera's environment, following it when the environment changes")
         if self.rtx_rendering:
-            hud_note(imgui, "RTX: also changes what RTX sensor cameras see.")
+            hud_note(imgui, "Note: with RTX on, this also changes RTX sensor cameras.")
         if changed:
             self._track_env_only = only
             self._apply_visible_worlds()
