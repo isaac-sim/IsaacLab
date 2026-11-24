@@ -1293,7 +1293,8 @@ class NewtonVisualizerBase(BaseVisualizer):
             return
         if rtx_rendering:
             self._draw_rtx_appearance(imgui)
-            hud_note(imgui, "Note: with RTX on, lighting also changes RTX sensor cameras.")  # shown with the section closed
+            # shown with the section closed
+            hud_note(imgui, "Note: with RTX on, lighting also changes RTX sensor cameras.")
             return
         callbacks = self._viewer.gui._ui_callbacks.get("rendering") if self._viewer.gui is not None else None
         if callbacks and imgui.tree_node("Lighting & Appearance###appearance"):
