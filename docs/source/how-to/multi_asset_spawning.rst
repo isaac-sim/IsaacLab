@@ -272,7 +272,7 @@ checkpoint behind openpi's WebSocket protocol that accepts the batched ``robolab
    uv run --with msgpack python scripts/large_models/pi_0.5_evaluation_heterogeneous_simulation.py \
        --policy localhost:18013 --num_envs 32 --trials 2 --output logs/heterogeneous_tasks/pi05
 
-``--tasks`` restricts the evaluation to task families such as ``put_on_plate``. ``--output`` names a new
+``--tasks`` restricts the evaluation to task families such as ``put_in_container``. ``--output`` names a new
 directory that receives ``result.json``, with the results of every task and task family, and
 ``episodes.jsonl``, with one line per finished trial. Object combinations are sampled when the scene is built,
 so the evaluated tasks differ from run to run.
