@@ -81,7 +81,7 @@ dependencies = [
     "rich",
     "tqdm>=4.67.1",
     # Replace this validated source pin with a published release containing SAC before merging.
-    "rsl-rl-lib @ git+https://github.com/leggedrobotics/rsl_rl.git@ea39cc2ae4a615c3d70d4ed9055d8b6e3b4c8acd",
+    "rsl-rl-lib @ git+https://github.com/leggedrobotics/rsl_rl.git@d2f2c9d8c96f279c53969ff2f8d663fed85c3f65",
     "gitpython>=3.1.60",  # used by RL training and experiment logging
     # ----- newton (default physics engine) -----
     # Pin the current Newton development revision until it is included in a release.
@@ -165,7 +165,7 @@ rl-games = [
 
 wandb = ["wandb>=0.13.11"]
 
-rsl-rl = ["rsl-rl-lib @ git+https://github.com/leggedrobotics/rsl_rl.git@ea39cc2ae4a615c3d70d4ed9055d8b6e3b4c8acd"]
+rsl-rl = ["rsl-rl-lib @ git+https://github.com/leggedrobotics/rsl_rl.git@d2f2c9d8c96f279c53969ff2f8d663fed85c3f65"]
 
 torchrl = ["torchrl>=0.13"]
 

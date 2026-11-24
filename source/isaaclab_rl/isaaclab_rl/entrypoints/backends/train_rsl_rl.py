@@ -25,7 +25,7 @@ from isaaclab.utils.string import list_intersection
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import get_checkpoint_path, resolve_task_config, setup_preset_cli
 
-from ...rsl_rl import RslRlBaseRunnerCfg, RslRlDistillationRunnerCfg, RslRlVecEnvWrapper
+from ...rsl_rl import RslRlBaseRunnerCfg, RslRlDistillationRunnerCfg
 from ...utils.wandb import announce_new_run, is_wandb_checkpoint, resolve_wandb_checkpoint, resolve_wandb_entity
 from ..common import (
     CHECKPOINT_SELECTORS,
@@ -46,7 +46,7 @@ from ..common import (
     write_run_manifest,
 )
 from . import cli_args_rsl_rl as cli_args
-from .runner_rsl_rl import configure_rsl_rl_env_cfg, create_rsl_rl_runner, rsl_rl_load_cfg
+from .runner_rsl_rl import configure_rsl_rl_env_cfg, create_rsl_rl_runner, rsl_rl_load_cfg, wrap_rsl_rl_env
 
 logger = logging.getLogger(__name__)
 
@@ -167,7 +167,7 @@ def _run(args_cli: argparse.Namespace) -> None:
             screen.stage("Preparing agent")
             start_time = time.time()
             report_activity("Wrapping environment")
-            env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
+            env = wrap_rsl_rl_env(env, agent_cfg)
             report_activity(None)
             report_activity("Building policy")
             runner = create_rsl_rl_runner(env, agent_cfg, log_dir=log_dir)

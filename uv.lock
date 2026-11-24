@@ -2142,8 +2142,8 @@ requires-dist = [
     { name = "rich", marker = "extra == 'sb3'" },
     { name = "rl-games", marker = "extra == 'rl-games'", git = "https://github.com/isaac-sim/rl_games.git?rev=5cf4f9ff07e9a01bbefd167cf19b6804b294b51c" },
     { name = "robomimic", marker = "sys_platform == 'linux' and extra == 'mimic'", git = "https://github.com/ARISE-Initiative/robomimic.git?rev=v0.4.0" },
-    { name = "rsl-rl-lib", git = "https://github.com/leggedrobotics/rsl_rl.git?rev=ea39cc2ae4a615c3d70d4ed9055d8b6e3b4c8acd" },
-    { name = "rsl-rl-lib", marker = "extra == 'rsl-rl'", git = "https://github.com/leggedrobotics/rsl_rl.git?rev=ea39cc2ae4a615c3d70d4ed9055d8b6e3b4c8acd" },
+    { name = "rsl-rl-lib", git = "https://github.com/leggedrobotics/rsl_rl.git?rev=d2f2c9d8c96f279c53969ff2f8d663fed85c3f65" },
+    { name = "rsl-rl-lib", marker = "extra == 'rsl-rl'", git = "https://github.com/leggedrobotics/rsl_rl.git?rev=d2f2c9d8c96f279c53969ff2f8d663fed85c3f65" },
     { name = "scipy", specifier = ">=1.18.0" },
     { name = "skrl", extras = ["jax"], marker = "extra == 'skrl-jax'", specifier = ">=2.1.1" },
     { name = "skrl", extras = ["torch", "warp"], marker = "extra == 'skrl'", specifier = ">=2.1.1" },
@@ -5167,8 +5167,8 @@ wheels = [
 
 [[package]]
 name = "rsl-rl-lib"
-version = "5.5.2"
-source = { git = "https://github.com/leggedrobotics/rsl_rl.git?rev=ea39cc2ae4a615c3d70d4ed9055d8b6e3b4c8acd#ea39cc2ae4a615c3d70d4ed9055d8b6e3b4c8acd" }
+version = "6.0.0"
+source = { git = "https://github.com/leggedrobotics/rsl_rl.git?rev=d2f2c9d8c96f279c53969ff2f8d663fed85c3f65#d2f2c9d8c96f279c53969ff2f8d663fed85c3f65" }
 dependencies = [
     { name = "gitpython" },
     { name = "numpy" },

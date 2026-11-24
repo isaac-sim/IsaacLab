@@ -1,4 +1,4 @@
-* Added typed SuperMimic models, task and algorithm configurations using the standard RSL-RL runner and environment wrapper.
+* Added a SuperMimic recipe using SHAC, the on-policy runner, and the learned dynamics extension.
 * Added an agent-configured every-step physical observation capture mode before resets and interval events.
 * Added an optional deployment-only actor EMA half-life to the SuperMimic algorithm configuration.
 * Added the optional SuperMimic recipe settings to the actor, world-model and algorithm configurations, including the

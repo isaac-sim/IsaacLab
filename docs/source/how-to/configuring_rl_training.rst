@@ -198,7 +198,7 @@ at the policy timestep using predicted event labels.
 
 Pass the same agent and ``presets=state_obs`` to playback, which also writes JIT and ONNX exports.
 The preset collects one step before applying fractional learner updates. See the
-`RSL-RL SuperMimic guide <https://leggedrobotics.github.io/rsl_rl/guide/overview.html#supermimic-contract>`__
+`RSL-RL learned dynamics configuration <https://leggedrobotics.github.io/rsl_rl/guide/configuration.html#learned-dynamics-configuration>`__
 for checkpoint and deployment inputs. LEAPP requires an MLPModel policy and rejects this actor representation.
 
 .. _Stable-Baselines3: https://stable-baselines3.readthedocs.io/en/master/

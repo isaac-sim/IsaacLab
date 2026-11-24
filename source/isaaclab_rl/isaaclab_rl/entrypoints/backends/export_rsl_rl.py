@@ -27,7 +27,7 @@ from isaaclab.utils.assets import retrieve_file_path
 
 import isaaclab_tasks  # noqa: F401
 
-from ...rsl_rl import RslRlBaseRunnerCfg, RslRlDistillationRunnerCfg, RslRlSacRunnerCfg, RslRlVecEnvWrapper
+from ...rsl_rl import RslRlBaseRunnerCfg, RslRlDistillationRunnerCfg, RslRlSacRunnerCfg
 from ..common import resolve_published_checkpoint, resolve_seed
 from .export_common import (
     add_common_export_args,
@@ -38,7 +38,7 @@ from .export_common import (
     resolve_export_save_path,
     run_export,
 )
-from .runner_rsl_rl import create_rsl_rl_runner
+from .runner_rsl_rl import configure_rsl_rl_env_cfg, create_rsl_rl_runner, wrap_rsl_rl_env
 
 
 def parse_export_args(argv: list[str] | None = None) -> tuple[argparse.Namespace, list[str]]:
@@ -153,9 +153,10 @@ def export_rsl_rl_agent(args_cli: argparse.Namespace, env_cfg: Any, agent_cfg: R
     log_dir = os.path.dirname(resume_path)
     env_cfg.log_dir = log_dir
 
+    configure_rsl_rl_env_cfg(env_cfg, agent_cfg)
     env = gym.make(args_cli.task, cfg=env_cfg, render_mode=None)
     try:
-        env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
+        env = wrap_rsl_rl_env(env, agent_cfg)
         logger.info(f"Loading model checkpoint from: {resume_path}")
         runner = create_rsl_rl_runner(env, agent_cfg, inference=True)
         runner.load(resume_path, map_location=agent_cfg.device)

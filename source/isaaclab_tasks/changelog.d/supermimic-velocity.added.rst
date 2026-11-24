@@ -6,3 +6,4 @@
   Velocity configurations constructed directly, without Hydra, must pass through
   ``isaaclab_tasks.utils.resolve_presets`` before environment creation.
 * Added the G1 SuperMimic agent preset, with values capped at the maximum discounted return.
+* Exposed the policy frame and goal separately for the SHAC actor.

@@ -11,6 +11,9 @@ from typing import TYPE_CHECKING, Any
 
 from isaaclab.utils import to_dict
 
+from ...rsl_rl import RslRlSuperMimicRunnerCfg
+from ...rsl_rl.vecenv_wrapper import RslRlShacVecEnvWrapper, RslRlVecEnvWrapper
+
 if TYPE_CHECKING:
     from rsl_rl.runners import OnPolicyRunner
 
@@ -28,6 +31,22 @@ def configure_rsl_rl_env_cfg(env_cfg: Any, agent_cfg: RslRlBaseRunnerCfg) -> Non
         env_cfg.compute_final_obs = True
     if agent_cfg.final_obs_every_step:
         env_cfg.final_obs_every_step = True
+
+    if isinstance(agent_cfg, RslRlSuperMimicRunnerCfg):
+        for term in agent_cfg.separate_goal_terms:
+            setattr(env_cfg.observations.policy, term, None)
+        if "history" in agent_cfg.obs_groups["actor"]:
+            env_cfg.observations.policy.history_length = agent_cfg.algorithm.history_length
+            env_cfg.observations.policy.flatten_history_dim = False
+
+
+def wrap_rsl_rl_env(env: Any, agent_cfg: RslRlBaseRunnerCfg) -> RslRlVecEnvWrapper:
+    """Adapt the simulator observations and actions to the configured runner."""
+    if isinstance(agent_cfg, RslRlSuperMimicRunnerCfg):
+        return RslRlShacVecEnvWrapper(
+            env, agent_cfg.clip_actions, use_reference_action=agent_cfg.algorithm.use_reference_action
+        )
+    return RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
 
 
 def create_rsl_rl_runner(

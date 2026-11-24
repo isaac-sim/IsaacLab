@@ -51,13 +51,13 @@ class RslRlSacAlgorithmCfg:
     num_warmup_transitions: int = 100_000
     """Collected transition count before updates; also sets uniform-action warm-up for a new actor."""
 
-    actor_learning_rate: float = 0.0001
+    actor_learning_rate: float = 0.0003
     """Learning rate for the actor optimizer."""
 
-    critic_learning_rate: float = 0.0001
+    critic_learning_rate: float = 0.0003
     """Learning rate for the critic optimizer."""
 
-    alpha_learning_rate: float = 0.0001
+    alpha_learning_rate: float = 0.0003
     """Learning rate for the entropy-temperature optimizer."""
 
     optimizer: Literal["adam", "adamw", "sgd", "rmsprop"] = "adam"
@@ -65,6 +65,9 @@ class RslRlSacAlgorithmCfg:
 
     weight_decay: float = 0.0
     """Weight decay for the actor and critic optimizers."""
+
+    grad_reduce_bucket_mb: float = 25.0
+    """Maximum size of a distributed gradient reduction bucket in megabytes."""
 
     max_grad_norm: float | None = None
     """Maximum actor and critic gradient norm; None disables clipping."""

@@ -202,6 +202,36 @@ def test_rsl_rl_wrapper_reports_invalid_unwrapped_type() -> None:
     assert "OuterEnv" not in str(exc_info.value)
 
 
+def test_shac_wrapper_steps_with_current_reference_and_splits_frame_history():
+    """The simulator receives the applied command and the actor sees the newest frame once."""
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+
+    from isaaclab.envs import ManagerBasedRLEnv
+
+    from isaaclab_rl.rsl_rl.vecenv_wrapper import RslRlShacVecEnvWrapper
+
+    env = Mock(spec=ManagerBasedRLEnv)
+    env.unwrapped = env
+    env.num_envs, env.device, env.max_episode_length = 2, "cpu", 10
+    env.action_manager = SimpleNamespace(total_action_dim=1)
+    env.cfg = SimpleNamespace(is_finite_horizon=True)
+    frames = torch.arange(12).reshape(2, 3, 2)
+    reference = torch.tensor([[0.5], [-0.25]])
+    env.obs_buf = {"policy": frames, "reference_action": reference}
+    env.reset.return_value = (env.obs_buf, {})
+    zeros = torch.zeros(2, dtype=torch.bool)
+    env.step.return_value = ({"policy": frames + 1}, zeros.float(), zeros, zeros, {})
+    wrapper = RslRlShacVecEnvWrapper(env, use_reference_action=True)
+    current, _ = wrapper.reset()
+    torch.testing.assert_close(current["policy"], frames[:, -1])
+    torch.testing.assert_close(wrapper.get_observations()["history"], frames[:, :-1].flatten(1))
+    obs, *_ = wrapper.step(torch.ones_like(reference))
+    torch.testing.assert_close(env.step.call_args.args[0], reference + 1)
+    torch.testing.assert_close(obs["policy"], frames[:, -1] + 1)
+    torch.testing.assert_close(obs["history"], frames[:, :-1].flatten(1) + 1)
+
+
 def _assert_finite(data: Any) -> None:
     if isinstance(data, torch.Tensor):
         assert torch.isfinite(data).all()

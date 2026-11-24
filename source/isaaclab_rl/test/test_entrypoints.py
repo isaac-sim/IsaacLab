@@ -1012,34 +1012,57 @@ def test_supermimic_configurations_track_native_constructors() -> None:
     import inspect
     from dataclasses import fields
 
-    from rsl_rl.algorithms import SuperMimic
+    from rsl_rl.algorithms import SHAC
+    from rsl_rl.extensions import LearnedDynamics, WorldModel
     from rsl_rl.models import SuperMimicActor
-    from rsl_rl.modules import WorldModel
 
-    from isaaclab_rl.rsl_rl import RslRlSuperMimicActorCfg, RslRlSuperMimicAlgorithmCfg, RslRlWorldModelCfg
+    from isaaclab_rl.rsl_rl import (
+        RslRlLearnedDynamicsCfg,
+        RslRlSuperMimicActorCfg,
+        RslRlSuperMimicAlgorithmCfg,
+        RslRlWorldModelCfg,
+    )
 
     cases = (
         (
             RslRlSuperMimicAlgorithmCfg(),
-            SuperMimic,
+            SHAC,
             {
                 "self",
                 "actor",
-                "world_model",
                 "critic",
-                "storage",
                 "task",
                 "obs_groups",
-                "device",
-                "multi_gpu_cfg",
+                "action_history",
+                "learned_dynamics",
                 "max_episode_length",
+                "multi_gpu_cfg",
+                "device",
             },
-            {"class_name", "task_cfg", "replay_buffer_capacity", "max_replay_memory_fraction"},
+            {"class_name", "task_cfg", "history_length", "world_model_cfg"},
+        ),
+        (
+            RslRlLearnedDynamicsCfg(),
+            LearnedDynamics,
+            {
+                "self",
+                "task",
+                "obs_groups",
+                "state",
+                "context",
+                "action_history",
+                "history_length",
+                "use_mixed_precision",
+                "world_size",
+                "device",
+                "model",
+            },
+            {"model"},
         ),
         (
             RslRlSuperMimicActorCfg(),
             SuperMimicActor,
-            {"self", "task", "obs_groups", "obs_dim", "goal_dim", "num_envs", "num_actions"},
+            {"self", "obs", "obs_set", "obs_groups", "output_dim"},
             {"class_name"},
         ),
         (
@@ -1067,7 +1090,7 @@ def test_rsl_rl_configures_physical_successors_before_env_creation() -> None:
     env_cfg = DirectRLEnvCfg()
     configure_rsl_rl_env_cfg(env_cfg, RslRlSacRunnerCfg())
     assert env_cfg.compute_final_obs and not env_cfg.final_obs_every_step
-    configure_rsl_rl_env_cfg(env_cfg, RslRlSuperMimicRunnerCfg())
+    configure_rsl_rl_env_cfg(env_cfg, RslRlSuperMimicRunnerCfg(obs_groups={"actor": ["policy"]}))
     assert env_cfg.final_obs_every_step
     configure_rsl_rl_env_cfg(env_cfg, RslRlBaseRunnerCfg())
     assert env_cfg.final_obs_every_step

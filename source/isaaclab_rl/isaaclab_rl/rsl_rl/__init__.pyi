@@ -14,6 +14,7 @@ __all__ = [
     "RslRlResidualMLPModelCfg",
     "RslRlSacAlgorithmCfg",
     "RslRlSacRunnerCfg",
+    "RslRlLearnedDynamicsCfg",
     "RslRlSuperMimicActorCfg",
     "RslRlSuperMimicAlgorithmCfg",
     "RslRlSuperMimicRunnerCfg",
@@ -32,16 +33,17 @@ from .rl_cfg import (
     RslRlBaseRunnerCfg,
     RslRlCNNModelCfg,
     RslRlMLPModelCfg,
+    RslRlOnPolicyRunnerCfg,
+    RslRlPpoAlgorithmCfg,
     RslRlQMLPModelCfg,
     RslRlResidualMLPCfg,
     RslRlResidualMLPModelCfg,
-    RslRlOnPolicyRunnerCfg,
-    RslRlPpoAlgorithmCfg,
     RslRlRNNModelCfg,
 )
 from .rnd_cfg import RslRlRndCfg
 from .sac_cfg import RslRlSacAlgorithmCfg, RslRlSacRunnerCfg
 from .supermimic_cfg import (
+    RslRlLearnedDynamicsCfg,
     RslRlSuperMimicActorCfg,
     RslRlSuperMimicAlgorithmCfg,
     RslRlSuperMimicRunnerCfg,

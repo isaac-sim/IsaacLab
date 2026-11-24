@@ -117,10 +117,12 @@ def test_g1_differentiable_velocity_matches_reward_and_termination_managers():
                 history = torch.stack(
                     (env.unwrapped.action_manager.prev_action, env.unwrapped.action_manager.action), -2
                 )
-                frame = task.actor_obs(state, goal, obs["context"], history)
+                inputs = task.actor_obs(state, goal, obs["context"], history)
+                frame = inputs["policy"]
+                torch.testing.assert_close(inputs["goal"], goal)
                 torch.testing.assert_close(frame, torch.cat((obs["policy"][..., :9], obs["policy"][..., 12:]), -1))
                 # Privileged masses and contact clocks cannot enter the actor.
-                torch.testing.assert_close(frame, task.actor_obs(state, goal, 2 * obs["context"], history))
+                torch.testing.assert_close(frame, task.actor_obs(state, goal, 2 * obs["context"], history)["policy"])
                 actions = 0.1 * torch.sin(phase + step * 0.3)
                 obs, _, terminated, _, extras = env.step(actions)
                 final = extras["final_obs"]

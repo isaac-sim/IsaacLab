@@ -27,9 +27,6 @@ class RslRlSuperMimicActorCfg:
     class_name: str = "SuperMimicActor"
     """The actor class resolved by RSL-RL."""
 
-    history_length: int = 5
-    """Number of actor frames in the deployment history."""
-
     latent_dim: int = 32
     """Width of the encoded goal."""
 
@@ -38,9 +35,6 @@ class RslRlSuperMimicActorCfg:
 
     decoder_hidden_dims: tuple[int, ...] = (2048, 1024, 512, 256)
     """Hidden widths of the history-conditioned action decoder."""
-
-    use_reference_action: bool = False
-    """Whether the network output corrects the task's reference action, which exports then take as an input."""
 
     activation: str = "elu"
     """Activation of the encoder and decoder layers."""
@@ -57,9 +51,6 @@ class RslRlSuperMimicActorCfg:
 
     output_gain: float = 0.01
     """Scale of the initial decoder output weights; values other than 1 also zero the output bias."""
-
-    normalize_before_action: bool = True
-    """Whether to update the observation and goal normalizers before choosing each collection action, not after."""
 
 
 @configclass
@@ -89,20 +80,67 @@ class RslRlWorldModelCfg:
 
 
 @configclass
-class RslRlSuperMimicAlgorithmCfg:
-    """Arguments forwarded to SuperMimic, including task and replay construction."""
+class RslRlLearnedDynamicsCfg:
+    """Replay and training settings for SHAC's learned dynamics."""
 
-    class_name: str = "SuperMimic"
-    """The algorithm class resolved by RSL-RL."""
-
-    task_cfg: RslRlSuperMimicTaskCfg = MISSING
-    """Differentiable task configured by the environment owner."""
+    model: RslRlWorldModelCfg = RslRlWorldModelCfg()
+    """Predictor trained on physical transitions."""
 
     replay_buffer_capacity: int = 1_000_000
     """Replay capacity in transitions across all environments."""
 
     max_replay_memory_fraction: float | None = None
     """Optional fraction of free CUDA memory available to replay at first insertion."""
+
+    num_warmup_steps: int = 64
+    """Stored steps per environment required before learning."""
+
+    num_warmup_iterations: int = 500
+    """Learner iterations fitting only dynamics."""
+
+    num_updates: int = 10
+    """Dynamics optimizer steps per learner iteration."""
+
+    window_length: int = 8
+    """Maximum autoregressive dynamics fitting horizon."""
+
+    batch_size: int = 2048
+    """Replay anchors per dynamics optimizer step."""
+
+    mirror_fraction: float = 0.0
+    """Fraction of each dynamics batch replaced by its left-right mirror image from the task's mirror hooks."""
+
+    loss_reduction: str = "sum"
+    """Sum the dynamics loss over each replay window (``"sum"``) or average it over all valid positions (``"mean"``)."""
+
+    full_windows: bool = False
+    """Whether to sample only complete windows inside an episode for dynamics fitting.
+
+    Needs :attr:`num_warmup_steps` greater than :attr:`window_length`.
+    """
+
+
+@configclass
+class RslRlSuperMimicAlgorithmCfg:
+    """SHAC policy and value updates with optional learned dynamics."""
+
+    class_name: str = "SHAC"
+    """The algorithm class resolved by RSL-RL."""
+
+    task_cfg: RslRlSuperMimicTaskCfg = MISSING
+    """Differentiable task configured by the environment owner."""
+
+    world_model_cfg: RslRlLearnedDynamicsCfg | None = RslRlLearnedDynamicsCfg()
+    """Learned dynamics configuration for the SuperMimic recipe."""
+
+    history_length: int = 5
+    """Number of actor frames in the deployment history."""
+
+    use_reference_action: bool = False
+    """Whether the network output corrects the task's reference action, which exports then take as an input."""
+
+    normalize_before_action: bool = True
+    """Whether to update the observation and goal normalizers before choosing each collection action, not after."""
 
     updates_per_step: float = 0.4
     """Learner iterations accrued per collected environment step."""
@@ -111,29 +149,8 @@ class RslRlSuperMimicAlgorithmCfg:
     """Accrue learner-update credit after warmup (``"after_warmup"``) or from the first collected step
     (``"from_start"``)."""
 
-    num_world_model_updates: int = 10
-    """Dynamics optimizer steps per learner iteration."""
-
     num_policy_updates: int = 1
     """Actor updates and associated critic fits per learner iteration."""
-
-    world_model_window: int = 8
-    """Maximum autoregressive dynamics fitting horizon."""
-
-    world_model_batch_size: int = 2048
-    """Replay anchors per dynamics optimizer step."""
-
-    world_model_mirror_fraction: float = 0.0
-    """Fraction of each dynamics batch replaced by its left-right mirror image from the task's mirror hooks."""
-
-    world_model_loss_reduction: str = "sum"
-    """Sum the dynamics loss over each replay window (``"sum"``) or average it over all valid positions (``"mean"``)."""
-
-    world_model_full_windows: bool = False
-    """Whether to sample only complete windows inside an episode for dynamics fitting.
-
-    Needs :attr:`num_warmup_steps` greater than :attr:`world_model_window`.
-    """
 
     horizon: int = 32
     """Number of imagined policy steps."""
@@ -196,12 +213,6 @@ class RslRlSuperMimicAlgorithmCfg:
     critic_shuffle_each_epoch: bool = True
     """Whether to draw new critic minibatches every epoch instead of reusing one permutation."""
 
-    num_warmup_steps: int = 64
-    """Stored steps per environment required before learning."""
-
-    num_world_model_warmup_iterations: int = 500
-    """Learner iterations fitting only dynamics."""
-
     action_noise: float = 0.1
     """Standard deviation of additive collection noise."""
 
@@ -230,19 +241,19 @@ class RslRlSuperMimicAlgorithmCfg:
 
 @configclass
 class RslRlSuperMimicRunnerCfg(RslRlBaseRunnerCfg):
-    """Standard replay runner with physical successors on every step."""
+    """SHAC runner with physical successors on every step."""
 
-    class_name: str = "OffPolicyRunner"
+    class_name: str = "OnPolicyRunner"
     """The runner class resolved by RSL-RL."""
 
     final_obs_every_step: bool = True
     """Capture physical observations before resets and interval events on every step."""
 
+    separate_goal_terms: tuple[str, ...] = ()
+    """Policy terms supplied to the goal encoder separately from the frame history."""
+
     actor: RslRlSuperMimicActorCfg = MISSING
     """History-conditioned deployment actor."""
-
-    world_model: RslRlWorldModelCfg = MISSING
-    """Learned physical dynamics and event predictions."""
 
     critic: RslRlMLPModelCfg = MISSING
     """Scalar value model consuming task-owned privileged features."""

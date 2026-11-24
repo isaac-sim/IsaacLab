@@ -17,7 +17,8 @@ import math
 from typing import TYPE_CHECKING
 
 import torch
-from rsl_rl.algorithms.supermimic_task import DifferentiableTask, State
+from rsl_rl.env.differentiable_task import DifferentiableTask, State
+from tensordict import TensorDict
 
 from isaaclab.actuators import IdealPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.actuators.actuator_base import resolve_joint_parameter
@@ -210,16 +211,9 @@ class VelocityTask(DifferentiableTask):
             limit = cfg.actuator_effort_limit if cfg.actuator_effort_limit is not None else cfg.joint_effort_limit
             self.effort_limit[ids] = resolve_joint_parameter(limit, torch.inf, names, 1, device)[0]
 
-    def to(self, device: torch.device | str) -> VelocityTask:
-        """Move tensor attributes and the per-term index tensors."""
-        super().to(device)
-        for table in (self.term_joints, self.termination_bodies):
-            table.update({name: _index(ids, device) for name, ids in table.items()})
-        return self
-
     def actor_obs(
         self, state: State, goal: torch.Tensor, context: torch.Tensor, prev_actions: torch.Tensor
-    ) -> torch.Tensor:
+    ) -> TensorDict:
         """Return only the default policy's deployable proprioceptive inputs."""
         gravity = quat_apply_inverse(state[2], self.gravity.expand_as(state[0]))
         parts = (
@@ -230,11 +224,8 @@ class VelocityTask(DifferentiableTask):
             state[5] - self.default_vel,
             prev_actions[..., -1, :],
         )
-        return torch.cat(tuple(parts[index] for index, _, _ in self.actor_terms), dim=-1)
-
-    def actor_goal(self, state: State, goal: torch.Tensor) -> torch.Tensor:
-        """Use the commanded xy velocity and yaw rate directly."""
-        return goal
+        frame = torch.cat(tuple(parts[index] for index, _, _ in self.actor_terms), dim=-1)
+        return TensorDict({"policy": frame, "goal": goal}, batch_size=frame.shape[:-1])
 
     def add_noise(self, obs: torch.Tensor) -> torch.Tensor:
         """Match the flat policy's independent uniform observation corruption."""
