@@ -14,17 +14,25 @@ applies for ``decimation / chunk_length`` physics steps, and ``chunk_length`` mu
 
 .. code-block:: python
 
+   from isaaclab.envs import ManagerBasedRLEnvCfg
    from isaaclab.envs.mdp import JointEffortActionCfg, JointPositionActionCfg
+   from isaaclab.utils import configclass
 
-   # in the environment configuration: 16 commands per action, each held for 4 physics steps
-   decimation = 16 * 4
 
-   # in the actions configuration
-   arm = JointPositionActionCfg(asset_name="robot", joint_names=[".*"], chunk_length=16)
-   feedforward = JointEffortActionCfg(asset_name="robot", joint_names=[".*"], chunk_length=16)
+   @configclass
+   class ActionsCfg:
+       arm = JointPositionActionCfg(asset_name="robot", joint_names=[".*"], chunk_length=16)
+       feedforward = JointEffortActionCfg(asset_name="robot", joint_names=[".*"], chunk_length=16)
+
+
+   @configclass
+   class MyEnvCfg(ManagerBasedRLEnvCfg):
+       actions: ActionsCfg = ActionsCfg()
+       # 16 commands per action, each held for 4 physics steps
+       decimation = 16 * 4
 
 With ``num_joints`` joints, the position term takes ``16 * num_joints`` values per environment. The
-runner steps once per chunk:
+environment steps once per chunk:
 
 .. code-block:: python
 
