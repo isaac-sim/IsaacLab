@@ -83,6 +83,7 @@ This list includes only community projects based on Isaac Lab 3.0 or later.
 
 * [allegro-inhand-rolling](https://github.com/beyondlm/allegro-inhand-rolling): Allegro hand cylinder rolling with cached grasps and a pretrained policy.
 * [basic-locomotion-isaaclab](https://github.com/iit-DLSLab/basic-locomotion-isaaclab): Quadruped locomotion with sim-to-sim and sim-to-real transfer.
+* [IsaacSwim](https://github.com/danyichen/IsaacSwim): Underwater robotics: hydrodynamics, buoyancy, currents, thrusters and marine sensors for any articulation.
 * [robot_lab](https://github.com/fan-ziqi/robot_lab): Locomotion tasks for quadrupeds, wheeled-legged robots, and humanoids.
 
 See [Community Projects](docs/source/isaaclab/community_projects.rst)

@@ -19,6 +19,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
+  actions: read
   contents: read
   pull-requests: read
 
@@ -203,10 +204,23 @@ jobs:
 
       - name: Download wheel artifact for install test
         if: steps.changes.outputs.run_build == 'true'
-        uses: actions/download-artifact@v7
-        with:
-          name: ${{ steps.meta.outputs.artifact_name }}
-          path: /tmp/isaaclab-wheel-artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WHEEL_ARTIFACT: ${{ steps.meta.outputs.artifact_name }}
+        run: |
+          set -euo pipefail
+          # Newly finalized artifacts can be listed before their download is available.
+          for attempt in {1..6}; do
+            if gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+              --name "$WHEEL_ARTIFACT" --dir /tmp/isaaclab-wheel-artifact; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 6 ]; then
+              sleep 10
+            fi
+          done
+          echo "Unable to download the wheel artifact after six attempts" >&2
+          exit 1
 
       - name: Test wheel extras resolution
         if: steps.changes.outputs.run_build == 'true'

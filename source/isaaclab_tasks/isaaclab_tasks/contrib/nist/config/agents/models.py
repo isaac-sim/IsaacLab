@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""RSL-RL models for Factory tasks, with a backbone adapted from SimBa:
+"""RSL-RL models for NIST tasks, with a backbone adapted from SimBa:
 
 @inproceedings{lee2025simba,
   title={SimBa: Simplicity Bias for Scaling Up Parameters in Deep Reinforcement Learning},
