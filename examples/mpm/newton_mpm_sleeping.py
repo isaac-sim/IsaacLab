@@ -10,15 +10,21 @@
     uv run --no-sync isaaclab example mpm-sleeping
     uv run --no-sync isaaclab example mpm-sleeping --paging
     uv run --no-sync isaaclab example mpm-sleeping --no-sleeping
+    uv run --no-sync isaaclab example mpm-sleeping --streaming
 
 Requires the companion Newton sleeping/working-set implementation and Warp's
 built conditional-allocation support. The default pinned dependencies do not
-provide these experimental APIs yet. All particle history stays in GPU memory;
-optional paging groups evaluation slots rather than providing out-of-core storage.
+provide these experimental APIs yet. In the full-bed modes, all particle
+history stays in GPU memory. Paging groups evaluation slots in that mode.
 Settling, allocation, and final validation occur outside the captured animation.
-All modes use the same guarded sparse runtime; --no-sleeping evaluates the full bed.
+All modes use the same guarded sparse runtime. Use --no-sleeping to evaluate
+every particle in the bed or streaming pool.
 Sleeping is approximate and can suppress slow creep; validate interaction forces
 against full MPM for your task.
+
+The streaming mode uses Junisuke Kamohara's experimental Newton particle pool.
+It follows the sphere and recycles the trailing edge onto new terrain. The
+recycled material starts fresh, so footprints outside the pool are lost.
 """
 
 from __future__ import annotations
@@ -37,11 +43,16 @@ logger = logging.getLogger(__name__)
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--max_steps", type=int, default=480, help="Frames; negative runs until the viewer closes.")
 parser.add_argument("--settle-time", type=float, default=10.0, help="Initial settling duration [s].")
-parser.add_argument("--sleeping", action=argparse.BooleanOptionalAction, default=True)
+parser.add_argument(
+    "--sleeping", action=argparse.BooleanOptionalAction, default=None, help="Defaults to on for the full bed."
+)
 parser.add_argument("--paging", action="store_true", help="Use 32-particle evaluation pages instead of individual IDs.")
+parser.add_argument("--streaming", action="store_true", help="Recycle a smaller sand bed around the sphere.")
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["newton_gl"])
 args_cli = parser.parse_args()
+if args_cli.sleeping is None:
+    args_cli.sleeping = not args_cli.streaming
 if args_cli.settle_time < 0.0 or not math.isfinite(args_cli.settle_time):
     parser.error("--settle-time must be finite and nonnegative")
 if args_cli.paging and not args_cli.sleeping:
@@ -51,6 +62,9 @@ FPS = 60.0
 SUBSTEPS = 4
 VOXEL_SIZE = 0.04
 BALL_RADIUS = 0.12
+STREAM_SIZE = 0.80
+STREAM_MARGIN = 0.24
+STREAM_TILE = 0.16
 
 
 @wp.kernel(enable_backward=False)
@@ -92,6 +106,7 @@ def create_sim_cfg():
             self.motion_time = wp.zeros(1, dtype=float, device=model.device)
             self.motion_enabled = wp.zeros(1, dtype=int, device=model.device)
             self.motion_height = 1.0
+            self.particle_pool = None
             return solver
 
         def step(self, state_in, state_out, control, contacts, dt, *, observables=None):
@@ -108,7 +123,11 @@ def create_sim_cfg():
                 ],
                 device=self.native.model.device,
             )
+            if self.particle_pool is not None:
+                self.particle_pool.update(state_in)
             super().step(state_in, state_out, control, contacts, dt, observables=observables)
+            if self.particle_pool is not None:
+                self.particle_pool.post_step(state_out)
 
     return sim_utils.SimulationCfg(
         dt=1.0 / FPS,
@@ -148,6 +167,8 @@ def create_scene_cfg():
     from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
     from isaaclab.utils import configclass
 
+    half_extent = 0.5 * STREAM_SIZE + STREAM_MARGIN if args_cli.streaming else 1.0
+
     @configclass
     class SleepingSceneCfg(InteractiveSceneCfg):
         ground = AssetBaseCfg(
@@ -160,8 +181,8 @@ def create_scene_cfg():
         sand = MPMObjectCfg(
             prim_path="{ENV_REGEX_NS}/Sand",
             spawn=MPMGridCfg(
-                lower=(-1.0, -1.0, 0.0),
-                upper=(1.0, 1.0, 0.08),
+                lower=(-half_extent, -half_extent, 0.0),
+                upper=(half_extent, half_extent, 0.08),
                 voxel_size=VOXEL_SIZE,
                 particles_per_cell=2.0,
                 particle_placement="cell_center",
@@ -188,6 +209,29 @@ def create_scene_cfg():
     return SleepingSceneCfg(num_envs=1, env_spacing=0.0)
 
 
+def configure_streaming(backend) -> None:
+    """Install the native pool before settling the single flat terrain."""
+    solver = backend.solver
+    if not hasattr(solver, "set_particle_streaming"):
+        raise RuntimeError("--streaming requires a Newton build providing set_particle_streaming().")
+    with wp.ScopedDevice(solver.model.device):
+        surface = wp.Mesh(
+            points=wp.array([(-2.0, -2.0, 0.0), (2.0, -2.0, 0.0), (2.0, 2.0, 0.0), (-2.0, 2.0, 0.0)], dtype=wp.vec3),
+            indices=wp.array([0, 1, 2, 0, 2, 3], dtype=int),
+        )
+    backend.invalidate_graph()
+    backend.solver_ops.particle_pool = solver.set_particle_streaming(
+        backend.state_0,
+        body_indices=[0],
+        size=(STREAM_SIZE, STREAM_SIZE),
+        margin=STREAM_MARGIN,
+        tile_size=STREAM_TILE,
+        surface_mesh=surface,
+        world_origins=[(0.0, 0.0, 0.0)],
+        spawn_heights=[0.0],
+    )
+
+
 def prepare_simulation(sim, scene) -> None:
     """Settle with full buffers, classify activity, then capture the bounded layout."""
     from isaaclab_newton.physics import (
@@ -200,6 +244,8 @@ def prepare_simulation(sim, scene) -> None:
     manager = sim.backend_manager
     backend = manager.backend
     dt = sim.get_physics_dt()
+    if args_cli.streaming:
+        configure_streaming(backend)
     for _ in range(math.ceil(args_cli.settle_time / dt)):
         sim.step(render=False)
         scene.update(dt)
@@ -209,7 +255,11 @@ def prepare_simulation(sim, scene) -> None:
         sim.step(render=False)
         scene.update(dt)
     # This setup-only download places the sphere relative to the settled surface.
-    surface_height = float(np.quantile(backend.state_0.particle_q.numpy()[:, 2], 0.99))
+    particle_heights = backend.state_0.particle_q.numpy()[:, 2]
+    pool = backend.solver_ops.particle_pool
+    if pool is not None:
+        particle_heights = particle_heights[pool.particle_is_dynamic.numpy() != 0]
+    surface_height = float(np.quantile(particle_heights, 0.99))
     backend.solver_ops.motion_height = surface_height + BALL_RADIUS - 0.02
     backend.invalidate_graph()  # The controller height is captured by value, including in the full reference.
     working_set_cfg = (
@@ -237,6 +287,8 @@ def run_simulator(sim, scene):
             if sim.is_rendering:
                 sim.render()
             frames += 1
+    if backend.solver_ops.particle_pool is not None:
+        backend.solver_ops.particle_pool.check_status()
     if frames:
         np.testing.assert_allclose(backend.state_0.body_q.numpy()[0, 2], backend.solver_ops.motion_height, atol=1.0e-6)
     for values in (backend.state_0.particle_q, backend.state_0.particle_qd):

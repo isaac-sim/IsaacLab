@@ -300,6 +300,20 @@ moving-sphere example with compact evaluation or optional pages:
    uv run --no-sync isaaclab example mpm-sleeping --paging
    uv run --no-sync isaaclab example mpm-sleeping --no-sleeping
 
+With a Newton build that includes `Junisuke Kamohara's particle streaming pool
+<https://github.com/jnskkmhr/newton/commit/7adb5be7073f980cc780195234f47a85570a422a>`_,
+the same example also accepts ``--streaming``. It replaces the full bed with a
+smaller pool that follows the sphere. A stationary support ring surrounds the
+simulated interior. Streaming defaults to no sleeping. As the window moves,
+particles that leave it are reused with fresh material state on the leading
+edge. Use the full bed with sleeping and optional evaluation paging when
+footprints outside the window must persist.
+
+The example creates the pool before capture and calls its update and post-step
+operations inside each captured physics substep. It checks streaming and grid
+capacity status after replay. This demonstration uses one standalone MPM solver
+and one kinematic anchor on flat terrain.
+
 Use :class:`~isaaclab_newton.physics.MPMSleepingCfg` and
 :class:`~isaaclab_newton.physics.MPMWorkingSetCfg` to hold the runtime settings:
 
