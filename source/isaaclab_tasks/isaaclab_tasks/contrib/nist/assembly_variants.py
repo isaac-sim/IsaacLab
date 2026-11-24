@@ -11,18 +11,18 @@ from dataclasses import dataclass
 
 from isaaclab.assets import RigidObjectCfg
 
-from . import factory_assets_cfg as assets
+from . import nist_assets_cfg as assets
 from .assembly_keypoints import NIST_BOARD_CFG, Offset
 from .assembly_profile_cfg import AssemblyProfileCfg
-from .factory_presets import (
+from .nist_presets import (
     GRASPED_POSE_RANGE,
     GRASPED_POSE_RANGE_CENTERED,
-    FactoryAssemblyProfileCfg,
     FixedAssetTipCfg,
     HeldAssetAlignOffsetCfg,
     HeldAssetGraspDiameterCfg,
     HeldAssetGraspMiddleCfg,
     HeldAssetGraspPointCfg,
+    NISTAssemblyProfileCfg,
 )
 
 
@@ -92,7 +92,7 @@ _HELD_ALIGN_OFFSETS = HeldAssetAlignOffsetCfg()
 _HELD_GRASP_POINTS = HeldAssetGraspPointCfg()
 _HELD_GRASP_MIDDLES = HeldAssetGraspMiddleCfg()
 _HELD_GRASP_DIAMETERS = HeldAssetGraspDiameterCfg()
-_PROFILES = FactoryAssemblyProfileCfg()
+_PROFILES = NISTAssemblyProfileCfg()
 
 
 ASSEMBLY_VARIANTS = tuple(
