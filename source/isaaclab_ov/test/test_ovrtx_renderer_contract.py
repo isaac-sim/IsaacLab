@@ -747,6 +747,24 @@ def test_ovrtx_split_search_retires_every_failed_product_before_a_scene_write(mo
     assert len(submissions) == steps
 
 
+def test_ovrtx_split_search_retires_every_failed_product_before_an_interrupted_scene_write(monkeypatch):
+    """An interrupt in the first scene write of the search leaves no failed render product in the submitted set.
+
+    An interrupt, for example Ctrl+C, is no ``Exception``, so it skips the clean-up after a failed scene write. OVRTX
+    can abort when a later step renders a failed render product again.
+    """
+    renderer, cameras = _make_search_cameras(monkeypatch, False, 8, [("auto", 64), ("auto", 64)])
+    failed = set(renderer.backend.render_products)
+    _install_step(renderer, lambda products: True)
+    renderer.backend.renderer.add_usd_reference_from_string.side_effect = KeyboardInterrupt
+
+    with pytest.raises(KeyboardInterrupt):
+        renderer.render_batch(cameras)
+
+    # The second sensor gets no scene write, but its failed render products also left the steps.
+    assert not renderer.backend.render_products & failed
+
+
 def test_ovrtx_split_search_leaves_out_a_sensor_removed_before_its_first_frame(monkeypatch):
     """A sensor removed before its first frame gets no new render products when the first frame fails."""
     renderer, (kept, removed) = _make_search_cameras(monkeypatch, False, 8, [("auto", 64), ("auto", 64)])
