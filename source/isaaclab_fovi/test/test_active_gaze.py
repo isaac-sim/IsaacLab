@@ -15,6 +15,7 @@ from fovi.sensing.projection import CameraModel
 from isaaclab_fovi.mdp.binocular_gaze import (
     SOFTWARE,
     BinocularGazeAction,
+    binocular_gaze_teacher_labels,
     binocular_teacher_kernel,
     make_binocular_gaze_step,
 )
@@ -790,6 +791,23 @@ def test_binocular_gaze_rejects_eyes_on_different_bodies():
     env = SimpleNamespace(scene=scene, num_envs=1, device="cpu")
     with pytest.raises(ValueError, match="one body"):
         BinocularGazeAction(BinocularGazeActionCfg(asset_name="left", right_asset_name="right"), env)
+
+
+def test_binocular_teacher_hands_world_points_to_its_gaze_term():
+    points = torch.tensor([[0.1, -0.2, 1.0]])
+    received = []
+    eyes = SimpleNamespace(teacher_labels=lambda points, labels: received.append(wp.to_torch(points).clone()))
+    env = SimpleNamespace(
+        device="cpu", num_envs=1, scene={}, action_manager=SimpleNamespace(get_term=lambda name: eyes), extras={}
+    )
+    teacher = binocular_gaze_teacher_labels(ObservationTermCfg(func=binocular_gaze_teacher_labels), env)
+    # The offset of a world point runs along the world axes.
+    teacher(env, target_w=lambda env: points, offset=(0.0, 0.0, 0.5))
+    torch.testing.assert_close(received[0], points + torch.tensor([[0.0, 0.0, 0.5]]))
+    with pytest.raises(ValueError, match="one target"):
+        teacher(env)
+    with pytest.raises(ValueError, match=r"shape \(1, 3\)"):
+        teacher(env, target_w=lambda env: points[0])
 
 
 def test_binocular_gaze_config_rejects_one_eye_and_a_rigless_rig_mode():

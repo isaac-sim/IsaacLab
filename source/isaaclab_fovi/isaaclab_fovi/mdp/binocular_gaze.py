@@ -14,6 +14,7 @@ meet; at zero they are parallel. Both are in field radii, half the retina's fiel
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from functools import cache
 from typing import TYPE_CHECKING, ClassVar
 
@@ -501,9 +502,11 @@ class BinocularGazeAction(ActionTerm):
             labels: The output, shape (num_envs, 4).
         """
         left, right = self.left, self.right
+        # Both eyes read their poses, without capturing an image.
         mounts = left.update_mount()
+        right.update_mount()
         heads = self.head_and_target()
-        left_positions, right_positions = left.data.pos_w.warp, right.data.pos_w.warp
+        left_positions, right_positions = left.mount_pos_w.warp, right.mount_pos_w.warp
         sources = (points, labels, mounts, left_positions, right_positions)
         if self._teacher_launch is None or any(a is not b for a, b in zip(self._teacher_launch[0], sources)):
             launch = record_launch(
@@ -545,14 +548,19 @@ class BinocularGazeAction(ActionTerm):
 
 
 class binocular_gaze_teacher_labels(ManagerTermBase):
-    """The teacher's binocular gaze action toward a point fixed to an asset, and its validity, shape (num_envs, 4).
+    """The teacher's binocular gaze action toward a target point, and its validity, shape (num_envs, 4).
+
+    The target is a point fixed to an asset (``target_cfg``), or any world point each environment supplies
+    (``target_w``), as for :class:`~isaaclab_fovi.mdp.gaze_teacher_labels`.
 
     A training label, never a policy input.
 
     Args:
-        target_cfg: The asset, and optionally one body by ``body_names``.
-        offset: The point in the root's or the body's frame [m].
+        target_cfg: The asset, and optionally one body by ``body_names``; give this or ``target_w``.
+        offset: The point in the root's or the body's frame [m]; along the world axes from ``target_w``.
         action_name: The binocular gaze action term.
+        target_w: A function of the environment that returns each environment's target point in the world [m], shape
+            (num_envs, 3); give this or ``target_cfg``.
     """
 
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
@@ -564,10 +572,22 @@ class binocular_gaze_teacher_labels(ManagerTermBase):
     def __call__(
         self,
         env: ManagerBasedEnv,
-        target_cfg: SceneEntityCfg,
+        target_cfg: SceneEntityCfg | None = None,
         offset: tuple[float, float, float] = (0.0, 0.0, 0.0),
         action_name: str = "gaze",
+        target_w: Callable[[ManagerBasedEnv], torch.Tensor] | None = None,
     ) -> torch.Tensor:
+        if (target_cfg is None) == (target_w is None):
+            raise ValueError("binocular_gaze_teacher_labels needs one target: target_cfg or target_w.")
+        if target_w is not None:
+            points = target_w(env)
+            if tuple(points.shape) != (env.num_envs, 3):
+                raise ValueError(
+                    f"target_w must return points of shape ({env.num_envs}, 3), got {tuple(points.shape)}."
+                )
+            wp.to_torch(self._points).copy_(points + points.new_tensor(offset))
+            self._gaze.teacher_labels(self._points, self._labels.warp)
+            return self._labels.torch
         data = env.scene[target_cfg.name].data
         body = target_body_index(target_cfg)
         if body is None:
