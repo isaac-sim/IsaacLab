@@ -172,9 +172,10 @@ class MDP2Env:
 
     def close(self) -> None:
         if not self._is_closed:
-            self.sim.stop()
-            # The captured graphs, the MDP state, and the scene data all reference the scene's buffers.
+            # The captured steps reference scene buffers and solver hooks.
             self._runs = None
+            self.sim.stop()
+            self.scene.close()
             del self.state, self.transition, self.scene_data, self.scene
             self.sim.clear_instance()
             self._is_closed = True
@@ -300,7 +301,11 @@ class MDP2Env:
 
     def _reset_scene(self, mask: ProxyArray) -> None:
         """Reset the assets and sensors of the masked worlds, before the MDP's reset events."""
-        assets = [*self.scene.articulations.values(), *self.scene.rigid_objects.values()]
+        assets = [
+            *self.scene.articulations.values(),
+            *self.scene.rigid_objects.values(),
+            *self.scene.surface_grippers.values(),
+        ]
         for asset in assets:
             asset.reset(env_mask=mask.warp)
         # Clear sensor histories, so that a new episode does not see the contacts that ended the last one.
