@@ -263,7 +263,7 @@ def main() -> None:
         env_cfg.events.randomize_glass_style.params["channels"] = {
             "color": {"r": (0.05, 1.0), "g": (0.05, 1.0), "b": (0.05, 1.0)}
         }
-    if visualizers != ["newton"]:
+    if args_cli.physics != "newton_mjwarp" or visualizers != ["newton"]:
         env_cfg.events.randomize_parts_per_env = None
 
     with launch_simulation(env_cfg, args_cli):
