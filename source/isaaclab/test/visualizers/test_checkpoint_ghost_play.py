@@ -228,3 +228,8 @@ def test_a_direct_environment_with_discrete_or_composite_actions_is_rejected(act
 
     with pytest.raises(SystemExit, match="continuous"):
         play.check(_args(), cfg)
+
+
+def test_a_non_torch_skrl_framework_is_rejected():
+    with pytest.raises(SystemExit, match="torch"):
+        play.check(_args(ml_framework="jax"), object())

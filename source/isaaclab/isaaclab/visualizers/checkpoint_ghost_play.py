@@ -79,6 +79,8 @@ def check(args_cli: argparse.Namespace, env_cfg: Any) -> None:
     """
     if not args_cli.checkpoint_ghosts:
         return
+    if getattr(args_cli, "ml_framework", "torch") != "torch":  # skrl can also run on jax or warp
+        raise SystemExit("--checkpoint_ghosts supports only --ml_framework torch.")
     if not isinstance(env_cfg, (ManagerBasedRLEnvCfg, DirectRLEnvCfg)):
         raise SystemExit("--checkpoint_ghosts only supports single-agent environments.")
     if isinstance(env_cfg, DirectRLEnvCfg) and not isinstance(env_cfg.action_space, (int, gym.spaces.Box)):
