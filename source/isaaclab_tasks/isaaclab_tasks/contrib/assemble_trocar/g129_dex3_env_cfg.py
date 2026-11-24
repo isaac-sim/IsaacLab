@@ -448,7 +448,7 @@ class G1AssembleTrocarEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.dt = 1 / 240
         self.sim.render_interval = self.decimation
         self.sim.physics = PhysicsCfg()
-        # The cotrain policies used Isaac Lab PD and PhysX parsing of the composed USD environments.
+        # Use Isaac Lab PD control and PhysX parsing of the composed USD environments.
         # Per-asset PhysX replication changes the initial contacts between the instruments and the tray.
         self.sim.use_newton_actuators = preset(default=False, newton_mjwarp=True)
         for asset in (
