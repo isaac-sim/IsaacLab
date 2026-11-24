@@ -134,6 +134,12 @@ that legacy renderer; use Newton Warp or OVRTX for new Newton and kit-less workl
    preserve the color output; the ``simple_shading_*`` output remains available but does not receive
    the RTX Minimal performance improvement.
 
+Render a foveated camera
+------------------------
+
+The experimental :doc:`foveated camera </source/experimental-features/foveated_camera>` (``fovi`` extra) uses the
+same renderer configurations as a regular camera.
+
 Overriding Specific Rendering Settings
 --------------------------------------
 

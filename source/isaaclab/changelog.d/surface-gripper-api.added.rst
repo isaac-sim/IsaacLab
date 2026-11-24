@@ -1,0 +1,1 @@
+* Added a scene-owned surface-gripper API with native commands, selected resets and backend dispatch. Existing PhysX configuration imports, positional arguments and cfg-only extension constructors remained supported.
