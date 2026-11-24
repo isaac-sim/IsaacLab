@@ -10,6 +10,7 @@ from __future__ import annotations
 import math
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 import torch
 import warp as wp
@@ -113,6 +114,28 @@ def test_lidar_world_pose_composes_a_rotated_parent():
     torch.testing.assert_close(lidar._quat_w.torch, parent_quat)
 
 
+def test_cpu_mapped_spherical_cloud_preserves_returns():
+    """Decode a CPU fallback map containing an oblique hit and a missed slot."""
+    from isaaclab_ov.renderers.ovrtx_lidar import copy_tiled_point_cloud
+
+    from isaaclab.sensors import LidarData
+
+    class MappedCloud(dict):
+        params = {"coordsType": np.array([1]), "tileStridePoints": np.array([2])}
+
+    cloud = MappedCloud(
+        Coordinates=np.array([[90.0, -30.0, 2.0], [10.0, 20.0, 3.0]], dtype=np.float32),
+        Flags=np.array([0x40, 0], dtype=np.int32),
+        Intensity=np.array([0.75, 1.0], dtype=np.float32),
+    )
+    data = LidarData(1, 2, "cpu")
+    copy_tiled_point_cloud(cloud, data.points.torch, data.intensity.torch, data.valid.torch)
+    torch.testing.assert_close(data.points.torch[0, 0], torch.tensor([0.0, math.sqrt(3.0), -1.0]))
+    assert torch.isinf(data.points.torch[0, 1]).all()
+    torch.testing.assert_close(data.valid.torch, torch.tensor([[True, False]]))
+    torch.testing.assert_close(data.intensity.torch, torch.tensor([[0.75, 0.0]]))
+
+
 @pytest.mark.integration
 @pytest.mark.rendering
 @pytest.mark.ov
@@ -124,7 +147,7 @@ def test_tiled_lidar_returns_are_local_to_each_environment():
     import isaaclab.sim as sim_utils
     from isaaclab.assets import RigidObjectCfg
     from isaaclab.scene import InteractiveSceneCfg
-    from isaaclab.utils import configclass, instantiate
+    from isaaclab.utils import configclass, instantiate, replace
 
     @configclass
     class SceneCfg(InteractiveSceneCfg):
@@ -140,12 +163,16 @@ def test_tiled_lidar_returns_are_local_to_each_environment():
         lidar = _lidar_cfg(
             prim_path="{ENV_REGEX_NS}/Lidar",
             scan_type="solidState",
-            azimuth_deg=[0.0, 1.0],
-            elevation_deg=[0.0, 0.0],
+            azimuth_deg=[-8.0, 12.0],
+            elevation_deg=[-5.0, 10.0],
             fire_time_ns=[0, 0],
             channel_id=[0, 1],
-            offset=OVRTXLidarCfg.OffsetCfg(pos=(0.0, 0.0, 3.0)),
+            offset=OVRTXLidarCfg.OffsetCfg(pos=(0.2, 0.1, 3.0), rot=(0.0, 0.0, 0.5, math.sqrt(0.75))),
         )
+
+        spherical = replace(lidar, prim_path="{ENV_REGEX_NS}/Spherical", elements_coords_type="SPHERICAL")
+        world = replace(lidar, prim_path="{ENV_REGEX_NS}/WorldLidar", output_frame_of_reference="WORLD")
+        world_spherical = replace(world, prim_path="{ENV_REGEX_NS}/WorldSpherical", elements_coords_type="SPHERICAL")
 
     with sim_utils.build_simulation_context(sim_cfg=sim_utils.SimulationCfg(physics=OvPhysxCfg())) as sim:
         scene = instantiate(SceneCfg(num_envs=2, env_spacing=8.0))
@@ -160,6 +187,12 @@ def test_tiled_lidar_returns_are_local_to_each_environment():
         assert valid.all()
         assert torch.isfinite(points).all()
         torch.testing.assert_close(points[0], points[1], atol=1e-3, rtol=0.0)
+
+        for native, converted in ((lidar, scene["spherical"]), (scene["world"], scene["world_spherical"])):
+            expected, actual = native.data, converted.data
+            assert expected.valid.torch.all()
+            torch.testing.assert_close(actual.valid.torch, expected.valid.torch)
+            torch.testing.assert_close(actual.points.torch, expected.points.torch, atol=1e-4, rtol=1e-5)
 
         kept = points[1].clone()
         lidar.reset(env_ids=[0])

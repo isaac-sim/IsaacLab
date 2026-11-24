@@ -19,6 +19,8 @@ from isaaclab_ov.renderers.ovrtx_renderer_kernels import copy_dense_lidar_points
 _VALID_FLAG = 0x40
 # rtx::rtxsensor::SensorFrameData::CompactionType::eCompacted
 _COMPACTED = 2
+# PointCloud coordsType. Spherical Coordinates contain azimuth [deg], elevation [deg], and range [m].
+_SPHERICAL = 1
 
 
 def _as_torch(value, *, clone: bool = True) -> torch.Tensor:
@@ -146,10 +148,21 @@ def copy_tiled_point_cloud(mapped, points: torch.Tensor, intensity: torch.Tensor
                 f"OVRTX lidar returned {coordinates.shape[0]} points for {tile_count} tiles of {stride} rays."
             )
 
+        coords_type = _scalar(mapped, "coordsType")
+        if coords_type not in (0, _SPHERICAL):
+            raise RuntimeError(f"Unsupported OvRTX lidar coordsType: {coords_type!r}.")
+        spherical = coords_type == _SPHERICAL
         if on_device:
-            _copy_dense_on_device(coordinates, signal, flags, points, intensity, valid, tile_count, stride)
+            _copy_dense_on_device(coordinates, signal, flags, points, intensity, valid, tile_count, stride, spherical)
         else:
             coordinates = coordinates.to(device=device, dtype=points.dtype)
+            if spherical:
+                azimuth, elevation = torch.deg2rad(coordinates[:, :2]).unbind(dim=1)
+                distance = coordinates[:, 2]
+                horizontal = distance * elevation.cos()
+                coordinates = torch.stack(
+                    (horizontal * azimuth.cos(), horizontal * azimuth.sin(), distance * elevation.sin()), dim=1
+                )
             signal = signal.to(device=device, dtype=intensity.dtype)
             hit_source = (flags.to(device=device, dtype=torch.int64) & _VALID_FLAG) != 0
 
@@ -168,7 +181,9 @@ def _copy_dense(coordinates, signal, hits, points, intensity, valid, tile_count:
     valid.copy_(hits)
 
 
-def _copy_dense_on_device(coordinates, signal, flags, points, intensity, valid, tile_count: int, stride: int) -> None:
+def _copy_dense_on_device(
+    coordinates, signal, flags, points, intensity, valid, tile_count: int, stride: int, spherical: bool
+) -> None:
     """Copy a dense CUDA ``(tile, ray)`` cloud into the destination buffers.
 
     Torch prep and the Warp launch share Warp's current stream. The caller releases the map on that
@@ -191,6 +206,7 @@ def _copy_dense_on_device(coordinates, signal, flags, points, intensity, valid, 
                 wp.from_torch(points.reshape(count, 3), dtype=wp.vec3f),
                 wp.from_torch(intensity.reshape(count), dtype=wp.float32),
                 wp.from_torch(valid.reshape(count), dtype=wp.bool),
+                spherical,
             ],
             device=launch_device,
         )

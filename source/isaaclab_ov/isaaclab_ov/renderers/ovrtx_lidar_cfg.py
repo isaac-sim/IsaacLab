@@ -84,7 +84,7 @@ class OVRTXLidarCfg(LidarCfg):
     """Maximum return distance, in meters. Defaults to 200."""
 
     elements_coords_type: Literal["CARTESIAN", "SPHERICAL"] = "CARTESIAN"
-    """Coordinate convention of the returned points. Defaults to ``CARTESIAN``."""
+    """Native coordinate encoding. Both modes publish Cartesian XYZ positions in meters. Defaults to ``CARTESIAN``."""
 
     instant_lidar: bool = True
     """Whether one render step publishes a complete scan. Defaults to True."""

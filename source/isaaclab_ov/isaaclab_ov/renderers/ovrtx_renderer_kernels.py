@@ -187,12 +187,19 @@ def copy_dense_lidar_points_kernel(
     points: wp.array(dtype=wp.vec3f),
     intensity_out: wp.array(dtype=wp.float32),
     valid: wp.array(dtype=wp.bool),
+    spherical: bool,
 ):
     """Copy one dense lidar cloud. Bit 6 of ``flags`` marks a hit; misses become non-finite."""
     i = wp.tid()
     hit = (flags[i] & wp.int32(0x40)) != wp.int32(0)
     if hit:
-        points[i] = wp.vec3f(coordinates[i, 0], coordinates[i, 1], coordinates[i, 2])
+        point = wp.vec3f(coordinates[i, 0], coordinates[i, 1], coordinates[i, 2])
+        if spherical:
+            azimuth = wp.radians(point[0])
+            elevation = wp.radians(point[1])
+            horizontal = point[2] * wp.cos(elevation)
+            point = wp.vec3f(horizontal * wp.cos(azimuth), horizontal * wp.sin(azimuth), point[2] * wp.sin(elevation))
+        points[i] = point
         intensity_out[i] = intensity[i]
     else:
         points[i] = wp.vec3f(wp.inf, wp.inf, wp.inf)

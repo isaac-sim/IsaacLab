@@ -31,9 +31,9 @@ class LidarData:
 
     @property
     def points(self) -> ProxyArray:
-        """Point elements in the configured output frame.
+        """Cartesian XYZ positions in meters in the configured output frame.
 
-        ``CARTESIAN`` elements are positions in meters. That frame is ``WORLD`` or ``SENSOR``. The
+        The frame is ``WORLD`` or ``SENSOR``. The
         Warp array has shape ``(num_envs, num_rays)`` and dtype ``vec3f``. The Torch view has shape
         ``(num_envs, num_rays, 3)``. Misses are non-finite when invalid points are kept.
         """

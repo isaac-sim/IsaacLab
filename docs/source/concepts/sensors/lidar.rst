@@ -68,7 +68,8 @@ the measurement. Reading ``data`` captures the scan when it is due. The default
    xyz = points[0, valid[0]]
    signal = intensity[0, valid[0]]
 
-By default, points are Cartesian coordinates in meters in the sensor frame. Set
+Points are Cartesian XYZ coordinates in meters, including when OvRTX supplies spherical
+returns (``elements_coords_type="SPHERICAL"``). The default frame is the sensor frame. Set
 ``output_frame_of_reference="WORLD"`` for world coordinates. Keep the default
 ``include_invalid_points=True`` for the dense output layout. A missed return keeps its slot,
 has non-finite coordinates and zero intensity, and has ``valid=False``. The buffers live on
