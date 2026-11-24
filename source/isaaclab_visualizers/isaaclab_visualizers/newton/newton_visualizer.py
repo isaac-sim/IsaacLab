@@ -51,12 +51,14 @@ from isaaclab.utils.images import display_channels, sensor_key_for_gt_type
 from isaaclab.utils.math import quat_apply, quat_from_matrix, quat_mul
 from isaaclab.visualizers.base_visualizer import _VISUALIZER_MAX_TILES as MAX_TILED_ENVS
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
+from isaaclab.visualizers.checkpoint_ghost import CheckpointGhostController
 from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, WindowCfg
 
 from isaaclab_visualizers.desktop_entry import write_desktop_entry
 from isaaclab_visualizers.newton.newton_overlay_meshes import OverlayMeshPublisher
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
 
+from .newton_checkpoint_ghosts import NewtonCheckpointGhostPanel, draw_checkpoint_ghost_offer
 from .newton_key_event_source import NewtonKeyEventSource
 from .newton_rtx_appearance import SKY_TEXTURES, RtxAppearance
 
@@ -181,6 +183,8 @@ class NewtonViewerGL(ViewerGL):
     keyboard_frame_hook: Callable[[], object] | None = None
     """Called after every frame while a :class:`NewtonKeyEventSource` listens, to track ImGui keyboard ownership."""
     _owner = None
+    _checkpoint_ghost_panel = None
+    _checkpoint_ghost_offered = False
     _show_stats = False
     """Whether the performance and model statistics overlay in the top-right corner is open."""
     image_matches_camera = False
@@ -307,12 +311,14 @@ class NewtonViewerGL(ViewerGL):
         Section order:
 
         1. **Simulation** (open) — physics backend, model info, playback and environment controls.
-        2. **Live Plots** (closed) — injected when :meth:`~NewtonGLVisualizer.add_live_plots`
+        2. **Checkpoint Ghosts** (closed) — added by :meth:`~NewtonGLVisualizer.attach_checkpoint_ghosts`; it decides
+           which environments the window shows.
+        3. **Live Plots** (closed) — injected when :meth:`~NewtonGLVisualizer.add_live_plots`
            is called.
-        3. **Model Overlays** and **Visualization Markers** (closed) — debug visibility controls.
-        4. **Rendering Options** (open) — VSync, the renderer and camera source, and renderer-specific options.
-        5. **Controls** (closed) — camera keyboard reference.
-        6. **Selection API** (closed) — Newton's selection panel.
+        4. **Model Overlays** and **Visualization Markers** (closed) — debug visibility controls.
+        5. **Rendering Options** (open) — VSync, the renderer and camera source, and renderer-specific options.
+        6. **Controls** (closed) — camera keyboard reference.
+        7. **Selection API** (closed) — Newton's selection panel.
 
         The top-level Newton ``Pause / Step`` row is suppressed; pause/resume is
         handled by the IsaacLab controls inside **Simulation**.
@@ -367,6 +373,16 @@ class NewtonViewerGL(ViewerGL):
                     callback(imgui)
                 if viewer._has_environment_controls():
                     viewer._render_environment_controls(imgui)
+
+            # --- Checkpoint Ghosts ----------------------------------------------
+            if viewer._checkpoint_ghost_panel is not None:
+                viewer._checkpoint_ghost_panel.draw(
+                    imgui,
+                    rtx_view=viewer._owner is not None and viewer._owner.rtx_rendering,
+                    owner=viewer._owner,
+                )
+            elif viewer._checkpoint_ghost_offered:
+                draw_checkpoint_ghost_offer(imgui)
 
             # --- Live Plots -------------------------------------------------
             live_plots_cb = viewer._live_plots_callback
@@ -467,10 +483,10 @@ class NewtonViewerGL(ViewerGL):
     def _render_environment_controls(self, imgui) -> None:
         """Render the visible-environment count slider."""
         owner = self._owner
-        imgui.text("Visible Envs")
+        imgui.text("Visible Envs (per slot)" if owner._checkpoint_ghost_panel is not None else "Visible Envs")
         changed, new_count = imgui.slider_int("##VisibleEnvs", owner.visible_env_count, 1, owner.visible_env_limit)
         if changed:
-            owner.set_visible_env_count(new_count)
+            owner.set_visible_env_count(new_count, defer=True)
         if imgui.is_item_hovered():
             imgui.set_tooltip("Number of environments drawn in the viewer; simulation is unaffected")
         if getattr(owner, "rtx_rendering", False):
@@ -772,10 +788,13 @@ class NewtonVisualizerBase(BaseVisualizer):
     _rtx_arrows_pending = False
     _rtx_overlay_flags: tuple | None = None
     _rtx_visibility_limited = False
+    _visible_worlds_pending = False
+    """Whether the Visible Envs slider changed and the next frame must apply it before logging state."""
     _rtx_switch: str | None = None
     """``"requested"`` once the HUD asked for RTX and showed the wait message, ``"loading"`` until its first frame."""
     _borrowing_view = False
     """Whether an off-screen capture has swapped the displayed view, so the window controls must not act on it."""
+    _checkpoint_ghost_panel = None
     _rtx_appearance: RtxAppearance | None = None
 
     # The OpenGL window overrides these; the standalone RTX window has no OpenGL view to switch to.
@@ -932,7 +951,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         hover_tooltip(
             imgui, "RTX adds an OVRTX camera, which costs some startup time and a little speed, so it is opt-in"
         )
-        hud_note(imgui, "Launch with --viz newton_rtx to enable the RTX toggle.")
+        hud_note(imgui, "Use --viz newton_rtx to enable RTX toggle.")
 
     def _draw_streaming_view_controls(self, imgui) -> None:
         """Choose one declared display source without reading the other sensors."""
@@ -950,7 +969,7 @@ class NewtonVisualizerBase(BaseVisualizer):
                 self.set_rtx_rendering(False)
             if imgui.is_item_hovered(imgui.HoveredFlags_.allow_when_disabled):
                 imgui.set_tooltip(
-                    "Fast rasterizer with visual overlays and markers"
+                    "Fast rasterizer with visual overlays, markers, and Checkpoint Ghosts"
                     if not sensor
                     else "A scene sensor is rendered by its own renderer. This applies to the free camera"
                 )
@@ -1638,6 +1657,10 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self._cfg_visible_env_ids: list[int] | None = None
         self._visible_env_count: int | None = None
         self._num_envs = 0
+        self._checkpoint_ghost_panel: NewtonCheckpointGhostPanel | None = None
+        self._base_world_offsets: np.ndarray | None = None
+        """World offsets without the Checkpoint Ghost overlay, which the overlay is added to every frame it changes."""
+        """Checkpoint Ghost offsets last given to the OVRTX view, to skip rewriting poses when they are unchanged."""
 
     # ------------------------------------------------------------------
     # GL lifecycle
@@ -1760,6 +1783,17 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         try:
             if appearance is not None and self.rtx_rendering and appearance.available and appearance.poll():
                 self.current_image_view.invalidate()  # a sky finished downloading, whether or not its panel is open
+            if self._visible_worlds_pending:
+                self._visible_worlds_pending = False
+                self._apply_visible_worlds()
+            if self._checkpoint_ghost_panel is not None:
+                self._checkpoint_ghost_panel.apply_tint(self.backend.model)
+                if self._checkpoint_ghost_panel.consume_slots_changed():
+                    self._apply_visible_worlds()
+                if viewer.is_training_paused():
+                    # No simulation step runs while paused, so a ghost added now is reset to its spawn pose here.
+                    self._checkpoint_ghost_panel.controller.apply_pending_restart()
+                self._checkpoint_ghost_panel.apply_materials(viewer)
             viewer.begin_frame(self._sim_time)
         except BaseException:
             if self._rtx_switch == "loading":  # the switch failed before the first RTX frame
@@ -1945,29 +1979,65 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             # Only a perspective view continues from the viewer's pose; a scene sensor keeps the task's own placement.
             self._select_camera(target, keep_pose=self._image_views[target].camera is None)
 
+    def offer_checkpoint_ghosts(self) -> None:
+        """Show a greyed-out Checkpoint Ghosts section that says the feature needs ``--checkpoint_ghosts``."""
+        if self._viewer is not None:
+            self._viewer._checkpoint_ghost_offered = True
+
+    def attach_checkpoint_ghosts(
+        self,
+        controller: CheckpointGhostController,
+    ) -> None:
+        """Show the Checkpoint Ghosts HUD section for a playback loop that drives several checkpoints.
+
+        Only environments of slots with a checkpoint are visible, and each ghost slot is tinted and overlaid on
+        the reference slot. The visible-environment slider then counts environments per slot.
+
+        Args:
+            controller: Playback-loop side of Checkpoint Ghosts.
+        """
+        self._checkpoint_ghost_panel = NewtonCheckpointGhostPanel(controller)
+        self._visible_env_count = None  # follow the per-slot limit, which changes with the loaded checkpoints
+        if self._viewer is not None:
+            self._viewer._checkpoint_ghost_panel = self._checkpoint_ghost_panel
+            self._apply_visible_worlds()
+
     @property
     def visible_env_limit(self) -> int:
-        """Largest value of the visible-environment count: the environments the cfg allows, else all."""
+        """Largest value of the visible-environment count: environments per slot with Checkpoint Ghosts, else all."""
+        if self._checkpoint_ghost_panel is not None:
+            return self._checkpoint_ghost_panel.layout.slice_size
         return len(self._cfg_visible_env_ids) if self._cfg_visible_env_ids is not None else self._num_envs
 
     @property
     def visible_env_count(self) -> int:
-        """Number of environments currently shown."""
+        """Number of environments currently shown (per slot with Checkpoint Ghosts)."""
         if self._visible_env_count is not None:
             return min(self._visible_env_count, self.visible_env_limit)
         return self.visible_env_limit
 
-    def set_visible_env_count(self, count: int) -> None:
-        """Show only the first ``count`` environments.
+    def set_visible_env_count(self, count: int, *, defer: bool = False) -> None:
+        """Show only the first ``count`` environments (per slot with Checkpoint Ghosts).
 
         Args:
             count: Number of environments to show, clamped to ``[1, visible_env_limit]``.
+            defer: Apply the change at the start of the next frame instead of now. The HUD uses this because its
+                widgets run after the frame's state was logged but before the scene is drawn, so shapes rebuilt
+                there would be drawn once without poses.
         """
-        self._visible_env_count = max(1, min(int(count), self.visible_env_limit))
-        self._apply_visible_worlds()
+        count = max(1, min(int(count), self.visible_env_limit))
+        # Showing every environment of a slot keeps following the limit, which Checkpoint Ghosts change as slots resize.
+        self._visible_env_count = None if count >= self.visible_env_limit else count
+        if defer:
+            self._visible_worlds_pending = True
+        else:
+            self._apply_visible_worlds()
 
     def _select_visible_env_ids(self) -> list[int] | None:
-        """Resolve the environments to show from the cfg and the HUD count."""
+        """Resolve the environments to show from the cfg, the HUD count, and the Checkpoint Ghost slots."""
+        panel = self._checkpoint_ghost_panel
+        if panel is not None:
+            return panel.layout.visible_env_ids(self.visible_env_count)
         if self._visible_env_count is None:
             return self._cfg_visible_env_ids
         ids = self._cfg_visible_env_ids if self._cfg_visible_env_ids is not None else range(self._num_envs)
@@ -1999,14 +2069,28 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self._image_views.append(view)
 
     def _apply_visible_worlds(self) -> None:
-        """Apply the visible environments."""
+        """Apply the visible environments and, with Checkpoint Ghosts, overlay each ghost on the reference."""
         if self._viewer is None:
             return
         self._env_ids = self._select_visible_env_ids()
         self._drop_shape_instancers()
         self._viewer.set_visible_worlds(self._env_ids)
         self._viewer.set_world_offsets(self.cfg.backend.world_spacing)
+        world_offsets = getattr(self._viewer, "world_offsets", None)
+        self._base_world_offsets = None if world_offsets is None else world_offsets.numpy().copy()
+        self._apply_ghost_offsets()
         self._apply_rtx_visible_envs()
+
+    def _apply_ghost_offsets(self) -> None:
+        """Overlay each ghost on the reference by the offset between their environment origins."""
+        panel, viewer = self._checkpoint_ghost_panel, self._viewer
+        if panel is None or self._base_world_offsets is None or getattr(viewer, "world_offsets", None) is None:
+            return
+        controller = panel.controller
+        ghost = controller.env_origin_offsets()
+        viewer.world_offsets = wp.array(
+            self._base_world_offsets + ghost, dtype=wp.vec3, device=viewer.world_offsets.device
+        )
 
     def _apply_rtx_visible_envs(self) -> None:
         """Hide the environments outside the visible set in the OVRTX viewer camera's scene."""

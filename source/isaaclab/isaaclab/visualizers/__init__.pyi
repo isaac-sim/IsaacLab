@@ -9,8 +9,14 @@ __all__ = [
     "ImageViewCfg",
     "KeyEventSource",
     "KeyboardSubscription",
+    "CHECKPOINT_GHOST_COLORS",
     "PerspectiveCameraCfg",
+    "CheckpointGhostCheckpoint",
+    "CheckpointGhostController",
+    "CheckpointGhostLayout",
+    "CheckpointGhostSlot",
     "SceneCameraCfg",
+    "TrackingCameraCfg",
     "VisualizerCfg",
     "VisualizerBackendCfg",
     "WindowCfg",
@@ -20,6 +26,13 @@ __all__ = [
 from .base_visualizer import BaseVisualizer
 from .image_view import ImageView
 from .key_event_source import KeyboardSubscription, KeyEventSource, add_key_callbacks
+from .checkpoint_ghost import (
+    CHECKPOINT_GHOST_COLORS,
+    CheckpointGhostCheckpoint,
+    CheckpointGhostController,
+    CheckpointGhostLayout,
+    CheckpointGhostSlot,
+)
 from .visualizer_cfg import (
     ImageViewCfg,
     PerspectiveCameraCfg,

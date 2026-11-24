@@ -1,0 +1,95 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Launch checks and restart arguments of Checkpoint Ghosts."""
+
+from __future__ import annotations
+
+from types import SimpleNamespace
+from unittest.mock import Mock
+
+import pytest
+
+pytest.importorskip("rsl_rl")
+from isaaclab.envs import ManagerBasedRLEnvCfg
+
+from isaaclab_rl.entrypoints.backends import play_rsl_rl
+
+
+def _env_cfg(backend, scene=None):
+    cfg = ManagerBasedRLEnvCfg.__new__(ManagerBasedRLEnvCfg)
+    cfg.sim = SimpleNamespace(visualizer_cfgs=[SimpleNamespace(backend=backend)])
+    cfg.scene = scene or SimpleNamespace()
+    return cfg
+
+
+def test_newton_among_several_selected_viewers_is_accepted():
+    backends = [SimpleNamespace(visualizer_type="viser"), SimpleNamespace(visualizer_type="newton")]
+
+    play_rsl_rl._validate_checkpoint_ghosts(SimpleNamespace(), _env_cfg(backends))
+
+
+def test_without_newton_the_run_is_rejected():
+    with pytest.raises(SystemExit, match="requires the Newton"):
+        play_rsl_rl._validate_checkpoint_ghosts(SimpleNamespace(), _env_cfg(SimpleNamespace(visualizer_type="viser")))
+
+
+def test_cameras_that_render_with_ovrtx_are_rejected():
+    camera = SimpleNamespace(renderer_cfg=SimpleNamespace(renderer_type="ovrtx"))
+    cfg = _env_cfg(SimpleNamespace(visualizer_type="newton"), SimpleNamespace(camera=camera))
+
+    with pytest.raises(SystemExit, match="OVRTX"):
+        play_rsl_rl._validate_checkpoint_ghosts(SimpleNamespace(), cfg)
+
+
+def test_the_viewer_s_own_rtx_camera_is_not_a_task_camera():
+    renderer_cfg = SimpleNamespace(renderer_type="ovrtx")
+    scene = SimpleNamespace(viewer_camera_0_rtx=SimpleNamespace(renderer_cfg=renderer_cfg, render_on_demand=True))
+
+    assert not play_rsl_rl._scene_cameras_use_ovrtx(SimpleNamespace(scene=scene))
+    scene.task_camera = SimpleNamespace(renderer_cfg=renderer_cfg, render_on_demand=False)
+    assert play_rsl_rl._scene_cameras_use_ovrtx(SimpleNamespace(scene=scene))
+
+
+def _slots(total: int, slots: int | None):
+    args = SimpleNamespace(checkpoint_ghost_slots=slots)
+    play_rsl_rl._resolve_ghost_slots(args, SimpleNamespace(scene=SimpleNamespace(num_envs=total)))
+    return args.checkpoint_ghost_slots
+
+
+def test_the_slots_default_to_eight_capped_at_num_envs():
+    assert _slots(64, None) == 8
+    assert _slots(3, None) == 3
+
+
+def test_more_slots_than_environments_are_capped():
+    assert _slots(4, 6) == 4
+    assert _slots(32, 5) == 5
+
+
+def test_a_single_environment_cannot_be_split():
+    with pytest.raises(SystemExit, match="at least 2"):
+        _slots(1, None)
+
+
+def test_the_session_is_built_from_the_play_arguments(monkeypatch, tmp_path):
+    created = {}
+
+    class _Session:
+        def __init__(self, env, **kwargs):
+            created.update(kwargs)
+
+    monkeypatch.setattr(play_rsl_rl, "CheckpointGhostSession", _Session)
+    checkpoint = tmp_path / "run" / "model_5.pt"
+    checkpoint.parent.mkdir()
+    checkpoint.touch()
+    args = SimpleNamespace(checkpoint_ghost_root=None, task="Isaac-Reach-Franka")
+
+    play_rsl_rl.create_checkpoint_ghost_session(Mock(), args, Mock(), str(checkpoint), str(tmp_path), 4)
+
+    assert created["num_slots"] == 4
+    assert created["task"] == "Isaac-Reach-Franka"
+    assert created["checkpoint_root"] == str(tmp_path)
+    assert created["reference"].name == "model_5.pt"
