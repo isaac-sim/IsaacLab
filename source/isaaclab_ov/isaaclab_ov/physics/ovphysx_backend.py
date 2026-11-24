@@ -12,12 +12,14 @@ import importlib.util
 import math
 import os
 import stat
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import ovphysx
 import ovstage
+from ovphysx.types import CompiledStageCacheMode, GlobalConfigKey
 
 from pxr import Plug
 
@@ -36,6 +38,22 @@ if TYPE_CHECKING:
 __all__ = ["OvPhysxBackend"]
 
 _physx_schemas_registered = False
+
+
+@contextmanager
+def _compiled_stage_cache_for_attach(disable: bool) -> Iterator[None]:
+    """Scope the runtime's process-wide cache mode to attach submission."""
+    if not disable:
+        yield
+        return
+    # OvPhysX captures the cache mode at submission during the synchronous simulation reset.
+    key = GlobalConfigKey.COMPILED_STAGE_CACHE
+    previous = CompiledStageCacheMode(ovphysx.get_global_config(key))
+    ovphysx.set_global_config(key, CompiledStageCacheMode.DISABLED)
+    try:
+        yield
+    finally:
+        ovphysx.set_global_config(key, previous)
 
 
 class OvPhysxBackend:
@@ -92,13 +110,20 @@ class OvPhysxBackend:
         self._gravity_retry: set[str] = set()
         """Physics scenes whose last gravity update failed and may be partially applied."""
 
-    def load(self, stage_usda: str, *, deformable_entries: Sequence[DeformableStageEntry] | None = None) -> None:
+    def load(
+        self,
+        stage_usda: str,
+        *,
+        deformable_entries: Sequence[DeformableStageEntry] | None = None,
+        disable_compiled_stage_cache: bool = False,
+    ) -> None:
         """Replace the attached scene after draining its native bindings.
 
         Args:
             stage_usda: Exported USD scene to populate before physics attaches.
             deformable_entries: Declared deformables for scene-data publication, captured before
                 native import. ``None`` leaves scene geometry uninitialized.
+            disable_compiled_stage_cache: Bypass the compiled-stage cache for this attachment.
 
         Raises:
             RuntimeError: If the backend has closed.
@@ -124,15 +149,16 @@ class OvPhysxBackend:
             self.scene = instantiate(OvstageBackendCfg(populate_physics=True))
         try:
             self.scene.populate(stage_usda)
-            operation = self.physx.attach_ovstage(self.scene.stage, read_ordinal=self.scene.ordinal - 1)
+            with _compiled_stage_cache_for_attach(disable_compiled_stage_cache):
+                operation = self.physx.attach_ovstage(self.scene.stage, read_ordinal=self.scene.ordinal - 1)
+                # Accepted attach failures can retain native ownership. Keep the stage for cleanup.
+                self.stage = self.scene.stage
+            self.physx.wait_task(operation)
         except Exception:
-            if self.owns_scene:
+            if self.owns_scene and self.stage is None:
                 self.scene.close()
                 self.scene = None
             raise
-        self.stage = self.scene.stage
-        # Accepted attach failures can retain native ownership. Keep the stage for cleanup.
-        self.physx.wait_task(operation)
         self.kinematics_dirty = True
         self.scene_data._defer_setup(self, self.device, deformable_entries)
 

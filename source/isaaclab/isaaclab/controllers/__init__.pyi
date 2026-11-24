@@ -8,8 +8,13 @@ __all__ = [
     "DifferentialIKControllerCfg",
     "OperationalSpaceController",
     "OperationalSpaceControllerCfg",
+    "Conveyor",
+    "ConveyorCfg",
+    "ConveyorSurfaceCfg",
 ]
 
+from .conveyor import Conveyor
+from .conveyor_cfg import ConveyorCfg, ConveyorSurfaceCfg
 from .differential_ik import DifferentialIKController
 from .differential_ik_cfg import DifferentialIKControllerCfg
 from .operational_space import OperationalSpaceController

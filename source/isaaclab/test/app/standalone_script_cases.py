@@ -63,6 +63,7 @@ class ScriptOverride:
 
     args: tuple[str, ...] = ()
     readiness_pattern: str | None = None
+    run_to_completion: bool = False
     startup_timeout: float | None = None
     skip_reason: str | None = None
     fixed_physics_backend: str | None = None
@@ -79,6 +80,7 @@ class ScriptSpec:
     options: dict[str, tuple[str, ...]]
     args: tuple[str, ...]
     readiness_pattern: str | None
+    run_to_completion: bool
     startup_timeout: float | None
     skip_reason: str | None
     fixed_physics_backend: str | None
@@ -93,9 +95,14 @@ class ScriptSpec:
         return PROGRAMS_BY_PATH.get(self.path)
 
     @property
-    def finite(self) -> bool:
-        """Return whether CLI discovery or an explicit override bounds the script's steps."""
+    def has_step_limit(self) -> bool:
+        """Return whether the launch supports a step limit."""
         return "--max_steps" in self.options or "--max_steps" in self.args
+
+    @property
+    def finite(self) -> bool:
+        """Return whether the launched script must run to completion."""
+        return self.run_to_completion or self.has_step_limit
 
     @property
     def relative_path(self) -> str:
@@ -161,7 +168,7 @@ class LaunchCase:
             ]
         if "--num_envs" in self.spec.options and "--num_envs" not in self.spec.args:
             command.extend(("--num_envs", str(DEFAULT_BATCHED_NUM_ENVS)))
-        if self.spec.finite and "--max_steps" not in self.spec.args:
+        if self.spec.has_step_limit and "--max_steps" not in self.spec.args:
             command.extend(("--max_steps", str(DEFAULT_MAX_STEPS)))
         if self.physics_option is not None:
             command.extend((self.physics_option, self.physics_backend))
@@ -255,6 +262,12 @@ OVERRIDES = {
         fixed_physics_backend="newton_coupler",
         visualizers=(None, "newton", "kit"),
     ),
+    "scripts/tutorials/01_assets/run_conveyor_suction.py": ScriptOverride(
+        args=("--viz", "none"),
+        run_to_completion=True,
+        fixed_physics_backend="newton_mjwarp",
+        visualizers=(None,),
+    ),
     "scripts/tutorials/08_mpm/material_parameters.py": ScriptOverride(
         args=("--max_steps", "2", "--variant_index", "0", "--voxel_size", "0.1"),
         fixed_physics_backend="newton_mpm",
@@ -306,6 +319,9 @@ OVERRIDES = {
         visualizers=(None, "newton", "rerun", "viser"),
     ),
     "examples/demos/microduck_warehouse.py": ScriptOverride(fixed_physics_backend="newton_xpbd"),
+    "examples/sensors/foveated_camera.py": ScriptOverride(
+        fixed_physics_backend="newton_xpbd", visualizers=(None, "newton")
+    ),
     "examples/demos/pick_and_place.py": ScriptOverride(visualizers=("kit",)),
     "examples/sensors/ppisp_camera.py": ScriptOverride(
         args=("--max_steps", "3", "--warmup_steps", "1", "--image_width", "64", "--image_height", "64"),
@@ -381,6 +397,7 @@ def discover_specs() -> list[ScriptSpec]:
                     options=options,
                     args=override.args,
                     readiness_pattern=readiness_pattern,
+                    run_to_completion=override.run_to_completion,
                     startup_timeout=override.startup_timeout,
                     skip_reason=override.skip_reason,
                     fixed_physics_backend=override.fixed_physics_backend,

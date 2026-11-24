@@ -396,7 +396,11 @@ class OvPhysxManager(PhysicsManager):
             atexit.register(self._close_at_exit)
             self._atexit_registered = True
         # Scene-data bindings stay deferred until requested; headless training never consumes them.
-        self.backend.load(stage_usda, deformable_entries=entries)
+        self.backend.load(
+            stage_usda,
+            deformable_entries=entries,
+            disable_compiled_stage_cache=self._cfg.disable_compiled_stage_cache,
+        )
         logger.info("OvPhysxManager: attached OVStage to ovphysx (device=%s)", ovphysx_device)
 
         for source, targets, transforms, env_ids, _ in native_clones:

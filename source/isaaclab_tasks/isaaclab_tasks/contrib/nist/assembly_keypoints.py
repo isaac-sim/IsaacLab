@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Keypoint definitions for all NIST Factory assembly assets.
+"""Keypoint definitions for all NIST assembly assets.
 
 All quaternions use IsaacLab's (x, y, z, w) convention.
 Positions are in meters relative to the asset's root frame.
@@ -26,7 +26,7 @@ class NistBoardKeyPointsCfg:
     """Target placement offsets for each asset on the NIST task board, relative to the board root.
 
     Used by reset functions to position assets at their correct board locations.
-    Each field name matches the ``asset_map`` keys in :class:`FixedAssetMapCfg`.
+    Each field names a board placement used by an assembly variant.
     """
 
     nist_board_center: Offset = Offset(pos=(0.197176, -0.19145, 0.0))

@@ -847,7 +847,7 @@ def test_warmup_collects_clone_receipt_before_model_init(
     backend.stage = object()
     backend.owns_scene = True
     backend.is_ready = False
-    backend.load = lambda usda, *, deformable_entries: events.append("load")
+    backend.load = lambda usda, *, deformable_entries, disable_compiled_stage_cache: events.append("load")
     stage = Usd.Stage.CreateInMemory()
     UsdPhysics.Scene.Define(stage, "/World/PhysicsScene")
     sim = manager._sim
@@ -873,3 +873,45 @@ def test_warmup_collects_clone_receipt_before_model_init(
     assert backend.scene_data is manager._scene_data_backend
     assert backend.is_ready is (not clone_fails)
     assert manager._warmup_done is (not clone_fails)
+
+
+@pytest.mark.parametrize("fail", [False, True], ids=["success", "attach-failure"])
+def test_load_scopes_compiled_stage_cache_opt_out(monkeypatch, backend_module, manager, fail):
+    """A subsequent attachment must inherit the original cache setting even after a failed attach."""
+    from ovphysx.types import CompiledStageCacheMode, GlobalConfigKey
+
+    key = GlobalConfigKey.COMPILED_STAGE_CACHE
+    mode = CompiledStageCacheMode.READ_ONLY
+
+    def get_mode(setting):
+        assert setting == key
+        return mode
+
+    def set_mode(setting, value):
+        assert setting == key
+        nonlocal mode
+        mode = value
+
+    monkeypatch.setattr(backend_module, "_physx_schemas_registered", True)
+    monkeypatch.setattr(backend_module.ovphysx, "get_global_config", get_mode)
+    monkeypatch.setattr(backend_module.ovphysx, "set_global_config", set_mode)
+    receipt = object()
+
+    def attach(stage, *, read_ordinal):
+        assert mode == CompiledStageCacheMode.DISABLED
+        return receipt
+
+    def wait(task):
+        assert task is receipt
+        assert mode == CompiledStageCacheMode.READ_ONLY
+        if fail:
+            raise RuntimeError("attach failed")
+
+    backend = manager.backend
+    backend.scene = SimpleNamespace(stage=object(), ordinal=2, populate=lambda usda: None)
+    backend.physx = SimpleNamespace(attach_ovstage=attach, wait_task=wait)
+    with pytest.raises(RuntimeError, match="attach failed") if fail else nullcontext():
+        backend.load("#usda 1.0", disable_compiled_stage_cache=True)
+
+    assert mode == CompiledStageCacheMode.READ_ONLY
+    assert backend.stage is backend.scene.stage
