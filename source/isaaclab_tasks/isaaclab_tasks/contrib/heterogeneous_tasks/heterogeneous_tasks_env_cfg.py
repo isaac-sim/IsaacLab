@@ -526,6 +526,8 @@ class EventsCfg:
             "gripper_body": GRIPPER_BODY.rsplit("/", 1)[-1],
             "clearance": 0.005,
             "max_attempts": 128,
+            # The Robotiq 2F-85 opens 85 mm and cannot pinch anything thinner than about 2 cm off the table.
+            "graspable_size": (0.02, 0.085),
         },
     )
 

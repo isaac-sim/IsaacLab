@@ -169,13 +169,14 @@ def env(request, tmp_path):
     stage.GetRootLayer().Save()
     bodies = {
         "small": sim_utils.CuboidCfg(size=(0.04, 0.04, 0.04)),
+        "thin": sim_utils.CuboidCfg(size=(0.04, 0.04, 0.01)),
         "large": sim_utils.CuboidCfg(size=(0.3, 0.25, 0.06)),
         "plate": sim_utils.UsdFileCfg(usd_path=str(plate_path)),
         "Box_A01": sim_utils.UsdFileCfg(usd_path=str(path)),
         "__empty__": sim_utils.SphereCfg(radius=0.001, visible=False),
     }
     worlds = (
-        ("small", "plate", "__empty__"),
+        ("small", "plate", "thin"),
         ("small", "small", "plate"),
         ("large", "plate", "__empty__"),
         ("small", "Box_A01", "plate"),
@@ -254,6 +255,7 @@ def env(request, tmp_path):
                 "gripper_body": "gripper",
                 "clearance": 0.005,
                 "max_attempts": 256,
+                "graspable_size": (0.02, 0.085),
             },
         ),
     }
@@ -269,9 +271,10 @@ def test_reset_intersects_workspace_and_table_and_binds_only_feasible_tasks(env)
     state = env.tabletop
     container_world = next(i for i, names in enumerate(state.object_names) if "Box_A01" in names)
     large_world = next(i for i, names in enumerate(state.object_names) if "large" in names)
-    # World 1 holds a plate too, but its two objects share a name: no instruction could single one out.
+    # World 0 also holds an object that fits the plate but is too thin for the gripper. World 1 holds a plate
+    # too, but its two objects share a name: no instruction could single one out.
     assert [len(state.available_tasks[i]) for i in (0, 1, large_world, container_world)] == [1, 0, 0, 2]
-    assert sorted(state.active.sum(1).tolist()) == [2, 2, 3, 3]
+    assert sorted(state.active.sum(1).tolist()) == [2, 3, 3, 3]
     assert not state.penetrating_worlds().any()
     assert all(surface.area == pytest.approx(0.864, abs=1e-6) for surface in state.surfaces[:2])
     assert state.surfaces[2].area < 0.05

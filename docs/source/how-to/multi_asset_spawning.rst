@@ -231,6 +231,9 @@ After reset, ``env.tabletop.available_tasks[world]`` lists the evaluable instruc
 ``put_on_plate`` requires a plate and a distinct movable object that fits its inset footprint;
 ``put_in_container`` similarly requires a container, and ``put_on_tray`` requires a tray. The current fit
 check uses conservative collision bounds with an inset for walls; it is not a grasp or motion planner.
+The object to move also has to suit the gripper: ``graspable_size`` of the reset term excludes objects with
+an extent below 2 cm, which the gripper cannot pinch, and objects whose narrower side exceeds the 85 mm
+opening of the Robotiq 2F-85. Such props still appear in the scenes, as receivers or as distractors.
 Instructions name objects in plain words, without the asset codes of the catalog labels (``Ketchup_A02`` reads
 "ketchup"), and a binding is offered only when its object and its target are the only objects of their name in
 the world, so that the instruction singles them out. Reset selects an available binding

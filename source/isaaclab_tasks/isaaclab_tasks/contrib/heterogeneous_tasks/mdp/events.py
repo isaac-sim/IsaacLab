@@ -121,7 +121,9 @@ class reset_tabletop(ManagerTermBase):
 
     ``env.tabletop.available_tasks[world]`` lists category- and size-compatible bindings whose instruction
     singles out its object and its target: instructions name objects in plain words, without asset codes, so a
-    world that holds two objects of one name offers no task for them. A reset chooses one unless
+    world that holds two objects of one name offers no task for them. With ``graspable_size``, the bound object
+    also has to suit the gripper: (smallest extent, narrowest horizontal extent) limits [m], below which the
+    gripper cannot pinch the object and above which it does not fit between the open fingers. A reset chooses one unless
     :meth:`set_task` requests a particular binding. A world with no available task has an empty instruction
     and never reports task success; its object combination is retained.
     """
@@ -196,11 +198,15 @@ class reset_tabletop(ManagerTermBase):
             names = [_plain_name(label) for label in labels[world]]
             # An instruction has to single out its object and its target among the world's objects.
             unique = [active[world, slot] and names.count(name) == 1 for slot, name in enumerate(names)]
+            limits = cfg.params.get("graspable_size")
             for family, rule in self.families.items():
                 for source, target in itertools.permutations(range(len(self.names)), 2):
                     if not (unique[source] and unique[target]) or rule["target"] not in categories[world][target]:
                         continue
-                    size = np.sort(np.diff(bounds[world, source], axis=0)[0, :2])
+                    extent = np.diff(bounds[world, source], axis=0)[0]
+                    if limits is not None and (extent.min() < limits[0] or extent[:2].min() > limits[1]):
+                        continue
+                    size = np.sort(extent[:2])
                     support = np.sort(np.diff(bounds[world, target], axis=0)[0, :2])
                     # A conservative inset reserves room for a rim or container walls.
                     if np.any(size + 2 * cfg.params["clearance"] > support * 0.8):
@@ -245,6 +251,7 @@ class reset_tabletop(ManagerTermBase):
         gripper_body: str,
         clearance: float = 0.005,
         max_attempts: int = 128,
+        graspable_size: tuple[float, float] | None = None,
     ) -> None:
         ids = torch.arange(env.num_envs, device=env.device)[env_ids]
         if not len(ids):
