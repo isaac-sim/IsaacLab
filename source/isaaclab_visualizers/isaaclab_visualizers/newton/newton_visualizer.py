@@ -2071,6 +2071,11 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             if self._picking_enabled:
                 # Captured graphs retain neutral picking inputs until their last replay.
                 self._viewer_picking_binding.deactivate()
+            if sys.platform == "win32" and self._viewer is not None and not self._runtime_headless:
+                window = self._viewer.renderer.window
+                if window.context is not None:
+                    # Release focus while pyglet's weak event handlers still have live targets.
+                    window.set_visible(False)
         finally:
             self._viewer = self.backend = self._transform_mapping = None
             super().close()
