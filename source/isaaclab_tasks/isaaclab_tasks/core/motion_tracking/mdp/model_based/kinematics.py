@@ -9,8 +9,7 @@
 
 """Differentiable forward/inverse kinematics and WXYZ adapters for native rotation utilities.
 
-Reference states and checkpoints store WXYZ quaternions. Matrix conversion and
-inversion retain the reference norm reduction order. Native utilities use XYZW."""
+Reference states and checkpoints store WXYZ quaternions. Native utilities use XYZW."""
 
 from __future__ import annotations
 
@@ -193,38 +192,14 @@ def from_native(quat: torch.Tensor) -> torch.Tensor:
     return native_math.convert_quat(quat, to="wxyz")
 
 
-@torch.jit.script
 def matrix_from_quat(quaternions: torch.Tensor) -> torch.Tensor:
-    """WXYZ matrix conversion with the reference's FP32 norm reduction order.
-
-    Reordering the four squared components before summation changes BPTT optimizer
-    updates. Keep this BSD-licensed Isaac Lab formula at the reference boundary;
-    multiplication and vector rotation delegate to the native utilities.
-    """
-    r, i, j, k = torch.unbind(quaternions, -1)
-    two_s = 2.0 / (quaternions * quaternions).sum(-1)
-
-    o = torch.stack(
-        (
-            1 - two_s * (j * j + k * k),
-            two_s * (i * j - k * r),
-            two_s * (i * k + j * r),
-            two_s * (i * j + k * r),
-            1 - two_s * (i * i + k * k),
-            two_s * (j * k - i * r),
-            two_s * (i * k - j * r),
-            two_s * (j * k + i * r),
-            1 - two_s * (i * i + j * j),
-        ),
-        -1,
-    )
-    return o.reshape(quaternions.shape[:-1] + (3, 3))
+    """Convert WXYZ quaternions to rotation matrices."""
+    return native_math.matrix_from_quat(to_native(quaternions))
 
 
 def quat_inv(quat: torch.Tensor) -> torch.Tensor:
-    """Inverse with the reference WXYZ norm reduction used by frame transforms."""
-    conjugate = from_native(native_math.quat_conjugate(to_native(quat)))
-    return conjugate / quat.pow(2).sum(dim=-1, keepdim=True).clamp(min=1e-9)
+    """Invert WXYZ quaternions."""
+    return from_native(native_math.quat_inv(to_native(quat)))
 
 
 def quat_mul(first: torch.Tensor, second: torch.Tensor) -> torch.Tensor:
@@ -251,8 +226,8 @@ def subtract_frame_transforms(
     t01: torch.Tensor, q01: torch.Tensor, t02: torch.Tensor, q02: torch.Tensor
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Relative frame transform with reference WXYZ orientations."""
-    inverse = quat_inv(q01)
-    return quat_apply(inverse, t02 - t01), quat_mul(inverse, q02)
+    pos, quat = native_math.subtract_frame_transforms(t01, to_native(q01), t02, to_native(q02))
+    return pos, from_native(quat)
 
 
 _TWO_PI = 2 * math.pi
