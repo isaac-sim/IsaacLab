@@ -189,6 +189,11 @@ class CheckpointGhostSession(CheckpointGhostController):
         self.layout.slots[slot_index].label = ""
         self._resplit()
 
+    def reference_env_ids(self) -> np.ndarray:  # noqa: D102
+        if self._sync is None:
+            return np.arange(self._env.unwrapped.num_envs)
+        return self._sync.reference_env_ids()
+
     def env_origin_offsets(self) -> np.ndarray:  # noqa: D102
         if self._sync is None:
             return np.zeros((self._env.unwrapped.num_envs, 3), dtype=np.float32)

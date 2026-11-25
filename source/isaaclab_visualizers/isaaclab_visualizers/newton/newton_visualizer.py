@@ -2109,15 +2109,14 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self._apply_rtx_visible_envs()
 
     def _apply_ghost_offsets(self) -> None:
-        """Overlay each ghost on the reference by the offset between their environment origins."""
+        """Overlay each ghost on its reference: take the reference world's spacing offset, then shift by the origins."""
         panel, viewer = self._checkpoint_ghost_panel, self._viewer
         if panel is None or self._base_world_offsets is None or getattr(viewer, "world_offsets", None) is None:
             return
         controller = panel.controller
         ghost = controller.env_origin_offsets()
-        viewer.world_offsets = wp.array(
-            self._base_world_offsets + ghost, dtype=wp.vec3, device=viewer.world_offsets.device
-        )
+        base = self._base_world_offsets[controller.reference_env_ids()]
+        viewer.world_offsets = wp.array(base + ghost, dtype=wp.vec3, device=viewer.world_offsets.device)
 
     def _apply_rtx_visible_envs(self) -> None:
         """Hide the environments outside the visible set in the OVRTX viewer camera's scene."""

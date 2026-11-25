@@ -58,6 +58,7 @@ class CheckpointGhostSync:
             raise ValueError(
                 f"Environment has {env.num_envs} envs, expected at least {num_slices} slices of {slice_size} envs."
             )
+        self._reject_multi_asset_scene(env)
         self._env = env
         self._slice_size = slice_size
         self._num_slices = num_slices
@@ -72,6 +73,21 @@ class CheckpointGhostSync:
         if self._commands is not None:
             self._compute_commands_original = self._commands.compute
             self._commands.compute = self._compute_commands
+
+    @staticmethod
+    def _reject_multi_asset_scene(env: ManagerBasedRLEnv | DirectRLEnv) -> None:
+        """Raise if an asset spawns different prototypes per environment, since a ghost would act on another object."""
+        from isaaclab.sim.spawners.wrappers.wrappers_cfg import MultiAssetSpawnerCfg, MultiUsdFileCfg
+
+        scene = env.scene
+        assets = {**getattr(scene, "articulations", {}), **getattr(scene, "rigid_objects", {})}
+        for name, asset in assets.items():
+            spawn = getattr(getattr(asset, "cfg", None), "spawn", None)
+            if isinstance(spawn, (MultiAssetSpawnerCfg, MultiUsdFileCfg)):
+                raise ValueError(
+                    f"Scene asset '{name}' spawns a different prototype per environment, so a ghost would not act on"
+                    " the same object as its reference. Checkpoint Ghosts do not support this task yet."
+                )
 
     @staticmethod
     def configure_env_cfg(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg) -> list[str]:
@@ -122,6 +138,13 @@ class CheckpointGhostSync:
                 origins[: self._slice_size] - origins[ghost_start : ghost_start + self._slice_size]
             )
         return offsets.cpu().numpy().astype(np.float32)
+
+    def reference_env_ids(self) -> np.ndarray:
+        """Return the reference environment of each environment, shape ``[num_envs]``; references map to themselves."""
+        ids = np.arange(self._env.num_envs)
+        for ghost_start in self._ghost_offsets.tolist():
+            ids[ghost_start : ghost_start + self._slice_size] = np.arange(self._slice_size)
+        return ids
 
     def close(self) -> None:
         """Restore the environment's original reset, command update, and terrain placement."""

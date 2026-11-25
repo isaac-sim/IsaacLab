@@ -1458,14 +1458,15 @@ def test_ghost_offsets_overlay_each_ghost_by_its_environment_origin():
     viewer = SimpleNamespace(world_offsets=wp.zeros(3, dtype=wp.vec3, device="cpu"))
     visualizer = _make_newton_visualizer(viewer)
     controller = SimpleNamespace(
-        env_origin_offsets=lambda: np.array([[0, 0, 0], [1, 0, 0], [1, 0, 0]], dtype=np.float32)
+        env_origin_offsets=lambda: np.array([[0, 0, 0], [1, 0, 0], [1, 0, 0]], dtype=np.float32),
+        reference_env_ids=lambda: np.array([0, 0, 0]),
     )
     visualizer._checkpoint_ghost_panel = SimpleNamespace(controller=controller)
-    visualizer._base_world_offsets = np.tile(np.array([0, 2, 0], dtype=np.float32), (3, 1))
+    visualizer._base_world_offsets = np.array([[0, 2, 0], [4, 2, 0], [8, 2, 0]], dtype=np.float32)  # world_spacing
 
     visualizer._apply_ghost_offsets()
 
-    assert viewer.world_offsets.numpy()[:, 0].tolist() == [0.0, 1.0, 1.0]
+    assert viewer.world_offsets.numpy()[:, 0].tolist() == [0.0, 1.0, 1.0]  # a ghost keeps its reference's spacing
     assert viewer.world_offsets.numpy()[:, 1].tolist() == [2.0, 2.0, 2.0]
 
 

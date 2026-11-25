@@ -205,6 +205,15 @@ def test_environment_size_must_match_the_slices() -> None:
         CheckpointGhostSync(_make_env(), SLICE_SIZE, NUM_SLICES + 1)
 
 
+def test_a_scene_with_a_different_prototype_per_environment_is_rejected() -> None:
+    from isaaclab.sim.spawners.wrappers.wrappers_cfg import MultiAssetSpawnerCfg
+
+    env = _make_env()
+    env.scene.rigid_objects = {"object": SimpleNamespace(cfg=SimpleNamespace(spawn=MultiAssetSpawnerCfg()))}
+    with pytest.raises(ValueError, match="different prototype"):
+        CheckpointGhostSync(env, SLICE_SIZE, NUM_SLICES)
+
+
 def test_configure_env_cfg_keeps_only_randomization_the_reset_can_mirror() -> None:
     def term(mode: str) -> SimpleNamespace:
         return SimpleNamespace(mode=mode, func=lambda: None)

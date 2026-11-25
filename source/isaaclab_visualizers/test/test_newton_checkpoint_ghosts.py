@@ -301,7 +301,7 @@ class _BrowserImgui(_TextImgui):
 
     def selectable(self, label, selected):  # imgui requires the selected flag, as the real binding does
         self.drawn.append(label)
-        return label in self.clicks, False
+        return any(label == c or (c.startswith("##") and label.endswith(c)) for c in self.clicks), False
 
     def input_text(self, label, text, flags):
         return False, text
@@ -358,7 +358,7 @@ def test_choosing_a_checkpoint_keeps_the_folder_and_an_unreadable_folder_is_repo
     panel = NewtonCheckpointGhostPanel(controller)
     panel._open_window()
 
-    panel._draw_window(_BrowserImgui(clicks=["model_1.pt   1970-01-01 00:00##/runs/task/model_1.pt"]))
+    panel._draw_window(_BrowserImgui(clicks=["##/runs/task/model_1.pt"]))  # the label also shows a local time
 
     assert controller.added == ["/runs/task/model_1.pt"] and not panel._window_open
     panel._open_window()

@@ -205,5 +205,9 @@ class CheckpointGhostController(ABC):
         """
 
     @abstractmethod
+    def reference_env_ids(self) -> np.ndarray:
+        """Return the reference environment of each environment, shape ``[num_envs]``; references map to themselves."""
+
+    @abstractmethod
     def env_origin_offsets(self) -> np.ndarray:
         """Return per-environment offsets [m], shape ``[num_envs, 3]``, that move each ghost onto the reference."""

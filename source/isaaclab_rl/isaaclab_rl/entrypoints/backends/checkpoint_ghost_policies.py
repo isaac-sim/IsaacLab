@@ -39,7 +39,7 @@ def run_rsl_rl(
 
     def policy_factory(path: str) -> PolicyAdapter:
         runner = create_rsl_rl_runner(env, agent_cfg, inference=True)
-        runner.load(path)
+        runner.load(path, map_location=agent_cfg.device)
         policy = runner.get_inference_policy(device=env.unwrapped.device)
         return PolicyAdapter(
             lambda obs: policy(TensorDict(obs, batch_size=[tree_leaves(obs)[0].shape[0]])),
