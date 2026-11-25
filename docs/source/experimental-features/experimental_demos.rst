@@ -67,6 +67,10 @@ Demos
        Cosmos3-Nano-Sim-Transfer generates from depth. It needs a GR00T policy server and the Cosmos server.
      - `G1 apple pick-and-place
        <https://github.com/isaac-sim/isaaclab_demos/blob/main/demos/apple_pick_place/README.md>`_
+   * - ``medical-pad``
+     - Both Sharpa hands of an H2 robot learn to unfold a medical nursing pad with PPO, in the Cosmos3 world model
+       instead of a physics engine. It needs the world-model server.
+     - `Medical-pad unfolding <https://github.com/isaac-sim/isaaclab_demos/blob/main/demos/medical_pad/README.md>`_
 
 Each guide explains how to install and run its demo, including what else it needs to download, such as a policy or the
 Cosmos server. The repository's `README <https://github.com/isaac-sim/isaaclab_demos#install-and-run-a-demo>`_ has
