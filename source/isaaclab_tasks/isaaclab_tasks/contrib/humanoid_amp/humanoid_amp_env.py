@@ -69,13 +69,14 @@ class HumanoidAmpEnv(DirectRLEnv):
             self.robot.data.body_pos_w.torch[:, self.key_body_indexes],
         )
 
-        # update AMP observation history
-        for i in reversed(range(self.cfg.num_amp_observations - 1)):
-            self.amp_observation_buffer[:, i + 1] = self.amp_observation_buffer[:, i]
-        # build AMP observation
-        self.amp_observation_buffer[:, 0] = obs.clone()
-        # keep the other extras of this step, e.g. time-outs, episode logs and terminal observations
-        self.extras["amp_obs"] = self.amp_observation_buffer.view(-1, self.amp_observation_size)
+        if not self.is_observation_preview:
+            # update AMP observation history
+            for i in reversed(range(self.cfg.num_amp_observations - 1)):
+                self.amp_observation_buffer[:, i + 1] = self.amp_observation_buffer[:, i]
+            # build AMP observation
+            self.amp_observation_buffer[:, 0] = obs.clone()
+            # keep the other extras of this step, e.g. time-outs, episode logs and terminal observations
+            self.extras["amp_obs"] = self.amp_observation_buffer.view(-1, self.amp_observation_size)
 
         return {"policy": obs}
 
