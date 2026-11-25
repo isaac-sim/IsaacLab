@@ -32,13 +32,54 @@ Prerequisites
 
 - **Isaac Lab** installed and configured
 - **Isaac-GR00T** repo (for VLA inference and data transforms)
-- A **pretrained VLA checkpoint** in HuggingFace format. A pretrained GR00T checkpoint for
-  ``assemble_trocar`` is available and can be downloaded via:
-
-  .. code-block:: bash
-
-     hf download --repo-type model nvidia/Assemble_Trocar --local-dir /path/to/local/models
+- A **pretrained VLA checkpoint** in HuggingFace format. The ``assemble_trocar`` recipe
+  uses the updated GR00T N1.5
+  `100k SFT checkpoint <https://huggingface.co/nvidia/s2r_models_dev/tree/main/mingxinz/sft/g1/trocar_install_segfixed/rot_0_10_320ep_sim_78ep_real_8gpu_100k>`__.
+  Place its ``config.json``, model weights and ``experiment_cfg/`` directory directly in
+  ``.pretrained_checkpoints/rlinf/Assemble_Trocar_SFT_100k`` relative to the Isaac Lab root,
+  or pass the checkpoint directory with ``--model_path``.
 - Multi-GPU setup recommended (FSDP requires at least 1 GPU)
+
+Trocar task assets and policy compatibility
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The updated ``assemble_trocar`` task also requires the matching
+`asset pack <https://drive.google.com/file/d/1EDkToctifZRvdCVy8lZyYBGauUn36i_w/view?usp=sharing>`__.
+The assets and checkpoint are currently shared privately; public release is pending.
+The revised robot, scene and instrument assets align the simulation with the real setup.
+Extract the ZIP and set ``ASSET_LOCAL`` before starting Isaac Lab to the extracted asset root, which must contain:
+
+.. code-block:: text
+
+   <asset-root>/
+   ├── Robots/
+   │   └── g1_29dof_with_dex3_base_fix02.usd
+   └── Props/
+       └── LightWheel/
+           ├── scene03cell.usd
+           └── Assets/
+
+Keep the complete extracted directory tree, including referenced USD files, meshes and textures.
+For example, if the pack is extracted into ``/data/trocar-assets``:
+
+.. code-block:: bash
+
+   export ASSET_LOCAL=/data/trocar-assets
+
+The default root is ``/workspace/assets``. An HTTPS asset root with the same layout is also
+accepted.
+
+The existing task IDs and recipe now use the revised assets, robot reset poses and camera
+presets with 320-by-240 RGB observations, 30 Hz control, 25-second episodes and absolute
+joint-position actions. These settings are intended for the matching 100k SFT checkpoint;
+previously trained policies are not guaranteed to work with the updated task. To reproduce
+an older policy, retain the earlier Isaac Lab revision together with its assets and recipe.
+Both training and evaluation use ``install trocar from tray``.
+
+The lift stage requires the first trocar's world-space center-of-mass height and the second
+trocar's world-space root height to exceed the table height by 0.08 m. This differs from the
+previous root-height check with a 0.05 m threshold; an explicit threshold alone does not
+restore the previous reference point.
 
 Installation
 ------------
@@ -237,7 +278,9 @@ Quick Start
              --video
 
 Here ``--model_path`` points to the HuggingFace-format base model (with
-``config.json``), and ``--checkpoint`` points to the RLinf checkpoint
+``config.json``). For the trocar recipe, use the 100k SFT directory described in
+Prerequisites_, or omit ``--model_path`` to use its default location.
+``--checkpoint`` points to the RLinf checkpoint
 directory (the ``global_step_<N>`` folder), a subdirectory containing exactly one
 ``full_weights.pt``, or that weights file. RLinf loads the base model, then applies the
 RL-finetuned weights through its native checkpoint hook. Relative model and checkpoint
@@ -284,8 +327,8 @@ environment worker, for training and evaluation alike. For example,
 
 .. note::
 
-   Contact dynamics differ between the backends, so the published ``Assemble_Trocar`` checkpoint
-   succeeds less often on Newton than on PhysX until it is RL fine-tuned on Newton.
+   Contact dynamics differ between the backends. Evaluate the selected checkpoint on the target
+   backend before RL fine-tuning; a PhysX result does not establish performance on Newton.
 
 Checkpoints
 -----------
@@ -326,7 +369,7 @@ are converted to GR00T format:
 .. code-block:: yaml
 
    isaaclab: &isaaclab_config
-     task_description: "assemble trocar from tray"
+     task_description: "install trocar from tray"
 
      # IsaacLab → RLinf observation mapping
      main_images: "front_camera"
@@ -342,6 +385,9 @@ are converted to GR00T format:
      action_mapping:
        prefix_pad: 15
        suffix_pad: 0
+
+The trocar recipe uses ``install trocar from tray`` for both training and evaluation,
+including the environment's ``init_params.task_description`` and the policy observation mapping.
 
 Action chunks across resets
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
