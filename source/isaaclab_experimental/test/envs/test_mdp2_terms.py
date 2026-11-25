@@ -23,9 +23,12 @@ from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sensors import JointWrenchSensorCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import math as math_utils
 from isaaclab.utils.warp import ProxyArray
+
+import isaaclab_tasks.core.velocity.mdp as velocity_mdp1
 
 pytestmark = [pytest.mark.kitless, pytest.mark.skipif(not torch.cuda.is_available(), reason="Newton needs a GPU")]
 
@@ -35,12 +38,43 @@ LEG_NAMES = ("LF_.*", "RH_KFE")
 
 robot = mdp2.Entity("robot")
 scene = mdp2.Entity("scene")
+joint_wrench = mdp2.Entity("joint_wrench")
 legs = robot.joints(*LEG_NAMES)
+
+POSE_COMMAND = (0.2, -0.1, 0.3, 0.0, 0.0, 0.6, 0.8)
+"""A pose command in the root frame: a position and a unit quaternion (x, y, z, w)."""
+
+pose_tracking = {
+    "command": mdp2.commands.pose,
+    "root_link_pose_w": robot.root_link_pose_w,
+    "body_link_pose_w": robot.body_link_pose_w,
+    "body_ids": robot.bodies("LF_SHANK"),
+}
+
+
+@wp.func
+def _fixed_pose_command(world: int, command: wp.array2d(dtype=float)):
+    command[world, 0] = 0.2
+    command[world, 1] = -0.1
+    command[world, 2] = 0.3
+    command[world, 3] = 0.0
+    command[world, 4] = 0.0
+    command[world, 5] = 0.6
+    command[world, 6] = 0.8
+
+
+fixed_pose_command = mdp2.Term(
+    torch=lambda mask, command: command.copy_(command.new_tensor(POSE_COMMAND).expand_as(command)),
+    warp=_fixed_pose_command,
+    shape=("worlds", 7),
+)
+"""The pose command :data:`POSE_COMMAND` for every world."""
 
 
 @pytest.fixture(scope="module")
 def env() -> Iterator[MDP2Env]:
-    """Two-legged floating robots in random joint and root states, with random joint efforts."""
+    """Two-legged floating robots in random joint and root states, with random joint efforts and a joint wrench
+    sensor."""
     scene_cfg = InteractiveSceneCfg(num_envs=NUM_ENVS, env_spacing=3.0)
     scene_cfg.robot = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/Robot",
@@ -48,6 +82,7 @@ def env() -> Iterator[MDP2Env]:
         init_state=ArticulationCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0), joint_pos={".*HFE": 0.4, ".*KFE": -0.8}),
         actuators={"legs": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=0.0, damping=0.0)},
     )
+    scene_cfg.joint_wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
 
     task = mdp2.TaskCfg(actions={"joint_effort": mdp2.DirectAction(robot.joint_effort_target)})
     cfg = MDP2EnvCfg(
@@ -74,8 +109,9 @@ def env() -> Iterator[MDP2Env]:
         articulation.write_root_velocity_to_sim_index(root_velocity=rand(NUM_ENVS, 6, scale=3.0))
         articulation.set_joint_effort_target_index(target=rand(NUM_ENVS, 6, scale=5.0))
         articulation.write_data_to_sim()
-        env.sim.forward()
-        env.scene.update(dt=0.0)
+        # One physics step, so that the joint wrench sensor reports the wrenches that the joints transmit.
+        env.sim.step(render=False)
+        env.scene.update(dt=env.physics_dt)
 
         yield env
     finally:
@@ -83,14 +119,24 @@ def env() -> Iterator[MDP2Env]:
 
 
 class MDP1Env:
-    """What the MDP1 functions read from an environment: the scene, and joint positions as the command."""
+    """What the MDP1 functions and commands read from an environment: the scene, :data:`POSE_COMMAND` as the
+    ``pose`` command, and joint positions as any other command."""
 
     def __init__(self, env: MDP2Env):
         self.scene = env.scene
+        self.sim = env.sim
+        self.num_envs = env.num_envs
+        self.device = env.device
         self.command_manager = self
+        self.terms = {}
 
     def get_command(self, name: str) -> torch.Tensor:
+        if name == "pose":
+            return torch.tensor(POSE_COMMAND, device=self.device).expand(self.num_envs, -1)
         return self.scene["robot"].data.joint_pos.torch
+
+    def get_term(self, name: str):
+        return self.terms[name]
 
 
 def robot_cfg(env: MDP2Env, joint_names: tuple[str, ...] | None = None) -> SceneEntityCfg:
@@ -100,17 +146,34 @@ def robot_cfg(env: MDP2Env, joint_names: tuple[str, ...] | None = None) -> Scene
     return cfg
 
 
-def mdp2_values(env: MDP2Env, backend: str, uses: dict[str, mdp2.Observation | mdp2.Termination]) -> dict:
-    """Evaluate term uses once on the environment's scene data, each in its own observation group or termination."""
+def bodies_cfg(env: MDP2Env, name: str, body_names: list[str]) -> SceneEntityCfg:
+    """Return the resolved MDP1 configuration of the named bodies of a scene entity."""
+    cfg = SceneEntityCfg(name, body_names=body_names)
+    cfg.resolve(env.scene)
+    return cfg
+
+
+def mdp2_values(
+    env: MDP2Env, backend: str, uses: dict[str, mdp2.Command | mdp2.Quantity | mdp2.Observation | mdp2.Termination]
+) -> dict:
+    """Evaluate term uses once on the environment's scene data, each in its own observation group or termination.
+
+    The commands are sampled for every world first.
+    """
     builder = mdp2.MDPBuilder(env.scene_data.schema)
     for name, use in uses.items():
-        if isinstance(use, mdp2.Termination):
+        if isinstance(use, mdp2.Command):
+            builder.add_command(name, use)
+        elif isinstance(use, mdp2.Quantity):
+            builder.add_quantity(name, use)
+        elif isinstance(use, mdp2.Termination):
             builder.add_termination(name, use)
         else:
             builder.add_observation(name, name, use)
     model = builder.finalize(device=env.device, backend=backend, diagnostics=True)
 
     state, transition = model.state(env.scene_data), model.transition()
+    mdp2.reset(model, state, ProxyArray(wp.ones(NUM_ENVS, dtype=wp.bool, device=env.device)))
     mdp2.evaluate(model, state, transition)
 
     values = {group: buffer.torch.clone() for group, buffer in transition.observations.items()}
@@ -168,12 +231,33 @@ def test_observations_and_rewards_match_mdp1(env: MDP2Env, backend: str):
         "track_ang_vel_z_exp": mdp2.Observation(
             mdp.track_ang_vel_z_exp, inputs={**root_state, "command": robot.joint_pos}, params={"std": 0.5}
         ),
+        "track_lin_vel_xy_yaw_frame_exp": mdp2.Observation(
+            mdp.track_lin_vel_xy_yaw_frame_exp, inputs={**root_state, "command": robot.joint_pos}, params={"std": 0.5}
+        ),
+        "track_ang_vel_z_world_exp": mdp2.Observation(
+            mdp.track_ang_vel_z_world_exp,
+            inputs={"command": robot.joint_pos, "root_com_vel_w": robot.root_com_vel_w},
+            params={"std": 0.5},
+        ),
+        "pose": mdp2.Command(fixed_pose_command),
+        "position_command_error": mdp2.Observation(mdp.position_command_error, inputs=pose_tracking),
+        "orientation_command_error": mdp2.Observation(mdp.orientation_command_error, inputs=pose_tracking),
+        "body_incoming_wrench": mdp2.Observation(
+            mdp.body_incoming_wrench,
+            inputs={
+                "force": joint_wrench.force,
+                "torque": joint_wrench.torque,
+                "body_ids": joint_wrench.bodies(".*_SHANK"),
+            },
+        ),
     }
 
     values = mdp2_values(env, backend, uses)
 
     mdp1_env = MDP1Env(env)
     leg_cfg, root_cfg = robot_cfg(env, LEG_NAMES), robot_cfg(env)
+    shank_cfg = bodies_cfg(env, "robot", ["LF_SHANK"])
+    wrench_cfg = bodies_cfg(env, "joint_wrench", [".*_SHANK"])
     expected = {
         "joint_pos": mdp1.joint_pos(mdp1_env, leg_cfg),
         "joint_pos_rel": mdp1.joint_pos_rel(mdp1_env, leg_cfg),
@@ -198,16 +282,47 @@ def test_observations_and_rewards_match_mdp1(env: MDP2Env, backend: str):
         "base_height_l2": mdp1.base_height_l2(mdp1_env, 0.4, root_cfg),
         "track_lin_vel_xy_exp": mdp1.track_lin_vel_xy_exp(mdp1_env, 0.5, "velocity", root_cfg),
         "track_ang_vel_z_exp": mdp1.track_ang_vel_z_exp(mdp1_env, 0.5, "velocity", root_cfg),
+        "track_lin_vel_xy_yaw_frame_exp": velocity_mdp1.track_lin_vel_xy_yaw_frame_exp(
+            mdp1_env, 0.5, "velocity", root_cfg
+        ),
+        "track_ang_vel_z_world_exp": velocity_mdp1.track_ang_vel_z_world_exp(mdp1_env, "velocity", 0.5, root_cfg),
+        "position_command_error": mdp1.position_command_error(mdp1_env, "pose", shank_cfg),
+        "orientation_command_error": mdp1.orientation_command_error(mdp1_env, "pose", shank_cfg),
+        "body_incoming_wrench": mdp1.body_incoming_wrench(mdp1_env, wrench_cfg),
     }
 
     assert values["joint_pos_limits"].abs().sum() > 0.0  # Some joints are beyond their limits.
     assert (values["joint_torques_l2"] > 0.0).all()  # The actuators apply efforts.
+    assert (values["body_incoming_wrench"] != 0.0).any()  # The joints transmit wrenches.
     for name, value in expected.items():
         torch.testing.assert_close(values[name], value.reshape(NUM_ENVS, -1), msg=name)
 
 
 @pytest.mark.parametrize("backend", ["torch", "warp"])
 def test_terminations_match_mdp1(env: MDP2Env, backend: str):
+    mdp1_env = MDP1Env(env)
+    leg_cfg, root_cfg = robot_cfg(env, LEG_NAMES), robot_cfg(env)
+
+    # Success thresholds halfway between the middle errors of the worlds, so that each one decides some worlds.
+    shank_cfg = bodies_cfg(env, "robot", ["LF_SHANK"])
+    thresholds = {}
+    for name, error in (("position", mdp1.position_command_error), ("orientation", mdp1.orientation_command_error)):
+        errors = error(mdp1_env, "pose", shank_cfg).sort().values
+        thresholds[name] = float(errors[NUM_ENVS // 2 - 1 : NUM_ENVS // 2 + 1].mean())
+    no_range = (0.0, 0.0)
+    pose_command_cfg = mdp1.UniformPoseCommandCfg(
+        asset_name="robot",
+        body_name="LF_SHANK",
+        resampling_time_range=(1.0, 1.0),
+        ranges=mdp1.UniformPoseCommandCfg.Ranges(
+            pos_x=no_range, pos_y=no_range, pos_z=no_range, roll=no_range, pitch=no_range, yaw=no_range
+        ),
+        position_success_threshold=thresholds["position"],
+        orientation_success_threshold=thresholds["orientation"],
+    )
+    mdp1_env.terms["pose"] = mdp1.UniformPoseCommand(pose_command_cfg, mdp1_env)
+    mdp1_env.terms["pose"].pose_command_b[:] = mdp1_env.get_command("pose")
+
     root_pose = {"root_link_pose_w": robot.root_link_pose_w}
     uses = {
         "joint_pos_out_of_manual_limit": mdp2.Termination(
@@ -221,16 +336,29 @@ def test_terminations_match_mdp1(env: MDP2Env, backend: str):
         "bad_orientation": mdp2.Termination(
             mdp.bad_orientation, inputs={**root_pose, "gravity_w": scene.gravity_w}, params={"limit_angle": 1.0}
         ),
+        "pose": mdp2.Command(fixed_pose_command),
+        "position_error": mdp2.Quantity(mdp.position_command_error, inputs=pose_tracking),
+        "orientation_error": mdp2.Quantity(mdp.orientation_command_error, inputs=pose_tracking),
+        "pose_command_success": mdp2.Termination(
+            mdp.pose_command_success,
+            inputs={
+                "position_error": mdp2.quantities.position_error,
+                "orientation_error": mdp2.quantities.orientation_error,
+            },
+            params={
+                "position_threshold": thresholds["position"],
+                "orientation_threshold": thresholds["orientation"],
+            },
+        ),
     }
 
     values = mdp2_values(env, backend, uses)
 
-    mdp1_env = MDP1Env(env)
-    leg_cfg, root_cfg = robot_cfg(env, LEG_NAMES), robot_cfg(env)
     expected = {
         "joint_pos_out_of_manual_limit": mdp1.joint_pos_out_of_manual_limit(mdp1_env, (-1.5, 1.5), leg_cfg),
         "root_height_below_minimum": mdp1.root_height_below_minimum(mdp1_env, 0.5, root_cfg),
         "bad_orientation": mdp1.bad_orientation(mdp1_env, 1.0, root_cfg),
+        "pose_command_success": mdp1.pose_command_success(mdp1_env, "pose"),
     }
 
     for name, value in expected.items():
@@ -313,39 +441,43 @@ def test_events_agree_across_backends_and_respect_ranges(env: MDP2Env):
 
 
 def test_heading_command_steers_towards_its_heading(env: MDP2Env):
-    """Both backends draw the same commands; heading worlds turn towards their heading as MDP1's command does."""
-    command = mdp2.Command(
-        mdp.heading_velocity_command,
-        inputs={"root_link_pose_w": robot.root_link_pose_w},
-        params={
-            "lin_vel_x": (-1.0, 1.0),
-            "lin_vel_y": (-0.5, 0.5),
-            "ang_vel_z": (-1.0, 1.0),
-            "heading": (-math.pi, math.pi),
-            "rel_standing_envs": 0.25,
-            "rel_heading_envs": 0.5,
-            "heading_control_stiffness": 0.5,
-        },
-    )
+    """Both backends draw the same commands; heading worlds turn towards their heading as MDP1's command does.
 
+    The steered variant gives at its resample what the plain command gives at its first update: MDP1's
+    ``UniformVelocityCommand`` steers right after it resamples, since its manager updates the commands after a reset.
+    """
+    params = {
+        "lin_vel_x": (-1.0, 1.0),
+        "lin_vel_y": (-0.5, 0.5),
+        "ang_vel_z": (-1.0, 1.0),
+        "heading": (-math.pi, math.pi),
+        "rel_standing_envs": 0.25,
+        "rel_heading_envs": 0.5,
+        "heading_control_stiffness": 0.5,
+    }
+
+    terms = {"plain": mdp.heading_velocity_command, "steered": mdp.heading_velocity_command_steered_on_resample}
     results = {}
     for backend in ("torch", "warp"):
-        builder = mdp2.MDPBuilder(env.scene_data.schema)
-        builder.add_command("base_velocity", command)
-        model = builder.finalize(device=env.device, backend=backend)
-        state, transition = model.state(env.scene_data, seed=1), model.transition()
+        for variant, term in terms.items():
+            command = mdp2.Command(term, inputs={"root_link_pose_w": robot.root_link_pose_w}, params=params)
+            builder = mdp2.MDPBuilder(env.scene_data.schema)
+            builder.add_command("base_velocity", command)
+            model = builder.finalize(device=env.device, backend=backend)
+            state, transition = model.state(env.scene_data, seed=1), model.transition()
 
-        mdp2.reset(model, state, ProxyArray(wp.ones(NUM_ENVS, dtype=wp.bool, device=env.device)))
-        sampled = state.arrays[mdp2.commands.base_velocity].torch.clone()
-        mdp2.evaluate(model, state, transition)
-        updated = state.arrays[mdp2.commands.base_velocity].torch.clone()
-        heading = state.arrays[mdp2.term_state("commands.base_velocity", "heading_target")].torch.clone()
-        results[backend] = (sampled, updated, heading)
+            mdp2.reset(model, state, ProxyArray(wp.ones(NUM_ENVS, dtype=wp.bool, device=env.device)))
+            sampled = state.arrays[mdp2.commands.base_velocity].torch.clone()
+            mdp2.evaluate(model, state, transition)
+            updated = state.arrays[mdp2.commands.base_velocity].torch.clone()
+            heading = state.arrays[mdp2.term_state("commands.base_velocity", "heading_target")].torch.clone()
+            results[backend, variant] = (sampled, updated, heading)
 
-    for value, expected in zip(results["warp"], results["torch"]):
-        torch.testing.assert_close(value, expected, equal_nan=True)
+    for variant in terms:
+        for value, expected in zip(results["warp", variant], results["torch", variant]):
+            torch.testing.assert_close(value, expected, equal_nan=True)
 
-    sampled, updated, heading = results["warp"]
+    sampled, updated, heading = results["warp", "plain"]
     standing = (sampled == 0.0).all(-1)
     controlled = ~heading.isnan()
     assert standing.any() and controlled.any() and (~standing & ~controlled).any()
@@ -355,6 +487,11 @@ def test_heading_command_steers_towards_its_heading(env: MDP2Env):
     expected = torch.where(controlled, (0.5 * heading_error).clip(-1.0, 1.0), sampled[:, 2])
     torch.testing.assert_close(updated[:, 2], expected)
     assert heading[standing].isnan().all() and (updated[standing] == 0.0).all()
+
+    steered_sampled, steered_updated, steered_heading = results["warp", "steered"]
+    torch.testing.assert_close(steered_sampled, updated)
+    torch.testing.assert_close(steered_updated, updated)
+    torch.testing.assert_close(steered_heading, heading, equal_nan=True)
 
 
 def test_model_events_randomize_the_startup_model_alike_on_both_backends(env: MDP2Env):

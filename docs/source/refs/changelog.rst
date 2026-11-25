@@ -11,6 +11,7 @@ framework releases.
 * :isaaclab-source:`isaaclab_contrib <source/isaaclab_contrib/docs/CHANGELOG.rst>`
 * :isaaclab-source:`isaaclab_experimental <source/isaaclab_experimental/docs/CHANGELOG.rst>`
 * :isaaclab-source:`isaaclab_mimic <source/isaaclab_mimic/docs/CHANGELOG.rst>`
+* :isaaclab-source:`isaaclab_neural <source/isaaclab_neural/docs/CHANGELOG.rst>`
 * :isaaclab-source:`isaaclab_newton <source/isaaclab_newton/docs/CHANGELOG.rst>`
 * :isaaclab-source:`isaaclab_ov <source/isaaclab_ov/docs/CHANGELOG.rst>`
 * :isaaclab-source:`isaaclab_physx <source/isaaclab_physx/docs/CHANGELOG.rst>`

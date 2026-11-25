@@ -30,7 +30,7 @@ from leapp_test_tasks import MANAGER_TASK
 from isaaclab.envs import DirectRLEnv
 from isaaclab.managers import ActionManager, ObservationManager
 
-from isaaclab_tasks.utils import load_cfg_from_registry
+from isaaclab_tasks.utils import load_cfg_from_registry, resolve_presets
 
 pytestmark = pytest.mark.kitless
 
@@ -178,7 +178,7 @@ def test_leapp_export_flow(
             encoder_cfg={"policy": SharedEncoderMLPModelCfg.EncoderCfg(hidden_dims=[8], latent_dim=4)},
         )
     checkpoint = _CREATORS[backend](_CheckpointEnv(checkpoint_task, backend), agent_cfg, tmp_path)
-    env_cfg = load_cfg_from_registry(checkpoint_task, "env_cfg_entry_point")
+    env_cfg = resolve_presets(load_cfg_from_registry(checkpoint_task, "env_cfg_entry_point"))
     connected = backend == "rsl_rl" and task == MANAGER_TASK and not direct
     env = (
         _DirectTensorEnv(env_cfg, task=task, checkpoint_task=checkpoint_task, backend=backend)
