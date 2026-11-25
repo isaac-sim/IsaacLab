@@ -46,6 +46,19 @@ def backend_cfg(name: str):
     return BACKENDS[name]
 
 
+@pytest.mark.parametrize("backend", ["newton_warp", "isaac_rtx"])
+def test_hybrid_gaze_turns_the_head_onto_the_fixation(backend):
+    # Gaze that turns a rig tracks the camera's mount: Newton turns the pose it reads by the gaze, and Isaac RTX reads
+    # the mount back from the camera prim, which holds the gaze. The case builds its own environment around the rig,
+    # so it runs before the shared ground scenes below.
+    cases.hybrid_gaze_turns_the_head_onto_the_fixation(backend_cfg(backend))
+
+
+@pytest.mark.parametrize("backend", ["newton_warp", "isaac_rtx"])
+def test_binocular_gaze_fixates_a_near_point_with_both_eyes(backend):
+    cases.binocular_gaze_fixates_a_near_point_with_both_eyes(backend_cfg(backend))
+
+
 @pytest.fixture(scope="module", params=list(BACKENDS))
 def ground(request):
     """One ground scene per backend, which every case below renders in turn."""

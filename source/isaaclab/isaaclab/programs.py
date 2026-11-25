@@ -289,6 +289,13 @@ EXAMPLES = (
         extras=("fovi",),
         required_modules=("isaaclab_fovi", "fovi"),
     ),
+    ProgramSpec(
+        "foveated-stereo",
+        "examples/sensors/foveated_stereo.py",
+        "Watch two experimental foveated eyes on a pan-tilt head fixate near and far objects together.",
+        extras=("fovi",),
+        required_modules=("isaaclab_fovi", "fovi"),
+    ),
 )
 
 

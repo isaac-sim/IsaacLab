@@ -316,6 +316,9 @@ OVERRIDES = {
     "examples/sensors/foveated_camera.py": ScriptOverride(
         fixed_physics_backend="newton_xpbd", visualizers=(None, "newton")
     ),
+    "examples/sensors/foveated_stereo.py": ScriptOverride(
+        fixed_physics_backend="newton_mjwarp", visualizers=(None, "newton")
+    ),
     "examples/demos/pick_and_place.py": ScriptOverride(visualizers=("kit",)),
     "examples/sensors/ppisp_camera.py": ScriptOverride(
         args=("--max_steps", "3", "--warmup_steps", "1", "--image_width", "64", "--image_height", "64"),

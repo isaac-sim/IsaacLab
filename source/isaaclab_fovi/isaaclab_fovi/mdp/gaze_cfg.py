@@ -15,7 +15,35 @@ from isaaclab.managers import ActionTermCfg
 from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
+    from .binocular_gaze import BinocularGazeAction
     from .gaze import GazeAction
+
+GAZE_MODES = ("software", "physical", "hybrid", "dual")
+"""How the gaze action moves the gaze; see :class:`~isaaclab_fovi.mdp.gaze.GazeAction`."""
+
+
+@configclass
+class GazeRigCfg:
+    """The articulation that turns the camera, for physical, hybrid and dual gaze."""
+
+    asset_name: str = MISSING
+    """Scene name of the articulation whose joints turn the camera."""
+    joint_names: tuple[str, str] = ("pan_joint", "tilt_joint")
+    """The joints that turn the camera left and up, in that order."""
+    joint_signs: tuple[float, float] = (1.0, 1.0)
+    """Sign of each joint's angle for a turn of the camera to the left and up."""
+    max_step_deg: float = 6.0
+    """Largest offset [deg] of each joint target from the joint's measured angle in hybrid gaze, which each step sets
+    from where the head stands: how fast the head catches up."""
+
+    def validate_config(self) -> None:
+        """Reject a rig without two distinct joints, a sign of 1 or -1 for each, and a positive, finite step."""
+        if not _positive_finite(self.max_step_deg):
+            raise ValueError(f"GazeRigCfg.max_step_deg must be positive and finite, got {self.max_step_deg!r}.")
+        if len(self.joint_names) != 2 or len(set(self.joint_names)) != 2:
+            raise ValueError(f"GazeRigCfg.joint_names must name two joints, got {self.joint_names!r}.")
+        if len(self.joint_signs) != 2 or any(sign not in (-1.0, 1.0) for sign in self.joint_signs):
+            raise ValueError(f"GazeRigCfg.joint_signs must be two signs, each 1 or -1, got {self.joint_signs!r}.")
 
 
 @configclass
@@ -25,19 +53,83 @@ class GazeActionCfg(ActionTermCfg):
     class_type: type[GazeAction] | str = "{DIR}.gaze:GazeAction"
     asset_name: str = MISSING
     """Scene name of the foveated camera whose gaze the action moves."""
+    mode: str = "software"
+    """``"software"``, ``"physical"``, ``"hybrid"``, or ``"dual"`` (experimental): what the actions turn."""
+    rig: GazeRigCfg | None = None
+    """The articulation that turns the camera; needed by every mode but software gaze."""
     step_size: float = 0.1
     """Change of each gaze coordinate per step at an action of 1, in field radii. Positive and finite."""
     gaze_limit: float = 1.0
-    """Largest distance of the gaze from the camera's optical axis, in field radii. Positive and finite."""
+    """Largest distance of the software gaze from the camera's optical axis, in field radii. Positive and finite."""
     random_reset: bool = False
-    """Start episodes at a random gaze the camera sees; otherwise on the optical axis."""
+    """Start episodes at a random software gaze the camera sees; otherwise on the optical axis."""
     mount: str = "fixed"
-    """Teacher's mount: ``"fixed"`` at the action's creation, or ``"tracked"`` on a moving body (Newton, OVRTX)."""
+    """Teacher's mount: ``"fixed"`` at the action's creation, or ``"tracked"`` on a moving body."""
 
-    def validate_config(self):
-        """Reject gaze bounds that would divide by zero and unknown mounts."""
+    def validate_config(self) -> None:
+        """Reject invalid gaze bounds, modes and mounts, and rig settings that a mode cannot use."""
         for name, value in (("step_size", self.step_size), ("gaze_limit", self.gaze_limit)):
-            if not (isinstance(value, (int, float)) and math.isfinite(value) and value > 0):
+            if not _positive_finite(value):
                 raise ValueError(f"GazeActionCfg.{name} must be positive and finite, got {value!r}.")
         if self.mount not in ("fixed", "tracked"):
             raise ValueError(f"GazeActionCfg.mount must be 'fixed' or 'tracked', got {self.mount!r}.")
+        if self.mode not in GAZE_MODES:
+            raise ValueError(f"GazeActionCfg.mode must be one of {GAZE_MODES}, got {self.mode!r}.")
+        if self.mode == "software":
+            return
+        if self.rig is None:
+            raise ValueError(f"GazeActionCfg.mode={self.mode!r} turns a rig's joints; set GazeActionCfg.rig.")
+        if self.mount != "tracked":
+            raise ValueError(f"GazeActionCfg.mode={self.mode!r} moves the camera's mount; set mount='tracked'.")
+        if self.random_reset:
+            raise ValueError("GazeActionCfg.random_reset applies only to software gaze.")
+        self.rig.validate_config()
+
+
+BINOCULAR_GAZE_MODES = ("software", "physical", "hybrid")
+"""How the binocular gaze action moves its version; see :class:`~isaaclab_fovi.mdp.BinocularGazeAction`."""
+
+
+@configclass
+class BinocularGazeActionCfg(ActionTermCfg):
+    """Configuration of :class:`~isaaclab_fovi.mdp.binocular_gaze.BinocularGazeAction`."""
+
+    class_type: type[BinocularGazeAction] | str = "{DIR}.binocular_gaze:BinocularGazeAction"
+    asset_name: str = MISSING
+    """Scene name of the left eye's foveated camera."""
+    right_asset_name: str = MISSING
+    """Scene name of the right eye's foveated camera, on the same body as the left with a parallel optical axis."""
+    mode: str = "software"
+    """``"software"``, ``"physical"`` or ``"hybrid"``: what the version actions turn; vergence is always software."""
+    rig: GazeRigCfg | None = None
+    """The articulation that turns both eyes; needed by physical and hybrid gaze."""
+    step_size: float = 0.1
+    """Change of the version's coordinates and of the vergence per step at an action of 1, in field radii."""
+    gaze_limit: float = 1.0
+    """Largest distance of the software version from the eyes' optical axes, in field radii."""
+    vergence_limit: float = 0.5
+    """Largest vergence, the angle between the two lines of sight, in field radii."""
+
+    def validate_config(self) -> None:
+        """Reject invalid steps, limits and modes, and rig settings that a mode cannot use."""
+        for name, value in (
+            ("step_size", self.step_size),
+            ("gaze_limit", self.gaze_limit),
+            ("vergence_limit", self.vergence_limit),
+        ):
+            if not _positive_finite(value):
+                raise ValueError(f"BinocularGazeActionCfg.{name} must be positive and finite, got {value!r}.")
+        if self.asset_name == self.right_asset_name:
+            raise ValueError("BinocularGazeActionCfg needs two different eyes.")
+        if self.mode not in BINOCULAR_GAZE_MODES:
+            raise ValueError(f"BinocularGazeActionCfg.mode must be one of {BINOCULAR_GAZE_MODES}, got {self.mode!r}.")
+        if self.mode == "software":
+            return
+        if self.rig is None:
+            raise ValueError(f"BinocularGazeActionCfg.mode={self.mode!r} turns a rig's joints; set its rig.")
+        self.rig.validate_config()
+
+
+def _positive_finite(value: object) -> bool:
+    """Whether ``value`` is a finite real number above zero; strings and other types are not."""
+    return isinstance(value, (int, float)) and math.isfinite(value) and value > 0

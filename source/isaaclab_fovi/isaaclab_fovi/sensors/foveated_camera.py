@@ -107,6 +107,8 @@ class FoveatedCamera(Camera):
 
     cfg: FoveatedCameraCfg
 
+    gaze_writes: int = 0
+    """How many times :meth:`set_gaze_angles` has been called, so a gaze action can tell another caller's writes."""
     _renders_switchable_rays: ClassVar[bool] = False
     """Whether the renderer traces rays the camera can replace while it runs, as :meth:`set_cmf_a` needs."""
 
@@ -226,14 +228,34 @@ class FoveatedCamera(Camera):
         """World orientation (x, y, z, w) of the physical camera before the gaze turns it, ROS convention, shape
         (num_envs,) of ``quatf``.
 
-        Refreshed by each pose update that turns the gaze, so it follows a mount that moves, for example a camera on
-        a robot's head. Only cameras whose pose update turns the gaze (Newton and OVRTX) record it.
+        It follows a mount that moves, for example a camera on a robot's head. Cameras whose pose update turns the
+        gaze (Newton and OVRTX) refresh it in each pose update; cameras that hold the gaze in their prims (Isaac RTX)
+        refresh it in :meth:`update_mount`.
         """
-        if not self._gaze_pose_reads_angles:
-            raise RuntimeError("Only cameras whose pose update turns the gaze (Newton, OVRTX) record their mount.")
         if self._gaze_angles is None:
             self._allocate_gaze()
         return self._mount_quat_ros
+
+    @property
+    def mount_pos_w(self) -> ProxyArray:
+        """World position [m] of the physical camera as of its last pose update, shape (num_envs,) of ``vec3f``.
+
+        Reading it captures no image, unlike ``data.pos_w``; :meth:`update_mount` refreshes it.
+        """
+        return self._data.pos_w
+
+    def update_mount(self) -> ProxyArray:
+        """Read the camera's pose now, without capturing an image, and return :attr:`mount_quat_w_ros`.
+
+        A lazily updated camera reads its pose only when its data is read, so its recorded mount and
+        :attr:`mount_pos_w` may be a step old.
+        """
+        mount = self.mount_quat_w_ros
+        self._update_poses()
+        if not self._gaze_pose_reads_angles:
+            # The prims hold the gaze, which the reported pose leaves out.
+            mount.torch.copy_(self.get_world_poses(convention="ros")[1])
+        return mount
 
     @property
     def supports_runtime_cmf_a(self) -> bool:
@@ -253,6 +275,7 @@ class FoveatedCamera(Camera):
         Raises:
             ValueError: The angles do not hold one row per camera.
         """
+        self.gaze_writes += 1
         stored = self._gaze_angles is not None and angles_deg is self._gaze_angles.torch
         if stored and self.turns_pose_by_gaze:
             # The next pose update reads the stored angles; nothing has to happen now.
