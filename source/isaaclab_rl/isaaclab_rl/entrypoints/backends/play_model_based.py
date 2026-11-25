@@ -153,7 +153,8 @@ def _restore_environment(cfg, saved: dict) -> None:
     spawn = saved["scene"]["robot"]["spawn"]
     if "/PretrainedCheckpoints/model_based/assets/g1_29dof.usdc" in spawn["usd_path"]:
         spawn["usd_path"] = f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/G1/g1_29dof.usd"
-        spawn["variants"] = {"Physics": "SimplifiedPhysX", "left_hand": "RubberHand", "right_hand": "RubberHand"}
+        spawn["variants"] = {"Physics": "SimplifiedPhysX"}
+    spawn["variants"].update(left_hand="None", right_hand="None")
     cfg.scene.robot.spawn.variants = spawn["variants"]
     update_from_dict(cfg, saved)
 
