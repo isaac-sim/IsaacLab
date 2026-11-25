@@ -1087,8 +1087,8 @@ class OVRTXRenderer(BaseRenderer):
     ) -> None:
         """Split one lidar product's point cloud into ``lidar_data``.
 
-        A missing frame or point-cloud variable raises. A map that cannot be read fills misses:
-        positions become non-finite, intensity is cleared, and the hit mask is false.
+        A missing frame or point-cloud variable raises. If the CUDA map is unavailable,
+        retry on the CPU and propagate any fallback readback error.
         """
         if render_data.render_product_path not in products or not products[render_data.render_product_path].frames:
             raise RuntimeError(f"OVRTX returned no frame for lidar product {render_data.render_product_path!r}.")
@@ -1109,19 +1109,8 @@ class OVRTXRenderer(BaseRenderer):
             if not ("failed to map" in message or "unpublish" in message or "point cloud was empty" in message):
                 raise
 
-            logger.info("OVRTX lidar point cloud is copied from the CPU map: %s", exc)
-
-            try:
-                self._copy_mapped_lidar_point_cloud(point_cloud, lidar_data, Device.CPU)
-            except Exception as cpu_exc:
-                message = str(cpu_exc).lower()
-                if not ("failed to map" in message or "unpublish" in message):
-                    raise
-
-                logger.warning("OVRTX lidar point cloud was not ready: %s", cpu_exc)
-                lidar_data.points.torch.fill_(float("inf"))
-                lidar_data.intensity.torch.fill_(0)
-                lidar_data.valid.torch.fill_(False)
+            logger.info("Retrying OvRTX lidar point-cloud readback on the CPU: %s", exc)
+            self._copy_mapped_lidar_point_cloud(point_cloud, lidar_data, Device.CPU)
 
     def _copy_mapped_lidar_point_cloud(self, point_cloud, lidar_data: LidarData, device: Device) -> None:
         """Map one point cloud and copy it into the lidar buffers.

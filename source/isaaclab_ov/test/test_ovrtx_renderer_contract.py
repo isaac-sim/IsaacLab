@@ -458,6 +458,24 @@ def test_lidar_and_camera_captures_use_separate_steps(monkeypatch):
     publish.assert_called_once_with(lidar, native.step.return_value, data)
 
 
+def test_lidar_readback_propagates_cpu_map_failure(monkeypatch):
+    """A failed fallback map must reach the caller rather than publish an all-miss scan."""
+    from isaaclab.sensors import LidarData
+
+    renderer = _make_mocked_scene_renderer(monkeypatch, use_ovstage=False, clone_env_paths=[])
+    renderer._warp_device = types.SimpleNamespace(stream=types.SimpleNamespace(cuda_stream=1))
+    lidar = ovrtx_renderer_module.OVRTXLidarRenderData("Lidar", 0.1)
+    cloud = MagicMock()
+    cloud.map.side_effect = [
+        RuntimeError("Failed to map CUDA point cloud"),
+        RuntimeError("Failed to map CPU point cloud"),
+    ]
+    frame = types.SimpleNamespace(render_vars={lidar.point_cloud_path: cloud})
+    products = {lidar.render_product_path: types.SimpleNamespace(frames=[frame])}
+    with pytest.raises(RuntimeError, match="Failed to map CPU point cloud"):
+        renderer._publish_lidar_output(lidar, products, LidarData(1, 1, "cpu"))
+
+
 @pytest.mark.parametrize("missing", ["product", "renderer", "backend"])
 def test_lidar_capture_fails_when_unavailable(monkeypatch, missing):
     from isaaclab_ov.renderers import OVRTXLidarCfg
