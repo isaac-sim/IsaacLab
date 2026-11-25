@@ -6,8 +6,8 @@
 """Robustness smoke tests for packaged programs and standalone tutorial scripts.
 
 Set ``ISAACLAB_RUN_STANDALONE_SCRIPT_TESTS=1`` to enable the simulator launch
-matrix. Scripts with a ``--max_steps`` option run a few steps and must exit
-cleanly; other scripts must print their readiness marker and survive a soak.
+matrix. Scripts with a ``--max_steps`` option and naturally finite tutorials must
+exit cleanly. Other scripts must print their readiness marker and survive a soak.
 GUI cases additionally require ``DISPLAY`` or ``WAYLAND_DISPLAY``.
 ``ISAACLAB_STANDALONE_SOAK_TIME`` and ``ISAACLAB_STANDALONE_STARTUP_TIMEOUT``
 may be used to tune the default five-second soak and five-minute time limit.
@@ -123,7 +123,7 @@ assert scene_cfg.robot.spawn.variants['Physics'] == 'mujoco'
     ],
 )
 def test_mpm_programs_preserve_concurrent_visualizer_selection(script_path):
-    """One shared declaration selects both Newton viewers before launching the runtime."""
+    """One shared declaration selects both viewers before launching the runtime."""
     pytest.importorskip("isaaclab_newton")
     pytest.importorskip("isaaclab_visualizers")
     pytest.importorskip("isaaclab_tasks")
@@ -146,19 +146,17 @@ def check_launch(cfg, args):
     if isinstance(shared, list):
         shared, = shared
     assert isinstance(shared, VisualizerCfg)
-    assert [backend.visualizer_type for backend in shared.backend] == ['newton_gl', 'newton_rtx']
+    assert [backend.visualizer_type for backend in shared.backend] == ['newton', 'rerun']
     configs, _ = isaaclab.app.validate_launch(cfg, args)
     viewers = [cfg for cfg in configs if isinstance(cfg, VisualizerCfg)]
-    assert [cfg.backend.visualizer_type for cfg in viewers] == ['newton_gl', 'newton_rtx']
+    assert [cfg.backend.visualizer_type for cfg in viewers] == ['newton', 'rerun']
     assert all(viewer.eye == shared.eye and viewer.focal_length == shared.focal_length for viewer in viewers)
     assert viewers[0].backend.show_particles
-    if script.endswith('surface_reconstruction.py'):
-        assert viewers[1].backend.render_settings['omni:rtx:quality'] == ('Int', 2)
     raise SystemExit(0)
 
 isaaclab.app.launch_simulation = check_launch
 script = sys.argv[1]
-sys.argv = [script, '--visualizer', 'newton_gl,newton_rtx']
+sys.argv = [script, '--visualizer', 'newton_gl,rerun']
 if script.endswith('surface_reconstruction.py'):
     sys.argv.extend(['--fluid_render_mode', 'both', '--rtx_quality', '2'])
 else:
@@ -172,7 +170,7 @@ raise AssertionError('The program did not reach launch_simulation')
     assert result.returncode == 0, result.stdout + result.stderr
 
 
-def test_teapot_uses_only_newton_gl():
+def test_teapot_uses_only_newton():
     """The GL-only demo rejects other backends before launch and needs no task presets."""
     script = script_cases.ROOT / "examples/demos/teapot_fill.py"
     code = """
@@ -187,12 +185,12 @@ def check_launch(cfg, args):
     assert cfg.visualizer_cfgs.backend.show_particles
     assert 'isaaclab_tasks' not in sys.modules
     isaaclab.app.validate_launch(cfg, args)
-    assert [view.backend.visualizer_type for view in cfg.visualizer_cfgs] == ['newton_gl']
+    assert [view.backend.visualizer_type for view in cfg.visualizer_cfgs] == ['newton']
     raise SystemExit(0)
 
 isaaclab.app.launch_simulation = check_launch
 script = sys.argv[1]
-sys.argv = [script, '--visualizer', 'newton_gl', '--fluid_render_mode', 'both']
+sys.argv = [script, '--visualizer', 'newton', '--fluid_render_mode', 'both']
 namespace = runpy.run_path(script)
 parser = namespace['parser']
 for option, value in (
@@ -204,8 +202,8 @@ for option, value in (
         assert error.code == 2
     else:
         raise AssertionError(f'Teapot accepted unsupported visualizer: {value}')
-assert parser.parse_args([]).visualizer == 'newton_gl'
-assert parser.parse_args(['--viz', 'newton_gl']).visualizer == 'newton_gl'
+assert parser.parse_args([]).visualizer == 'newton'
+assert parser.parse_args(['--viz', 'newton']).visualizer == 'newton'
 namespace['main']()
 raise AssertionError('The demo did not reach launch_simulation')
 """
@@ -215,7 +213,7 @@ raise AssertionError('The demo did not reach launch_simulation')
     assert result.returncode == 0, result.stdout + result.stderr
 
 
-def test_mpm_surface_reconstruction_defaults_to_newton_gl():
+def test_mpm_surface_reconstruction_defaults_to_newton():
     """The surface example must launch with base Newton dependencies by default."""
     script = script_cases.ROOT / "scripts" / "tutorials" / "08_mpm" / "surface_reconstruction.py"
     code = """
@@ -225,10 +223,7 @@ import sys
 script = sys.argv[1]
 sys.argv = [script]
 namespace = runpy.run_path(script)
-assert namespace['args_cli'].visualizer == ['newton_gl']
-sys.argv = [script, '--visualizer', 'newton_rtx']
-namespace = runpy.run_path(script)
-assert namespace['args_cli'].visualizer == ['newton_rtx']
+assert namespace['args_cli'].visualizer == ['newton']
 """
     result = subprocess.run(
         [sys.executable, "-c", code, str(script)], capture_output=True, text=True, timeout=60, check=False
@@ -268,14 +263,14 @@ assert config.physics.solver_cfg.project_outside_colliders is False
 
 def test_every_standalone_script_has_a_launch_contract_or_exemption():
     """Packaged programs must stop themselves; other scripts must be runnable or explicitly exempted."""
-    not_finite = [spec.relative_path for spec in SPECS if spec.program is not None and not spec.finite]
-    assert not not_finite, f"packaged programs need a --max_steps option: {not_finite}"
+    missing_step_limit = [spec.relative_path for spec in SPECS if spec.program is not None and not spec.has_step_limit]
+    assert not missing_step_limit, f"packaged programs need a --max_steps option: {missing_step_limit}"
     missing = [
         spec.relative_path
         for spec in SPECS
         if not spec.finite and spec.readiness_pattern is None and spec.skip_reason is None
     ]
-    assert not missing, f"standalone scripts need --max_steps, a readiness marker, or an OVERRIDES exemption: {missing}"
+    assert not missing, f"standalone scripts need a finite run, readiness marker, or exemption: {missing}"
 
 
 def test_overrides_only_reference_discovered_standalone_scripts():
@@ -293,8 +288,8 @@ def test_every_packaged_script_is_registered_for_cli_launch():
 @pytest.mark.parametrize(
     ("extra_args", "expected_visualizers", "expected_overrides"),
     [
-        ((), ["newton_gl"], ["presets=platforms"]),
-        (("physics=isaacsim_physx",), ["kit"], ["presets=platforms", "physics=isaacsim_physx"]),
+        ((), ["newton"], ["presets=platforms"]),
+        (("physics=isaacsim_physx",), ["newton"], ["presets=platforms", "physics=isaacsim_physx"]),
         (("--viz", "none"), [], ["presets=platforms", "visualizer=none"]),
     ],
     ids=("newton-default", "physx-default", "explicit-none"),
@@ -336,18 +331,19 @@ def test_g1_terrain_forwards_visualizer_selection(monkeypatch, extra_args, expec
 
 
 @pytest.mark.parametrize(
-    ("extra_args", "expected_visualizers", "expected_overrides", "expected_video_source"),
+    ("extra_args", "expected_visualizers", "expected_overrides", "expected_video_source", "expected_renderers"),
     [
-        ((), [], ["presets=granular"], "viz:kit"),
-        (("--viz", "newton_gl"), ["newton_gl"], ["presets=granular", "visualizer=newton_gl"], None),
-        (("--viz", "none"), [], ["presets=granular", "visualizer=none"], None),
-        (("--viz", "rerun", "--video"), ["rerun"], ["presets=granular", "visualizer=rerun"], "viz"),
-        (("physics=isaacsim_physx",), ["kit"], ["presets=granular", "physics=isaacsim_physx"], None),
+        ((), ["newton"], ["presets=granular"], "viz:newton", ["rtx"]),
+        (("--viz", "newton"), ["newton"], ["presets=granular", "visualizer=newton"], None, ["opengl"]),
+        (("--viz", "none"), [], ["presets=granular", "visualizer=none"], None, []),
+        (("--viz", "rerun", "--video"), ["rerun"], ["presets=granular", "visualizer=rerun"], "viz", [None]),
+        (("physics=isaacsim_physx",), ["newton"], ["presets=granular", "physics=isaacsim_physx"], None, ["opengl"]),
         (
             ("--physics", "isaacsim_physx", "--video"),
-            ["kit"],
+            ["newton"],
             ["presets=granular", "physics=isaacsim_physx"],
-            "viz:kit",
+            "viz:newton",
+            ["opengl"],
         ),
     ],
     ids=(
@@ -360,9 +356,9 @@ def test_g1_terrain_forwards_visualizer_selection(monkeypatch, extra_args, expec
     ),
 )
 def test_sonic_defaults_to_offscreen_recording_and_preserves_explicit_visualizers(
-    monkeypatch, extra_args, expected_visualizers, expected_overrides, expected_video_source
+    monkeypatch, extra_args, expected_visualizers, expected_overrides, expected_video_source, expected_renderers
 ):
-    """Newton records with Kit by default; explicit viewers and PhysX keep recording opt-in."""
+    """Newton records RTX offscreen by default; explicit viewers and PhysX keep recording opt-in."""
     script = script_cases.ROOT / "examples" / "demos" / "sonic.py"
     namespace = runpy.run_path(str(script))
     main = namespace["main"]
@@ -385,6 +381,13 @@ def test_sonic_defaults_to_offscreen_recording_and_preserves_explicit_visualizer
         ]
         captured["launch_physics"] = getattr(launcher_args, "physics", None)
         captured["video_sources"] = [recorder.source for recorder in _cfg.video_recorders]
+        captured["renderers"] = [
+            getattr(backend, "initial_renderer", None)
+            for viewer in _cfg.sim.visualizer_cfgs
+            for backend in (viewer.backend if isinstance(viewer.backend, list) else [viewer.backend])
+        ]
+        if not extra_args:
+            assert all(viewer.headless for viewer in _cfg.sim.visualizer_cfgs)
         raise LaunchReached
         yield
 
@@ -405,6 +408,7 @@ def test_sonic_defaults_to_offscreen_recording_and_preserves_explicit_visualizer
         "visualizers": expected_visualizers,
         "launch_physics": None,
         "video_sources": expected_video_sources,
+        "renderers": expected_renderers,
     }
 
 
@@ -640,7 +644,7 @@ def _skip_unsupported(case) -> None:
     missing_modules = [module for module in case.spec.required_modules if not script_cases.module_is_available(module)]
     if missing_modules:
         pytest.skip(f"required runtime module(s) not installed: {', '.join(missing_modules)}")
-    if case.visualizer in {"kit", "newton", "newton_gl", "newton_rtx"} and not gui_is_available():
+    if case.visualizer in {"kit", "newton"} and not gui_is_available():
         pytest.skip("GUI smoke test requires DISPLAY or WAYLAND_DISPLAY")
     if not backend_is_available(case.physics_backend):
         pytest.skip(f"physics backend package for {case.physics_backend!r} is not installed")

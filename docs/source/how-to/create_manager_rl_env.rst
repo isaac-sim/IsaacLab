@@ -155,7 +155,7 @@ Similar to the previous tutorial, we can run the environment by executing the ``
 
 .. code-block:: bash
 
-   python scripts/tutorials/03_envs/run_cartpole_rl_env.py --num_envs 32 --viz kit
+   uv run --extra ov python scripts/tutorials/03_envs/run_cartpole_rl_env.py --num_envs 32 --viz newton_rtx
 
 
 This should open a similar simulation as in the previous tutorial. However, this time, the environment

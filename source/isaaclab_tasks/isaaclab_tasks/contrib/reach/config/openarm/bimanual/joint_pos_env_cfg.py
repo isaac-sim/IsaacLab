@@ -12,7 +12,11 @@ from isaaclab.utils import configclass, replace
 
 from isaaclab_tasks.contrib.reach.config.openarm.bimanual.reach_openarm_bi_env_cfg import ReachEnvCfg
 
-from isaaclab_assets.robots.openarm import OPENARM_BI_HIGH_PD_CFG
+from isaaclab_assets.robots.openarm import (
+    OPENARM_BI_HIGH_PD_CFG,
+    OPENARM_BI_ISAACSIM_BODY_ORDER,
+    OPENARM_BI_ISAACSIM_JOINT_ORDER,
+)
 
 ##
 # Environment configuration
@@ -28,7 +32,12 @@ class OpenArmReachEnvCfg(ReachEnvCfg):
         super().__post_init__()
 
         # switch robot to OpenArm
-        self.scene.robot = replace(OPENARM_BI_HIGH_PD_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace(
+            OPENARM_BI_HIGH_PD_CFG,
+            prim_path="{ENV_REGEX_NS}/Robot",
+            joint_ordering=OPENARM_BI_ISAACSIM_JOINT_ORDER,
+            body_ordering=OPENARM_BI_ISAACSIM_BODY_ORDER,
+        )
 
         # override rewards
         self.rewards.left_end_effector_position_tracking.params["asset_cfg"].body_names = ["openarm_left_hand"]

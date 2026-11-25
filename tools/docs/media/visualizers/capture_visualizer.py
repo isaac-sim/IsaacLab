@@ -7,10 +7,10 @@
 
 Three independent pipelines, each producing a different set of clips:
 
-* **hero**: five ``hero_*.mp4`` clips of the *same* AnymalD flat-terrain trajectory, one per
-  visualizer backend (Kit, Newton GL, Newton RTX, Rerun, Viser), for the visualization overview
+* **hero**: four ``hero_*.mp4`` clips of the *same* AnymalD flat-terrain trajectory, one per
+  visualizer backend (Kit, Newton GL, Rerun, Viser), for the visualization overview
   page's hero grid.
-* **showcase**: five ``showcase_*.mp4`` clips, one per visualizer backend, each running a
+* **showcase**: four ``showcase_*.mp4`` clips, one per visualizer backend, each running a
   *different* task's published pretrained checkpoint at that visualizer's normal wide
   interactive camera view.
 * **streaming**: the streaming-camera-view demo clips (Kit + AnymalD, Newton GL + Galbot) used
@@ -39,7 +39,6 @@ from __future__ import annotations
 
 import argparse
 import contextlib
-import dataclasses
 import io
 import math
 import os
@@ -53,9 +52,9 @@ from pathlib import Path
 
 import gymnasium as gym
 import torch
-from isaaclab_physx.renderers import IsaacRtxRendererCfg
+from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
 from isaaclab_visualizers.kit import KitBackendCfg
-from isaaclab_visualizers.newton import NewtonGLBackendCfg, NewtonRTXBackendCfg
+from isaaclab_visualizers.newton import NewtonGLBackendCfg
 from isaaclab_visualizers.rerun import RerunBackendCfg
 from isaaclab_visualizers.viser import ViserBackendCfg
 from PIL import Image
@@ -71,7 +70,6 @@ from isaaclab.sensors import CameraCfg
 from isaaclab.sim import PinholeCameraCfg
 from isaaclab.sim.spawners.meshes import MeshCuboidCfg
 from isaaclab.sim.spawners.meshes.meshes import spawn_mesh_cuboid
-from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
 from isaaclab.utils import configclass
 from isaaclab.visualizers import SceneCameraCfg, VisualizerCfg, WindowCfg
 
@@ -82,7 +80,6 @@ from isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_manager_env_c
 from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_env_cfg import ShadowHandEnvCfg
 from isaaclab_tasks.core.velocity.config.anymal_d.flat_env_cfg import AnymalDFlatEnvCfg
 from isaaclab_tasks.core.velocity.config.anymal_d.rough_env_cfg import AnymalDRoughEnvCfg
-from isaaclab_tasks.core.velocity.config.h1.rough_env_cfg import H1RoughEnvCfg
 from isaaclab_tasks.utils import resolve_task_config
 
 # ===========================================================================
@@ -288,12 +285,12 @@ def record_windowed(
 ) -> None:
     """Launch ``play.py`` in a real window and record it with the on-screen HUD.
 
-    Kit / Newton GL / Newton RTX's standard capture path (``VideoRecorderCfg`` reading
+    Kit / Newton GL's standard capture path (``VideoRecorderCfg`` reading
     ``render_rgb_array()``) never creates the ImGui/Kit-toolbar HUD in headless mode, so there's
     nothing for it to include. Rerun and Viser show their HUD naturally since their capture is
     already a screen recording of a browser page.
 
-    This gets the same effect for Kit / Newton GL / Newton RTX: sets ``windowed_env_var=1`` so
+    This gets the same effect for Kit / Newton GL: sets ``windowed_env_var=1`` so
     the calling module's cfg builder passes ``headless=False``, finds the resulting window via
     ``python-xlib`` (an ephemeral dep, not in this repo's own tree), and records it with
     ``ffmpeg -f x11grab -window_id ...``, which tracks the window regardless of how the window
@@ -431,10 +428,10 @@ def record_windowed(
 
 
 # ===========================================================================
-# Hero pipeline: five hero_*.mp4 clips of the same AnymalD trajectory, one per visualizer.
+# Hero pipeline: four hero_*.mp4 clips of the same AnymalD trajectory, one per visualizer.
 # ===========================================================================
 #
-# Kit/Newton GL/Newton RTX are captured via a step-count-bound VideoRecorderCfg (see
+# Kit/Newton GL are captured via a step-count-bound VideoRecorderCfg (see
 # AnymalDTileCaptureCfg), so clip content is always exactly video_length simulated steps
 # regardless of wall-clock time. Rerun/Viser are instead a wall-clock-bound screen recording of
 # a fixed real-time duration, so a slow pipeline covers less simulated motion. _main_hero
@@ -458,12 +455,11 @@ _HERO_TASK = "Isaac-Velocity-Flat-AnymalD"
 # Match the apparent robot size across each backend's viewport framing.
 _HERO_EYE_OFFSETS = {
     "kit": (2.48, 2.48, 2.25),
-    "newton_gl": (1.98, 1.98, 1.8),
-    "newton_rtx": (1.75, 1.75, 1.6),
+    "newton": (1.98, 1.98, 1.8),
     "rerun": (1.25, 1.25, 1.14),
     "viser": (0.8, 0.8, 0.73),
 }
-# Narrows Newton GL/RTX's FOV to match Kit's framing at this eye distance;
+# Narrows Newton GL's FOV to match Kit's framing at this eye distance;
 # no effect on Rerun (no FOV field) or Viser (already matches at the default 12mm).
 _HERO_NARROW_FOCAL_LENGTH = 20.0
 
@@ -488,7 +484,7 @@ _hero_smoothed_follow_trend: list[tuple[float, float, float]] = []
 
 # Rerun re-sends its whole camera blueprint on every set_camera_view() call; at the task's
 # full step rate this backs up its broadcast channel badly enough that no scene data reaches
-# the client at all ("Sender has been blocked" in its log). Newton GL/RTX and Viser have no
+# the client at all ("Sender has been blocked" in its log). Newton GL and Viser have no
 # such cost, so _follow_camera runs every step and only throttles Rerun's own calls down to
 # this stride.
 _HERO_RERUN_UPDATE_STRIDE = 3
@@ -497,7 +493,7 @@ _hero_follow_camera_call_count: list[int] = [0]
 # Forward speed stays fixed; only the turn rate differs from a straight walk (see
 # _pin_velocity_command). Exactly one full turn over the clip's 10s duration (2*pi/10 rad/s)
 # keeps every clip's start/end orientation aligned despite Newton GL/Rerun/Viser starting a
-# few seconds into the shared trajectory that Kit/Newton RTX start at step 0.
+# few seconds into the shared trajectory that Kit starts at step 0.
 _HERO_FIXED_VELOCITY_COMMAND = (1.0, 0.0, 0.0)
 _HERO_CLIP_DURATION_S = 10.0
 _HERO_ROTATE_ANG_VEL_Z = 2.0 * math.pi / _HERO_CLIP_DURATION_S
@@ -582,10 +578,7 @@ class AnymalDTileCaptureCfg(AnymalDFlatEnvCfg):
         # consumed --viz.
         backends = {
             "kit": KitBackendCfg(),
-            "newton_gl": NewtonGLBackendCfg(
-                sky_upper_color=_HERO_SKY_UPPER_COLOR, sky_lower_color=_HERO_SKY_LOWER_COLOR
-            ),
-            "newton_rtx": NewtonRTXBackendCfg(),
+            "newton": NewtonGLBackendCfg(sky_upper_color=_HERO_SKY_UPPER_COLOR, sky_lower_color=_HERO_SKY_LOWER_COLOR),
             "rerun": RerunBackendCfg(),
             "viser": ViserBackendCfg(),
         }
@@ -596,14 +589,14 @@ class AnymalDTileCaptureCfg(AnymalDFlatEnvCfg):
                 f" visualizer, got {visualizer!r}."
             )
         # Combined mode shares one trajectory across GL and both browser viewers.
-        names = ("newton_gl", "rerun", "viser") if visualizer == "combined" else (visualizer,)
+        names = ("newton", "rerun", "viser") if visualizer == "combined" else (visualizer,)
         self.sim.visualizer_cfgs = []
         for name in names:
             view = VisualizerCfg(eye=_HERO_EYE_OFFSETS[name], backend=backends[name])
             if name in CAPTURE_VISUALIZER_TYPES:
                 view.headless = headless("HERO_WINDOWED")
                 view.window.size = (_HERO_WINDOW_WIDTH, _HERO_WINDOW_HEIGHT)
-            if name in ("newton_gl", "newton_rtx"):
+            if name == "newton":
                 view.focal_length = _HERO_NARROW_FOCAL_LENGTH
             self.sim.visualizer_cfgs.append(view)
 
@@ -635,7 +628,7 @@ class AnymalDTileCaptureCfg(AnymalDFlatEnvCfg):
         output_dir = os.environ.get("HERO_VIDEO_DIR")
         if output_dir:
             # Combined mode records GL here; its browser views are screen-recorded by the driver.
-            recording = "newton_gl" if visualizer == "combined" else visualizer
+            recording = "newton" if visualizer == "combined" else visualizer
             if recording not in CAPTURE_VISUALIZER_TYPES:
                 raise ValueError(
                     f"'{visualizer}' is captured via a headless-browser recording, not VideoRecorderCfg (see"
@@ -746,7 +739,7 @@ def _run_combined_capture(args: argparse.Namespace) -> None:
         newton_gl_video_dir.mkdir(exist_ok=True)
         proc_env |= {
             "HERO_VIDEO_DIR": str(newton_gl_video_dir),
-            "HERO_VIDEO_PREFIX": "newton_gl",
+            "HERO_VIDEO_PREFIX": "newton",
             "HERO_COMBINED_STEP_OFFSET": str(args.newton_gl_step_offset),
         }
     print("Launching:", " ".join(cmd))
@@ -796,7 +789,7 @@ def _run_combined_capture(args: argparse.Namespace) -> None:
                 stable_checks = 0
                 newton_gl_path = None
                 while time.time() < deadline and stable_checks < 3:
-                    candidates = sorted(newton_gl_video_dir.glob("newton_gl_*.mp4"))
+                    candidates = sorted(newton_gl_video_dir.glob("newton_*.mp4"))
                     if candidates:
                         newton_gl_path = candidates[-1]
                         size = newton_gl_path.stat().st_size
@@ -940,11 +933,11 @@ def _combined_capture_argparser() -> argparse.ArgumentParser:
 
 
 # ---------------------------------------------------------------------------
-# Hero driver: top-level orchestration (generates all 5 hero_*.mp4 clips)
+# Hero driver: top-level orchestration (generates all 4 hero_*.mp4 clips)
 # ---------------------------------------------------------------------------
 
 # 10s clip at this task's control rate: decimation=4, sim.dt=0.005s -> step_dt=0.02s (50 Hz).
-# Kit and Newton RTX capture exactly this many steps.
+# Kit captures exactly this many steps.
 _HERO_CAPTURE_STEPS = 500
 # Newton GL/Rerun/Viser capture 10% more steps while _HERO_TARGET_SIM_SECONDS stays at 10 --
 # the combined capture's speed_factor compresses that extra motion into the same ~10s output.
@@ -971,12 +964,12 @@ def _hero_record_visualizer(
     out_filename: Path,
     output_speed_factor: float = 1.0,
 ) -> None:
-    """Capture Kit or Newton RTX's hero clip via the standard step-count-bound VideoRecorderCfg path.
+    """Capture Kit's hero clip via the standard step-count-bound VideoRecorderCfg path.
 
-    Kit, Newton GL, and Newton RTX are all captured through this clean-render, no-HUD path
+    Kit and Newton GL are captured through this clean-render, no-HUD path
     (the showcase clips use windowed HUD capture instead, since a UI panel would distract from
     the hero tile's side-by-side comparison). step_offset (the same value
-    _hero_calibrate_combined() derives for Newton GL/Rerun/Viser) makes Kit/Newton RTX skip
+    _hero_calibrate_combined() derives for Newton GL/Rerun/Viser) makes Kit skip
     ahead to the same trajectory point instead of starting at step 0 -- otherwise the two
     groups' first frames would show a large, obvious rotational phase jump given the constant
     turn rate this pipeline uses.
@@ -1100,7 +1093,7 @@ def _hero_calibrate_combined(script_dir: Path, repo_root: Path, work_dir: Path, 
 
 
 def _main_hero(seed: int = 42) -> None:
-    """Generate all 5 hero_*.mp4 clips."""
+    """Generate all 4 hero_*.mp4 clips."""
     script_dir = Path(__file__).resolve().parent
     repo_root = script_dir.parents[3]
     output_dir = repo_root / "docs/source/_static/visualizers"
@@ -1124,21 +1117,20 @@ def _main_hero(seed: int = 42) -> None:
             f"speed-factor={speed_factor:.3f}, step-offset={step_offset}"
         )
 
-        # Same step_offset as the combined group so all 5 clips start at the same point.
+        # Same step_offset as the combined group so all 4 clips start at the same point.
         # Played back 10% slower than the other 3 -- see _hero_record_visualizer's docstring.
-        for visualizer in ("kit", "newton_rtx"):
-            _hero_record_visualizer(
-                script_dir,
-                repo_root,
-                output_dir,
-                work_dir,
-                seed,
-                visualizer,
-                _HERO_CAPTURE_STEPS,
-                step_offset,
-                output_dir / f"hero_{visualizer}.mp4",
-                output_speed_factor=0.9,
-            )
+        _hero_record_visualizer(
+            script_dir,
+            repo_root,
+            output_dir,
+            work_dir,
+            seed,
+            "kit",
+            _HERO_CAPTURE_STEPS,
+            step_offset,
+            output_dir / "hero_kit.mp4",
+            output_speed_factor=0.9,
+        )
 
         # Newton GL, Rerun, and Viser are captured together from one shared physics process.
         combined_cli_args = [
@@ -1216,11 +1208,10 @@ def _main_hero(seed: int = 42) -> None:
 
 
 # ===========================================================================
-# Showcase pipeline: five showcase_*.mp4 clips, one per visualizer, each a different task.
+# Showcase pipeline: four showcase_*.mp4 clips, one per visualizer, each a different task.
 # ===========================================================================
 #
-# Newton GL (Isaac-Reorient-Cube-Allegro), Kit (Isaac-Reach-Franka), Newton RTX
-# (Isaac-Velocity-Rough-H1, stairs-only terrain, see _SHOWCASE_STAIRS_TERRAINS_CFG), Rerun
+# Newton GL (Isaac-Reorient-Cube-Allegro), Kit (Isaac-Reach-Franka), Rerun
 # (Isaac-Reorient-Cube-Shadow-Direct, 64 envs), and Viser (Isaac-Lift-KukaAllegro, 128 envs).
 #
 # Rerun and Viser both render through Newton's streaming/camera-composited path, which has a
@@ -1231,15 +1222,6 @@ def _main_hero(seed: int = 42) -> None:
 # The per-task capture overrides are injected via a capture-only *ShowcaseCfg subclass that
 # swaps gym.spec(task).kwargs["env_cfg_entry_point"] before Hydra resolves the config, so the
 # real task configs are never edited (see configure_playback_showcase).
-
-# Restricts the H1 showcase terrain to the ascending pyramid-stairs sub-terrain only, so every
-# spawned robot lands on a staircase (see _showcase_frame_wide_camera_from_env_origins).
-_SHOWCASE_STAIRS_TERRAINS_CFG = dataclasses.replace(
-    ROUGH_TERRAINS_CFG,
-    sub_terrains={
-        "pyramid_stairs": dataclasses.replace(ROUGH_TERRAINS_CFG.sub_terrains["pyramid_stairs"], proportion=1.0),
-    },
-)
 
 _SHOWCASE_WIDE_LOOKAT = (0.0, 0.0, 0.0)
 _SHOWCASE_REACH_EYE = (3.6, -3.6, 3.8)
@@ -1257,17 +1239,11 @@ _SHOWCASE_NEWTON_GL_LOOKAT = (0.0, 0.0, -0.1)
 _SHOWCASE_SHADOW_HAND_EYE = (1.1, -1.1, 2.15)
 _SHOWCASE_SHADOW_HAND_LOOKAT = (0.0, 0.0, -0.15)
 _SHOWCASE_SHADOW_HAND_ENV_SPACING = 0.75
-# Offset from the framed terrain-origin center (see _showcase_frame_wide_camera_from_env_origins).
-_SHOWCASE_H1_STAIRS_EYE_OFFSET = (1.57, -2.97, 2.50)
-
 _SHOWCASE_WINDOW_WIDTH = 960
 _SHOWCASE_WINDOW_HEIGHT = 600
 # Rounded to an even pixel count: libx264's yuv420p output requires even width/height.
 _SHOWCASE_NEWTON_GL_WINDOW_WIDTH = round(_SHOWCASE_WINDOW_WIDTH * 1.3 * 1.15 / 2) * 2
 _SHOWCASE_NEWTON_GL_WINDOW_HEIGHT = round(_SHOWCASE_WINDOW_HEIGHT * 1.3 * 1.15 / 2) * 2
-# Newton RTX's path tracer benefits from extra resolution the rasterized backends don't need.
-_SHOWCASE_H1_STAIRS_WINDOW_WIDTH = _SHOWCASE_WINDOW_WIDTH * 2
-_SHOWCASE_H1_STAIRS_WINDOW_HEIGHT = _SHOWCASE_WINDOW_HEIGHT * 2
 
 
 # Light-blue overlay color for _add_floor_overlay; deliberately more saturated than Newton
@@ -1322,24 +1298,6 @@ def _add_floor_overlay(env_cfg: object) -> None:
             size=(100.0, 100.0, 0.01),
         ),
     )
-
-
-def _showcase_frame_wide_camera_from_env_origins(env, env_ids) -> None:
-    """Point the interactive camera at the mean spawn position of the visible envs.
-
-    H1's rough-terrain generator spreads sub-terrains across a large grid, so a fixed
-    world-origin eye/lookat can easily miss every robot. Registered as an ``EventTermCfg``
-    with ``mode="reset"`` so it only recomputes on env reset, not every step.
-    """
-    del env_ids
-    center = env.scene.env_origins.mean(dim=0)
-    eye = (
-        float(center[0]) + _SHOWCASE_H1_STAIRS_EYE_OFFSET[0],
-        float(center[1]) + _SHOWCASE_H1_STAIRS_EYE_OFFSET[1],
-        float(center[2]) + _SHOWCASE_H1_STAIRS_EYE_OFFSET[2],
-    )
-    target = (float(center[0]), float(center[1]), float(center[2]))
-    env.sim.set_camera_view(eye, target)
 
 
 # Paces windowed HUD captures (see record_showcase_window) to a slower wall-clock rate so the
@@ -1415,24 +1373,6 @@ class FrankaReachShowcaseCfg(FrankaReachEnvCfg):
 
 
 @configclass
-class H1RoughShowcaseCfg(H1RoughEnvCfg):
-    """H1 stairs-only rough-terrain locomotion configuration with the Newton RTX showcase visualizer."""
-
-    def __post_init__(self):
-        super().__post_init__()
-        self.sim.visualizer_cfgs = VisualizerCfg(
-            headless=headless("SHOWCASE_WINDOWED"),
-            window=WindowCfg(size=(_SHOWCASE_H1_STAIRS_WINDOW_WIDTH, _SHOWCASE_H1_STAIRS_WINDOW_HEIGHT)),
-            eye=_SHOWCASE_H1_STAIRS_EYE_OFFSET,
-            lookat=_SHOWCASE_WIDE_LOOKAT,
-            backend=NewtonRTXBackendCfg(),
-        )
-        _showcase_configure_capture(self)
-        self.scene.terrain.terrain_generator = _SHOWCASE_STAIRS_TERRAINS_CFG
-        self.events.frame_wide_camera = EventTermCfg(func=_showcase_frame_wide_camera_from_env_origins, mode="reset")
-
-
-@configclass
 class ShadowHandReorientShowcaseCfg(ShadowHandEnvCfg):
     """Shadow Hand cube reorientation configuration with the Rerun showcase visualizer."""
 
@@ -1468,7 +1408,6 @@ class KukaAllegroLiftShowcaseCfg(KukaAllegroLiftEnvCfg):
 _SHOWCASE_TASK_CONFIGS = {
     "Isaac-Reorient-Cube-Allegro": "capture_visualizer:AllegroReorientShowcaseCfg",
     "Isaac-Reach-Franka": "capture_visualizer:FrankaReachShowcaseCfg",
-    "Isaac-Velocity-Rough-H1": "capture_visualizer:H1RoughShowcaseCfg",
     "Isaac-Reorient-Cube-Shadow-Direct": "capture_visualizer:ShadowHandReorientShowcaseCfg",
     "Isaac-Lift-KukaAllegro": "capture_visualizer:KukaAllegroLiftShowcaseCfg",
 }
@@ -1536,8 +1475,7 @@ def _showcase_dismiss_webgl_banner(page) -> None:
 # Window titles for record_windowed's X11 WM_NAME match.
 _SHOWCASE_WINDOW_TITLES = {
     "kit": "Isaac Lab",
-    "newton_gl": "Newton Viewer",
-    "newton_rtx": "Newton RTX Viewer",
+    "newton": "Newton Visualizer",
 }
 
 # TODO: Kit's windowed capture (--viz kit) segfaults consistently ~5s into startup on
@@ -1559,7 +1497,7 @@ def record_showcase_window(
     target_step_time: str,
     crf: int = 26,
 ) -> None:
-    """Run Kit/Newton GL/Newton RTX non-headless and screen-record the real window, so the HUD
+    """Run Kit/Newton GL non-headless and screen-record the real window, so the HUD
     is visible in the clip -- unlike a clean, HUD-less render_rgb_array() capture.
     """
     os.environ["SHOWCASE_TARGET_STEP_TIME"] = target_step_time
@@ -1579,84 +1517,6 @@ def record_showcase_window(
         speed_factor=output_speed_factor,
         crf=crf,
         **kwargs,
-    )
-
-
-def record_showcase(
-    repo_root: str,
-    script_dir: str,
-    output_dir: Path,
-    work_dir: Path,
-    uv_extras: str,
-    visualizer: str,
-    task: str,
-    num_envs: int,
-    video_length: int,
-    step_offset: int,
-    filename: str,
-    hydra_overrides: list[str],
-) -> None:
-    """Newton RTX's window stays black under record_showcase_window (its path-traced output
-    isn't blitted to the window in that flow -- confirmed by testing), so it uses the
-    step-count-bound VideoRecorderCfg path instead.
-    """
-    output = work_dir / visualizer
-    prefix = f"{visualizer}_showcase"
-
-    cmd = [
-        "uv",
-        "run",
-        "--frozen",
-        "--extra",
-        uv_extras,
-        "python",
-        "scripts/reinforcement_learning/play.py",
-        "--rl_library",
-        "rsl_rl",
-        "--task",
-        task,
-        "--checkpoint",
-        "pretrained",
-        "--num_envs",
-        str(num_envs),
-        "--video",
-        "--viz",
-        visualizer,
-        "--external_callback",
-        "capture_visualizer.configure_playback_showcase",
-        *hydra_overrides,
-    ]
-    env = {
-        "SHOWCASE_VIDEO_DIR": str(output),
-        "SHOWCASE_VIDEO_PREFIX": prefix,
-        "SHOWCASE_VIDEO_LENGTH": str(video_length),
-        "SHOWCASE_VIDEO_STEP_OFFSET": str(step_offset),
-        "PYTHONPATH": script_dir,
-        **os.environ,
-    }
-    subprocess.run(cmd, cwd=repo_root, env=env, check=True)
-
-    # VideoRecorderCfg's own writer defaults to a fairly compressed encode; re-encode at
-    # crf 28 (confirmed by testing to show no visible artifacts here) for better quality.
-    subprocess.run(
-        [
-            "ffmpeg",
-            "-y",
-            "-v",
-            "error",
-            "-i",
-            str(output / f"{prefix}_0000.mp4"),
-            "-c:v",
-            "libx264",
-            "-preset",
-            "slow",
-            "-crf",
-            "28",
-            "-pix_fmt",
-            "yuv420p",
-            str(output_dir / filename),
-        ],
-        check=True,
     )
 
 
@@ -1681,7 +1541,7 @@ def record_showcase_browser(
     """Browser-based capture for Rerun/Viser clips.
 
     Neither backend implements ``render_rgb_array()``, so ``VideoRecorderCfg`` can't capture
-    them like Kit/Newton GL/Newton RTX. This launches ``play.py`` as a subprocess, connects a
+    them like Kit/Newton GL. This launches ``play.py`` as a subprocess, connects a
     Chrome browser (via Playwright) to the printed viewer URL, waits for two consecutive
     frames to differ enough to confirm the policy is actively moving, then records ``record_s``
     seconds of clean footage.
@@ -1822,23 +1682,16 @@ def _showcase_open_image(png_bytes: bytes):
 
 
 def _main_showcase(num_envs: int = 512, skip: list[str] | None = None) -> None:
-    """Generate all 5 showcase_*.mp4 clips."""
+    """Generate all 4 showcase_*.mp4 clips."""
     skip = skip or []
 
     script_dir = str(Path(__file__).resolve().parent)
     repo_root = str(Path(script_dir).parents[3])
     output_dir = Path(repo_root) / "docs/source/_static/visualizers"
-    work_dir = _private_work_dir("capture_visualizer_showcase_work")
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
     uv_extras = "isaacsim,rerun,viser,rsl-rl,ov,video"
-    # H1's stairs-only terrain only needs enough envs to populate the visible frame.
-    h1_num_envs = 160
-    # Extra settle time before H1's headless VideoRecorderCfg capture starts, on top of the
-    # fixed step count (see VideoRecorderCfg.step_offset).
-    h1_extra_wait_s = 10
-
     # Both windowed rows share control rate decimation=4, sim.dt=1/120s -> 0.0333s/step.
     # pace_speed_factor slows simulation down (more render headroom, less GPU-contention
     # stutter) and speeds the recorded clip back up by the same factor in post (see
@@ -1857,7 +1710,7 @@ def _main_showcase(num_envs: int = 512, skip: list[str] | None = None) -> None:
     window_showcase_rows = [
         # (visualizer, task, num_envs, filename, settle_s, output_speed_factor, crf)
         (
-            "newton_gl",
+            "newton",
             "Isaac-Reorient-Cube-Allegro",
             num_envs,
             "showcase_newton_gl_allegro.mp4",
@@ -1873,23 +1726,6 @@ def _main_showcase(num_envs: int = 512, skip: list[str] | None = None) -> None:
             45.0,
             franka_output_speed_factor,
             26,
-        ),
-    ]
-
-    # Newton RTX's window stays black under record_showcase_window (see its docstring), so it
-    # uses the step-count-bound VideoRecorderCfg path. H1's control rate: decimation=4,
-    # sim.dt=0.005s -> 0.02s/step (50 Hz) -> 500 steps for a 10s clip.
-    h1_step_offset = round(h1_extra_wait_s / 0.02)
-    headless_showcase_rows = [
-        # (visualizer, task, num_envs, video_length, step_offset, filename, hydra_overrides)
-        (
-            "newton_rtx",
-            "Isaac-Velocity-Rough-H1",
-            h1_num_envs,
-            500,
-            h1_step_offset,
-            "showcase_newton_rtx_h1_stairs.mp4",
-            ["physics=newton_mjwarp"],
         ),
     ]
 
@@ -1930,25 +1766,6 @@ def _main_showcase(num_envs: int = 512, skip: list[str] | None = None) -> None:
             settle_s,
             target_step_time,
             crf,
-        )
-
-    for visualizer, task, envs, video_length, step_offset, filename, hydra_overrides in headless_showcase_rows:
-        if should_skip(visualizer):
-            print(f"--- skipping {visualizer} (--skip) ---")
-            continue
-        record_showcase(
-            repo_root,
-            script_dir,
-            output_dir,
-            work_dir,
-            uv_extras,
-            visualizer,
-            task,
-            envs,
-            video_length,
-            step_offset,
-            filename,
-            hydra_overrides,
         )
 
     for visualizer, task, envs, checkpoint, filename, reset, speed_factor in browser_rows:
@@ -2087,7 +1904,7 @@ _STREAMING_NEWTON_GL_TASK = "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Vis
 _STREAMING_NEWTON_GL_NUM_ENVS = 25
 _STREAMING_NEWTON_GL_STREAMING_ENVS = 12
 _STREAMING_NEWTON_GL_PANEL_KEY = "Streaming View"
-_STREAMING_NEWTON_GL_WINDOW_TITLE = "Newton Viewer"
+_STREAMING_NEWTON_GL_WINDOW_TITLE = "Newton Visualizer"
 # The Galbot task's config module imports isaaclab_teleop (stack_joint_pos_env_cfg.py); "mimic"
 # is the lightest extra providing it without the heavier full "teleop" extra's deps.
 _STREAMING_NEWTON_GL_UV_EXTRAS = "isaacsim,rerun,viser,rsl-rl,ov,video,mimic"
@@ -2291,7 +2108,7 @@ def _main_streaming(skip: list[str] | None = None) -> None:
 
     ``--with python-xlib`` alone covers the Kit portion (runs directly in this process); the
     Newton GL portion is spawned as its own subprocess with the extras it needs. Pass
-    ``skip=["kit"]`` / ``skip=["newton_gl"]`` to skip a mode.
+    ``skip=["kit"]`` / ``skip=["newton"]`` to skip a mode.
     """
     skip = set(skip or [])
 
@@ -2345,7 +2162,7 @@ def _main_streaming(skip: list[str] | None = None) -> None:
     else:
         print("--- skipping kit (--skip) ---")
 
-    if "newton_gl" not in skip:
+    if "newton" not in skip:
         print("--- newton_gl + Galbot cube stacking (streaming view) ---")
         interactive_mp4 = output_dir / "streaming_newton_galbot_interactive.mp4"
         tiled_mp4 = output_dir / "streaming_newton_galbot_tiled.mp4"
@@ -2408,7 +2225,7 @@ def main() -> None:
     )
 
     streaming_parser = subparsers.add_parser("streaming", help="Regenerate the streaming-view clips.")
-    streaming_parser.add_argument("--skip", action="append", default=[], choices=["kit", "newton_gl"])
+    streaming_parser.add_argument("--skip", action="append", default=[], choices=["kit", "newton"])
 
     subparsers.add_parser("all", help="Regenerate every clip (default).")
 

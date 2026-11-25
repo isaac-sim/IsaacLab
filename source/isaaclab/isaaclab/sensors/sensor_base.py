@@ -384,7 +384,7 @@ class SensorBase(ABC):
         # ``IsaacEvents``).
         self._prim_deletion_handle = None
         if physics_mgr.backend_name == "physx":
-            from isaaclab_physx.physics import IsaacEvents  # noqa: PLC0415
+            from isaaclab_isaacsim.physics import IsaacEvents  # noqa: PLC0415
 
             self._prim_deletion_handle = physics_mgr.register_callback(
                 lambda event: PhysicsManager.safe_callback_invoke(

@@ -12,14 +12,14 @@ is defined. The action term is responsible for processing the raw actions and ap
 scene entities.
 
 Three declared cube sizes preserve per-environment variation under physics replication. The reset event
-changes position, and a prestartup event changes visual color.
+changes position, and a startup event changes visual color.
 
 The rest of the environment is similar to the previous tutorials.
 
 .. code-block:: bash
 
     # Run the script
-    uv run python scripts/tutorials/03_envs/create_cube_base_env.py --num_envs 32
+    uv run --extra ov python scripts/tutorials/03_envs/create_cube_base_env.py --num_envs 32
 
 """
 
@@ -39,17 +39,19 @@ parser.add_argument("--num_envs", type=int, default=64, help="Number of environm
 
 # append simulation launcher cli args
 add_launcher_args(parser)
+parser.set_defaults(visualizer=["newton_rtx"])
 # parse the arguments
 args_cli = parser.parse_args()
 
 """Rest everything follows."""
 
 import torch
-from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
+from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
+from isaaclab_ov.physics import OvPhysxCfg
 
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
-from isaaclab.assets import AssetBaseCfg, RigidObject, RigidObjectCfg
+from isaaclab.assets import AssetBaseCfg, RigidObject, RigidObjectCfg, VisualMaterialCfg
 from isaaclab.envs import ManagerBasedEnvCfg
 from isaaclab.managers import ActionTerm, ActionTermCfg, SceneEntityCfg
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -191,6 +193,9 @@ class MySceneCfg(InteractiveSceneCfg):
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 5)),
     )
 
+    # Wrap the material spawned with each cube so events can update it without Kit.
+    cube_material = VisualMaterialCfg(prim_path="{ENV_REGEX_NS}/cube/geometry/material", spawn=None)
+
     # lights
     light = AssetBaseCfg(
         prim_path="/World/light",
@@ -250,15 +255,13 @@ class EventCfg:
         },
     )
 
-    # This prestartup event randomizes the cube's visual color.
+    # Randomize each cube's color once, after its runtime material is initialized.
     randomize_color = EventTerm(
-        func=mdp.randomize_visual_color,
-        mode="prestartup",
+        func=mdp.randomize_visual_material,
+        mode="startup",
         params={
-            "colors": {"r": (0.0, 1.0), "g": (0.0, 1.0), "b": (0.0, 1.0)},
-            "asset_cfg": SceneEntityCfg("cube"),
-            "mesh_name": "geometry/mesh",
-            "event_name": "rep_cube_randomize_color",
+            "materials": SceneEntityCfg("cube_material"),
+            "channels": {"color": {"r": (0.0, 1.0), "g": (0.0, 1.0), "b": (0.0, 1.0)}},
         },
     )
 
@@ -285,6 +288,7 @@ class CubeEnvCfg(ManagerBasedEnvCfg):
         # general settings
         self.decimation = 2
         # simulation settings
+        self.sim.physics = OvPhysxCfg()
         self.sim.dt = 0.01
         self.sim.physics_material = self.scene.terrain.physics_material
         self.sim.render_interval = 2  # render interval should be a multiple of decimation

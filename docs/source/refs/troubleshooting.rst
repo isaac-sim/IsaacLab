@@ -33,17 +33,26 @@ install time. Most packages cannot be deselected at all.
 
    * - Missing module
      - What it means
-   * - ``isaaclab``, ``isaaclab_assets``, ``isaaclab_tasks``, ``isaaclab_physx``,
-       ``isaaclab_ov``, ``isaaclab_newton``, ``isaaclab_rl``, ``isaaclab_visualizers``,
-       ``isaaclab_contrib``, ``isaaclab_experimental``, ``isaaclab_ppisp``,
+   * - ``isaaclab``, ``isaaclab_assets``, ``isaaclab_tasks``, ``isaaclab_isaacsim``,
+       ``isaaclab_ov``, ``isaaclab_newton``, ``isaaclab_neural``, ``isaaclab_rl``,
+       ``isaaclab_visualizers``, ``isaaclab_contrib``, ``isaaclab_experimental``, ``isaaclab_ppisp``,
        ``isaaclab_tasks_experimental``
      - Core packages installed by ``uv sync``. Check that your command uses the
        checkout's uv environment.
    * - ``isaaclab_mimic``, ``isaaclab_teleop``
      - Optional integrations. Select the ``mimic`` or ``teleop`` extra for your workflow.
+   * - ``isaaclab_fovi``, ``fovi``
+     - The optional, experimental foveated camera. Select the ``fovi`` extra, for example
+       ``uv run --extra fovi isaaclab example foveated-camera``. Without it, the
+       ``IsaacContrib-Cartpole-Camera-Fovi`` task is not registered.
    * - ``rsl_rl``, ``rl_games``, ``skrl``, ``stable_baselines3``
      - ``rsl_rl`` is installed by default. Select ``rl-games``, ``skrl``, or ``sb3``
        for the other frameworks, for example ``uv run --extra skrl isaaclab train ...``.
+   * - ``newton_neural``
+     - Optional library of neural robot dynamics models, which the ``newton_nerd`` and
+       ``newton_mjwarp_nerd`` physics presets and the scripts under ``scripts/neural`` run.
+       Select the ``newton-neural`` extra, for example
+       ``uv run --extra newton-neural isaaclab train ...``. See :ref:`newton-neural-robot-dynamics`.
    * - ``isaacsim``
      - Isaac Sim itself, which is never installed implicitly. See
        :ref:`troubleshooting-isaacsim-missing`.
@@ -168,13 +177,13 @@ simulation fails with an error such as:
 
 Raise the matching field on the physics configuration for the backend you are running. The
 field is named after the PhysX parameter — for the error above it is
-:attr:`~isaaclab_physx.physics.PhysxCfg.gpu_found_lost_pairs_capacity`:
+:attr:`~isaaclab_isaacsim.physics.PhysxCfg.gpu_found_lost_pairs_capacity`:
 
 .. code:: python
 
     import isaaclab.sim as sim_utils
     from isaaclab.sim import SimulationContext
-    from isaaclab_physx.physics import PhysxCfg
+    from isaaclab_isaacsim.physics import PhysxCfg
 
     sim_cfg = sim_utils.SimulationCfg(physics=PhysxCfg(gpu_found_lost_pairs_capacity=2**22))
     sim = SimulationContext(sim_cfg)
@@ -188,7 +197,7 @@ sync:
     from isaaclab.physics import PhysxAutoCfg
     from isaaclab.utils import configclass
     from isaaclab_ov.physics import OvPhysxCfg
-    from isaaclab_physx.physics import PhysxCfg
+    from isaaclab_isaacsim.physics import PhysxCfg
     from isaaclab_tasks.utils import PresetCfg
 
     @configclass
@@ -300,7 +309,7 @@ Livestreaming and WebRTC
 ``NVST_R_BUSY`` / ``NVST_R_INTERNAL_ERROR`` on ``LIVESTREAM=1`` or ``LIVESTREAM=2``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:class:`~isaaclab_physx.app.KitLauncher` pins TCP port ``49100`` for WebRTC signaling whenever
+:class:`~isaaclab_isaacsim.app.KitLauncher` pins TCP port ``49100`` for WebRTC signaling whenever
 ``LIVESTREAM=1`` (public network) or ``LIVESTREAM=2`` (private network) is set. If a
 previous livestream process is still bound to that port, the new session fails to start
 with:

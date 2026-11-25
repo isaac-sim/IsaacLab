@@ -10,15 +10,17 @@ from __future__ import annotations
 import contextlib
 import gc
 import logging
+import math
 import re
-from collections.abc import Callable
-from dataclasses import dataclass
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass, replace
 from functools import cache, partial
-from typing import TYPE_CHECKING
+from itertools import chain
+from typing import TYPE_CHECKING, Any
 
 import torch
 import warp as wp
-from newton import CollisionPipeline, Contacts, ModelBuilder, State
+from newton import Axis, CollisionPipeline, Contacts, GeoType, Mesh, Model, ModelBuilder, ShapeFlags, State
 from newton.sensors import SensorContact, SensorIMU
 from newton.solvers import SolverBase
 
@@ -31,6 +33,7 @@ from isaaclab.utils.version import has_kit
 from isaaclab_newton.renderers.visual_material import VisualMaterialWriter
 
 from .newton_builder_cfg import NewtonBuilderCfg
+from .newton_collision_cfg import NewtonCollisionPipelineCfg
 from .newton_manager_cfg import NewtonCfg
 
 if TYPE_CHECKING:
@@ -104,9 +107,232 @@ class NewtonCloneRecord:
     particle_ranges: dict[str, tuple[int, int]]
     """``(start, count)`` particle range per replicated deformable prim path."""
     cable_bindings: dict[str, list[int]]
-    """Body indices per replicated cable prim path."""
+    """Shape indices per replicated cable prim path."""
+    cable_scales: dict[int, wp.vec3]
+    """Authored cable capsule scales retained across hard resets."""
     geometry_batches: list
     """Shape batches the scene data backend publishes as geometry."""
+    initial_body_variants: tuple[tuple[int, int], ...] = ()
+    """Initial ``(body, variant)`` selections resolved by the clone composition root."""
+
+
+def _configure_sdf_all_shapes(builder: ModelBuilder, cfg: NewtonCollisionPipelineCfg.SDFAllShapesCfg) -> list[int]:
+    """Provision every finite shape collider for the mesh-SDF narrow phase.
+
+    This runs after USD import and covers Newton's copied variant snapshots.
+    It changes collision geometry without recomputing authored body mass or inertia.
+
+    Args:
+        builder: Fully assembled Newton model builder.
+        cfg: Strict all-shapes SDF configuration.
+
+    Returns:
+        Shape indices that must have valid texture SDFs and collision edges
+        after model finalization.
+
+    Raises:
+        ValueError: If a colliding shape cannot satisfy the strict SDF contract.
+    """
+    primitive_meshes: dict[tuple[Any, ...], Mesh] = {}
+    sdf_shapes: list[int] = []
+    target_voxel_size = cfg.sdf_target_voxel_size
+    max_resolution = None if target_voxel_size is not None else cfg.sdf_max_resolution
+    attributes = (
+        "shape_type",
+        "shape_flags",
+        "shape_scale",
+        "shape_source",
+        "shape_transform",
+        "shape_sdf_max_resolution",
+        "shape_sdf_target_voxel_size",
+        "shape_force_sdf",
+        "shape_sdf_narrow_band_range",
+        "shape_sdf_texture_format",
+        "shape_sdf_padding",
+    )
+    builder_rows = (
+        (index, builder.shape_label[index], {name: getattr(builder, name)[index] for name in attributes})
+        for index in range(builder.shape_count)
+    )
+    # Newton shares variant sets across copied builders. Give this builder its own
+    # shape-value dictionaries before changing them for its collision policy.
+    variant_sets = {}
+    for body_index, body_variants in builder._body_variants.items():
+        source = body_variants.variant_set
+        if id(source) not in variant_sets:
+            variant_sets[id(source)] = replace(
+                source,
+                variants=tuple(
+                    replace(variant, shapes=tuple(replace(s, values=s.values.copy()) for s in variant.shapes))
+                    for variant in source.variants
+                ),
+            )
+        builder._body_variants[body_index] = replace(body_variants, variant_set=variant_sets[id(source)])
+    # Newton finalizes variant snapshots after the ordinary builder rows.
+    variant_rows = (
+        (None, shape.label, shape.values)
+        for variant_set in variant_sets.values()
+        for variant in variant_set.variants
+        for shape in variant.shapes
+    )
+    for shape_index, shape_label, shape in chain(builder_rows, variant_rows):
+        if not shape["shape_flags"] & ShapeFlags.COLLIDE_SHAPES:
+            continue
+
+        shape_type = GeoType(shape["shape_type"])
+        shape_label = shape_label or f"shape {shape_index}"
+        shape_scale = tuple(float(value) for value in shape["shape_scale"])
+        has_sdf = (
+            shape["shape_sdf_max_resolution"] is not None
+            or shape["shape_sdf_target_voxel_size"] is not None
+            or getattr(shape["shape_source"], "sdf", None) is not None
+        )
+
+        if shape_type in (GeoType.MESH, GeoType.CONVEX_MESH):
+            if not isinstance(shape["shape_source"], Mesh):
+                raise ValueError(
+                    f"Strict all-shapes SDF provisioning requires {shape_label!r} to have a valid mesh source."
+                )
+        elif shape_type == GeoType.BOX:
+            if not all(math.isfinite(value) and value > 0.0 for value in shape_scale):
+                raise ValueError(
+                    f"Strict all-shapes SDF provisioning cannot use {shape_label!r} "
+                    f"with geometry type BOX and scale {shape_scale}."
+                )
+        elif shape_type == GeoType.PLANE:
+            width, length = shape_scale[:2]
+            if not math.isfinite(width) or not math.isfinite(length):
+                raise ValueError(f"Strict all-shapes SDF provisioning found non-finite plane scale on {shape_label!r}.")
+            if width <= 0.0 or length <= 0.0:
+                continue
+            half_thickness = 0.5 * cfg.plane_thickness
+            mesh_key = (shape_type, width, length, cfg.plane_thickness)
+            mesh = primitive_meshes.get(mesh_key)
+            if mesh is None:
+                mesh = Mesh.create_box(
+                    0.5 * width,
+                    0.5 * length,
+                    half_thickness,
+                    duplicate_vertices=False,
+                    compute_normals=False,
+                    compute_uvs=False,
+                    compute_inertia=False,
+                )
+                primitive_meshes[mesh_key] = mesh
+            downward_shift = wp.transform(wp.vec3(0.0, 0.0, -half_thickness), wp.quat_identity())
+            shape["shape_transform"] = wp.transform_multiply(shape["shape_transform"], downward_shift)
+            shape["shape_source"] = mesh
+            shape["shape_type"] = GeoType.MESH
+            shape["shape_scale"] = wp.vec3(1.0)
+        else:
+            if not all(math.isfinite(value) for value in shape_scale):
+                raise ValueError(f"Strict all-shapes SDF provisioning found non-finite scale on {shape_label!r}.")
+            mesh_key = (shape_type, *shape_scale, cfg.primitive_mesh_segments)
+            mesh = primitive_meshes.get(mesh_key)
+            if mesh is None:
+                if shape_type == GeoType.SPHERE and shape_scale[0] > 0.0:
+                    mesh = Mesh.create_sphere(
+                        shape_scale[0],
+                        num_latitudes=cfg.primitive_mesh_segments,
+                        num_longitudes=cfg.primitive_mesh_segments,
+                        compute_uvs=False,
+                        compute_inertia=False,
+                    )
+                elif shape_type == GeoType.CAPSULE and shape_scale[0] > 0.0 and shape_scale[1] >= 0.0:
+                    mesh = Mesh.create_capsule(
+                        shape_scale[0],
+                        shape_scale[1],
+                        up_axis=Axis.Z,
+                        segments=cfg.primitive_mesh_segments,
+                        compute_uvs=False,
+                        compute_inertia=False,
+                    )
+                elif shape_type == GeoType.ELLIPSOID and all(value > 0.0 for value in shape_scale):
+                    mesh = Mesh.create_ellipsoid(
+                        *shape_scale,
+                        num_latitudes=cfg.primitive_mesh_segments,
+                        num_longitudes=cfg.primitive_mesh_segments,
+                        compute_uvs=False,
+                        compute_inertia=False,
+                    )
+                elif shape_type == GeoType.CYLINDER and shape_scale[0] > 0.0 and shape_scale[1] > 0.0:
+                    mesh = Mesh.create_cylinder(
+                        shape_scale[0],
+                        shape_scale[1],
+                        barrel_radius=shape_scale[2],
+                        up_axis=Axis.Z,
+                        segments=cfg.primitive_mesh_segments,
+                        compute_uvs=False,
+                        compute_inertia=False,
+                    )
+                elif shape_type == GeoType.CONE and shape_scale[0] > 0.0 and shape_scale[1] > 0.0:
+                    mesh = Mesh.create_cone(
+                        shape_scale[0],
+                        shape_scale[1],
+                        up_axis=Axis.Z,
+                        segments=cfg.primitive_mesh_segments,
+                        compute_uvs=False,
+                        compute_inertia=False,
+                    )
+                else:
+                    raise ValueError(
+                        f"Strict all-shapes SDF provisioning cannot convert {shape_label!r} "
+                        f"with geometry type {shape_type.name} and scale {shape_scale}."
+                    )
+                primitive_meshes[mesh_key] = mesh
+            shape["shape_source"] = mesh
+            shape["shape_type"] = GeoType.MESH
+            shape["shape_scale"] = wp.vec3(1.0)
+
+        if not has_sdf:
+            # A force-only mesh has no rigid SDF. Supply its grid size while
+            # keeping its authored force flag and any other SDF settings.
+            if not shape["shape_force_sdf"]:
+                shape["shape_sdf_narrow_band_range"] = (cfg.sdf_narrow_band_inner, cfg.sdf_narrow_band_outer)
+                shape["shape_sdf_texture_format"] = cfg.sdf_texture_format
+                shape["shape_sdf_padding"] = cfg.sdf_padding
+            shape["shape_sdf_target_voxel_size"] = target_voxel_size
+            shape["shape_sdf_max_resolution"] = max_resolution
+        if shape_index is not None:
+            for name in attributes:
+                getattr(builder, name)[shape_index] = shape[name]
+            sdf_shapes.append(shape_index)
+
+    return sdf_shapes
+
+
+def _validate_sdf_all_shapes(model: Model, shape_indices: Sequence[int]) -> None:
+    """Verify strict SDF shapes have the resources Newton's SDF pair route requires.
+
+    Args:
+        model: Finalized Newton model.
+        shape_indices: Shape indices returned by :func:`_configure_sdf_all_shapes`.
+
+    Raises:
+        RuntimeError: If texture construction failed or a shape has no collision edges.
+    """
+    textures = model._texture_sdf_coarse_textures
+    failures: list[str] = []
+    rows = [(model._shape_sdf_index.numpy(), model._shape_edge_range.numpy(), shape_indices)]
+    if model._variant_shape_count:
+        variant = model._variant_shape_geometry
+        flags = variant["shape_flags"].numpy()
+        indices = [i for i, flag in enumerate(flags) if flag & ShapeFlags.COLLIDE_SHAPES]
+        rows.append((variant["_shape_sdf_index"].numpy(), variant["_shape_edge_range"].numpy(), indices))
+    for sdf_indices, edge_ranges, indices in rows:
+        for shape_index in indices:
+            sdf_index = int(sdf_indices[shape_index])
+            reasons = []
+            if sdf_index < 0 or sdf_index >= len(textures) or textures[sdf_index] is None:
+                reasons.append("texture SDF was not built")
+            if int(edge_ranges[shape_index][1]) <= 0:
+                reasons.append("no collision edges were generated")
+            if reasons:
+                failures.append(f"shape {shape_index} ({'; '.join(reasons)})")
+    if failures:
+        raise RuntimeError(
+            "Strict all-shapes SDF provisioning failed; refusing a non-SDF collision fallback: " + ", ".join(failures)
+        )
 
 
 class NewtonBackend:
@@ -115,7 +341,13 @@ class NewtonBackend:
     A render-only backend (non-Newton physics) holds only the model and :attr:`state_0`.
     """
 
-    def __init__(self, cfg: NewtonBackendCfg, builder: ModelBuilder | None = None, *, dt: float | None = None):
+    def __init__(
+        self,
+        cfg: NewtonBackendCfg,
+        builder: ModelBuilder | None = None,
+        *,
+        dt: float | None = None,
+    ):
         """Finalize a builder and allocate the buffers bound to its model.
 
         Args:
@@ -126,11 +358,22 @@ class NewtonBackend:
         """
         if builder is None:
             builder = SimulationContext.instance().get_or_create_backend(NewtonBuilderCfg(physics_cfg=cfg.physics_cfg))
+        physics_cfg = cfg.physics_cfg
+        sdf_cfg = (
+            physics_cfg.collision_cfg.sdf_all_shapes
+            if isinstance(physics_cfg, NewtonCfg) and physics_cfg.collision_cfg is not None
+            else None
+        )
+        sdf_shapes = _configure_sdf_all_shapes(builder, sdf_cfg) if sdf_cfg is not None else ()
         self.model = builder.finalize(device=cfg.device)
         """Finalized Newton model; :attr:`model.num_envs` is its world count."""
+        if sdf_shapes:
+            _validate_sdf_all_shapes(self.model, sdf_shapes)
+        self.geometry_change_version = 0
+        """Incremented when native body selection changes shape type or source after initialization."""
         self.model.num_envs = self.model.world_count
         self.device: wp.Device = self.model.device
-        self.state_version = 0
+        self.timestamp = 0
         """Advanced whenever the step or FK changes the state; asset data recomputes derived values cached before it."""
         self.particle_ranges: dict[str, tuple[int, int]] = {}
         """``(start, count)`` particle range per replicated deformable prim path."""
@@ -143,7 +386,6 @@ class NewtonBackend:
             for label, start, end in zip(labels, starts, ends, strict=True)
         }
         """``(start, count, kind)`` particle range per deformable label; ``kind`` is ``"surface"`` or ``"volume"``."""
-        physics_cfg = cfg.physics_cfg
         simulation = isinstance(physics_cfg, NewtonCfg)
         soft_contact = physics_cfg.soft_contact_cfg if simulation else None
         if soft_contact is not None:
@@ -194,6 +436,7 @@ class NewtonBackend:
         """Body forces [N, N·m] written before the step, re-applied before every substep."""
         self.world_mask = wp.zeros(self.model.world_count + 1, dtype=wp.bool, device=self.device)
         """Worlds to reset; the final slot is Newton's global world, which Isaac Lab never resets."""
+        self._non_finite_worlds = TimestampedBuffer(wp.zeros(self.model.world_count, dtype=wp.bool, device=self.device))
         self.fk_mask = wp.zeros(self.model.articulation_count, dtype=wp.bool, device=self.device)
         """Articulations whose forward kinematics must be evaluated."""
         self.kinematics_dirty = False
@@ -214,12 +457,20 @@ class NewtonBackend:
         """Whether an articulation runs its Newton actuators in the step (:meth:`activate_actuators`)."""
         self.handles_actions = False
         """Whether the environment's actions and asset writes run as pre-actuator callbacks of every physics step."""
+        self.lab_actuators_active = False
+        """Whether any articulation requires Lab actuator computation outside each backend step."""
         self.pre_actuator_callbacks: list[Callable[[], None]] = []
         """Run before the Newton actuators of every physics step."""
         self.post_actuator_callbacks: list[Callable[[], None]] = []
         """Run after the Newton actuators of every physics step, before its solver substeps."""
         self.state_force_callbacks: list[Callable[[State], None]] = []
         """Add forces [N, N·m] to the input state of every solver substep."""
+        self.post_solver_substep_callbacks: list[
+            Callable[[Contacts | None, SolverBase.Observables | None, State, float], None]
+        ] = []
+        """Run after each solve, before output-state swapping and force clearing."""
+        self.solver_observables: SolverBase.Observables | None = None
+        """Requested solver outputs populated by every substep, or ``None``."""
         self.post_step_callbacks: list[Callable[[], None]] = []
         """Run once after the last solver substep of a :meth:`step`."""
         self.solver_init_callbacks: list[Callable[[], None]] = []
@@ -244,22 +495,30 @@ class NewtonBackend:
         if self.cfg is not None:
             self.solver = self.solver_ops = self.collision_pipeline = self.contacts = self.contact_observables = None
             self.actuators = None
-            self.staged_body_f = self.capture = None
+            self.staged_body_f = self.capture = self.solver_observables = None
+            self.post_solver_substep_callbacks = []
             self.graphs = {}
             self.contact_sensors, self.imu_sensors = {}, []
             self.pre_actuator_callbacks, self.post_actuator_callbacks = [], []
             self.state_force_callbacks, self.post_step_callbacks, self.solver_init_callbacks = [], [], []
-            self.world_mask = self.fk_mask = None
+            self.world_mask = self.fk_mask = self._non_finite_worlds = None
 
     def init_solver(
-        self, env_template: str | None = None, *, relaxed_capture: Callable[[], bool] | None = None
+        self,
+        env_template: str | None = None,
+        *,
+        relaxed_capture: Callable[[], bool] | None = None,
+        observable_kinds: set[str] | None = None,
+        initial_body_variants: tuple[tuple[int, int], ...] = (),
     ) -> None:
         """Build the solver and its contacts, run the solver-init callbacks, and evaluate the initial FK.
 
         Args:
             env_template: Environment prim path template that expands ``{ENV_REGEX_NS}`` in solver selectors.
+            initial_body_variants: Clone selections applied after the solver compiles the shared shape layout.
             relaxed_capture: Returns, when the step is captured, whether to capture in relaxed mode; see
                 :func:`capture_graph`. Defaults to strict capture.
+            observable_kinds: Solver output kinds to allocate before solver-init callbacks bind their consumers.
         """
         solver_cfg, mode = self.cfg.solver_cfg, self.deterministic_mode
         if mode > (max_mode := solver_cfg.class_type.max_deterministic_mode):
@@ -272,12 +531,27 @@ class NewtonBackend:
             self.model.rigid_contact_max = contact_max
         ops = self.solver_ops = instantiate(solver_cfg, self.model, mode, env_template)
         solver = self.solver = ops.native
+        # A newly built solver already reflects the setup-time model. Subsequent changes remain queued.
+        self.model_changes.clear()
+        if initial_body_variants:
+            # MuJoCo compiles one geom layout for all worlds, before their variants diverge.
+            bodies, variants = zip(*initial_body_variants, strict=True)
+            flags = self.model.select_body_variants(
+                wp.array(variants, dtype=wp.int32, device=self.device),
+                bodies=wp.array(bodies, dtype=wp.int32, device=self.device),
+            )
+            solver.notify_model_changed(flags)
+            self.geometry_change_version += 1
+            self.timestamp += 1
         if not ops.single_state:
             ops.init_state(self.state_1)
         self._allocate_contacts()
-        self.contact_observables = None
+        requested = set(observable_kinds or ())
         if self.contact_sensors:
-            self.contact_observables = solver.observables(SensorContact.solver_observable_kinds, contacts=self.contacts)
+            requested.update(SensorContact.solver_observable_kinds)
+        outputs = solver.observables(requested, contacts=self.contacts) if requested else None
+        self.solver_observables = outputs.select(observable_kinds) if observable_kinds else None
+        self.contact_observables = outputs if self.contact_sensors else None
         state_0 = self.state_0
         self.staged_body_f = wp.zeros_like(state_0.body_f) if state_0.body_count else None
         callbacks, self.solver_init_callbacks = self.solver_init_callbacks, []
@@ -359,7 +633,7 @@ class NewtonBackend:
         self.fk_mask.zero_()
         self.world_mask.zero_()
         self.kinematics_dirty = False
-        self.state_version += 1
+        self.timestamp += 1
 
     def notify_model_changes(self) -> None:
         """Notify the solver of the queued model-property changes once, combining their categories.
@@ -449,9 +723,20 @@ class NewtonBackend:
             if self.contacts is None:
                 self._allocate_contacts()
             if self.contact_observables is None:
-                self.contact_observables = self.solver.observables(
-                    SensorContact.solver_observable_kinds, contacts=self.contacts
-                )
+                self.contact_observables = self.solver_observables
+                if self.contact_observables is None or not SensorContact.solver_observable_kinds.issubset(
+                    self.contact_observables.kinds
+                ):
+                    existing = self.solver_observables
+                    self.contact_observables = self.solver.observables(
+                        SensorContact.solver_observable_kinds | (existing.kinds if existing is not None else set()),
+                        contacts=self.contacts,
+                    )
+                    if existing is not None:
+                        # Keep arrays already bound by substep consumers while extending the final solve's outputs.
+                        for name, value in vars(existing).items():
+                            if isinstance(value, wp.array):
+                                setattr(self.contact_observables, name, value)
             self.invalidate_graph()
         return sensor
 
@@ -469,8 +754,8 @@ class NewtonBackend:
         return sensor
 
     def handles_decimation(self) -> bool:
-        """Whether one :meth:`step` runs the whole decimation loop: when it handles actions or runs Newton actuators."""
-        return self.handles_actions or self.actuators_active
+        """Whether one :meth:`step` runs decimation without skipping actions or Lab actuator updates."""
+        return self.handles_actions or (self.actuators_active and not self.lab_actuators_active)
 
     def set_decimation(self, decimation: int) -> None:
         """Set the physics steps per environment step."""
@@ -513,11 +798,26 @@ class NewtonBackend:
                     )
                 self._launch("finish_step", self._finish_step)
         # Graph replays skip the per-substep increments.
-        self.state_version += 1
+        self.timestamp += 1
         captured = bool(self.graphs)
         if not self.device.is_capturing:
             self.solver_ops.check_step(captured, self.cfg.debug_mode)
         return captured
+
+    def get_non_finite_worlds(self) -> wp.array:
+        """Return a borrowed per-world mask of nonfinite Newton state and persistent solver buffers.
+
+        Scan lazily once per state timestamp; physics steps and completed FK/reset invalidate the cache.
+        Newton's global world is excluded. Solver integrations own checks of their private state.
+        CPU MuJoCo has global solver history, so a fault in that history flags every world.
+        """
+        cache = self._non_finite_worlds
+        if cache.timestamp != self.timestamp:
+            cache.data.zero_()
+            with wp.ScopedDevice(self.device):
+                self.solver_ops.mark_non_finite_worlds(self.state_0, cache.data)
+            cache.timestamp = self.timestamp
+        return cache.data
 
     def state_pointers(self) -> tuple[int, int]:
         """Addresses of :attr:`state_0`'s body and particle arrays, ``0`` for an absent array.
@@ -593,20 +893,13 @@ class NewtonBackend:
             if self.collision_pipeline is None:
                 self.collision_pipeline = ops.create_collision_pipeline(**args)
             self.contacts = self.collision_pipeline.contacts()
-            # MuJoCo Warp can require more contacts than the pipeline estimates.
+            # MuJoCo Warp can require more contacts than the pipeline estimates; rebuild the
+            # pipeline so Contacts retains per-contact hydroelastic properties, matching, and
+            # custom contact attributes alongside any implicit deterministic sort buffers.
             if required > self.contacts.rigid_contact_max:
-                if args["deterministic"]:
-                    # The deterministic sort buffer is sized at construction, so rebuild the pipeline to match.
-                    args["rigid_contact_max"] = required
-                    self.collision_pipeline = ops.create_collision_pipeline(**args)
-                    self.contacts = self.collision_pipeline.contacts()
-                else:
-                    self.contacts = Contacts(
-                        rigid_contact_max=required,
-                        soft_contact_max=0,
-                        device=self.device,
-                        requested_attributes=model.get_requested_contact_attributes(),
-                    )
+                args["rigid_contact_max"] = required
+                self.collision_pipeline = ops.create_collision_pipeline(**args)
+                self.contacts = self.collision_pipeline.contacts()
         if self.contacts is not None:
             ops.prepare_contacts(self.contacts, self.collision_pipeline)
 
@@ -641,7 +934,8 @@ class NewtonBackend:
         """Prepare the solver, collide, and run the pre-actuator callbacks of one physics step."""
         self.solver_ops.pre_step(self.state_0)
         if self.collision_pipeline is not None:
-            self.collision_pipeline.collide(self.state_0, self.contacts)
+            horizon = min(self.num_substeps, self.cfg.collision_decimation or self.num_substeps)
+            self.collision_pipeline.collide(self.state_0, self.contacts, dt=horizon * self.solver_dt)
         for callback in self.pre_actuator_callbacks:
             callback()
         if self.handles_actions:
@@ -652,7 +946,11 @@ class NewtonBackend:
         """Run the post-actuator callbacks and the solver substeps of one physics step."""
         for callback in self.post_actuator_callbacks:
             callback()
-        contacts = self.contacts if self.collision_pipeline is not None or observables is not None else None
+        contacts = (
+            self.contacts
+            if self.collision_pipeline is not None or observables is not None or self.solver_observables is not None
+            else None
+        )
         self._run_solver_substeps(contacts, observables=observables)
 
     def _finish_step(self) -> None:
@@ -683,9 +981,13 @@ class NewtonBackend:
             for callback in self.state_force_callbacks:
                 callback(state)
             state_out = state if ops.single_state else self.state_1
-            # Only final-substep contact forces are read by sensors.
-            step_observables = observables if i == num_substeps - 1 else None
+            # Substep consumers need every solve; sensors alone need only the final one.
+            step_observables = self.solver_observables
+            if observables is not None and i == num_substeps - 1:
+                step_observables = observables
             ops.step(state, state_out, control, contacts, dt, observables=step_observables)
+            for callback in self.post_solver_substep_callbacks:
+                callback(contacts, step_observables, state_out, dt)
             if not ops.single_state:
                 if num_substeps % 2 == 1 and i == num_substeps - 1:
                     state.assign(self.state_1)
@@ -693,9 +995,10 @@ class NewtonBackend:
                     self.state_0, self.state_1 = self.state_1, self.state_0
             self.state_0.clear_forces()
             # Derived data read by the next substep's state-force callbacks must see this substep's state.
-            self.state_version += 1
+            self.timestamp += 1
             if collide_mid_loop and (i + 1) % collide_every == 0 and i + 1 < num_substeps:
-                self.collision_pipeline.collide(self.state_0, contacts)
+                horizon = min(collide_every, num_substeps - i - 1)
+                self.collision_pipeline.collide(self.state_0, contacts, dt=horizon * dt)
         ops.post_step(self.state_0)
 
     def _update_sensors(self) -> None:
@@ -732,13 +1035,19 @@ def capture_graph(device: wp.DeviceLike, fn: Callable[[], None], *, relaxed: boo
         with _paused_gc(), wp.ScopedCapture(device=device) as capture:
             fn()
         return capture.graph
-    stream = wp.get_stream(device)
+    # A blocking capture stream forbids concurrent legacy-stream transfers,
+    # including renderer or input uploads. ScopedStream retains the incoming
+    # dependency; graph replay still uses the caller's stream.
+    torch_device = wp.device_to_torch(device)
+    torch_stream = torch.cuda.Stream(device=torch_device)
+    stream = wp.stream_from_torch(torch_stream)
+    # Torch work that the caller runs on Warp's current stream moves with it, so the graph still records it.
+    torch_follows = torch.cuda.current_stream(torch_device).cuda_stream == wp.get_stream(device).cuda_stream
+    follow = torch.cuda.stream(torch_stream) if torch_follows else contextlib.nullcontext()
     mode = wp.CaptureMode.THREAD_LOCAL
     if relaxed:
-        # RTX uses the legacy CUDA stream. A nonblocking stream avoids implicit synchronization.
-        stream = wp.stream_from_torch(torch.cuda.Stream(device=wp.device_to_torch(device)))
         mode = wp.CaptureMode.RELAXED
-    with _paused_gc(), wp.ScopedStream(stream):
+    with _paused_gc(), wp.ScopedStream(stream), follow:
         with wp.ScopedCapture(stream=stream, capture_mode=mode) as capture:
             fn()
     return capture.graph

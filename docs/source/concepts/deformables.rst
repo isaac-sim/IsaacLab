@@ -100,8 +100,8 @@ A deformable is a mesh spawner with two extra fields:
 Each fragment writes one USD namespace, so a backend's properties are split across fragments:
 :class:`~isaaclab.sim.schemas.OmniPhysicsDeformableBodyCfg` carries the ``omniphysics:*`` body
 attributes (``mass``, ``kinematic_enabled``, ``deformable_body_enabled``),
-:class:`~isaaclab_physx.sim.schemas.PhysxDeformableBodyCfg` the PhysX solver attributes, and
-:class:`~isaaclab_physx.sim.schemas.PhysxSurfaceDeformableBodyCfg` the PhysX surface-only ones.
+:class:`~isaaclab_isaacsim.sim.schemas.PhysxDeformableBodyCfg` the PhysX solver attributes, and
+:class:`~isaaclab_isaacsim.sim.schemas.PhysxSurfaceDeformableBodyCfg` the PhysX surface-only ones.
 An empty slot creates the body with the active backend's defaults; add fragments only for
 properties you want to set. The backend applies its own deformable anchor schemas.
 
@@ -111,7 +111,7 @@ Wrap the spawner in a :class:`~isaaclab.assets.DeformableObjectCfg` to get a run
 
     import isaaclab.sim as sim_utils
     from isaaclab.assets import DeformableObjectCfg
-    from isaaclab_physx.sim.spawners.materials import PhysxDeformableBodyMaterialCfg
+    from isaaclab_isaacsim.sim.spawners.materials import PhysxDeformableBodyMaterialCfg
 
     cfg = DeformableObjectCfg(
         prim_path="/World/env_.*/Cube",
@@ -194,7 +194,7 @@ the deformable schema to the loaded prim, or modifies it in place if the prim al
 .. code-block:: python
 
     from isaaclab.sim.schemas import OmniPhysicsDeformableBodyCfg
-    from isaaclab_physx.sim.schemas import PhysxDeformableBodyCfg
+    from isaaclab_isaacsim.sim.schemas import PhysxDeformableBodyCfg
 
     cfg_usd = sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Objects/Teddy_Bear/teddy_bear.usd",
@@ -468,11 +468,7 @@ Cable rendering
 
 Cables render in the Kit viewport as ``UsdGeom.BasisCurves``. At render cadence the curve points are
 refreshed from the cable segment endpoints so the rendered shape always matches the simulation.
-
-.. note::
-    Curve points are synchronized through **CPU** Fabric because the RTX Hydra delegate does not
-    read GPU-backed Fabric arrays for ``BasisCurves`` (NVBug 6502662). Periodic curves are skipped
-    by the sync.
+The curve points stay on the simulation device. Periodic curves are skipped by the sync.
 
 Cable limitations
 ^^^^^^^^^^^^^^^^^
@@ -486,7 +482,6 @@ Cable limitations
   ball joint, so it constrains position only and the cable pivots freely at the anchor. Rigid plugs
   and end fittings that must transfer orientation are not representable.
 * **No damping knobs.** The four stiffness moduli are exposed; their damping counterparts are not.
-* **CPU-only render sync** (NVBug 6502662); periodic curves are not synced.
 
 .. note::
     An attachment joint is created only when the attachment stiffness is unauthored or infinite. A

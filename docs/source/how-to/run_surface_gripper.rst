@@ -8,14 +8,76 @@ Interacting with a surface gripper
 .. currentmodule:: isaaclab
 
 
-This tutorial shows how to interact with an articulated robot with a surface gripper attached to its end-effector in
-the simulation. It is a continuation of the :ref:`tutorial-interact-articulation` tutorial, where we learned how to
-interact with an articulated robot. In Isaac Lab 3.0 with Isaac Sim 6.x, surface grippers support only CPU
-simulation. Run this tutorial with ``--device cpu``.
+Isaac Lab can operate Newton suction tools and authored PhysX grippers. Both implementations use the
+same command and measured-state convention.
 
+Scene-owned grippers
+~~~~~~~~~~~~~~~~~~~~
 
-The Code
-~~~~~~~~
+Declare :class:`~isaaclab.assets.SurfaceGripperCfg` alongside the tool and payloads in an
+:class:`~isaaclab.scene.InteractiveSceneCfg`. The simulation backend determines which gripper
+implementation the scene creates.
+
+.. tab-set::
+
+   .. tab-item:: Newton MJWarp
+
+      Select a rigid tool body with ``prim_path`` and eligible payloads with ``target_prim_path``.
+      For acquisition, a payload must have one box collision shape. The tool's local +Z axis points
+      toward the payload, and ``tool_offset`` locates the pads relative to the tool body in meters.
+
+      .. code-block:: python
+
+         from isaaclab.assets import SurfaceGripperCfg
+         from isaaclab.scene import InteractiveSceneCfg
+         from isaaclab.utils import configclass
+
+         @configclass
+         class SortingSceneCfg(InteractiveSceneCfg):
+             suction = SurfaceGripperCfg(
+                 prim_path="{ENV_REGEX_NS}/Robot/.*/panda_hand",
+                 target_prim_path="{ENV_REGEX_NS}/Parcel.*",
+                 tool_offset=(0.0, 0.0, 0.105),
+                 pad_radius=0.012,
+                 pad_spacing=0.014,
+             )
+
+      The example models four suction pads. Contact must be within 6 mm to acquire and
+      breaks at 25 mm. Each pad has a maximum force of 4 N.
+
+   .. tab-item:: PhysX
+
+      Select the authored Isaac Sim surface-gripper prim with ``prim_path`` and run on CPU.
+      Leave Newton-only target and pad options at their defaults. Use
+      :class:`~isaaclab_isaacsim.assets.SurfaceGripperCfg` to set PhysX-specific limits.
+
+Access the configured gripper with ``scene["suction"]``. Commands above 0.3 close the gripper,
+commands below -0.3 open it, and commands in between leave the enabled vacuum state as it is.
+Measured state is -1 for open, 0 for closing, or 1 for sealed. The staged ``command`` and measured
+``state`` are Warp arrays.
+
+Stage commands with ``set_grippers_command_index()`` or ``set_grippers_command_mask()``, then apply
+them with ``scene.write_data_to_sim()`` before stepping the simulation. Call ``scene.update(dt)``
+after stepping. The scene also handles selected-environment resets. Manager-based tasks can
+use :class:`~isaaclab.envs.mdp.actions.SurfaceGripperBinaryActionCfg`, where negative policy
+actions close the gripper and nonnegative actions open it.
+
+For a runnable Newton MJWarp example, see :ref:`tutorial-conveyor-suction`.
+
+Managed environments close the scene grippers automatically. In a standalone scene, call
+``scene.close()`` before destroying the simulation. If the scene is inside an enclosing CUDA graph,
+discard the graph before closing it. Custom ``SurfaceGripperCfg.class_type`` constructors continue
+to receive the configuration argument. The scene passes its simulation context to the built-in factory.
+
+PhysX pick-and-place tutorial
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The rest of this guide walks through the PhysX gantry example. It builds on
+:ref:`tutorial-interact-articulation` and uses an authored surface gripper on each end effector.
+Use ``--device cpu`` to run it.
+
+The code
+--------
 
 The tutorial corresponds to the ``run_surface_gripper.py`` script in the ``scripts/tutorials/01_assets``
 directory.
@@ -28,9 +90,6 @@ directory.
       :emphasize-lines: 58-82, 126-127, 130-144, 149-152
       :linenos:
 
-
-The Code Explained
-~~~~~~~~~~~~~~~~~~
 
 Designing the scene
 -------------------
@@ -45,7 +104,7 @@ check out the USD file for the gripper found on Isaaclab's Nucleus.
 
 For the pick-and-place robot, we use its pre-defined configuration object, you can find out more about it in the
 :ref:`how-to-write-articulation-config` tutorial. For the surface gripper, we also need to create a configuration
-object. Instantiate :class:`~isaaclab_physx.assets.SurfaceGripperCfg` and pass it the relevant parameters.
+object. Instantiate :class:`~isaaclab_isaacsim.assets.SurfaceGripperCfg` and pass it the relevant parameters.
 
 The available parameters are:
 
@@ -57,7 +116,7 @@ The available parameters are:
 As seen in the previous tutorial, we can spawn the articulation into the scene in a similar fashion by creating
 an instance of the :class:`assets.Articulation` class by passing the configuration object to its constructor. The same
 principle applies to the surface gripper. Passing its configuration to
-:class:`~isaaclab_physx.assets.SurfaceGripper` creates the surface gripper so it can be added to the scene.
+:class:`~isaaclab_isaacsim.assets.SurfaceGripper` creates the surface gripper so it can be added to the scene.
 In practice, the object is initialized when the play button is pressed.
 
 .. literalinclude:: ../../../scripts/tutorials/01_assets/run_surface_gripper.py
@@ -75,7 +134,7 @@ step the simulation, and update the articulation's internal buffers.
 Resetting the simulation
 """"""""""""""""""""""""
 
-Call :meth:`~isaaclab_physx.assets.SurfaceGripper.reset` to reset its internal buffers and caches.
+Call :meth:`~isaaclab_isaacsim.assets.SurfaceGripper.reset` to reset its internal buffers and caches.
 
 .. literalinclude:: ../../../scripts/tutorials/01_assets/run_surface_gripper.py
    :language: python
@@ -91,15 +150,9 @@ Applying commands to the surface gripper involves two steps:
 2. *Writing the data to the simulation*: Based on the surface gripper's configuration, this step handles writes the
    converted values to the PhysX buffer.
 
-In this tutorial, we use a random command to set the gripper's command. The gripper behavior is as follows:
-
-- -1 < command < -0.3 --> Gripper is Opening
-- -0.3 < command < 0.3 --> Gripper is Idle
-- 0.3 < command < 1 --> Gripper is Closing
-
 At every step, we randomly sample commands and set them to the gripper by calling the
-:meth:`~isaaclab_physx.assets.SurfaceGripper.set_grippers_command` method. After setting the commands, we call the
-:meth:`~isaaclab_physx.assets.SurfaceGripper.write_data_to_sim` method to write the data to the PhysX buffer.
+:meth:`~isaaclab_isaacsim.assets.SurfaceGripper.set_grippers_command` method. After setting the commands, we call the
+:meth:`~isaaclab_isaacsim.assets.SurfaceGripper.write_data_to_sim` method to write the data to the PhysX buffer.
 Finally, we step the simulation.
 
 .. literalinclude:: ../../../scripts/tutorials/01_assets/run_surface_gripper.py
@@ -111,14 +164,9 @@ Finally, we step the simulation.
 Updating the state
 """"""""""""""""""
 
-Query :attr:`~isaaclab_physx.assets.SurfaceGripper.state` to read the current gripper state.
-This property returns a tensor of size ``[num_envs]`` where each element is either ``-1``, ``0``, or ``1``
-corresponding to the gripper state. This property is refreshed by
-:meth:`~isaaclab_physx.assets.SurfaceGripper.update`.
-
-- ``-1`` --> Gripper is Open
-- ``0`` --> Gripper is Closing
-- ``1`` --> Gripper is Closed
+Query :attr:`~isaaclab_isaacsim.assets.SurfaceGripper.state` to read the current gripper state.
+This property returns one measured state per environment and is refreshed by
+:meth:`~isaaclab_isaacsim.assets.SurfaceGripper.update`.
 
 .. literalinclude:: ../../../scripts/tutorials/01_assets/run_surface_gripper.py
    :language: python
@@ -126,8 +174,8 @@ corresponding to the gripper state. This property is refreshed by
    :end-at: surface_gripper_state = surface_gripper.state
 
 
-The Code Execution
-~~~~~~~~~~~~~~~~~~
+Running the tutorial
+--------------------
 
 
 To run the code and see the results, let's run the script from the terminal:
@@ -138,7 +186,7 @@ To run the code and see the results, let's run the script from the terminal:
 
       .. code-block:: bash
 
-         uv run python scripts/tutorials/01_assets/run_surface_gripper.py --device cpu --viz kit
+         uv run --extra isaacsim python scripts/tutorials/01_assets/run_surface_gripper.py --device cpu --viz kit
 
 
 This command should open a stage with a ground plane, lights, and two pick-and-place robots.
@@ -164,16 +212,3 @@ through the packaged demo command. You can run it as:
 
          # Spawn many pick-and-place robots and perform a pick-and-place task
          uv run --extra isaacsim isaaclab demo pick-and-place --viz kit
-
-Register :class:`~isaaclab_physx.assets.SurfaceGripper` instances in an
-:class:`~isaaclab.scene.InteractiveScene` to let the scene call
-:meth:`~isaaclab_physx.assets.SurfaceGripper.write_data_to_sim` and
-:meth:`~isaaclab_physx.assets.SurfaceGripper.update` automatically.
-
-.. code-block:: python
-
-   # Create a scene
-   scene = InteractiveScene()
-
-   # Register the surface gripper
-   scene.surface_grippers["gripper"] = surface_gripper

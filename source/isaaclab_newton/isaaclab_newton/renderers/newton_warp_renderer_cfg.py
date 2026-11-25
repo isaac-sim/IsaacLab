@@ -64,17 +64,17 @@ class NewtonWarpRendererCfg(RendererCfg):
     - ``"none"``: leave background depth at ``0.0``.
     - ``"zero"``: leave background depth at ``0.0`` (identical to ``"none"`` for this backend).
     - ``"max"``: replace background depth with the far clip [m], mirroring
-      :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.depth_clipping_behavior`.
+      :attr:`~isaaclab_isaacsim.renderers.IsaacRtxRendererCfg.depth_clipping_behavior`.
     """
 
     create_default_light: bool = True
-    """Create a default directional light source in the scene."""
+    """Create a fallback directional light when the scene has no authored lights."""
 
     semantic_filter: str | list[str] = "*:*"
     """A string or list specifying a semantic filter predicate for :attr:`semantic_segmentation` and
     :attr:`instance_segmentation`. Defaults to ``"*:*"`` (all semantic types and labels).
 
-    Mirrors :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.semantic_filter`. If a string, it is a
+    Mirrors :attr:`~isaaclab_isaacsim.renderers.IsaacRtxRendererCfg.semantic_filter`. If a string, it is a
     disjunctive-normal-form predicate over ``(semantic_type, labels)`` clauses separated by ``;``. Each
     clause is ``type:labels`` where ``labels`` supports ``&`` (and), ``|`` / ``,`` (or), ``!`` (not), and
     ``*`` (any); ``type`` may be ``*``. For example ``"class:* ; * : shelf"`` keeps every prim with a
@@ -109,7 +109,7 @@ class NewtonWarpRendererCfg(RendererCfg):
     """Optional mapping from ``"type:label"`` to an explicit RGBA color tuple for
     :attr:`semantic_segmentation` when :attr:`colorize_semantic_segmentation` is True. Defaults to ``{}``.
 
-    Mirrors :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.semantic_segmentation_mapping`. For
+    Mirrors :attr:`~isaaclab_isaacsim.renderers.IsaacRtxRendererCfg.semantic_segmentation_mapping`. For
     example ``{"class:cube": (255, 36, 66, 255)}`` forces cube-labeled pixels to that color. Labels absent
     from the mapping fall back to the deterministic palette shared with the RTX renderer.
     """

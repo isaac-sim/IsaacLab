@@ -31,11 +31,11 @@ from pxr import UsdPhysics
 
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
+from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg  # noqa: E402
+from isaaclab_isaacsim.sim.spawners.materials import PhysxRigidBodyMaterialCfg  # noqa: E402
 from isaaclab_ov import tensor_types as TT  # noqa: E402
 from isaaclab_ov.assets import RigidObject, RigidObjectCollection  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
-from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg  # noqa: E402
-from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
 from isaaclab import cloner  # noqa: E402
@@ -561,7 +561,7 @@ def test_rigid_object_collection_real_ovphysx_seams(scene: _RigidScene) -> None:
         ]
     )
     fused_materials = collection.reshape_data_to_view_3d(wp.from_torch(materials, dtype=wp.float32), 3, device="cpu")
-    collection.root_view.set_attribute(TT.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION, fused_materials)
+    collection.root_view.set_material_properties(fused_materials)
     raw_materials = wp.to_torch(collection.root_view.get_attribute(TT.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION))
     torch.testing.assert_close(raw_materials.reshape(3, 2, 3).transpose(0, 1), materials)
 

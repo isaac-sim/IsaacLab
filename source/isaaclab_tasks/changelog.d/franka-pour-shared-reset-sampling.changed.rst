@@ -1,2 +1,3 @@
-* Reused shared outcome history and Beta sampling utilities in Franka Pour while preserving its
-  existing configuration, cyclic replay coverage, and task-specific reset pipeline.
+* Changed Franka Pour to use :class:`~isaaclab.envs.reset.ResetStateSampler` for adaptive reset sampling.
+  Existing reset datasets, settings, and exact cyclic replay remain supported. The shared sampler
+  uses a different random stream, so historical seeded runs may draw different rows.

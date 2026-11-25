@@ -26,11 +26,11 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, VBDSolverCfg, XPBDSolverCfg
+from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
+from isaaclab_isaacsim.renderers.fabric import FabricBackend, FabricBackendCfg
+from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, VBDSolverCfg, XPBDSolverCfg
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
-from isaaclab_physx.renderers import IsaacRtxRendererCfg
-from isaaclab_physx.renderers.fabric import FabricBackend, FabricBackendCfg
-from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 from isaaclab_visualizers.kit import KitBackendCfg
 
 from pxr import Gf as UsdGf
@@ -431,7 +431,10 @@ def test_nested_articulation_follows_root_pose_writes():
 @pytest.mark.isaacsim_ci
 @pytest.mark.skipif(not wp.get_cuda_device_count(), reason="CUDA is unavailable")
 def test_fabric_geometry_sink_uses_sdp_world_points_and_frame_cadence(monkeypatch):
-    """Mesh, curve and cloud sinks consume only named SDP buffers, independent of Newton internals."""
+    """Mesh, curve and cloud sinks consume only named SDP buffers, independent of Newton internals.
+
+    On a GPU, the curve and cloud updates write their positions to Fabric without a copy to the CPU.
+    """
     cfg = SimulationCfg(device="cuda:0", physics=NewtonCfg(), visualizer_cfgs=[])
     with build_simulation_context(sim_cfg=cfg) as sim:
         parent = UsdGeom.Xform.Define(sim.stage, "/World/Geometry")
@@ -480,7 +483,18 @@ def test_fabric_geometry_sink_uses_sdp_world_points_and_frame_cadence(monkeypatc
             points[path] = wp.array([[4.0, 5.0, 6.0]] * 3, wp.vec3f, device=sim.device)
             source.points = points[path]
         provider.backend.geometry_timestamp += 1
-        fabric.update_geometries(provider, 0)
+        # The update copies int32 Fabric indices to the CPU. That is expected, so check only vec3f.
+        wp_copy = wp.copy
+
+        def copy_without_readback(dest, src, *args, **kwargs):
+            is_readback = src.dtype is wp.vec3f and src.device.is_cuda and dest.device.is_cpu
+            assert not is_readback, "A geometry update copied CUDA points to the CPU"
+            return wp_copy(dest, src, *args, **kwargs)
+
+        # Here the mesh and the curve update. Fail if the update copies their positions to the CPU.
+        with monkeypatch.context() as patch:
+            patch.setattr(wp, "copy", copy_without_readback)
+            fabric.update_geometries(provider, 0)
         wp.synchronize_device(sim.device)
         for name in ("Mesh", "Curve"):
             path = f"/World/Geometry/{name}"
@@ -489,7 +503,10 @@ def test_fabric_geometry_sink_uses_sdp_world_points_and_frame_cadence(monkeypatc
         fabric.update_geometries(provider, 1)
         fabric.update_geometries(provider, 2)
         np.testing.assert_allclose(_fabric_curve_points_world(str(cloud.GetPath()))[0], [1.0, 0.0, 2.0])
-        fabric.update_geometries(provider, 3)
+        # At frame 3, only the cloud updates. Fail if the update copies its positions to the CPU.
+        with monkeypatch.context() as patch:
+            patch.setattr(wp, "copy", copy_without_readback)
+            fabric.update_geometries(provider, 3)
         np.testing.assert_allclose(
             _fabric_curve_points_world(str(cloud.GetPath())), points["/World/Geometry/Cloud"].numpy(), atol=1.0e-6
         )
@@ -521,6 +538,9 @@ def test_cable_points_follow_newton_segments_after_step_and_reset():
         gravity=(0.0, 0.0, -9.81),
         physics=NewtonCfg(
             solver_cfg=VBDSolverCfg(iterations=2),
+            collision_cfg=NewtonCollisionPipelineCfg(
+                sdf_all_shapes=NewtonCollisionPipelineCfg.SDFAllShapesCfg(sdf_max_resolution=32)
+            ),
             num_substeps=1,
             use_cuda_graph=False,
         ),

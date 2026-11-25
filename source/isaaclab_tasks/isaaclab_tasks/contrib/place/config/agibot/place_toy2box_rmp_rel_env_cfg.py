@@ -6,9 +6,10 @@
 import os
 from dataclasses import MISSING
 
+from isaaclab_isaacsim.physics import PhysxCfg
+from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
-from isaaclab_physx.physics import PhysxCfg
-from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
+from isaaclab_ov.physics import OvPhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
@@ -34,7 +35,7 @@ from isaaclab.visualizers import VisualizerCfg
 from isaaclab_tasks.contrib.place import mdp as place_mdp
 from isaaclab_tasks.contrib.stack import mdp
 from isaaclab_tasks.contrib.stack.mdp import franka_stack_events
-from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.utils import PresetCfg, preset
 
 ##
 # Pre-defined configs
@@ -207,6 +208,13 @@ class PhysicsCfg(PresetCfg):
         gpu_total_aggregate_pairs_capacity=16 * 1024,
         friction_correlation_distance=0.00625,
     )
+    ovphysx = OvPhysxCfg(
+        friction_offset_threshold=0.04,
+        bounce_threshold_velocity=0.01,
+        gpu_found_lost_aggregate_pairs_capacity=1024 * 1024 * 4,
+        gpu_total_aggregate_pairs_capacity=16 * 1024,
+        friction_correlation_distance=0.00625,
+    )
     newton_mjwarp = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             solver="newton",
@@ -227,8 +235,8 @@ class PhysicsCfg(PresetCfg):
         num_substeps=2,
         debug_mode=False,
     )
-    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
-    default = isaacsim_physx
+    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
+    default = ovphysx
 
 
 def raise_if_unsupported_newton_physics(env_cfg: ManagerBasedRLEnvCfg) -> None:
@@ -236,7 +244,7 @@ def raise_if_unsupported_newton_physics(env_cfg: ManagerBasedRLEnvCfg) -> None:
     if isinstance(env_cfg.sim.physics, NewtonCfg):
         raise ValueError(
             "The Agibot A2D asset contains a generated convex collision mesh whose volume is too small for "
-            "Newton MJWarp. Re-run this task with physics=isaacsim_physx (the default)."
+            "Newton MJWarp. Re-run this task with physics=ovphysx (the default)."
         )
 
 
@@ -288,7 +296,61 @@ class RmpFlowAgibotPlaceToy2BoxEnvCfg(PlaceToy2BoxEnvCfg):
         self.events = EventCfgPlaceToy2Box()
 
         # Set Agibot as robot
-        self.scene.robot = replace(AGIBOT_A2D_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace(
+            AGIBOT_A2D_CFG,
+            prim_path="{ENV_REGEX_NS}/Robot",
+            body_ordering=preset(
+                default=(
+                    "base_link",
+                    "link_up_down_body",
+                    "link_pitch_body",
+                    "link_arm",
+                    "link_yaw_head",
+                    "base_link_l",
+                    "base_link_r",
+                    "link_pitch_head",
+                    "Link1_l",
+                    "Link1_r",
+                    "Link2_l",
+                    "Link2_r",
+                    "Link3_l",
+                    "Link3_r",
+                    "Link4_l",
+                    "Link4_r",
+                    "Link5_l",
+                    "Link5_r",
+                    "Link6_l",
+                    "Link6_r",
+                    "Link7_l",
+                    "Link7_r",
+                    "left_base_link",
+                    "right_base_link",
+                    "gripper_center",
+                    "left_Right_01_Link",
+                    "left_Left_01_Link",
+                    "right_Right_01_Link",
+                    "right_gripper_center",
+                    "right_Left_01_Link",
+                    "left_Right_00_Link",
+                    "left_Left_00_Link",
+                    "right_Right_00_Link",
+                    "right_Left_00_Link",
+                    "left_Right_Support_Link",
+                    "left_Left_Support_Link",
+                    "right_Right_Support_Link",
+                    "right_Left_Support_Link",
+                    "left_Right_Pad_Link",
+                    "left_Right_2_Link",
+                    "left_Left_Pad_Link",
+                    "left_Left_2_Link",
+                    "right_Right_Pad_Link",
+                    "right_Right_2_Link",
+                    "right_Left_Pad_Link",
+                    "right_Left_2_Link",
+                ),
+                newton_mjwarp=None,
+            ),
+        )
 
         # add table
         self.scene.table = AssetBaseCfg(

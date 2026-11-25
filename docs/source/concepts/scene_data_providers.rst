@@ -81,7 +81,7 @@ The system has three layers:
 
 3. Backend implementations:
 
-   - ``PhysxSceneDataBackend`` (internal to :mod:`isaaclab_physx.physics`) wraps PhysX's
+   - ``PhysxSceneDataBackend`` (internal to :mod:`isaaclab_isaacsim.physics`) wraps PhysX's
      ``RigidBodyView`` and exposes its transforms as :class:`SceneDataFormat.Transform`. When
      deformable bodies are present it also exposes flattened simulation nodal positions through
      :class:`SceneDataFormat.Points`.
@@ -114,7 +114,7 @@ managers nor requests a Newton model. Meshes, particle clouds, and cable curves 
 path.
 
 PhysX publishes native Fabric matrices through SDP without fetching packed poses.
-``isaaclab_physx.renderers.fabric.FabricBackend`` owns the stage and hierarchy
+``isaaclab_isaacsim.renderers.fabric.FabricBackend`` owns the stage and hierarchy
 handles, keyed by stage and device. After physics initializes, Kit, Isaac RTX, and
 explicit Fabric synchronization share the resource through
 ``sim.get_or_create_backend(FabricBackendCfg(stage=sim.stage, device=sim.device))``.
@@ -133,11 +133,14 @@ writable Fabric arrays. Renderers use this same path regardless of physics backe
 
 ``update_geometries(provider, frame)`` handles geometry. PhysX publishes native
 ``FabricPoints`` directly; other backends interpolate mesh points into GPU Fabric
-storage. Kit Hydra requires CPU destinations for ``Points`` and ``BasisCurves``,
-so SDP transfers them when their update interval elapses, without writing USD.
-World-space points reset their transform stack to avoid applying the body or
-environment pose twice. ``FabricMatrix44`` and ``FabricPoints`` hold arrays only,
-not bindings or engine handles.
+storage. SDP updates ``Points`` and ``BasisCurves`` when their update interval
+elapses, without writing USD. World-space points reset their transform stack to avoid
+applying the body or environment pose twice. ``FabricMatrix44`` and ``FabricPoints``
+hold arrays only, not bindings or engine handles.
+
+All geometry stays on the simulation device. This includes meshes, particle clouds such as
+MPM particles (``Points``), and cables (``BasisCurves``). On a GPU, Kit RTX reads the positions
+directly from GPU Fabric, so the CPU does not wait for the GPU.
 
 Newton backend
 --------------
@@ -244,7 +247,7 @@ consumer construction time, before the shared clone plan is built:
    * - Isaac RTX renderer
      - No
      - Yes
-   * - Newton Warp renderer
+   * - Newton Warp and Newton OptiX renderers
      - Yes
      - No
    * - OVRTX renderer

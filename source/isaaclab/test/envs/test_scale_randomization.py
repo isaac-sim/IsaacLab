@@ -16,7 +16,7 @@ launch_test_simulation()
 
 import pytest
 import torch
-from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
+from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
 
 from pxr import Sdf
 

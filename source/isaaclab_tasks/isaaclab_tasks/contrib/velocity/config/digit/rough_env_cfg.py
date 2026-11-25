@@ -5,8 +5,9 @@
 
 import math
 
+from isaaclab_isaacsim.physics import PhysxCfg
 from isaaclab_newton.sim.schemas import NewtonArticulationCfg
-from isaaclab_physx.physics import PhysxCfg
+from isaaclab_ov.physics import OvPhysxCfg
 
 from isaaclab.managers import (
     ObservationGroupCfg,
@@ -21,10 +22,20 @@ from isaaclab.utils import configclass, replace
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
 import isaaclab_tasks.core.velocity.mdp as mdp
-from isaaclab_tasks.core.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg, RoughPhysicsCfg
+from isaaclab_tasks.core.velocity.velocity_env_cfg import (
+    VELOCITY_SIM_CFG,
+    LocomotionVelocityRoughEnvCfg,
+    RoughPhysicsCfg,
+)
 from isaaclab_tasks.utils import PresetCfg, preset
 
-from isaaclab_assets.robots.agility import ARM_JOINT_NAMES, DIGIT_V4_CFG, LEG_JOINT_NAMES
+from isaaclab_assets.robots.agility import (
+    ARM_JOINT_NAMES,
+    DIGIT_V4_CFG,
+    DIGIT_V4_ISAACSIM_BODY_ORDER,
+    DIGIT_V4_ISAACSIM_JOINT_ORDER,
+    LEG_JOINT_NAMES,
+)
 
 _ROUGH_NEWTON_MJWARP = RoughPhysicsCfg().newton_mjwarp
 """Bound once so ``DigitPhysicsCfg`` does not construct ``RoughPhysicsCfg`` twice."""
@@ -39,12 +50,20 @@ class DigitPhysicsCfg(PresetCfg):
         gpu_found_lost_pairs_capacity=2**23,
         gpu_total_aggregate_pairs_capacity=2**23,
     )
-    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
+    ovphysx = OvPhysxCfg(
+        bounce_threshold_velocity=0.5,
+        friction_correlation_distance=0.025,
+        friction_offset_threshold=0.04,
+        gpu_max_rigid_patch_count=10 * 2**15,
+        gpu_found_lost_pairs_capacity=2**23,
+        gpu_total_aggregate_pairs_capacity=2**23,
+    )
+    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
     newton_mjwarp = replace(
         _ROUGH_NEWTON_MJWARP,
         solver_cfg=replace(_ROUGH_NEWTON_MJWARP.solver_cfg, njmax=5000, nconmax=2000),
     )
-    default = isaacsim_physx
+    default = ovphysx
 
 
 @configclass
@@ -242,7 +261,7 @@ class DigitActionsCfg:
 
 @configclass
 class DigitRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
-    sim: SimulationCfg = SimulationCfg(physics=DigitPhysicsCfg())
+    sim: SimulationCfg = replace(VELOCITY_SIM_CFG, physics=DigitPhysicsCfg())
     rewards: DigitRewards = DigitRewards()
     observations: DigitObservations = DigitObservations()
     terminations: DigitTerminationsCfg = DigitTerminationsCfg()
@@ -252,7 +271,12 @@ class DigitRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         super().__post_init__()
 
         # scene
-        self.scene.robot = replace(DIGIT_V4_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace(
+            DIGIT_V4_CFG,
+            prim_path="{ENV_REGEX_NS}/Robot",
+            joint_ordering=preset(default=DIGIT_V4_ISAACSIM_JOINT_ORDER, newton_mjwarp=None),
+            body_ordering=preset(default=DIGIT_V4_ISAACSIM_BODY_ORDER, newton_mjwarp=None),
+        )
         self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/torso_base"
         self.scene.contact_forces.history_length = self.decimation
         self.scene.contact_forces.update_period = self.sim.dt

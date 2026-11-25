@@ -34,7 +34,7 @@ EXTRA_SCRIPTS = (
     ROOT / "scripts" / "tools" / "convert_urdf.py",
     ROOT / "scripts" / "tools" / "convert_mjcf.py",
 )
-VISUALIZERS = (None, "kit", "newton_gl", "newton_rtx", "rerun", "viser")
+VISUALIZERS = (None, "kit", "newton", "rerun", "viser")
 """Visualizer selections of the launch matrix; None launches without ``--viz``."""
 DEFAULT_READINESS_PATTERN = r"Setup complete"
 MAX_OUTPUT_BYTES = 4 * 1024 * 1024
@@ -63,6 +63,7 @@ class ScriptOverride:
 
     args: tuple[str, ...] = ()
     readiness_pattern: str | None = None
+    run_to_completion: bool = False
     startup_timeout: float | None = None
     skip_reason: str | None = None
     fixed_physics_backend: str | None = None
@@ -79,6 +80,7 @@ class ScriptSpec:
     options: dict[str, tuple[str, ...]]
     args: tuple[str, ...]
     readiness_pattern: str | None
+    run_to_completion: bool
     startup_timeout: float | None
     skip_reason: str | None
     fixed_physics_backend: str | None
@@ -93,9 +95,14 @@ class ScriptSpec:
         return PROGRAMS_BY_PATH.get(self.path)
 
     @property
-    def finite(self) -> bool:
-        """Return whether CLI discovery or an explicit override bounds the script's steps."""
+    def has_step_limit(self) -> bool:
+        """Return whether the launch supports a step limit."""
         return "--max_steps" in self.options or "--max_steps" in self.args
+
+    @property
+    def finite(self) -> bool:
+        """Return whether the launched script must run to completion."""
+        return self.run_to_completion or self.has_step_limit
 
     @property
     def relative_path(self) -> str:
@@ -161,7 +168,7 @@ class LaunchCase:
             ]
         if "--num_envs" in self.spec.options and "--num_envs" not in self.spec.args:
             command.extend(("--num_envs", str(DEFAULT_BATCHED_NUM_ENVS)))
-        if self.spec.finite and "--max_steps" not in self.spec.args:
+        if self.spec.has_step_limit and "--max_steps" not in self.spec.args:
             command.extend(("--max_steps", str(DEFAULT_MAX_STEPS)))
         if self.physics_option is not None:
             command.extend((self.physics_option, self.physics_backend))
@@ -188,15 +195,39 @@ class SmokeResult:
 _NEWTON_MJCF = str(Path(importlib.util.find_spec("newton").origin).parent / "examples" / "assets" / "nv_ant.xml")
 
 OVERRIDES = {
+    "scripts/tutorials/05_controllers/run_osc.py": ScriptOverride(
+        fixed_physics_backend="ovphysx", visualizers=(None, "newton")
+    ),
+    "scripts/tutorials/05_controllers/run_diff_ik.py": ScriptOverride(
+        fixed_physics_backend="ovphysx", visualizers=(None, "newton")
+    ),
+    "scripts/tutorials/04_sensors/run_frame_transformer.py": ScriptOverride(
+        fixed_physics_backend="ovphysx", visualizers=(None, "newton")
+    ),
+    "scripts/tutorials/02_scene/create_scene.py": ScriptOverride(
+        fixed_physics_backend="ovphysx", visualizers=(None, "newton")
+    ),
+    "scripts/tutorials/01_assets/run_rigid_object.py": ScriptOverride(
+        fixed_physics_backend="ovphysx", visualizers=(None, "newton")
+    ),
+    "scripts/tutorials/01_assets/run_deformable_object.py": ScriptOverride(
+        fixed_physics_backend="ovphysx", visualizers=(None, "newton")
+    ),
+    "scripts/tutorials/01_assets/run_articulation.py": ScriptOverride(
+        fixed_physics_backend="ovphysx", visualizers=(None, "newton")
+    ),
+    "scripts/tutorials/01_assets/add_new_robot.py": ScriptOverride(
+        fixed_physics_backend="ovphysx", visualizers=(None, "newton")
+    ),
     "examples/demos/nist.py": ScriptOverride(
         fixed_physics_backend="newton_mjwarp",
-        visualizers=(None, "newton_gl", "newton_rtx"),
+        visualizers=(None, "newton"),
     ),
     "examples/sharpa_rj45.py": ScriptOverride(
         args=("--max_steps", "1800"),
         startup_timeout=600.0,
         fixed_physics_backend="newton_coupler",
-        visualizers=("newton_gl", "newton_rtx", "kit"),
+        visualizers=("newton", "kit"),
         required_modules=("isaaclab_contrib",),
     ),
     "examples/haply_teleoperation.py": ScriptOverride(
@@ -205,16 +236,6 @@ OVERRIDES = {
     "examples/heterogeneous_scene.py": ScriptOverride(args=("--num_task", "2")),
     "examples/deformables.py": ScriptOverride(
         case_skip_reasons={
-            (
-                "isaacsim_physx",
-                "default",
-                "newton_gl",
-            ): "Newton visualizer requires the Newton VBD physics backend",
-            (
-                "isaacsim_physx",
-                "default",
-                "newton_rtx",
-            ): "Newton visualizer requires the Newton VBD physics backend",
             ("isaacsim_physx", "default", "rerun"): "Rerun cannot import PhysX deformable attributes",
             ("isaacsim_physx", "default", "viser"): "Viser cannot import PhysX deformable attributes",
         }
@@ -223,72 +244,80 @@ OVERRIDES = {
     "examples/mpm/newton_mpm_twoway_coupling.py": ScriptOverride(
         args=("--max_steps", "2", "--voxel_size", "0.2"),
         fixed_physics_backend="newton_coupler",
-        visualizers=("newton_gl",),
+        visualizers=("newton",),
         required_modules=("isaaclab_contrib",),
     ),
     # Smoke launches retain every robot family and MPM solver path with smaller scenes.
     "examples/demos/zoo.py": ScriptOverride(args=("--num_envs", "1"), startup_timeout=600.0),
     "examples/demos/sonic.py": ScriptOverride(
         skip_reason="downloads released ONNX policy models and builds the full granular scene",
-        visualizers=(None, "kit", "newton_gl", "newton_rtx", "rerun", "viser"),
+        visualizers=(None, "kit", "newton", "rerun", "viser"),
     ),
     "examples/g1_terrain.py": ScriptOverride(
         args=("--task", "platforms"),
         skip_reason="downloads a published depth policy",
         fixed_physics_backend="newton_mjwarp",
-        visualizers=(None, "kit", "newton_gl", "newton_rtx", "rerun", "viser"),
+        visualizers=(None, "kit", "newton", "rerun", "viser"),
     ),
     "examples/demos/snowball_smash.py": ScriptOverride(
         args=("--voxel_size", "0.1"), fixed_physics_backend="newton_mpm"
     ),
-    "examples/demos/teapot_fill.py": ScriptOverride(args=("--voxel_size", "0.006"), fixed_physics_backend="newton_mpm"),
+    "examples/demos/teapot_fill.py": ScriptOverride(
+        args=("--voxel_size", "0.006"), fixed_physics_backend="newton_mpm", visualizers=("newton",)
+    ),
     "examples/rizon_sharpa_teapot.py": ScriptOverride(
         args=("--max_steps", "10"),
         fixed_physics_backend="newton_coupler",
-        visualizers=(None, "newton_gl"),
+        visualizers=(None, "newton"),
         required_modules=("isaaclab_contrib",),
     ),
     "examples/demos/rizon_sharpa_coffee.py": ScriptOverride(
         fixed_physics_backend="newton_coupler",
-        visualizers=(None, "newton_gl", "newton_rtx", "kit"),
+        visualizers=(None, "newton", "kit"),
+    ),
+    "scripts/tutorials/01_assets/run_conveyor_suction.py": ScriptOverride(
+        args=("--viz", "none"),
+        run_to_completion=True,
+        fixed_physics_backend="newton_mjwarp",
+        visualizers=(None,),
     ),
     "scripts/tutorials/08_mpm/material_parameters.py": ScriptOverride(
         args=("--max_steps", "2", "--variant_index", "0", "--voxel_size", "0.1"),
         fixed_physics_backend="newton_mpm",
-        visualizers=("none", "kit", "newton_gl", "newton_rtx"),
+        visualizers=("none", "kit", "newton"),
     ),
     "scripts/tutorials/08_mpm/rigid_body_equivalence.py": ScriptOverride(
         args=("--max_steps", "2", "--voxel_size", "0.1"),
         fixed_physics_backend="newton_coupler",
-        visualizers=("none", "kit", "newton_gl", "newton_rtx"),
+        visualizers=("none", "kit", "newton"),
         required_modules=("isaaclab_contrib",),
     ),
     "examples/mpm/g1_coupling.py": ScriptOverride(
         args=("--max_steps", "2"),
         skip_reason="downloads a published policy",
         fixed_physics_backend="newton_coupler",
-        visualizers=("none", "kit", "newton_gl", "newton_rtx"),
+        visualizers=("none", "kit", "newton"),
         required_modules=("isaaclab_contrib", "rsl_rl"),
     ),
     "scripts/tutorials/08_mpm/surface_reconstruction.py": ScriptOverride(
         args=("--max_steps", "2"),
         fixed_physics_backend="newton_mpm",
-        visualizers=("newton_gl", "newton_rtx"),
+        visualizers=("newton",),
     ),
     "examples/multi_asset.py": ScriptOverride(args=("--num_envs", "4")),
     "examples/demos/newton_viewer_block_and_tackle.py": ScriptOverride(
         fixed_physics_backend="newton_vbd",
-        visualizers=("newton_gl",),
+        visualizers=("newton",),
         required_modules=("isaaclab_contrib",),
     ),
     "examples/newton_viewer_dominoes.py": ScriptOverride(
         fixed_physics_backend="newton_xpbd",
-        visualizers=("newton_gl",),
+        visualizers=("newton",),
     ),
     "examples/tablecloth.py": ScriptOverride(
         args=("--speeds", "4.0", "0.5", "--max_steps", "2"),
         fixed_physics_backend="newton_vbd",
-        visualizers=("newton_gl", "kit", "newton_rtx"),
+        visualizers=("newton", "kit"),
     ),
     "examples/sensors/cameras.py": ScriptOverride(args=("--num_envs", "1"), startup_timeout=900.0),
     "examples/sensors/multi_mesh_raycaster.py": ScriptOverride(
@@ -300,10 +329,13 @@ OVERRIDES = {
     ),
     "examples/sensors/newton_raycast.py": ScriptOverride(
         fixed_physics_backend="newton_mjwarp",
-        visualizers=(None, "newton_gl", "rerun", "viser"),
+        visualizers=(None, "newton", "rerun", "viser"),
     ),
     "examples/demos/microduck_warehouse.py": ScriptOverride(fixed_physics_backend="newton_xpbd"),
-    "examples/demos/pick_and_place.py": ScriptOverride(visualizers=("kit",)),
+    "examples/sensors/foveated_camera.py": ScriptOverride(
+        fixed_physics_backend="newton_xpbd", visualizers=(None, "newton")
+    ),
+    "examples/demos/pick_and_place.py": ScriptOverride(visualizers=("newton",)),
     "examples/sensors/ppisp_camera.py": ScriptOverride(
         args=("--max_steps", "3", "--warmup_steps", "1", "--image_width", "64", "--image_height", "64"),
         startup_timeout=600.0,
@@ -322,29 +354,46 @@ OVERRIDES = {
         args=(_NEWTON_MJCF, str(Path(tempfile.gettempdir()) / "isaaclab_converter_smoke" / "mjcf")),
         readiness_pattern=r"Generated USD file:",
     ),
-    "scripts/tutorials/00_sim/create_empty.py": ScriptOverride(visualizers=(None, "kit")),
-    "scripts/tutorials/00_sim/launch_app.py": ScriptOverride(visualizers=(None, "kit")),
-    "scripts/tutorials/00_sim/log_time.py": ScriptOverride(visualizers=(None, "kit")),
-    "scripts/tutorials/00_sim/spawn_prims.py": ScriptOverride(visualizers=(None, "kit")),
-    "scripts/tutorials/01_assets/run_surface_gripper.py": ScriptOverride(
-        args=("--device", "cpu"), visualizers=(None, "kit")
+    "scripts/tutorials/00_sim/create_empty.py": ScriptOverride(
+        fixed_physics_backend="ovphysx", visualizers=(None, "newton")
     ),
-    "scripts/tutorials/03_envs/create_cartpole_base_env.py": ScriptOverride(readiness_pattern=r"Resetting environment"),
-    "scripts/tutorials/03_envs/create_cube_base_env.py": ScriptOverride(readiness_pattern=r"Mean position error"),
+    "scripts/tutorials/00_sim/log_time.py": ScriptOverride(
+        fixed_physics_backend="ovphysx", visualizers=(None, "newton")
+    ),
+    "scripts/tutorials/00_sim/spawn_prims.py": ScriptOverride(
+        fixed_physics_backend="ovphysx", visualizers=(None, "newton")
+    ),
+    "scripts/tutorials/01_assets/run_surface_gripper.py": ScriptOverride(
+        args=("--device", "cpu"), visualizers=(None, "newton")
+    ),
+    "scripts/tutorials/03_envs/create_cartpole_base_env.py": ScriptOverride(
+        readiness_pattern=r"Resetting environment", fixed_physics_backend="ovphysx", visualizers=(None, "newton")
+    ),
+    "scripts/tutorials/03_envs/create_cube_base_env.py": ScriptOverride(
+        readiness_pattern=r"Mean position error", fixed_physics_backend="ovphysx", visualizers=(None, "newton")
+    ),
     "scripts/tutorials/03_envs/create_quadruped_base_env.py": ScriptOverride(
-        readiness_pattern=r"Resetting environment"
+        readiness_pattern=r"Resetting environment", fixed_physics_backend="ovphysx", visualizers=(None, "newton")
     ),
     "scripts/tutorials/03_envs/policy_inference_in_usd.py": ScriptOverride(
         skip_reason="requires a user-supplied TorchScript checkpoint"
     ),
     "scripts/tutorials/03_envs/run_cartpole_rl_env.py": ScriptOverride(readiness_pattern=r"Resetting environment"),
-    "scripts/tutorials/04_sensors/add_sensors_on_robot.py": ScriptOverride(args=("--enable_cameras",)),
-    "scripts/tutorials/04_sensors/run_ray_caster.py": ScriptOverride(visualizers=(None, "kit")),
-    "scripts/tutorials/04_sensors/run_ray_caster_camera.py": ScriptOverride(visualizers=(None, "kit")),
-    "scripts/tutorials/04_sensors/run_usd_camera.py": ScriptOverride(visualizers=(None, "kit")),
+    "scripts/tutorials/04_sensors/add_sensors_on_robot.py": ScriptOverride(
+        fixed_physics_backend="ovphysx", visualizers=(None, "newton")
+    ),
+    "scripts/tutorials/04_sensors/run_ray_caster.py": ScriptOverride(
+        fixed_physics_backend="ovphysx", visualizers=(None, "newton")
+    ),
+    "scripts/tutorials/04_sensors/run_ray_caster_camera.py": ScriptOverride(
+        fixed_physics_backend="ovphysx", visualizers=(None, "newton")
+    ),
+    "scripts/tutorials/04_sensors/run_usd_camera.py": ScriptOverride(
+        fixed_physics_backend="ovphysx", visualizers=(None, "newton")
+    ),
     "scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py": ScriptOverride(
         readiness_pattern=r"Gym action space",
-        visualizers=("kit", "newton_gl"),
+        visualizers=("kit", "newton"),
     ),
 }
 
@@ -378,6 +427,7 @@ def discover_specs() -> list[ScriptSpec]:
                     options=options,
                     args=override.args,
                     readiness_pattern=readiness_pattern,
+                    run_to_completion=override.run_to_completion,
                     startup_timeout=override.startup_timeout,
                     skip_reason=override.skip_reason,
                     fixed_physics_backend=override.fixed_physics_backend,
@@ -460,7 +510,7 @@ def backend_is_available(backend: str) -> bool:
     if backend == "isaac_rtx":
         return importlib.util.find_spec("isaacsim") is not None or (ROOT / "_isaac_sim").exists()
     if backend in {"physx", "isaacsim_physx"}:
-        package = "isaaclab_physx"
+        package = "isaaclab_isaacsim"
     elif backend == "ovphysx":
         # The Isaac Lab wrapper is installed without its OVPhysX runtime unless the ov extra is requested.
         return importlib.util.find_spec("isaaclab_ov") is not None and importlib.util.find_spec("ovphysx") is not None
@@ -482,10 +532,8 @@ def visualizer_is_available(visualizer: str | None) -> bool:
         return importlib.util.find_spec("isaacsim") is not None or (ROOT / "_isaac_sim").exists()
     if importlib.util.find_spec("isaaclab_visualizers") is None:
         return False
-    if visualizer in {"newton", "newton_gl", "newton_rtx"}:
-        if importlib.util.find_spec("isaaclab_newton") is None:
-            return False
-        return visualizer != "newton_rtx" or importlib.util.find_spec("ovrtx") is not None
+    if visualizer == "newton":
+        return importlib.util.find_spec("isaaclab_newton") is not None
     return importlib.util.find_spec(visualizer) is not None
 
 

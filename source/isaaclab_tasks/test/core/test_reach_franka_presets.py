@@ -9,13 +9,13 @@ from types import SimpleNamespace
 import pytest
 import torch
 from gymnasium.envs.registration import registry
+from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
 from isaaclab_newton.controllers.ik.newton_ik_objectives_cfg import NewtonIKPoseObjectiveCfg
 from isaaclab_newton.sim.schemas import MujocoRigidBodyCfg
-from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.envs.mdp as mdp
 from isaaclab.actuators import IdealPDActuatorCfg
-from isaaclab.utils import to_dict, validate
+from isaaclab.utils import replace, to_dict, validate
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config
@@ -294,4 +294,37 @@ def test_reach_newton_ik_rejects_physx():
     cfg = _load_env_cfg("newton_ik", "isaacsim_physx")
 
     with pytest.raises(ValueError, match="requires a Newton physics preset"):
+        validate(cfg)
+
+
+def test_reach_constructor_preserves_declared_simulation():
+    """Inherited initialization must preserve the caller's declared physics and timing."""
+    from isaaclab_tasks.core.reach.config.franka.franka_reach_env_cfg import FrankaReachEnvCfg
+    from isaaclab_tasks.core.reach.reach_env_cfg import REACH_SIM_CFG, ReachPhysicsCfg
+
+    sim = replace(REACH_SIM_CFG, dt=0.01, render_interval=2, physics=ReachPhysicsCfg())
+    cfg = FrankaReachEnvCfg(sim=sim, decimation=2)
+    assert cfg.sim.dt == 0.01
+    assert cfg.sim.render_interval == cfg.decimation == 2
+    assert isinstance(cfg.sim.physics, ReachPhysicsCfg)
+
+
+@pytest.mark.parametrize(
+    ("task", "selection", "reason"),
+    [
+        ("Isaac-Reach-Franka", "presets=hold", "does not support the 'hold' preset"),
+        ("Isaac-Reach-Franka", "presets=diffik", "requires the Franka joint-position action"),
+        ("Isaac-Reach-Franka", "presets=newton_ik", "requires the Franka joint-position action"),
+        ("Isaac-Reach-Franka-OSC", None, "requires the Franka joint-position action"),
+    ],
+)
+def test_reach_neural_physics_rejects_what_the_model_was_not_recorded_with(task, selection, reason, tmp_path):
+    """The neural arm model stands for the joint-position-controlled arm with its nominal gains."""
+    checkpoint = tmp_path / "model.pt"
+    checkpoint.touch()
+    overrides = ["physics=newton_nerd", f"env.sim.physics.solver_cfg.checkpoint={checkpoint}"]
+    # The joint-position task on the model is accepted, so a rejection below is due to the selection.
+    validate(resolve_task_config("Isaac-Reach-Franka", None, overrides=overrides)[0])
+    cfg, _ = resolve_task_config(task, None, overrides=[*overrides, *([selection] if selection else [])])
+    with pytest.raises(ValueError, match=reason):
         validate(cfg)

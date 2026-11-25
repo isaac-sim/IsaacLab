@@ -25,7 +25,7 @@ import pytest
 import torch
 from golden_image import compare_to_golden
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
-from isaaclab_physx.renderers import IsaacRtxRendererCfg
+from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
 from isaaclab_visualizers.kit import KitBackendCfg
 from isaaclab_visualizers.newton import NewtonGLBackendCfg
 from isaaclab_visualizers.rerun import RerunBackendCfg
@@ -138,6 +138,11 @@ def test_visualizer_images_and_motion(scene, mode, physics, request, caplog, cap
     ]
     cfg.camera.renderer_cfg = IsaacRtxRendererCfg()
     with build_rendering_scene(cfg, physics, data_types=("rgb",), visualizer_cfgs=viewers) as runtime:
+        # Pin the tiled presentation fixture to the native lighting used by its image references.
+        # Kit and Newton share the stage but have different exposure; light import is tested separately.
+        sensor = runtime.sim.get_or_create_backend(cfg.gl_camera.renderer_cfg).newton_sensor
+        sensor.set_ambient_light((0.2, 0.2, 0.225), (0.05, 0.05, 0.06))
+        sensor.create_default_light(enable_shadows=cfg.gl_camera.renderer_cfg.enable_shadows)
         assert runtime.sim.is_playing()
         assert omni.timeline.get_timeline_interface().is_playing()
         kit, gl = runtime.sim.visualizers

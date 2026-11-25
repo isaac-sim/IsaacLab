@@ -13,9 +13,16 @@ from typing import Any
 
 import warp as wp
 
-from isaaclab.actuators import DCMotorCfg, IdealPDActuatorCfg, ImplicitActuatorCfg
+from isaaclab.actuators import (
+    ActuatorBase,
+    ActuatorNetLSTMCfg,
+    ActuatorNetMLPCfg,
+    DCMotorCfg,
+    IdealPDActuatorCfg,
+    ImplicitActuatorCfg,
+)
 from isaaclab.scene import InteractiveScene
-from isaaclab.sensors import BaseContactSensor
+from isaaclab.sensors import BaseContactSensor, BaseJointWrenchSensor
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp import ProxyArray
 
@@ -24,6 +31,11 @@ from isaaclab_experimental.mdp2 import EntitySchema, FieldSchema, FieldSelector,
 CAPTURED_ACTUATORS = (ImplicitActuatorCfg, IdealPDActuatorCfg, DCMotorCfg)
 """Actuator configs whose actuators MDP2 can step and reset inside CUDA graphs. Matched exactly: subclasses, such as
 delayed actuators, may draw from Torch's random generators on reset, which a replayed graph repeats."""
+
+NEWTON_NETWORK_ACTUATORS = (ActuatorNetLSTMCfg, ActuatorNetMLPCfg)
+"""Actuator network configs that MDP2 supports when Newton runs them as its own neural drives
+(``use_newton_actuators``), not as Isaac Lab's Torch models. Newton resets them. Newton cannot capture networks loaded
+from TorchScript checkpoints, so for them the environment runs the physics and the scene reset between its graphs."""
 
 
 class InteractiveSceneData:
@@ -39,16 +51,21 @@ class InteractiveSceneData:
       [rad/s], in the world frame;
     - ``body_link_pose_w``: ``wp.transformf`` per world and body, in the world frame.
 
-    Articulations also provide ``joint_pos``, ``joint_vel``, ``joint_acc`` [rad/s^2 or m/s^2], ``default_joint_pos``,
-    ``default_joint_vel``, ``joint_pos_target``, ``joint_effort_target`` and ``applied_effort`` [N·m or N],
-    ``soft_joint_vel_limits``, and ``soft_joint_pos_limits`` (``wp.vec2f``), per world and joint. The ``scene``
-    entity provides ``env_origins`` [m] and ``gravity_w`` (``wp.vec3f``, with magnitude) [m/s^2] per world.
+    Articulations provide ``body_com_vel_w`` (a world-frame ``wp.spatial_vectorf`` per world and body, linear [m/s]
+    then angular [rad/s]). They also provide ``joint_pos``, ``joint_vel``, ``joint_acc`` [rad/s^2 or m/s^2],
+    ``default_joint_pos``, ``default_joint_vel``, ``joint_pos_target``, ``joint_effort_target``,
+    ``applied_effort`` [N·m or N], ``soft_joint_vel_limits``, and ``soft_joint_pos_limits`` (``wp.vec2f``), per world
+    and joint. The ``scene`` entity provides ``env_origins`` [m] and ``gravity_w`` (``wp.vec3f``, with magnitude)
+    [m/s^2] per world.
 
     Contact sensors provide ``net_forces_w`` [N] and their histories ``net_forces_w_history`` and
     ``net_normal_forces_w_history`` (``wp.vec3f``, most recent first), and the air and contact times
     ``current_air_time``, ``last_air_time``, ``current_contact_time``, and ``last_contact_time``, per world and body.
     Sensors with filter objects also provide ``normal_force_matrix_w`` (``wp.vec3f``) [N] per world, body, and
     filter.
+
+    Joint wrench sensors provide ``force`` [N] and ``torque`` [N·m] as ``wp.vec3f`` per world and body, in the
+    incoming joint frame.
 
     Events and actions write fields in place, and :meth:`commit` makes the simulation see the writes to the joint and
     root state. Where the asset's data is the solver's own state, as Newton's joint positions and root state usually
@@ -114,17 +131,22 @@ class InteractiveSceneData:
                         f"MDP2 needs the solver's joint and body order, but '{name}' sets a joint or body ordering."
                     )
                 # Captured steps replay the actuators' masked resets, so they must not draw from Torch's random
-                # generators, as delayed actuators do for their delays: a graph would repeat the same draws.
+                # generators, as delayed actuators do for their delays: a graph would repeat the same draws. Actuator
+                # networks are supported where Newton runs them, not Isaac Lab's Torch models.
                 unsupported = sorted(
-                    group for group, cfg in asset.cfg.actuators.items() if type(cfg) not in CAPTURED_ACTUATORS
+                    group
+                    for group, cfg in asset.cfg.actuators.items()
+                    if type(cfg) not in CAPTURED_ACTUATORS
+                    and (type(cfg) not in NEWTON_NETWORK_ACTUATORS or isinstance(asset.actuators[group], ActuatorBase))
                 )
                 if unsupported:
                     raise ValueError(
-                        f"MDP2 replays actuator resets inside CUDA graphs, so it supports"
-                        f" {', '.join(cfg.__name__ for cfg in CAPTURED_ACTUATORS)} only, but '{name}' has the"
-                        f" actuator groups {unsupported}."
+                        f"MDP2 supports {', '.join(cfg.__name__ for cfg in CAPTURED_ACTUATORS)}, and"
+                        f" {', '.join(cfg.__name__ for cfg in NEWTON_NETWORK_ACTUATORS)} that Newton runs, but"
+                        f" '{name}' has the actuator groups {unsupported}."
                     )
                 views |= {
+                    "body_com_vel_w": data.body_com_vel_w,
                     "joint_pos": data.joint_pos,
                     "joint_vel": data.joint_vel,
                     "default_joint_pos": data.default_joint_pos,
@@ -151,6 +173,7 @@ class InteractiveSceneData:
                     FieldSchema(("joints",), writable=True),
                 )
                 fields["soft_joint_pos_limits"] = FieldSchema(("joints",), wp.vec2f)
+                fields["body_com_vel_w"] = FieldSchema(("bodies",), wp.spatial_vectorf)
                 names["joints"] = tuple(asset.joint_names)
                 state |= {
                     "joint_pos": lambda mask, a=asset, v=views["joint_pos"]: a.write_joint_position_to_sim_mask(
@@ -177,8 +200,16 @@ class InteractiveSceneData:
             entities[name] = EntitySchema(names=names, fields=fields)
             self._views[name] = views
 
-        # Contact sensors.
         for name, sensor in scene.sensors.items():
+            if isinstance(sensor, BaseJointWrenchSensor):
+                data = sensor.data
+                views = {"force": data.force, "torque": data.torque}
+                self._views[name] = {field: view for field, view in views.items() if view is not None}
+                entities[name] = EntitySchema(
+                    names={"bodies": tuple(sensor.body_names)},
+                    fields=dict.fromkeys(self._views[name], FieldSchema(("bodies",), wp.vec3f)),
+                )
+                continue
             if not isinstance(sensor, BaseContactSensor):
                 continue
 

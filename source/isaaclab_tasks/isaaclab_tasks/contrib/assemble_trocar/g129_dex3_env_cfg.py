@@ -3,10 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from isaaclab_isaacsim.physics import PhysxCfg
+from isaaclab_isaacsim.sim.schemas import PhysxCollisionCfg, PhysxRigidBodyCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
 from isaaclab_newton.sim.schemas import MujocoCollisionCfg
-from isaaclab_physx.physics import PhysxCfg
-from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxRigidBodyCfg
+from isaaclab_ov.physics import OvPhysxCfg
 
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
@@ -32,7 +33,7 @@ from isaaclab_tasks.contrib.assemble_trocar.config import (  # isort: skip
 from isaaclab_tasks.contrib.assemble_trocar.config.assemble_trocar_assets import (
     spawn_usd_with_newton_compatible_colliders,
 )
-from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.utils import PresetCfg, preset
 from isaaclab_tasks.utils.presets import set_isaac_rtx_global_settings
 
 joint_names = [
@@ -97,6 +98,66 @@ class AssembleTrocarSceneCfg(InteractiveSceneCfg):
     robot: ArticulationCfg = G1RobotPresets.g1_29dof_dex3_base_fix(
         init_pos=(-1.84919, 1.94, 0.81168), init_rot=(0.0, 0.0, 0.0, 1.0)
     )
+    robot.body_ordering = preset(
+        default=(
+            "pelvis",
+            "imu_in_pelvis",
+            "left_hip_pitch_link",
+            "pelvis_contour_link",
+            "right_hip_pitch_link",
+            "waist_yaw_link",
+            "left_hip_roll_link",
+            "right_hip_roll_link",
+            "waist_roll_link",
+            "left_hip_yaw_link",
+            "right_hip_yaw_link",
+            "torso_link",
+            "left_knee_link",
+            "right_knee_link",
+            "d435_link",
+            "head_link",
+            "imu_in_torso",
+            "left_shoulder_pitch_link",
+            "logo_link",
+            "mid360_link",
+            "right_shoulder_pitch_link",
+            "left_ankle_pitch_link",
+            "right_ankle_pitch_link",
+            "left_shoulder_roll_link",
+            "right_shoulder_roll_link",
+            "left_ankle_roll_link",
+            "right_ankle_roll_link",
+            "left_shoulder_yaw_link",
+            "right_shoulder_yaw_link",
+            "left_elbow_link",
+            "right_elbow_link",
+            "left_wrist_roll_link",
+            "right_wrist_roll_link",
+            "left_wrist_pitch_link",
+            "right_wrist_pitch_link",
+            "left_wrist_yaw_link",
+            "right_wrist_yaw_link",
+            "left_hand_camera_base_link",
+            "left_hand_palm_link",
+            "right_hand_camera_base_link",
+            "right_hand_palm_link",
+            "left_hand_index_0_link",
+            "left_hand_middle_0_link",
+            "left_hand_thumb_0_link",
+            "right_hand_index_0_link",
+            "right_hand_middle_0_link",
+            "right_hand_thumb_0_link",
+            "left_hand_index_1_link",
+            "left_hand_middle_1_link",
+            "left_hand_thumb_1_link",
+            "right_hand_index_1_link",
+            "right_hand_middle_1_link",
+            "right_hand_thumb_1_link",
+            "left_hand_thumb_2_link",
+            "right_hand_thumb_2_link",
+        ),
+        newton_mjwarp=None,
+    )
     robot.spawn.func = spawn_usd_with_newton_compatible_colliders
     # add camera configuration
     front_camera = CameraPresets.g1_front_camera()
@@ -150,6 +211,17 @@ class AssembleTrocarSceneCfg(InteractiveSceneCfg):
         ),
     )
     tray = ArticulationCfg(
+        body_ordering=preset(
+            default=(
+                "Box001",
+                "Box001_Handle001",
+                "Box001_Handle002",
+                "Box001_Prop003",
+                "Box001_Prop002",
+                "Box001_Prop001",
+            ),
+            newton_mjwarp=None,
+        ),
         prim_path="{ENV_REGEX_NS}/surgical_tray",
         spawn=UsdFileCfg(
             usd_path=f"{USD_ROOT}/Assets/SurgicalTray001/SurgicalTray001.usd",
@@ -399,7 +471,10 @@ class PhysicsCfg(PresetCfg):
     """Physics backend presets for the assemble_trocar task."""
 
     isaacsim_physx = PhysxCfg(bounce_threshold_velocity=0.01)
-    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
+    ovphysx = OvPhysxCfg(
+        friction_correlation_distance=0.025, friction_offset_threshold=0.04, bounce_threshold_velocity=0.01
+    )
+    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
     newton_mjwarp = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             integrator="implicitfast",
@@ -411,7 +486,7 @@ class PhysicsCfg(PresetCfg):
         ),
         collision_cfg=NewtonCollisionPipelineCfg(),
     )
-    default = isaacsim_physx
+    default = ovphysx
 
 
 @configclass

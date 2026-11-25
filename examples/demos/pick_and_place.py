@@ -27,15 +27,15 @@ parser.add_argument(
 )
 add_launcher_args(parser)
 # surface grippers only run on CPU, and the launcher applies --device to the environment
-parser.set_defaults(visualizer=["kit"], device="cpu")
+parser.set_defaults(visualizer=["newton"], device="cpu")
 args_cli = parser.parse_args()
 if args_cli.num_envs < 1:
     parser.error("--num_envs must be at least 1.")
 if args_cli.max_steps == 0 or args_cli.max_steps < -1:
     parser.error("--max_steps must be positive or -1.")
 
-from isaaclab_physx.assets import SurfaceGripperCfg
-from isaaclab_visualizers.kit import KitBackendCfg
+from isaaclab_isaacsim.assets import SurfaceGripperCfg
+from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
@@ -105,7 +105,7 @@ class PickAndPlaceEnvCfg(DirectRLEnvCfg):
         render_interval=decimation,
         use_fabric=True,
         enable_scene_query_support=True,
-        visualizer_cfgs=VisualizerCfg(backend=KitBackendCfg(origin_type="env", origin_env_index=0)),
+        visualizer_cfgs=VisualizerCfg(backend=NewtonGLBackendCfg()),
     )
     debug_vis = True
 

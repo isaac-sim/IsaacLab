@@ -87,7 +87,7 @@ def check_initial_state_recorder_term(env):
         assert are_states_equal, output_log
 
 
-@pytest.mark.parametrize("task_name", ["IsaacContrib-Lift-Cube-Franka"])
+@pytest.mark.parametrize("task_name", ["Isaac-Lift-Franka"])
 # Two environments, so that resetting the last one is a partial reset; recorder bookkeeping is device independent.
 @pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
 def test_action_state_recorder_terms(task_name, device, temp_dir):
@@ -98,7 +98,7 @@ def test_action_state_recorder_terms(task_name, device, temp_dir):
     dummy_dataset_filename = f"{uuid.uuid4()}.hdf5"
 
     # parse configuration
-    env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
+    env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs, overrides=["physics=isaacsim_physx"])
     # set recorder configurations for this test
     env_cfg.recorders = ActionStateRecorderManagerCfg()
     env_cfg.recorders.dataset_export_dir_path = temp_dir

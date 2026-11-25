@@ -9,22 +9,23 @@
 .. code-block:: bash
 
     # with allegro hand
-    uvx isaaclab example multi-mesh-ray-caster --num_envs 16 --asset_type allegro_hand
+    uvx --from 'isaaclab[ovrtx]' isaaclab example multi-mesh-ray-caster --num_envs 16 --asset_type allegro_hand
 
     # with anymal-D bodies
-    uvx isaaclab example multi-mesh-ray-caster --num_envs 16 --asset_type anymal_d
+    uvx --from 'isaaclab[ovrtx]' isaaclab example multi-mesh-ray-caster --num_envs 16 --asset_type anymal_d
 
     # with random multiple objects
-    uvx isaaclab example multi-mesh-ray-caster --num_envs 16 --asset_type objects
+    uvx --from 'isaaclab[ovrtx]' isaaclab example multi-mesh-ray-caster --num_envs 16 --asset_type objects
 
     # with Newton (MJWarp) physics
-    uvx isaaclab example multi-mesh-ray-caster --physics newton_mjwarp
+    uvx --from 'isaaclab[ovrtx]' isaaclab example multi-mesh-ray-caster --physics newton_mjwarp
 
 """
 
 from __future__ import annotations
 
 import argparse
+from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
 from isaaclab.app import add_launcher_args, launch_simulation
@@ -51,9 +52,8 @@ parser.add_argument(
 )
 parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
 add_launcher_args(parser)
-# a Newton viewer cannot build its model from this PhysX scene, so PhysX defaults to the Kit viewer
 physics_args, _ = parser.parse_known_args()
-parser.set_defaults(visualizer=["kit"] if physics_args.physics == "isaacsim_physx" else ["newton_gl"])
+parser.set_defaults(visualizer=["newton" if physics_args.physics == "isaacsim_physx" else "newton_rtx"])
 args_cli = parser.parse_args()
 if args_cli.max_steps == 0 or args_cli.max_steps < -1:
     parser.error("--max_steps must be positive or -1.")
@@ -63,7 +63,7 @@ if args_cli.physics == "newton_mjwarp" and "kit" in (args_cli.visualizer or []):
 import random
 
 import torch
-from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
+from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
@@ -311,14 +311,14 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
 def main():
     """Main function."""
     sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device)
-    with launch_simulation(sim_cfg, args_cli):
+    scene_cfg = RaycasterSensorSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0)
+    with launch_simulation(SimpleNamespace(sim=sim_cfg, scene=scene_cfg), args_cli):
         from isaaclab.scene import InteractiveScene
 
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
         sim.set_camera_view(eye=[3.5, 3.5, 3.5], target=[0.0, 0.0, 0.0])
         # design scene
-        scene_cfg = RaycasterSensorSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0)
         scene = InteractiveScene(scene_cfg)
 
         if args_cli.asset_type == "objects":

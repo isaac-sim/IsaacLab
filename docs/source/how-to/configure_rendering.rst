@@ -27,6 +27,10 @@ is task-specific.
      - Lightweight ray tracing; it has a smaller output set and does not provide motion vectors
        or full RTX material transport.
      - ``physics=newton_mjwarp renderer=newton_warp presets=rgb``
+   * - Newton OptiX
+     - You want Newton Warp's outputs traced with hardware ray tracing on an RTX GPU.
+     - Requires the ``optix`` extra; it does not render particles or deformable surfaces.
+     - ``physics=newton_mjwarp renderer=newton_optix presets=rgb``
    * - OVRTX
      - You need scalable kit-less RTX rendering and higher visual fidelity.
      - Uses more VRAM than Newton Warp. Choose RTX Minimal outputs when throughput matters more
@@ -130,15 +134,21 @@ that legacy renderer; use Newton Warp or OVRTX for new Newton and kit-less workl
    preserve the color output; the ``simple_shading_*`` output remains available but does not receive
    the RTX Minimal performance improvement.
 
+Render a foveated camera
+------------------------
+
+The experimental :doc:`foveated camera </source/experimental-features/foveated_camera>` (``fovi`` extra) uses the
+same renderer configurations as a regular camera.
+
 Overriding Specific Rendering Settings
 --------------------------------------
 
 RTX rendering settings can be overridden via
-:class:`~isaaclab_physx.renderers.IsaacRtxRendererGlobalSettingsCfg`.
+:class:`~isaaclab_isaacsim.renderers.IsaacRtxRendererGlobalSettingsCfg`.
 
 There are 2 ways to provide settings that override the defaults.
 
-1. :class:`~isaaclab_physx.renderers.IsaacRtxRendererGlobalSettingsCfg`
+1. :class:`~isaaclab_isaacsim.renderers.IsaacRtxRendererGlobalSettingsCfg`
    supports overriding specific settings via user-friendly setting names that
    map to underlying RTX settings.
    For example:
@@ -201,7 +211,7 @@ There are 2 ways to provide settings that override the defaults.
 
 
 2. For more control,
-   :class:`~isaaclab_physx.renderers.IsaacRtxRendererGlobalSettingsCfg`
+   :class:`~isaaclab_isaacsim.renderers.IsaacRtxRendererGlobalSettingsCfg`
    allows you to override any RTX setting by using the ``carb_settings``
    argument.
 
@@ -229,10 +239,10 @@ For performance reasons, we default to using DLSS for denoising, which generally
 This may result in renders of lower quality, which may be especially evident at lower resolutions.
 Due to this, we recommend using per-tile or per-camera resolution of at least 100 x 100.
 For renders at lower resolutions, we advise setting the ``antialiasing_mode`` attribute in
-:class:`~isaaclab_physx.renderers.IsaacRtxRendererGlobalSettingsCfg` to
+:class:`~isaaclab_isaacsim.renderers.IsaacRtxRendererGlobalSettingsCfg` to
 ``DLAA``, and also potentially enabling ``enable_dl_denoiser``. Both of these settings should help improve render
 quality, but also comes at a cost of performance. Additional rendering parameters can also be specified in
-:class:`~isaaclab_physx.renderers.IsaacRtxRendererGlobalSettingsCfg`.
+:class:`~isaaclab_isaacsim.renderers.IsaacRtxRendererGlobalSettingsCfg`.
 
 
 If you observe visual artifacts such as ghosting or disocclusion issues when using tiled rendering, you can try

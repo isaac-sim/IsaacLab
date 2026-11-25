@@ -20,8 +20,10 @@ symmetric finger command; all observable and reset state flows through the scene
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import newton
 import torch
@@ -29,7 +31,7 @@ import warp as wp
 from isaaclab_newton.cloner import newton_builder_world_hook
 from isaaclab_newton.physics import reset_mpm_solver_state
 
-from isaaclab.envs import ManagerBasedRLEnv
+from isaaclab.envs import ManagerBasedRLEnv, VecEnvObs
 from isaaclab.utils import index_fill_
 from isaaclab.utils import math as math_utils
 from isaaclab.utils.assets import retrieve_file_path
@@ -110,6 +112,7 @@ class FrankaPourEnv(ManagerBasedRLEnv):
     cfg: FrankaPourResetDatasetEnvCfg
 
     def __init__(self, cfg: FrankaPourResetDatasetEnvCfg, render_mode: str | None = None, **kwargs):
+        self._reset_dataset_reseed_pending = False
         configure_mpm_capacities(cfg)
         self._prepare_newton_extras(cfg)
         with newton_builder_world_hook(self._add_pour_world_to_builder):
@@ -118,6 +121,57 @@ class FrankaPourEnv(ManagerBasedRLEnv):
     def load_managers(self) -> None:
         self._setup_after_physics()
         super().load_managers()
+
+    def reset(
+        self,
+        env_ids: torch.Tensor | slice | None = slice(None),
+        *,
+        seed: int | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> tuple[VecEnvObs, dict]:
+        """Reset the environments and include the dataset sampler in explicit reseeding.
+
+        Args:
+            env_ids: Environment selection, or None for all environments.
+            seed: Optional seed for scene randomization and reset sampling.
+            options: Additional Gymnasium reset options.
+
+        Returns:
+            Observations and extras for the reset.
+        """
+        with self._reset_dataset_reseed(seed):
+            return super().reset(env_ids, seed=seed, options=options)
+
+    def reset_to(
+        self,
+        state: dict[str, dict[str, dict[str, torch.Tensor]]],
+        env_ids: torch.Tensor | slice | None = slice(None),
+        seed: int | None = None,
+        is_relative: bool = False,
+    ) -> tuple[VecEnvObs, dict]:
+        """Restore a scene state and include the dataset sampler in explicit reseeding.
+
+        Args:
+            state: Scene state in the format accepted by :meth:`InteractiveScene.reset_to`.
+            env_ids: Environment selection, or None for all environments.
+            seed: Optional seed for scene randomization and reset sampling.
+            is_relative: Whether the poses are relative to the environment origins.
+
+        Returns:
+            Observations and extras for the reset.
+        """
+        with self._reset_dataset_reseed(seed):
+            return super().reset_to(state, env_ids, seed, is_relative)
+
+    @contextmanager
+    def _reset_dataset_reseed(self, seed: int | None) -> Iterator[None]:
+        """Let the curriculum restart its streams after the base reset resolves the seed."""
+        previous = self._reset_dataset_reseed_pending
+        self._reset_dataset_reseed_pending = seed is not None
+        try:
+            yield
+        finally:
+            self._reset_dataset_reseed_pending = previous
 
     def _prepare_newton_extras(self, cfg: FrankaPourResetDatasetEnvCfg) -> None:
         """Cache task geometry bounds and Newton contact values from the resolved config.

@@ -26,8 +26,8 @@ Motor spec sheets:
     https://files.seeedstudio.com/products/Damiao/DM-J4310-en.pdf
 """
 
+from isaaclab_isaacsim.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 from isaaclab_newton.sim.schemas import NewtonArticulationCfg
-from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -171,3 +171,91 @@ OPENARM_UNI_HIGH_PD_CFG.actuators["openarm_arm"].damping = 80.0
 
 This configuration is useful for task-space control using differential IK.
 """
+
+
+OPENARM_UNI_ISAACSIM_JOINT_ORDER = (
+    "openarm_joint1",
+    "openarm_joint2",
+    "openarm_joint3",
+    "openarm_joint4",
+    "openarm_joint5",
+    "openarm_joint6",
+    "openarm_joint7",
+    "openarm_finger_joint1",
+    "openarm_finger_joint2",
+    "openarm_hand_joint",
+    "openarm_ee_tcp_joint",
+)
+"""Joint order recorded from Isaac Sim PhysX 6.2 for legacy checkpoints."""
+
+
+OPENARM_UNI_ISAACSIM_BODY_ORDER = (
+    "openarm_link0",
+    "openarm_link1",
+    "openarm_link2",
+    "openarm_link3",
+    "openarm_link4",
+    "openarm_link5",
+    "openarm_link6",
+    "openarm_link7",
+    "openarm_right_finger",
+    "openarm_left_finger",
+    "openarm_hand",
+    "openarm_ee_tcp",
+)
+"""Body order recorded from Isaac Sim PhysX 6.2 for legacy checkpoints."""
+
+
+OPENARM_BI_ISAACSIM_JOINT_ORDER = (
+    "openarm_left_joint1",
+    "openarm_right_joint1",
+    "openarm_left_joint2",
+    "openarm_right_joint2",
+    "openarm_left_joint3",
+    "openarm_right_joint3",
+    "openarm_left_joint4",
+    "openarm_right_joint4",
+    "openarm_left_joint5",
+    "openarm_right_joint5",
+    "openarm_left_joint6",
+    "openarm_right_joint6",
+    "openarm_left_joint7",
+    "openarm_right_joint7",
+    "openarm_left_finger_joint1",
+    "openarm_left_finger_joint2",
+    "openarm_left_hand",
+    "openarm_right_finger_joint1",
+    "openarm_right_finger_joint2",
+    "openarm_right_hand",
+    "openarm_left_ee_tcp_joint",
+    "openarm_right_ee_tcp_joint",
+)
+"""Joint order recorded from Isaac Sim PhysX 6.2 for legacy checkpoints."""
+
+
+OPENARM_BI_ISAACSIM_BODY_ORDER = (
+    "openarm_body_link",
+    "openarm_left_link1",
+    "openarm_right_link1",
+    "openarm_left_link2",
+    "openarm_right_link2",
+    "openarm_left_link3",
+    "openarm_right_link3",
+    "openarm_left_link4",
+    "openarm_right_link4",
+    "openarm_left_link5",
+    "openarm_right_link5",
+    "openarm_left_link6",
+    "openarm_right_link6",
+    "openarm_left_link7",
+    "openarm_right_link7",
+    "openarm_left_right_finger",
+    "openarm_left_left_finger",
+    "openarm_left_hand",
+    "openarm_right_right_finger",
+    "openarm_right_left_finger",
+    "openarm_right_hand",
+    "openarm_left_ee_tcp",
+    "openarm_right_ee_tcp",
+)
+"""Body order recorded from Isaac Sim PhysX 6.2 for legacy checkpoints."""

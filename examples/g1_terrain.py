@@ -16,16 +16,13 @@ import gymnasium as gym
 import numpy as np
 import torch
 import warp as wp
-from isaaclab_physx.physics import PhysxCfg
 
 wp.config.enable_backward = False
 
-from isaaclab_visualizers.kit import KitBackendCfg
 from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
-from isaaclab.physics import PhysxAutoCfg
 
 from isaaclab_tasks.utils.hydra import resolve_task_config, setup_preset_cli
 
@@ -68,9 +65,7 @@ def main() -> None:
         viewer.focal_length = aperture / (2 * math.tan(math.radians(cfg.camera_vfov) / 2))
         viewer.enable_markers = viewer.enable_live_plots = False
         if use_default_visualizer and not viewer.backend:
-            viewer.backend = (
-                KitBackendCfg() if isinstance(cfg.sim.physics, (PhysxCfg, PhysxAutoCfg)) else NewtonGLBackendCfg()
-            )
+            viewer.backend = NewtonGLBackendCfg()
     duration = args.seconds or cfg.duration
     step_dt = cfg.sim.dt * cfg.decimation
     num_steps = math.ceil(duration / step_dt)

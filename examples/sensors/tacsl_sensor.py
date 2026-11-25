@@ -19,7 +19,7 @@ tactile sensing with the GelSight finger setup.
         --num_envs 16 \
         --contact_object_type nut \
         --save_viz \
-        --viz kit
+        --viz newton
 
 """
 
@@ -70,6 +70,7 @@ parser.add_argument(
 )
 
 add_launcher_args(parser)
+parser.set_defaults(visualizer=["newton"])
 args_cli = parser.parse_args()
 if args_cli.num_envs < 1:
     parser.error("--num_envs must be at least 1.")
@@ -84,10 +85,10 @@ if args_cli.use_tactile_rgb:
 import cv2
 import numpy as np
 import torch
+from isaaclab_isaacsim.physics import PhysxCfg
+from isaaclab_isaacsim.sim.schemas import PhysxArticulationCfg, PhysxCollisionCfg, PhysxRigidBodyCfg
+from isaaclab_isaacsim.sim.spawners.materials import PhysxRigidBodyMaterialCfg
 from isaaclab_newton.sim.schemas import NewtonArticulationCfg
-from isaaclab_physx.physics import PhysxCfg
-from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxCollisionCfg, PhysxRigidBodyCfg
-from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg

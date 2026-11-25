@@ -6,18 +6,18 @@
 """Run SONIC over gravel and sand using Newton MPM or PhysX PBD.
 
 Usage:
-    uv sync --extra isaacsim --extra video
+    uv sync --extra ov --extra video
     uv pip install "huggingface-hub>=0.34" "onnxruntime-gpu>=1.22"
-    uv run --extra isaacsim --extra video isaaclab demo sonic
-    uv run isaaclab demo sonic --viz newton_gl
-    uv run --extra video isaaclab demo sonic --viz newton_gl --video
+    uv run --extra ov --extra video isaaclab demo sonic
+    uv run isaaclab demo sonic --viz newton
+    uv run --extra video isaaclab demo sonic --viz newton --video
 
 The released planner and tracker are downloaded from nvidia/GEAR-SONIC on Hugging
 Face under their upstream model license. The robot USD is downloaded from the
-public Isaac asset server. Newton runs offscreen and records with Kit/RTX by default,
+public Isaac asset server. Newton runs offscreen and records its RTX viewport by default,
 saving logs/sonic/sonic_0000.mp4. The full MPM scene can run much slower than real time.
 Pass ``--viz`` to select a visualizer; recording then requires ``--video``. PhysX opens
-Kit by default and also requires ``--video`` to record.
+the Newton visualizer by default and also requires ``--video`` to record.
 """
 
 from __future__ import annotations
@@ -31,11 +31,11 @@ import gymnasium as gym
 import numpy as np
 import torch
 import warp as wp
-from isaaclab_physx.physics import PhysxCfg
+from isaaclab_isaacsim.physics import PhysxCfg
 
 wp.config.enable_backward = False
 
-from isaaclab_visualizers.kit import KitBackendCfg
+from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
@@ -106,7 +106,7 @@ def main() -> None:
     if args.video:
         cfg.video_recorders = [
             VideoRecorderCfg(
-                source="viz:kit" if is_physx or offline_default else "viz",
+                source="viz:newton" if is_physx or offline_default else "viz",
                 output_dir=str(args.output),
                 output_filename_prefix="sonic",
                 video_length=num_steps,
@@ -115,7 +115,7 @@ def main() -> None:
         ]
     if offline_default:
         print(
-            f"Running SONIC offscreen with Kit/RTX; recording to {args.output.resolve() / 'sonic_0000.mp4'}.\n"
+            f"Running SONIC offscreen with Newton RTX; recording to {args.output.resolve() / 'sonic_0000.mp4'}.\n"
             "No simulation window will open. MPM can run much slower than real time; watch the terminal for progress.",
             flush=True,
         )
@@ -139,8 +139,11 @@ def main() -> None:
         viewer.eye, viewer.lookat = cfg.camera_eye, cfg.camera_target
         viewer.focal_length = aperture / (2 * math.tan(math.radians(cfg.camera_vfov) / 2))
         viewer.enable_markers = viewer.enable_live_plots = viewer.streaming_view = False
-        if use_default_visualizer and is_physx and not viewer.backend:
-            viewer.backend = KitBackendCfg()
+        if offline_default:
+            viewer.headless = True
+            viewer.backend = NewtonGLBackendCfg(initial_renderer="rtx")
+        elif use_default_visualizer and is_physx and not viewer.backend:
+            viewer.backend = NewtonGLBackendCfg()
     torch.set_num_threads(1)
     with launch_simulation(cfg, args):
         env = gym.make(task, cfg=cfg).unwrapped

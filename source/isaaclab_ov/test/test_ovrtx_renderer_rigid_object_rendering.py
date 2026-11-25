@@ -105,7 +105,7 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
     import ovrtx
     import torch
     from isaaclab_ov.sensors import ContactSensorCfg
-    from isaaclab_ppisp import PpispCfg
+    from isaaclab_ppisp import PpispProcessorCfg
 
     from pxr import UsdPhysics
 
@@ -113,7 +113,7 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
     from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
     from isaaclab.physics import PhysicsEvent
     from isaaclab.scene import InteractiveSceneCfg
-    from isaaclab.sensors import CameraCfg
+    from isaaclab.sensors import CameraCfg, ExposureCfg
     from isaaclab.utils import configclass, instantiate, replace
 
     monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1")
@@ -157,7 +157,8 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
             prim_path="{ENV_REGEX_NS}/OtherCamera",
             offset=replace(camera.offset, pos=(0.0, 0.0, 7.0)),
             data_types=["depth", "rgb", "rgb_hdr"],
-            isp_cfg=PpispCfg(),
+            tensor_processors=[PpispProcessorCfg()],
+            exposure=ExposureCfg(mode="neutral"),
             renderer_cfg=OVRTXRendererCfg(enable_shadows=True),
         )
         # Cameras can register their initialization callbacks before contact sensors.
@@ -266,7 +267,7 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
                 torch.testing.assert_close(sensor.data.normal_force_matrix_w.torch[:, :, 0], forces, atol=0.5, rtol=0.0)
 
             check_supporting_forces(1.0)
-            products = {sensor._render_data.render_product_path for sensor in (camera, other)}
+            products = {path for sensor in (camera, other) for path in sensor._render_data.render_product_paths}
             assert submissions and all(submitted == products for submitted in submissions)
             for sensor in (camera, other):
                 depth = sensor.data.output["depth"].torch[:, 16, 16, 0]

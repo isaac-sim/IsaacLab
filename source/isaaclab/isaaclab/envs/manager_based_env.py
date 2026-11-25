@@ -457,6 +457,9 @@ class ManagerBasedEnv:
         """
         if env_ids is None:
             env_ids = slice(None)
+        # terminal observations belong to the step that captured them
+        self.extras.pop("final_obs", None)
+        self.extras.pop("final_obs_every_step", None)
         # trigger recorder terms for pre-reset calls
         self.recorder_manager.record_pre_reset(env_ids)
 
@@ -517,6 +520,9 @@ class ManagerBasedEnv:
         """
         if env_ids is None:
             env_ids = slice(None)
+        # terminal observations belong to the step that captured them
+        self.extras.pop("final_obs", None)
+        self.extras.pop("final_obs_every_step", None)
         # trigger recorder terms for pre-reset calls
         self.recorder_manager.record_pre_reset(env_ids)
 
@@ -632,8 +638,9 @@ class ManagerBasedEnv:
     def close(self):
         """Cleanup for the environment."""
         if not self._is_closed:
-            # Stop simulation first to allow physics to clean up properly
+            # Deliver stop callbacks before detaching scene-owned grippers.
             self.sim.stop()
+            self.scene.close()
 
             # Drop cached observation tensors so they don't survive close via
             # gymnasium's wrapper chain.

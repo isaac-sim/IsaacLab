@@ -30,7 +30,9 @@ from leapp_test_tasks import MANAGER_TASK
 from isaaclab.envs import DirectRLEnv
 from isaaclab.managers import ActionManager, ObservationManager
 
-from isaaclab_tasks.utils import load_cfg_from_registry
+from isaaclab_tasks.utils import load_cfg_from_registry, resolve_presets
+
+pytestmark = pytest.mark.kitless
 
 _UR10_TASK = "Isaac-Reach-UR10"
 _DIRECT_TASK = "Isaac-Leapp-Direct-Tensor"
@@ -136,17 +138,22 @@ class _DirectTensorEnv(_TensorEnv, DirectRLEnv):
 
 
 @pytest.mark.parametrize(
-    ("backend", "task", "checkpoint_task", "direct"),
+    ("backend", "task", "checkpoint_task", "direct", "policy_kind"),
     [
-        pytest.param("rsl_rl", MANAGER_TASK, MANAGER_TASK, False, id="rsl-rl-cnn"),
-        pytest.param("rl_games", MANAGER_TASK, MANAGER_TASK, False, id="rl-games-lstm"),
-        pytest.param("skrl", MANAGER_TASK, MANAGER_TASK, False, id="skrl"),
-        pytest.param("sb3", MANAGER_TASK, MANAGER_TASK, False, id="sb3-dict-normalization"),
-        pytest.param("rsl_rl", _DIRECT_TASK, MANAGER_TASK, True, id="direct-rsl-rl"),
-        pytest.param("rsl_rl", _UR10_TASK, _UR10_TASK, False, id="ur10-rsl-rl"),
+        pytest.param("rsl_rl", MANAGER_TASK, MANAGER_TASK, False, "default", id="rsl-rl-cnn"),
+        pytest.param("rsl_rl", MANAGER_TASK, MANAGER_TASK, False, "distillation", id="rsl-rl-distillation"),
+        pytest.param("rsl_rl", MANAGER_TASK, MANAGER_TASK, False, "unsupported", id="rsl-rl-unsupported-policy"),
+        pytest.param("rl_games", MANAGER_TASK, MANAGER_TASK, False, "default", id="rl-games-lstm"),
+        pytest.param("skrl", MANAGER_TASK, MANAGER_TASK, False, "default", id="skrl"),
+        pytest.param("sb3", MANAGER_TASK, MANAGER_TASK, False, "default", id="sb3-dict-normalization"),
+        pytest.param("rsl_rl", _DIRECT_TASK, MANAGER_TASK, True, "default", id="direct-rsl-rl"),
+        pytest.param("rsl_rl", _UR10_TASK, _UR10_TASK, False, "default", id="ur10-rsl-rl"),
+        pytest.param("rsl_rl", _UR10_TASK, _UR10_TASK, False, "encoded", id="rsl-rl-encoded-observations"),
     ],
 )
-def test_leapp_export_flow(backend: str, task: str, checkpoint_task: str, direct: bool, tmp_path: Path, monkeypatch):
+def test_leapp_export_flow(
+    backend: str, task: str, checkpoint_task: str, direct: bool, policy_kind: str, tmp_path: Path, monkeypatch
+):
     """Load a native checkpoint, export the real backend policy, and replay changed observations."""
     from leapp import InferenceManager
 
@@ -157,9 +164,21 @@ def test_leapp_export_flow(backend: str, task: str, checkpoint_task: str, direct
     torch.set_num_threads(1)
     torch.manual_seed(42)
     np.random.seed(42)
-    agent_cfg = load_cfg_from_registry(checkpoint_task, f"{backend}_cfg_entry_point")
+    agent_entry = (
+        "rsl_rl_distillation_cfg_entry_point" if policy_kind == "distillation" else f"{backend}_cfg_entry_point"
+    )
+    agent_cfg = load_cfg_from_registry(checkpoint_task, agent_entry)
+    if policy_kind == "encoded":
+        from isaaclab_tasks.contrib.keyboard.agents.rsl_rl_ppo_cfg import SharedEncoderMLPModelCfg
+
+        agent_cfg.actor = SharedEncoderMLPModelCfg(
+            hidden_dims=[8],
+            activation="elu",
+            distribution_cfg=agent_cfg.actor.distribution_cfg,
+            encoder_cfg={"policy": SharedEncoderMLPModelCfg.EncoderCfg(hidden_dims=[8], latent_dim=4)},
+        )
     checkpoint = _CREATORS[backend](_CheckpointEnv(checkpoint_task, backend), agent_cfg, tmp_path)
-    env_cfg = load_cfg_from_registry(checkpoint_task, "env_cfg_entry_point")
+    env_cfg = resolve_presets(load_cfg_from_registry(checkpoint_task, "env_cfg_entry_point"))
     connected = backend == "rsl_rl" and task == MANAGER_TASK and not direct
     env = (
         _DirectTensorEnv(env_cfg, task=task, checkpoint_task=checkpoint_task, backend=backend)
@@ -210,6 +229,20 @@ def test_leapp_export_flow(backend: str, task: str, checkpoint_task: str, direct
             "--disable_graph_visualization",
         ]
     )
+    if policy_kind == "unsupported":
+        real_create_runner = module.create_rsl_rl_runner
+
+        def create_runner(*args, **kwargs):
+            runner = real_create_runner(*args, **kwargs)
+            # A native runner can return a custom nn.Module outside the supported MLPModel family.
+            runner.get_inference_policy = lambda device=None: torch.nn.Identity()
+            return runner
+
+        monkeypatch.setattr(module, "create_rsl_rl_runner", create_runner)
+        with pytest.raises(TypeError, match="LEAPP export requires"):
+            module.export_rsl_rl_agent(args, env_cfg, agent_cfg)
+        assert not (tmp_path / task / f"{task}.onnx").exists()
+        return
     assert getattr(module, f"export_{backend}_agent")(args, env_cfg, agent_cfg)
 
     artifact_dir = tmp_path / task
@@ -222,6 +255,10 @@ def test_leapp_export_flow(backend: str, task: str, checkpoint_task: str, direct
         model = description["models"][task]
         connections = {item["isaaclab_connection"] for item in model["inputs"] if "isaaclab_connection" in item}
         assert {"state:robot:joint_pos", "state:robot:joint_vel"} <= connections
+        for port in model["inputs"] + model["outputs"]:
+            if "isaaclab_connection" in port:
+                assert port["axes"][0] == {"kind": "system"}
+                assert len(port["axes"]) == len(port["shape"])
         action_output = next(item for item in model["outputs"] if item["name"] == "actions")
         assert action_output["isaaclab_connection"] == "write:robot:set_joint_position_target_index"
         if backend != "sb3":
@@ -239,7 +276,10 @@ def test_leapp_export_flow(backend: str, task: str, checkpoint_task: str, direct
             (item["name"], item["isaaclab_connection"]) for item in model["outputs"] if "isaaclab_connection" in item
         ] == [("actions", "write:robot:set_joint_position_target_index")]
         action_output = next(item for item in model["outputs"] if item["name"] == "actions")
-        assert action_output["element_names"] == [[f"joint_{index}" for index in range(10)]]
+        assert action_output["axes"] == [
+            {"kind": "system"},
+            {"kind": "element", "names": [f"joint_{index}" for index in range(10)]},
+        ]
         deployment = object.__new__(LeappDeploymentEnv)
         deployment.scene = env.scene
         deployment._leapp_desc = description
@@ -290,7 +330,7 @@ def test_fast_export_has_no_simulator_dependency():
     export_dir = Path(__file__).parent
     for obsolete_file in ("test_leapp_export_simulation.py", "leapp_synthetic_env.py", "leapp_synthetic_env_cfg.py"):
         assert not (export_dir / obsolete_file).exists()
-    forbidden_modules = {"isaaclab.sim", "isaaclab_newton", "isaaclab_physx"}
+    forbidden_modules = {"isaaclab.sim", "isaaclab_newton", "isaaclab_isaacsim"}
     forbidden_calls = {"launch_simulation", "SimulationContext"}
     for filename in ("test_leapp_export_flow.py", "leapp_tensor_env.py"):
         for node in ast.walk(ast.parse((export_dir / filename).read_text())):

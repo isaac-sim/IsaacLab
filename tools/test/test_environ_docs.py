@@ -83,6 +83,8 @@ def test_get_workflow_detects_custom_manager_based_subclass():
 
 
 def test_mdp2_tasks_use_the_mdp2_workflow_without_the_warp_frontend():
+    import isaaclab_tasks_experimental  # noqa: F401
+
     spec = gym.spec("Isaac-Cartpole-MDP2")
     workflow = get_workflow(spec.entry_point)
 
@@ -220,9 +222,32 @@ def test_format_presets_rst_keeps_ovphysx_on_physics():
     assert formatted == ("**physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``")
 
 
-def test_physics_names_for_docs_infers_physx_from_default():
+def test_physics_names_for_docs_infers_physx_from_default(monkeypatch):
+    from isaaclab_isaacsim.physics import PhysxCfg
+    from isaaclab_newton.physics import NewtonCfg
+
+    from isaaclab.sim import SimulationCfg
+    from isaaclab.utils import configclass
+
+    from isaaclab_tasks.utils import PresetCfg
+
+    @configclass
+    class LegacyPhysicsCfg(PresetCfg):
+        default = PhysxCfg()
+        newton_mjwarp = NewtonCfg()
+
+    @configclass
+    class LegacyEnvCfg:
+        sim = SimulationCfg(physics=LegacyPhysicsCfg())
+
+    task_name = "Isaac-Test-Legacy-Physics"
+    monkeypatch.setitem(
+        gym.registry,
+        task_name,
+        EnvSpec(id=task_name, entry_point=ManagerBasedRLEnv, kwargs={"env_cfg_entry_point": LegacyEnvCfg}),
+    )
     names = _physics_names_for_docs(
-        "IsaacContrib-Velocity-Flat-AnymalC",
+        task_name,
         {PresetTarget.PHYSICS: ["newton_mjwarp"], PresetTarget.DOMAIN: [], PresetTarget.RENDERER: []},
     )
     assert names == ["newton_mjwarp", "physx"]
@@ -231,7 +256,7 @@ def test_physics_names_for_docs_infers_physx_from_default():
 def test_collect_environment_doc_rows_reports_curated_mjwarp_support():
     # Exercise every explicit stack-task exclusion plus representative supported and guarded rows.
     expected = {
-        "IsaacContrib-Factory-Franka": False,
+        "IsaacContrib-NIST-Franka": False,
         "IsaacContrib-Place-Mug-Agibot-Left-Arm-RmpFlow": False,
         "IsaacContrib-Stack-Cube-Bin-Franka-IK-Rel-Mimic": False,
         "IsaacContrib-Stack-Cube-BlueGreen-Franka-IK-Rel": False,

@@ -4,13 +4,14 @@
 # SPDX-License-Identifier: BSD-3-Clause
 """Asimov-1 velocity configurations.
 
-The task builds on the shared rough-terrain velocity configuration and supports the Isaac Sim PhysX backend.
+The task builds on the shared rough-terrain velocity configuration and supports the OvPhysX backend.
 The policy is blind: the height scanner and the terrain curriculum of the shared configuration are disabled.
 """
 
 import math
 
-from isaaclab_physx.physics import PhysxCfg
+from isaaclab_isaacsim.physics import PhysxCfg
+from isaaclab_ov.physics import OvPhysxCfg
 
 import isaaclab.sim as sim_utils
 import isaaclab.terrains as terrain_gen
@@ -25,10 +26,15 @@ from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
-from isaaclab_tasks.core.velocity.velocity_env_cfg import EventsCfg, LocomotionVelocityRoughEnvCfg, MySceneCfg
+from isaaclab_tasks.core.velocity.velocity_env_cfg import (
+    VELOCITY_SIM_CFG,
+    EventsCfg,
+    LocomotionVelocityRoughEnvCfg,
+    MySceneCfg,
+)
 from isaaclab_tasks.utils import PresetCfg
 
 from isaaclab_assets.robots.asimov_1 import (
@@ -142,8 +148,14 @@ class Asimov1PhysicsCfg(PresetCfg):
     """Physics configuration for the Asimov-1 velocity environment."""
 
     isaacsim_physx = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
-    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
-    default = isaacsim_physx
+    ovphysx = OvPhysxCfg(
+        bounce_threshold_velocity=0.5,
+        friction_correlation_distance=0.025,
+        friction_offset_threshold=0.04,
+        gpu_max_rigid_patch_count=10 * 2**15,
+    )
+    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
+    default = ovphysx
 
 
 @configclass
@@ -485,7 +497,7 @@ class TerminationsCfg:
 class Asimov1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
     """Configuration for Asimov-1 rough-terrain velocity tracking."""
 
-    sim: SimulationCfg = SimulationCfg(physics=Asimov1PhysicsCfg())
+    sim: SimulationCfg = replace(VELOCITY_SIM_CFG, physics=Asimov1PhysicsCfg())
     scene: Asimov1SceneCfg = Asimov1SceneCfg(num_envs=4096, env_spacing=2.5)
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()

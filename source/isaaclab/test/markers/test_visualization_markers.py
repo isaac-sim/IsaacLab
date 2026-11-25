@@ -11,6 +11,7 @@ from isaaclab.visualizers import VisualizerCfg
 launch_test_simulation()
 
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import isaaclab_visualizers.newton.newton_visualization_markers as newton_markers
 import isaaclab_visualizers.newton.newton_visualizer as newton_visualizer
@@ -30,6 +31,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.cloner import make_clone_plan
 from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 from isaaclab.markers.config import FRAME_MARKER_CFG, POSITION_GOAL_MARKER_CFG
+from isaaclab.markers.vis_marker_registry import VisMarkerRegistry
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.utils.math import random_orientation
 from isaaclab.visualizers import ImageView, ImageViewCfg, PerspectiveCameraCfg
@@ -118,10 +120,10 @@ def test_marker_backend_selection(
 ):
     """Marker backend selection follows rendering state and active visualizer type.
 
-    Regression coverage for a bug where a non-Kit-pumping visualizer (e.g. ``newton_gl``) alone
+    Regression coverage for a bug where a non-Kit-pumping visualizer (e.g. ``newton``) alone
     would still spin up the Kit/USD marker backend (because it also makes ``sim.is_rendering``
     true), leaving raw USD marker writes undigested by Fabric. That desynced the point-instancer
-    prototype table and crashed the next PhysX GPU step. The ``newton_gl``-only case below
+    prototype table and crashed the next PhysX GPU step. The ``newton``-only case below
     (``rtx_sensors``/``xr_enabled``/``has_gui``/``has_offscreen_render`` all False) must select
     only the ``newton`` backend, never ``kit``.
     """
@@ -135,6 +137,7 @@ def test_marker_backend_selection(
             "has_gui": has_gui,
             "has_offscreen_render": has_offscreen_render,
             "visualizers": visualizers,
+            "vis_marker_registry": VisMarkerRegistry(),
             "get_setting": lambda self, key: settings.get(key, False),
         },
     )()
@@ -399,6 +402,7 @@ def test_visualizer_step_renders_markers_and_closes_frame(monkeypatch, caplog, m
         model=SimpleNamespace(num_envs=4, world_count=4, body_count=0),
         state_0=state,
         geometry_offsets={},
+        geometry_change_version=0,
         contacts=None,
     )
 
@@ -438,6 +442,7 @@ def test_visualizer_step_renders_markers_and_closes_frame(monkeypatch, caplog, m
     visualizer = cfg.backend.class_type(cfg)
     visualizer.backend = backend
     visualizer._is_initialized = True
+    visualizer._geometry_change_version = backend.geometry_change_version
     visualizer._viewer = viewer = Viewer()
     visualizer.current_image_view = ImageView(ImageViewCfg(source=PerspectiveCameraCfg()))
     visualizer._sim = SimpleNamespace(
@@ -482,7 +487,6 @@ def test_newton_marker_mesh_registration_is_per_viewer(monkeypatch: pytest.Monke
             self.meshes.append((name, vertices, indices, kwargs))
 
     monkeypatch.setattr(newton_markers, "_create_mesh", lambda cfg: _FakeMesh())
-    monkeypatch.setattr(newton_markers.wp, "array", lambda value, dtype=None, device=None: value)
 
     spec = newton_markers._NewtonMarkerSpec(renderer="mesh", mesh_type="box", mesh_params={"size": (1.0, 1.0, 1.0)})
     viewer_a = _FakeViewer()
@@ -532,10 +536,10 @@ class _FakeNewtonMarkerViewer:
             {
                 "batch_name": batch_name,
                 "mesh_name": mesh_name,
-                "xforms": xforms,
-                "scales": scales,
-                "colors": colors,
-                "materials": materials,
+                "xforms": xforms.numpy() if xforms is not None else None,
+                "scales": scales.numpy() if scales is not None else None,
+                "colors": colors.numpy() if colors is not None else None,
+                "materials": materials.numpy() if materials is not None else None,
                 "hidden": hidden,
             }
         )
@@ -544,9 +548,9 @@ class _FakeNewtonMarkerViewer:
         self.lines.append(
             {
                 "batch_name": batch_name,
-                "starts": starts,
-                "ends": ends,
-                "colors": colors,
+                "starts": starts.numpy() if starts is not None else None,
+                "ends": ends.numpy() if ends is not None else None,
+                "colors": colors.numpy() if colors is not None else None,
                 "width": width,
                 "hidden": hidden,
             }
@@ -560,20 +564,20 @@ def _make_newton_marker_for_render(
     marker_indices: torch.Tensor | None = None,
     visible: bool = True,
 ):
-    marker = object.__new__(newton_markers.NewtonVisualizationMarkers)
-    marker._registry = None
-    marker_cfg_type = type("MarkerCfg", (), {"visual_material": None})
-    marker.cfg = type("Cfg", (), {"markers": {name: marker_cfg_type() for name in marker_names}})()
-    marker.group_id = "/Visuals/marker::test"
-    marker.visible = visible
-    marker.translations = translations
-    marker.orientations = torch.tensor([[0.0, 0.0, 0.0, 1.0]], dtype=torch.float32).repeat(translations.shape[0], 1)
-    marker.scales = torch.ones((translations.shape[0], 3), dtype=torch.float32)
-    marker.marker_indices = marker_indices
-    marker.count = translations.shape[0]
-    marker._registered_meshes = set()
-    marker._warned_unsupported = set()
-    marker._marker_specs = {name: _NEWTON_MARKER_SPECS[name] for name in marker_names}
+    cfg = VisualizationMarkersCfg(
+        prim_path="/Visuals/marker",
+        markers={name: SimpleNamespace(visual_material=None) for name in marker_names},
+    )
+    with patch.object(
+        newton_markers, "_infer_newton_marker_cfg", side_effect=[_NEWTON_MARKER_SPECS[name] for name in marker_names]
+    ):
+        marker = newton_markers.NewtonVisualizationMarkers(cfg, visible=visible)
+    marker.visualize(
+        translations,
+        torch.tensor([[0.0, 0.0, 0.0, 1.0]], dtype=torch.float32).repeat(translations.shape[0], 1),
+        torch.ones((translations.shape[0], 3), dtype=torch.float32),
+        marker_indices,
+    )
     return marker
 
 
@@ -585,7 +589,6 @@ def _patch_newton_marker_render_deps(
     warp_world_offsets = wp.array(world_offsets, dtype=wp.vec3, device=world_offsets_device)
 
     monkeypatch.setattr(newton_markers, "_create_mesh", lambda cfg: _FakeNewtonMarkerMesh())
-    monkeypatch.setattr(newton_markers.wp, "array", lambda value, dtype=None, device=None: value)
     return warp_world_offsets
 
 
@@ -619,11 +622,12 @@ def test_newton_marker_render_uses_viewer_device(monkeypatch: pytest.MonkeyPatch
     marker.orientations = marker.orientations.to("cuda:0")
     marker.scales = marker.scales.to("cuda:0")
     viewer = _FakeNewtonMarkerViewer(world_offsets)
+    captured = []
+    viewer.log_instances = lambda *args, **kwargs: captured.append(args)
 
     marker.render(viewer, visible_env_ids=None, num_envs=4)
 
-    call = viewer.instances[0]
-    assert all(call[key].device == viewer.device for key in ("xforms", "scales", "colors", "materials"))
+    assert all(value.device == viewer.device for value in captured[0][2:6])
     assert all(viewer.meshes[0][index].device == viewer.device for index in (1, 2))
 
 
@@ -752,8 +756,8 @@ def test_newton_marker_render_defaults_to_first_prototype(monkeypatch: pytest.Mo
     marker.render(viewer, visible_env_ids=None, num_envs=4)
 
     assert [call["batch_name"] for call in viewer.instances] == [
-        "/Visuals/marker::test/arrow",
-        "/Visuals/marker::test/sphere",
+        f"{marker.group_id}/arrow",
+        f"{marker.group_id}/sphere",
     ]
     assert [call["hidden"] for call in viewer.instances] == [False, False]
     for call in viewer.instances:
@@ -824,9 +828,9 @@ def test_newton_marker_render_zero_scales_unselected_prototypes(monkeypatch: pyt
     marker.render(viewer, visible_env_ids=None, num_envs=3)
 
     sphere = viewer.instances[1]
-    assert (sphere["batch_name"], sphere["hidden"]) == ("/Visuals/marker::test/sphere", False)
+    assert (sphere["batch_name"], sphere["hidden"]) == (f"{marker.group_id}/sphere", False)
     assert sphere["scales"].tolist() == [[0.0, 0.0, 0.0]] * 3
     [frame] = viewer.lines
-    assert (frame["batch_name"], frame["hidden"]) == ("/Visuals/marker::test/frame", False)
+    assert (frame["batch_name"], frame["hidden"]) == (f"{marker.group_id}/frame", False)
     assert frame["starts"].shape[0] == 9
     np.testing.assert_array_equal(frame["starts"], frame["ends"])

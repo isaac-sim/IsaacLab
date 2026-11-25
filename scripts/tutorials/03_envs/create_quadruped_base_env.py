@@ -13,7 +13,7 @@ the terrain.
 .. code-block:: bash
 
     # Run the script
-    uv run python scripts/tutorials/03_envs/create_quadruped_base_env.py --num_envs 32
+    uv run --extra ov python scripts/tutorials/03_envs/create_quadruped_base_env.py --num_envs 32
 
 """
 
@@ -31,12 +31,14 @@ parser.add_argument("--num_envs", type=int, default=64, help="Number of environm
 
 # append simulation launcher cli args
 add_launcher_args(parser)
+parser.set_defaults(visualizer=["newton_rtx"])
 # parse the arguments
 args_cli = parser.parse_args()
 
 """Rest everything follows."""
 
 import torch
+from isaaclab_ov.physics import OvPhysxCfg
 
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
@@ -192,6 +194,7 @@ class QuadrupedEnvCfg(ManagerBasedEnvCfg):
         # general settings
         self.decimation = 4  # env decimation -> 50 Hz control
         # simulation settings
+        self.sim.physics = OvPhysxCfg()
         self.sim.dt = 0.005  # simulation timestep -> 200 Hz physics
         self.sim.physics_material = self.scene.terrain.physics_material
         self.sim.device = args_cli.device

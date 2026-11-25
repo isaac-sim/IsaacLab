@@ -95,6 +95,7 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
         population_env_paths=[],
         clone_positions=None,
         render_products=set(),
+        unrendered={},
         cfg=SimpleNamespace(read_gpu_transforms=False),
     )
     renderer.scene = renderer.backend
@@ -148,25 +149,21 @@ def _prepare_clones(renderer, plan, routed=None):
 
 
 @pytest.mark.parametrize(
-    "use_ovstage, prepare_hierarchy, names, worlds, weights, copies",
+    "use_ovstage, names, worlds, weights, copies",
     [
-        pytest.param(False, False, ("",), ((0,),), (1,), [(0, "", [1, 2, 3])], id="environment-roots"),
-        *(
-            pytest.param(
-                True,
-                prepare_hierarchy,
-                ("/Robot", "/Object", "/Light", "/Robot/Camera"),
-                ((3, 0, 2), (3, 0, 1)),
-                (1, 3),
-                [(0, "/Robot", [1, 2, 3]), (1, "/Object", [2, 3])],
-                id=f"nested-assets-prepare-{prepare_hierarchy}",
-            )
-            for prepare_hierarchy in (False, True)
+        pytest.param(False, ("",), ((0,),), (1,), [(0, "", [1, 2, 3])], id="environment-roots"),
+        pytest.param(
+            True,
+            ("/Robot", "/Object", "/Light", "/Robot/Camera"),
+            ((3, 0, 2), (3, 0, 1)),
+            (1, 3),
+            [(0, "/Robot", [1, 2, 3]), (1, "/Object", [2, 3])],
+            id="nested-assets",
         ),
     ],
 )
 def test_native_replication_applies_compositions_then_positions(
-    monkeypatch, use_ovstage, prepare_hierarchy, names, worlds, weights, copies
+    monkeypatch, use_ovstage, names, worlds, weights, copies
 ):
     """Native replication gates hierarchy preparation before copies and placement."""
     renderer = _make_ovrtx_renderer_without_backend()
@@ -180,10 +177,6 @@ def test_native_replication_applies_compositions_then_positions(
     if use_ovstage:
         import ovstage
 
-        monkeypatch.setattr(
-            "isaaclab_ov.stage.OVSTAGE_REQUIRES_CPU_HIERARCHY_BEFORE_CLONE",
-            prepare_hierarchy,
-        )
         paths = Mock()
         paths.create_path_list_from_strings.return_value = "env_paths"
         native.query_from_path_list.return_value = contextlib.nullcontext("env_query")
@@ -191,12 +184,9 @@ def test_native_replication_applies_compositions_then_positions(
         ovstage_replicate(
             native, paths, backend.clone_copies, backend.clone_env_paths, backend.clone_positions, ordinal=3
         )
-        if prepare_hierarchy:
-            native.compute_hierarchy.assert_called_once_with(
-                input_ordinal=3, output_ordinal=3, model=ovstage.HierarchyComputationModel.CPU_INCREMENTAL
-            )
-        else:
-            native.compute_hierarchy.assert_not_called()
+        native.compute_hierarchy.assert_called_once_with(
+            input_ordinal=3, output_ordinal=3, model=ovstage.HierarchyComputationModel.CPU_INCREMENTAL
+        )
         paths.create_path_list_from_strings.assert_called_once_with(backend.clone_env_paths)
         paths.destroy_path_list.assert_called_once_with("env_paths")
         actual = native.write_attribute.call_args.kwargs["tensors"]
@@ -222,7 +212,7 @@ def test_native_replication_applies_compositions_then_positions(
         for method in native.method_calls
         if method[0] in {"compute_hierarchy", "clone", "clone_usd", "write_attribute"}
     ]
-    preparation = ["compute_hierarchy"] if prepare_hierarchy else []
+    preparation = ["compute_hierarchy"] if use_ovstage else []
     assert calls == preparation + ["clone" if use_ovstage else "clone_usd"] * len(copies) + ["write_attribute"]
     assert backend.clone_env_paths == [f"/World/envs/env_{world}" for world in range(4)]
     expected = np.tile(np.eye(4, dtype=np.float64), (4, 1, 1))
@@ -231,9 +221,8 @@ def test_native_replication_applies_compositions_then_positions(
 
 
 @pytest.mark.parametrize("copies", [[], [("/World/Source", [])]], ids=["no-copies", "no-targets"])
-def test_ovstage_replication_skips_hierarchy_without_clones(monkeypatch, copies):
+def test_ovstage_replication_skips_hierarchy_without_clones(copies):
     """OVStage 0.4 does no hierarchy work when there are no clone destinations."""
-    monkeypatch.setattr("isaaclab_ov.stage.OVSTAGE_REQUIRES_CPU_HIERARCHY_BEFORE_CLONE", True)
     native, paths = Mock(), Mock()
     ovstage_replicate(native, paths, copies, [], ordinal=3)
     native.compute_hierarchy.assert_not_called()
@@ -371,6 +360,8 @@ def test_create_render_data_writes_combined_stage_on_the_simulation_device(tmp_p
     spec = _make_camera_render_spec(num_envs=1, device="cuda:1")
     render_data = renderer.create_render_data(spec)
     second_camera = renderer.create_render_data(spec)
+    (product,) = render_data.products
+    (second_product,) = second_camera.products
 
     combined_path = tmp_path / _OVRTX_STAGE_FILE
     combined_text = combined_path.read_text(encoding="utf-8")
@@ -379,16 +370,16 @@ def test_create_render_data_writes_combined_stage_on_the_simulation_device(tmp_p
     assert combined_layer.defaultPrim == "World"
     assert combined_layer.pseudoRoot.GetInfo("metersPerUnit") == 1.0
     assert combined_layer.GetPrimAtPath(spec.camera_prim_paths[0])
-    assert combined_layer.GetPrimAtPath(render_data.render_product_path).typeName == "RenderProduct"
-    assert combined_layer.GetPrimAtPath(second_camera.render_product_path).typeName == "RenderProduct"
-    assert combined_layer.GetAttributeAtPath(render_data.render_product_path + ".deviceIds").default == [1]
+    assert combined_layer.GetPrimAtPath(product.path).typeName == "RenderProduct"
+    assert combined_layer.GetPrimAtPath(second_product.path).typeName == "RenderProduct"
+    assert combined_layer.GetAttributeAtPath(product.path + ".deviceIds").default == [1]
     assert len(open_calls) == 1
     reference_text, reference_path = reference_calls[0]
     assert reference_path == "/RenderCamera_0"
     reference_layer = Sdf.Layer.CreateAnonymous("reference.usda")
     assert reference_layer.ImportFromString(reference_text)
     assert reference_layer.defaultPrim == render_data.render_scope_name
-    assert reference_layer.GetPrimAtPath(render_data.render_product_path).typeName == "RenderProduct"
+    assert reference_layer.GetPrimAtPath(product.path).typeName == "RenderProduct"
     with pytest.raises(ValueError, match="simulation device"):
         renderer.create_render_data(replace(spec, device="cpu"))
 
@@ -428,11 +419,12 @@ def test_create_render_data_binds_camera_after_cloning(monkeypatch, global_camer
     if global_camera:
         spec = replace(spec, camera_prim_paths=("/World/Camera",))
     render_data = renderer.create_render_data(spec)
+    (product,) = render_data.products
 
     assert call_order == ["open", "clone", "partitions", "rewrite_cameras"]
     assert write_array_calls == [
         (
-            [render_data.render_product_path],
+            [product.path],
             "camera",
             [["/World/Camera"] if global_camera else [f"/World/envs/env_{i}/Camera" for i in range(num_envs)]],
         )

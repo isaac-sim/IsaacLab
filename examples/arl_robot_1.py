@@ -7,7 +7,7 @@
 
 .. code-block:: bash
 
-    # Usage with default PhysX physics and default kit visualizer.
+    # Usage with default PhysX physics and default Newton visualizer.
     uvx --from 'isaaclab[isaacsim]' isaaclab example arl-robot-1
 
     # Usage with Newton visualizer and default PhysX physics.
@@ -27,7 +27,7 @@ parser = argparse.ArgumentParser(
 parser.add_argument("--physics", default="isaacsim_physx", choices=["isaacsim_physx"], help="Physics backend.")
 parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["kit"])
+parser.set_defaults(visualizer=["newton"])
 args_cli = parser.parse_args()
 if args_cli.max_steps == 0 or args_cli.max_steps < -1:
     parser.error("--max_steps must be positive or -1.")

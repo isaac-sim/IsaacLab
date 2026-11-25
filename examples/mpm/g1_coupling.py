@@ -14,8 +14,8 @@ robot. Compare its progress and balance with ``--coupling one_way`` and
 
 .. code-block:: bash
 
-    uvx --from 'isaaclab[isaacsim,rsl-rl]' isaaclab example mpm-g1-coupling \
-      --coupling two_way --visualizer kit
+    uvx --from 'isaaclab[rsl-rl,ovrtx]' isaaclab example mpm-g1-coupling \
+      --coupling two_way --visualizer newton_rtx
 """
 
 from __future__ import annotations
@@ -155,7 +155,7 @@ parser.add_argument(
 )
 parser.add_argument("--disable_cuda_graph", action="store_true", help="Disable Newton CUDA graphs for debugging.")
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["kit"])
+parser.set_defaults(visualizer=["newton_rtx"])
 args_cli, overrides = setup_preset_cli(parser)
 
 if not np.isfinite(args_cli.command_speed) or args_cli.command_speed <= 0.0:
@@ -197,8 +197,8 @@ def _kinematic_box(
     contact_margin: float,
 ) -> Any:
     """Create one visible kinematic collider."""
+    from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
     from isaaclab_newton.sim.schemas import NewtonCollisionCfg
-    from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
     import isaaclab.sim as sim_utils
     from isaaclab.assets import RigidObjectCfg

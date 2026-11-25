@@ -582,8 +582,8 @@ class PhysicsManager(metaclass=_PhysicsManagerMeta):
         how perspective video frames are captured when no visualizer is active.
 
         Returns:
-            ``"kit"`` for backends that use Kit/Replicator (e.g. :class:`~isaaclab_physx.physics.PhysxManager`),
-            ``"newton_gl"`` for backends that use a headless Newton GL viewer
+            ``"kit"`` for backends that use Kit/Replicator (e.g. :class:`~isaaclab_isaacsim.physics.PhysxManager`),
+            ``"newton"`` for backends that use a headless Newton GL viewer
             (e.g. :class:`~isaaclab_newton.physics.NewtonManager`),
             or ``None`` if the backend does not support perspective video capture.
         """

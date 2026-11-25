@@ -17,6 +17,7 @@ from typing import Any, ClassVar
 import gymnasium as gym
 import numpy as np
 import torch
+from torch.utils._pytree import tree_map
 
 from ..managers import EventManager
 from ..sim import SimulationContext
@@ -347,6 +348,10 @@ class DirectMARLEnv(gym.Env):
         Returns:
             A tuple containing the observations and extras (keyed by the agent ID).
         """
+        # terminal observations belong to the step that captured them
+        for agent in self.cfg.possible_agents:
+            self.extras[agent].pop("final_obs", None)
+            self.extras[agent].pop("final_obs_every_step", None)
         # set the seed
         if seed is not None:
             self.seed(seed)
@@ -399,6 +404,10 @@ class DirectMARLEnv(gym.Env):
             A tuple containing the observations, rewards, resets (terminated and truncated) and
             extras (keyed by the agent ID). Shape of individual tensors is (num_envs, ...).
         """
+        # terminal observations belong to the step that captured them
+        for agent in self.cfg.possible_agents:
+            self.extras[agent].pop("final_obs", None)
+            self.extras[agent].pop("final_obs_every_step", None)
         actions = {agent: action.to(self.device) for agent, action in actions.items()}
 
         # add action noise
@@ -436,14 +445,14 @@ class DirectMARLEnv(gym.Env):
 
         # -- reset envs that terminated/timed-out and log the episode information
         reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
+        if self.cfg.final_obs_every_step or (self.cfg.compute_final_obs and len(reset_env_ids) > 0):
+            # Copy before reset or interval events can modify buffers borrowed by observations.
+            terminal_obs = tree_map(torch.clone, self._compute_observations())
+            for agent, obs in terminal_obs.items():
+                self.extras[agent]["final_obs"] = obs
+                if self.cfg.final_obs_every_step:
+                    self.extras[agent]["final_obs_every_step"] = True
         if len(reset_env_ids) > 0:
-            # capture the per-agent terminal observation before reset and expose it for Same-Step
-            # autoreset. apply the same observation noise as the returned obs so the bootstrapped
-            # terminal value matches the distribution the policy is trained on.
-            if self.cfg.compute_final_obs:
-                terminal_obs = self._compute_observations()
-                for agent, obs in terminal_obs.items():
-                    self.extras[agent]["final_obs"] = obs
             self._reset_idx(reset_env_ids)
 
         # -- handle episode reset requested from visualizer UI controls
@@ -553,8 +562,9 @@ class DirectMARLEnv(gym.Env):
     def close(self):
         """Cleanup for the environment."""
         if not self._is_closed:
-            # Stop simulation first to allow physics to clean up properly
+            # Deliver stop callbacks before detaching scene-owned grippers.
             self.sim.stop()
+            self.scene.close()
 
             # Drop cached observation/state tensors so they don't survive close via
             # gymnasium's wrapper chain.

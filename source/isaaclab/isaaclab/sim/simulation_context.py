@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 import torch
 import warp as wp
-from isaaclab_physx.physics import PhysxCfg
+from isaaclab_isaacsim.physics import PhysxCfg
 from isaaclab_visualizers.kit import KitBackendCfg
 
 from .. import cloner
@@ -31,7 +31,7 @@ from ..renderers.renderer_cfg import RendererCfg
 from ..scene_data import REQUIRES_STAGE_AND_MODEL, SceneDataProvider
 from ..utils import instantiate
 from ..utils.device import reserve_cuda_graph_memory
-from ..utils.images import sensor_key_for_gt_type
+from ..utils.images import resolve_display_channels, sensor_key_for_gt_type
 from ..utils.string import clear_resolve_matching_names_cache, string_to_callable
 from ..utils.version import has_kit
 from ..visualizers.base_visualizer import BaseVisualizer
@@ -153,7 +153,7 @@ class SimulationContext:
         stage_utils._context.stage = self.stage
 
         if use_isaac_sim:
-            from isaaclab_physx.app.kit_stage import KitStageBackendCfg  # noqa: PLC0415
+            from isaaclab_isaacsim.app.kit_stage import KitStageBackendCfg  # noqa: PLC0415
 
             # Kit extensions (PhysX views, articulations, the viewport) find the stage through Kit's USD context
             self.get_or_create_backend(KitStageBackendCfg(stage=self.stage))
@@ -436,12 +436,8 @@ class SimulationContext:
                         cameras.insert(0, SceneCameraCfg(prim_path=visualizer.cfg.streaming_sensor_prim_path))
                     else:
                         for camera in sensors.values():
-                            available = frozenset(camera.cfg.data_types)
-                            has_requested_channels = all(
-                                sensor_key_for_gt_type(gt, available, required=False) is not None
-                                for gt in visualizer.cfg.streaming_gt_types
-                            )
-                            if has_requested_channels:
+                            # A sensor without the requested channels still shows its own, such as depth only.
+                            if resolve_display_channels(visualizer.cfg.streaming_gt_types, camera.cfg.data_types):
                                 cameras.append(camera)
                 for index, source in enumerate(cameras):
                     if not isinstance(source, SceneCameraCfg):
@@ -547,7 +543,7 @@ class SimulationContext:
     @staticmethod
     def _requires_pre_capture_newton_init(cfg: Any) -> bool:
         """Return whether a config contributes Newton picking inputs to capture."""
-        return cfg.backend.visualizer_type == "newton_gl" and cfg.backend.enable_picking and not cfg.headless
+        return cfg.backend.visualizer_type == "newton" and cfg.backend.enable_picking and not cfg.headless
 
     def reset(self, soft: bool = False) -> None:
         """Reset the simulation.

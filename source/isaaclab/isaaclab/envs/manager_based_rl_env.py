@@ -205,6 +205,9 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         Returns:
             A tuple containing the observations, rewards, resets (terminated and truncated) and extras.
         """
+        # terminal observations belong to the step that captured them
+        self.extras.pop("final_obs", None)
+        self.extras.pop("final_obs_every_step", None)
         self.action_manager.process_action(action.to(self.device))
         if self._physics_handles_actions is None:
             self._handle_physics_actions()
@@ -243,10 +246,11 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
 
         # -- reset envs that terminated/timed-out and log the episode information
         reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1).int()
+        if self.cfg.final_obs_every_step or (self.cfg.compute_final_obs and len(reset_env_ids) > 0):
+            self.extras["final_obs"] = self.observation_manager.compute()
+            if self.cfg.final_obs_every_step:
+                self.extras["final_obs_every_step"] = True
         if len(reset_env_ids) > 0:
-            # capture the terminal observation before reset and expose it for Same-Step autoreset.
-            if self.cfg.compute_final_obs:
-                self.extras["final_obs"] = self.observation_manager.compute()
             self.recorder_manager.record_pre_reset(reset_env_ids)
 
             self._reset_idx(reset_env_ids)
@@ -258,6 +262,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             self.recorder_manager.record_post_reset(reset_env_ids)
 
         # -- handle episode reset requested from visualizer UI controls
+        manual_reset_ids = reset_env_ids[:0]
         if self.sim.consume_reset_request():
             # Only reset envs not already reset this step to avoid redundant resets.
             not_yet_reset = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
@@ -270,6 +275,10 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
                 self.recorder_manager.record_pre_reset(manual_reset_ids)
                 self._reset_idx(manual_reset_ids)
                 self.recorder_manager.record_post_reset(manual_reset_ids)
+
+        if len(reset_env_ids) > 0 or len(manual_reset_ids) > 0:
+            # Reset writes invalidate derived body poses used by observations and rewards.
+            self.sim.forward()
 
         self.command_manager.compute(dt=self.step_dt)
         if "interval" in self.event_manager.active_terms:

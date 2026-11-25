@@ -14,8 +14,6 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 if TYPE_CHECKING:
-    from isaaclab_physx.assets import SurfaceGripper
-
     from ..terrains.terrain_importer import TerrainImporter
 
 import torch
@@ -40,16 +38,18 @@ from ..assets import (
     RigidObjectCfg,
     RigidObjectCollection,
     RigidObjectCollectionCfg,
+    SurfaceGripper,
+    SurfaceGripperCfg,
     VisualMaterial,
     VisualMaterialCfg,
 )
 from ..markers import VisualizationMarkers, VisualizationMarkersCfg
 from ..physics import PhysicsEvent, PhysicsManager
-from ..sensors import CameraCfg, ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg
+from ..sensors import CameraCfg, ContactSensorCfg, FrameTransformerCfg, LidarCfg, SensorBase, SensorBaseCfg
 from ..sim import SimulationContext
 from ..sim.usd_export import UsdExporter
 from ..sim.utils.stage import get_current_stage, get_current_stage_id
-from ..utils import instantiate, validate
+from ..utils import instantiate, string_to_callable, validate
 from .interactive_scene_cfg import InteractiveSceneCfg
 
 if TYPE_CHECKING:
@@ -183,7 +183,9 @@ class InteractiveScene:
             logger.warning(f"USD export is unavailable: reading the engine at startup failed ({error}).")
             self._usd_export_base = error
 
-    def _collect_asset_cfgs(self) -> tuple[list[Any], tuple[tuple[int, ...], ...] | None, np.ndarray | None]:
+    def _collect_asset_cfgs(
+        self,
+    ) -> tuple[list[Any], tuple[tuple[int | tuple[int, ...], ...], ...] | None, np.ndarray | None]:
         """Flatten user-declared cfgs and declare shared prim roots for clone planning.
 
         Expands :class:`~isaaclab.assets.RigidObjectCollectionCfg` into its members,
@@ -219,9 +221,10 @@ class InteractiveScene:
         nested_material_names = {name for name, cfg in flat_items if id(cfg) in nested_visual_material_ids}
         scene_asset_names = [name for name in scene_asset_names if name not in nested_material_names]
 
+        combinations = self.cloner_cfg.clone_combinations
         cfgs: list[Any] = []
         clone_asset_names: list[str] = []
-        variant_counts: list[int] = []
+        variant_cfgs: list[list[sim_utils.SpawnerCfg]] = []
         prototype_indices: list[int] = []
         prototype_count = 0
         for asset_name, child in flat_items:
@@ -232,19 +235,35 @@ class InteractiveScene:
             cfgs.append(child)
             count = cloner.num_spawn_variants(getattr(child, "spawn", None))
             is_per_env = cloner.path.match(child.prim_path, self._env_fmt) is not None
-            is_spawned = isinstance(child, (AssetBaseCfg, CameraCfg)) and child.spawn is not None
-            if is_per_env and is_spawned:
+            is_spawned = isinstance(child, (AssetBaseCfg, CameraCfg, LidarCfg)) and child.spawn is not None
+            if is_per_env and is_spawned and combinations:
                 clone_asset_names.append(asset_name)
-                variant_counts.append(count)
+                spawn = child.spawn
+                if isinstance(spawn, sim_utils.MultiAssetSpawnerCfg):
+                    candidates = [copy.copy(candidate) for candidate in spawn.assets_cfg]
+                    if spawn.semantic_tags:
+                        for candidate in candidates:
+                            candidate.semantic_tags = [*(candidate.semantic_tags or ()), *spawn.semantic_tags]
+                elif isinstance(spawn, sim_utils.MultiUsdFileCfg) and not isinstance(spawn.usd_path, str):
+                    candidates = [copy.copy(spawn) for _ in spawn.usd_path]
+                    for candidate, usd_path in zip(candidates, spawn.usd_path, strict=True):
+                        candidate.usd_path = usd_path
+                else:
+                    candidates = [spawn]
+                variant_cfgs.append(candidates)
                 prototype_indices.extend(range(prototype_count, prototype_count + count))
             prototype_count += count
 
-        combinations = self.cloner_cfg.clone_combinations
         if combinations and clone_asset_names:
             worlds, weights = cloner.make_valid_clone_combinations(
-                clone_asset_names, variant_counts, combinations, all_asset_names=scene_asset_names
+                clone_asset_names, variant_cfgs, combinations, all_asset_names=scene_asset_names
             )
-            return cfgs, tuple(tuple(prototype_indices[index] for index in world) for world in worlds), weights
+
+            def remap(slot):
+                return prototype_indices[slot] if isinstance(slot, int) else tuple(remap(choice) for choice in slot)
+
+            worlds = tuple(tuple(remap(slot) for slot in world) for world in worlds)
+            return cfgs, worlds, weights
         return cfgs, None, None
 
     def filter_collisions(self, global_prim_paths: list[str] | None = None):
@@ -457,6 +476,11 @@ class InteractiveScene:
     Operations.
     """
 
+    def close(self) -> None:
+        """Release scene-owned surface-gripper callbacks before destroying the physics backend."""
+        for gripper in self._surface_grippers.values():
+            gripper.close()
+
     def export_to_usd(self, path: str, env_id: int = 0) -> str:
         """Export one environment as USD that reproduces its initialized physics.
 
@@ -540,7 +564,9 @@ class InteractiveScene:
         force_recompute = not self.cfg.lazy_sensor_update
         batched_sensors: list[SensorBase] = []
         for sensor in self._sensors.values():
-            if force_recompute and sensor.supports_batch_update:
+            if force_recompute and getattr(sensor.cfg, "render_on_demand", False) is True:
+                sensor.update(dt, force_recompute=False)  # rendered when its data is read, not on every update
+            elif force_recompute and sensor.supports_batch_update:
                 # Defer buffer refresh until all sensors have advanced.
                 sensor.update(dt, force_recompute=False)
                 batched_sensors.append(sensor)
@@ -622,7 +648,7 @@ class InteractiveScene:
         # surface grippers
         for asset_name, surface_gripper in self._surface_grippers.items():
             asset_state = state["gripper"][asset_name]
-            surface_gripper.set_grippers_command(asset_state)
+            surface_gripper.set_grippers_command(asset_state, indices=env_ids)
 
         # write data to simulation to make sure initial state is set
         # this propagates the joint targets to the simulation
@@ -795,8 +821,6 @@ class InteractiveScene:
 
     def _add_entities_from_cfg(self):  # noqa: C901
         """Add scene entities from the config."""
-        from isaaclab_physx.assets import SurfaceGripperCfg  # noqa: PLC0415
-
         from ..terrains.terrain_importer_cfg import TerrainImporterCfg  # noqa: PLC0415
 
         # store paths that are in global collision filter
@@ -834,7 +858,12 @@ class InteractiveScene:
                         asset_paths = sim_utils.find_matching_prim_paths(rigid_object_cfg.prim_path)
                         self._global_prim_paths += asset_paths
             elif isinstance(asset_cfg, SurfaceGripperCfg):
-                self._surface_grippers[asset_name] = instantiate(asset_cfg)
+                gripper_type = asset_cfg.class_type
+                if isinstance(gripper_type, str):
+                    gripper_type = string_to_callable(gripper_type)
+                self._surface_grippers[asset_name] = (
+                    gripper_type(asset_cfg, sim=self.sim) if gripper_type is SurfaceGripper else gripper_type(asset_cfg)
+                )
             elif isinstance(asset_cfg, SensorBaseCfg):
                 # Update target frame path(s)' regex name space for FrameTransformer
                 if isinstance(asset_cfg, FrameTransformerCfg):

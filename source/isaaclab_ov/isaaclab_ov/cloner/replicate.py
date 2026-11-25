@@ -22,7 +22,6 @@ from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 from isaaclab import cloner
 
 from isaaclab_ov._clone import CloneRecipe
-from isaaclab_ov.physics import ovphysx_compat
 from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg, OVRTXRendererCfg
 from isaaclab_ov.stage import OvstageBackend, OvstageBackendCfg
 from isaaclab_ov.stage import ovstage_replicate as ovstage_replicate
@@ -216,6 +215,7 @@ class OvrtxReplicateContext(cloner.ReplicateContext):
                 log_level=renderer.cfg.log_level,
                 use_ovstage=use_ovstage,
                 read_gpu_transforms=read_gpu_transforms == "1",
+                motion_bvh=renderer.cfg.motion_bvh,
                 device=sim.device,
             )
             if share_ovstage and any(other.cfg != backend_cfg for other in sim.get_backends(OVRTXBackendCfg)):
@@ -413,7 +413,7 @@ def _convert_legacy_joint_properties(
             axis = {"PhysicsRevoluteJoint": "angular", "PhysicsPrismaticJoint": "linear"}.get(prim.typeName)
             if not matches or axis is None or layer.ListTimeSamplesForPath(friction.path):
                 raise ValueError(
-                    f"OVPhysX 0.7 cannot preserve legacy joint friction on {path}. "
+                    f"OVPhysX cannot preserve legacy joint friction on {path}. "
                     "Remove physxJoint:jointFriction and retune NewtonJointAPI newton:friction/newton:damping "
                     "or configure legacy_joint_friction_replacements with calibrated efforts; "
                     "the old coefficient has no exact conversion."
@@ -459,9 +459,7 @@ def _convert_legacy_joint_properties(
             if modern is not None and (modern.HasDefaultValue() or layer.ListTimeSamplesForPath(modern.path)):
                 continue
             if layer.ListTimeSamplesForPath(old.path):
-                raise ValueError(
-                    f"OVPhysX 0.7 cannot preserve time-sampled {old_name} on {path}; migrate to {new_name}."
-                )
+                raise ValueError(f"OVPhysX cannot preserve time-sampled {old_name} on {path}; migrate to {new_name}.")
             if not old.HasDefaultValue() or old.default == Sdf.ValueBlock():
                 continue
             if prim.typeName not in (
@@ -471,7 +469,7 @@ def _convert_legacy_joint_properties(
                 "PhysicsJoint",
             ):
                 if old.default != default:
-                    raise ValueError(f"OVPhysX 0.7 cannot preserve {old_name} on {prim.typeName} at {path}.")
+                    raise ValueError(f"OVPhysX cannot preserve {old_name} on {prim.typeName} at {path}.")
                 continue
             schemas = list(prim.GetInfo("apiSchemas").GetAppliedItems()) if prim.HasInfo("apiSchemas") else []
             if "NewtonJointAPI" not in schemas:
@@ -520,8 +518,7 @@ def _serialize_stage(
 
     Parsed bodies have native environment ID zero. An original-bearing world must therefore
     import all its assets together; its copies inherit one collision group and environment ID.
-    CPU, features without native cloning, and acceleration-spring materials with positive
-    compliant-contact stiffness import every declared world instead.
+    CPU and features without native cloning import every declared world instead.
 
     When ``preserve_physics_ancestors`` is enabled, retain empty ancestors with authored
     physics properties even when no API schema is applied.
@@ -537,19 +534,6 @@ def _serialize_stage(
     if filter_render_only:
         recipes = [recipe for recipe in recipes if physics_content(recipe[0])[0]]
 
-    if recipes and not full_stage:
-        # Native clones lose acceleration-spring material behavior in OVPhysX 0.6.3.
-        for prim in stage.Traverse(Usd.TraverseInstanceProxies()):
-            acceleration = prim.GetAttribute("physxMaterial:compliantContactAccelerationSpring")
-            stiffness = prim.GetAttribute("physxMaterial:compliantContactStiffness")
-            if acceleration and acceleration.Get() and stiffness and (stiffness.Get() or 0.0) > 0.0:
-                logger.warning(
-                    "Importing the full scene through USD to preserve acceleration-spring contact behavior "
-                    "for material %s. Native-cloning startup savings are disabled.",
-                    prim.GetPath(),
-                )
-                full_stage = True
-                break
     # Group worlds by their declared asset memberships, not by completed-stage discovery.
     sources = tuple(Sdf.Path(source) for source, _, _, _, _ in recipes)
     memberships = {}
@@ -587,8 +571,7 @@ def _serialize_stage(
 
     # Materialize only originals on GPU. Each native destination is absent from the export.
     layer = stage.Flatten()
-    if ovphysx_compat.OVPHYSX_USES_TASKS:
-        _convert_legacy_joint_properties(layer, friction_replacements)
+    _convert_legacy_joint_properties(layer, friction_replacements)
     exported = Usd.Stage.Open(layer)
     xforms = UsdGeom.XformCache()
     native = {}

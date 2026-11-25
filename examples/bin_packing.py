@@ -25,14 +25,17 @@ velocity, and mass noise, teleporting out-of-bounds objects back in.
 
 .. code-block:: bash
 
-    # Usage with default PhysX physics and default kit visualizer.
-    uvx --from 'isaaclab[isaacsim]' isaaclab example bin-packing
+    # Usage with default PhysX physics and default Newton visualizer.
+    uvx --from 'isaaclab[ov]' isaaclab example bin-packing
 
 """
 
 from __future__ import annotations
 
 import argparse
+from contextlib import ExitStack, closing
+from functools import partial
+from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
 from isaaclab.app import add_launcher_args, launch_simulation
@@ -42,11 +45,12 @@ parser = argparse.ArgumentParser(
     conflict_handler="resolve",
 )
 parser.add_argument("--num_envs", type=int, default=16, help="Number of environments to spawn.")
-parser.add_argument("--physics", default="isaacsim_physx", choices=["isaacsim_physx"], help="Physics backend.")
+parser.add_argument("--physics", default="ovphysx", choices=["isaacsim_physx", "ovphysx"], help="Physics backend.")
 parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["kit"])
 args_cli = parser.parse_args()
+if args_cli.visualizer is None:
+    args_cli.visualizer = ["newton_gl" if args_cli.physics == "isaacsim_physx" else "newton_rtx"]
 if args_cli.max_steps == 0 or args_cli.max_steps < -1:
     parser.error("--max_steps must be positive or -1.")
 
@@ -56,7 +60,7 @@ from random import Random
 
 import torch
 import warp as wp
-from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
+from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
@@ -305,86 +309,111 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene) -> 
     Returns:
         None: The simulator side-effects are applied through ``scene`` and ``sim``.
     """
-    device = scene.device
-    physics_sim_view = sim.backend_manager.get_physics_sim_view()
-    root_view = physics_sim_view.create_rigid_body_view("/World/envs/env_*/Groceries/Grocery_*")
-    if root_view.count == 0:
-        raise RuntimeError("The flat grocery view matched no rigid bodies.")
+    with ExitStack() as stack:
+        if args_cli.physics == "ovphysx":
+            from isaaclab_ov.sim.views import OvPhysxView
 
-    env_ids = []
-    slot_ids = []
-    for path in root_view.prim_paths:
-        env_ids.append(int(path.partition("/env_")[2].partition("/")[0]))
-        slot_ids.append(int(path.rpartition("/Grocery_")[2]))
-    env_ids_t = torch.tensor(env_ids, dtype=torch.long, device=device)
-    slot_ids_t = torch.tensor(slot_ids, dtype=torch.long, device=device)
-    env_origins = scene.env_origins[env_ids_t]
-    spawn_pose_w = grocery_spawn_poses(device)[slot_ids_t]
-    spawn_pose_w[:, :3] += env_origins
-
-    all_indices_t = torch.arange(root_view.count, dtype=torch.int32, device=device)
-    cpu_indices_t = torch.arange(root_view.count, dtype=torch.int32, device="cpu")
-    all_indices = wp.from_torch(all_indices_t)
-    cpu_indices = wp.from_torch(cpu_indices_t)
-    print(f"[INFO] Grocery RigidBodyView: 1 flat view managing {root_view.count} rigid bodies")
-
-    pose_ranges = torch.tensor([POSE_RANGE[axis] for axis in ("roll", "pitch", "yaw")], device=device)
-    velocity_ranges = torch.tensor([VELOCITY_RANGE[axis] for axis in ("roll", "pitch", "yaw")], device=device)
-    bounds_xy = torch.as_tensor(BIN_XY_BOUND, device=device)
-    sim_dt = sim.get_physics_dt()
-    count = 0
-
-    step_count = 0
-    # Step while a visualizer window is still open (or none exist, e.g. headless); works for kit and newton.
-    while sim.is_running() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
-        if count % 250 == 0:
-            # reset counter
-            count = 0
-            # Retrieve positions
-            with Timer("[INFO] Time to reset scene: "):
-                shape = (root_view.count,)
-                # Only randomize the [roll, pitch, yaw] rotation; keep the spawn position fixed.
-                noise = math_utils.sample_uniform(pose_ranges[:, 0], pose_ranges[:, 1], (*shape, 3), device=device)
-                pose = spawn_pose_w.clone()
-                noise_quat = math_utils.quat_from_euler_xyz(noise[..., 0], noise[..., 1], noise[..., 2])
-                pose[..., 3:7] = math_utils.quat_mul(pose[..., 3:7], noise_quat)
-                root_view.set_transforms(wp.from_torch(pose.contiguous()), all_indices)
-                # Only randomize the angular velocity; leave the linear velocity at zero.
-                body_velocity = torch.zeros((*shape, 6), device=device)
-                body_velocity[..., 3:6] = math_utils.sample_uniform(
-                    velocity_ranges[:, 0], velocity_ranges[:, 1], (*shape, 3), device=device
+            root_view = stack.enter_context(
+                closing(
+                    OvPhysxView(
+                        sim.backend_manager.get_physx_instance(),
+                        pattern="/World/envs/env_*/Groceries/Grocery_*",
+                        device=scene.device,
+                        eager=True,
+                        tensor_types=["rigid_body_pose"],
+                    )
                 )
-                root_view.set_velocities(wp.from_torch(body_velocity.contiguous()), all_indices)
-                # Vary the mass so the drop behavior differs between resets.
-                masses = torch.rand((root_view.count, 1), device="cpu") * 0.2 + 0.2
-                root_view.set_masses(wp.from_torch(masses), cpu_indices)
-                scene.reset()
-
-        # Write data to sim
-        scene.write_data_to_sim()
-        # Perform step
-        sim.step()
-        step_count += 1
-        # Bring out-of-bounds objects back to the bin.
-        transforms = root_view.get_transforms()
-        transforms_t = wp.to_torch(transforms) if isinstance(transforms, wp.array) else transforms
-        xy = transforms_t[:, :2] - env_origins[:, :2]
-        stray = torch.nonzero(~((xy >= bounds_xy[0]) & (xy <= bounds_xy[1])).all(dim=-1)).flatten()
-        if stray.numel():
-            stray_indices = wp.from_torch(stray.to(dtype=torch.int32))
-            corrected_transforms = transforms_t.clone()
-            corrected_transforms[stray] = spawn_pose_w[stray]
-            velocities = root_view.get_velocities()
-            corrected_velocities = (
-                wp.to_torch(velocities).clone() if isinstance(velocities, wp.array) else velocities.clone()
             )
-            index_fill_(corrected_velocities, stray, 0.0)
-            root_view.set_transforms(wp.from_torch(corrected_transforms.contiguous()), stray_indices)
-            root_view.set_velocities(wp.from_torch(corrected_velocities.contiguous()), stray_indices)
-        # Increment counter
-        count += 1
-        # Update buffers
-        scene.update(sim_dt)
+            get_transforms = partial(root_view.get_attribute, "rigid_body_pose")
+            set_transforms = partial(root_view.set_attribute, "rigid_body_pose")
+            get_velocities = partial(root_view.get_attribute, "rigid_body_velocity")
+            set_velocities = partial(root_view.set_attribute, "rigid_body_velocity")
+            set_masses = partial(root_view.set_attribute, "rigid_body_mass")
+        else:
+            root_view = sim.backend_manager.get_physics_sim_view().create_rigid_body_view(
+                "/World/envs/env_*/Groceries/Grocery_*"
+            )
+            get_transforms, set_transforms = root_view.get_transforms, root_view.set_transforms
+            get_velocities, set_velocities = root_view.get_velocities, root_view.set_velocities
+            set_masses = root_view.set_masses
+        device = scene.device
+        if root_view.count == 0:
+            raise RuntimeError("The flat grocery view matched no rigid bodies.")
+
+        env_ids = []
+        slot_ids = []
+        for path in root_view.prim_paths:
+            env_ids.append(int(path.partition("/env_")[2].partition("/")[0]))
+            slot_ids.append(int(path.rpartition("/Grocery_")[2]))
+        env_ids_t = torch.tensor(env_ids, dtype=torch.long, device=device)
+        slot_ids_t = torch.tensor(slot_ids, dtype=torch.long, device=device)
+        env_origins = scene.env_origins[env_ids_t]
+        spawn_pose_w = grocery_spawn_poses(device)[slot_ids_t]
+        spawn_pose_w[:, :3] += env_origins
+
+        all_indices_t = torch.arange(root_view.count, dtype=torch.int32, device=device)
+        cpu_indices_t = torch.arange(root_view.count, dtype=torch.int32, device="cpu")
+        all_indices = wp.from_torch(all_indices_t)
+        cpu_indices = wp.from_torch(cpu_indices_t)
+        print(f"[INFO] Grocery RigidBodyView: 1 flat view managing {root_view.count} rigid bodies")
+
+        pose_ranges = torch.tensor([POSE_RANGE[axis] for axis in ("roll", "pitch", "yaw")], device=device)
+        velocity_ranges = torch.tensor([VELOCITY_RANGE[axis] for axis in ("roll", "pitch", "yaw")], device=device)
+        bounds_xy = torch.as_tensor(BIN_XY_BOUND, device=device)
+        sim_dt = sim.get_physics_dt()
+        count = 0
+
+        step_count = 0
+        # Step while a visualizer window is still open (or none exist, e.g. headless); works for kit and newton.
+        while sim.is_running() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
+            if count % 250 == 0:
+                # reset counter
+                count = 0
+                # Retrieve positions
+                with Timer("[INFO] Time to reset scene: "):
+                    shape = (root_view.count,)
+                    # Only randomize the [roll, pitch, yaw] rotation; keep the spawn position fixed.
+                    noise = math_utils.sample_uniform(pose_ranges[:, 0], pose_ranges[:, 1], (*shape, 3), device=device)
+                    pose = spawn_pose_w.clone()
+                    noise_quat = math_utils.quat_from_euler_xyz(noise[..., 0], noise[..., 1], noise[..., 2])
+                    pose[..., 3:7] = math_utils.quat_mul(pose[..., 3:7], noise_quat)
+                    set_transforms(wp.from_torch(pose.contiguous()), indices=all_indices)
+                    # Only randomize the angular velocity; leave the linear velocity at zero.
+                    body_velocity = torch.zeros((*shape, 6), device=device)
+                    body_velocity[..., 3:6] = math_utils.sample_uniform(
+                        velocity_ranges[:, 0], velocity_ranges[:, 1], (*shape, 3), device=device
+                    )
+                    set_velocities(wp.from_torch(body_velocity.contiguous()), indices=all_indices)
+                    # Vary the mass so the drop behavior differs between resets.
+                    masses = torch.rand((root_view.count, 1), device="cpu") * 0.2 + 0.2
+                    set_masses(wp.from_torch(masses), indices=cpu_indices)
+                    scene.reset()
+
+            # Write data to sim
+            scene.write_data_to_sim()
+            # Perform step
+            sim.step()
+            step_count += 1
+            # Bring out-of-bounds objects back to the bin.
+            transforms = get_transforms()
+            transforms_t = wp.to_torch(transforms) if isinstance(transforms, wp.array) else transforms
+            xy = transforms_t[:, :2] - env_origins[:, :2]
+            stray = torch.nonzero(~((xy >= bounds_xy[0]) & (xy <= bounds_xy[1])).all(dim=-1)).flatten()
+            if stray.numel():
+                stray_indices = wp.from_torch(stray.to(dtype=torch.int32))
+                corrected_transforms = transforms_t.clone()
+                corrected_transforms[stray] = spawn_pose_w[stray]
+                velocities = get_velocities()
+                corrected_velocities = (
+                    wp.to_torch(velocities).clone() if isinstance(velocities, wp.array) else velocities.clone()
+                )
+                index_fill_(corrected_velocities, stray, 0.0)
+                set_transforms(wp.from_torch(corrected_transforms.contiguous()), indices=stray_indices)
+                set_velocities(wp.from_torch(corrected_velocities.contiguous()), indices=stray_indices)
+            # Increment counter
+            count += 1
+            # Update buffers
+            scene.update(sim_dt)
 
 
 def main():
@@ -394,13 +423,13 @@ def main():
         None: The function drives the simulation for its side-effects.
     """
     sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device)
-    with launch_simulation(sim_cfg, args_cli):
+    scene_cfg = BinPackingSceneCfg(num_envs=args_cli.num_envs, env_spacing=1.0)
+    with launch_simulation(SimpleNamespace(sim=sim_cfg, scene=scene_cfg), args_cli):
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
         sim.set_camera_view((4.0, 0.0, 4.0), (0.0, 0.0, 0.0))
 
         # Design scene
-        scene_cfg = BinPackingSceneCfg(num_envs=args_cli.num_envs, env_spacing=1.0)
         layouts = [combination.assets for combination in scene_cfg.clone_cfg.clone_combinations]
         print(f"[INFO] Drawn bin layouts (objects per layout): {[len(layout) for layout in layouts]}")
         with Timer("[INFO] Time to create scene: "):

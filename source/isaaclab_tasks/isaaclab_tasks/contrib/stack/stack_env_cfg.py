@@ -8,9 +8,10 @@ from __future__ import annotations
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
+from isaaclab_isaacsim.physics import PhysxCfg
+from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
-from isaaclab_physx.physics import PhysxCfg
-from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
+from isaaclab_ov.physics import OvPhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
@@ -320,6 +321,15 @@ class PhysicsCfg(PresetCfg):
         # Let object contacts stall position-driven grippers before they tunnel through a grasp.
         solve_articulation_contact_last=True,
     )
+    ovphysx = OvPhysxCfg(
+        friction_offset_threshold=0.04,
+        bounce_threshold_velocity=0.01,
+        gpu_found_lost_aggregate_pairs_capacity=1024 * 1024 * 4,
+        gpu_total_aggregate_pairs_capacity=2**21,
+        friction_correlation_distance=0.00625,
+        # Let object contacts stall position-driven grippers before they tunnel through a grasp.
+        solve_articulation_contact_last=True,
+    )
     newton_mjwarp = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             solver="newton",
@@ -340,14 +350,14 @@ class PhysicsCfg(PresetCfg):
         num_substeps=2,
         debug_mode=False,
     )
-    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
-    default = isaacsim_physx
+    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
+    default = ovphysx
 
 
 def raise_if_surface_gripper_on_newton(env_cfg) -> None:
     """Reject Newton physics for scenes that configure a surface gripper.
 
-    Surface grippers are a PhysX/Isaac Sim feature (:class:`~isaaclab_physx.assets.SurfaceGripperCfg`)
+    Surface grippers are a PhysX/Isaac Sim feature (:class:`~isaaclab_isaacsim.assets.SurfaceGripperCfg`)
     with no Newton equivalent. This raises an actionable error at config-validation time
     instead of failing later during scene creation with an opaque ``isaacsim.core`` import error.
 

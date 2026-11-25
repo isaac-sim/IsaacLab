@@ -172,7 +172,7 @@ def test_shared_math_ownership(source_checkout_root):
                     "isaaclab.assets",
                     "isaaclab.sensors",
                     "isaaclab_newton",
-                    "isaaclab_physx",
+                    "isaaclab_isaacsim",
                     "isaaclab_ov",
                     "newton",
                     "isaacsim",
@@ -190,7 +190,7 @@ def test_shared_math_ownership(source_checkout_root):
         "update_soft_joint_pos_limits",
         "shift_jacobian_com_to_origin",
     }
-    for backend in ("ov", "physx", "newton"):
+    for backend in ("ov", "isaacsim", "newton"):
         for relative in ("assets/kernels.py", "assets/articulation/kernels.py"):
             file = source / f"isaaclab_{backend}/isaaclab_{backend}" / relative
             assert not retired & {n.name for n in ast.parse(file.read_text()).body if isinstance(n, ast.FunctionDef)}
@@ -198,7 +198,7 @@ def test_shared_math_ownership(source_checkout_root):
     for relative, forbidden in (
         ("isaaclab/isaaclab/sensors/ray_caster/kernels.py", "quat_yaw_only"),
         (
-            "isaaclab_tasks_experimental/isaaclab_tasks_experimental/core/reorient/reorient_warp_env.py",
+            "isaaclab_tasks_experimental/isaaclab_tasks_experimental/deprecated/core/reorient/reorient_warp_env.py",
             "rotation_distance",
         ),
     ):

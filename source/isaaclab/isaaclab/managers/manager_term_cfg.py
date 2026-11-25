@@ -20,6 +20,8 @@ from ..utils.tensor_processors import TensorProcessorCfg
 from .scene_entity_cfg import SceneEntityCfg
 
 if TYPE_CHECKING:
+    from leapp import Axis
+
     from .action_manager import ActionTerm
     from .command_manager import CommandTerm
     from .manager_base import ManagerTermBase
@@ -130,7 +132,9 @@ class CommandTermCfg:
     cmd_kind: str | None = None
     """Type hint for the command for deployment."""
     element_names: list[str] | list[list[str]] | None = None
-    """Element names for the command for deployment."""
+    """Labels for non-environment dimensions. A flat list labels a vector command."""
+    axes: list[Axis | None] | None = None
+    """Advanced LEAPP layout, including the environment dimension. Overrides :attr:`element_names`."""
 
 
 ##

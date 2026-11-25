@@ -3,14 +3,20 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
 from ..utils import configclass
 from .actuator_base_cfg import ActuatorBaseCfg
 
 if TYPE_CHECKING:
-    from .actuator_pd import DCMotor, DelayedPDActuator, IdealPDActuator, ImplicitActuator, RemotizedPDActuator
+    from .actuator_pd import (
+        DCMotor,
+        DelayedImplicitActuator,
+        DelayedPDActuator,
+        IdealPDActuator,
+        ImplicitActuator,
+        RemotizedPDActuator,
+    )
 
 """
 Implicit Actuator Models.
@@ -26,6 +32,23 @@ class ImplicitActuatorCfg(ActuatorBaseCfg):
     """
 
     class_type: type["ImplicitActuator"] | str = "{DIR}.actuator_pd:ImplicitActuator"
+
+
+@configclass
+class DelayedImplicitActuatorCfg(ImplicitActuatorCfg):
+    """Configuration for delayed targets with solver-side implicit PD control.
+
+    The delay bounds must satisfy ``0 <= min_delay <= max_delay``. See
+    :ref:`actuators-command-delay` for reset behavior and native actuator compatibility.
+    """
+
+    class_type: type["DelayedImplicitActuator"] | str = "{DIR}.actuator_pd:DelayedImplicitActuator"
+
+    min_delay: int = 0
+    """Minimum command delay in physics steps, sampled per environment at reset. Defaults to 0."""
+
+    max_delay: int = 0
+    """Maximum command delay in physics steps (inclusive). Defaults to 0."""
 
 
 """
@@ -46,12 +69,13 @@ class DCMotorCfg(IdealPDActuatorCfg):
 
     class_type: type["DCMotor"] | str = "{DIR}.actuator_pd:DCMotor"
 
-    saturation_effort: dict[str, float] | float = MISSING
+    saturation_effort: dict[str, float] | float | None = None
     """Peak motor force/torque of the electric DC motor [N or N·m, depending on joint type].
 
     The motor's stall torque reflected at the joint, i.e. the torque produced at zero speed.
     Joints in the same group that sit behind different gear reductions need different values,
-    so this accepts a joint-name-pattern dictionary as well as a scalar.
+    so this accepts a joint-name-pattern dictionary as well as a scalar. Required unless the joint's kept USD
+    actuator provides it (``use_newton_actuators`` only).
     """
 
 
@@ -64,8 +88,8 @@ class DelayedPDActuatorCfg(IdealPDActuatorCfg):
     min_delay: int = 0
     """Minimum number of physics time-steps with which the actuator command may be delayed. Defaults to 0."""
 
-    max_delay: int = 0
-    """Maximum number of physics time-steps with which the actuator command may be delayed. Defaults to 0."""
+    max_delay: int | None = None
+    """Maximum command delay [physics steps]. None keeps the USD actuator's delay (none on the Isaac Lab path)."""
 
 
 @configclass
@@ -80,9 +104,10 @@ class RemotizedPDActuatorCfg(DelayedPDActuatorCfg):
 
     class_type: type["RemotizedPDActuator"] | str = "{DIR}.actuator_pd:RemotizedPDActuator"
 
-    joint_parameter_lookup: list[list[float]] = MISSING
+    joint_parameter_lookup: list[list[float]] | None = None
     """Joint parameter lookup table. Shape is (num_lookup_points, 3).
 
     This tensor describes the relationship between the joint angle (rad), the transmission ratio (in/out),
     and the output torque (N*m). The table is used to interpolate the output torque based on the joint angle.
+    Required unless the joint's kept USD actuator provides it (``use_newton_actuators`` only).
     """

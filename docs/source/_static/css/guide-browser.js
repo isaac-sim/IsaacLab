@@ -45,7 +45,6 @@
             return;
         }
 
-        const intro = document.querySelector(".guide-browser-intro");
         const note = document.querySelector(".guide-browser-note");
         const search = browser.querySelector("[data-guide-search]");
         const count = browser.querySelector("[data-guide-count]");
@@ -85,7 +84,6 @@
         };
 
         const setBrowserVisible = (isVisible) => {
-            intro.hidden = !isVisible;
             browser.hidden = !isVisible;
             guideList.hidden = !isVisible;
             note.hidden = !isVisible;

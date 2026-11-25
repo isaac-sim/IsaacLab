@@ -34,6 +34,8 @@ Runtime = Literal["kitless", "kit", "kit_cameras"]
 _SKIPPED_TASKS = {
     "IsaacContrib-AutoMate-Assembly-Direct": "Requires CUDA support outside the standard environment test runner.",
     "IsaacContrib-AutoMate-Disassembly-Direct": "Requires CUDA support outside the standard environment test runner.",
+    "IsaacContrib-Cartpole-Lidar": "Requires OVRTX tiled lidar and CUDA.",
+    "IsaacContrib-Cartpole-Lidar-Direct": "Requires OVRTX tiled lidar and CUDA.",
 }
 _SKIPPED_TASK_SUBSTRINGS = {
     "RmpFlow": "Uses SingleArticulation, which requires an update.",
@@ -43,6 +45,10 @@ _SKIPPED_TASK_SUBSTRINGS = {
 _COVERED_TASKS = [
     "IsaacContrib-Lift-Cube-Franka",  # Already covered by test_environment_determinism.py
 ]
+_COVERED_TASK_PREFIXES = (
+    # The VLA assets are downloaded from Hugging Face; the reset and task bindings have native coverage.
+    "IsaacContrib-VLA-",
+)
 
 
 def _skip_reason(task_name: str) -> str | None:
@@ -86,7 +92,8 @@ def contrib_environment_params(runtime: Runtime) -> list:
     """
     tasks_by_family: dict[tuple[str, str, Runtime], list[str]] = defaultdict(list)
     task_marks = {}
-    for task_param in setup_environment(multi_agent=False, tier="contrib", exclude_task_names=_COVERED_TASKS):
+    covered = [*_COVERED_TASKS, *(name for name in gym.registry if name.startswith(_COVERED_TASK_PREFIXES))]
+    for task_param in setup_environment(multi_agent=False, tier="contrib", exclude_task_names=covered):
         task_name = getattr(task_param, "values", (task_param,))[0]
         task_marks[task_name] = getattr(task_param, "marks", ())
         tasks_by_family[(*_variant_family(task_name), task_runtime(task_name))].append(task_name)
@@ -107,6 +114,8 @@ def contrib_environment_params(runtime: Runtime) -> list:
 
 def num_envs(task_name: str) -> int:
     """Return how many environments the smoke test steps for a task."""
+    if task_name == "IsaacContrib-NIST-Franka":
+        return 64
     if task_name in ("IsaacContrib-Franka-Pour", "IsaacContrib-G1-Terrain", "IsaacContrib-UR10-Particle-Push"):
         return 1
     return 3 if task_name == "IsaacContrib-Multitask-Manipulation" else 2

@@ -27,9 +27,20 @@ To evaluate the latest compatible checkpoint in the interactive visualizer:
 .. code-block:: bash
 
    uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole \
-       --checkpoint latest --num_envs 32 --viz newton_gl
+       --checkpoint latest --num_envs 32 --viz newton
 
 The ``train`` and ``play`` commands work across the supported RL libraries.
+
+For a bounded evaluation of an RSL-RL policy on a manager-based task, add ``--evaluate``:
+
+.. code-block:: bash
+
+   uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole --checkpoint latest --evaluate
+
+This reports each environment's first completed episode: mean reward, mean duration and termination
+fractions. It exits after at most one task episode limit and skips policy export. Physics presets,
+agent overrides, checkpoint selection and environment cleanup follow normal playback.
+
 
 Try pretrained controllers directly below: perturb Cartpole or command G1,
 ANYmal-D, and MicroDuck with travel and yaw controls. These compact browser
@@ -219,6 +230,9 @@ Use ``play`` with one of the following checkpoint selectors:
    * - ``wandb:<entity>/<project>/<run_id>``
      - Downloads the latest checkpoint of a W&B run (RSL-RL only). A run URL also works; append
        ``?checkpoint=<iteration>`` to choose an iteration.
+
+RLinf accepts a checkpoint path, ``latest``, or ``best``. Both selectors choose the newest saved RLinf checkpoint.
+See :ref:`rlinf-post-training` for examples.
 
 For example, play the best local checkpoint and record a short video:
 

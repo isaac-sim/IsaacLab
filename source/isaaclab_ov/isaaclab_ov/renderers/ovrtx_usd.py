@@ -17,13 +17,13 @@ from pxr import Sdf, Usd
 if TYPE_CHECKING:
     from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 
-    from isaaclab_ov.renderers.ovrtx_renderer import OVRTXCameraRenderData
+    from .ovrtx_renderer import OVRTXCameraRenderData, OVRTXRenderProduct
 
 logger = logging.getLogger(__name__)
 
 
 # Maps camera data types to (prim name, source name). Shared sources use one config.
-# OVRTX 0.4 keys ``frame.render_vars`` by source name; 0.5+ keys them by the RenderVar prim path.
+# OVRTX keys ``frame.render_vars`` by the RenderVar prim path.
 _RENDER_VAR_BY_DATA_TYPE: dict[str, tuple[str, str]] = {
     "rgb": ("LdrColor", "LdrColor"),
     "rgba": ("LdrColor", "LdrColor"),
@@ -149,15 +149,16 @@ def build_render_product_as_string(
 ) -> str:
     """Build a complete render product USD layer as a string.
 
-    The layer sets the camera scope as its default prim for referencing into OVRTX.
-    The initial camera relationship targets only environment zero, whose camera is guaranteed to
-    exist in the trimmed stage. Multi-environment rendering rewrites the relationship with every
-    resolved camera path after runtime cloning.
+    The layer sets the camera scope as its default prim for referencing into OVRTX. It has one
+    ``RenderProduct`` prim for each render product, and all of them use the RenderVar prims under ``Vars``.
+
+    The initial camera relationship of every render product targets only environment zero, whose camera is
+    guaranteed to exist in the trimmed stage. Multi-environment rendering rewrites the relationship of each render
+    product with its resolved camera paths after runtime cloning.
 
     Args:
-        spec: Camera configuration, environment count, and camera paths. ISP configurations
-            automatically request the HDR render variable in addition to the configured outputs.
-        render_data: Camera's render scope and product identity.
+        spec: Camera configuration, environment count, and camera paths.
+        render_data: Camera's render scope and render products.
         device_id: CUDA device index the render product is pinned to, so its render var buffers are
             allocated on the same device as the Warp kernels that read them.
         enable_shadows: Whether lights cast shadows. Defaults to False. Only honored for the
@@ -167,9 +168,6 @@ def build_render_product_as_string(
         Render product USD layer, including the USDA header and default prim metadata.
     """
     data_types = list(spec.cfg.data_types)
-    if spec.cfg.isp_cfg is not None and "rgb_hdr" not in data_types:
-        data_types.append("rgb_hdr")
-    tiled_width, tiled_height = render_data.num_cols * render_data.width, render_data.num_rows * render_data.height
     render_var_configs = get_render_var_configs(data_types, render_data.render_scope_name)
     minimal_mode = next(
         (_RTX_MINIMAL_MODES[data_type] for data_type in data_types if data_type in _RTX_MINIMAL_MODES), None
@@ -192,17 +190,14 @@ def build_render_product_as_string(
         render_mode_lines = ['token omni:rtx:rendermode = "RealTimePathTracing"']
     else:
         render_mode_lines = [
-            'token omni:rtx:rendermode = "Minimal"',
+            'token omni:rtx:rendermode = "MinimalRendering"',
             f"int omni:rtx:minimal:mode = {minimal_mode}",
             f"bool omni:rtx:minimal:castShadows = {'true' if enable_shadows else 'false'}",
         ]
 
-    # Workaround: ovrtx 0.5 misses GPU-read transform changes, so eco mode freezes output after 500 frames.
-    render_mode_lines.append("bool omni:rtx:rt:ecoMode:enabled = false")
-
-    # An ISP needs Gaussian splats tonemapped with the rest of the frame.
-    # OMPE-117939 tracks deprecation of the Gaussian skip-tonemapping setting.
-    if spec.cfg.isp_cfg is not None:
+    # A tensor processor that reads HDR color, such as PPISP, needs Gaussian splats tonemapped with the rest of the
+    # frame. OMPE-117939 tracks deprecation of the Gaussian skip-tonemapping setting.
+    if any("rgb_hdr" in cfg.inputs for cfg in spec.cfg.tensor_processors):
         render_mode_lines.append("bool omni:rtx:gaussian:skipTonemapping:enabled = false")
 
     render_mode_block = "\n        ".join(render_mode_lines)
@@ -215,22 +210,29 @@ def build_render_product_as_string(
         for _, name, source in render_var_configs
     )
 
-    layer = f'''#usda 1.0
-(defaultPrim = "{render_data.render_scope_name}")
-
-def Scope "{render_data.render_scope_name}"
-{{
-    def RenderProduct "RenderProduct" (
+    def product_block(product: OVRTXRenderProduct) -> str:
+        tiled_width = product.num_cols * render_data.width
+        tiled_height = product.num_rows * render_data.height
+        return f'''def RenderProduct "{Sdf.Path(product.path).name}" (
         prepend apiSchemas = ["OmniRtxSettingsCommonAdvancedAPI_1"]
     ) {{
-        rel camera = [<{render_data.camera_paths[0]}>]
+        rel camera = [<{render_data.products[0].camera_paths[0]}>]
         uint[] deviceIds = [{device_id}]
         {bg_type_line}
         {render_mode_block}
         token[] omni:rtx:waitForEvents = ["AllLoadingFinished", "OnlyOnFirstRequest"]
         rel orderedVars = [{ordered_vars}]
         uniform int2 resolution = ({tiled_width}, {tiled_height})
-    }}
+    }}'''
+
+    product_blocks = "\n\n    ".join(product_block(product) for product in render_data.products)
+
+    layer = f'''#usda 1.0
+(defaultPrim = "{render_data.render_scope_name}")
+
+def Scope "{render_data.render_scope_name}"
+{{
+    {product_blocks}
 
     def "Vars"
     {{
@@ -242,7 +244,53 @@ def Scope "{render_data.render_scope_name}"
         return layer
     stage = Usd.Stage.CreateInMemory()
     stage.GetRootLayer().ImportFromString(layer)
-    product = stage.GetPrimAtPath(render_data.render_product_path)
-    for name, (type_name, value) in spec.cfg.render_settings.items():
-        product.CreateAttribute(name, getattr(Sdf.ValueTypeNames, type_name)).Set(value)
+    for product in render_data.products:
+        prim = stage.GetPrimAtPath(product.path)
+        for name, (type_name, value) in spec.cfg.render_settings.items():
+            prim.CreateAttribute(name, getattr(Sdf.ValueTypeNames, type_name)).Set(value)
     return stage.GetRootLayer().ExportToString()
+
+
+def build_lidar_render_product_as_string(
+    *,
+    render_scope_name: str,
+    lidar_path: str,
+    device_id: int,
+) -> str:
+    """Build a lidar render-product layer that targets one sensor.
+
+    The product has no resolution and no camera render mode. Multi-environment rendering rewrites
+    the camera relationship to every lidar path, in environment order, after the layer is loaded.
+    The initial relationship names the source lidar, which exists in the trimmed stage.
+
+    Args:
+        render_scope_name: Root scope containing the render product and its point-cloud variable.
+        lidar_path: Absolute path of the source lidar prim.
+        device_id: CUDA device index the product is pinned to.
+
+    Returns:
+        USDA text for the lidar render product.
+    """
+    point_cloud = f"/{render_scope_name}/Vars/PointCloud"
+    return f'''#usda 1.0
+(defaultPrim = "{render_scope_name}")
+
+def Scope "{render_scope_name}"
+{{
+    def RenderProduct "RenderProduct"
+    {{
+        rel camera = [<{lidar_path}>]
+        uint[] deviceIds = [{device_id}]
+        rel orderedVars = [<{point_cloud}>]
+    }}
+
+    def "Vars"
+    {{
+        def RenderVar "PointCloud"
+        {{
+            uniform string sourceName = "PointCloud"
+            token[] channels = ["Coordinates", "Intensity", "Flags"]
+        }}
+    }}
+}}
+'''

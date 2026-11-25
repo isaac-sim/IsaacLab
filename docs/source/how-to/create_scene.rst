@@ -26,7 +26,7 @@ This tutorial corresponds to the ``create_scene.py`` script within
 
    .. literalinclude:: ../../../scripts/tutorials/02_scene/create_scene.py
       :language: python
-      :emphasize-lines: 50-63, 68-70, 97-98, 105-106, 111-112, 125-127
+      :emphasize-lines: 54-67, 72-74, 101-102, 109-110, 115-116, 133-134
       :linenos:
 
 

@@ -8,13 +8,11 @@
 from __future__ import annotations
 
 import math
+import warnings
 
 import torch
 
 from isaaclab.utils import configclass
-
-from isaaclab_tasks.utils import SuccessMonitor, SuccessMonitorCfg
-from isaaclab_tasks.utils.sampling import BetaSamplingStrategyCfg, Sampler, SamplerCfg
 
 __all__ = [
     "ResetDatasetSamplerCfg",
@@ -73,8 +71,79 @@ class ResetDatasetSamplerCfg:
             raise ValueError("uniform_fraction must lie strictly between zero and one.")
 
 
+def _ring_append_bool_count_rate(
+    data: torch.Tensor,
+    stream_ids: torch.Tensor,
+    values: torch.Tensor,
+    pointer: torch.Tensor,
+    size: torch.Tensor,
+    true_count: torch.Tensor,
+    rate: torch.Tensor,
+) -> None:
+    """Append outcomes to per-row Boolean rings and update rolling success rates."""
+    if stream_ids.numel() == 0:
+        return
+
+    capacity = data.shape[1]
+    unique_ids, inverse, counts = torch.unique(stream_ids, return_inverse=True, return_counts=True)
+    if unique_ids.numel() == stream_ids.numel():
+        columns = pointer[stream_ids].long()
+        overwritten = torch.where(
+            size[stream_ids] == capacity,
+            data[stream_ids, columns].to(dtype=true_count.dtype),
+            torch.zeros_like(true_count[stream_ids]),
+        )
+        new_true_counts = true_count[stream_ids] - overwritten + values.to(dtype=true_count.dtype)
+        data[stream_ids, columns] = values
+        pointer[stream_ids] = ((columns + 1) % capacity).to(dtype=pointer.dtype)
+        size[stream_ids] = (size[stream_ids] + 1).clamp(max=capacity)
+        true_count[stream_ids] = new_true_counts
+        rate[stream_ids] = new_true_counts.to(rate.dtype) / size[stream_ids].clamp(min=1)
+        return
+
+    order = torch.argsort(inverse, stable=True)
+    sorted_ids = stream_ids[order]
+    sorted_values = values[order]
+    group_starts = counts.cumsum(0) - counts
+    local_rank = torch.arange(stream_ids.numel(), device=data.device) - torch.repeat_interleave(group_starts, counts)
+    inverse_sorted = inverse[order]
+    counts_sorted = counts[inverse_sorted]
+    true_added = torch.zeros(unique_ids.shape, device=data.device, dtype=true_count.dtype)
+    true_added.scatter_add_(0, inverse, values.to(dtype=true_count.dtype))
+
+    keep_start = (counts - capacity).clamp(min=0)
+    keep = local_rank >= torch.repeat_interleave(keep_start, counts)
+    true_kept = torch.zeros_like(true_added)
+    true_kept.scatter_add_(0, inverse_sorted[keep], sorted_values[keep].to(dtype=true_count.dtype))
+
+    overwrite_start = capacity - size[sorted_ids].long()
+    overwrite_mask = (counts_sorted < capacity) & (local_rank >= overwrite_start)
+    overwritten = torch.zeros_like(true_added)
+    overwrite_ids = sorted_ids[overwrite_mask]
+    overwrite_columns = (pointer[overwrite_ids].long() + local_rank[overwrite_mask]) % capacity
+    overwritten.scatter_add_(
+        0,
+        inverse_sorted[overwrite_mask],
+        data[overwrite_ids, overwrite_columns].to(dtype=true_count.dtype),
+    )
+
+    kept_ids = sorted_ids[keep]
+    kept_columns = (pointer[kept_ids].long() + local_rank[keep]) % capacity
+    data[kept_ids, kept_columns] = sorted_values[keep]
+    replace = counts >= capacity
+    new_true_counts = torch.where(replace, true_kept, true_count[unique_ids] - overwritten + true_added)
+    new_size = (size[unique_ids].long() + counts).clamp(max=capacity)
+    pointer[unique_ids] = ((pointer[unique_ids].long() + counts) % capacity).to(dtype=pointer.dtype)
+    size[unique_ids] = new_size.to(dtype=size.dtype)
+    true_count[unique_ids] = new_true_counts
+    rate[unique_ids] = new_true_counts.to(rate.dtype) / new_size.clamp(min=1).to(rate.dtype)
+
+
 class ResetDatasetSampler:
-    """Combine shared outcome weighting with Pour's exact cyclic replay."""
+    """Legacy reset sampler for callers using the original task-local API.
+
+    New code should use :class:`~isaaclab.envs.reset.ResetStateSampler`.
+    """
 
     def __init__(
         self,
@@ -82,28 +151,38 @@ class ResetDatasetSampler:
         device: str | torch.device,
         cfg: ResetDatasetSamplerCfg | None = None,
     ) -> None:
+        warnings.warn(
+            "ResetDatasetSampler is deprecated. Use isaaclab.envs.reset.ResetStateSampler.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         if isinstance(row_count, bool) or not isinstance(row_count, int) or row_count < 1:
             raise ValueError("row_count must be a positive integer.")
         self.cfg = cfg if cfg is not None else ResetDatasetSamplerCfg()
         self.cfg.validate_values()
         self.row_count = row_count
-        self._success_monitor = SuccessMonitor(
-            SuccessMonitorCfg(monitored_history_len=self.cfg.monitored_history_len), 1, row_count, device
+        self._alpha_minus_one = self.cfg.kappa * self.cfg.target_success_rate
+        self._beta_minus_one = self.cfg.kappa * (1.0 - self.cfg.target_success_rate)
+
+        self._success_rates = torch.zeros(row_count, dtype=torch.float32, device=device)
+        self._success_history = torch.zeros(
+            (row_count, self.cfg.monitored_history_len),
+            dtype=torch.bool,
+            device=device,
         )
-        self._sampler = Sampler(
-            SamplerCfg(
-                strategies=[BetaSamplingStrategyCfg(target=self.cfg.target_success_rate, kappa=self.cfg.kappa)],
-                eps=self.cfg.epsilon,
-            ),
-            self._success_monitor.success_rate,
-        )
+        self._history_pointers = torch.zeros(row_count, dtype=torch.int32, device=device)
+        self._history_sizes = torch.zeros_like(self._history_pointers)
+        self._history_success_counts = torch.zeros_like(self._history_pointers)
         self._uniform_order = torch.randperm(row_count, device=device)
         self._uniform_cursor = 0
         self._uniform_credit = 0.0
 
     def _probabilities(self) -> torch.Tensor:
         """Return normalized Beta scores with a per-row epsilon floor."""
-        return self._sampler.probabilities()
+        weights = self._success_rates.pow(self._alpha_minus_one)
+        weights *= (1.0 - self._success_rates).pow(self._beta_minus_one)
+        weights.add_(self.cfg.epsilon)
+        return weights / weights.sum()
 
     def _sample_with_uniform_replay(
         self,
@@ -112,7 +191,7 @@ class ResetDatasetSampler:
         generator: torch.Generator | None = None,
     ) -> torch.Tensor:
         """Sample rows with a mixture of adaptive and exact cyclic replay."""
-        device = self._uniform_order.device
+        device = self._success_rates.device
         rows = torch.empty(count, device=device, dtype=torch.long)
         if count == 0:
             return rows
@@ -134,12 +213,21 @@ class ResetDatasetSampler:
 
     def _record_validated(self, rows: torch.Tensor, success: torch.Tensor) -> None:
         """Append outcomes whose shape, dtype, device, and row values are already trusted."""
-        self._success_monitor.success_update(rows, success)
+        _ring_append_bool_count_rate(
+            self._success_history,
+            rows,
+            success,
+            self._history_pointers,
+            self._history_sizes,
+            self._history_success_counts,
+            self._success_rates,
+        )
 
     def metrics(self) -> dict[str, float]:
         """Return sampling-concentration and cyclic-replay metrics."""
         replay_fraction = float(self.cfg.uniform_fraction)
-        probabilities = self._probabilities() * (1.0 - replay_fraction) + replay_fraction / self.row_count
+        probabilities = self._probabilities()
+        probabilities.mul_(1.0 - replay_fraction).add_(replay_fraction / self.row_count)
         top_count = max(1, math.ceil(0.01 * self.row_count))
         values = torch.stack(
             (
@@ -169,7 +257,7 @@ class ResetDatasetSampler:
     ) -> torch.Tensor:
         """Take rows from shuffled complete-cache cycles without replacement within a cycle."""
         if count == 0:
-            return torch.empty(0, device=self._uniform_order.device, dtype=torch.long)
+            return torch.empty(0, device=self._success_rates.device, dtype=torch.long)
         remaining = count
         chunks = []
         while remaining > 0:
@@ -181,7 +269,7 @@ class ResetDatasetSampler:
             if self._uniform_cursor == self.row_count:
                 self._uniform_order = torch.randperm(
                     self.row_count,
-                    device=self._uniform_order.device,
+                    device=self._success_rates.device,
                     generator=generator,
                 )
                 self._uniform_cursor = 0

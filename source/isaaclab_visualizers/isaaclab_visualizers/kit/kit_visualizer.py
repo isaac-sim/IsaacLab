@@ -10,7 +10,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import signal
-from typing import TYPE_CHECKING, ClassVar
+import warnings
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import numpy as np
 import torch
@@ -26,6 +27,7 @@ from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg
 
 from isaaclab_visualizers.desktop_entry import write_desktop_entry
+from isaaclab_visualizers.lidar_points import LIDAR_POINT_COLOR, collect_lidar_hits, frame_visualizer_closeup
 
 from .kit_key_event_source import KitKeyEventSource
 
@@ -45,7 +47,13 @@ _BACKEND_DISPLAY_NAMES = {
 
 
 class KitVisualizer(BaseVisualizer):
-    """Kit visualizer using Isaac Sim viewport."""
+    """Kit visualizer using Isaac Sim viewport.
+
+    .. deprecated:: 3.1
+        The Kit visualizer is deprecated and will be removed in 3.2. Use the Newton GL visualizer
+        (``--viz newton_gl``) for the interactive window, tracking cameras and RTX rendering, and the
+        OVRTX renderer for Kit-free RTX rendering of sensor cameras.
+    """
 
     _timeline_auto_update: ClassVar[bool | None] = None
     _timeline_control_owner_count: ClassVar[int] = 0
@@ -57,6 +65,16 @@ class KitVisualizer(BaseVisualizer):
             cfg: Kit visualizer configuration.
         """
         super().__init__(cfg)
+        settings = get_settings_manager()
+        # Livestreaming and XR need Kit and have no replacement yet, so they do not warn.
+        if not (settings.get("/isaaclab/livestream") or settings.get("/isaaclab/xr/enabled")):
+            warnings.warn(
+                "The Kit visualizer (KitBackendCfg, '--viz kit') is deprecated and will be removed in 3.2. Use the"
+                " Newton GL visualizer (NewtonGLBackendCfg, '--viz newton_gl') for the interactive window,"
+                " tracking cameras and RTX rendering.",
+                FutureWarning,
+                stacklevel=2,
+            )
 
         self._simulation_app = None
         self._viewport_window = None
@@ -82,6 +100,8 @@ class KitVisualizer(BaseVisualizer):
         self._app_pumped_this_step: bool = False
         self._controls_kit_timeline = False
         self._owns_kit_timeline = False
+        self._lidar_draw = None
+        self._lidar_draw_unavailable = False
         # Camera tracking state (replaces ViewportCameraController)
         self._interactive_scene = None  # set from SimulationContext._interactive_scene in initialize()
         self._viewer_origin: torch.Tensor | None = None  # world-space origin offset for eye/lookat
@@ -91,7 +111,7 @@ class KitVisualizer(BaseVisualizer):
     @property
     def visual_material_writer(self):
         """Write material channels directly through Fabric."""
-        from isaaclab_physx.renderers.visual_material import FabricVisualMaterialWriter
+        from isaaclab_isaacsim.renderers.visual_material import FabricVisualMaterialWriter
 
         return FabricVisualMaterialWriter
 
@@ -107,6 +127,8 @@ class KitVisualizer(BaseVisualizer):
             return
 
         super().initialize(sim, cameras=cameras)
+        if self.cfg.backend.origin_type == "world":
+            frame_visualizer_closeup(self, cameras)
         scene_data_provider = self._sim.get_scene_data_provider()
         num_envs = scene_data_provider.num_envs
 
@@ -149,7 +171,7 @@ class KitVisualizer(BaseVisualizer):
                 omni.ui.ImageWithProvider(self._camera_image_provider)
             asyncio.ensure_future(self._dock_window_async(title))
 
-        from isaaclab_physx.renderers.fabric import FabricBackendCfg  # noqa: PLC0415 - requires Kit
+        from isaaclab_isaacsim.renderers.fabric import FabricBackendCfg  # noqa: PLC0415 - requires Kit
 
         self._fabric = sim.get_or_create_backend(FabricBackendCfg(stage=sim.stage, device=sim.device))
         self._fabric.bind_transforms(scene_data_provider)
@@ -187,6 +209,7 @@ class KitVisualizer(BaseVisualizer):
         self._fabric.update_geometries(provider, self._sim.render_generation)
         if self.cfg.backend.origin_type == "asset":
             self._update_asset_tracking_camera()
+        self._draw_lidar_points()
         self._app_pumped_this_step = self._pump_kit_app_update()
         if self._camera_image_provider is not None:
             image = self.current_image_view.frame.data if self.is_training_paused() else self.render_tiled_rgba_array()
@@ -203,6 +226,41 @@ class KitVisualizer(BaseVisualizer):
         # Markers (VisualizationMarkers) are often created or resized to num_envs only after the first
         # simulation / debug-vis step; re-apply PointInstancer invisibleIds each step when partial viz is on.
         self._refresh_partial_viz_point_instancers_if_needed()
+
+    def _draw_lidar_points(self) -> None:
+        """Draw one environment's lidar hits in the Kit viewport.
+
+        Debug draw is a viewport overlay, so the lidar product does not scan the points. A missing
+        debug-draw interface is reported once and the step continues.
+        """
+        hits = collect_lidar_hits(self._sim, self._env_ids, self._step_counter)
+        if hits is None:
+            return
+        draw = self._lidar_debug_draw()
+        if draw is None:
+            return
+        draw.clear_points()
+        color = (*LIDAR_POINT_COLOR, 1.0)
+        for _, points in hits:
+            if len(points) == 0:
+                continue
+            positions = [(float(point[0]), float(point[1]), float(point[2])) for point in points]
+            draw.draw_points(positions, [color] * len(positions), [6.0] * len(positions))
+
+    def _lidar_debug_draw(self) -> Any | None:
+        """Return the Kit debug-draw interface, or None when it cannot be acquired."""
+        if self._lidar_draw_unavailable:
+            return None
+        if self._lidar_draw is None:
+            try:
+                from isaacsim.util.debug_draw import _debug_draw
+
+                self._lidar_draw = _debug_draw.acquire_debug_draw_interface()
+            except Exception as exc:
+                logger.warning("[KitVisualizer] Lidar point drawing is unavailable: %s", exc)
+                self._lidar_draw_unavailable = True
+                return None
+        return self._lidar_draw
 
     def close(self) -> None:
         """Close viewport resources and restore temporary state."""
@@ -997,9 +1055,9 @@ class KitVisualizer(BaseVisualizer):
         eye = np.array(self.cfg.eye, dtype=float) + origin
         target = np.array(self.cfg.lookat, dtype=float) + origin
         self.set_camera_view(tuple(float(v) for v in eye), tuple(float(v) for v in target))
-        # Keep the Isaac RTX renderer camera in sync (no-op if isaaclab_physx is not installed).
+        # Keep the Isaac RTX renderer camera in sync (no-op if isaaclab_isaacsim is not installed).
         try:
-            from isaaclab_physx.renderers.kit_viewport_utils import set_kit_renderer_camera_view  # noqa: PLC0415
+            from isaaclab_isaacsim.renderers.kit_viewport_utils import set_kit_renderer_camera_view  # noqa: PLC0415
 
             set_kit_renderer_camera_view(eye=eye, target=target, camera_prim_path="/OmniverseKit_Persp")
         except (ImportError, ModuleNotFoundError):

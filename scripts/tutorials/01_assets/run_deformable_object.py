@@ -8,22 +8,23 @@ This script demonstrates how to work with the deformable object and interact wit
 
 .. code-block:: bash
 
-    # Usage with default PhysX physics and default kit visualizer.
-    uv run --extra isaacsim --extra tetrahedralization python scripts/tutorials/01_assets/run_deformable_object.py
+    # Usage with default OvPhysX physics and default Newton RTX visualizer.
+    uv run --extra ov --extra tetrahedralization python scripts/tutorials/01_assets/run_deformable_object.py
 
-    # Usage with Newton VBD physics and default kit visualizer.
-    uv run --extra isaacsim --extra tetrahedralization python scripts/tutorials/01_assets/run_deformable_object.py \
+    # Usage with Newton VBD physics and default Newton RTX visualizer.
+    uv run --extra ov --extra tetrahedralization python scripts/tutorials/01_assets/run_deformable_object.py \
         --backend newton_vbd
 
     # Usage with OvPhysX physics without a visualizer.
     uv run --extra ovphysx --extra tetrahedralization python scripts/tutorials/01_assets/run_deformable_object.py \
-        --backend ovphysx
+        --backend ovphysx --viz none
 
 """
 
 """Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
 
 import argparse
+from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
 from isaaclab.app import add_launcher_args, launch_simulation
@@ -31,13 +32,12 @@ from isaaclab.app import add_launcher_args, launch_simulation
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Tutorial on interacting with a deformable object.")
 parser.add_argument(
-    "--backend", type=str, default="physx", choices=["physx", "newton_vbd", "ovphysx"], help="Physics backend."
+    "--backend", type=str, default="ovphysx", choices=["physx", "newton_vbd", "ovphysx"], help="Physics backend."
 )
 # append simulation launcher CLI arguments
 add_launcher_args(parser)
-# Kit cannot be combined with OvPhysX, so use no visualizer by default for that backend
 backend_args, _ = parser.parse_known_args()
-parser.set_defaults(visualizer=None if backend_args.backend == "ovphysx" else ["kit"])
+parser.set_defaults(visualizer=["newton_gl" if backend_args.backend == "physx" else "newton_rtx"])
 # parse the arguments
 args_cli = parser.parse_args()
 args_cli.physics = args_cli.backend
@@ -72,8 +72,8 @@ if args_cli.backend == "newton_vbd":
         density=density,
     )
 else:
-    from isaaclab_physx.sim.schemas import PhysxCollisionCfg
-    from isaaclab_physx.sim.spawners.materials import PhysxDeformableBodyMaterialCfg
+    from isaaclab_isaacsim.sim.schemas import PhysxCollisionCfg
+    from isaaclab_isaacsim.sim.spawners.materials import PhysxDeformableBodyMaterialCfg
 
     collision_props = [PhysxCollisionCfg(rest_offset=0.0, contact_offset=0.001)]
     physics_material = PhysxDeformableBodyMaterialCfg(
@@ -179,14 +179,14 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: "InteractiveScene"):
 def main():
     """Main function."""
     sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device)
-    with launch_simulation(sim_cfg, args_cli) as physics_cfg:
+    scene_cfg = DeformableSceneCfg(num_envs=4, env_spacing=0.5)
+    with launch_simulation(SimpleNamespace(sim=sim_cfg, scene=scene_cfg), args_cli) as physics_cfg:
         if args_cli.backend == "newton_vbd":
             physics_cfg.solver_cfg.iterations = 10
             physics_cfg.num_substeps = 4
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
         sim.set_camera_view(eye=[2.0, 2.0, 2.0], target=[0.0, 0.0, 0.75])
-        scene_cfg = DeformableSceneCfg(num_envs=4, env_spacing=0.5)
         scene = instantiate(scene_cfg)
         # Play the simulator
         sim.reset()

@@ -6,9 +6,9 @@
 """Tests for Agibot place environment backend compatibility."""
 
 import pytest
+from isaaclab_isaacsim.physics import PhysxCfg
 from isaaclab_newton.physics import NewtonCfg
 from isaaclab_ov.physics import OvPhysxCfg
-from isaaclab_physx.physics import PhysxCfg
 from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
 from isaaclab.assets import RigidObjectCfg
@@ -56,5 +56,5 @@ def test_agibot_rejects_newton_physics_for_incompatible_collision_mesh() -> None
     env_cfg.sim.physics = NewtonCfg()
     env_cfg.sim.visualizer_cfgs = VisualizerCfg(headless=True, backend=NewtonGLBackendCfg())
 
-    with pytest.raises(ValueError, match=r"generated convex collision mesh.*physics=isaacsim_physx"):
+    with pytest.raises(ValueError, match=r"generated convex collision mesh.*physics=ovphysx"):
         env_cfg.validate_config()

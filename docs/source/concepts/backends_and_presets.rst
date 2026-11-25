@@ -91,7 +91,7 @@ Choose a selector
      - ``renderer=newton_warp``
      - Selects a renderer configuration for tasks that produce camera data.
    * - ``visualizer=NAME[,NAME,...]``
-     - ``visualizer=newton_gl``
+     - ``visualizer=newton``
      - Selects interactive viewers; ``visualizer=none`` disables them.
    * - ``presets=NAME[,NAME,...]``
      - ``presets=rgb``
@@ -129,7 +129,8 @@ conventions:
    * - Name
      - Meaning
    * - ``isaacsim_physx``
-     - Isaac Sim PhysX. Some tasks use this as their default.
+     - Isaac Sim PhysX. Some tasks use this as their default. Deprecated in 3.1 and removed in 3.2 together with the
+       Kit path; selecting it emits a ``FutureWarning``. Use ``ovphysx`` or ``newton_mjwarp``.
    * - ``physx``
      - Automatic PhysX-family selection. Isaac Sim PhysX is used when the
        runtime needs Kit; a configured OvPhysX alternative can be used for
@@ -149,7 +150,8 @@ conventions:
    * - Name
      - Meaning
    * - ``isaacsim_rtx``
-     - Isaac Sim RTX renderer.
+     - Isaac Sim RTX renderer. Deprecated in 3.1 and removed in 3.2 together with the Kit path; selecting it emits a
+       ``FutureWarning``. Use ``ovrtx`` or ``newton_renderer``.
    * - ``rtx``
      - Automatic RTX-family selection. Isaac Sim RTX is used when physics,
        visualization, livestreaming, or another runtime choice requires Kit;
@@ -157,8 +159,23 @@ conventions:
    * - ``newton_warp``
      - Newton Warp renderer. This is the default for tasks that use the
        multi-backend renderer preset.
+   * - ``newton_optix``
+     - Newton renderer ray traced in hardware with OptiX. Requires an RTX GPU and the
+       ``optix`` extra.
    * - ``ovrtx``
      - OVRTX renderer for runs without Kit.
+
+.. deprecated:: 3.1
+   The ``isaaclab_physx`` package was renamed to ``isaaclab_isaacsim``, because it holds the Isaac Sim integration
+   (PhysX physics, Isaac RTX rendering and app launch). Replace ``isaaclab_physx`` with ``isaaclab_isaacsim`` in
+   imports, for example ``from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg``. The old name still imports
+   and emits a ``DeprecationWarning``; it is removed in 3.2. The ``isaacsim_physx`` and ``isaacsim_rtx`` selectors keep
+   their names.
+
+   ``isaaclab_isaacsim`` is the Kit path, so the package itself is deprecated in 3.1 and removed in 3.2 together
+   with the Kit visualizer and those selectors. Launching Kit emits a ``FutureWarning`` that lists why it is needed
+   (livestreaming and XR, which have no replacement yet, do not warn). Use ``isaaclab_newton`` or ``isaaclab_ov`` for
+   Kit-free runs.
 
 Automatic selectors such as ``physics=physx`` and ``renderer=rtx`` are opt-in.
 Defaults are concrete so that running a task without selectors is predictable.
@@ -213,7 +230,7 @@ For a multi-backend task, the preset wrapper belongs in
    from isaaclab.utils import configclass
    from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
    from isaaclab_ov.physics import OvPhysxCfg
-   from isaaclab_physx.physics import PhysxCfg
+   from isaaclab_isaacsim.physics import PhysxCfg
    from isaaclab_tasks.utils import PresetCfg
 
 
@@ -275,7 +292,7 @@ They select a backend key, then locate its implementation by module path:
    backend requires setting this class attribute on its manager.
 2. The factory module path determines the backend module path. For example,
    ``isaaclab.assets.articulation`` maps to
-   ``isaaclab_physx.assets.articulation``,
+   ``isaaclab_isaacsim.assets.articulation``,
    ``isaaclab_newton.assets.articulation``, or
    ``isaaclab_ov.assets.articulation``. The OvPhysX backend key uses the shared
    ``isaaclab_ov`` integration package.
@@ -292,7 +309,7 @@ They select a backend key, then locate its implementation by module path:
         ├─ _get_backend()       → "physx", "newton", or "ovphysx"
         │    (reads SimulationContext.backend_manager)
         │
-        ├─ _get_module_name()   → "isaaclab_physx.assets.articulation"
+        ├─ _get_module_name()   → "isaaclab_isaacsim.assets.articulation"
         │    (OvPhysX maps to the shared isaaclab_ov package)
         │
         ├─ importlib.import_module()
@@ -328,7 +345,7 @@ configurations and applies launch options. Scene construction and updates follow
    state write does not require a new physics step. Matching native formats are borrowed;
    consumers reuse conversions for an unchanged publication.
 
-Camera-backed views and recordings borrow a camera's output; the camera owns its render product
+Camera-backed views and recordings borrow a camera's output; the camera owns its render products
 and buffers, while the simulation owns the renderer. Closing a window leaves its borrowed camera
 alive. Native GL perspective views instead render published scene state directly. Teleop and XR
 retain bound host Fabric matrices for pose reads; they do not copy poses through GPU buffers.

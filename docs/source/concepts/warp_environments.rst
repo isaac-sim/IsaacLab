@@ -5,8 +5,9 @@ Warp Environments
 
 .. note::
 
-   The warp environment infrastructure lives in ``isaaclab_experimental`` and
-   ``isaaclab_tasks_experimental``. It's an experimental feature.
+   ``--frontend warp`` is deprecated: :ref:`MDP2 <mdp2>` replaces it, with its own ``-MDP2`` tasks. The warp
+   environment infrastructure lives in ``isaaclab_experimental.deprecated`` and
+   ``isaaclab_tasks_experimental.deprecated``.
 
 Experimental Warp environments compute observations, rewards, resets, and actions
 in Warp kernels. CUDA graph capture reduces Python overhead during execution.
@@ -237,7 +238,7 @@ specific to warp envs; for Newton physics features and related guides see
 **Physics backend**
 
 - **Newton only.** PhysX is not supported under the warp env path. Asset and sensor
-  ``class_type`` fields resolve to ``isaaclab_physx.*`` classes that depend on
+  ``class_type`` fields resolve to ``isaaclab_isaacsim.*`` classes that depend on
   ``omni.physics.tensors`` (a Kit module the warp runtime does not initialise), and several
   warp APIs (env-mask reset, CUDA graph capture) require the Newton articulation. Configure
   the cfg with a Newton physics block (or the typed selector ``physics=newton_mjwarp``,
@@ -395,8 +396,8 @@ Warp task configs import from the experimental packages:
 .. code-block:: python
 
    # Warp
-   from isaaclab_experimental.managers import ObservationTermCfg, RewardTermCfg, SceneEntityCfg
-   import isaaclab_experimental.envs.mdp as mdp
+   from isaaclab_experimental.deprecated.managers import ObservationTermCfg, RewardTermCfg, SceneEntityCfg
+   import isaaclab_experimental.deprecated.envs.mdp as mdp
 
 The term config classes have the same interface — only the import path changes.
 
@@ -438,7 +439,7 @@ Since warp terms write into pre-allocated buffers, the observation manager must 
 term's output dimension at initialization to allocate the correct ``(num_envs, D)`` output
 array. This is resolved via a fallback chain (see
 ``ObservationManager._infer_term_dim_scalar`` in
-``isaaclab_experimental/managers/observation_manager.py``):
+``isaaclab_experimental/deprecated/managers/observation_manager.py``):
 
 .. warning::
 
@@ -532,7 +533,7 @@ counterpart (e.g. new terms written directly in warp).
 .. code-block:: python
 
    import isaaclab.envs.mdp.observations as torch_obs
-   import isaaclab_experimental.envs.mdp.observations as warp_obs
+   import isaaclab_experimental.deprecated.envs.mdp.observations as warp_obs
 
    # Torch baseline
    expected = torch_obs.joint_pos(torch_env, asset_cfg=cfg)

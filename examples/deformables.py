@@ -28,20 +28,10 @@ parser.add_argument(
 )
 parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
 add_launcher_args(parser)
-backend_args, _ = parser.parse_known_args()
-default_visualizer = None if backend_args.physics == "ovphysx" else ["newton_gl"]
-if backend_args.physics == "isaacsim_physx":
-    default_visualizer = ["kit"]
-parser.set_defaults(visualizer=default_visualizer)
+parser.set_defaults(visualizer=["newton"])
 args_cli = parser.parse_args()
 if args_cli.max_steps == 0 or args_cli.max_steps < -1:
     parser.error("--max_steps must be positive or -1.")
-
-if args_cli.visualizer and "newton" in args_cli.visualizer and args_cli.physics != "newton_vbd":
-    raise ValueError(
-        "Newton visualizer is only compatible with newton physics backend for deformables. "
-        "Please use --physics newton_vbd."
-    )
 
 import random
 
@@ -72,11 +62,11 @@ if args_cli.physics == "newton_vbd":
     # Newton needs no deformable-body attributes; an empty slot still creates the deformable body
     DEFORMABLE_BODY_PROPS = []
 else:
-    from isaaclab_physx.sim.schemas import PhysxDeformableBodyCfg
-    from isaaclab_physx.sim.spawners.materials import (
+    from isaaclab_isaacsim.sim.schemas import PhysxDeformableBodyCfg
+    from isaaclab_isaacsim.sim.spawners.materials import (
         PhysxDeformableBodyMaterialCfg as VolumeDeformableMaterialCfg,
     )
-    from isaaclab_physx.sim.spawners.materials import (
+    from isaaclab_isaacsim.sim.spawners.materials import (
         PhysxSurfaceDeformableBodyMaterialCfg as SurfaceDeformableMaterialCfg,
     )
 

@@ -122,8 +122,8 @@ class ArticulationData(BaseArticulationData):
         self._sim_timestamp: float = 0.0
         self._is_primed: bool = False
         self._read_launch_cache = _WarpLaunchCache(device)
+        # OvPhysX supplies the public joint basis; shared ordering kernels take identity signs.
         self._joint_dof_signs = wp.ones(self.num_joints, dtype=wp.int32, device=device)
-        self._has_reversed_joints = False
         # pinned-host staging buffers for CPU-only bindings (keyed by tensor_type)
         self._cpu_staging_buffers: dict[int, wp.array] = {}
 
@@ -1075,7 +1075,7 @@ class ArticulationData(BaseArticulationData):
         if self._body_com_jacobian_w.timestamp < self._sim_timestamp:
             has_body_ordering = self.has_body_ordering
             has_joint_ordering = self.has_joint_ordering
-            if has_body_ordering or has_joint_ordering or self._has_reversed_joints:
+            if has_body_ordering or has_joint_ordering:
                 if self._body_com_jacobian_w_backend is None:
                     self._body_com_jacobian_w_backend = wp.empty_like(self._body_com_jacobian_w.data.warp)
                 if has_body_ordering and self._jacobian_body_user_to_backend is None:
@@ -1125,7 +1125,7 @@ class ArticulationData(BaseArticulationData):
             shape = self._view.binding_for(TT.MASS_MATRIX).shape
             self._mass_matrix.data = ProxyArray(wp.empty(shape, wp.float32, self.device))
         if self._mass_matrix.timestamp < self._sim_timestamp:
-            if self.has_joint_ordering or self._has_reversed_joints:
+            if self.has_joint_ordering:
                 if self._mass_matrix_backend is None:
                     self._mass_matrix_backend = wp.empty_like(self._mass_matrix.data.warp)
                 self._binding_read(TT.MASS_MATRIX, self._mass_matrix_backend)
@@ -1975,7 +1975,7 @@ class ArticulationData(BaseArticulationData):
             copy=False,
         )
         self._joint_dynamic_friction_coeff = wp.array(
-            ptr=_fp.ptr + _float_bytes,
+            ptr=_fp.ptr + _float_bytes if _fp.ptr is not None else None,
             shape=(N, D),
             strides=(_stride_row, _stride_col),
             dtype=wp.float32,
@@ -1983,7 +1983,7 @@ class ArticulationData(BaseArticulationData):
             copy=False,
         )
         self._joint_viscous_friction_coeff = wp.array(
-            ptr=_fp.ptr + 2 * _float_bytes,
+            ptr=_fp.ptr + 2 * _float_bytes if _fp.ptr is not None else None,
             shape=(N, D),
             strides=(_stride_row, _stride_col),
             dtype=wp.float32,

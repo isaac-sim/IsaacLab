@@ -27,6 +27,7 @@ from isaaclab.visualizers import VisualizerCfg
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg
 
+from isaaclab_visualizers.lidar_points import collect_lidar_hits, frame_visualizer_closeup, log_lidar_hits
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
 from isaaclab_visualizers.newton_adapter import log_geo_with_expanded_plane_scale
 
@@ -288,6 +289,7 @@ class ViserVisualizer(BaseVisualizer):
         self.backend = None
         self._pending_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self._warned_marker_render_failure = False
+        self._lidar_step_counter = 0
         self._paused_rendering = False
         self._paused_simulation = False
 
@@ -323,6 +325,7 @@ class ViserVisualizer(BaseVisualizer):
             print()
             self._log_viewer_url("ViserVisualizer", viewer_url)
         self._viewer.set_model(self.backend.model)
+        self._geometry_change_version = self.backend.geometry_change_version
         self._viewer.show_particles = self.cfg.backend.show_particles
         # set_model() clears model-dependent GUI elements; build the sidebar afterwards.
         self._setup_isaaclab_sidebar(self._viewer._server)
@@ -331,6 +334,7 @@ class ViserVisualizer(BaseVisualizer):
         self._viewer.set_world_offsets((0.0, 0.0, 0.0))
         if self.cfg.backend.open_browser:
             webbrowser.open_new_tab(viewer_url)
+        frame_visualizer_closeup(self, cameras)
         self.set_camera_view(self.cfg.eye, self.cfg.lookat)
         self._viewer.marker_groups = sim.vis_marker_registry.get_groups().values()
         num_visualized_envs = len(self._env_ids) if self._env_ids is not None else num_envs
@@ -388,9 +392,13 @@ class ViserVisualizer(BaseVisualizer):
                     backend.state_0.body_q = poses.transforms
                 if backend.geometry_offsets:
                     provider.get_geometry_points(output=backend.state_0.particle_q, offsets=backend.geometry_offsets)
+                if self._geometry_change_version != backend.geometry_change_version:
+                    self._viewer.notify_model_changed(newton.ModelFlags.SHAPE_TYPE_AND_SOURCE)
+                    self._geometry_change_version = backend.geometry_change_version
                 self._viewer.log_state(self.backend.state_0)
                 if self.cfg.enable_markers:
                     self._render_markers(self.backend.model.num_envs)
+                self._log_lidar_points()
             self._render_live_plots()
             self._push_streaming_frame()
         finally:
@@ -408,6 +416,15 @@ class ViserVisualizer(BaseVisualizer):
         # Letterbox to 16:9 so the composite isn't stretched when Viser fills
         # the browser canvas.  Black bars are added on whichever axis needs it.
         self._viewer._server.scene.set_background_image(_letterbox_16_9(composite), format="jpeg")
+
+    def _log_lidar_points(self) -> None:
+        """Log one lidar environment's hits into the Viser scene."""
+        if self._viewer is None:
+            return
+        self._lidar_step_counter += 1
+        hits = collect_lidar_hits(self._sim, self._env_ids, self._lidar_step_counter)
+        if hits is not None:
+            log_lidar_hits(self._viewer, hits)
 
     def _render_markers(self, num_envs: int) -> None:
         """Render marker overlays without letting them interrupt Viser body updates."""
@@ -431,6 +448,7 @@ class ViserVisualizer(BaseVisualizer):
         self.backend = backend
         self._transform_mapping = self._sim.get_scene_data_provider().create_mapping(list(backend.model.body_label))
         self._viewer.set_model(backend.model)
+        self._geometry_change_version = backend.geometry_change_version
         self._setup_isaaclab_sidebar(self._viewer._server)
         self._viewer.set_visible_worlds(self._env_ids)
         self._viewer.set_world_offsets((0.0, 0.0, 0.0))

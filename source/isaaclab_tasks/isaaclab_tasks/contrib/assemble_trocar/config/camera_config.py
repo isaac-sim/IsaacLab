@@ -14,6 +14,8 @@ import isaaclab.sim as sim_utils
 from isaaclab.sensors import CameraCfg
 from isaaclab.utils import configclass
 
+from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
+
 
 @configclass
 class CameraBaseCfg:
@@ -59,6 +61,7 @@ class CameraBaseCfg:
             data_types = ("rgb",)
 
         return CameraCfg(
+            renderer_cfg=MultiBackendRendererCfg().rtx,
             prim_path=prim_path,
             update_period=update_period,
             height=height,

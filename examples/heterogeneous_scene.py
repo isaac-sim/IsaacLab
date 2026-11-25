@@ -15,10 +15,10 @@ simulation settings.
 .. code-block:: bash
 
     # Usage with the full default task selection.
-    uvx --from 'isaaclab[isaacsim]' isaaclab example heterogeneous-scene
+    uvx --from 'isaaclab[ov]' isaaclab example heterogeneous-scene
 
     # Usage with a smaller composition.
-    uvx --from 'isaaclab[isaacsim]' isaaclab example heterogeneous-scene --num_task 3 --num_envs 3
+    uvx --from 'isaaclab[ov]' isaaclab example heterogeneous-scene --num_task 3 --num_envs 3
 
 """
 
@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from types import SimpleNamespace
 
 import isaaclab.sim as sim_utils
 from isaaclab.app import add_launcher_args, launch_simulation
@@ -50,10 +51,11 @@ parser.add_argument(
     default=None,
     help="Number of tasks to use from the default order. Omit to use all tasks.",
 )
-parser.add_argument("--physics", default="isaacsim_physx", choices=["isaacsim_physx"], help="Physics backend.")
+parser.add_argument("--physics", default="ovphysx", choices=["isaacsim_physx", "ovphysx"], help="Physics backend.")
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["kit"])
 args_cli, hydra_args = parser.parse_known_args()
+if args_cli.visualizer is None:
+    args_cli.visualizer = ["newton_gl" if args_cli.physics == "isaacsim_physx" else "newton_rtx"]
 if args_cli.num_envs < 1:
     parser.error("--num_envs must be at least 1.")
 if args_cli.env_spacing <= 0.0:
@@ -138,7 +140,7 @@ def main() -> None:
 
     scene_cfg.num_envs = args_cli.num_envs
     sim_cfg = sim_utils.SimulationCfg(dt=args_cli.sim_dt, device=args_cli.device)
-    with launch_simulation(sim_cfg, args_cli):
+    with launch_simulation(SimpleNamespace(sim=sim_cfg, scene=scene_cfg), args_cli):
         sim = sim_utils.SimulationContext(sim_cfg)
         sim.set_camera_view(eye=[6.0, 6.0, 4.0], target=[0.0, 0.0, 0.5])
         scene = instantiate(scene_cfg)

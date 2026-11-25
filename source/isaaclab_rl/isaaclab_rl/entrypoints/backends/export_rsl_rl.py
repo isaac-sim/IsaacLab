@@ -10,7 +10,6 @@ from __future__ import annotations
 import argparse
 import logging
 import os
-from collections.abc import Mapping
 from typing import Any
 
 import torch
@@ -22,14 +21,13 @@ logger = logging.getLogger(__name__)
 torch.jit._state.disable()
 
 import gymnasium as gym
-from rsl_rl.runners import DistillationRunner, OnPolicyRunner
+from rsl_rl.models import MLPModel
 
-from isaaclab.utils import to_dict
 from isaaclab.utils.assets import retrieve_file_path
 
 import isaaclab_tasks  # noqa: F401
 
-from ...rsl_rl import RslRlBaseRunnerCfg, RslRlVecEnvWrapper
+from ...rsl_rl import RslRlBaseRunnerCfg, RslRlDistillationRunnerCfg, RslRlSacRunnerCfg, RslRlSuperMimicRunnerCfg
 from ..common import resolve_published_checkpoint, resolve_seed
 from .export_common import (
     add_common_export_args,
@@ -40,6 +38,7 @@ from .export_common import (
     resolve_export_save_path,
     run_export,
 )
+from .runner_rsl_rl import configure_rsl_rl_env_cfg, create_rsl_rl_runner, wrap_rsl_rl_env
 
 
 def parse_export_args(argv: list[str] | None = None) -> tuple[argparse.Namespace, list[str]]:
@@ -116,6 +115,8 @@ def _resolve_checkpoint(
 ) -> str | None:
     """Resolve the checkpoint to export, or None when no published checkpoint exists."""
     if args_cli.checkpoint == "pretrained":
+        if isinstance(agent_cfg, (RslRlSacRunnerCfg, RslRlSuperMimicRunnerCfg)):
+            raise ValueError("Published checkpoints are PPO policies and cannot be loaded by OffPolicyRunner agents.")
         return resolve_published_checkpoint("rsl_rl", args_cli.task, env_cfg)
     if args_cli.checkpoint and os.path.isdir(args_cli.checkpoint):
         return get_checkpoint_path(
@@ -128,9 +129,6 @@ def _resolve_checkpoint(
 
 def export_rsl_rl_agent(args_cli: argparse.Namespace, env_cfg: Any, agent_cfg: RslRlBaseRunnerCfg) -> bool:
     """Export an RSL-RL agent; returns whether a graph was written."""
-    # the LEAPP runtime loads simulation modules, so import it only after the launch
-    from leapp import annotate
-
     if args_cli.seed is not None:
         agent_cfg.seed = resolve_seed(args_cli.seed)
     if args_cli.checkpoint is not None:
@@ -152,59 +150,75 @@ def export_rsl_rl_agent(args_cli: argparse.Namespace, env_cfg: Any, agent_cfg: R
     log_dir = os.path.dirname(resume_path)
     env_cfg.log_dir = log_dir
 
+    configure_rsl_rl_env_cfg(env_cfg, agent_cfg, inference=True)
     env = gym.make(args_cli.task, cfg=env_cfg, render_mode=None)
     try:
-        # Export only the inference model inputs, excluding privileged and augmentation-only groups.
-        obs_groups_cfg = getattr(agent_cfg, "obs_groups", None)
-        if isinstance(obs_groups_cfg, Mapping):
-            model_group = "student" if agent_cfg.class_name == "DistillationRunner" else "actor"
-            required_obs_groups = set(obs_groups_cfg.get(model_group, ["policy"]))
-        else:
-            required_obs_groups = {"policy"}
-        policy_node_name = prepare_export_env(env, args_cli, required_obs_groups=required_obs_groups)
-        env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
-
+        env = wrap_rsl_rl_env(env, agent_cfg)
         logger.info(f"Loading model checkpoint from: {resume_path}")
-        if agent_cfg.class_name == "OnPolicyRunner":
-            runner = OnPolicyRunner(env, to_dict(agent_cfg), log_dir=None, device=agent_cfg.device)
-        elif agent_cfg.class_name == "DistillationRunner":
-            runner = DistillationRunner(env, to_dict(agent_cfg), log_dir=None, device=agent_cfg.device)
-        else:
-            raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
-        runner.load(resume_path)
-        policy = runner.get_inference_policy(device=env.unwrapped.device)
-        recurrent = is_actor_recurrent_policy(policy)
+        runner = create_rsl_rl_runner(env, agent_cfg, inference=True)
+        runner.load(resume_path, map_location=agent_cfg.device)
+        # Capture portable operators instead of device-specific fused inference kernels.
+        policy = runner.get_inference_policy(device="cpu")
+        from rsl_rl.models import SuperMimicActor
 
+        motion_policy = isinstance(policy, SuperMimicActor)
+        if motion_policy:
+            from .export_model_based import prepare_motion_export
+
+            task = type(runner.alg.task)(env=env, device=env.unwrapped.device)
+            policy = prepare_motion_export(env, policy, task=task)
+        elif not isinstance(policy, MLPModel):
+            raise TypeError("LEAPP export requires an MLPModel or SuperMimicActor policy.")
+        obs_set = "student" if isinstance(agent_cfg, RslRlDistillationRunnerCfg) else "actor"
+        required_obs_groups = set(runner.cfg["obs_groups"][obs_set])
         save_path = resolve_export_save_path(args_cli, "rsl_rl", log_dir)
-        with leapp_capture(args_cli, save_path=save_path, env_cfg=env_cfg) as num_steps:
-            obs = env.reset()[0]
-            for _ in range(num_steps):
-                with torch.inference_mode():
-                    if recurrent:
-                        actor_hidden = ensure_actor_hidden_state_initialized(
-                            policy,
-                            batch_size=env.num_envs,
-                            device=env.unwrapped.device,
-                            dtype=next(policy.parameters()).dtype,
-                        )
-                        registered_state = annotate.state_tensors(
-                            policy_node_name, state_dict_from_actor_hidden(actor_hidden)
-                        )
-                        set_actor_hidden_state(policy, actor_hidden_from_registered(registered_state, actor_hidden))
-                    actions = policy(obs)
-                    if recurrent:
-                        annotate.update_state(
-                            policy_node_name, state_dict_from_actor_hidden(get_actor_hidden_state(policy))
-                        )
-                    obs, _, _, _ = env.step(actions)
+        export_policy(env, policy, args_cli, env_cfg, save_path, required_obs_groups)
+        if motion_policy:
+            from .export_model_based import save_motion
+
+            save_motion(env, save_path, args_cli.export_task_name or args_cli.task)
     finally:
         env.close()
     return True
 
 
+def export_policy(env, policy, args_cli, env_cfg, save_path, required_obs_groups):
+    """Capture one policy through the common observation and action annotations."""
+    from leapp import annotate
+
+    policy_node_name = prepare_export_env(env, args_cli, required_obs_groups=required_obs_groups)
+    recurrent = is_actor_recurrent_policy(policy)
+
+    with leapp_capture(args_cli, save_path=save_path, env_cfg=env_cfg) as num_steps:
+        obs = env.reset()[0]
+        for _ in range(num_steps):
+            with torch.inference_mode():
+                if recurrent:
+                    actor_hidden = ensure_actor_hidden_state_initialized(
+                        policy,
+                        batch_size=env.num_envs,
+                        device="cpu",
+                        dtype=next(policy.parameters()).dtype,
+                    )
+                    registered_state = annotate.state_tensors(
+                        policy_node_name, state_dict_from_actor_hidden(actor_hidden)
+                    )
+                    set_actor_hidden_state(policy, actor_hidden_from_registered(registered_state, actor_hidden))
+                actions = policy(obs.to("cpu"))
+                if recurrent:
+                    annotate.update_state(
+                        policy_node_name, state_dict_from_actor_hidden(get_actor_hidden_state(policy))
+                    )
+                obs, _, _, _ = env.step(actions.to(env.unwrapped.device))
+
+
 def run(argv: list[str] | None = None) -> int:
     """Run the export backend and return a process exit code."""
     args_cli, hydra_args = parse_export_args(argv)
+    if args_cli.task == "Isaac-Motion-Tracking-GenCoord-G1":
+        from .export_model_based import run as export_published_motion
+
+        return export_published_motion(argv)
     return run_export(args_cli, hydra_args, export_rsl_rl_agent)
 
 

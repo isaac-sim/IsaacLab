@@ -22,7 +22,7 @@ launch_test_simulation(cfg=NewtonCfg())
 import gymnasium as gym
 import torch
 import warp as wp
-from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
+from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.utils.assets as _al_assets
 import isaaclab.utils.math as math_utils

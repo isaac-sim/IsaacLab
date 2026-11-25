@@ -8,13 +8,13 @@ This script demonstrates the visualizer tiled camera panel.
 
 .. code-block:: bash
 
-    # Kit visualizer tiled camera panel
+    # Newton visualizer with an RTX viewport and tiled camera panel
     uv run python scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py \
- --task Isaac-Velocity-Rough-AnymalD --num_envs 256 --viz kit
+        --task Isaac-Velocity-Rough-AnymalD --num_envs 256 --viz newton_rtx
 
     # Newton visualizer tiled camera panel
     uv run python scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py \
-        --task IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor --num_envs 25 --viz newton_gl
+        --task IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor --num_envs 25 --viz newton
 
 """
 
@@ -27,11 +27,11 @@ import sys
 import gymnasium as gym
 import torch
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
-from isaaclab_physx.renderers import IsaacRtxRendererCfg
 from isaaclab_visualizers.kit import KitBackendCfg
 from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
 import isaaclab_tasks  # noqa: F401
+from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
 with contextlib.suppress(ImportError):
     import isaaclab_tasks_experimental  # noqa: F401
@@ -48,16 +48,18 @@ NEWTON_DEFAULT_TASK = "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomoto
 
 
 # add argparse arguments
-parser = argparse.ArgumentParser(description="Showcase the Kit/Newton visualizer tiled camera panel.")
+parser = argparse.ArgumentParser(description="Showcase the Newton visualizer tiled camera panel.")
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 # append simulation launcher cli args
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["kit"])
+parser.set_defaults(visualizer=["newton_rtx"])
 args_cli, hydra_args = setup_preset_cli(parser)
 if args_cli.task is None:
     visualizers = next(arg.split("=", 1)[1].split(",") for arg in hydra_args if arg.startswith("visualizer="))
-    args_cli.task = NEWTON_DEFAULT_TASK if {"newton", "newton_gl"}.intersection(visualizers) else KIT_DEFAULT_TASK
+    args_cli.task = (
+        NEWTON_DEFAULT_TASK if {"newton", "newton_gl", "newton_rtx"}.intersection(visualizers) else KIT_DEFAULT_TASK
+    )
 sys.argv = [sys.argv[0]] + hydra_args
 
 
@@ -72,9 +74,14 @@ def main():
         backend for cfg in visualizers for backend in (cfg.backend if isinstance(cfg.backend, list) else [cfg.backend])
     ]
     if not backends or any(not isinstance(backend, (KitBackendCfg, NewtonGLBackendCfg)) for backend in backends):
-        raise ValueError("This tutorial supports --viz kit or --viz newton_gl.")
+        raise ValueError("This tutorial supports --viz kit or --viz newton.")
     camera_cfg = next((cfg for cfg in vars(env_cfg.scene).values() if isinstance(cfg, CameraCfg)), None)
     if camera_cfg is None:
+        rtx_view = any(
+            isinstance(backend, KitBackendCfg)
+            or (isinstance(backend, NewtonGLBackendCfg) and backend.initial_renderer == "rtx")
+            for backend in backends
+        )
         eye, target = torch.tensor([[3.0, 3.0, 3.0]]), torch.zeros((1, 3))
         rotation = quat_from_matrix(create_rotation_matrix_from_view(eye, target, device="cpu"))[0]
         # Attaching the sensor to the base gives it the robot's pose through the normal camera view.
@@ -85,11 +92,7 @@ def main():
             data_types=["rgb"],
             spawn=PinholeCameraCfg(focal_length=24.0, clipping_range=(0.1, 1.0e5)),
             offset=CameraCfg.OffsetCfg(pos=(3.0, 3.0, 3.0), rot=tuple(rotation.tolist()), convention="opengl"),
-            renderer_cfg=(
-                IsaacRtxRendererCfg()
-                if any(isinstance(backend, KitBackendCfg) for backend in backends)
-                else NewtonWarpRendererCfg()
-            ),
+            renderer_cfg=MultiBackendRendererCfg().rtx if rtx_view else NewtonWarpRendererCfg(),
         )
         env_cfg.scene.streaming_camera = camera_cfg
     for cfg in visualizers:

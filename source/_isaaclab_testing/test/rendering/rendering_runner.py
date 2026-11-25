@@ -18,7 +18,7 @@ from golden_image import camera_output_image, compare_to_golden, read_golden_ran
 from isaaclab_newton.physics import reset_mpm_solver_state
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
-from isaaclab_physx.renderers import IsaacRtxRendererCfg
+from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
 from newton import StateFlags
 from rendering_cases import RenderCase
 from rendering_runtime import build_rendering_scene
@@ -88,6 +88,12 @@ def run_rendering_case(
         dt=scene.dt,
         on_scene_created=scene.on_scene_created,
     ) as runtime:
+        if case.renderer == "newton_warp":
+            # These references isolate geometry, materials and AOVs under Newton's original lighting.
+            # Scene-authored lighting has its own pixel-level contract in test_scene_lighting.py.
+            sensor = runtime.sim.get_or_create_backend(scene.cfg.camera.renderer_cfg).newton_sensor
+            sensor.set_ambient_light((0.2, 0.2, 0.225), (0.05, 0.05, 0.06))
+            sensor.create_default_light(enable_shadows=scene.cfg.camera.renderer_cfg.enable_shadows)
         if case.scene == "shadow_hand":
             # A static image tests the declared pose, not contacts during PhysX's initialization steps.
             cube = runtime.scene["object"]

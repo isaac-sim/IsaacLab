@@ -7,9 +7,10 @@
 
 from dataclasses import MISSING
 
+from isaaclab_isaacsim.physics import PhysxCfg
+from isaaclab_neural.physics import NeRDSolverCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, SteelSolverCfg
 from isaaclab_ov.physics import OvPhysxCfg
-from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
@@ -29,7 +30,7 @@ from isaaclab.utils import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 from isaaclab.visualizers import VisualizerCfg
 
-from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.utils import PresetCfg, preset
 
 ##
 # Physics backend presets
@@ -41,7 +42,7 @@ class ReachPhysicsCfg(PresetCfg):
     """Physics backend presets for the reach environments."""
 
     isaacsim_physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
-    ovphysx: OvPhysxCfg = OvPhysxCfg()
+    ovphysx: OvPhysxCfg = OvPhysxCfg(bounce_threshold_velocity=0.2)
     physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
 
     newton_mjwarp: NewtonCfg = NewtonCfg(
@@ -68,7 +69,20 @@ class ReachPhysicsCfg(PresetCfg):
         ),
         num_substeps=2,
     )
+    newton_nerd: NewtonCfg = NewtonCfg(solver_cfg=NeRDSolverCfg(articulation="{ENV_REGEX_NS}/Robot"), num_substeps=1)
     default: NewtonCfg = newton_mjwarp
+
+
+REACH_DECIMATION = 4
+"""Physics steps per control period for numerical Reach physics."""
+
+REACH_SIM_CFG = sim_utils.SimulationCfg(
+    dt=preset(default=1 / 120, newton_nerd=REACH_DECIMATION / 120),
+    render_interval=preset(default=REACH_DECIMATION, newton_nerd=1),
+    physics=ReachPhysicsCfg(),
+    visualizer_cfgs=VisualizerCfg(eye=(3.5, 3.5, 3.5)),
+)
+"""Shared simulation defaults for Reach tasks."""
 
 
 ##
@@ -249,14 +263,7 @@ class ReachEnvCfg(ManagerBasedRLEnvCfg):
     events: EventCfg = EventCfg()
     curriculum: CurriculumCfg = CurriculumCfg()
 
-    def __post_init__(self):
-        """Post initialization."""
-        # general settings
-        self.decimation = 4
-        self.episode_length_s = 12.0
-        # simulation settings
-        self.sim.dt = 1 / 120
-        self.sim.render_interval = self.decimation
-        self.sim.physics = ReachPhysicsCfg()
-        # visualizer settings
-        self.sim.visualizer_cfgs = VisualizerCfg(eye=(3.5, 3.5, 3.5))
+    # Simulation settings
+    decimation: int = preset(default=REACH_DECIMATION, newton_nerd=1)
+    episode_length_s: float = 12.0
+    sim: sim_utils.SimulationCfg = REACH_SIM_CFG
