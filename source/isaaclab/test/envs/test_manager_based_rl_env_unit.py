@@ -117,7 +117,6 @@ def test_final_observations_are_owned_and_cleared_each_step_and_reset(env_kind: 
         decimation=1,
         sim=SimpleNamespace(render_interval=1, dt=0.01),
         compute_final_obs=True,
-        final_obs_every_step=False,
         action_noise_model=None,
         observation_noise_model=None,
         num_rerenders_on_reset=0,
@@ -238,12 +237,7 @@ def test_step_forwards_reset_state_before_observations(automatic: bool, manual: 
     calls = []
     env = object.__new__(ManagerBasedRLEnv)
     env._is_closed = True
-    env.cfg = SimpleNamespace(
-        decimation=1,
-        sim=SimpleNamespace(dt=0.01, render_interval=1),
-        compute_final_obs=False,
-        final_obs_every_step=False,
-    )
+    env.cfg = SimpleNamespace(decimation=1, sim=SimpleNamespace(dt=0.01, render_interval=1), compute_final_obs=False)
     env.scene = SimpleNamespace(num_envs=2, write_data_to_sim=lambda: None, update=lambda dt: None)
     env.sim = SimpleNamespace(
         device="cpu",

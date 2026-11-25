@@ -1,1 +1,0 @@
-* Added optional physical successor observations on every step in manager-based, direct single-agent and direct multi-agent environments for learned dynamics, captured before resets and interval events.
