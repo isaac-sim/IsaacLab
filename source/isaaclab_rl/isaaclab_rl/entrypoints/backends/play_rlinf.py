@@ -59,7 +59,7 @@ def run(argv: list[str]) -> None:
     """Launch RLinf evaluation."""
     args_cli = _parse_args(argv)
     config_name = args_cli.config_name
-    config_dir = cli_args.configure_rlinf_environment(config_name, args_cli.config_path)
+    config_dir = cli_args.configure_rlinf_environment(config_name, args_cli.config_path, args_cli.task)
 
     # rlinf reads RLINF_EXT_MODULE and RLINF_CONFIG_FILE at import time, so it is imported after the setup above
     import rlinf  # noqa: F401
@@ -82,7 +82,7 @@ def run(argv: list[str]) -> None:
     initialize_config_dir(config_dir=config_dir)
     cfg = compose(config_name=config_name)
 
-    task_id = cfg.env.eval.init_params.id
+    task_id = args_cli.task or cfg.env.eval.init_params.id
     logger.info(f"Task: {task_id}")
     # hyphens instead of colons in the time stamp; colons are invalid in Windows paths
     timestamp = datetime.now().strftime("%Y%m%d-%H-%M-%S")
@@ -99,7 +99,7 @@ def run(argv: list[str]) -> None:
             cfg.runner.ckpt_path = cli_args.resolve_rlinf_checkpoint(
                 args_cli.checkpoint,
                 log_root_path=str(Path("logs") / "rlinf"),
-                task=args_cli.task or task_id,
+                task=task_id,
                 config_name=config_name,
             )
         if args_cli.video:
@@ -115,7 +115,8 @@ def run(argv: list[str]) -> None:
         if args_cli.num_episodes is not None:
             cfg.algorithm.eval_rollout_epoch = args_cli.num_episodes
         for split in ("train", "eval"):
-            cfg.env[split].init_params.env_overrides = args_cli.env_overrides
+            configured = list(cfg.env[split].init_params.get("env_overrides") or ())
+            cfg.env[split].init_params.env_overrides = configured + args_cli.env_overrides
         cfg.rollout.model = OmegaConf.merge(cfg.actor.model, cfg.rollout.model)
         # Ray workers may launch from a different working directory.
         for model in (cfg.actor.model, cfg.rollout.model):

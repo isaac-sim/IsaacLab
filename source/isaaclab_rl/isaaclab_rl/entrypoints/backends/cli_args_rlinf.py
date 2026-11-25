@@ -78,12 +78,13 @@ def resolve_config_dir(config_name: str, explicit_path: str | None) -> str:
     return _BACKENDS_DIR
 
 
-def configure_rlinf_environment(config_name: str, config_path: str | None) -> str:
+def configure_rlinf_environment(config_name: str, config_path: str | None, task: str | None = None) -> str:
     """Export the environment variables RLinf reads at import time and return the config directory.
 
     Args:
         config_name: Name of the RLinf configuration file without extension.
         config_path: Explicit configuration directory, or None to search for it.
+        task: CLI task override for the train and eval workers, or None to use the YAML task IDs.
     """
     config_dir = resolve_config_dir(config_name, config_path)
     # Ray 2.47+ turns the current project into a ``working_dir`` runtime environment when the driver is
@@ -94,6 +95,7 @@ def configure_rlinf_environment(config_name: str, config_path: str | None) -> st
     # required for RLinf to register Isaac Lab tasks and converters
     os.environ.setdefault("RLINF_EXT_MODULE", "isaaclab_contrib.rl.rlinf.extension")
     os.environ["RLINF_CONFIG_FILE"] = str(Path(config_dir) / f"{config_name}.yaml")
+    os.environ["ISAACLAB_RLINF_TASK"] = task or ""
     # Ray rollout workers resolve data_config_class references like "gr00t_config:IsaacLabDataConfig"
     # from the config directory
     if config_dir not in os.environ.get("PYTHONPATH", ""):

@@ -17,6 +17,7 @@ Configuration is read from the Hydra YAML config under `env.train.isaaclab`:
         isaaclab: &isaaclab_config  # YAML anchor for reuse
           task_description: "..."
           main_images: "front_camera"
+          success_observation: {group: "metrics", key: "success"}
           extra_view_images: ["left_wrist_camera", "right_wrist_camera"]
           states:
             - key: "robot_joint_state"
@@ -30,8 +31,8 @@ Configuration is read from the Hydra YAML config under `env.train.isaaclab`:
       eval:
         isaaclab: *isaaclab_config  # Reuse via YAML anchor
 
-Task IDs are read automatically from ``env.train.init_params.id`` and
-``env.eval.init_params.id`` in the YAML config.
+The CLI's ``--task`` selects the task ID for all workers. Otherwise the extension uses
+``env.train.init_params.id`` and ``env.eval.init_params.id`` from the YAML config.
 
 Usage:
     export RLINF_EXT_MODULE=isaaclab_contrib.rl.rlinf.extension
@@ -255,6 +256,14 @@ def _patch_gr00t_get_model(cfg: dict) -> None:
             rl_head_config=model_cfg.rl_head_config,
         )
 
+        if "gpu_resize_width" in cfg or "gpu_resize_height" in cfg:
+            # GR00T validates incoming video against the recording metadata. The env worker has already resized RGB.
+            input_metadata = model.metadata.model_copy(deep=True)
+            for video in input_metadata.modalities.video.values():
+                width, height = video.resolution
+                video.resolution = (cfg.get("gpu_resize_width", width), cfg.get("gpu_resize_height", height))
+            modality_transform.set_metadata(input_metadata)
+
         if rl_model_path:
             rl_weights = Path(rl_model_path) / "actor" / "model_state_dict" / "full_weights.pt"
             if not rl_weights.exists():
@@ -395,17 +404,16 @@ def _convert_gr00t_to_isaaclab_action(action_chunk: dict, chunk_size: int = 1) -
 def _register_isaaclab_envs() -> None:
     """Register IsaacLab tasks into RLinf's REGISTER_ISAACLAB_ENVS map.
 
-    Task IDs are read from ``env.train.init_params.id`` and
-    ``env.eval.init_params.id`` in the YAML config.
+    Register the task selected by the launcher or the train and eval IDs from the YAML config.
     """
     from rlinf.envs.isaaclab import REGISTER_ISAACLAB_ENVS
 
-    # Collect unique task IDs from the YAML config (train + eval)
     full_cfg = _load_full_cfg()
     env_cfg = full_cfg.get("env", {})
+    task_override = os.environ.get("ISAACLAB_RLINF_TASK")
     task_ids: list[str] = []
     for section in ("train", "eval"):
-        tid = env_cfg.get(section, {}).get("init_params", {}).get("id", "")
+        tid = task_override or env_cfg.get(section, {}).get("init_params", {}).get("id", "")
         if tid and tid not in task_ids:
             task_ids.append(tid)
 
@@ -426,6 +434,34 @@ def _register_isaaclab_envs() -> None:
         logger.info(f"Registered IsaacLab task '{task_id}' for RLinf")
 
     logger.debug(f"REGISTER_ISAACLAB_ENVS now contains: {list(REGISTER_ISAACLAB_ENVS.keys())}")
+
+
+def _prepare_camera_image(image: torch.Tensor, cfg: dict) -> torch.Tensor:
+    """Crop a batch of RGB frames and resize to the policy input dimensions on the image device."""
+    batch, height, width, _ = image.shape
+    size = (cfg.get("gpu_resize_height", height), cfg.get("gpu_resize_width", width))
+    fraction = cfg.get("gpu_crop_scale", 0.0)
+    if fraction:
+        if not 0 < fraction < 1:
+            raise ValueError("gpu_crop_scale must be in [0, 1).")
+        h, w = max(1, int(height * (1 - fraction))), max(1, int(width * (1 - fraction)))
+        if cfg.get("gpu_crop_random", False):
+            tops = torch.randint(height - h + 1, (batch, 1), device=image.device)
+            lefts = torch.randint(width - w + 1, (batch, 1), device=image.device)
+            rows = tops + torch.arange(h, device=image.device)
+            cols = lefts + torch.arange(w, device=image.device)
+            image = image[torch.arange(batch, device=image.device)[:, None, None], rows[:, :, None], cols[:, None, :]]
+        else:
+            top, left = (height - h) // 2, (width - w) // 2
+            image = image[:, top : top + h, left : left + w]
+    if image.shape[1:3] == size:
+        return image
+    resized = torch.nn.functional.interpolate(
+        image.permute(0, 3, 1, 2).float(), size=size, mode="bilinear", align_corners=False, antialias=True
+    ).permute(0, 2, 3, 1)
+    if image.dtype == torch.uint8:
+        resized = resized.clamp(0, 255)
+    return resized.to(image.dtype)
 
 
 def _create_generic_env_wrapper(task_id: str) -> type:
@@ -468,16 +504,20 @@ def _create_generic_env_wrapper(task_id: str) -> type:
             self._hold_pose_on_midchunk_reset = _get_isaaclab_cfg().get("hold_pose_on_midchunk_reset", False)
             self._chunk_done = None
             self._hold_actions = None
+            self._success_observation = None
 
         def _record_metrics(self, step_reward, terminations, infos):
-            """Override to use terminations (task completion) for success_once."""
+            """Record configured success signals, falling back to task termination for existing recipes."""
 
             # RLinf may suppress terminations after this callback; Isaac Lab has already reset.
             if self._chunk_done is not None:
                 self._chunk_done |= terminations
             episode_info = {}
             self.returns += step_reward
-            self.success_once = self.success_once | terminations.bool()
+            success = terminations.bool()
+            if self._success_observation is not None:
+                success = success & self._success_observation
+            self.success_once = self.success_once | success
             episode_info["success_once"] = self.success_once.clone()
             episode_info["return"] = self.returns.clone()
             episode_info["episode_len"] = self.elapsed_steps.clone()
@@ -497,7 +537,11 @@ def _create_generic_env_wrapper(task_id: str) -> type:
         def step(self, actions=None, auto_reset=True):
             """Hold reset joints until the next chunk supplies actions for the new episode."""
             if self._chunk_done is not None and self._hold_actions is not None:
-                actions = torch.where(self._chunk_done[:, None], self._hold_actions.to(actions), actions)
+                hold = self._hold_actions.to(actions)
+                if hold.shape[-1] != actions.shape[-1]:
+                    mapping = _get_isaaclab_cfg().get("action_mapping", {})
+                    hold = torch.nn.functional.pad(hold, (mapping.get("prefix_pad", 0), mapping.get("suffix_pad", 0)))
+                actions = torch.where(self._chunk_done[:, None].to(actions.device), hold, actions)
             obs, reward, terminated, truncated, info = super().step(actions, auto_reset)
             if self._chunk_done is not None:
                 self._chunk_done |= truncated
@@ -526,9 +570,12 @@ def _create_generic_env_wrapper(task_id: str) -> type:
                 import gymnasium as gym
 
                 from isaaclab.app import launch_simulation
+                from isaaclab.cli import load_external_tasks
 
                 from isaaclab_tasks.utils import parse_env_cfg
 
+                # The spawned simulator has its own Gym registry, separate from the CLI's.
+                load_external_tasks()
                 isaac_env_cfg = parse_env_cfg(
                     self.isaaclab_env_id,
                     num_envs=self.cfg.init_params.num_envs,
@@ -567,7 +614,15 @@ def _create_generic_env_wrapper(task_id: str) -> type:
             policy_obs = obs.get("policy", obs)
             camera_obs = obs.get("camera_images", {})
 
-            cfg = _get_isaaclab_cfg()
+            cfg = {**_get_isaaclab_cfg(), **self.cfg.get("isaaclab", {})}
+            success_cfg = cfg.get("success_observation")
+            self._success_observation = (
+                torch.as_tensor(obs[success_cfg["group"]][success_cfg["key"]], device=self.device, dtype=torch.bool)
+                .reshape(self.num_envs)
+                .clone()
+                if success_cfg
+                else None
+            )
             # Get task description from config
             task_desc = cfg.get("task_description", "") or self.task_description
             rlinf_obs = {
@@ -581,14 +636,14 @@ def _create_generic_env_wrapper(task_id: str) -> type:
             # main_images: single camera key -> (B, H, W, C)
             main_key = cfg.get("main_images")
             if main_key and main_key in camera_obs:
-                rlinf_obs["main_images"] = camera_obs[main_key]
+                rlinf_obs["main_images"] = _prepare_camera_image(camera_obs[main_key], cfg)
 
             # extra_view_images: camera key(s) -> stack to (B, N, H, W, C)
             extra_keys = cfg.get("extra_view_images")
             if extra_keys:
                 if isinstance(extra_keys, str):
                     extra_keys = [extra_keys]
-                extra_imgs = [camera_obs[k] for k in extra_keys if k in camera_obs]
+                extra_imgs = [_prepare_camera_image(camera_obs[k], cfg) for k in extra_keys if k in camera_obs]
                 if extra_imgs:
                     rlinf_obs["extra_view_images"] = torch.stack(extra_imgs, dim=1)
 
@@ -602,7 +657,7 @@ def _create_generic_env_wrapper(task_id: str) -> type:
                         state = policy_obs.get(spec)
                         if state is not None:
                             state_parts.append(state)
-                    elif isinstance(spec, dict):
+                    elif isinstance(spec, collections.abc.Mapping):
                         state = policy_obs.get(spec.get("key"))
                         if state is not None:
                             slice_range = spec.get("slice")

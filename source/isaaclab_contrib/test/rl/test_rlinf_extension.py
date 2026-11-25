@@ -162,10 +162,11 @@ _SAMPLE_YAML = {
 
 
 @pytest.fixture(autouse=True)
-def _reset_extension_state():
+def _reset_extension_state(monkeypatch):
     """Reset extension module-level caches before each test."""
     ext._registered = False
     ext._full_cfg_cache = None
+    monkeypatch.delenv("ISAACLAB_RLINF_TASK", raising=False)
     # Reset mock registries
     sim_io = _rlinf_mocks["rlinf.models.embodiment.gr00t.simulation_io"]
     sim_io.OBS_CONVERSION.clear()
@@ -245,8 +246,70 @@ class TestConfigLoading:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.parametrize("explicit_success", [True, False], ids=["success-observation", "legacy-termination"])
+def test_episode_success_distinguishes_failure_and_timeout(explicit_success, set_config_env):
+    """A failure termination is not a win when the recipe supplies an explicit success observation."""
+    from omegaconf import OmegaConf
+
+    options = {"success_observation": {"group": "metrics", "key": "success"}} if explicit_success else {}
+    worker = ext._create_generic_env_wrapper("test")(OmegaConf.create({"isaaclab": options}), 3, 0, 1, None)
+    worker.returns = torch.zeros(3)
+    worker.success_once = torch.zeros(3, dtype=torch.bool)
+    worker.elapsed_steps = torch.ones(3)
+    worker._chunk_done = torch.zeros(3, dtype=torch.bool)
+    success = torch.tensor([[True], [False], [True]])
+    worker._wrap_obs({"metrics": {"success": success}})
+    # Observation storage can be reused after wrapping; the recorded outcome must retain its value.
+    success.zero_()
+    info = worker._record_metrics(torch.tensor([2.0, -1.0, 0.0]), torch.tensor([True, True, False]), {})
+    assert info["episode"]["success_once"].tolist() == [True, not explicit_success, False]
+    assert worker._chunk_done.tolist() == [True, True, False]
+    worker._wrap_obs({"metrics": {"success": success}})
+    info = worker._record_metrics(torch.ones(3), torch.zeros(3, dtype=torch.bool), {})
+    assert info["episode"]["success_once"].tolist() == [True, not explicit_success, False]
+    torch.testing.assert_close(info["episode"]["return"], torch.tensor([3.0, 0.0, 1.0]))
+
+
 class TestObsConversion:
     """Tests for ``_convert_isaaclab_obs_to_gr00t``."""
+
+    def test_camera_crop_applies_when_resize_matches_input(self, set_config_env) -> None:
+        from omegaconf import OmegaConf
+
+        options = {
+            "main_images": "head",
+            "extra_view_images": [],
+            "gpu_resize_height": 4,
+            "gpu_resize_width": 4,
+            "gpu_crop_scale": 0.5,
+            "gpu_crop_random": False,
+        }
+        worker = ext._create_generic_env_wrapper("test")(OmegaConf.create({"isaaclab": options}), 1, 0, 1, None)
+        image = torch.arange(16, dtype=torch.uint8).reshape(1, 4, 4, 1).expand(-1, -1, -1, 3)
+        result = worker._wrap_obs({"camera_images": {"head": image}})["main_images"]
+        assert result.shape == image.shape
+        assert result[0, [0, 0, 3, 3], [0, 3, 0, 3], 0].tolist() == [5, 6, 9, 10]
+
+    def test_policy_camera_crop_uses_evaluation_options_for_all_views(self, set_config_env) -> None:
+        from omegaconf import OmegaConf
+
+        options = {
+            "states": [{"key": "joints", "slice": [1, 3]}],
+            "main_images": "head",
+            "extra_view_images": ["wrist"],
+            "gpu_resize_height": 2,
+            "gpu_resize_width": 3,
+            "gpu_crop_scale": 0.5,
+            "gpu_crop_random": False,
+        }
+        worker = ext._create_generic_env_wrapper("test")(OmegaConf.create({"isaaclab": options}), 2, 0, 1, None)
+        head = torch.arange(2 * 4 * 6 * 3, dtype=torch.uint8).reshape(2, 4, 6, 3)
+        wrist = head.flip((2,))
+        joints = torch.arange(8).reshape(2, 4)
+        obs = worker._wrap_obs({"policy": {"joints": joints}, "camera_images": {"head": head, "wrist": wrist}})
+        torch.testing.assert_close(obs["states"], joints[:, 1:3])
+        torch.testing.assert_close(obs["main_images"], head[:, 1:3, 1:4])
+        torch.testing.assert_close(obs["extra_view_images"], wrist[:, None, 1:3, 1:4])
 
     def test_extra_view_images_conversion(self, set_config_env) -> None:
         """Extra view images should be split into separate GR00T video keys."""
@@ -393,14 +456,16 @@ class TestEmbodimentTagPatching:
 class TestTaskRegistration:
     """Tests for ``_register_isaaclab_envs``."""
 
-    def test_tasks_registered_from_yaml(self, set_config_env) -> None:
-        """Task IDs from train and eval sections should be registered."""
+    @pytest.mark.parametrize("override", [None, "Isaac-Test-Cosmos-v0"])
+    def test_tasks_registered_for_worker(self, set_config_env, monkeypatch, override) -> None:
+        """The worker can select the CLI task or the distinct train and eval tasks in the recipe."""
+        if override:
+            monkeypatch.setenv("ISAACLAB_RLINF_TASK", override)
         ext._load_full_cfg()
         ext._register_isaaclab_envs()
 
         registry = _rlinf_mocks["rlinf.envs.isaaclab"].REGISTER_ISAACLAB_ENVS
-        assert "Isaac-Test-Task-v0" in registry
-        assert "Isaac-Test-Task-Eval-v0" in registry
+        assert set(registry) == ({override} if override else {"Isaac-Test-Task-v0", "Isaac-Test-Task-Eval-v0"})
         base = _rlinf_mocks["rlinf.envs.isaaclab.isaaclab_env"].IsaaclabBaseEnv
         for env_cls in registry.values():
             assert issubclass(env_cls, base)
@@ -431,11 +496,28 @@ class TestTaskRegistration:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("hold_pose,device", [(False, "cpu"), *((True, device) for device in test_devices())])
-def test_midchunk_reset_does_not_replay_old_episode_actions(monkeypatch, hold_pose, device):
+@pytest.mark.parametrize(
+    "hold_pose,device,prefix_pad,suffix_pad",
+    [
+        (False, "cpu", 0, 0),
+        *((True, device, prefix, suffix) for device in test_devices() for prefix, suffix in ((0, 0), (2, 1))),
+    ],
+)
+def test_midchunk_reset_does_not_replay_old_episode_actions(monkeypatch, hold_pose, device, prefix_pad, suffix_pad):
     """Only reset worlds hold their returned joint positions, until the next chunk."""
     monkeypatch.setattr(
-        ext, "_full_cfg_cache", {"env": {"train": {"isaaclab": {"hold_pose_on_midchunk_reset": hold_pose}}}}
+        ext,
+        "_full_cfg_cache",
+        {
+            "env": {
+                "train": {
+                    "isaaclab": {
+                        "hold_pose_on_midchunk_reset": hold_pose,
+                        "action_mapping": {"prefix_pad": prefix_pad, "suffix_pad": suffix_pad},
+                    }
+                }
+            }
+        },
     )
     base = _rlinf_mocks["rlinf.envs.isaaclab.isaaclab_env"].IsaaclabBaseEnv
     states = torch.tensor([[0.2, 0.3], [0.4, 0.5]], device=device)
@@ -457,11 +539,13 @@ def test_midchunk_reset_does_not_replay_old_episode_actions(monkeypatch, hold_po
     monkeypatch.setattr(base, "chunk_step", chunk_step, raising=False)
     env = ext._create_generic_env_wrapper("test")(None, 2, 0, 1, None)
     env.device = device
-    actions = torch.ones(2, 2)  # The RLinf env worker receives action chunks on the CPU.
+    actions = torch.ones(2, prefix_pad + 2 + suffix_pad)  # RLinf receives padded action chunks on the CPU.
     env.chunk_step(torch.stack([actions, actions * 2], dim=1))
     expected = (actions * 2).to(device)
     if hold_pose:
-        expected[0] = states[0]
+        expected[0] = torch.cat(
+            (torch.zeros(prefix_pad, device=device), states[0], torch.zeros(suffix_pad, device=device))
+        )
     torch.testing.assert_close(step.call_args.args[0], expected)
     env.step(actions * 3)
     torch.testing.assert_close(step.call_args.args[0], actions * 3)
