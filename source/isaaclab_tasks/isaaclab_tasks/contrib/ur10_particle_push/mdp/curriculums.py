@@ -26,6 +26,9 @@ class SinglePushCurriculum(ManagerTermBase):
     to the full reset distribution from the first rollout.
     """
 
+    supports_checkpoint_ghosts = False
+    """Checkpoint Ghosts disable curriculum terms, but this one selects the reset state that reset events read."""
+
     def __init__(self, cfg: CurriculumTermCfg, env: UR10ParticlePushEnv) -> None:
         super().__init__(cfg, env)
         level_count = len(env.cfg.reset_randomization_scales)

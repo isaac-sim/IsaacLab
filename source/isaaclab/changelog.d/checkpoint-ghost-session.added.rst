@@ -1,0 +1,10 @@
+* Added :class:`~isaaclab.visualizers.checkpoint_ghost_session.CheckpointGhostSession`, which steps one environment whose
+  slices are driven by different checkpoints of one task. It splits the environments among the loaded checkpoints,
+  resets them together from the reference's state, and serves the checkpoint browser. It steps the Isaac Lab
+  environment itself and needs only a policy factory, so a library's play script supplies only that. RSL-RL, rl_games,
+  skrl, and Stable-Baselines3 playback provide it.
+* Fixed the session failing with recurrent policies when a ghost is added or removed, and handled a ghost added,
+  changed, or removed on an empty or unknown slot, and a failed re-split, without ending the session. It reuses one
+  action tensor for every step.
+* Fixed the session resetting policies with a stale slice size when a ghost is added or removed while the environment
+  steps, and a failed rollback after a failed re-split raising out of the viewer instead of returning a message.

@@ -816,6 +816,37 @@ without screen-sharing, running with ``--viz viser``:
 The share URL is logged on startup. Rerun has no equivalent config field, but exposes its own
 share button in the native UI.
 
+**Comparing checkpoints with Checkpoint Ghosts**
+
+Checkpoint Ghosts overlay rollouts of several checkpoints of one task in the Newton window, to see how training changed
+the behavior. ``--checkpoint`` drives the reference; ghosts of other checkpoints are tinted, translucent copies that
+start from the same terrain, spawn pose, and commands, so the policy is the only difference:
+
+.. code-block:: bash
+
+    uv run isaaclab play --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD \
+        --num_envs 32 --checkpoint latest --viz newton --checkpoint_ghosts
+
+``--num_envs`` is the total simulated and is split evenly among the checkpoints shown: the reference starts with all of
+them, and each checkpoint you add resizes every slot. A plain ``play`` run shows a greyed-out section that explains the
+flag. The Newton backend options ``checkpoint_ghost_slots`` (default eight) and ``checkpoint_ghost_root`` set how many
+checkpoints are shown at most and where the browser starts.
+
+In the **Checkpoint Ghosts** section, **Add Checkpoint...** browses folders for the library's checkpoint files, starting in
+the experiment's log directory or ``checkpoint_ghost_root``. Each ghost can be shown, changed, or removed, and has
+opacity and tint under **Appearance**. The controls are disabled in the RTX view; switch the Renderer to OpenGL.
+
+Limitations:
+
+* Startup and interval events, curriculum terms, and action and observation noise are disabled, since they cannot be
+  mirrored, so the reference can look steadier than in training. Reset randomization is mirrored from torch's random
+  state; numpy and warp randomness is not.
+* Playback with RSL-RL, rl_games, skrl (``--ml_framework torch``), and Stable-Baselines3 is supported, for
+  single-agent manager-based and direct environments. torchrl, rlinf, and multi-agent environments are not.
+* A direct environment mirrors its reset state, but not goals or commands it resamples during an episode.
+* Tasks whose curriculum selects the reset state (such as Franka Pour) are rejected at launch.
+* It needs the Newton viewer, and tint and opacity need the OpenGL renderer.
+
 **Choosing how many environments are drawn**
 
 Every Newton viewer has a **Visible Envs** slider in its left panel that sets how many

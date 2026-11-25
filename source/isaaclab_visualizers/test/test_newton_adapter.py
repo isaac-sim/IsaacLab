@@ -741,6 +741,7 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
     cfg = visualizer.newton_cfg = NewtonBackendCfg(physics_cfg=object(), device="cpu")
     visualizer._env_ids = visualizer._cfg_visible_env_ids = [1, 3]
     visualizer._visible_env_count = None
+    visualizer._checkpoint_ghost_panel = None
     visualizer._picking_enabled = picking
     visualizer.cfg.backend.world_spacing = (2.0, 0.0, 0.0)
     visualizer.cfg.backend.show_contacts = True
@@ -1453,6 +1454,22 @@ def test_a_scene_sensor_view_is_not_an_opengl_or_rtx_view():
         assert visualizer.sensor_view_selected is selected
 
 
+def test_ghost_offsets_overlay_each_ghost_by_its_environment_origin():
+    viewer = SimpleNamespace(world_offsets=wp.zeros(3, dtype=wp.vec3, device="cpu"))
+    visualizer = _make_newton_visualizer(viewer)
+    controller = SimpleNamespace(
+        env_origin_offsets=lambda: np.array([[0, 0, 0], [1, 0, 0], [1, 0, 0]], dtype=np.float32),
+        reference_env_ids=lambda: np.array([0, 0, 0]),
+    )
+    visualizer._checkpoint_ghost_panel = SimpleNamespace(controller=controller)
+    visualizer._base_world_offsets = np.array([[0, 2, 0], [4, 2, 0], [8, 2, 0]], dtype=np.float32)  # world_spacing
+
+    visualizer._apply_ghost_offsets()
+
+    assert viewer.world_offsets.numpy()[:, 0].tolist() == [0.0, 1.0, 1.0]  # a ghost keeps its reference's spacing
+    assert viewer.world_offsets.numpy()[:, 1].tolist() == [2.0, 2.0, 2.0]
+
+
 def test_a_mesh_logged_to_the_rtx_view_refreshes_its_cached_image():
     from isaaclab_visualizers.newton.newton_visualizer import NewtonGLVisualizer
 
@@ -1521,3 +1538,20 @@ def test_each_window_binds_the_viewer_camera_launch_declared_for_it():
 
     assert [cfg.source for cfg in created] == ["/World/viewer_camera_1_rtx"]
     assert visualizer.rtx_view_index == 1
+
+
+def test_a_deferred_visible_env_change_waits_for_the_next_frame_and_an_immediate_one_does_not():
+    visualizer = _make_newton_visualizer(SimpleNamespace())
+    visualizer._num_envs, visualizer._cfg_visible_env_ids, visualizer._visible_env_count = 8, None, None
+    visualizer._checkpoint_ghost_panel = None
+    visualizer._apply_visible_worlds = Mock()
+
+    visualizer.set_visible_env_count(3, defer=True)
+
+    visualizer._apply_visible_worlds.assert_not_called()
+    assert visualizer._visible_worlds_pending and visualizer.visible_env_count == 3
+
+    visualizer.set_visible_env_count(8)
+
+    visualizer._apply_visible_worlds.assert_called_once()
+    assert visualizer.visible_env_count == 8

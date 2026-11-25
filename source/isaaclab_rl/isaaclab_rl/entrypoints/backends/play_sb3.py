@@ -19,6 +19,7 @@ from stable_baselines3.common.vec_env import VecNormalize
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs import DirectMARLEnvCfg
 from isaaclab.utils.seed import configure_seed
+from isaaclab.visualizers import checkpoint_ghost_play
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import get_checkpoint_path, resolve_task_config, setup_preset_cli
@@ -41,6 +42,7 @@ from ..common import (
     show_run_summary,
     startup_screen,
 )
+from . import checkpoint_ghost_policies
 from . import cli_args_sb3 as cli_args
 
 logger = logging.getLogger(__name__)
@@ -65,6 +67,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         default=False,
         help="Use a slower SB3 wrapper but keep all the extra training info.",
     )
+    checkpoint_ghost_play.add_args(parser)
     add_launcher_args(parser)
     args_cli, hydra_args = setup_preset_cli(parser, argv)
     enable_cameras_for_video(args_cli)
@@ -101,6 +104,7 @@ def run(argv: list[str]) -> None:
     with startup_screen(args_cli, num_stages=3) as screen:
         env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent, play_mode=not args_cli.train_env_cfg)
         pre_launch_video_config(env_cfg, args_cli)
+        checkpoint_ghost_play.check(args_cli, env_cfg)
         screen.stage("Launching simulation")
         with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
             show_run_summary(screen, args_cli, env_cfg, library="sb3", action="play")
@@ -115,6 +119,7 @@ def run(argv: list[str]) -> None:
                 return
             log_dir = os.path.dirname(checkpoint_path)
             env_cfg.log_dir = log_dir
+            checkpoint_ghost_play.prepare(args_cli, env_cfg)
             apply_video_recording(env_cfg, log_dir, args_cli, subdir="play")
 
             screen.stage("Creating environment")
@@ -129,6 +134,12 @@ def run(argv: list[str]) -> None:
 
             screen.stage("Loading policy")
             env = Sb3VecEnvWrapper(env, fast_variant=not args_cli.keep_all_info)
+            if args_cli.checkpoint_ghosts:
+                screen.close()
+                checkpoint_ghost_policies.run_sb3(
+                    env, args_cli, agent_cfg, checkpoint_path, log_root_path, run_playback
+                )
+                return
             vec_norm_path = checkpoint_path.replace("/model", "/model_vecnormalize").replace(".zip", ".pkl")
             vec_norm_path = Path(vec_norm_path)
             if vec_norm_path.exists():
@@ -158,4 +169,5 @@ def run(argv: list[str]) -> None:
                 obs, _, _, _ = env.step(actions)
 
             screen.close()
+            checkpoint_ghost_play.offer(env, env_cfg)
             run_playback(step, dt=env.unwrapped.step_dt, args_cli=args_cli, env_cfg=env_cfg)

@@ -21,6 +21,7 @@ from isaaclab.envs import DirectMARLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.string import list_intersection
+from isaaclab.visualizers import checkpoint_ghost_play
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import get_checkpoint_path, resolve_task_config, setup_preset_cli
@@ -44,6 +45,7 @@ from ..common import (
     show_run_summary,
     startup_screen,
 )
+from . import checkpoint_ghost_policies
 from . import cli_args_rsl_rl as cli_args
 from .runner_rsl_rl import configure_rsl_rl_env_cfg, create_rsl_rl_runner, wrap_rsl_rl_env
 
@@ -65,6 +67,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--external_callback", default=None, help="Fully qualified path to an externally defined callback."
     )
+    checkpoint_ghost_play.add_args(parser)
     parser.add_argument(
         "--evaluate", action="store_true", help="Score the first episode of each manager-based environment and exit."
     )
@@ -158,6 +161,7 @@ def run(argv: list[str]) -> None:
         if args_cli.evaluate and not isinstance(env_cfg, ManagerBasedRLEnvCfg):
             raise ValueError("--evaluate requires a manager-based RL environment for termination reporting")
         pre_launch_video_config(env_cfg, args_cli)
+        checkpoint_ghost_play.check(args_cli, env_cfg)
         screen.stage("Launching simulation")
         with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
             show_run_summary(screen, args_cli, env_cfg, library="rsl_rl", action="play")
@@ -173,6 +177,7 @@ def run(argv: list[str]) -> None:
                 return
             log_dir = os.path.dirname(resume_path)
             env_cfg.log_dir = log_dir
+            checkpoint_ghost_play.prepare(args_cli, env_cfg)
             apply_video_recording(env_cfg, log_dir, args_cli, subdir="play", checkpoint_path=resume_path)
 
             configure_rsl_rl_env_cfg(env_cfg, agent_cfg, inference=not args_cli.train_env_cfg)
@@ -188,6 +193,10 @@ def run(argv: list[str]) -> None:
             screen.stage("Loading policy")
             env = wrap_rsl_rl_env(env, agent_cfg)
             logger.info(f"Loading model checkpoint from: {resume_path}")
+            if args_cli.checkpoint_ghosts:
+                screen.close()
+                checkpoint_ghost_policies.run_rsl_rl(env, args_cli, agent_cfg, resume_path, log_root_path, run_playback)
+                return
             runner = create_rsl_rl_runner(env, agent_cfg, inference=True)
             # configure_seed must run after runner construction so torch determinism does not disturb its initialization
             if args_cli.deterministic:
@@ -208,6 +217,7 @@ def run(argv: list[str]) -> None:
             runner.export_policy_to_onnx(path=export_model_dir, filename="policy.onnx")
 
             screen.close()
+            checkpoint_ghost_play.offer(env, env_cfg)
             play_policy(env, policy, args_cli, env_cfg)
 
 
