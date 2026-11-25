@@ -18,7 +18,8 @@ Configuration ownership
 
 The neural package follows Isaac Lab's functional boundaries: model definitions at the root,
 solver integration in ``physics/``, training configuration in ``rl/`` and recorder terms/configuration
-in ``record/``. Workflow entrypoints compose those pieces.
+in ``record/``. The scripts own task resolution and compose those pieces before simulation starts;
+the neural library does not import task registrations or resolve presets.
 
 * ``NeRDCfg`` defines the model architecture and physical inputs. Task-specific model definitions
   such as ``AnymalCNeRDCfg`` are independent of recording, training and inference.

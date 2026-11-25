@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Configuration ownership and the shared task-resolution boundary."""
+"""Task declarations, workflow composition and dependency ownership."""
 
 import ast
 import dataclasses
@@ -47,6 +47,10 @@ def test_recording_model_and_optimizer_are_independent(task):
 
 
 def test_osc_does_not_inherit_neural_physics():
+    from isaaclab_tasks.core.reach.config.franka.franka_reach_env_cfg import FrankaReachEnvCfg, FrankaReachPhysicsCfg
+
+    assert "newton_nerd" in FrankaReachPhysicsCfg.__configclass_own_fields__
+    assert "__post_init__" not in FrankaReachEnvCfg.__configclass_own_fields__
     offered = enumerate_task_presets("Isaac-Reach-Franka-OSC")[PresetTarget.PHYSICS]
     assert "newton_nerd" not in offered
     assert "newton_nerd" in enumerate_task_presets(TASKS[0])[PresetTarget.PHYSICS]
@@ -95,7 +99,7 @@ def test_neural_ownership_boundaries():
     root = Path(ISAACLAB_ROOT)
     neural = root / "source/isaaclab_neural/isaaclab_neural"
     assert not (neural / "physics/newton_nerd_manager.py").exists()
-    assert not (neural / "entrypoints/evaluate.py").exists()
+    assert not list((neural / "entrypoints").glob("*.py"))
     assert not (root / "scripts/neural/evaluate.py").exists()
     assert not (neural / "nerd_recipe.py").exists()
     assert not (neural / "nerd_recipe_cfg.py").exists()

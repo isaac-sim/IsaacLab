@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Helpers shared by the tests of ``isaaclab_neural`` and of the scripts under ``scripts/neural``.
+"""Task integration helpers shared with the dynamics recording and fitting script tests.
 
 Importing this module needs neither ``newton-neural`` nor a running simulation. The helpers that need them import
 them when called.
@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import runpy
 import warnings
 from collections.abc import Iterator
 from pathlib import Path
@@ -20,15 +21,13 @@ from typing import TYPE_CHECKING, Any
 
 import gymnasium as gym
 import pytest
-from isaaclab_neural.physics import MJWarpNeRDSolverCfg, NeRDSolverCfg
 
 from isaaclab.app import launch_simulation
 from isaaclab.sim import SimulationContext
 from isaaclab.test.utils import DeviceScope, test_devices
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils import load_cfg_from_registry, resolve_task_config
-from isaaclab_tasks.utils.hydra import collect_presets
+from isaaclab_tasks.utils import resolve_task_config
 
 if TYPE_CHECKING:
     import newton
@@ -38,6 +37,11 @@ ANYMAL_C_FLAT = "IsaacContrib-Velocity-Flat-AnymalC"
 ALLEGRO_REORIENT = "Isaac-Reorient-Cube-Allegro"
 
 TASKS = (FRANKA_REACH, ANYMAL_C_FLAT, ALLEGRO_REORIENT)
+NEURAL_PHYSICS = {
+    FRANKA_REACH: "newton_nerd",
+    ANYMAL_C_FLAT: "newton_nerd",
+    ALLEGRO_REORIENT: "newton_mjwarp_nerd",
+}
 """The tasks that run on a model."""
 
 WORLD_COUNT = 32
@@ -50,18 +54,6 @@ def cuda_device() -> str:
     if not devices:
         pytest.skip("the models are recorded and trained on a CUDA device")
     return devices[0]
-
-
-def nerd_preset(task: str) -> str:
-    """Return the name of the physics preset of ``task`` whose solver is a model."""
-    alternatives = collect_presets(load_cfg_from_registry(task, "env_cfg_entry_point"))["sim.physics"]
-    names = [
-        name
-        for name, physics in alternatives.items()
-        if name != "default" and isinstance(getattr(physics, "solver_cfg", None), NeRDSolverCfg | MJWarpNeRDSolverCfg)
-    ]
-    assert len(names) == 1, f"{task} offers the model presets {names}, and one is expected"
-    return names[0]
 
 
 def task_cfg(task: str, world_count: int, device: str, overrides: tuple[str, ...] | None = None) -> Any:
@@ -84,7 +76,7 @@ def nerd_task_cfg(task: str, checkpoint: Path, world_count: int, device: str, **
         device: Simulation device.
         **solver_settings: Fields of the solver configuration to set, such as ``precision`` and ``compile``.
     """
-    env_cfg = task_cfg(task, world_count, device, overrides=(f"physics={nerd_preset(task)}",))
+    env_cfg = task_cfg(task, world_count, device, overrides=(f"physics={NEURAL_PHYSICS[task]}",))
     solver_cfg = env_cfg.sim.physics.solver_cfg
     solver_cfg.checkpoint = str(checkpoint)
     for name, value in solver_settings.items():
@@ -123,12 +115,12 @@ def refused(task: str, env_cfg: Any, error: type[Exception], match: str) -> None
 
 def record_dataset(task: str, dataset: Path, num_envs: int, num_frames: int, device: str) -> None:
     """Record a dataset of ``task`` with ``scripts/neural/record.py``, in ``dataset`` or where the script puts it."""
-    from isaaclab_neural.entrypoints import record  # noqa: PLC0415
+    from isaaclab.paths import ISAACLAB_ROOT  # noqa: PLC0415
 
     argv = ["--task", task, "--num_envs", str(num_envs), "--num_frames", str(num_frames), "--device", device]
     argv += ["--dataset", str(dataset)]
     try:
-        record.main(argv)
+        runpy.run_path(str(Path(ISAACLAB_ROOT) / "scripts/neural/record.py"))["main"](argv)
     finally:
         SimulationContext.clear_instance()
 
@@ -147,12 +139,12 @@ def record_and_train(task: str, folder: Path, *, num_envs: int, num_frames: int,
         The trained model file. The adjacent ``dataset`` folder holds native trajectories and the
         recorded, untrained ``model.pt``.
     """
-    from isaaclab_neural.entrypoints import train  # noqa: PLC0415
+    from isaaclab.paths import ISAACLAB_ROOT  # noqa: PLC0415
 
     device = cuda_device()
     dataset, checkpoint = folder / "dataset", folder / "flashnerd.pt"
     record_dataset(task, dataset, num_envs, num_frames, device)
-    train.main(
+    runpy.run_path(str(Path(ISAACLAB_ROOT) / "scripts/neural/train.py"))["main"](
         [
             *("--task", task),
             *("--dataset", str(dataset)),

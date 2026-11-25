@@ -37,6 +37,13 @@ The guide owns shared contribution rules. Update them there instead of copying t
 - Keep task-local dynamics model and fitting configs in `dynamics/`, recording workflows in `record/`,
   and action-producing policy configs in `agents/`; keep them out of the environment config directory root.
 
+- Declare neural physics alternatives in the task physics preset class and timing in config fields.
+  Do not rebuild preset containers with `vars()` or inject neural variants from `__post_init__`.
+
+- Keep preset discovery and resolution in task code and scripts, resolving before library construction.
+  The neural library and its unit tests must not import task registries or implement preset selection.
+  Put task-backed neural integration coverage under `isaaclab_tasks/test/neural`.
+
 ## Commits and branches
 
 - Work on a feature branch; do not commit directly to `main`.

@@ -58,7 +58,7 @@ class NeRDSolverCfg(NewtonSolverCfg):
 
 
 def require_checkpoint(checkpoint: str) -> None:
-    """Validate that ``checkpoint`` exists on disk; raises ``ValueError`` so preset listing skips untrained presets."""
+    """Validate that the configured checkpoint exists on disk."""
     path = Path(checkpoint)
     if path.is_file():
         return

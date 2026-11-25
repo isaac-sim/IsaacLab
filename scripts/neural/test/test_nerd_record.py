@@ -16,7 +16,7 @@ pytest.importorskip("newton_neural", reason="needs the newton-neural extra")
 from newton_neural.data import TrajectoryDataset
 from newton_neural.models import NeRDBase
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "source/isaaclab_neural/test"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "source/isaaclab_tasks/test/neural"))
 from nerd_test_utils import TASKS, cuda_device, record_dataset
 
 pytestmark = [pytest.mark.integration, pytest.mark.kitless]

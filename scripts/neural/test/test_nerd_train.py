@@ -5,6 +5,7 @@
 
 """Training consumes the recorded model without reconstructing a deployment preset."""
 
+import runpy
 import sys
 from pathlib import Path
 
@@ -13,10 +14,9 @@ import torch
 
 pytest.importorskip("newton_neural", reason="needs the newton-neural extra")
 
-from isaaclab_neural.entrypoints import train
 from newton_neural.models import NeRDBase
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "source/isaaclab_neural/test"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "source/isaaclab_tasks/test/neural"))
 from nerd_test_utils import FRANKA_REACH, cuda_device, record_dataset
 
 pytestmark = [pytest.mark.integration, pytest.mark.kitless]
@@ -27,7 +27,7 @@ def test_recorded_model_and_explicit_output(tmp_path):
     device = cuda_device()
     record_dataset(FRANKA_REACH, dataset, 8, 128, device)
     before = NeRDBase.load(dataset / "model.pt", device="cpu")
-    train.main(
+    runpy.run_path(str(Path(__file__).resolve().parents[1] / "train.py"))["main"](
         [
             "--task",
             FRANKA_REACH,
