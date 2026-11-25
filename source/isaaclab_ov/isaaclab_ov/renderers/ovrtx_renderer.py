@@ -129,8 +129,9 @@ from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 _RENDER_DELTA_TIME = 1.0 / 60.0
 _FAILED_FRAME_TEXT = "failed to produce a frame"
 _FAILED_FRAME_NOTE = (
-    "One cause of a failed frame is a camera sensor with too many environments for its image size and path-tracing"
-    " samples per pixel. A render product renders the images of a group of environments."
+    "One cause of a failed frame is a camera sensor with too many environments."
+    " The limit depends on the image size and the path-tracing samples per pixel."
+    " A render product renders the images of a group of environments."
 )
 _OTHER_FIXES = "A smaller image size, fewer path-tracing samples per pixel or fewer environments can avoid the failure."
 _MAX_SMALLER_LAYOUTS = 4
@@ -424,11 +425,13 @@ class OVRTXCameraRenderData:
         if max_envs == "auto" and not self.searches_split:
             # create_render_data completes the camera paths below an environment root, so this is unexpected.
             logger.warning(
-                "Camera %s has %d camera prim(s) for %d environments. If its first frame fails, the renderer cannot"
-                " render its environments in smaller groups. To turn off this warning, set"
-                ' OVRTXRendererCfg.max_envs_per_render_product="all" on every OVRTX renderer configuration of the'
-                " task. This also turns off the automatic search for the other cameras. A value on one configuration"
-                " only gives this camera its own renderer with a second copy of the scene in GPU memory.",
+                "Camera %s has %d camera prim(s) for %d environments."
+                " If its first frame fails, the renderer cannot render its environments in smaller groups."
+                ' To turn off this warning, set OVRTXRendererCfg.max_envs_per_render_product="all"'
+                " on every OVRTX renderer configuration of the task."
+                " This also turns off the automatic search for the other cameras."
+                " A value on one configuration only gives this camera its own renderer"
+                " with a second copy of the scene in GPU memory.",
                 spec.cfg.prim_path,
                 len(camera_paths),
                 self.num_envs,
@@ -478,10 +481,12 @@ class OVRTXCameraRenderData:
         count = math.ceil(self.num_envs / envs_per_product)
         if count > 1 and len(self.camera_paths) != self.num_envs:
             raise ValueError(
-                f"OVRTXRendererCfg.max_envs_per_render_product={max_envs} needs a camera prim in each environment, but"
-                f" camera {self.spec.cfg.prim_path} has {len(self.camera_paths)} camera prim(s) for {self.num_envs}"
-                ' environments. Set the value to "all" for this camera. If other cameras keep another value, this'
-                " camera can get its own renderer with a second copy of the scene in GPU memory."
+                f"OVRTXRendererCfg.max_envs_per_render_product={max_envs} needs a camera prim in each environment,"
+                f" but camera {self.spec.cfg.prim_path} has {len(self.camera_paths)} camera prim(s)"
+                f" for {self.num_envs} environments."
+                ' Set the value to "all" for this camera.'
+                " If other cameras keep another value, this camera can get its own renderer"
+                " with a second copy of the scene in GPU memory."
             )
         self.products: list[OVRTXRenderProduct] = []
         for k in range(count):
@@ -1398,11 +1403,12 @@ class OVRTXRenderer(BaseRenderer):
                 if not same:
                     raise RuntimeError(
                         f"Camera {render_data.spec.cfg.prim_path}: the environments from {product.env_offset} on"
-                        f" returned a different map of segmentation labels ({key}) than the first environments. The"
-                        " camera has one map of labels for all environments, so some labels would be wrong."
-                        ' Set OVRTXRendererCfg.max_envs_per_render_product to "all" on every OVRTX renderer'
-                        " configuration of the task. If the first frame then fails, reduce the image size, the"
-                        " path-tracing samples per pixel or the number of environments."
+                        f" returned a different map of segmentation labels ({key}) than the first environments."
+                        " The camera has one map of labels for all environments, so some labels would be wrong."
+                        ' Set OVRTXRendererCfg.max_envs_per_render_product to "all"'
+                        " on every OVRTX renderer configuration of the task."
+                        " If the first frame then fails, reduce the image size,"
+                        " the path-tracing samples per pixel or the number of environments."
                     )
 
     def _launch_extract_all_tiles(
@@ -1581,18 +1587,19 @@ class OVRTXRenderer(BaseRenderer):
             else:
                 stop = "The search stops at one environment per render product."
             paragraphs.append(
-                'The automatic search (OVRTXRendererCfg.max_envs_per_render_product="auto") tried'
-                f" {num_smaller_layouts} smaller group size(s), and the first frame failed with each of them. {stop}"
-                " If the GPU is out of memory, smaller groups do not help. The OVRTX log file"
-                f" {self.cfg.log_file_path} can show the cause."
+                'The automatic search (OVRTXRendererCfg.max_envs_per_render_product="auto")'
+                f" tried {num_smaller_layouts} smaller group size(s), and the first frame failed with each of them."
+                f" {stop} If the GPU is out of memory, smaller groups do not help."
+                f" The OVRTX log file {self.cfg.log_file_path} can show the cause."
             )
         if cameras:
             paragraphs.append(
-                f"Largest group of environments in one render product, per camera sensor: {', '.join(cameras)}. The"
-                " renderer cannot tell which camera sensor caused the failure. Set"
-                " OVRTXRendererCfg.max_envs_per_render_product to an integer below the group of the sensor with the"
-                " largest image, for example half of it. Use this value on every OVRTX renderer configuration of the"
-                " task, because another value can cost a second copy of the scene in GPU memory."
+                f"Largest group of environments in one render product, per camera sensor: {', '.join(cameras)}."
+                " The renderer cannot tell which camera sensor caused the failure."
+                " Set OVRTXRendererCfg.max_envs_per_render_product to an integer below the group of the sensor"
+                " with the largest image, for example half of it."
+                " Use this value on every OVRTX renderer configuration of the task,"
+                " because another value can cost a second copy of the scene in GPU memory."
             )
         paragraphs.append(_OTHER_FIXES)
         error.add_note("\n".join(paragraphs))
@@ -1880,10 +1887,11 @@ class OVRTXRenderer(BaseRenderer):
         failed = next((data for data in render_data if data.first_frame_error is not None), None)
         if failed is not None:
             raise RuntimeError(
-                f"Camera {failed.spec.cfg.prim_path} renders no frames, because its first frame failed and no smaller"
-                " group of environments rendered. The error above gives the cause. Set"
-                " OVRTXRendererCfg.max_envs_per_render_product to an integer below the groups that the error above"
-                f" names. {_OTHER_FIXES}"
+                f"Camera {failed.spec.cfg.prim_path} renders no frames,"
+                " because its first frame failed and no smaller group of environments rendered."
+                " The error above gives the cause."
+                " Set OVRTXRendererCfg.max_envs_per_render_product to an integer below the groups"
+                f" that the error above names. {_OTHER_FIXES}"
             ) from failed.first_frame_error
         if self.backend.renderer is None or not self._camera_render_data:
             return
@@ -1906,11 +1914,14 @@ class OVRTXRenderer(BaseRenderer):
                 max_envs = data.products[0].num_envs
                 logger.warning(
                     "The first frame failed while camera %s rendered all %d environments in one render product."
-                    " A render product renders the images of a group of environments. The camera now uses %d render"
-                    " products with at most %d environments each. Set OVRTXRendererCfg.max_envs_per_render_product=%d"
-                    " on every OVRTX renderer configuration of the task. This saves startup time and gives the same"
-                    " groups on every GPU. It can also save GPU memory, because the failed tries stay in the scene"
-                    " until the camera is removed. If several camera sensors warn, set the smallest value.",
+                    " A render product renders the images of a group of environments."
+                    " The camera now uses %d render products with at most %d environments each."
+                    " Set OVRTXRendererCfg.max_envs_per_render_product=%d"
+                    " on every OVRTX renderer configuration of the task."
+                    " This saves startup time and gives the same groups on every GPU."
+                    " It can also save GPU memory,"
+                    " because the failed tries stay in the scene until the camera is removed."
+                    " If several camera sensors warn, set the smallest value.",
                     data.spec.cfg.prim_path,
                     data.num_envs,
                     len(data.products),
