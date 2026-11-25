@@ -216,5 +216,102 @@ To record 30 seconds, add ``--video newton_gl --video_length 1500`` and use
 ``uv run --frozen --extra video``. If training used a non-default preset, pass the
 same ``--agent`` and model overrides when playing its checkpoint.
 
-Playback also exports the actor to ``exported/policy.pt`` (TorchScript) and
-``exported/policy.onnx`` beside the checkpoint, using the RSL-RL runner exporters.
+Pretrained dance sample
+-----------------------
+
+The pretrained dance sample uses the BONES-SEED
+``dance_hiphop_box_step_R_fast_001__A318_M`` motion. Given the sample checkpoint,
+reference file, and matching USD asset, run:
+
+.. code-block:: bash
+
+   uv run --frozen isaaclab play --rl_library rsl_rl \
+       --checkpoint /path/to/dance/checkpoint.pt \
+       --motion_dir /path/to/dance/motion.npz \
+       --asset_path /path/to/dance/g1.usd \
+       --num_envs 1 --visualizer newton_gl --real-time
+
+The reference lasts 7.5 seconds and restarts at clip boundaries. The sample
+checkpoint uses the motion encoder and its ten-frame reference window.
+
+G1 LEAPP deployment adapter
+------------------------------
+
+Export a trained policy using its task, agent and motion settings:
+
+.. code-block:: bash
+
+   uv run --extra leapp isaaclab leapp export --rl_library rsl_rl \
+       --task Isaac-Motion-Tracking-G1 \
+       --agent rsl_rl_supermimic_cfg_entry_point presets=state_obs \
+       --checkpoint /path/to/run/model_39999.pt \
+       env.commands.motion.motion_file=/path/to/motion.npz \
+       --export_save_path exported
+
+Export the pretrained dance checkpoint and one reference clip to a LEAPP bundle:
+
+.. code-block:: bash
+
+   uv run --extra leapp isaaclab leapp export \
+       --task Isaac-Motion-Tracking-GenCoord-G1 --rl_library rsl_rl \
+       --checkpoint /path/to/dance/checkpoint.pt \
+       --motion_dir /path/to/dance/hiphop.npz --export_save_path exported
+
+Pass a local checkpoint path or URL and select one reference clip. For a newly
+trained policy, set ``env.commands.motion.motion_file``; for the dance sample,
+use ``--motion_dir``.
+The output directory contains an ONNX model, a pipeline YAML, initial feedback
+state, and ``motion.npz``. Keep these files together. The graph includes sensor
+preprocessing, observation history, normalization, motion inference and joint
+position scaling; it outputs joint targets and the checkpoint's PD gains.
+
+Install Isaac ROS and the G1 driver as described in the
+:doc:`visual locomotion deployment guide </source/policy_deployment/07_g1_sim2real/training_and_deploying_a_g1_visual_locomotion_policy>`.
+The reference publisher also requires SciPy (``sudo apt-get install python3-scipy``).
+After sourcing the ROS environment, run:
+
+.. code-block:: bash
+
+   python3 scripts/deploy/g1_deploy.py \
+       --pipeline exported/<task>/<task>.yaml \
+       --interface <iface>
+
+The launcher starts the reference publisher when ``motion.npz`` is beside the
+pipeline. Use ``--motion`` to select another exported clip with the same joint
+order. Follow the existing guide's IMU calibration and operator enable/stop
+procedure before engaging the controller.
+
+The actor first tracks the clip's initial pose with zero reference velocity.
+Start the motion after the robot is standing:
+
+.. code-block:: bash
+
+   ros2 service call /g1_policy/start_motion std_srvs/srv/Trigger '{}'
+
+The controller blends into motion over one second, plays the clip once, then
+blends back to tracking the final pose with zero reference velocity. The actor
+continues receiving joint and IMU feedback throughout; the history contains the
+blended action actually sent to the joint controller. Choose clips whose initial
+and final poses support standing. Each deployment session plays the clip once;
+reposition the robot before restarting deployment for another playback.
+To return early to a stationary reference:
+
+.. code-block:: bash
+
+   ros2 service call /g1_policy/stand std_srvs/srv/Trigger '{}'
+
+The reference publisher sends a timestamped ``isaac_ros_tensor_msgs/msg/TensorList``
+on ``/g1_policy/motion`` at 50 Hz. Each float32 window has shape ``[10, 63]``:
+29 joint positions, 29 joint velocities, a WXYZ root quaternion and a blend weight
+per frame. Frames are spaced by five control steps, clamped at the clip boundary.
+The graph receives pelvis orientation in XYZW order, pelvis-frame angular
+velocity, and joint positions/velocities in the order declared in its YAML.
+At motion start the publisher aligns the reference heading to the pelvis IMU.
+
+To stop policy control, activate the driver's damping controller:
+
+.. code-block:: bash
+
+   ros2 control switch_controllers \
+       --activate freeze_controller \
+       --deactivate forward_joint_command_controller safety_controller
