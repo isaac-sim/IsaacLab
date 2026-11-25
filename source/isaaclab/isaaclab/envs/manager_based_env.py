@@ -15,7 +15,7 @@ from typing import Any
 import torch
 
 from ..app.loading_screen import report_activity
-from ..managers import ActionManager, EventManager, ObservationManager, RecorderManager
+from ..managers import ActionManager, EventManager, ObservationManager
 from ..scene import InteractiveScene
 from ..sim import SimulationContext
 from ..sim.utils.stage import use_stage
@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 def _physics_can_handle_actions(env: ManagerBasedEnv) -> bool:
     """Whether nothing runs between the physics steps of one environment step.
 
-    Renders, recorder terms that record every physics step, and sensors that refresh on update at times other than
+    Renders and sensors that refresh on update at times other than
     whole environment steps all run there.
 
     Args:
@@ -46,7 +46,7 @@ def _physics_can_handle_actions(env: ManagerBasedEnv) -> bool:
     Returns:
         Whether the physics backend may run the environment's actions and decimation loop inside its step.
     """
-    if env.cfg.sim.render_interval % env.cfg.decimation != 0 or env.recorder_manager.records_physics_steps:
+    if env.cfg.sim.render_interval % env.cfg.decimation != 0:
         return False
     eager_sensors = not env.scene.cfg.lazy_sensor_update
     for sensor in env.scene.sensors.values():
@@ -84,9 +84,6 @@ class ManagerBasedEnv:
       This includes resetting the scene to a default state, applying random pushes to the robot at different intervals
       of time, or randomizing properties such as mass and friction coefficients. This is useful for training
       and evaluating the robot in a variety of scenarios.
-    * **Recorder Manager**: The recorder manager that handles recording data produced during different steps
-      in the simulation. This includes recording in the beginning and end of a reset and a step. The recorded data
-      is distinguished per episode, per environment and can be exported through a dataset file handler to a file.
 
     The environment provides a unified interface for interacting with the simulation. However, it does not
     include task-specific quantities such as the reward function, or the termination conditions. These
@@ -386,9 +383,6 @@ class ManagerBasedEnv:
         # prepare the managers
         # -- event manager (we print it here to make the logging consistent)
         logger.info(f"Event Manager: {self.event_manager}")
-        # -- recorder manager
-        self.recorder_manager = RecorderManager(self.cfg.recorders, self)
-        logger.info(f"Recorder Manager: {self.recorder_manager}")
         # -- action manager
         self.action_manager = ActionManager(self.cfg.actions, self)
         logger.info(f"Action Manager: {self.action_manager}")
@@ -459,9 +453,6 @@ class ManagerBasedEnv:
             env_ids = slice(None)
         # terminal observations belong to the step that captured them
         self.extras.pop("final_obs", None)
-        self.extras.pop("final_obs_every_step", None)
-        # trigger recorder terms for pre-reset calls
-        self.recorder_manager.record_pre_reset(env_ids)
 
         # set the seed
         if seed is not None:
@@ -477,9 +468,6 @@ class ManagerBasedEnv:
         if self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
             for _ in range(self.cfg.num_rerenders_on_reset):
                 self.sim.render()
-
-        # trigger recorder terms for post-reset calls
-        self.recorder_manager.record_post_reset(env_ids)
 
         # compute observations
         self.obs_buf = self.observation_manager.compute(update_history=True)
@@ -522,9 +510,6 @@ class ManagerBasedEnv:
             env_ids = slice(None)
         # terminal observations belong to the step that captured them
         self.extras.pop("final_obs", None)
-        self.extras.pop("final_obs_every_step", None)
-        # trigger recorder terms for pre-reset calls
-        self.recorder_manager.record_pre_reset(env_ids)
 
         # set the seed
         if seed is not None:
@@ -541,9 +526,6 @@ class ManagerBasedEnv:
         if self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
             for _ in range(self.cfg.num_rerenders_on_reset):
                 self.sim.render()
-
-        # trigger recorder terms for post-reset calls
-        self.recorder_manager.record_post_reset(env_ids)
 
         # compute observations
         self.obs_buf = self.observation_manager.compute(update_history=True)
@@ -591,8 +573,6 @@ class ManagerBasedEnv:
         if self._physics_handles_actions is None:
             self._handle_physics_actions()
 
-        self.recorder_manager.record_pre_step()
-
         # check if we need to do rendering within the physics loop
         # note: evaluated once per step rather than once per physics substep
         is_rendering = self.sim.is_rendering
@@ -619,7 +599,6 @@ class ManagerBasedEnv:
             recorder.step()
 
         self.obs_buf = self.observation_manager.compute(update_history=True)
-        self.recorder_manager.record_post_step()
 
         return self.obs_buf, self.extras
 
@@ -655,7 +634,6 @@ class ManagerBasedEnv:
             del self.action_manager
             del self.observation_manager
             del self.event_manager
-            del self.recorder_manager
             del self.scene
 
             # clear callbacks and instance
@@ -697,7 +675,4 @@ class ManagerBasedEnv:
         self.extras["log"].update(info)
         # -- event manager
         info = self.event_manager.reset(env_ids)
-        self.extras["log"].update(info)
-        # -- recorder manager
-        info = self.recorder_manager.reset(env_ids)
         self.extras["log"].update(info)

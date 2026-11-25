@@ -11,7 +11,6 @@ import sys
 
 import pytest
 from isaaclab_neural import NeRDCfg, NeRDTrainingCfg
-from isaaclab_neural.record.recording_cfg import NeRDRecorderCfg
 
 from isaaclab.utils import to_dict
 
@@ -42,7 +41,6 @@ def test_recording_model_and_optimizer_are_independent(task):
     unchanged = load_cfg_from_registry(task, "nerd_cfg_entry_point")
     assert tuple(unchanged.backbone_spans) != (1, 1)
     assert env.actions.joint_targets.episode_frames[0] >= 1
-    assert isinstance(env.recorders, NeRDRecorderCfg)
     # ManagerBase prepares terms only for truthy configurations, including zero-group observations.
     assert env.observations
 

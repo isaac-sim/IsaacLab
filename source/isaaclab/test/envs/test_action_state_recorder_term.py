@@ -17,10 +17,11 @@ import torch
 import isaaclab.sim as sim_utils
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.envs import ManagerBasedEnv
-from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
+from isaaclab.envs.mdp.recorders import record_initial_state
 from isaaclab.test.env_cfgs import make_empty_manager_based_env_cfg
 from isaaclab.test.integration_scene_cfgs import ArticulationRigidObjectSceneCfg
 from isaaclab.test.utils import DeviceScope, test_devices
+from isaaclab.utils.datasets import EpisodeRecorder, EpisodeRecorderCfg
 
 pytestmark = pytest.mark.integration
 
@@ -67,7 +68,7 @@ def compare_states(compared_state, ground_truth_state, ground_truth_env_id) -> t
     return True, ""
 
 
-def check_initial_state_recorder_term(env: ManagerBasedEnv):
+def check_initial_state_recorder_term(env: ManagerBasedEnv, recorder: EpisodeRecorder):
     """Check values recorded by the initial state recorder terms.
 
     Args:
@@ -75,7 +76,7 @@ def check_initial_state_recorder_term(env: ManagerBasedEnv):
     """
     current_state = env.scene.get_state(is_relative=True)
     for env_id in range(env.num_envs):
-        recorded_initial_state = env.recorder_manager.get_episode(env_id).get_initial_state()
+        recorded_initial_state = recorder.get_episode(env_id).get_initial_state()
         are_states_equal, output_log = compare_states(recorded_initial_state, current_state, env_id)
         assert are_states_equal, output_log
 
@@ -93,16 +94,18 @@ def test_action_state_recorder_terms(device, temp_dir):
     env_cfg = make_empty_manager_based_env_cfg(device=device, num_envs=num_envs)
     env_cfg.scene = ArticulationRigidObjectSceneCfg(num_envs=num_envs, env_spacing=2.5)
     # set recorder configurations for this test
-    env_cfg.recorders = ActionStateRecorderManagerCfg()
-    env_cfg.recorders.dataset_export_dir_path = temp_dir
-    env_cfg.recorders.dataset_filename = dummy_dataset_filename
+    recorder_cfg = EpisodeRecorderCfg()
+    recorder_cfg.dataset_export_dir_path = temp_dir
+    recorder_cfg.dataset_filename = dummy_dataset_filename
 
     # create environment
     env = ManagerBasedEnv(cfg=env_cfg)
+    recorder = EpisodeRecorder(recorder_cfg, env.num_envs, env.device)
 
-    # reset all environment instances to trigger post-reset recorder callbacks
+    # reset all environment instances, then capture their initial state explicitly
     env.reset()
-    check_initial_state_recorder_term(env)
+    record_initial_state(recorder, env)
+    check_initial_state_recorder_term(env, recorder)
     initial_state = env.scene.get_state(is_relative=True)
 
     # move the object in the first environment only, so its state differs from its recorded initial state
@@ -114,19 +117,21 @@ def test_action_state_recorder_terms(device, temp_dir):
     env.sim.step(render=False)
     env.scene.update(dt=env.physics_dt)
     moved_state = env.scene.get_state(is_relative=True)
-    assert not compare_states(env.recorder_manager.get_episode(0).get_initial_state(), moved_state, 0)[0]
+    assert not compare_states(recorder.get_episode(0).get_initial_state(), moved_state, 0)[0]
 
     # reset only one environment that is not the first one: only it records a new initial state
-    env.reset(env_ids=torch.tensor([num_envs - 1], device=env.device))
+    env_ids = torch.tensor([num_envs - 1], device=env.device)
+    recorder.reset(env_ids)
+    env.reset(env_ids=env_ids)
+    record_initial_state(recorder, env, env_ids)
     current_state = env.scene.get_state(is_relative=True)
     are_states_equal, output_log = compare_states(
-        env.recorder_manager.get_episode(num_envs - 1).get_initial_state(), current_state, num_envs - 1
+        recorder.get_episode(num_envs - 1).get_initial_state(), current_state, num_envs - 1
     )
     assert are_states_equal, output_log
-    are_states_equal, output_log = compare_states(
-        env.recorder_manager.get_episode(0).get_initial_state(), initial_state, 0
-    )
+    are_states_equal, output_log = compare_states(recorder.get_episode(0).get_initial_state(), initial_state, 0)
     assert are_states_equal, output_log
 
     # close the environment
+    recorder.close()
     env.close()

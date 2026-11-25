@@ -5,7 +5,7 @@
 
 """Recording action configuration for AllegroHand."""
 
-from isaaclab_neural.record.recording_cfg import NeRDExplorationActionCfg, NeRDRecorderCfg
+from isaaclab_neural.record.recording_cfg import NeRDExplorationActionCfg
 
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import EventTermCfg, TerminationTermCfg
@@ -47,7 +47,6 @@ class AllegroHandRecordingActionsCfg:
 class AllegroHandNeRDRecordingEnvCfg(ManagerBasedRLEnvCfg):
     """Reference scene, exploration terms and standard recorder terms."""
 
-    recorders = NeRDRecorderCfg()
     scene = _TASK.scene
     sim = replace(
         _TASK.sim,

@@ -14,10 +14,45 @@ import numpy as np
 import pytest
 import torch
 
-from isaaclab.envs import DirectMARLEnv, DirectRLEnv, ManagerBasedRLEnv
+from isaaclab.envs import DirectMARLEnv, DirectRLEnv, ManagerBasedEnv, ManagerBasedRLEnv, ManagerBasedRLEnvCfg
 from isaaclab.managers import ObservationGroupCfg, ObservationManager, ObservationTermCfg
+from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.utils import replace
 
 pytestmark = pytest.mark.unit
+
+
+@pytest.mark.kitless
+def test_configured_step_owns_execution_per_environment(monkeypatch):
+    """A configured step receives its environment and bypasses the default stepping pipeline."""
+
+    def initialize_base(env, cfg):
+        env.cfg = cfg
+        env._is_closed = True
+        env.sim = SimpleNamespace(get_setting=lambda path: False)
+
+    monkeypatch.setattr(ManagerBasedEnv, "__init__", initialize_base)
+
+    def step_fn(env, action):
+        env.common_step_counter += 1
+        return {"policy": action}, action.sum(dim=-1), env.reset_buf, env.reset_buf, {}
+
+    cfg = ManagerBasedRLEnvCfg(step_fn=step_fn, decimation=2, scene=InteractiveSceneCfg(num_envs=2, env_spacing=1.0))
+    cfg.sim.device = "cpu"
+    env = ManagerBasedRLEnv(cfg)
+    default_cfg = replace(cfg, step_fn=None)
+    default_env = ManagerBasedRLEnv(default_cfg)
+
+    action = torch.tensor([[1.0, 2.0], [3.0, 4.0]])
+    observations, rewards, terminated, truncated, extras = env.step(action)
+
+    assert observations["policy"] is action
+    torch.testing.assert_close(rewards, torch.tensor([3.0, 7.0]))
+    assert not terminated.any() and not truncated.any()
+    assert extras == {}
+    assert env.common_step_counter == 1
+    assert default_env.common_step_counter == 0
+    assert default_env.step.__func__ is ManagerBasedRLEnv.step
 
 
 def _make_env_with_policy_obs_terms(
@@ -173,13 +208,6 @@ def test_final_observations_are_owned_and_cleared_each_step_and_reset(env_kind: 
         group = ObservationGroupCfg()
         group.value = ObservationTermCfg(func=lambda env: state)
         env.observation_manager = ObservationManager({"policy": group}, env)
-        env.recorder_manager = SimpleNamespace(
-            record_pre_step=lambda: None,
-            record_post_step=lambda: None,
-            record_post_physics_decimation_step=lambda: None,
-            record_pre_reset=lambda ids: None,
-            record_post_reset=lambda ids: None,
-        )
         env.action_manager = SimpleNamespace(process_action=lambda action: None, apply_action=lambda: None)
         env.termination_manager = SimpleNamespace(compute=lambda: done.clone(), terminated=done, time_outs=timeout)
         env.reward_manager = SimpleNamespace(compute=lambda **kwargs: reward)
@@ -233,7 +261,8 @@ def test_final_observations_are_owned_and_cleared_each_step_and_reset(env_kind: 
 
 
 @pytest.mark.parametrize("automatic,manual", [(True, False), (False, True), (True, True)])
-def test_step_forwards_reset_state_before_observations(automatic: bool, manual: bool):
+@pytest.mark.parametrize("recording", [False, True])
+def test_step_forwards_reset_state_before_observations(automatic: bool, manual: bool, recording: bool):
     """Both reset routes reconcile derived poses exactly once before observations read them."""
     calls = []
     env = object.__new__(ManagerBasedRLEnv)
@@ -261,16 +290,6 @@ def test_step_forwards_reset_state_before_observations(automatic: bool, manual: 
     env.extras = {}
     env.action_manager = SimpleNamespace(process_action=lambda action: None, apply_action=lambda: None)
 
-    def recorder(*args):
-        return None
-
-    env.recorder_manager = SimpleNamespace(
-        record_pre_step=recorder,
-        record_post_physics_decimation_step=recorder,
-        record_post_step=recorder,
-        record_pre_reset=recorder,
-        record_post_reset=recorder,
-    )
     env.termination_manager = SimpleNamespace(
         compute=lambda: torch.tensor([automatic, False]),
         terminated=torch.tensor([automatic, False]),
@@ -283,7 +302,19 @@ def test_step_forwards_reset_state_before_observations(automatic: bool, manual: 
     env.video_recorders = []
     env.observation_manager = SimpleNamespace(compute=lambda update_history: calls.append("observe") or {})
 
-    env.step(torch.zeros(2, 1))
+    if recording:
+        from isaaclab_teleop.entrypoints.record_demos import _step_teleop
+
+        from isaaclab.utils.datasets import DatasetExportMode, EpisodeRecorder, EpisodeRecorderCfg
+
+        recorder = EpisodeRecorder(EpisodeRecorderCfg(dataset_export_mode=DatasetExportMode.EXPORT_NONE), 2, "cpu")
+        env.scene.get_state = lambda **kwargs: {"body": torch.zeros(2, 1)}
+        env.action_manager.action = torch.zeros(2, 1)
+        env.action_manager.active_terms = []
+        env.obs_buf = {"policy": {"state": torch.zeros(2, 1)}}
+        _step_teleop(env, torch.zeros(2, 1), recorder=recorder)
+    else:
+        env.step(torch.zeros(2, 1))
     assert calls[-1] == "observe"
     assert calls.count("forward") == 1
     assert max(i for i, call in enumerate(calls) if call == "reset") < calls.index("forward") < calls.index("observe")

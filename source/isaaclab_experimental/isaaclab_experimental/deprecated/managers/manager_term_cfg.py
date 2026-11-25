@@ -20,7 +20,6 @@ from isaaclab.managers.manager_term_cfg import (
     ManagerTermBaseCfg,
     ObservationGroupCfg,
     ObservationTermCfg,
-    RecorderTermCfg,
     RewardTermCfg,
     TerminationTermCfg,
 )
@@ -33,7 +32,6 @@ __all__ = [
     "ManagerTermBaseCfg",
     "ObservationGroupCfg",
     "ObservationTermCfg",
-    "RecorderTermCfg",
     "RewardTermCfg",
     "TerminationTermCfg",
 ]

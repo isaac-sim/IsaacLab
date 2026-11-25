@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import math
+from types import MethodType
 from typing import Any, ClassVar
 
 import gymnasium as gym
@@ -88,6 +89,8 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         #    produced video matches the simulation
         self.metadata["render_fps"] = 1 / self.step_dt
         self.has_rtx_sensors = self.sim.get_setting("/isaaclab/render/rtx_sensors")
+        if self.cfg.step_fn is not None:
+            self.step = MethodType(self.cfg.step_fn, self)
         logger.info("Completed setting up the environment...")
 
     """
@@ -207,12 +210,9 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         """
         # terminal observations belong to the step that captured them
         self.extras.pop("final_obs", None)
-        self.extras.pop("final_obs_every_step", None)
         self.action_manager.process_action(action.to(self.device))
         if self._physics_handles_actions is None:
             self._handle_physics_actions()
-
-        self.recorder_manager.record_pre_step()
 
         # check if we need to do rendering within the physics loop
         # note: evaluated once per step rather than once per physics substep
@@ -226,14 +226,11 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
                 self.action_manager.apply_action()
                 self.scene.write_data_to_sim()
             self.sim.step(render=False)
-            self.recorder_manager.record_post_physics_decimation_step()
             # render_enabled=False skips Kit (camera/GUI); standalone visualizers still update
             if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
                 self.sim.render(skip_app_pumping=not self.render_enabled)
             self.scene.update(dt=self.physics_dt * steps_per_call)
 
-        # post-step:
-        # -- update env counters (used for curriculum generation)
         self.episode_length_buf += 1  # step in current episode (per env)
         self.common_step_counter += 1  # total step (common for all envs)
         # -- check terminations
@@ -242,16 +239,12 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         self.reset_time_outs = self.termination_manager.time_outs
         self.reward_buf = self.reward_manager.compute(dt=self.step_dt)
 
-        self.recorder_manager.record_post_step()
-
         # -- reset envs that terminated/timed-out and log the episode information
         reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1).int()
-        if self.cfg.final_obs_every_step or (self.cfg.compute_final_obs and len(reset_env_ids) > 0):
-            self.extras["final_obs"] = self.observation_manager.compute()
-            if self.cfg.final_obs_every_step:
-                self.extras["final_obs_every_step"] = True
         if len(reset_env_ids) > 0:
-            self.recorder_manager.record_pre_reset(reset_env_ids)
+            # Capture the terminal observation before the Same-Step autoreset.
+            if self.cfg.compute_final_obs:
+                self.extras["final_obs"] = self.observation_manager.compute()
 
             self._reset_idx(reset_env_ids)
 
@@ -259,7 +252,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             if self.render_enabled and is_rendering and self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
                 for _ in range(self.cfg.num_rerenders_on_reset):
                     self.sim.render()
-            self.recorder_manager.record_post_reset(reset_env_ids)
 
         # -- handle episode reset requested from visualizer UI controls
         manual_reset_ids = reset_env_ids[:0]
@@ -271,10 +263,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             if len(manual_reset_ids) > 0:
                 # mark as terminated so RL wrappers observe the episode boundary
                 index_fill_(self.reset_terminated, manual_reset_ids, True)
-                # mirror the recorder lifecycle used for normal resets
-                self.recorder_manager.record_pre_reset(manual_reset_ids)
                 self._reset_idx(manual_reset_ids)
-                self.recorder_manager.record_post_reset(manual_reset_ids)
 
         if len(reset_env_ids) > 0 or len(manual_reset_ids) > 0:
             # Reset writes invalidate derived body poses used by observations and rewards.
@@ -424,9 +413,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         self.extras["log"].update(info)
         # -- termination manager
         info = self.termination_manager.reset(env_ids)
-        self.extras["log"].update(info)
-        # -- recorder manager
-        info = self.recorder_manager.reset(env_ids)
         self.extras["log"].update(info)
 
         index_fill_(self.episode_length_buf, env_ids, 0)

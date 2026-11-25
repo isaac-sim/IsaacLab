@@ -14,8 +14,8 @@ from __future__ import annotations
 
 import enum
 
-from ..managers.recorder_manager import RecorderManagerBaseCfg
 from ..utils import configclass
+from ..utils.datasets import EpisodeRecorderCfg
 
 
 @configclass
@@ -332,4 +332,4 @@ class MimicEnvCfg:
     task_constraint_configs: list[SubTaskConstraintConfig] = []
 
     # Optional recorder configuration
-    mimic_recorder_config: RecorderManagerBaseCfg | None = None
+    mimic_recorder_config: EpisodeRecorderCfg | None = None

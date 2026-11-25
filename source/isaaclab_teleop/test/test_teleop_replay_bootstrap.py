@@ -433,7 +433,7 @@ def test_replay_control_timing_uses_recorded_events_or_explicit_legacy_start(mon
     if not start_on_replay:
         messages.update({3: b"start", 10: b"start"})
     frame = -1
-    applied, resets, recorder_resets = [], [], []
+    applied, resets = [], []
 
     class Signal(list):
         is_none = False
@@ -473,7 +473,6 @@ def test_replay_control_timing_uses_recorded_events_or_explicit_legacy_start(mon
         num_envs=1,
         scene=SimpleNamespace(physics_backend="newton_mjwarp", env_prim_paths=["/World/envs/env_0"]),
         sim=SimpleNamespace(device="cpu", render=lambda: None, is_running=lambda: frame < 15),
-        recorder_manager=SimpleNamespace(reset=lambda: recorder_resets.append(frame)),
         reset=lambda: resets.append(frame),
     )
 
@@ -513,7 +512,6 @@ def test_replay_control_timing_uses_recorded_events_or_explicit_legacy_start(mon
     stats = replay._run_single_replay(env, cfg, None, run_index=1, total_runs=2, teleop_interface=RecordedDevice())
     assert applied == ([2, 3, 4, 5, 6, 9, 10, 11] if start_on_replay else [5, 6, 10, 11])
     assert resets == [-1, 0, 7]
-    assert recorder_resets == [0, 7]
     assert frame == 12  # STOP terminates; RESET retains the cursor and permits the later START.
     # The control channel already consumed the recorded RESET; the notification still resets retargeters.
     assert lifecycle._retargeter_reset_pending

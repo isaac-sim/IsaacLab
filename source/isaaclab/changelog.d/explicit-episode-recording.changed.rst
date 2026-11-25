@@ -1,0 +1,1 @@
+* **Breaking:** Removed RecorderManager, its term/configuration classes, and automatic environment recording hooks. Recording workflows now own EpisodeRecorder storage and call capture functions explicitly; import DatasetExportMode from isaaclab.utils.datasets. Kept default step ordering explicit and moved recording steps into the scripts that own their capture and export policy.

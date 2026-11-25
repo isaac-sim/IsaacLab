@@ -29,8 +29,8 @@ class Missing:
 sys.meta_path.insert(0, Missing())
 from isaaclab_neural import NeRDCfg, NeRDTrainingCfg
 from isaaclab_neural.physics import NeRDSolverCfg, MJWarpNeRDSolverCfg
-from isaaclab_neural.record.recording_cfg import NeRDRecorderCfg
-for cfg in (NeRDCfg, NeRDTrainingCfg, NeRDSolverCfg, MJWarpNeRDSolverCfg, NeRDRecorderCfg):
+from isaaclab_neural.record.recording_cfg import NeRDExplorationActionCfg
+for cfg in (NeRDCfg, NeRDTrainingCfg, NeRDSolverCfg, MJWarpNeRDSolverCfg, NeRDExplorationActionCfg):
     cfg()
 """,
         ],
@@ -51,6 +51,10 @@ def test_library_has_no_task_composition():
         "resolve_presets",
         "resolve_task_config",
         "setup_preset_cli",
+        "RecorderManager",
+        "RecorderManagerBaseCfg",
+        "RecorderTerm",
+        "RecorderTermCfg",
     }
     for path in (*library.rglob("*.py"), *library.rglob("*.pyi")):
         assert "preset" not in path.name, path

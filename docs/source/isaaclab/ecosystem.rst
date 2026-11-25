@@ -181,8 +181,7 @@ complementary patterns:
 
 * **Manager-based** environments defer every behavioral concern to typed, composable
   *manager* objects (``ObservationManager``, ``RewardManager``, ``TerminationManager``,
-  ``EventManager``, ``CurriculumManager``, ``CommandManager``, ``ActionManager``,
-  ``RecorderManager``). Each manager is driven by small, reusable MDP term functions that live
+  ``EventManager``, ``CurriculumManager``, ``CommandManager``, ``ActionManager``). Each manager is driven by small, reusable MDP term functions that live
   in :mod:`isaaclab.envs.mdp`. This makes it easy to mix and match terms across tasks and to
   test individual components in isolation.
 

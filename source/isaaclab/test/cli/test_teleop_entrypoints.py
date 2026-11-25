@@ -196,7 +196,7 @@ def test_mimic_teleop_holds_the_gripper_while_capture_starts_or_pauses(source_ch
     env = SimpleNamespace(device="cpu", cfg=SimpleNamespace(env_name=task))
     env.unwrapped = env
     with pytest.raises(Finished):
-        asyncio.run(run(env, 2, ActionQueue(), None, None, "output.hdf5", teleop))
+        asyncio.run(run(env, 2, ActionQueue(), None, None, "output.hdf5", teleop, recorder=mock.Mock()))
     expected = torch.tensor(
         [
             [0, 0, 0, 0, 0, 0, 1],

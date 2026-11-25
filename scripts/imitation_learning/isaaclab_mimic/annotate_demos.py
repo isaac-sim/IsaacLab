@@ -9,6 +9,8 @@ Script to add mimic annotations to demos to be used as source demos for mimic da
 
 import argparse
 import math
+from functools import partial
+from types import MethodType
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.utils.string import list_intersection, string_to_callable
@@ -61,12 +63,17 @@ from typing import TYPE_CHECKING
 import gymnasium as gym
 import torch
 
-from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
-from isaaclab.managers import RecorderTerm, RecorderTermCfg, TerminationTermCfg
-from isaaclab.utils import configclass
-from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
+from isaaclab.envs.mdp.recorders import (
+    get_episode_metadata,
+    record_initial_state,
+    record_post_step,
+    record_pre_step,
+)
+from isaaclab.managers import TerminationTermCfg
+from isaaclab.utils.datasets import EpisodeData, EpisodeRecorder, EpisodeRecorderCfg, HDF5DatasetFileHandler
 
 import isaaclab_mimic.envs  # noqa: F401
+from isaaclab_mimic.datagen.generation import get_datagen_info
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
@@ -100,66 +107,6 @@ def mark_subtask_cb():
     global current_action_index, marked_subtask_action_indices
     marked_subtask_action_indices.append(current_action_index)
     print(f"Marked a subtask signal at action index: {current_action_index}")
-
-
-class PreStepDatagenInfoRecorder(RecorderTerm):
-    """Recorder term that records the datagen info data in each step."""
-
-    def record_pre_step(self):
-        eef_pose_dict = {}
-        for eef_name in self._env.cfg.subtask_configs.keys():
-            eef_pose_dict[eef_name] = self._env.get_robot_eef_pose(eef_name=eef_name)
-
-        datagen_info = {
-            "object_pose": self._env.get_object_poses(),
-            "eef_pose": eef_pose_dict,
-            "target_eef_pose": self._env.action_to_target_eef_pose(self._env.action_manager.action),
-        }
-        return "obs/datagen_info", datagen_info
-
-
-@configclass
-class PreStepDatagenInfoRecorderCfg(RecorderTermCfg):
-    """Configuration for the datagen info recorder term."""
-
-    class_type: type[RecorderTerm] = PreStepDatagenInfoRecorder
-
-
-class PreStepSubtaskStartsObservationsRecorder(RecorderTerm):
-    """Recorder term that records the subtask start observations in each step."""
-
-    def record_pre_step(self):
-        return "obs/datagen_info/subtask_start_signals", self._env.get_subtask_start_signals()
-
-
-@configclass
-class PreStepSubtaskStartsObservationsRecorderCfg(RecorderTermCfg):
-    """Configuration for the subtask start observations recorder term."""
-
-    class_type: type[RecorderTerm] = PreStepSubtaskStartsObservationsRecorder
-
-
-class PreStepSubtaskTermsObservationsRecorder(RecorderTerm):
-    """Recorder term that records the subtask completion observations in each step."""
-
-    def record_pre_step(self):
-        return "obs/datagen_info/subtask_term_signals", self._env.get_subtask_term_signals()
-
-
-@configclass
-class PreStepSubtaskTermsObservationsRecorderCfg(RecorderTermCfg):
-    """Configuration for the step subtask terms observation recorder term."""
-
-    class_type: type[RecorderTerm] = PreStepSubtaskTermsObservationsRecorder
-
-
-@configclass
-class MimicRecorderManagerCfg(ActionStateRecorderManagerCfg):
-    """Mimic specific recorder terms."""
-
-    record_pre_step_datagen_info = PreStepDatagenInfoRecorderCfg()
-    record_pre_step_subtask_start_signals = PreStepSubtaskStartsObservationsRecorderCfg()
-    record_pre_step_subtask_term_signals = PreStepSubtaskTermsObservationsRecorderCfg()
 
 
 def main():
@@ -205,24 +152,20 @@ def main():
     # Disable all termination terms
     env_cfg.terminations = None
 
-    # Set up recorder terms for mimic annotations
-    env_cfg.recorders = MimicRecorderManagerCfg()
-    if not args_cli.auto:
-        # disable subtask term signals recorder term if in manual mode
-        env_cfg.recorders.record_pre_step_subtask_term_signals = None
-
-    if not args_cli.auto or (args_cli.auto and not args_cli.annotate_subtask_start_signals):
-        # disable subtask start signals recorder term if in manual mode or no need for subtask start annotations
-        env_cfg.recorders.record_pre_step_subtask_start_signals = None
-
-    env_cfg.recorders.dataset_export_dir_path = output_dir
-    env_cfg.recorders.dataset_filename = output_file_name
+    recorder_cfg = EpisodeRecorderCfg()
+    recorder_cfg.dataset_export_dir_path = output_dir
+    recorder_cfg.dataset_filename = output_file_name
 
     with launch_simulation(env_cfg, args_cli):
-        return annotate_dataset(env_cfg, dataset_file_handler, success_term)
+        return annotate_dataset(env_cfg, dataset_file_handler, success_term, recorder_cfg)
 
 
-def annotate_dataset(env_cfg, dataset_file_handler: HDF5DatasetFileHandler, success_term: TerminationTermCfg) -> int:
+def annotate_dataset(
+    env_cfg,
+    dataset_file_handler: HDF5DatasetFileHandler,
+    success_term: TerminationTermCfg,
+    recorder_cfg: EpisodeRecorderCfg,
+) -> int:
     """Create the environment and annotate every episode of the loaded dataset.
 
     Returns:
@@ -234,6 +177,13 @@ def annotate_dataset(env_cfg, dataset_file_handler: HDF5DatasetFileHandler, succ
 
     # create environment from loaded config
     env: ManagerBasedRLMimicEnv = gym.make(args_cli.task, cfg=env_cfg).unwrapped
+    recorder = EpisodeRecorder(
+        recorder_cfg, env.num_envs, env.device, env_name=args_cli.task, env_metadata=get_episode_metadata(env)
+    )
+
+    # This script owns decimation, so each simulator call advances one physics step.
+    env.sim.backend_manager.set_decimation(1)
+    env.step = MethodType(partial(_step_annotation, recorder=recorder), env)
 
     if not isinstance(env, ManagerBasedRLMimicEnv):
         raise ValueError("The environment should be derived from ManagerBasedRLMimicEnv")
@@ -304,18 +254,18 @@ def annotate_dataset(env_cfg, dataset_file_handler: HDF5DatasetFileHandler, succ
 
                 is_episode_annotated_successfully = False
                 if args_cli.auto:
-                    is_episode_annotated_successfully = annotate_episode_in_auto_mode(env, episode, success_term)
+                    is_episode_annotated_successfully = annotate_episode_in_auto_mode(
+                        env, episode, recorder, success_term
+                    )
                 else:
                     is_episode_annotated_successfully = annotate_episode_in_manual_mode(
-                        env, episode, success_term, subtask_term_signal_names, subtask_start_signal_names
+                        env, episode, recorder, success_term, subtask_term_signal_names, subtask_start_signal_names
                     )
 
                 if is_episode_annotated_successfully and not skip_episode:
                     # set success to the recorded episode data and export to file
-                    env.recorder_manager.set_success_to_episodes(
-                        None, torch.tensor([[True]], dtype=torch.bool, device=env.device)
-                    )
-                    env.recorder_manager.export_episodes()
+                    recorder.set_success_to_episodes(None, torch.tensor([[True]], dtype=torch.bool, device=env.device))
+                    recorder.export_episodes()
                     exported_episode_count += 1
                     successful_task_count += 1  # Increment successful task counter
                     print("\tExported the annotated episode.")
@@ -333,14 +283,69 @@ def annotate_dataset(env_cfg, dataset_file_handler: HDF5DatasetFileHandler, succ
     print("Exiting the app.")
 
     # Close environment after annotation is complete
+    recorder.close()
     env.close()
 
     return successful_task_count
 
 
+def _step_annotation(env, action: torch.Tensor, *, recorder: EpisodeRecorder):
+    """Replay one action and capture the fields used for Mimic annotations."""
+    # terminal observations belong to the step that captured them
+    env.extras.pop("final_obs", None)
+    recorder.add_to_episodes("obs/datagen_info", get_datagen_info(env, action.to(env.device)))
+    if args_cli.auto:
+        recorder.add_to_episodes("obs/datagen_info/subtask_term_signals", env.get_subtask_term_signals())
+        if args_cli.annotate_subtask_start_signals:
+            recorder.add_to_episodes("obs/datagen_info/subtask_start_signals", env.get_subtask_start_signals())
+
+    env.action_manager.process_action(action.to(env.device))
+    record_pre_step(recorder, env, env.action_manager.action)
+
+    is_rendering = env.sim.is_rendering
+
+    for _ in range(env.cfg.decimation):
+        env._sim_step_counter += 1
+        env.action_manager.apply_action()
+        env.scene.write_data_to_sim()
+        env.sim.step(render=False)
+        if env._sim_step_counter % env.cfg.sim.render_interval == 0 and is_rendering:
+            env.sim.render(skip_app_pumping=not env.render_enabled)
+        env.scene.update(dt=env.physics_dt)
+
+    env.episode_length_buf += 1  # step in current episode (per env)
+    env.common_step_counter += 1  # total step (common for all envs)
+    env.reset_buf = env.termination_manager.compute()
+    env.reset_terminated = env.termination_manager.terminated
+    env.reset_time_outs = env.termination_manager.time_outs
+    env.reward_buf = env.reward_manager.compute(dt=env.step_dt)
+
+    record_post_step(recorder, env)
+
+    # The workflow decides when attempts finish. A visualizer reset interrupts them.
+    if env.sim.consume_reset_request():
+        env_ids = torch.arange(env.num_envs, device=env.device, dtype=torch.int32)
+        env.reset_terminated.fill_(True)
+        recorder.set_success_to_episodes(env_ids, torch.zeros_like(env_ids, dtype=torch.bool))
+        recorder.export_episodes(env_ids)
+        env._reset_idx(env_ids)
+        env.sim.forward()
+        record_initial_state(recorder, env, env_ids)
+
+    env.command_manager.compute(dt=env.step_dt)
+    if "interval" in env.event_manager.active_terms:
+        env.event_manager.apply(mode="interval", dt=env.step_dt)
+    for video_recorder in env.video_recorders:
+        video_recorder.step()
+    env.obs_buf = env.observation_manager.compute(update_history=True)
+
+    return env.obs_buf, env.reward_buf, env.reset_terminated, env.reset_time_outs, env.extras
+
+
 def replay_episode(
     env: "ManagerBasedRLMimicEnv",
     episode: EpisodeData,
+    recorder: EpisodeRecorder,
     success_term: TerminationTermCfg | None = None,
 ) -> bool:
     """Replays an episode in the environment.
@@ -362,8 +367,9 @@ def replay_episode(
     initial_state = episode.data["initial_state"]
     actions = episode.data["actions"]
     env.sim.reset()
-    env.recorder_manager.reset()
+    recorder.reset()
     env.reset_to(initial_state, None, is_relative=True)
+    record_initial_state(recorder, env)
     first_action = True
     for action_index, action in enumerate(actions):
         current_action_index = action_index
@@ -376,7 +382,8 @@ def replay_episode(
                     return False
                 continue
         action_tensor = torch.Tensor(action).reshape([1, action.shape[0]])
-        env.step(torch.Tensor(action_tensor))
+        action_tensor = action_tensor.to(env.device)
+        env.step(action_tensor)
     if success_term is not None:
         if not bool(success_term.func(env, **success_term.params)[0]):
             return False
@@ -386,6 +393,7 @@ def replay_episode(
 def annotate_episode_in_auto_mode(
     env: "ManagerBasedRLMimicEnv",
     episode: EpisodeData,
+    recorder: EpisodeRecorder,
     success_term: TerminationTermCfg | None = None,
 ) -> bool:
     """Annotates an episode in automatic mode.
@@ -404,7 +412,7 @@ def annotate_episode_in_auto_mode(
     """
     global skip_episode
     skip_episode = False
-    is_episode_annotated_successfully = replay_episode(env, episode, success_term)
+    is_episode_annotated_successfully = replay_episode(env, episode, recorder, success_term)
     if skip_episode:
         print("\tSkipping the episode.")
         return False
@@ -412,7 +420,7 @@ def annotate_episode_in_auto_mode(
         print("\tThe final task was not completed.")
     else:
         # check if all the subtask term signals are annotated
-        annotated_episode = env.recorder_manager.get_episode(0)
+        annotated_episode = recorder.get_episode(0)
         subtask_term_signal_dict = annotated_episode.data["obs"]["datagen_info"]["subtask_term_signals"]
         for signal_name, signal_flags in subtask_term_signal_dict.items():
             signal_flags = torch.tensor(signal_flags, device=env.device)
@@ -431,6 +439,7 @@ def annotate_episode_in_auto_mode(
 def annotate_episode_in_manual_mode(
     env: "ManagerBasedRLMimicEnv",
     episode: EpisodeData,
+    recorder: EpisodeRecorder,
     success_term: TerminationTermCfg | None = None,
     subtask_term_signal_names: dict[str, list[str]] = {},
     subtask_start_signal_names: dict[str, list[str]] = {},
@@ -473,7 +482,7 @@ def annotate_episode_in_manual_mode(
             print('\tPress "S" to annotate subtask signals.')
             print('\tPress "Q" to skip the episode.\n')
             marked_subtask_action_indices = []
-            task_success_result = replay_episode(env, episode, success_term)
+            task_success_result = replay_episode(env, episode, recorder, success_term)
             if skip_episode:
                 print("\tSkipping the episode.")
                 return False
@@ -519,7 +528,7 @@ def annotate_episode_in_manual_mode(
         # subtask termination signal is false until subtask is complete, and true afterwards
         subtask_signals = torch.ones(len(episode.data["actions"]), dtype=torch.bool)
         subtask_signals[:subtask_term_signal_action_index] = False
-        env.recorder_manager.add_to_episodes(
+        recorder.add_to_episodes(
             f"obs/datagen_info/subtask_term_signals/{subtask_term_signal_name}", subtask_signals.unsqueeze(0), [0]
         )
 
@@ -530,7 +539,7 @@ def annotate_episode_in_manual_mode(
         ) in subtask_start_signal_action_indices.items():
             subtask_signals = torch.ones(len(episode.data["actions"]), dtype=torch.bool)
             subtask_signals[:subtask_start_signal_action_index] = False
-            env.recorder_manager.add_to_episodes(
+            recorder.add_to_episodes(
                 f"obs/datagen_info/subtask_start_signals/{subtask_start_signal_name}", subtask_signals.unsqueeze(0), [0]
             )
 

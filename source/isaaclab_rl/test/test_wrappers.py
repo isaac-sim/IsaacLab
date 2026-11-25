@@ -45,7 +45,7 @@ def _wrap_env(library: str, env: Any, device: str | None = None) -> Any:
 
 
 @pytest.fixture
-def raw_env(library: str, task: str, finite_horizon: bool, compute_final_obs: bool) -> Iterator[Any]:
+def raw_env(library: str, task: str, finite_horizon: bool, compute_final_obs: bool, every_step: bool) -> Iterator[Any]:
     import gymnasium as gym
     from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 
@@ -60,6 +60,22 @@ def raw_env(library: str, task: str, finite_horizon: bool, compute_final_obs: bo
     cfg.seed = 42
     cfg.is_finite_horizon = finite_horizon
     cfg.compute_final_obs = compute_final_obs
+    if every_step:
+        from isaaclab_rl.entrypoints.backends.runner_rsl_rl import configure_rsl_rl_env_cfg
+        from isaaclab_rl.rsl_rl import RslRlBaseRunnerCfg
+
+        configure_rsl_rl_env_cfg(cfg, RslRlBaseRunnerCfg(final_obs_every_step=True))
+        from isaaclab.managers import EventTermCfg, ObservationTermCfg
+
+        def advance_event_counter(env, env_ids):
+            env.extras["event_counter"] = env.extras.get("event_counter", 0) + 1
+
+        cfg.observations.policy.event_counter = ObservationTermCfg(
+            func=lambda env: torch.full((env.num_envs, 1), env.extras.get("event_counter", 0), device=env.device)
+        )
+        cfg.events.advance_counter = EventTermCfg(
+            func=advance_event_counter, mode="interval", interval_range_s=(cfg.decimation * cfg.sim.dt,) * 2
+        )
     if library == "rsl_rl" and task == "Isaac-Cartpole" and not finite_horizon:
         from isaaclab.managers import TerminationTermCfg
 
@@ -78,20 +94,27 @@ def raw_env(library: str, task: str, finite_horizon: bool, compute_final_obs: bo
 # Only the RSL-RL wrapper branches on manager-based vs direct envs, so the task rotates across rows
 # instead of crossing every library.
 @pytest.mark.parametrize(
-    ("library", "finite_horizon", "task", "wrapper_device", "compute_final_obs"),
+    ("library", "finite_horizon", "task", "wrapper_device", "compute_final_obs", "every_step"),
     [
-        ("rsl_rl", False, "Isaac-Cartpole", None, False),
-        ("rsl_rl", True, "Isaac-Cartpole-Direct", None, True),
-        ("rl_games", False, "Isaac-Cartpole", None, False),
-        ("sb3", False, "Isaac-Cartpole", None, False),
-        ("skrl", False, "Isaac-Cartpole-Direct", None, False),
-        ("torchrl", False, "Isaac-Cartpole", None, True),
-        ("torchrl", True, "Isaac-Cartpole-Direct", "cpu", True),
-        ("torchrl", False, "Isaac-Cartpole", "cpu", False),
+        ("rsl_rl", False, "Isaac-Cartpole", None, False, False),
+        ("rsl_rl", True, "Isaac-Cartpole", None, False, True),
+        ("rsl_rl", True, "Isaac-Cartpole-Direct", None, True, False),
+        ("rl_games", False, "Isaac-Cartpole", None, False, False),
+        ("sb3", False, "Isaac-Cartpole", None, False, False),
+        ("skrl", False, "Isaac-Cartpole-Direct", None, False, False),
+        ("torchrl", False, "Isaac-Cartpole", None, True, False),
+        ("torchrl", True, "Isaac-Cartpole-Direct", "cpu", True, False),
+        ("torchrl", False, "Isaac-Cartpole", "cpu", False, False),
     ],
 )
 def test_wrapper_reset_step_and_timeout(
-    library: str, finite_horizon: bool, task: str, wrapper_device: str | None, compute_final_obs: bool, raw_env: Any
+    library: str,
+    finite_horizon: bool,
+    task: str,
+    wrapper_device: str | None,
+    compute_final_obs: bool,
+    every_step: bool,
+    raw_env: Any,
 ) -> None:
     if library == "sb3":
         assert not raw_env.unwrapped.single_action_space.is_bounded("both")
@@ -139,7 +162,17 @@ def test_wrapper_reset_step_and_timeout(
             saw_done |= bool(dones.any())
             if library == "rsl_rl":
                 _assert_observation_buffer(env)
-                if compute_final_obs and bool(dones.any()):
+                if every_step:
+                    assert extras[0]["final_obs_every_step"] is True
+                    # Physical successors precede interval events, including on steps without a reset.
+                    physical = extras[0]["final_obs"]["policy"]
+                    torch.testing.assert_close(physical[:, -1] + 1, transition[0]["policy"][:, -1])
+                    if not bool(dones.any()):
+                        torch.testing.assert_close(physical[:, :-1], transition[0]["policy"][:, :-1])
+                    else:
+                        ended = dones.bool()
+                        assert not torch.equal(extras[0]["final_obs"]["policy"][ended], transition[0]["policy"][ended])
+                if every_step or (compute_final_obs and bool(dones.any())):
                     assert isinstance(extras[0]["final_obs"], TensorDict)
                     assert extras[0]["final_obs"].batch_size == torch.Size([_NUM_ENVS])
                 assert ("time_outs" in extras[0]) is not finite_horizon
@@ -153,6 +186,9 @@ def test_wrapper_reset_step_and_timeout(
                 for index in np.flatnonzero(dones):
                     assert extras[0][index]["terminal_observation"] is not None
     assert saw_done, "The short episode must exercise automatic reset"
+    if every_step:
+        _, reset_extras = env.reset()
+        assert "final_obs" not in reset_extras and "final_obs_every_step" not in reset_extras
 
 
 def test_torchrl_actor_uses_unbatched_action_bounds() -> None:

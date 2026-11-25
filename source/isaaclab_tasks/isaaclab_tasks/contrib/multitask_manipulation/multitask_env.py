@@ -43,7 +43,6 @@ class MultitaskManipulationEnv(ManagerBasedRLEnv):
             self.command_manager,
             self.event_manager,
             self.termination_manager,
-            self.recorder_manager,
         )
         for manager in managers:
             self.extras["log"].update(manager.reset(global_env_ids))

@@ -5,10 +5,18 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import MISSING
+from typing import TYPE_CHECKING
+
+import torch
 
 from ..utils import configclass
+from .common import VecEnvStepReturn
 from .manager_based_env_cfg import ManagerBasedEnvCfg
+
+if TYPE_CHECKING:
+    from .manager_based_rl_env import ManagerBasedRLEnv
 
 
 @configclass
@@ -22,6 +30,16 @@ class ManagerBasedRLEnvCfg(ManagerBasedEnvCfg):
     ui_window_class_type: type | str | None = "isaaclab.envs.ui.manager_based_rl_env_window:ManagerBasedRLEnvWindow"
 
     # general settings
+    step_fn: Callable[[ManagerBasedRLEnv, torch.Tensor], VecEnvStepReturn] | None = None
+    """Function bound as the environment's ``step`` method during initialization.
+
+    The function receives the environment and a batch of actions and returns observations,
+    rewards, terminated flags, truncated flags, and extras. It owns the complete step,
+    including physics, counters, resets, observations, and any recorder calls.
+    Defaults to None, which uses the environment class's ``step`` implementation.
+    Changing this setting after initialization does not rebind the method.
+    """
+
     is_finite_horizon: bool = False
     """Whether the learning task is treated as a finite or infinite horizon problem for the agent.
     Defaults to False, which means the task is treated as an infinite horizon problem.
@@ -58,17 +76,6 @@ class ManagerBasedRLEnvCfg(ManagerBasedEnvCfg):
 
     Note:
         Currently consumed by the :class:`~isaaclab_rl.sb3.Sb3VecEnvWrapper` wrapper.
-    """
-
-    final_obs_every_step: bool = False
-    """Whether to capture physical successor observations on every step. Defaults to False.
-
-    Capture precedes resets, command updates and interval events, even when
-    :attr:`compute_final_obs` is False. Every row of ``extras["final_obs"]`` is valid when
-    ``extras["final_obs_every_step"]`` is True. Public resets do not produce this signal.
-    This calls the same observation computation as terminal capture; observation terms must
-    support an additional read without advancing internal history or other state.
-    Experimental Warp environments do not support this flag.
     """
 
     episode_length_s: float = MISSING

@@ -72,14 +72,11 @@ The following classes are part of the public :mod:`isaaclab.envs.mdp` API.
    :nosignatures:
 
    AbsBinaryJointPositionAction
-   ActionStateRecorderManagerCfg
    BinaryJointAction
    BinaryJointPositionAction
    BinaryJointVelocityAction
    EMAJointPositionToLimitsAction
    FixedTendonPositionAction
-   InitialStateRecorder
-   InitialStateRecorderCfg
    JointAction
    JointEffortAction
    JointPositionAction
@@ -88,14 +85,6 @@ The following classes are part of the public :mod:`isaaclab.envs.mdp` API.
    NonHolonomicAction
    NormalVelocityCommand
    NullCommand
-   PostStepProcessedActionsRecorder
-   PostStepProcessedActionsRecorderCfg
-   PostStepStatesRecorder
-   PostStepStatesRecorderCfg
-   PreStepActionsRecorder
-   PreStepActionsRecorderCfg
-   PreStepFlatPolicyObservationsRecorder
-   PreStepFlatPolicyObservationsRecorderCfg
    RelativeJointPositionAction
    SurfaceGripperBinaryAction
    TerrainBasedPose2dCommand
@@ -104,9 +93,6 @@ The following classes are part of the public :mod:`isaaclab.envs.mdp` API.
    UniformVelocityCommand
 
 .. autoclass:: AbsBinaryJointPositionAction
-   :show-inheritance:
-
-.. autoclass:: ActionStateRecorderManagerCfg
    :show-inheritance:
 
 .. autoclass:: BinaryJointAction
@@ -122,12 +108,6 @@ The following classes are part of the public :mod:`isaaclab.envs.mdp` API.
    :show-inheritance:
 
 .. autoclass:: FixedTendonPositionAction
-   :show-inheritance:
-
-.. autoclass:: InitialStateRecorder
-   :show-inheritance:
-
-.. autoclass:: InitialStateRecorderCfg
    :show-inheritance:
 
 .. autoclass:: JointAction
@@ -152,30 +132,6 @@ The following classes are part of the public :mod:`isaaclab.envs.mdp` API.
    :show-inheritance:
 
 .. autoclass:: NullCommand
-   :show-inheritance:
-
-.. autoclass:: PostStepProcessedActionsRecorder
-   :show-inheritance:
-
-.. autoclass:: PostStepProcessedActionsRecorderCfg
-   :show-inheritance:
-
-.. autoclass:: PostStepStatesRecorder
-   :show-inheritance:
-
-.. autoclass:: PostStepStatesRecorderCfg
-   :show-inheritance:
-
-.. autoclass:: PreStepActionsRecorder
-   :show-inheritance:
-
-.. autoclass:: PreStepActionsRecorderCfg
-   :show-inheritance:
-
-.. autoclass:: PreStepFlatPolicyObservationsRecorder
-   :show-inheritance:
-
-.. autoclass:: PreStepFlatPolicyObservationsRecorderCfg
    :show-inheritance:
 
 .. autoclass:: RelativeJointPositionAction

@@ -14,10 +14,9 @@ import pytest
 pytest.importorskip("newton_neural", reason="needs the newton-neural extra")
 
 from isaaclab_neural.nerd import build_model
+from isaaclab_neural.record.recording import NeRDDynamicsRecorder
 from newton_neural.data import TrajectoryDataset, TrajectoryWindows
 from newton_neural.systems import SystemBase
-
-from isaaclab.envs import ManagerBasedRLEnv
 
 from isaaclab_tasks.utils import load_cfg_from_registry
 
@@ -69,21 +68,28 @@ def test_frames_follow_environment_steps(task, tmp_path, monkeypatch):
     steps. Isaac Lab's own view of the robot and of the action term is the reference.
     """
     live = {"joint_pos": [], "targets": [], "starting": [], "terminated": []}
-    step = ManagerBasedRLEnv.step
+    pre_step = NeRDDynamicsRecorder.record_pre_step
+    post_step = NeRDDynamicsRecorder.record_post_step
 
-    def observed_step(env, action):
-        robot, exploration = env.scene["robot"], env.action_manager.get_term("joint_targets")
+    def observed_pre_step(capture):
+        env = capture.env
+        robot = env.scene["robot"]
         live["joint_names"] = robot.joint_names
         live["starting"].append((env.episode_length_buf == 0).cpu().numpy())
         live["joint_pos"].append(robot.data.joint_pos.torch.cpu().numpy().copy())
-        result = step(env, action)
-        live["targets"].append(exploration.processed_actions.cpu().numpy().copy())
-        live["terminated"].append(result[2].cpu().numpy().copy())
-        return result
+        pre_step(capture)
 
-    monkeypatch.setattr(ManagerBasedRLEnv, "step", observed_step)
+    def observed_post_step(capture):
+        env = capture.env
+        exploration = env.action_manager.get_term("joint_targets")
+        live["targets"].append(exploration.processed_actions.cpu().numpy().copy())
+        live["terminated"].append(env.reset_terminated.cpu().numpy().copy())
+        post_step(capture)
+
+    monkeypatch.setattr(NeRDDynamicsRecorder, "record_pre_step", observed_pre_step)
+    monkeypatch.setattr(NeRDDynamicsRecorder, "record_post_step", observed_post_step)
     dataset_path = tmp_path / "dataset"
-    overrides = ("env.recorders.dynamics.shard_frames=20", "env.actions.joint_targets.episode_frames=[5,9]")
+    overrides = ("--shard_frames", "20", "env.actions.joint_targets.episode_frames=[5,9]")
     record_dataset(task, dataset_path, WORLD_COUNT, 48, cuda_device(), *overrides)
     dataset = TrajectoryDataset(dataset_path)
     # Every shard continues each environment's stream, and closing writes the frames that remain.

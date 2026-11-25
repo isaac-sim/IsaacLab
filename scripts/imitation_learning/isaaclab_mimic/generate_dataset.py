@@ -8,6 +8,8 @@ Main data generation script.
 """
 
 import argparse
+from functools import partial
+from types import MethodType
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.utils.string import list_intersection, string_to_callable
@@ -85,7 +87,8 @@ import gymnasium as gym
 import numpy as np
 import torch
 
-from isaaclab.utils.datasets import HDF5DatasetFileHandler
+from isaaclab.envs.mdp.recorders import record_initial_state, record_post_step, record_pre_step
+from isaaclab.utils.datasets import EpisodeRecorder, HDF5DatasetFileHandler
 
 import isaaclab_mimic.envs  # noqa: F401
 
@@ -124,9 +127,57 @@ def main():
         generate(env_name, env_cfg)
 
 
+def _step_generation(env, action: torch.Tensor, *, recorder: EpisodeRecorder):
+    """Advance generated demonstrations and finalize interrupted attempts."""
+    # terminal observations belong to the step that captured them
+    env.extras.pop("final_obs", None)
+    env.action_manager.process_action(action.to(env.device))
+    record_pre_step(recorder, env, env.action_manager.action)
+
+    is_rendering = env.sim.is_rendering
+
+    for _ in range(env.cfg.decimation):
+        env._sim_step_counter += 1
+        env.action_manager.apply_action()
+        env.scene.write_data_to_sim()
+        env.sim.step(render=False)
+        if env._sim_step_counter % env.cfg.sim.render_interval == 0 and is_rendering:
+            env.sim.render(skip_app_pumping=not env.render_enabled)
+        env.scene.update(dt=env.physics_dt)
+
+    env.episode_length_buf += 1  # step in current episode (per env)
+    env.common_step_counter += 1  # total step (common for all envs)
+    env.reset_buf = env.termination_manager.compute()
+    env.reset_terminated = env.termination_manager.terminated
+    env.reset_time_outs = env.termination_manager.time_outs
+    env.reward_buf = env.reward_manager.compute(dt=env.step_dt)
+
+    record_post_step(recorder, env)
+
+    # The workflow decides when attempts finish. A visualizer reset interrupts them.
+    if env.sim.consume_reset_request():
+        env_ids = torch.arange(env.num_envs, device=env.device, dtype=torch.int32)
+        env.reset_terminated.fill_(True)
+        recorder.set_success_to_episodes(env_ids, torch.zeros_like(env_ids, dtype=torch.bool))
+        recorder.export_episodes(env_ids)
+        env._reset_idx(env_ids)
+        env.sim.forward()
+        record_initial_state(recorder, env, env_ids)
+
+    env.command_manager.compute(dt=env.step_dt)
+    if "interval" in env.event_manager.active_terms:
+        env.event_manager.apply(mode="interval", dt=env.step_dt)
+    for video_recorder in env.video_recorders:
+        video_recorder.step()
+    env.obs_buf = env.observation_manager.compute(update_history=True)
+
+    return env.obs_buf, env.reward_buf, env.reset_terminated, env.reset_time_outs, env.extras
+
+
 def generate(env_name: str, env_cfg):
     """Configure and create the environment, then run the (optionally SkillGen-based) data generation."""
     from isaaclab.envs import ManagerBasedRLMimicEnv
+    from isaaclab.envs.mdp.recorders import get_episode_metadata
 
     from isaaclab_mimic.datagen.generation import env_loop, setup_async_generation, setup_env_config
     from isaaclab_mimic.datagen.utils import setup_output_paths
@@ -137,7 +188,7 @@ def generate(env_name: str, env_cfg):
     output_dir, output_file_name = setup_output_paths(args_cli.output_file)
 
     # Configure environment
-    env_cfg, success_term = setup_env_config(
+    env_cfg, success_term, recorder_cfg = setup_env_config(
         env_name=env_name,
         output_dir=output_dir,
         output_file_name=output_file_name,
@@ -168,6 +219,12 @@ def generate(env_name: str, env_cfg):
     np.random.seed(env.cfg.datagen_config.seed)
     torch.manual_seed(env.cfg.datagen_config.seed)
 
+    recorder = EpisodeRecorder(
+        recorder_cfg, env.num_envs, env.device, env_name=env_name, env_metadata=get_episode_metadata(env)
+    )
+    # This script owns decimation, so each simulator call advances one physics step.
+    env.sim.backend_manager.set_decimation(1)
+    env.step = MethodType(partial(_step_generation, recorder=recorder), env)
     # Reset before starting
     env.reset()
 
@@ -203,6 +260,7 @@ def generate(env_name: str, env_cfg):
         # Setup and run async data generation
         async_components = setup_async_generation(
             env=env,
+            recorder=recorder,
             num_envs=args_cli.num_envs,
             input_file=args_cli.input_file,
             success_term=success_term,
@@ -219,6 +277,7 @@ def generate(env_name: str, env_cfg):
                 async_components["info_pool"],
                 async_components["event_loop"],
                 data_gen_tasks=data_gen_tasks,
+                recorder=recorder,
             )
         except asyncio.CancelledError:
             print("Tasks were cancelled.")
@@ -242,6 +301,7 @@ def generate(env_name: str, env_cfg):
                 motion_planners.clear()
     finally:
         # Close env after async tasks are done so success_term is never called on a closed env
+        recorder.close()
         env.close()
 
 

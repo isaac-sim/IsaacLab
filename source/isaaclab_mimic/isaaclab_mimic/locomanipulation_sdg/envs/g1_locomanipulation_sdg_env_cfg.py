@@ -25,7 +25,7 @@ from isaaclab_tasks.contrib.locomanip_pick_place.locomanipulation_g1_env_cfg imp
     manip_mdp,
 )
 
-from .locomanipulation_sdg_env_cfg import LocomanipulationSDGEnvCfg, LocomanipulationSDGRecorderManagerCfg
+from .locomanipulation_sdg_env_cfg import LocomanipulationSDGEnvCfg
 
 ISAAC_RTX_GAUSSIAN_CAMERA_RENDERER_CARB_SETTINGS = {
     "/rtx/rtpt/gaussian/accumulatedDepth/allHits/enabled": True,
@@ -133,7 +133,6 @@ class G1LocomanipulationSDGEnvCfg(LocomanipulationG1EnvCfg, LocomanipulationSDGE
 
     # Scene settings
     scene: G1LocomanipulationSDGSceneCfg = G1LocomanipulationSDGSceneCfg(num_envs=1, env_spacing=2.5)
-    recorders: LocomanipulationSDGRecorderManagerCfg = LocomanipulationSDGRecorderManagerCfg()
     observations: G1LocomanipulationSDGObservationsCfg = G1LocomanipulationSDGObservationsCfg()
 
     background_usd_path: str | None = None

@@ -11,8 +11,8 @@ import torch
 class EpisodeData:
     """An episode's tensor data and playback cursors.
 
-    Data leaves are tensors with a leading sample dimension. Collection belongs to the recorder
-    manager; this container holds snapshots or loaded datasets without accumulating samples.
+    Data leaves are tensors with a leading sample dimension. Collection belongs to the recording
+    workflow; this container holds snapshots or loaded datasets without accumulating samples.
     """
 
     def __init__(self) -> None:
