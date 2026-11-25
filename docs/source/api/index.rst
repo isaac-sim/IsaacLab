@@ -182,6 +182,18 @@ The following modules are available in the ``isaaclab_newton`` extension:
    lab_newton/isaaclab_newton.sim.spawners
    lab_newton/isaaclab_newton.sim.usd_export
 
+isaaclab_neural extension
+-------------------------
+
+The ``isaaclab_neural`` extension runs tasks on learned neural robot dynamics models.
+See :ref:`newton-neural-robot-dynamics` for the full workflow.
+
+.. toctree::
+   :maxdepth: 1
+
+   lab_neural/isaaclab_neural
+   lab_neural/isaaclab_neural.physics
+
 isaaclab_ov extension
 ---------------------
 
