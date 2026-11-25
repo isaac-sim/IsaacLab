@@ -1042,8 +1042,10 @@ class OVRTXRenderer(BaseRenderer):
             raise RuntimeError("Scene not initialized. Call initialize() first.")
 
         lidars = self._lidars
-        if self.backend is None or self.backend.renderer is None or render_data not in lidars:
-            return
+        if self.backend is None or self.backend.renderer is None:
+            raise RuntimeError(f"Cannot capture {render_data.render_product_path!r}: OvRTX renderer is unavailable.")
+        if render_data not in lidars:
+            raise RuntimeError(f"OvRTX lidar product {render_data.render_product_path!r} is not registered.")
 
         delta_time = render_data.sample_dt
         if delta_time <= 0.0:

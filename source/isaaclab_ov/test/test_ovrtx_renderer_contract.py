@@ -458,6 +458,28 @@ def test_lidar_and_camera_captures_use_separate_steps(monkeypatch):
     publish.assert_called_once_with(lidar, native.step.return_value, data)
 
 
+@pytest.mark.parametrize("missing", ["product", "renderer", "backend"])
+def test_lidar_capture_fails_when_unavailable(monkeypatch, missing):
+    from isaaclab_ov.renderers import OVRTXLidarCfg
+
+    from isaaclab.sensors import LidarData
+
+    renderer = _make_mocked_scene_renderer(monkeypatch, use_ovstage=False, clone_env_paths=[])
+    cfg = OVRTXLidarCfg(
+        prim_path="/Lidar", update_period=0.1, azimuth_deg=[0.0], elevation_deg=[0.0], fire_time_ns=[0], channel_id=[0]
+    )
+    lidar = renderer.create_lidar_render_data(cfg, [cfg.prim_path], 1)
+    if missing == "product":
+        renderer.cleanup_lidar(lidar)
+    elif missing == "renderer":
+        renderer.backend.renderer = None
+    else:
+        renderer.backend = None
+
+    with pytest.raises(RuntimeError, match=lidar.render_product_path):
+        renderer.render_lidar(lidar, LidarData(1, 1, "cpu"))
+
+
 def test_ovrtx_render_batch_empty_sequence_does_not_require_initialized_backend():
     """An empty render request has no backend work or initialization precondition."""
     renderer = OVRTXRenderer.__new__(OVRTXRenderer)
