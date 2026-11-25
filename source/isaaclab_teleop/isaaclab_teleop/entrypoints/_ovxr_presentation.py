@@ -115,6 +115,7 @@ class OvxrPresentation:
         print(
             "[INFO]: Starting the OVXR renderer. A first start compiles shaders and a busy GPU slows it;"
             " either can take several minutes and cannot be interrupted."
+            " Connect a client only after the renderer reports it is ready."
         )
         self.started = self.session.start_render_worker(
             env,

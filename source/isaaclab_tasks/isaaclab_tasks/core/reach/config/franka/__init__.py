@@ -19,6 +19,9 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.franka_reach_env_cfg:FrankaReachEnvCfg",
+        "nerd_recording_cfg_entry_point": f"{__name__}.record.nerd_recording_cfg:FrankaNeRDRecordingEnvCfg",
+        "nerd_cfg_entry_point": f"{__name__}.dynamics.nerd_cfg:FrankaNeRDCfg",
+        "nerd_training_cfg_entry_point": f"{__name__}.dynamics.nerd_training_cfg:FrankaNeRDTrainingCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:FrankaReachPPORunnerCfg",
         "default_agent": "rsl_rl",

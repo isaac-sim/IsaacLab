@@ -1864,6 +1864,7 @@ dependencies = [
     { name = "isaaclab-contrib" },
     { name = "isaaclab-experimental" },
     { name = "isaaclab-isaacsim" },
+    { name = "isaaclab-neural" },
     { name = "isaaclab-newton" },
     { name = "isaaclab-ov" },
     { name = "isaaclab-ppisp" },
@@ -1969,6 +1970,9 @@ mimic = [
     { name = "isaaclab-mimic" },
     { name = "isaaclab-teleop" },
     { name = "robomimic", marker = "sys_platform != 'win32'" },
+]
+newton-neural = [
+    { name = "newton-neural" },
 ]
 optix = [
     { name = "newton", extra = ["optix", "sim"] },
@@ -2107,6 +2111,7 @@ requires-dist = [
     { name = "isaaclab-isaacsim", editable = "source/isaaclab_isaacsim" },
     { name = "isaaclab-mimic", marker = "extra == 'mimic'", editable = "source/isaaclab_mimic" },
     { name = "isaaclab-mimic", marker = "extra == 'teleop'", editable = "source/isaaclab_mimic" },
+    { name = "isaaclab-neural", editable = "source/isaaclab_neural" },
     { name = "isaaclab-newton", editable = "source/isaaclab_newton" },
     { name = "isaaclab-ov", editable = "source/isaaclab_ov" },
     { name = "isaaclab-ppisp", editable = "source/isaaclab_ppisp" },
@@ -2129,6 +2134,7 @@ requires-dist = [
     { name = "myst-parser", marker = "extra == 'dev'" },
     { name = "newton", extras = ["optix"], marker = "extra == 'optix'" },
     { name = "newton", extras = ["sim"], git = "https://github.com/newton-physics/newton.git?rev=d31603ff5e8389d1d6b2a5daef6ea2cb074c26ff" },
+    { name = "newton-neural", marker = "extra == 'newton-neural'", git = "https://github.com/newton-physics/newton-neural.git?rev=06da4d2a604f3dbb48127a9010c41511cdd37a32" },
     { name = "newton-usd-schemas", specifier = ">=0.5.0" },
     { name = "numba", specifier = ">=0.63.1" },
     { name = "numpy", specifier = ">=2" },
@@ -2207,7 +2213,7 @@ requires-dist = [
     { name = "wandb", marker = "extra == 'wandb'", specifier = ">=0.13.11" },
     { name = "warp-lang", specifier = "==1.17.0" },
 ]
-provides-extras = ["tetrahedralization", "video", "optix", "importers", "test", "dev", "sb3", "skrl", "skrl-jax", "rl-games", "wandb", "rsl-rl", "torchrl", "viser", "rerun", "isaacsim", "ov", "ovphysx", "ovrtx", "mimic", "teleop", "ovxr", "rlinf", "leapp", "fovi", "all"]
+provides-extras = ["tetrahedralization", "video", "optix", "newton-neural", "importers", "test", "dev", "sb3", "skrl", "skrl-jax", "rl-games", "wandb", "rsl-rl", "torchrl", "viser", "rerun", "isaacsim", "ov", "ovphysx", "ovrtx", "mimic", "teleop", "ovxr", "rlinf", "leapp", "fovi", "all"]
 
 [[package]]
 name = "isaaclab-experimental"
@@ -2261,6 +2267,21 @@ requires-dist = [
     { name = "isaaclab", editable = "source/isaaclab" },
     { name = "isaaclab-assets", editable = "source/isaaclab_assets" },
     { name = "isaaclab-tasks", editable = "source/isaaclab_tasks" },
+]
+
+[[package]]
+name = "isaaclab-neural"
+version = "0.0.0"
+source = { editable = "source/isaaclab_neural" }
+dependencies = [
+    { name = "isaaclab" },
+    { name = "isaaclab-newton" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "isaaclab", editable = "source/isaaclab" },
+    { name = "isaaclab-newton", editable = "source/isaaclab_newton" },
 ]
 
 [[package]]
@@ -3552,6 +3573,17 @@ optix = [
 sim = [
     { name = "mujoco" },
     { name = "mujoco-warp" },
+]
+
+[[package]]
+name = "newton-neural"
+version = "0.1.0.dev0"
+source = { git = "https://github.com/newton-physics/newton-neural.git?rev=06da4d2a604f3dbb48127a9010c41511cdd37a32#06da4d2a604f3dbb48127a9010c41511cdd37a32" }
+dependencies = [
+    { name = "newton", extra = ["sim"] },
+    { name = "numpy" },
+    { name = "torch" },
+    { name = "warp-lang" },
 ]
 
 [[package]]

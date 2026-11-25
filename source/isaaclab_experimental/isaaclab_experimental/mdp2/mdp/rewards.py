@@ -15,7 +15,9 @@ import torch
 import warp as wp
 
 from isaaclab.utils import math as math_utils
+from isaaclab.utils.warp.math import quat_error_magnitude, yaw_quat
 
+from ..eager import TermContext
 from ..terms import Implementation, State, Term
 from .observations import projected_gravity_b, projected_gravity_torch
 
@@ -42,6 +44,20 @@ def _is_terminated(world: int, terminated: wp.array(dtype=wp.bool)) -> float:
 
 is_terminated = Term(torch=lambda terminated: terminated.float(), warp=_is_terminated)
 """One for worlds whose episode terminated this step, not by a time-out, bound to ``mdp2.terminated``."""
+
+
+@wp.func
+def _is_terminated_before_time_out(
+    world: int, terminated: wp.array(dtype=wp.bool), time_out: wp.array(dtype=wp.bool)
+) -> float:
+    return float(terminated[world] and not time_out[world])
+
+
+is_terminated_before_time_out = Term(
+    torch=lambda terminated, time_out: (terminated & ~time_out).float(), warp=_is_terminated_before_time_out
+)
+"""One for worlds whose episode terminated this step without a time-out, bound to ``mdp2.terminated`` and
+``mdp2.time_out``."""
 
 
 @wp.func
@@ -315,6 +331,48 @@ track_ang_vel_z_exp = Term(torch=_track_ang_vel_z_exp_torch, warp=_track_ang_vel
 """Exponential kernel of the squared error of the root's yaw rate, in the root frame, from the command."""
 
 
+@wp.func
+def _track_lin_vel_xy_yaw_frame_exp(
+    world: int,
+    command: wp.array2d(dtype=float),
+    root_link_pose_w: wp.array(dtype=wp.transformf),
+    root_com_vel_w: wp.array(dtype=wp.spatial_vectorf),
+    std: float,
+) -> float:
+    quat = yaw_quat(wp.transform_get_rotation(root_link_pose_w[world]))
+    velocity = wp.quat_rotate_inv(quat, wp.spatial_top(root_com_vel_w[world]))
+    error_x = command[world, 0] - velocity[0]
+    error_y = command[world, 1] - velocity[1]
+    return wp.exp(-(error_x * error_x + error_y * error_y) / (std * std))
+
+
+def _track_lin_vel_xy_yaw_frame_exp_torch(
+    command: torch.Tensor, root_link_pose_w: torch.Tensor, root_com_vel_w: torch.Tensor, *, std: float
+) -> torch.Tensor:
+    quat = math_utils.yaw_quat(root_link_pose_w[:, 3:])
+    velocity = math_utils.quat_apply_inverse(quat, root_com_vel_w[:, :3])
+    return torch.exp(-(command[:, :2] - velocity[:, :2]).square().sum(dim=1) / std**2)
+
+
+track_lin_vel_xy_yaw_frame_exp = Term(torch=_track_lin_vel_xy_yaw_frame_exp_torch, warp=_track_lin_vel_xy_yaw_frame_exp)
+"""Exponential tracking of planar linear velocity in the gravity-aligned root yaw frame."""
+
+
+@wp.func
+def _track_ang_vel_z_world_exp(
+    world: int, command: wp.array2d(dtype=float), root_com_vel_w: wp.array(dtype=wp.spatial_vectorf), std: float
+) -> float:
+    error = command[world, 2] - wp.spatial_bottom(root_com_vel_w[world])[2]
+    return wp.exp(-(error * error) / (std * std))
+
+
+track_ang_vel_z_world_exp = Term(
+    torch=lambda command, root_com_vel_w, *, std: torch.exp(-(command[:, 2] - root_com_vel_w[:, 5]).square() / std**2),
+    warp=_track_ang_vel_z_world_exp,
+)
+"""Exponential tracking of angular velocity around the world vertical axis."""
+
+
 # Actions.
 
 
@@ -450,3 +508,223 @@ feet_air_time = Term(torch=_feet_air_time_torch, warp=_feet_air_time)
 
 Zero for worlds whose planar velocity ``command`` is at most 0.1 m/s. Bind ``step_dt`` [s] to ``mdp2.step_dt``.
 """
+
+
+@wp.func
+def _feet_air_time_positive_biped(
+    world: int,
+    current_air_time: wp.array2d(dtype=float),
+    current_contact_time: wp.array2d(dtype=float),
+    command: wp.array2d(dtype=float),
+    body_ids: wp.array(dtype=wp.int32),
+    threshold: float,
+    overstay_scale: float,
+) -> float:
+    if wp.length(wp.vec2f(command[world, 0], command[world, 1])) <= 0.1:
+        return 0.0
+
+    contacts = int(0)
+    min_duration = threshold
+    overstay = float(0.0)
+    for k in range(body_ids.shape[0]):
+        body = body_ids[k]
+        air_time = current_air_time[world, body]
+        contact_time = current_contact_time[world, body]
+        in_contact = contact_time > 0.0
+        contacts += int(in_contact)
+        min_duration = wp.min(min_duration, wp.where(in_contact, contact_time, air_time))
+        overstay += wp.max(air_time - threshold, 0.0)
+    reward = wp.where(contacts == 1, min_duration, wp.min(threshold, 0.0))
+    return reward - wp.max(overstay_scale, 0.0) * overstay
+
+
+def _feet_air_time_positive_biped_torch(
+    current_air_time: torch.Tensor,
+    current_contact_time: torch.Tensor,
+    command: torch.Tensor,
+    body_ids: torch.Tensor,
+    *,
+    threshold: float,
+    overstay_scale: float,
+) -> torch.Tensor:
+    air_time = current_air_time[:, body_ids]
+    contact_time = current_contact_time[:, body_ids]
+    in_contact = contact_time > 0.0
+    mode_time = torch.where(in_contact, contact_time, air_time)
+    single_stance = in_contact.sum(dim=1) == 1
+    reward = torch.where(single_stance, mode_time.amin(dim=1), 0.0).clamp(max=threshold)
+    reward -= max(overstay_scale, 0.0) * (air_time - threshold).clamp(min=0.0).sum(dim=1)
+    return reward * (command[:, :2].norm(dim=1) > 0.1)
+
+
+feet_air_time_positive_biped = Term(torch=_feet_air_time_positive_biped_torch, warp=_feet_air_time_positive_biped)
+"""Reward the shorter of the swing and stance times [s] in single support, capped at ``threshold``.
+
+``overstay_scale`` penalizes time spent in the air past the threshold. Both contributions require a planar velocity
+command above 0.1 m/s.
+"""
+
+
+@wp.func
+def _feet_air_time_variance(
+    world: int,
+    last_air_time: wp.array2d(dtype=float),
+    last_contact_time: wp.array2d(dtype=float),
+    command: wp.array2d(dtype=float),
+    body_ids: wp.array(dtype=wp.int32),
+    max_time: float,
+) -> float:
+    if wp.length(wp.vec2f(command[world, 0], command[world, 1])) <= 0.1:
+        return 0.0
+
+    count = body_ids.shape[0]
+    mean = wp.vec2f()
+    for k in range(count):
+        body = body_ids[k]
+        mean += wp.vec2f(wp.min(last_air_time[world, body], max_time), wp.min(last_contact_time[world, body], max_time))
+    mean /= float(count)
+
+    total = float(0.0)
+    for k in range(count):
+        body = body_ids[k]
+        times = wp.vec2f(wp.min(last_air_time[world, body], max_time), wp.min(last_contact_time[world, body], max_time))
+        total += wp.length_sq(times - mean)
+    return total / float(count - 1)
+
+
+def _feet_air_time_variance_torch(
+    last_air_time: torch.Tensor,
+    last_contact_time: torch.Tensor,
+    command: torch.Tensor,
+    body_ids: torch.Tensor,
+    *,
+    max_time: float,
+) -> torch.Tensor:
+    air_variance = last_air_time[:, body_ids].clamp(max=max_time).var(dim=1)
+    contact_variance = last_contact_time[:, body_ids].clamp(max=max_time).var(dim=1)
+    return (air_variance + contact_variance) * (command[:, :2].norm(dim=1) > 0.1)
+
+
+def _validate_feet_air_time_variance(ctx: TermContext, **_params) -> None:
+    if ctx.inputs["body_ids"].numel() < 2:
+        raise ValueError("'feet_air_time_variance' needs at least two bodies to take a variance across feet.")
+
+
+feet_air_time_variance = Term(
+    torch=_feet_air_time_variance_torch, warp=_feet_air_time_variance, init=_validate_feet_air_time_variance
+)
+"""Sum of the sample variances [s²] across feet of the completed swing and stance times, with each time capped at
+``max_time`` [s] before the variances are taken.
+
+``body_ids`` must select at least two feet. Zero for planar velocity commands at most 0.1 m/s.
+"""
+
+
+@wp.func
+def _feet_slide(
+    world: int,
+    body_com_vel_w: wp.array2d(dtype=wp.spatial_vectorf),
+    net_normal_forces_w_history: wp.array3d(dtype=wp.vec3f),
+    body_ids: wp.array(dtype=wp.int32),
+    aligned_sensor_ids: wp.array(dtype=float),
+) -> float:
+    speed = float(0.0)
+    for k in range(body_ids.shape[0]):
+        sensor_id = int(aligned_sensor_ids[k])
+        touching = bool(False)
+        for i in range(net_normal_forces_w_history.shape[1]):
+            touching = touching or wp.length(net_normal_forces_w_history[world, i, sensor_id]) > 1.0
+        if touching:
+            velocity = wp.spatial_top(body_com_vel_w[world, body_ids[k]])
+            speed += wp.length(wp.vec2f(velocity[0], velocity[1]))
+    return speed
+
+
+def _feet_slide_torch(
+    body_com_vel_w: torch.Tensor,
+    net_normal_forces_w_history: torch.Tensor,
+    body_ids: torch.Tensor,
+    aligned_sensor_ids: torch.Tensor,
+) -> torch.Tensor:
+    touching = contact_mask_torch(net_normal_forces_w_history, aligned_sensor_ids.long(), 1.0)
+    return (body_com_vel_w[:, body_ids, :2].norm(dim=-1) * touching).sum(dim=1)
+
+
+def _align_foot_contacts(ctx: TermContext) -> None:
+    schema = ctx.scene_data.schema
+    body_names = schema.entities[ctx.selectors["body_ids"].entity].names["bodies"]
+    sensor_names = schema.entities[ctx.selectors["sensor_ids"].entity].names["bodies"]
+    names = [body_names[index] for index in ctx.inputs["body_ids"].tolist()]
+    sensor_by_name = {sensor_names[index]: index for index in ctx.inputs["sensor_ids"].tolist()}
+    if set(names) != sensor_by_name.keys():
+        raise ValueError("'feet_slide' needs matching articulation and contact sensor body names.")
+    aligned = ctx.state["aligned_sensor_ids"]
+    values = aligned.new_tensor([sensor_by_name[name] for name in names])
+    # World configs that define the use differently share this state, which starts as NaN, so they must agree.
+    if not aligned.isnan().all() and not torch.equal(aligned, values):
+        raise ValueError("'feet_slide': the world configs of a use must select the same feet in the same order.")
+    aligned.copy_(values)
+
+
+feet_slide = Term(
+    torch=_feet_slide_torch,
+    warp=_feet_slide,
+    init=_align_foot_contacts,
+    state={"aligned_sensor_ids": State(("body_ids",), initial=float("nan"), persistent=True)},
+)
+"""Sum the planar speeds of matched articulation feet whose normal force history exceeded 1 N."""
+
+
+# Pose tracking.
+
+
+@wp.func
+def _position_command_error(
+    world: int,
+    command: wp.array2d(dtype=float),
+    root_link_pose_w: wp.array(dtype=wp.transformf),
+    body_link_pose_w: wp.array2d(dtype=wp.transformf),
+    body_ids: wp.array(dtype=wp.int32),
+) -> float:
+    target_b = wp.vec3f(command[world, 0], command[world, 1], command[world, 2])
+    target_w = wp.transform_point(root_link_pose_w[world], target_b)
+    position = wp.transform_get_translation(body_link_pose_w[world, body_ids[0]])
+    return wp.length(position - target_w)
+
+
+def _position_command_error_torch(
+    command: torch.Tensor, root_link_pose_w: torch.Tensor, body_link_pose_w: torch.Tensor, body_ids: torch.Tensor
+) -> torch.Tensor:
+    target = root_link_pose_w[:, :3] + math_utils.quat_apply(root_link_pose_w[:, 3:], command[:, :3])
+    body = body_link_pose_w[:, body_ids][:, 0, :3]
+    return (body - target).norm(dim=1)
+
+
+position_command_error = Term(torch=_position_command_error_torch, warp=_position_command_error)
+"""Position error [m] for the selected body and a pose command in the root frame."""
+
+
+@wp.func
+def _orientation_command_error(
+    world: int,
+    command: wp.array2d(dtype=float),
+    root_link_pose_w: wp.array(dtype=wp.transformf),
+    body_link_pose_w: wp.array2d(dtype=wp.transformf),
+    body_ids: wp.array(dtype=wp.int32),
+) -> float:
+    target_b = wp.quatf(command[world, 3], command[world, 4], command[world, 5], command[world, 6])
+    target_w = wp.transform_get_rotation(root_link_pose_w[world]) * target_b
+    orientation = wp.transform_get_rotation(body_link_pose_w[world, body_ids[0]])
+    return quat_error_magnitude(orientation, target_w)
+
+
+def _orientation_command_error_torch(
+    command: torch.Tensor, root_link_pose_w: torch.Tensor, body_link_pose_w: torch.Tensor, body_ids: torch.Tensor
+) -> torch.Tensor:
+    target = math_utils.quat_mul(root_link_pose_w[:, 3:], command[:, 3:])
+    body = body_link_pose_w[:, body_ids][:, 0, 3:]
+    return math_utils.quat_error_magnitude(body, target)
+
+
+orientation_command_error = Term(torch=_orientation_command_error_torch, warp=_orientation_command_error)
+"""Shortest orientation error [rad] for the selected body and a pose command in the root frame."""

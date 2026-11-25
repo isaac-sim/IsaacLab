@@ -12,7 +12,7 @@ import os
 import unittest
 
 import warp as wp
-from isaaclab_experimental.utils.manager_call_switch import ManagerCallMode, ManagerCallSwitch
+from isaaclab_experimental.deprecated.utils.manager_call_switch import ManagerCallMode, ManagerCallSwitch
 
 
 @wp.kernel

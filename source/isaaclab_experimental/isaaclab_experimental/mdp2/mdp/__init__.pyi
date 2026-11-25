@@ -5,6 +5,7 @@
 
 __all__ = [
     "heading_velocity_command",
+    "heading_velocity_command_steered_on_resample",
     "uniform_pose_command",
     "uniform_velocity_command",
     "difficulty_scheduler",
@@ -20,6 +21,7 @@ __all__ = [
     "reset_root_state_uniform",
     "base_ang_vel",
     "base_lin_vel",
+    "body_incoming_wrench",
     "generated_commands",
     "joint_pos",
     "joint_pos_limit_normalized",
@@ -35,9 +37,13 @@ __all__ = [
     "ang_vel_xy_l2",
     "base_height_l2",
     "feet_air_time",
+    "feet_air_time_positive_biped",
+    "feet_air_time_variance",
+    "feet_slide",
     "flat_orientation_l2",
     "is_alive",
     "is_terminated",
+    "is_terminated_before_time_out",
     "joint_acc_l2",
     "joint_deviation_l1",
     "joint_pos_limits",
@@ -46,8 +52,12 @@ __all__ = [
     "joint_vel_l1",
     "joint_vel_l2",
     "lin_vel_z_l2",
+    "orientation_command_error",
+    "position_command_error",
     "track_ang_vel_z_exp",
+    "track_ang_vel_z_world_exp",
     "track_lin_vel_xy_exp",
+    "track_lin_vel_xy_yaw_frame_exp",
     "undesired_contacts",
     "value",
     "bad_orientation",
@@ -55,10 +65,16 @@ __all__ = [
     "is_positive",
     "joint_pos_out_of_manual_limit",
     "joint_vel_out_of_limit",
+    "pose_command_success",
     "root_height_below_minimum",
 ]
 
-from .commands import heading_velocity_command, uniform_pose_command, uniform_velocity_command
+from .commands import (
+    heading_velocity_command,
+    heading_velocity_command_steered_on_resample,
+    uniform_pose_command,
+    uniform_velocity_command,
+)
 from .curriculums import difficulty_scheduler
 from .events import (
     push_by_setting_velocity,
@@ -75,6 +91,7 @@ from .events import (
 from .observations import (
     base_ang_vel,
     base_lin_vel,
+    body_incoming_wrench,
     generated_commands,
     joint_pos,
     joint_pos_limit_normalized,
@@ -92,9 +109,13 @@ from .rewards import (
     ang_vel_xy_l2,
     base_height_l2,
     feet_air_time,
+    feet_air_time_positive_biped,
+    feet_air_time_variance,
+    feet_slide,
     flat_orientation_l2,
     is_alive,
     is_terminated,
+    is_terminated_before_time_out,
     joint_acc_l2,
     joint_deviation_l1,
     joint_pos_limits,
@@ -103,8 +124,12 @@ from .rewards import (
     joint_vel_l1,
     joint_vel_l2,
     lin_vel_z_l2,
+    orientation_command_error,
+    position_command_error,
     track_ang_vel_z_exp,
+    track_ang_vel_z_world_exp,
     track_lin_vel_xy_exp,
+    track_lin_vel_xy_yaw_frame_exp,
     undesired_contacts,
     value,
 )
@@ -114,5 +139,6 @@ from .terminations import (
     is_positive,
     joint_pos_out_of_manual_limit,
     joint_vel_out_of_limit,
+    pose_command_success,
     root_height_below_minimum,
 )
