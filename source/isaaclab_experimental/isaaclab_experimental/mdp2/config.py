@@ -132,6 +132,13 @@ terminated = FieldSelector("mdp", "terminated", scene=False)
 Terminations run before rewards, so rewards can read it, like MDP1's ``is_terminated``.
 """
 
+time_out = FieldSelector("mdp", "time_out", scene=False)
+"""Whether a time-out was reached this step, ``bool`` of shape ``(num_worlds,)``, like MDP1's ``time_outs``.
+
+The time limit or a termination with ``time_out`` sets it, also in worlds where a termination ended the episode too.
+Quantities run before terminations, so they see only the time limit; rewards and observations see both.
+"""
+
 
 @dataclass(frozen=True)
 class UniformNoise:
@@ -245,14 +252,19 @@ class TimeLimit:
 
 @dataclass
 class DirectAction:
-    """Configuration for an action that writes ``scale * action + offset`` to an entity field."""
+    """Write ``scale * action + offset`` to an entity field, clipping the result if configured.
+
+    Dictionaries bind scales or clip ranges by regular expressions over the selected element names.
+    Unmatched elements keep a unit scale or an unbounded clip range.
+    """
 
     phase: ClassVar[Phase] = Phase.ACTIONS
 
     target: FieldSelector
-    scale: float = 1.0
+    scale: float | dict[str, float] = 1.0
     offset: float | FieldSelector = 0.0  # A field gives an offset per element, like robot.default_joint_pos
     subset: SubsetSelector | None = None  # Elements of the target to write, like robot.joints("slider_to_cart")
+    clip: tuple[float, float] | dict[str, tuple[float, float]] | None = None
 
 
 @dataclass
