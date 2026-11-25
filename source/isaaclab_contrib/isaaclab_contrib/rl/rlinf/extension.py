@@ -17,6 +17,7 @@ Configuration is read from the Hydra YAML config under `env.train.isaaclab`:
         isaaclab: &isaaclab_config  # YAML anchor for reuse
           task_description: "..."
           main_images: "front_camera"
+          success_observation: {group: "metrics", key: "success"}
           extra_view_images: ["left_wrist_camera", "right_wrist_camera"]
           states:
             - key: "robot_joint_state"
@@ -503,16 +504,20 @@ def _create_generic_env_wrapper(task_id: str) -> type:
             self._hold_pose_on_midchunk_reset = _get_isaaclab_cfg().get("hold_pose_on_midchunk_reset", False)
             self._chunk_done = None
             self._hold_actions = None
+            self._success_observation = None
 
         def _record_metrics(self, step_reward, terminations, infos):
-            """Override to use terminations (task completion) for success_once."""
+            """Record configured success signals, falling back to task termination for existing recipes."""
 
             # RLinf may suppress terminations after this callback; Isaac Lab has already reset.
             if self._chunk_done is not None:
                 self._chunk_done |= terminations
             episode_info = {}
             self.returns += step_reward
-            self.success_once = self.success_once | terminations.bool()
+            success = terminations.bool()
+            if self._success_observation is not None:
+                success = success & self._success_observation
+            self.success_once = self.success_once | success
             episode_info["success_once"] = self.success_once.clone()
             episode_info["return"] = self.returns.clone()
             episode_info["episode_len"] = self.elapsed_steps.clone()
@@ -610,6 +615,14 @@ def _create_generic_env_wrapper(task_id: str) -> type:
             camera_obs = obs.get("camera_images", {})
 
             cfg = {**_get_isaaclab_cfg(), **self.cfg.get("isaaclab", {})}
+            success_cfg = cfg.get("success_observation")
+            self._success_observation = (
+                torch.as_tensor(obs[success_cfg["group"]][success_cfg["key"]], device=self.device, dtype=torch.bool)
+                .reshape(self.num_envs)
+                .clone()
+                if success_cfg
+                else None
+            )
             # Get task description from config
             task_desc = cfg.get("task_description", "") or self.task_description
             rlinf_obs = {

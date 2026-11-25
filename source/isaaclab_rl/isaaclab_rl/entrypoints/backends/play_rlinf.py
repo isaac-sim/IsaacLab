@@ -115,7 +115,8 @@ def run(argv: list[str]) -> None:
         if args_cli.num_episodes is not None:
             cfg.algorithm.eval_rollout_epoch = args_cli.num_episodes
         for split in ("train", "eval"):
-            cfg.env[split].init_params.env_overrides = args_cli.env_overrides
+            configured = list(cfg.env[split].init_params.get("env_overrides") or ())
+            cfg.env[split].init_params.env_overrides = configured + args_cli.env_overrides
         cfg.rollout.model = OmegaConf.merge(cfg.actor.model, cfg.rollout.model)
         # Ray workers may launch from a different working directory.
         for model in (cfg.actor.model, cfg.rollout.model):

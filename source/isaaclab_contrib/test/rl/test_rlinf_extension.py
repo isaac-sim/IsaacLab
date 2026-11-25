@@ -246,6 +246,30 @@ class TestConfigLoading:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.parametrize("explicit_success", [True, False], ids=["success-observation", "legacy-termination"])
+def test_episode_success_distinguishes_failure_and_timeout(explicit_success, set_config_env):
+    """A failure termination is not a win when the recipe supplies an explicit success observation."""
+    from omegaconf import OmegaConf
+
+    options = {"success_observation": {"group": "metrics", "key": "success"}} if explicit_success else {}
+    worker = ext._create_generic_env_wrapper("test")(OmegaConf.create({"isaaclab": options}), 3, 0, 1, None)
+    worker.returns = torch.zeros(3)
+    worker.success_once = torch.zeros(3, dtype=torch.bool)
+    worker.elapsed_steps = torch.ones(3)
+    worker._chunk_done = torch.zeros(3, dtype=torch.bool)
+    success = torch.tensor([[True], [False], [True]])
+    worker._wrap_obs({"metrics": {"success": success}})
+    # Observation storage can be reused after wrapping; the recorded outcome must retain its value.
+    success.zero_()
+    info = worker._record_metrics(torch.tensor([2.0, -1.0, 0.0]), torch.tensor([True, True, False]), {})
+    assert info["episode"]["success_once"].tolist() == [True, not explicit_success, False]
+    assert worker._chunk_done.tolist() == [True, True, False]
+    worker._wrap_obs({"metrics": {"success": success}})
+    info = worker._record_metrics(torch.ones(3), torch.zeros(3, dtype=torch.bool), {})
+    assert info["episode"]["success_once"].tolist() == [True, not explicit_success, False]
+    torch.testing.assert_close(info["episode"]["return"], torch.tensor([3.0, 0.0, 1.0]))
+
+
 class TestObsConversion:
     """Tests for ``_convert_isaaclab_obs_to_gr00t``."""
 
