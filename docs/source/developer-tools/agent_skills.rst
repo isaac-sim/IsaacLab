@@ -10,7 +10,7 @@ Skill categories
 ----------------
 
 Skills typically fall into two groups: ones you invoke and ones the agent applies automatically.
-The groups are not exclusive. The audience directory (``user/`` or ``developer/``) says who a skill
+The groups are not exclusive. The audience directory (``user/`` or ``_internal/``) says who a skill
 is for.
 
 Typically user-invoked skills
@@ -18,13 +18,13 @@ Typically user-invoked skills
   They cover work you start yourself: installing Isaac Lab, creating and converting environments,
   training and debugging RL, choosing backends and presets, preparing assets for Newton, migrating from
   Isaac Gym or Isaac Lab 2.x, and troubleshooting setup. They live under ``skills/user/``. Some
-  maintainer tasks under ``skills/developer/`` are also run on request: ``isaaclab-auditing-an-issue``
+  maintainer tasks under ``skills/_internal/`` are also run on request: ``isaaclab-auditing-an-issue``
   and ``isaaclab-triaging-issue-backlog``.
 
 Typically agent-automated skills
   The agent usually loads these on its own when a task matches the skill description, following ``AGENTS.md``.
   They cover contribution conventions: coding style, test audits, changelog fragments, environment
-  docs synchronization, and PR preparation. They live under ``skills/developer/``.
+  docs synchronization, and PR preparation. They live under ``skills/_internal/``.
 
 User skills also trigger automatically when a request matches their description, so naming a skill is
 optional. Name it when you want to be sure it is used.
@@ -37,7 +37,7 @@ Skills live under the repository-level ``skills/`` directory:
 .. code-block:: text
 
    skills/
-   ├── developer/
+   ├── _internal/
    │   └── <skill-name>/
    │       ├── SKILL.md
    │       └── examples.md

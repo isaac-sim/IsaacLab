@@ -1,0 +1,60 @@
+{
+  "skill_name": "isaaclab-transferring-policies-sim-to-sim",
+  "evals": [
+    {
+      "id": "isaaclab-transferring-policies-sim-to-sim-001",
+      "prompt": "Can I run this PhysX checkpoint in Newton?",
+      "expected_output": "Compares the MDP contract across backends and requires successful training of the same task in both engines before deploying.",
+      "assertions": [
+        "The agent identified isaaclab-transferring-policies-sim-to-sim as the primary skill without being told its name",
+        "Resolves backend PresetCfg alternatives and flags any preset that changes a policy-facing MDP term",
+        "Requires successful training of the same task in both engines, not just matching tensor shapes",
+        "Compares action, observation, policy-state, timing, and episode contracts explicitly",
+        "Does not treat backend presets as permission to change the checkpoint contract",
+        "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+      ],
+      "expected_skill": "isaaclab-transferring-policies-sim-to-sim",
+      "expected_script": null
+    },
+    {
+      "id": "isaaclab-transferring-policies-sim-to-sim-002",
+      "prompt": "The policy alternates saturated actions in MJWarp.",
+      "expected_output": "Matches per-joint actuator response, timing, action hold, limits, armature, and damping before tuning the policy.",
+      "assertions": [
+        "The agent identified isaaclab-transferring-policies-sim-to-sim as the primary skill without being told its name",
+        "Matches per-joint actuator response, timing, and damping before tuning the policy",
+        "Does not tune the policy before matching nominal control behavior",
+        "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+      ],
+      "expected_skill": "isaaclab-transferring-policies-sim-to-sim",
+      "expected_script": null
+    },
+    {
+      "id": "isaaclab-transferring-policies-sim-to-sim-003",
+      "prompt": "How do I demonstrate transfer in both directions with Franka?",
+      "expected_output": "Runs PP, PN, NN, and NP matrix with Isaac-Lift-Franka using the play entry point for cross-backend deployment.",
+      "assertions": [
+        "The agent identified isaaclab-transferring-policies-sim-to-sim as the primary skill without being told its name",
+        "Covers all four transfer directions: PP, PN, NN, and NP",
+        "Uses the play entry point to apply play_mode overrides",
+        "Reproduces each same-backend baseline and deploys the exact checkpoint cross-backend",
+        "Does not report only one transfer direction or use different checkpoints per direction",
+        "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+      ],
+      "expected_skill": "isaaclab-transferring-policies-sim-to-sim",
+      "expected_script": null
+    },
+    {
+      "id": "isaaclab-transferring-policies-sim-to-sim-neg-001",
+      "prompt": "My task works on PhysX. Add Newton support too.",
+      "expected_output": "Adds backend-specific presets or config variants using the backend selection skill.",
+      "assertions": [
+        "The agent did not use isaaclab-transferring-policies-sim-to-sim as the primary skill",
+        "If a primary skill is named, prefers isaaclab-selecting-backends (or another accepted neighbor) over this skill",
+        "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+      ],
+      "expected_skill": null,
+      "expected_script": null
+    }
+  ]
+}
