@@ -42,6 +42,8 @@ def test_recording_model_and_optimizer_are_independent(task):
     assert tuple(unchanged.backbone_spans) != (1, 1)
     assert env.actions.joint_targets.episode_frames[0] >= 1
     assert isinstance(env.recorders, NeRDRecorderCfg)
+    # ManagerBase prepares terms only for truthy configurations, including zero-group observations.
+    assert env.observations
 
 
 def test_osc_does_not_inherit_neural_physics():

@@ -17,6 +17,11 @@ from .franka_reach_env_cfg import FrankaReachBaseEnvCfg
 
 
 @configclass
+class ObservationsCfg:
+    """Recording collects dynamics through recorder terms and needs no observation groups."""
+
+
+@configclass
 class FrankaNeRDExplorationCfg(NeRDExplorationActionCfg):
     """State exploration and joint excitation for recording."""
 
@@ -57,7 +62,7 @@ class FrankaNeRDRecordingEnvCfg(ManagerBasedRLEnvCfg):
     )
     decimation = _TASK.decimation
     episode_length_s = _TASK.episode_length_s
-    observations = {}
+    observations: ObservationsCfg = ObservationsCfg()
     rewards = {}
     terminations = {
         "invalid_state": TerminationTermCfg(func="isaaclab_neural.record.recording:invalid_exploration_state"),

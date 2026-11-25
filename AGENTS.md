@@ -26,6 +26,11 @@ The guide owns shared contribution rules. Update them there instead of copying t
 - Do not define Warp kernels in `python -c`; write a temporary Python file instead so Warp can inspect the source.
 - Do not add debug output to production Warp kernels. Use temporary standalone reproductions and remove debug output before committing.
 
+## Neural integration
+
+- Neural workflows must follow existing manager initialization, stepping, and teardown contracts.
+  Fix neural configurations and terms rather than relaxing shared lifecycle guards to accommodate them.
+
 ## Commits and branches
 
 - Work on a feature branch; do not commit directly to `main`.

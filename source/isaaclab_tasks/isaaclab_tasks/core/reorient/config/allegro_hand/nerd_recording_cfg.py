@@ -17,6 +17,11 @@ from .allegro_hand_manager_env_cfg import AllegroHandManagerEnvCfg
 
 
 @configclass
+class ObservationsCfg:
+    """Recording collects dynamics through recorder terms and needs no observation groups."""
+
+
+@configclass
 class AllegroHandNeRDExplorationCfg(NeRDExplorationActionCfg):
     """State exploration and joint excitation for recording."""
 
@@ -63,7 +68,7 @@ class AllegroHandNeRDRecordingEnvCfg(ManagerBasedRLEnvCfg):
     )
     decimation = 1
     episode_length_s = _TASK.episode_length_s
-    observations = {}
+    observations: ObservationsCfg = ObservationsCfg()
     rewards = {}
     terminations = {
         "invalid_state": TerminationTermCfg(func="isaaclab_neural.record.recording:invalid_exploration_state"),

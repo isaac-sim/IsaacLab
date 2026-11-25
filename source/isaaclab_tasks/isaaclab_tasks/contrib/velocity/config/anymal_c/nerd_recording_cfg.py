@@ -17,6 +17,11 @@ from .flat_env_cfg import ANYMAL_C_NERD_TARGET_REACH, AnymalCFlatEnvCfg
 
 
 @configclass
+class ObservationsCfg:
+    """Recording collects dynamics through recorder terms and needs no observation groups."""
+
+
+@configclass
 class AnymalCNeRDExplorationCfg(NeRDExplorationActionCfg):
     """State exploration and joint excitation for recording."""
 
@@ -61,7 +66,7 @@ class AnymalCNeRDRecordingEnvCfg(ManagerBasedRLEnvCfg):
     )
     decimation = _TASK.decimation
     episode_length_s = _TASK.episode_length_s
-    observations = {}
+    observations: ObservationsCfg = ObservationsCfg()
     rewards = {}
     terminations = {
         "invalid_state": TerminationTermCfg(func="isaaclab_neural.record.recording:invalid_exploration_state"),

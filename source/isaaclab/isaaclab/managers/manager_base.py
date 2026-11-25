@@ -175,7 +175,7 @@ class ManagerBase(ABC):
             self._resolve_terms_handle = None
 
         # parse config to create terms information
-        if self.cfg is not None:
+        if self.cfg:
             self._prepare_terms()
             if self._is_scene_entities_resolved:
                 self._finalize_scene_entities()
