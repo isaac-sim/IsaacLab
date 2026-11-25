@@ -51,6 +51,9 @@ def prepare_pipeline(pipeline: str, directory: Path) -> tuple[Path, dict]:
                 connection = spec.get("isaaclab_connection")
                 if connection in ports or connection not in (INPUTS if direction == "inputs" else OUTPUTS):
                     raise ValueError(f"Unsupported or duplicate external connection: {connection}")
+                # Isaac ROS converters use element_names; current LEAPP bundles label axes.
+                if "axes" in spec:
+                    spec["element_names"] = [axis.get("names", []) for axis in spec["axes"]]
                 ports[connection] = spec
                 if direction == "inputs":
                     spec["kind"] = INPUTS[connection][0]

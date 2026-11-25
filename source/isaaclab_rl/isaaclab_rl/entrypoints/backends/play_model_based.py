@@ -7,7 +7,6 @@
 
 import argparse
 import copy
-import time
 from pathlib import Path
 
 import torch
@@ -17,7 +16,7 @@ from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.managers import EventTermCfg, ObservationGroupCfg, ObservationTermCfg, SceneEntityCfg
 from isaaclab.utils import update_from_dict
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
-from isaaclab.utils.math import matrix_from_quat, quat_apply_inverse, quat_inv, quat_mul
+from isaaclab.utils.math import matrix_from_quat, quat_inv, quat_mul
 
 from isaaclab_tasks.core.motion_tracking.mdp.commands import MotionCommand
 from isaaclab_tasks.utils import resolve_task_config, setup_preset_cli
@@ -29,7 +28,6 @@ from ..common import (
     create_isaaclab_env,
     enable_cameras_for_video,
     pre_launch_video_config,
-    video_playback_steps,
 )
 from .runner_rsl_rl import wrap_rsl_rl_env
 
@@ -54,29 +52,8 @@ def run(argv: list[str]) -> None:
         or args.frontend != "torch"
     ):
         parser.error("Playback restores the saved configuration; use explicit relocation/device/seed options.")
-    if args.checkpoint == "pretrained":
-        parser.error("Pass a checkpoint file path or URL.")
-    checkpoint_path = retrieve_file_path(args.checkpoint)
-    checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
-    if checkpoint["reference_revision"] != REFERENCE_REVISION:
-        parser.error("The checkpoint uses a different reference algorithm revision.")
-    task = checkpoint["task"]
-    if args.task is not None and args.task != task:
-        parser.error("The task must match the saved checkpoint.")
-    cfg, _ = resolve_task_config("Isaac-Motion-Tracking-G1", "rsl_rl_cfg_entry_point", overrides=[])
-    agent = legacy_agent_cfg(checkpoint)
-    _restore_environment(cfg, checkpoint["env_cfg"])
-
+    cfg, agent, checkpoint, checkpoint_path = load_legacy_task(args)
     apply_env_overrides(args, cfg)
-    cfg.episode_length_s = 1.0e9
-    if args.motion_dir:
-        cfg.commands.motion.motion_file = args.motion_dir
-    if args.asset_path:
-        cfg.scene.robot.spawn.usd_path = args.asset_path
-    motion_path = cfg.commands.motion.motion_file
-    if not Path(motion_path).is_dir():
-        cfg.commands.motion.motion_file = retrieve_file_path(motion_path)
-    configure_legacy_observations(cfg, agent)
     output = str(Path(checkpoint_path).parent)
     enable_cameras_for_video(args)
     pre_launch_video_config(cfg, args)
@@ -87,14 +64,40 @@ def run(argv: list[str]) -> None:
             env = wrap_rsl_rl_env(env, agent)
             obs, _ = env.reset()
             actor = load_legacy_actor(checkpoint, obs, agent, env.unwrapped.device)
-            for _ in range(video_playback_steps(args, cfg) or args.steps):
-                start = time.monotonic()
-                with torch.inference_mode():
-                    obs, _, _, _ = env.step(actor(obs))
-                if args.real_time:
-                    time.sleep(max(0.0, env.unwrapped.step_dt - (time.monotonic() - start)))
+            from .play_rsl_rl import play_policy
+
+            play_policy(env, actor, args, cfg, max_steps=args.steps)
         finally:
             env.close()
+
+
+def load_legacy_task(args):
+    """Restore the published checkpoint's task and actor settings for playback or export."""
+    if not args.checkpoint or args.checkpoint == "pretrained":
+        raise ValueError("Pass a checkpoint file path or URL.")
+    checkpoint_path = retrieve_file_path(args.checkpoint)
+    checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
+    if checkpoint["reference_revision"] != REFERENCE_REVISION:
+        raise ValueError("The checkpoint uses a different reference algorithm revision.")
+    task = checkpoint["task"]
+    if args.task is not None and args.task != task:
+        raise ValueError("The task must match the saved checkpoint.")
+    args.task = task
+    cfg, _ = resolve_task_config("Isaac-Motion-Tracking-G1", "rsl_rl_cfg_entry_point", overrides=[])
+    agent = legacy_agent_cfg(checkpoint)
+    _restore_environment(cfg, checkpoint["env_cfg"])
+
+    cfg.sim.device = args.device
+    cfg.episode_length_s = 1.0e9
+    if args.motion_dir:
+        cfg.commands.motion.motion_file = args.motion_dir
+    if args.asset_path:
+        cfg.scene.robot.spawn.usd_path = args.asset_path
+    motion_path = cfg.commands.motion.motion_file
+    if not Path(motion_path).is_dir():
+        cfg.commands.motion.motion_file = retrieve_file_path(motion_path)
+    configure_legacy_observations(cfg, agent)
+    return cfg, agent, checkpoint, checkpoint_path
 
 
 def _restore_environment(cfg, saved: dict) -> None:
@@ -183,22 +186,6 @@ def goal_window_indices(motion, frames):
     return torch.minimum(frames[:, None] + offsets, (motion.clip_end(frames) - 1)[:, None])
 
 
-def _policy_frame(env):
-    data = env.scene["robot"].data
-    quat = data.root_link_quat_w.torch
-    gravity = quat.new_tensor((0.0, 0.0, -1.0)).expand(env.num_envs, 3)
-    return torch.cat(
-        (
-            quat_apply_inverse(quat, gravity),
-            quat_apply_inverse(quat, data.root_link_ang_vel_w.torch),
-            data.joint_pos.torch - data.default_joint_pos.torch,
-            data.joint_vel.torch,
-            env.action_manager.action,
-        ),
-        -1,
-    )
-
-
 def _actor_goal(env):
     command = env.command_manager.get_term("motion")
     motion = command.motion
@@ -225,7 +212,13 @@ def configure_legacy_observations(cfg, agent):
         history_length=agent.algorithm.history_length,
         flatten_history_dim=False,
     )
-    cfg.observations.policy.sensor = ObservationTermCfg(func=_policy_frame)
+    from isaaclab.envs import mdp
+
+    cfg.observations.policy.gravity = ObservationTermCfg(func=mdp.projected_gravity)
+    cfg.observations.policy.angular_velocity = ObservationTermCfg(func=mdp.base_ang_vel)
+    cfg.observations.policy.joint_pos = ObservationTermCfg(func=mdp.joint_pos_rel)
+    cfg.observations.policy.joint_vel = ObservationTermCfg(func=mdp.joint_vel)
+    cfg.observations.policy.actions = ObservationTermCfg(func=mdp.last_action)
     cfg.observations.actor_goal = ObservationGroupCfg(enable_corruption=False, concatenate_terms=True)
     cfg.observations.actor_goal.goal = ObservationTermCfg(func=_actor_goal)
 

@@ -18,195 +18,131 @@ import torch
 torch.jit._state.disable()
 
 from isaaclab.app import launch_simulation
-from isaaclab.utils.assets import retrieve_file_path
-from isaaclab.utils.math import matrix_from_quat, quat_apply, quat_apply_inverse, quat_inv, quat_mul
+from isaaclab.utils.math import matrix_from_quat, quat_conjugate, quat_inv, quat_mul
 
-from isaaclab_tasks.utils import resolve_task_config
-
-from .export_common import add_common_export_args, finalize_export_args, leapp_capture, resolve_export_save_path
+from .export_common import add_common_export_args, finalize_export_args, resolve_export_save_path
 from .play_model_based import (
     GOAL_FRAME_STRIDE,
     NUM_GOAL_FRAMES,
-    REFERENCE_REVISION,
-    _restore_environment,
-    configure_legacy_observations,
     goal_window_indices,
-    legacy_agent_cfg,
     load_legacy_actor,
+    load_legacy_task,
 )
 from .runner_rsl_rl import wrap_rsl_rl_env
 
 
 class MotionPolicy(torch.nn.Module):
-    """Use the trained motion encoder/decoder with explicit history feedback.
+    """Blend moving and stationary goals through the unchanged RSL-RL actor."""
 
-    Sensors use Isaac Lab's XYZW quaternion convention. Reference windows contain
-    joint positions, joint velocities, WXYZ root quaternions and a motion blend
-    weight at each frame. A zero weight tracks a stationary reference with the same actor.
-    """
-
-    def __init__(self, actor, default_joint_pos, action_scale, action_offset, task=None):
+    def __init__(self, actor):
         super().__init__()
-        if actor.export_reference_action:
-            raise ValueError("Motion deployment requires an absolute-action actor.")
-        self.actor = actor.policy
-        self.task = task
-        self.register_buffer("default_joint_pos", default_joint_pos)
-        self.register_buffer("action_scale", action_scale)
-        self.register_buffer("action_offset", action_offset)
+        self.actor = actor
 
-    def forward(self, q, dq, quat, gyro, motion, history, previous_action, initialized):
-        if self.task is None:
-            gravity = gyro.new_tensor((0.0, 0.0, -1.0)).expand_as(gyro)
-            sensor = torch.cat(
-                (quat_apply_inverse(quat, gravity), gyro, q - self.default_joint_pos, dq, previous_action), -1
-            )
-        else:
-            zero = torch.zeros_like(gyro)
-            state = (zero, quat, zero, quat_apply(quat, gyro), q, dq)
-            ref_q, ref_dq = motion[:, 0, : 2 * q.shape[-1]].chunk(2, -1)
-            ref_quat = motion[:, 0, [-4, -3, -2, -5]]
-            ref_state = (zero, ref_quat, zero, zero, ref_q, ref_dq)
-            anchor = self.task.kinematics.forward(ref_state)[1][:, self.task.robot_anchor]
-            observations = self.task.policy_observations(state, torch.cat((ref_q, ref_dq), -1), anchor, previous_action)
-            sensor = observations["policy"]
-        history = torch.cat((history[:, 1:], sensor[:, None]), 1)
-        history = torch.where(initialized.reshape(-1, 1, 1) > 0, history, sensor[:, None])
-        # Keep the training layout: all joint targets, followed by all root orientations.
-        if self.task is None:
-            relative = quat_mul(quat_inv(quat)[:, None].expand(-1, NUM_GOAL_FRAMES, -1), motion[..., [-4, -3, -2, -5]])
-            goal = torch.cat((motion[..., :-5].flatten(1), matrix_from_quat(relative)[..., :2].flatten(1)), -1)
-        else:
-            goal = observations["actor_goal"]
-        history_n = self.actor.obs_norm(history).flatten(1)
-
-        def decode(goal):
-            latent = torch.tanh(self.actor.encoder(self.actor.goal_norm(goal)))
-            return self.actor.decoder(torch.cat((latent, history_n), -1))
-
-        actions = decode(goal)
-        # Keep a stationary reference active before and after the moving clip.
-        # Both branches receive the history of the action actually applied below.
-        if self.task is None:
-            joints = motion[:, :1, : q.shape[-1]].expand(-1, NUM_GOAL_FRAMES, -1)
-            stationary = torch.cat((joints, torch.zeros_like(joints)), -1).flatten(1)
-            orientation = (
-                matrix_from_quat(relative[:, :1])[..., :2].flatten(-2).expand(-1, NUM_GOAL_FRAMES, -1).flatten(1)
-            )
-            stationary = torch.cat((stationary, orientation), -1)
-        else:
-            stationary = torch.cat((ref_q, torch.zeros_like(ref_dq)), -1)
-        standing = decode(stationary)
-        blend = motion[:, 0, -1:].clamp(0, 1)
-        applied_action = standing + blend * (actions - standing)
-        target = applied_action * self.action_scale + self.action_offset
-        return target, history, applied_action, torch.ones_like(initialized)
+    def forward(self, obs):
+        goal = obs["actor_goal"]
+        width = self.actor.policy.goal_dim
+        inputs = obs.copy()
+        inputs["actor_goal"] = goal[..., :width]
+        actions = self.actor(inputs)
+        inputs["actor_goal"] = goal[..., width : 2 * width]
+        standing = self.actor(inputs)
+        return standing + goal[..., -1:].clamp(0, 1) * (actions - standing)
 
 
-def export_policy(env, actor, args, cfg, destination, task=None):
-    """Capture sensor inputs, history feedback and physical joint outputs."""
+def _motion_input(env):
+    """Expose the reference publisher's window as one deployment command."""
     from leapp import annotate
     from leapp.utils.tensor_description import TensorSemantics
 
-    from isaaclab.utils.leapp.export_annotator import _effective_joint_gains
+    command = env.command_manager.get_term("motion")
+    # Share the exporter's per-observation cache with other consumers of this command.
+    cache = env.scene._cache
+    key = (id(command), "command:motion")
+    if key in cache:
+        return cache[key]
+    motion = command.motion
+    idx = goal_window_indices(motion, command.time_steps)
+    value = torch.cat(
+        (
+            motion.joint_pos[idx],
+            motion.joint_vel[idx],
+            motion.root_quat_w[idx][..., [3, 0, 1, 2]],
+            torch.ones_like(idx[..., None], dtype=torch.float32),
+        ),
+        -1,
+    )
+    cache[key] = annotate.input_tensors(
+        str(env.unwrapped.spec.id),
+        TensorSemantics(name="motion", ref=value, extra={"isaaclab_connection": "command:motion"}),
+    )
+    return cache[key]
 
+
+def _deployment_goal(env, *, legacy):
+    """Build moving and stationary goals from the externally supplied reference."""
+    motion = _motion_input(env)
+    if legacy:
+        root = env.scene["robot"].data.root_quat_w.torch[:, None].expand(-1, NUM_GOAL_FRAMES, -1)
+        relative = quat_mul(quat_inv(root), motion[..., [-4, -3, -2, -5]])
+        orientation = matrix_from_quat(relative)[..., :2].flatten(-2)
+        active = torch.cat((motion[..., :-5].flatten(1), orientation.flatten(1)), -1)
+        joints = motion[:, :1, :29].expand(-1, NUM_GOAL_FRAMES, -1)
+        stationary = torch.cat(
+            (
+                torch.cat((joints, torch.zeros_like(joints)), -1).flatten(1),
+                orientation[:, :1].expand(-1, NUM_GOAL_FRAMES, -1).flatten(1),
+            ),
+            -1,
+        )
+    else:
+        q, dq = motion[:, 0, :-5].chunk(2, -1)
+        active = torch.cat((q, dq), -1)
+        stationary = torch.cat((q, torch.zeros_like(dq)), -1)
+    return torch.cat((active, stationary, motion[:, 0, -1:]), -1)
+
+
+def _deployment_anchor(env, *, task):
+    """Compute the tracked anchor orientation from deployable root and joint sensors."""
+    data = env.scene["robot"].data
+    q = data.joint_pos.torch
+    root = data.root_quat_w.torch
+    zero = torch.zeros_like(root[..., :3])
+    motion = _motion_input(env)
+    ref_q = motion[:, 0, : q.shape[-1]]
+    ref_root = motion[:, 0, [-4, -3, -2, -5]]
+    quat = task.kinematics.forward((zero, root, zero, zero, q, torch.zeros_like(q)))[1]
+    ref_quat = task.kinematics.forward((zero, ref_root, zero, zero, ref_q, torch.zeros_like(ref_q)))[1]
+    relative = quat_mul(quat_conjugate(quat[:, task.robot_anchor]), ref_quat[:, task.robot_anchor])
+    return matrix_from_quat(relative)[..., :2].flatten(1)
+
+
+def prepare_motion_export(env, actor, *, task=None):
+    """Adapt reference inputs; the common LEAPP exporter captures observations, history and actions."""
+    if actor.export_reference_action:
+        raise ValueError("Motion deployment requires an absolute-action actor.")
+    command = env.unwrapped.command_manager.get_term("motion")
+    if command.motion.motion_ends.numel() != 1:
+        raise ValueError("Select one reference clip for deployment.")
+    manager = env.unwrapped.observation_manager
+    goal = manager._group_obs_term_cfgs["actor_goal"][0]
+    goal.func, goal.params = _deployment_goal, {"legacy": task is None}
+    if task is not None:
+        anchor = manager._group_obs_term_cfgs["policy"][manager.active_terms["policy"].index("motion_anchor_ori_b")]
+        anchor.func, anchor.params = _deployment_anchor, {"task": task}
+    return MotionPolicy(actor.cpu()).eval()
+
+
+def save_motion(env, destination, node):
+    """Save the resampled reference in the joint order used by the deployment graph."""
     owner = env.unwrapped
     command = owner.command_manager.get_term("motion")
-    robot = command.robot
-    action = owner.action_manager.get_term("joint_pos")
-    action_scale = torch.as_tensor(action._scale, device=owner.device).expand(1, robot.num_joints)
-    action_offset = torch.as_tensor(action._offset, device=owner.device).expand(1, robot.num_joints)
-    names = robot.joint_names
-    if len(names) != 29 or (task is None and actor.policy.obs_dim != 93):
-        raise ValueError("G1 deployment requires a 29-joint proprioceptive actor.")
-    if command.motion.motion_ends.numel() != 1:
-        raise ValueError("Select one reference clip with --motion_dir for deployment.")
-    policy = MotionPolicy(
-        actor.cpu(),
-        robot.data.default_joint_pos.torch[:1].cpu(),
-        action_scale.cpu(),
-        action_offset.cpu(),
-        task=task,
-    ).eval()
-    kp, kd = (x[:1].cpu() for x in _effective_joint_gains(robot))
-    history = torch.zeros(1, actor.policy.history_length, actor.policy.obs_dim)
-    previous = torch.zeros(1, len(names))
-    initialized = torch.zeros(1)
-    node = args.export_task_name or args.task
-    env.reset()
-    with leapp_capture(args, save_path=str(destination), env_cfg=cfg) as steps:
-        for _ in range(steps):
-            data = robot.data
-            idx = goal_window_indices(command.motion, command.time_steps)
-            motion = torch.cat(
-                (
-                    command.motion.joint_pos[idx],
-                    command.motion.joint_vel[idx],
-                    command.motion.root_quat_w[idx][..., [3, 0, 1, 2]],
-                    torch.ones_like(idx[..., None], dtype=torch.float32),
-                ),
-                -1,
-            ).cpu()
-            values = [
-                data.joint_pos.torch.cpu(),
-                data.joint_vel.torch.cpu(),
-                data.root_link_pose_w.torch[:, 3:].cpu(),
-                quat_apply_inverse(data.root_link_pose_w.torch[:, 3:], data.root_link_vel_w.torch[:, 3:]).cpu(),
-                motion,
-            ]
-            connections = [
-                "state:robot:joint_pos",
-                "state:robot:joint_vel",
-                "state:robot:root_quat_w",
-                "state:robot:root_ang_vel_b",
-                "command:motion",
-            ]
-            elements = [names, names, ["qx", "qy", "qz", "qw"], ["wx", "wy", "wz"], None]
-            inputs = [
-                annotate.input_tensors(
-                    node,
-                    TensorSemantics(
-                        name=key.split(":")[-1], ref=value, element_names=labels, extra={"isaaclab_connection": key}
-                    ),
-                )
-                for key, value, labels in zip(connections, values, elements)
-            ]
-            history, previous, initialized = annotate.state_tensors(
-                node, {"history": history, "previous_action": previous, "initialized": initialized}
-            )
-            target, history, actions, initialized = policy(*inputs, history, previous, initialized)
-            history, previous, initialized = annotate.update_state(
-                node, {"history": history, "previous_action": actions, "initialized": initialized}
-            )
-            outputs = [
-                TensorSemantics(
-                    name="joint_target",
-                    ref=target,
-                    element_names=names,
-                    extra={"isaaclab_connection": "write:robot:set_joint_position_target_index"},
-                )
-            ]
-            gains = [
-                TensorSemantics(
-                    name=name,
-                    ref=value,
-                    element_names=names,
-                    extra={"isaaclab_connection": f"write:robot:write_joint_{kind}_to_sim_index"},
-                )
-                for name, kind, value in (("kp", "stiffness", kp), ("kd", "damping", kd))
-            ]
-            annotate.output_tensors(
-                node, outputs, static_outputs=gains, export_with=args.export_method or "onnx-torchscript"
-            )
-            env.step(actions.detach().to(owner.device))
-    # Export the already-resampled reference consumed by training, in native joint order.
     motion = command.motion
     np.savez(
-        destination / node / "motion.npz",
+        Path(destination) / node / "motion.npz",
         joint_pos=motion.joint_pos.cpu().numpy(),
         joint_vel=motion.joint_vel.cpu().numpy(),
         root_quat_w=motion.root_quat_w[:, [3, 0, 1, 2]].cpu().numpy(),
-        joint_names=np.asarray(names),
+        joint_names=np.asarray(command.robot.joint_names),
         fps=np.float32(1 / owner.step_dt),
         goal_frames=NUM_GOAL_FRAMES,
         goal_stride=GOAL_FRAME_STRIDE,
@@ -223,27 +159,8 @@ def run(argv: list[str] | None = None) -> int:
         parser.error("--checkpoint is required")
     if any(value != "physics=newton_mjwarp" for value in overrides):
         parser.error("Export restores the checkpoint's saved physical configuration.")
-    path = args.checkpoint
-    if path == "pretrained":
-        parser.error("Pass a checkpoint file path or URL.")
-    path = retrieve_file_path(path)
-    checkpoint = torch.load(path, map_location="cpu", weights_only=True)
-    if checkpoint["reference_revision"] != REFERENCE_REVISION:
-        parser.error("Checkpoint reference revision does not match the installed algorithm")
-    if args.task and args.task != checkpoint["task"]:
-        parser.error("Task must match the checkpoint")
-    args.task = checkpoint["task"]
-    cfg, _ = resolve_task_config("Isaac-Motion-Tracking-G1", "rsl_rl_cfg_entry_point", overrides=[])
-    agent = legacy_agent_cfg(checkpoint)
-    _restore_environment(cfg, checkpoint["env_cfg"])
+    cfg, agent, checkpoint, path = load_legacy_task(args)
     cfg.scene.num_envs = 1
-    cfg.sim.device = args.device
-    cfg.episode_length_s = 1.0e9
-    if args.asset_path:
-        cfg.scene.robot.spawn.usd_path = args.asset_path
-    motion_path = args.motion_dir or cfg.commands.motion.motion_file
-    cfg.commands.motion.motion_file = motion_path if Path(motion_path).is_dir() else retrieve_file_path(motion_path)
-    configure_legacy_observations(cfg, agent)
     destination = Path(resolve_export_save_path(args, "model_based", str(Path(path).parent)))
     destination.mkdir(parents=True, exist_ok=True)
     with launch_simulation(cfg, args):
@@ -253,7 +170,11 @@ def run(argv: list[str] | None = None) -> int:
             obs, _ = env.reset()
             actor = load_legacy_actor(checkpoint, obs, agent, env.unwrapped.device)
             with torch.inference_mode():
-                export_policy(env, actor, args, cfg, destination)
+                from .export_rsl_rl import export_policy
+
+                policy = prepare_motion_export(env, actor)
+                export_policy(env, policy, args, cfg, str(destination), set(agent.obs_groups["actor"]))
+                save_motion(env, destination, args.export_task_name or args.task)
         finally:
             env.close()
     return 0

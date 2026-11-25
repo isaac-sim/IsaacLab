@@ -152,13 +152,17 @@ def run(argv: list[str]) -> None:
             runner.export_policy_to_jit(path=export_model_dir, filename="policy.pt")
             runner.export_policy_to_onnx(path=export_model_dir, filename="policy.onnx")
 
-            obs = env.get_observations()
-
-            def step() -> None:
-                nonlocal obs
-                obs, _, dones, _ = env.step(policy(obs))
-                # reset recurrent states for episodes that have terminated
-                policy.reset(dones)
-
             screen.close()
-            run_playback(step, dt=env.unwrapped.step_dt, args_cli=args_cli, env_cfg=env_cfg)
+            play_policy(env, policy, args_cli, env_cfg)
+
+
+def play_policy(env, policy, args_cli, env_cfg, *, max_steps=None):
+    """Run a loaded RSL-RL policy with shared video and real-time playback controls."""
+    obs = env.get_observations()
+
+    def step() -> None:
+        nonlocal obs
+        obs, _, dones, _ = env.step(policy(obs))
+        policy.reset(dones)
+
+    run_playback(step, dt=env.unwrapped.step_dt, args_cli=args_cli, env_cfg=env_cfg, max_steps=max_steps)

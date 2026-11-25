@@ -225,7 +225,7 @@ reference file, and matching USD asset, run:
 
 .. code-block:: bash
 
-   uv run --frozen isaaclab play --rl_library model_based \
+   uv run --frozen isaaclab play --rl_library rsl_rl \
        --checkpoint /path/to/dance/checkpoint.pt \
        --motion_dir /path/to/dance/motion.npz \
        --asset_path /path/to/dance/g1.usd \
@@ -253,7 +253,7 @@ Export the pretrained dance checkpoint and one reference clip to a LEAPP bundle:
 .. code-block:: bash
 
    uv run --extra leapp isaaclab leapp export \
-       --task Isaac-Motion-Tracking-GenCoord-G1 --rl_library model_based \
+       --task Isaac-Motion-Tracking-GenCoord-G1 --rl_library rsl_rl \
        --checkpoint /path/to/dance/checkpoint.pt \
        --motion_dir /path/to/dance/hiphop.npz --export_save_path exported
 
