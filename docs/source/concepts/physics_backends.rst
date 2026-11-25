@@ -86,7 +86,8 @@ guides, and native data access.
 OvPhysX
 --------
 
-OvPhysX runs PhysX without Isaac Sim or Omniverse Kit. It supports rigid objects,
+OvPhysX is a stable backend with feature parity with Isaac Sim PhysX through
+Isaac Lab's shared APIs. It runs PhysX without Isaac Sim or Omniverse Kit and supports rigid objects,
 articulations, contact and motion sensors, and CUDA-based deformables, and can
 pair with OVRTX for rendering. Scene-level solver settings come primarily from
 USD's ``PhysicsScene``; :class:`~isaaclab_ov.physics.OvPhysxCfg` holds additional

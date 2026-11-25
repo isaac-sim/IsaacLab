@@ -3,6 +3,11 @@
 OvPhysX
 ========
 
+OvPhysX is a stable physics backend with feature parity with Isaac Sim PhysX
+through Isaac Lab's shared scene, asset, sensor, and task APIs. Use it for PhysX
+simulation without Isaac Sim or Omniverse Kit. Backend-specific configuration
+and limits are described below.
+
 .. warning::
 
     Do not combine OvPhysX with the Kit visualizer. Commands such as
@@ -67,8 +72,8 @@ The deprecated Franka absolute-IK alias follows the migrated OvPhysX default.
 Prefer its canonical command, ``--task Isaac-Reach-Franka physics=ovphysx presets=diffik_abs``;
 the canonical task also exposes ``physics=isaacsim_physx`` during the transition.
 
-What works today
-----------------
+Supported features
+------------------
 
 OvPhysX supports the following components. The notes describe requirements and
 limits to consider when configuring a task.

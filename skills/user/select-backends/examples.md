@@ -40,8 +40,10 @@ Repeat the same small smoke test on every backend before comparing training curv
 
 - Use PhysX first when preserving Isaac Gym behavior.
 - Use Newton when the task specifically targets kit-less or Warp-native workflows.
-- Use OvPhysX when evaluating the experimental kit-less PhysX path and the task
-  explicitly exposes an OvPhysX preset.
+- Use OvPhysX for stable kit-less PhysX simulation with feature parity with Isaac Sim
+  PhysX through Isaac Lab's shared APIs. Select a task that exposes an OvPhysX preset;
+  see the [OvPhysX guide](../../../docs/source/concepts/physics-backends/ovphysx.rst)
+  for backend-specific configuration and limits.
 - Use backend presets for solver, contact, material, sensor, and renderer differences.
 - Do not copy PhysX parameters directly into Newton configs without checking schema docs.
 - For USD physics authoring, follow the selected backend's public schema cfgs
