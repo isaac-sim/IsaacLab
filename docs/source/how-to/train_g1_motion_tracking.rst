@@ -57,13 +57,13 @@ Six 50 Hz clips are available in the same asset-server directory:
      - ``g1_cartwheel.npz``
    * - Speed vault
      - ``g1_speed_vault.npz``
-   * - CR7 celebration (default)
-     - ``g1_cr7_grounded.npz``
+   * - Jump and turn (default)
+     - ``g1_jump_and_turn.npz``
 
 Train
 -----
 
-Train the default CR7 clip:
+Train the default jump-and-turn clip:
 
 .. code-block:: bash
 
@@ -95,14 +95,14 @@ The G1 asset, motor gains, and tracked links are configured in ``config/g1/env_c
 Play and record
 ---------------
 
-Play the pretrained CR7 policy with the Newton GL viewer:
+Play the pretrained jump-and-turn policy with the Newton GL viewer:
 
 .. code-block:: bash
 
    uv run isaaclab play --rl_library rsl_rl --task Isaac-Motion-Tracking-G1 \
        --num_envs 1 --checkpoint pretrained --viz newton_gl
 
-For a local checkpoint, replace ``pretrained`` with its path. For a clip other than CR7, set
+For a local checkpoint, replace ``pretrained`` with its path. For a clip other than jump-and-turn, set
 ``env.commands.motion.motion_file`` to the same clip used during training.
 The checkpoint path alone does not select its reference motion.
 Playback disables observation noise, but retains reference-phase sampling, reset perturbations,
