@@ -369,56 +369,6 @@ class OvstageBackend:
         ).wait()
         self._body_timestamp = timestamp
 
-    def bind_geometry_points(self, provider: SceneDataProvider) -> None:
-        """Bind world-space geometry points in publication order until stage reset."""
-        if self._geometry_query is not None:
-            return
-        paths = list(provider.get_geometry_points())
-        if not paths:
-            return
-        with contextlib.ExitStack() as resources:
-            query = resources.enter_context(self.query(paths))
-            self.stage.write_attribute(
-                query,
-                "omni:resetXformStack",
-                ordinal=self.ordinal,
-                tensors=np.ones(len(paths), dtype=np.bool_),
-                is_array=False,
-            ).wait()
-            self.stage.write_attribute(
-                query,
-                "omni:xform",
-                ordinal=self.ordinal,
-                tensors=xform_tensor_from_numpy(np.tile(np.eye(4), (len(paths), 1, 1))),
-                is_array=False,
-                semantic=ovstage.AttributeSemantic.MATRIX,
-            ).wait()
-            self.resources.enter_context(resources.pop_all())
-        self._geometry_query = query
-        self._geometry_paths = paths
-        self._geometry_provider = provider
-
-    def update_geometry_points(self) -> None:
-        """Publish changed point arrays at the open ordinal."""
-        if self._geometry_query is None:
-            return
-        points = self._geometry_provider.get_geometry_points()
-        timestamp = self._geometry_provider.backend.geometry_timestamp
-        if timestamp == self._geometry_timestamp:
-            return
-        arrays = [points[path] for path in self._geometry_paths]
-        device = arrays[0].device
-        self.stage.write_attribute(
-            self._geometry_query,
-            "points",
-            ordinal=self.ordinal,
-            tensors=[points_tensor_from_warp(array) for array in arrays],
-            is_array=True,
-            semantic=ovstage.AttributeSemantic.POINT,
-            cuda_stream=(device.stream.cuda_stream or 1) if device.is_cuda else 0,
-        ).wait()
-        self._geometry_timestamp = timestamp
-
     def commit(self) -> int:
         """Seal pending writes and return their ordinal; all consumers share the next write ordinal."""
         ordinal = self.ordinal
@@ -432,10 +382,6 @@ class OvstageBackend:
         self._render_copy_error = None
         self.resources.close()
         self.stage = self.paths = None
-        self._geometry_query = None
-        self._geometry_paths = []
-        self._geometry_provider = None
-        self._geometry_timestamp = -1
         self._body_query = None
         self._body_provider = None
         self._body_scales = None

@@ -113,6 +113,7 @@ from isaaclab_ov.stage import (
     body_transform_scales,
     export_stage_to_string,
     points_tensor_from_warp,
+    xform_tensor_from_numpy,
     xform_tensor_from_warp,
 )
 
@@ -668,7 +669,7 @@ class OVRTXRenderer(BaseRenderer):
         self.backend: OVRTXBackend | None = None
         """Native engine borrowed from the simulation registry after clone preparation."""
         self._object_xform_binding: AttributeBinding[wp.array] | None = None
-        self._geometry_points_binding: AttributeBinding[list[wp.array]] | None = None
+        self._geometry_points_binding: AttributeBinding[list[wp.array]] | ovstage.Query | None = None
         self._bindings = contextlib.ExitStack()
         self._env_paths: Sequence[str] = ()
 
@@ -787,16 +788,31 @@ class OVRTXRenderer(BaseRenderer):
 
     def _setup_geometry_bindings(self) -> None:
         """Bind SDP's world-space point prims without applying inherited transforms again."""
+        points = self._sdp.get_geometry_points()
+        self._geometry_paths = list(points)
+        if not self._geometry_paths:
+            return
+        prim_count = len(self._geometry_paths)
+        reset_xforms = np.ones(prim_count, dtype=np.bool_)
+        identity_xforms = np.tile(np.eye(4, dtype=np.float64), (prim_count, 1, 1))
         if self._use_ovstage:
-            self.scene.bind_geometry_points(self._sdp)
+            self._geometry_points_binding = self._bindings.enter_context(self.scene.query(self._geometry_paths))
+            self.scene.stage.write_attribute(
+                self._geometry_points_binding,
+                "omni:resetXformStack",
+                ordinal=self.scene.ordinal,
+                tensors=reset_xforms,
+                is_array=False,
+            ).wait()
+            self.scene.stage.write_attribute(
+                self._geometry_points_binding,
+                "omni:xform",
+                ordinal=self.scene.ordinal,
+                tensors=xform_tensor_from_numpy(identity_xforms),
+                is_array=False,
+                semantic=ovstage.AttributeSemantic.MATRIX,
+            ).wait()
         else:
-            points = self._sdp.get_geometry_points()
-            self._geometry_paths = list(points)
-            if not self._geometry_paths:
-                return
-            prim_count = len(self._geometry_paths)
-            reset_xforms = np.ones(prim_count, dtype=np.bool_)
-            identity_xforms = np.tile(np.eye(4, dtype=np.float64), (prim_count, 1, 1))
             if self.cfg.async_rendering:
                 count = 0
                 for path, array in points.items():
@@ -1802,14 +1818,11 @@ class OVRTXRenderer(BaseRenderer):
                 *self._visible_marker_rows(marker),
                 visible=marker.is_visible(),
             )  # fmt: skip
-        if self._use_ovstage:
-            self.scene.update_geometry_points()
-            return
         binding = self._geometry_points_binding
         if binding is None:
             return
         stream = self._warp_device.stream
-        asynchronous = self.cfg.async_rendering
+        asynchronous = self.cfg.async_rendering and not self._use_ovstage
         if asynchronous:
             output = self._geometry_writes.acquire(stream)
             self._sdp.get_geometry_points(output=output, offsets=self._geometry_offsets)
@@ -1821,7 +1834,17 @@ class OVRTXRenderer(BaseRenderer):
         timestamp = self._sdp.backend.geometry_timestamp
         if self._geometry_timestamp == timestamp:
             return
-        if asynchronous:
+        if self._use_ovstage:
+            self.scene.stage.write_attribute(
+                binding,
+                "points",
+                ordinal=self.scene.ordinal,
+                tensors=[points_tensor_from_warp(array) for array in points],
+                is_array=True,
+                semantic=ovstage.AttributeSemantic.POINT,
+                cuda_stream=stream.cuda_stream or 1,
+            ).wait()
+        elif asynchronous:
             self._geometry_writes.submit(binding, points, stream)
         else:
             binding.write(points, data_access=DataAccess.ASYNC, cuda_stream=stream.cuda_stream or 1)
