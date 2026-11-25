@@ -157,6 +157,7 @@
             ["IsaacContrib-Stack-Cube-SO101-v0", "", "isaacsim_physx,ovphysx", "", "", "environment-previews/so101_stack.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||", "ovphysx||"]],
             ["IsaacContrib-Stack-Cube-UR10-Long-Suction-IK-Rel", "", "isaacsim_physx", "", "", "environment-previews/ur10_stack_surface_gripper.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||"]],
             ["IsaacContrib-Stack-Cube-UR10-Short-Suction-IK-Rel", "", "isaacsim_physx", "", "", "environment-previews/ur10_stack_surface_gripper.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||"]],
+            ["IsaacContrib-TableTop-PickPlace-Franka", "", "", "", "", "environment-previews/heterogeneous_tabletop.jpg"],
             ["IsaacContrib-TrackPositionNoObstacles-ARL-Robot-1", "rl_games,rsl_rl,skrl", "", "", "", "environments/previews/drone_arl/arl_robot_1_track_position_state_based.jpg"],
             ["IsaacContrib-Tracking-LocoManip-Digit", "rsl_rl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "", "environment-previews/agility_digit_loco_manip.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||", "newton_mjwarp||", "ovphysx||"]],
             ["IsaacContrib-UR10-Particle-Push", "rsl_rl", "", "", "", "environment-previews/ur10_particle_push.jpg"],

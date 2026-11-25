@@ -227,6 +227,15 @@ class NewtonCfg(PhysicsCfg):
     needed when a ray-cast sensor must hit geometry that carries no collider.
     """
 
+    sdf_mesh_reduction: float | None = None
+    """Target fraction of triangles removed from SDF collision meshes during source import.
+
+    ``None`` preserves authored collision geometry. A value in ``[0, 1)`` enables Newton's quadratic
+    mesh reduction before replication and SDF generation. Only colliding meshes with authored SDF
+    resolution or voxel-size settings are affected; visual geometry, other colliders and body inertia
+    are preserved. Each imported source is cooked once and its instances share the result.
+    """
+
     bvh_constructor_geometry: Literal["lbvh", "sah", "cubql"] = "cubql"
     """BVH construction algorithm for mesh geometry colliders.
 
@@ -260,6 +269,8 @@ class NewtonCfg(PhysicsCfg):
     """
 
     def __post_init__(self):
+        if self.sdf_mesh_reduction is not None and not 0 <= self.sdf_mesh_reduction < 1:
+            raise ValueError("NewtonCfg.sdf_mesh_reduction must be in [0, 1), or None.")
         if self.class_type is None:
             raise ValueError("NewtonCfg.class_type must select a NewtonManager class; omit it for the default.")
         if self.deterministic_mode not in ("not_guaranteed", "run_to_run", "gpu_to_gpu"):
