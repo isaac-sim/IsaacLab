@@ -49,12 +49,19 @@ class LightingSceneCfg(InteractiveSceneCfg):
     )
 
 
-def _render_center_pixels(device, num_envs, light_rotation=(0.0, 0.0, 0.0, 1.0), lights_visible=True):
+def _render_center_pixels(device, num_envs, rotation=(0.0, 0.0, 0.0, 1.0), visible=True, lighting="authored"):
     cfg = SimulationCfg(physics=NewtonCfg(solver_cfg=XPBDSolverCfg(), num_substeps=1), device=device)
     with build_simulation_context(sim_cfg=cfg) as sim:
         scene_cfg = LightingSceneCfg(num_envs=num_envs, env_spacing=3.0)
-        scene_cfg.sun.init_state.rot = light_rotation
-        scene_cfg.sun.spawn.visible = scene_cfg.dome.spawn.visible = lights_visible
+        scene_cfg.sun.init_state.rot = rotation
+        scene_cfg.sun.spawn.visible = scene_cfg.dome.spawn.visible = visible
+        if lighting != "authored":
+            scene_cfg.sun = None
+            scene_cfg.dome = (
+                scene_cfg.dome.replace(spawn=sim_utils.DomeLightCfg(texture_file="unsupported.exr"))
+                if lighting == "unsupported"
+                else None
+            )
         scene = InteractiveScene(scene_cfg)
         sim.reset()
         camera = scene["camera"]
@@ -68,7 +75,11 @@ def test_authored_lighting_changes_pixels_without_scaling_with_world_count(devic
     single = _render_center_pixels(device, 1)
     cloned = _render_center_pixels(device, 4)
     away = _render_center_pixels(device, 4, (1.0, 0.0, 0.0, 0.0))
-    dark = _render_center_pixels(device, 1, lights_visible=False)
+    dark = _render_center_pixels(device, 1, visible=False)
+    native = _render_center_pixels(device, 1, lighting="native")
+    unsupported = _render_center_pixels(device, 1, lighting="unsupported")
+    np.testing.assert_array_equal(unsupported, native)
+    assert native.any(), "Unsupported lights must retain native illumination."
     # White albedo under 0.25 red ambient + 0.25 blue direct light, converted to sRGB bytes.
     np.testing.assert_allclose(single, [[136, 0, 136]], atol=1)
     np.testing.assert_array_equal(cloned, np.repeat(single, 4, axis=0))

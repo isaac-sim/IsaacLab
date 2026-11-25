@@ -88,8 +88,9 @@ def import_builder_lights(
     Newton exposes uniform ambient lighting and one directional light. Plain dome lights add to the ambient
     radiance; a distant light supplies its world-space emission direction and linear RGB radiance. Intensity and
     exposure multiply color directly. Textures, area lights, light linking and per-world lights are unsupported
-    and reported rather than approximated. Native ONCE attributes keep global illumination independent of the
-    number of cloned worlds and retain it across hard resets without modifying Newton.
+    and reported rather than approximated. Unsupported lights retain the native fallback; supported lights
+    authored invisible or with zero intensity intentionally suppress it. Native ONCE attributes keep illumination
+    independent of the number of cloned worlds and retain it across hard resets without modifying Newton.
     """
     ambient = np.zeros(3)
     distant_color = np.zeros(3)
@@ -107,9 +108,6 @@ def import_builder_lights(
             if prim.GetPath() in seen or not prim.HasAPI(UsdLux.LightAPI):
                 continue
             seen.add(prim.GetPath())
-            authored = True
-            if UsdGeom.Imageable(prim).ComputeVisibility() == UsdGeom.Tokens.invisible:
-                continue
             light = UsdLux.LightAPI(prim)
             if not any(prim.GetPath().HasPrefix(path) for path in global_roots):
                 logger.warning("Newton cameras do not support per-world light %s; it is ignored.", prim.GetPath())
@@ -126,6 +124,9 @@ def import_builder_lights(
             collections = (light.GetLightLinkCollectionAPI(), light.GetShadowLinkCollectionAPI())
             if any(links.GetIncludesRel().GetTargets() or links.GetExcludesRel().GetTargets() for links in collections):
                 logger.warning("Newton cameras do not support light linking at %s; it is ignored.", prim.GetPath())
+                continue
+            authored = True
+            if UsdGeom.Imageable(prim).ComputeVisibility() == UsdGeom.Tokens.invisible:
                 continue
             color = np.asarray(light.GetColorAttr().Get(), dtype=float)
             if light.GetEnableColorTemperatureAttr().Get():
