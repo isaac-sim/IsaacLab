@@ -55,7 +55,7 @@ if TYPE_CHECKING:
     )
 
     with contextlib.suppress(ImportError):
-        from isaaclab_experimental.envs import DirectRLEnvWarp, ManagerBasedRLEnvWarp
+        from isaaclab_experimental.deprecated.envs import DirectRLEnvWarp, ManagerBasedRLEnvWarp
 
 """
 Vectorized environment wrapper.

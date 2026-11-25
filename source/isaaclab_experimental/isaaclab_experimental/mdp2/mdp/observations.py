@@ -220,6 +220,31 @@ projected_gravity = Term(torch=projected_gravity_torch, warp=_projected_gravity,
 """Direction of gravity in the root frame."""
 
 
+# Sensors.
+
+
+@wp.func
+def _body_incoming_wrench(
+    world: int,
+    body: int,
+    axis: int,
+    force: wp.array2d(dtype=wp.vec3f),
+    torque: wp.array2d(dtype=wp.vec3f),
+    body_ids: wp.array(dtype=wp.int32),
+) -> float:
+    index = body_ids[body]
+    return force[world, index][axis] if axis < 3 else torque[world, index][axis - 3]
+
+
+body_incoming_wrench = Term(
+    torch=lambda force, torque, body_ids: torch.cat((force[:, body_ids], torque[:, body_ids]), dim=-1),
+    warp=_body_incoming_wrench,
+    shape=("worlds", "body_ids", 6),
+)
+"""Force [N] followed by torque [N·m] for each selected body, in the incoming joint frame, of shape
+``(worlds, bodies, 6)``."""
+
+
 # Actions.
 
 

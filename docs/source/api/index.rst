@@ -238,9 +238,10 @@ The following modules are available in the ``isaaclab_experimental`` extension:
    :toctree: lab_experimental
 
    envs
-   managers
    mdp2
-   utils
+   deprecated.envs
+   deprecated.managers
+   deprecated.utils
 
 
 isaaclab_tasks_experimental extension
@@ -265,7 +266,7 @@ The following public modules provide additional specialized APIs:
    lab/isaaclab.ui.widgets
    lab/isaaclab.ui.xr_widgets
    lab/isaaclab.utils.leapp
-   lab_experimental/isaaclab_experimental.envs.mdp.actions
+   lab_experimental/isaaclab_experimental.deprecated.envs.mdp.actions
    lab_experimental/isaaclab_experimental.mdp2.mdp
    lab_newton/isaaclab_newton.envs.mdp
    lab_newton/isaaclab_newton.sim.views
