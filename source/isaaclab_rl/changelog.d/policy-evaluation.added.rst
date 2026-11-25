@@ -1,0 +1,1 @@
+* Added ``play --rl_library rsl_rl --evaluate`` for bounded episode reward, duration and termination reporting on manager-based tasks, using the existing playback configuration and checkpoint lifecycle.

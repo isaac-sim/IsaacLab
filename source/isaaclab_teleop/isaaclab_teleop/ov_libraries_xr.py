@@ -37,6 +37,11 @@ __all__ = ["OvLibrariesXrCameraFeedCfg", "OvLibrariesXrCfg", "OvLibrariesXrDeskt
 
 logger = logging.getLogger(__name__)
 
+_STARTUP_STATUS_INTERVAL_S = 30.0
+
+_STARTUP_STATUS_POLL_S = 1.0
+"""Seconds between checks for the end of attachment, which bounds the delay of the ready line."""
+
 
 class OvLibrariesXrSession:
     """Isaac Lab adapter around Isaac Capture's OVXR session.
@@ -226,7 +231,8 @@ class OvLibrariesXrSession:
             max_blank_frames=max_blank_frames,
         )
         try:
-            return self._owner.start(timeout_s=timeout_s)
+            with _StartupStatusReporter(self._owner):
+                return self._owner.start(timeout_s=timeout_s)
         finally:
             self._desktop_mirror = host.desktop_mirror
 
@@ -444,6 +450,53 @@ def _render_worker_alive(owner: Any) -> bool:
     """Whether the render worker of Isaac Capture's session owner is still running."""
     worker_id = owner.render_worker_native_thread_id
     return worker_id is not None and any(thread.native_id == worker_id for thread in threading.enumerate())
+
+
+class _StartupStatusReporter:
+    """Log render-worker start-up progress from a side thread while the application thread waits for it.
+
+    The waiting thread is blocked inside Isaac Capture's start, so it cannot log. The reporter logs
+    nothing once the wait ends without the worker becoming ready, whether it failed or the application
+    shut down.
+    """
+
+    def __init__(self, owner: Any) -> None:
+        self._owner = owner
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._run, name="ovxr-startup-status", daemon=True)
+        self._started_s = 0.0
+        self._ready_logged = False
+
+    def __enter__(self) -> _StartupStatusReporter:
+        self._started_s = time.monotonic()
+        self._thread.start()
+        return self
+
+    def __exit__(self, *_exc_info: object) -> None:
+        self._stop.set()
+        self._thread.join()
+        # The wait can end between two polls.
+        self._log_ready_once()
+
+    def _log_ready_once(self) -> None:
+        if self._ready_logged or not self._owner.render_worker_bootstrap_ready:
+            return
+        self._ready_logged = True
+        logger.info(
+            "OVXR renderer ready after %.0f s. An XR client can connect once the CloudXR WSS proxy is listening.",
+            time.monotonic() - self._started_s,
+        )
+
+    def _run(self) -> None:
+        next_report_s = self._started_s + _STARTUP_STATUS_INTERVAL_S
+        while not self._stop.wait(_STARTUP_STATUS_POLL_S):
+            now_s = time.monotonic()
+            if self._owner.render_worker_bootstrap_ready:
+                self._log_ready_once()
+                return
+            if now_s >= next_report_s:
+                logger.info("Still preparing the OVXR renderer (%.0f s).", now_s - self._started_s)
+                next_report_s += _STARTUP_STATUS_INTERVAL_S
 
 
 class _CounterRate:

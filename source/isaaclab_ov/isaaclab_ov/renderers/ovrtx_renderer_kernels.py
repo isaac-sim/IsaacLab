@@ -177,3 +177,41 @@ def accumulate_mesh_normals(
 def normalize_mesh_normals(normals: wp.array(dtype=wp.vec3)):
     i = wp.tid()
     normals[i] = wp.normalize(normals[i])
+
+
+@wp.kernel(enable_backward=False)
+def copy_dense_lidar_points_kernel(
+    coordinates: wp.array2d(dtype=wp.float32),
+    intensity: wp.array(dtype=wp.float32),
+    flags: wp.array(dtype=wp.int32),
+    points: wp.array(dtype=wp.vec3f),
+    intensity_out: wp.array(dtype=wp.float32),
+    valid: wp.array(dtype=wp.bool),
+    spherical: bool,
+):
+    """Copy one dense lidar cloud. Bit 6 of ``flags`` marks a hit; misses become non-finite."""
+    i = wp.tid()
+    hit = (flags[i] & wp.int32(0x40)) != wp.int32(0)
+    if hit:
+        point = wp.vec3f(coordinates[i, 0], coordinates[i, 1], coordinates[i, 2])
+        if spherical:
+            azimuth = wp.radians(point[0])
+            elevation = wp.radians(point[1])
+            horizontal = point[2] * wp.cos(elevation)
+            point = wp.vec3f(horizontal * wp.cos(azimuth), horizontal * wp.sin(azimuth), point[2] * wp.sin(elevation))
+        points[i] = point
+        intensity_out[i] = intensity[i]
+    else:
+        points[i] = wp.vec3f(wp.inf, wp.inf, wp.inf)
+        intensity_out[i] = 0.0
+    valid[i] = hit
+
+
+@wp.kernel
+def create_lidar_transforms_kernel(
+    positions: wp.array(dtype=wp.vec3),
+    orientations: wp.array(dtype=wp.quatf),
+    transforms: wp.array(dtype=wp.mat44d),
+):
+    i = wp.tid()
+    transforms[i] = wp.mat44d(wp.transpose(wp.transform_to_matrix(wp.transformf(positions[i], orientations[i]))))
