@@ -31,6 +31,17 @@ To evaluate the latest compatible checkpoint in the interactive visualizer:
 
 The ``train`` and ``play`` commands work across the supported RL libraries.
 
+For a bounded evaluation of an RSL-RL policy on a manager-based task, add ``--evaluate``:
+
+.. code-block:: bash
+
+   uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole --checkpoint latest --evaluate
+
+This reports each environment's first completed episode: mean reward, mean duration and termination
+fractions. It exits after at most one task episode limit and skips policy export. Physics presets,
+agent overrides, checkpoint selection and environment cleanup follow normal playback.
+
+
 Try pretrained controllers directly below: perturb Cartpole or command G1,
 ANYmal-D, and MicroDuck with travel and yaw controls. These compact browser
 scenes illustrate policy control; use native playback for full task evaluation.

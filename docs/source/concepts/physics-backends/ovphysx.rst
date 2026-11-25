@@ -17,8 +17,12 @@ from the USD ``PhysicsScene`` prim. :class:`~isaaclab_ov.physics.OvPhysxCfg` hol
 GPU buffer settings that USD does not represent.
 It can also author selected contact settings onto that prim:
 ``bounce_threshold_velocity``, ``friction_correlation_distance`` and
-``solve_articulation_contact_last``. Contact settings left at ``None`` keep the
-stage value.
+``solve_articulation_contact_last``. Optional ``solver_type`` (0 for PGS, 1 for TGS),
+``min_position_iteration_count``, ``max_position_iteration_count``,
+``min_velocity_iteration_count``, ``max_velocity_iteration_count``,
+``friction_offset_threshold``, and ``gpu_max_num_partitions`` preserve task-specific
+solver tuning when migrating from Isaac Sim PhysX. Settings left at ``None`` keep
+the stage value. GPU partition settings apply only to GPU scenes.
 
 OvPhysX is selected through :class:`~isaaclab_ov.physics.OvPhysxCfg`:
 
@@ -125,6 +129,33 @@ Why use OvPhysX?
 * **No Kit runtime.** Run headless simulations without Isaac Sim.
 * **USD configuration.** Scene-authoring tools can set solver parameters directly
   on the ``PhysicsScene`` prim.
+
+Migrating existing commands
+---------------------------
+
+Supported contributed tasks and examples now default to OvPhysX and OVRTX.
+Install the ``ov`` extra for these defaults, and use ``--viz newton_rtx`` for
+Newton RTX visualization. Tasks with renderer presets keep an explicit Isaac RTX
+alternative for their retained Isaac Sim physics path:
+
+.. code-block:: bash
+
+   uv run python scripts/environments/random_agent.py --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor \
+      physics=ovphysx renderer=ovrtx --viz newton_rtx
+
+   uv run --extra isaacsim python scripts/environments/random_agent.py \
+      --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor \
+      physics=isaacsim_physx renderer=isaacsim_rtx --viz newton_gl
+
+Use only presets listed by the task's ``--help``. Migrated examples that already
+accepted ``--physics isaacsim_physx`` retain that explicit option and choose Newton
+OpenGL for its default viewer. The launcher warns when an Isaac Sim backend is
+selected: the Kit path is deprecated in 3.1 and scheduled for removal in 3.2.
+OVRTX and Newton RTX cannot share a process with Kit.
+
+The deprecated Franka absolute-IK alias follows the migrated OvPhysX default.
+Prefer its canonical command, ``--task Isaac-Reach-Franka physics=ovphysx presets=diffik_abs``;
+the canonical task also exposes ``physics=isaacsim_physx`` during the transition.
 
 What works today
 ----------------

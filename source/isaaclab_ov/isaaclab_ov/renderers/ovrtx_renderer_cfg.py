@@ -10,7 +10,7 @@ from __future__ import annotations
 import os
 import tempfile
 from dataclasses import MISSING
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, Literal
 
 import warp as wp
 
@@ -41,6 +41,8 @@ class OVRTXBackendCfg(BackendCfg):
     """Whether OVRTX reads its GPU transform cache, resolved before native construction."""
     device: str = MISSING
     """Normalized simulation device: ``cpu`` or ``cuda:<index>``."""
+    motion_bvh: Literal["disable", "enable", "auto"] | None = None
+    """Motion BVH mode passed to the native engine."""
 
 
 @configclass
@@ -74,6 +76,25 @@ class OVRTXRendererCfg(RendererCfg):
     stay current. ``camera.data.info[output_name]["capture"]`` carries the image's matching
     ``pos_w``, ``quat_w_world``, ``intrinsic_matrices``, and per-environment ``frame`` indices.
     The ovstage path does not support pipelining and renders synchronously.
+    """
+
+    max_envs_per_render_product: int | Literal["auto", "all"] = "auto"
+    """Maximum number of environments in one render product of a camera sensor. Defaults to ``"auto"``.
+
+    A render product renders the images of its environments into one tiled image. A very large camera sensor can
+    fail to render with one render product. Several render products, each with a smaller tiled image, can avoid this
+    failure. The output shapes and the environment order do not change.
+
+    - ``"auto"``: A camera sensor starts with one render product. If its first frame fails, the renderer searches
+      for a split. A warning then gives the integer of the split.
+    - ``"all"``: A camera sensor always has one render product.
+    - An integer ``M`` of at least 1: A camera sensor always has ``ceil(num_envs / M)`` render products. This skips
+      the search.
+
+    The value applies to every camera sensor of this renderer configuration, but each failed frame of the search
+    splits only one sensor. Set the same value on every OVRTX renderer configuration of a task. Without a shared
+    OVStage, another value gives another OVRTX renderer with its own copy of the scene. See
+    :ref:`renderers-ovrtx-render-product-split`.
     """
 
     temp_usd_dir: str | None = None
@@ -125,12 +146,34 @@ class OVRTXRendererCfg(RendererCfg):
     semantic-label mapping via ``camera.data.info["instance_segmentation"]["idToSemantics"]``.
     """
 
+    semantic_segmentation_mapping: dict[str, tuple[int, int, int, int]] = {}
+    """RGBA colors for semantic labels such as ``{"class:robot": (61, 178, 255, 255)}``.
+
+    Unspecified labels keep their generated colors. Applies to colorized semantic segmentation
+    pixels and their ``idToLabels`` metadata, matching the Isaac RTX palette contract.
+    """
+
     colorize_instance_id_segmentation: bool = True
     """Retained compatibility field; ignored by the OVRTX renderer. Defaults to True.
 
     OVRTX does not support ``instance_id_segmentation_fast``. Use
     :attr:`colorize_instance_segmentation` to control colorization of the supported instance segmentation output.
     """
+
+    motion_bvh: Literal["disable", "enable", "auto"] | None = None
+    """Motion BVH mode for non-visual sensor pipelines."""
+
+    def validate_config(self) -> None:
+        """Validate the render product split."""
+        max_envs = self.max_envs_per_render_product
+        if not (type(max_envs) is int and max_envs >= 1) and max_envs not in ("auto", "all"):
+            raise ValueError(
+                'OVRTXRendererCfg.max_envs_per_render_product must be "auto", "all" or an integer >= 1,'
+                f" got {max_envs!r}."
+            )
+        for label, color in self.semantic_segmentation_mapping.items():
+            if len(color) != 4 or any(type(channel) is not int or not 0 <= channel <= 255 for channel in color):
+                raise ValueError(f"Semantic color for {label!r} must have four integer channels in [0, 255].")
 
     def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
         """Return the per-output layouts supported by the OVRTX renderer."""

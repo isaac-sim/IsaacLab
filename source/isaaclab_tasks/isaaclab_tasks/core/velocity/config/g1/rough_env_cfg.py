@@ -25,7 +25,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.sensors import CameraCfg, RayCasterCfg, patterns
 from isaaclab.sim import PinholeCameraCfg, SimulationCfg, UsdFileCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.utils.modifiers import ModifierCfg
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
@@ -35,6 +35,7 @@ from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
 from ... import mdp, velocity_env_cfg
 from ...velocity_env_cfg import (
+    VELOCITY_SIM_CFG,
     CurriculumCfg,
     LocomotionVelocityRoughEnvCfg,
     MySceneCfg,
@@ -60,7 +61,7 @@ DEPTH_OFFSET_ROT = (0.9150, 0.0, -0.4035, 0.0)
 class G1RoughEnvCfg(G1FlatEnvCfg):
     """Configuration for the Unitree G1 velocity-tracking environment on rough terrain."""
 
-    sim: SimulationCfg = SimulationCfg(physics=RoughPhysicsCfg())
+    sim: SimulationCfg = replace(VELOCITY_SIM_CFG, physics=RoughPhysicsCfg())
     sim.physics.newton_mjwarp.solver_cfg.njmax = 300
     scene: MySceneCfg = MySceneCfg(num_envs=4096, env_spacing=2.5)
     scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/torso_link"
@@ -397,6 +398,7 @@ class G1SceneCfg(velocity_env_cfg.MySceneCfg):
 
     height_scanner = RayCasterCfg(
         prim_path="{ENV_REGEX_NS}/Robot/torso_link",
+        update_period=0.02,
         offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
         ray_alignment="yaw",
         pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=[1.6, 1.0]),
@@ -523,7 +525,7 @@ class G1RoughTeacherEnvCfg(LocomotionVelocityRoughEnvCfg):
     actions: velocity_env_cfg.ActionsCfg = velocity_env_cfg.ActionsCfg()
     # Resolve the default from the asset at prestartup, retaining explicit config overrides.
     actions.joint_pos.scale = None
-    sim = SimulationCfg(physics=velocity_env_cfg.RoughPhysicsCfg())
+    sim = replace(VELOCITY_SIM_CFG, physics=velocity_env_cfg.RoughPhysicsCfg())
     sim.physics.newton_mjwarp.solver_cfg.njmax = 300
     commands = velocity_env_cfg.CommandsCfg()
     commands.base_velocity.vel_yaw_success_threshold = 0.8

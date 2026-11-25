@@ -220,13 +220,14 @@ class NISTEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.physics_material.static_friction = 0.5
         self.sim.physics_material.dynamic_friction = 0.5
         self.sim.render_interval = self.decimation
-        # Keep enough constraint and contact capacity for the gear mesh variant.
+        # Keep enough constraint and contact capacity for all 20 variants (including gear meshes)
+        # while avoiding over-allocation and static/kinematic-vs-kinematic SDF contact overhead.
         self.sim.physics = NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
                 solver="newton",
                 integrator="implicitfast",
-                njmax=3000,
-                nconmax=600,
+                njmax=1024,
+                nconmax=256,
                 impratio=1.0,
                 cone="pyramidal",
                 update_data_interval=2,
@@ -235,6 +236,7 @@ class NISTEnvCfg(ManagerBasedRLEnvCfg):
             ),
             collision_cfg=NewtonCollisionPipelineCfg(
                 broad_phase="sap",
+                include_static_kinematic_pairs=False,
                 max_triangle_pairs=90_000_000,
                 rigid_contact_max=5_000_000,
                 speculative_contact_gap_max=0.01,

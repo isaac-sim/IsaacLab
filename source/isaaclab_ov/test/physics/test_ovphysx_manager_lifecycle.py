@@ -478,21 +478,33 @@ def test_retained_binding_preserves_uncaught_failure_exit_status():
     _assert_no_atexit_errors(output)
 
 
+@pytest.mark.kitless
 @pytest.mark.parametrize(
     ("device", "rate", "override", "expected", "gpu_dynamics", "broadphase"),
     [
         ("cpu", 60, None, True, False, "MBP"),
+        ("gpu", 120, None, True, True, "GPU"),
         ("gpu", 120, False, False, True, "GPU"),
         ("cpu", 240, True, True, False, "MBP"),
     ],
 )
 def test_scene_settings(monkeypatch, manager, device, rate, override, expected, gpu_dynamics, broadphase):
-    """Apply scene policy to the main scene and correct device settings on asset-authored scenes."""
+    """Apply scene policy and solver settings to the main scene and fix device settings on asset scenes."""
     from isaaclab_ov.physics.ovphysx_manager_cfg import OvPhysxCfg
 
     from pxr import Sdf, Usd, UsdPhysics
 
-    cfg = OvPhysxCfg() if override is None else OvPhysxCfg(enable_external_forces_every_iteration=override)
+    cfg = OvPhysxCfg(
+        solver_type=0 if device == "cpu" else 1,
+        min_position_iteration_count=2,
+        max_position_iteration_count=192,
+        min_velocity_iteration_count=1,
+        max_velocity_iteration_count=8,
+        friction_offset_threshold=0.01,
+        gpu_max_num_partitions=1,
+    )
+    if override is not None:
+        cfg.enable_external_forces_every_iteration = override
     assert cfg.enable_external_forces_every_iteration is expected
     sim_cfg = SimpleNamespace(dt=1.0 / rate, enable_scene_query_support=device == "gpu")
     monkeypatch.setattr(manager, "_sim", SimpleNamespace(cfg=sim_cfg))
@@ -504,6 +516,17 @@ def test_scene_settings(monkeypatch, manager, device, rate, override, expected, 
     assert prim.GetAttribute("physxScene:enableExternalForcesEveryIteration").Get() is expected
     assert prim.GetAttribute("physxScene:timeStepsPerSecond").Get() == rate
     assert prim.GetAttribute("physxScene:enableSceneQuerySupport").Get() is sim_cfg.enable_scene_query_support
+    if override is None:
+        assert prim.GetAttribute("physxScene:solverType").Get() == ("PGS" if device == "cpu" else "TGS")
+        assert prim.GetAttribute("physxScene:minPositionIterationCount").Get() == 2
+        assert prim.GetAttribute("physxScene:maxPositionIterationCount").Get() == 192
+        assert prim.GetAttribute("physxScene:minVelocityIterationCount").Get() == 1
+        assert prim.GetAttribute("physxScene:maxVelocityIterationCount").Get() == 8
+        assert prim.GetAttribute("physxScene:frictionOffsetThreshold").Get() == pytest.approx(0.01)
+        if device == "gpu":
+            assert prim.GetAttribute("physxScene:gpuMaxNumPartitions").Get() == 1
+        else:
+            assert not prim.GetAttribute("physxScene:gpuMaxNumPartitions").HasAuthoredValue()
     for path in ("/World/PhysicsScene", "/World/Asset/PhysicsScene"):
         prim = stage.GetPrimAtPath(path)
         assert "PhysxSceneAPI" in prim.GetMetadata("apiSchemas").GetAddedOrExplicitItems()
@@ -511,6 +534,7 @@ def test_scene_settings(monkeypatch, manager, device, rate, override, expected, 
         assert prim.GetAttribute("physxScene:broadphaseType").Get() == broadphase
 
 
+@pytest.mark.kitless
 def test_scene_contact_settings_are_authored_only_when_selected(monkeypatch, manager):
     """Optional contact tuning reaches the scene prim; unset fields keep the stage value."""
     from isaaclab_ov.physics.ovphysx_manager_cfg import OvPhysxCfg
@@ -524,7 +548,18 @@ def test_scene_contact_settings_are_authored_only_when_selected(monkeypatch, man
     default_prim = stage.DefinePrim("/World/DefaultScene", "PhysicsScene")
     # Contact settings are authored the same way on every device, so one device covers them.
     manager._configure_physx_scene_prim(default_prim, OvPhysxCfg(), "cpu")
-    for attr in ("bounceThreshold", "frictionCorrelationDistance", "solveArticulationContactLast"):
+    for attr in (
+        "bounceThreshold",
+        "frictionCorrelationDistance",
+        "solveArticulationContactLast",
+        "solverType",
+        "minPositionIterationCount",
+        "maxPositionIterationCount",
+        "minVelocityIterationCount",
+        "maxVelocityIterationCount",
+        "frictionOffsetThreshold",
+        "gpuMaxNumPartitions",
+    ):
         assert not default_prim.GetAttribute(f"physxScene:{attr}").HasAuthoredValue()
     prim = stage.DefinePrim("/World/PhysicsScene", "PhysicsScene")
     cfg = OvPhysxCfg(
