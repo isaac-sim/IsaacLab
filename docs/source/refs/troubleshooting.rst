@@ -159,10 +159,6 @@ the same argument and inspect the schema registry after launch:
 
        assert Usd.SchemaRegistry().FindConcretePrimDefinition("OmniGraph") is not None
 
-If the definition is missing, restart the process with the boot-time
-argument rather than enabling the schema extension after Kit has started.
-
-
 PhysX backends
 --------------
 
