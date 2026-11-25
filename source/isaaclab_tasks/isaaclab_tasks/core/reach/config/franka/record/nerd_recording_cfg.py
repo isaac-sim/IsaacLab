@@ -11,7 +11,7 @@ from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import EventTermCfg, TerminationTermCfg
 from isaaclab.utils import configclass, replace
 
-from isaaclab_tasks.utils import preset
+from isaaclab_tasks.utils import preset, resolve_presets
 
 from ..franka_reach_env_cfg import FrankaReachEnvCfg
 
@@ -36,7 +36,15 @@ class FrankaNeRDExplorationCfg(NeRDExplorationActionCfg):
     drift_timescale: float = 100.0
 
 
-_TASK = FrankaReachEnvCfg()
+_DECLARED = FrankaReachEnvCfg()
+"""Task declaration, whose numerical physics alternatives a recording offers."""
+
+_TASK = resolve_presets(FrankaReachEnvCfg(), selected=("newton_mjwarp",))
+"""Task on its reference solver. Its controller, holding and neural presets are not choices of a recording."""
+
+_SCENE = replace(_TASK.scene, table=None)
+# The physics variant of the robot asset follows the solver that is recorded.
+_SCENE.robot.spawn.variants["Physics"] = _DECLARED.scene.robot.spawn.variants["Physics"]
 
 
 @configclass
@@ -51,13 +59,13 @@ class FrankaNeRDRecordingEnvCfg(ManagerBasedRLEnvCfg):
     """Reference scene, exploration terms and standard recorder terms."""
 
     recorders = NeRDRecorderCfg()
-    scene = replace(_TASK.scene, table=None)
+    scene = _SCENE
     sim = replace(
         _TASK.sim,
         physics=preset(
-            default=_TASK.sim.physics.newton_mjwarp,
-            newton_mjwarp=_TASK.sim.physics.newton_mjwarp,
-            newton_steel=_TASK.sim.physics.newton_steel,
+            default=_DECLARED.sim.physics.newton_mjwarp,
+            newton_mjwarp=_DECLARED.sim.physics.newton_mjwarp,
+            newton_steel=_DECLARED.sim.physics.newton_steel,
         ),
     )
     decimation = _TASK.decimation

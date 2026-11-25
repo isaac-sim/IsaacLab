@@ -13,6 +13,8 @@ import pytest
 from isaaclab_neural import NeRDCfg, NeRDTrainingCfg
 from isaaclab_neural.record.recording_cfg import NeRDRecorderCfg
 
+from isaaclab.utils import to_dict
+
 from isaaclab_tasks.utils import load_cfg_from_registry, resolve_task_config
 from isaaclab_tasks.utils.hydra import PresetTarget, enumerate_task_presets
 
@@ -61,6 +63,25 @@ def test_neural_solvers_use_shared_physics_declarations():
     assert env.sim.physics.solver_cfg.checkpoint == "logs/neural/reach_franka/flashnerd.pt"
     assert env.sim.dt == pytest.approx(1 / 30)
     assert env.decimation == env.sim.physics.num_substeps == env.sim.render_interval == 1
+
+
+@pytest.mark.parametrize(
+    ("task", "selections"),
+    [(TASKS[0], ("presets=newton_nerd", "presets=diffik", "presets=hold")), (TASKS[1], ("presets=newton_nerd",))],
+)
+def test_recording_is_taken_on_the_reference_solver(task, selections):
+    """A domain or neural preset of the task changes nothing about what is recorded; a numerical solver does."""
+    entry = "nerd_recording_cfg_entry_point"
+    reference, _ = resolve_task_config(task, None, env_cfg_entry_point=entry, overrides=[])
+    for selection in selections:
+        selected, _ = resolve_task_config(task, None, env_cfg_entry_point=entry, overrides=[selection])
+        assert to_dict(selected) == to_dict(reference), selection
+    numerical, _ = resolve_task_config(task, None, overrides=["physics=newton_mjwarp"])
+    assert reference.sim.dt == numerical.sim.dt
+    assert reference.decimation == numerical.decimation
+    assert to_dict(reference.scene.robot.actuators) == to_dict(numerical.scene.robot.actuators)
+    steel, _ = resolve_task_config(task, None, env_cfg_entry_point=entry, overrides=["physics=newton_steel"])
+    assert type(steel.sim.physics.solver_cfg) is not type(reference.sim.physics.solver_cfg)
 
 
 def test_anymal_action_bounds_have_one_declaration():

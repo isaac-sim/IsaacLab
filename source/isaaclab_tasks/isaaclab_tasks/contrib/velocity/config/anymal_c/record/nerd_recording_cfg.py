@@ -11,7 +11,7 @@ from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import EventTermCfg, TerminationTermCfg
 from isaaclab.utils import configclass, replace
 
-from isaaclab_tasks.utils import preset
+from isaaclab_tasks.utils import preset, resolve_presets
 
 from ..flat_env_cfg import ANYMAL_C_NERD_TARGET_REACH, AnymalCFlatEnvCfg
 
@@ -35,7 +35,11 @@ class AnymalCNeRDExplorationCfg(NeRDExplorationActionCfg):
     joint_speed: float = 2.0
 
 
-_TASK = AnymalCFlatEnvCfg()
+_DECLARED = AnymalCFlatEnvCfg()
+"""Task declaration, whose numerical physics alternatives a recording offers."""
+
+_TASK = resolve_presets(AnymalCFlatEnvCfg(), selected=("newton_mjwarp",))
+"""Task on its reference solver. The timing, actuators and events of its neural preset are no recording choices."""
 
 
 @configclass
@@ -59,9 +63,9 @@ class AnymalCNeRDRecordingEnvCfg(ManagerBasedRLEnvCfg):
     sim = replace(
         _TASK.sim,
         physics=preset(
-            default=_TASK.sim.physics.newton_mjwarp,
-            newton_mjwarp=_TASK.sim.physics.newton_mjwarp,
-            newton_steel=_TASK.sim.physics.newton_steel,
+            default=_DECLARED.sim.physics.newton_mjwarp,
+            newton_mjwarp=_DECLARED.sim.physics.newton_mjwarp,
+            newton_steel=_DECLARED.sim.physics.newton_steel,
         ),
     )
     decimation = _TASK.decimation
