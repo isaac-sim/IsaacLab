@@ -51,9 +51,10 @@ def test_mdp2_environment_resets_and_steps(task_name):
         env.close()
 
 
-def test_reach_curriculum_sets_reward_weights_at_first_reset_after_threshold():
-    """The Reach curriculum keeps both reward weights until the first reset after its step threshold, then sets them
-    in every world, from a captured step."""
+@pytest.mark.parametrize("disabled", [None, "action_rate"])
+def test_reach_curriculum_sets_reward_weights_at_first_reset_after_threshold(disabled):
+    """The Reach curriculum keeps its reward weights until the first reset after its step threshold, then sets them
+    in every world, from a captured step. It leaves out a reward that the task disables."""
     task_name = "Isaac-Reach-Franka-MDP2"
     env_cfg, _ = resolve_task_config(task_name, None, overrides=["physics=newton_mjwarp"])
     env_cfg.sim.device = "cuda:0"
@@ -62,15 +63,19 @@ def test_reach_curriculum_sets_reward_weights_at_first_reset_after_threshold():
     # Episodes of four steps: the first resets come before the threshold, the next ones after it.
     step_dt = env_cfg.sim.dt * env_cfg.decimation
     time_limit = mdp2.TimeLimit(episode_length_s=4 * step_dt)
-    env_cfg.task = replace(env_cfg.task, terminations={**env_cfg.task.terminations, "time_out": time_limit})
+    rewards = {**env_cfg.task.rewards, **({disabled: None} if disabled else {})}
+    terminations = {**env_cfg.task.terminations, "time_out": time_limit}
+    env_cfg.task = replace(env_cfg.task, rewards=rewards, terminations=terminations)
     env = gym.make(task_name, cfg=env_cfg)
     try:
         unwrapped = env.unwrapped
         indices = {op.use: op.index for op in unwrapped.mdp.ops[mdp2.Phase.REWARDS]}
-        columns = [indices["rewards.action_rate"], indices["rewards.joint_vel"]]
+        names = [name for name in ("action_rate", "joint_vel") if name != disabled]
+        assert f"rewards.{disabled}" not in indices
+        columns = [indices[f"rewards.{name}"] for name in names]
         weights = unwrapped.state.reward_weights.torch
         initial = weights[:, columns].clone()
-        final = torch.tensor([env_cfg.curriculum_action_rate, env_cfg.curriculum_joint_vel], device=unwrapped.device)
+        final = torch.tensor([getattr(env_cfg, f"curriculum_{name}") for name in names], device=unwrapped.device)
 
         env.reset(seed=0)
         actions = torch.zeros(env.action_space.shape, device=unwrapped.device)

@@ -40,13 +40,16 @@ def _set_reach_reward_weights(
             break
     if resetting:
         for world in range(reset_mask.shape[0]):
-            reward_weights[world, action_rate] = action_rate_weight
-            reward_weights[world, joint_vel] = joint_vel_weight
+            if action_rate >= 0:
+                reward_weights[world, action_rate] = action_rate_weight
+            if joint_vel >= 0:
+                reward_weights[world, joint_vel] = joint_vel_weight
         applied[0] = True
 
 
 class ReachMDP2RLEnv(MDP2RLEnv):
-    """Apply the shared reward curriculum at the first reset after its step threshold."""
+    """Apply the shared reward curriculum at the first reset after its step threshold, to the rewards that the task
+    has: a reward that the task disables is left out."""
 
     cfg: ReachMDP2EnvCfg
 
@@ -55,8 +58,8 @@ class ReachMDP2RLEnv(MDP2RLEnv):
         self._curriculum_step = ProxyArray(wp.zeros(1, dtype=wp.int32, device=self.device))
         self._curriculum_applied = wp.zeros(1, dtype=wp.bool, device=self.device)
         reward_indices = {op.use: op.index for op in self.mdp.ops[mdp2.Phase.REWARDS]}
-        self._action_rate_index = reward_indices["rewards.action_rate"]
-        self._joint_vel_index = reward_indices["rewards.joint_vel"]
+        self._action_rate_index = reward_indices.get("rewards.action_rate", -1)
+        self._joint_vel_index = reward_indices.get("rewards.joint_vel", -1)
 
     def _after_evaluate(self) -> None:
         super()._after_evaluate()
