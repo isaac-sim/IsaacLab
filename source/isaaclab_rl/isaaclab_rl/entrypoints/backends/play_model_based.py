@@ -29,7 +29,6 @@ from ..common import (
     create_isaaclab_env,
     enable_cameras_for_video,
     pre_launch_video_config,
-    resolve_published_checkpoint,
     video_playback_steps,
 )
 from .runner_rsl_rl import wrap_rsl_rl_env
@@ -56,14 +55,8 @@ def run(argv: list[str]) -> None:
     ):
         parser.error("Playback restores the saved configuration; use explicit relocation/device/seed options.")
     if args.checkpoint == "pretrained":
-        if args.task is None:
-            parser.error("--task is required with --checkpoint pretrained.")
-        cfg, _ = resolve_task_config("Isaac-Motion-Tracking-G1", "rsl_rl_cfg_entry_point", overrides=[])
-        checkpoint_path = resolve_published_checkpoint("model_based", args.task, cfg)
-        if checkpoint_path is None:
-            return
-    else:
-        checkpoint_path = retrieve_file_path(args.checkpoint)
+        parser.error("Pass a checkpoint file path or URL.")
+    checkpoint_path = retrieve_file_path(args.checkpoint)
     checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
     if checkpoint["reference_revision"] != REFERENCE_REVISION:
         parser.error("The checkpoint uses a different reference algorithm revision.")

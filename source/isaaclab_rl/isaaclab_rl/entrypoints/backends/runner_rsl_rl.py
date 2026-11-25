@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.utils import to_dict
 
 from ...rsl_rl import RslRlSuperMimicRunnerCfg
@@ -27,6 +28,8 @@ def configure_rsl_rl_env_cfg(env_cfg: Any, agent_cfg: RslRlBaseRunnerCfg, *, inf
         env_cfg: Environment configuration to update in place.
         agent_cfg: Runner configuration that may require pre-reset observations.
     """
+    if agent_cfg.final_obs_every_step and not isinstance(env_cfg, ManagerBasedRLEnvCfg):
+        raise ValueError("Every-step pre-reset observations currently require a ManagerBasedRLEnv.")
     if agent_cfg.compute_final_obs:
         env_cfg.compute_final_obs = True
     if agent_cfg.final_obs_every_step:

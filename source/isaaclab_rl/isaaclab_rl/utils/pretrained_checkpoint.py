@@ -26,7 +26,7 @@ from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry  # noqa: F401
 PRETRAINED_CHECKPOINT_PATH = ISAACLAB_NUCLEUS_DIR + "/PretrainedCheckpoints"
 """URL for where we store all the pre-trained checkpoints"""
 
-WORKFLOWS = ["rl_games", "rsl_rl", "sb3", "skrl", "model_based"]
+WORKFLOWS = ["rl_games", "rsl_rl", "sb3", "skrl"]
 """The supported workflows for pre-trained checkpoints"""
 
 WORKFLOW_TRAINER = {w: "scripts/reinforcement_learning/train.py" for w in WORKFLOWS}
@@ -46,7 +46,6 @@ WORKFLOW_PRETRAINED_CHECKPOINT_FILENAMES = {
     "rsl_rl": "checkpoint.pt",
     "sb3": "checkpoint.zip",
     "skrl": "checkpoint.pt",
-    "model_based": "checkpoint.pt",
 }
 """Legacy filename for checkpoints used by the different workflows."""
 
@@ -55,7 +54,6 @@ WORKFLOW_PRETRAINED_CHECKPOINT_EXTENSIONS = {
     "rsl_rl": ".pt",
     "sb3": ".zip",
     "skrl": ".pt",
-    "model_based": ".pt",
 }
 """The checkpoint filename extension used by each workflow."""
 
@@ -64,7 +62,6 @@ WORKFLOW_EXPERIMENT_NAME_VARIABLE = {
     "rsl_rl": "agent.experiment_name",
     "sb3": None,
     "skrl": "agent.agent.experiment.directory",
-    "model_based": None,
 }
 """Maps workflow to the agent variable name that determines the logging directory logs/{workflow}/{variable}"""
 
@@ -248,7 +245,7 @@ def get_pretrained_checkpoint_path(
         if os.path.isfile(preferred_path):
             return preferred_path
         return _get_latest_file_or_directory(os.path.join(path, "nn"), "*.pth")
-    elif workflow in {"rsl_rl", "model_based"}:
+    elif workflow == "rsl_rl":
         return _get_latest_file_or_directory(path, "*.pt")
     elif workflow == "sb3":
         return os.path.join(path, "model.zip")
@@ -273,10 +270,9 @@ def get_pretrained_checkpoint_publish_path(
     filename = get_pretrained_checkpoint_filename(
         workflow, task_name, physics_backend, render_backend, preset_names=preset_names
     )
-    directory = "rsl_rl" if workflow == "model_based" else workflow
     if physics_backend is None:
-        return posixpath.join(PRETRAINED_CHECKPOINT_PATH, directory, task_name, filename)
-    return posixpath.join(PRETRAINED_CHECKPOINT_PATH, directory, filename)
+        return posixpath.join(PRETRAINED_CHECKPOINT_PATH, workflow, task_name, filename)
+    return posixpath.join(PRETRAINED_CHECKPOINT_PATH, workflow, filename)
 
 
 def get_published_pretrained_checkpoint_path(
@@ -291,7 +287,7 @@ def get_published_pretrained_checkpoint_path(
     filename = get_pretrained_checkpoint_filename(
         workflow, task_name, physics_backend, render_backend, preset_names=preset_names
     )
-    path_parts = [ISAACLAB_NUCLEUS_DIR, "PretrainedCheckpoints", "rsl_rl" if workflow == "model_based" else workflow]
+    path_parts = [ISAACLAB_NUCLEUS_DIR, "PretrainedCheckpoints", workflow]
     if physics_backend is None:
         path_parts.append(task_name)
     return posixpath.join(*path_parts, filename)
