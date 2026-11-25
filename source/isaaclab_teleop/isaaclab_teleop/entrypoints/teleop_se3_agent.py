@@ -96,8 +96,11 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--ovxr_step_hz",
         type=float,
-        default=0.0,
-        help="Maximum host-control rate with --ovxr; 0 leaves active control unthrottled. XR rendering is independent.",
+        default=None,
+        help=(
+            "Maximum host-control rate with --ovxr. Defaults to the environment step rate, 1 / (sim.dt * decimation);"
+            " 0 leaves active control unthrottled. XR rendering is independent."
+        ),
     )
     parser.add_argument(
         "--cloudxr_env",
@@ -176,10 +179,11 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     args_cli.enable_cameras = not args_cli.disable_external_cameras
     if args_cli.xr and args_cli.using_ovxr:
         parser.error("--xr and --ovxr are mutually exclusive OpenXR frame-loop owners")
-    if not math.isfinite(args_cli.ovxr_step_hz) or args_cli.ovxr_step_hz < 0.0:
-        parser.error("--ovxr_step_hz must be finite and non-negative; 0 disables active-control pacing")
-    if args_cli.ovxr_step_hz > 0.0 and not args_cli.using_ovxr:
-        parser.error("--ovxr_step_hz requires --ovxr")
+    if args_cli.ovxr_step_hz is not None:
+        if not math.isfinite(args_cli.ovxr_step_hz) or args_cli.ovxr_step_hz < 0.0:
+            parser.error("--ovxr_step_hz must be finite and non-negative; 0 disables active-control pacing")
+        if args_cli.ovxr_step_hz > 0.0 and not args_cli.using_ovxr:
+            parser.error("--ovxr_step_hz requires --ovxr")
     if not args_cli.using_ovxr and args_cli.ovrtx_active_cuda_gpus is not None:
         parser.error("--ovrtx_active_cuda_gpus requires --ovxr")
     validate_ovxr_presentation_args(parser, args_cli, using_ovxr=args_cli.using_ovxr)

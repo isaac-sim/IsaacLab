@@ -25,10 +25,15 @@ from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
-from isaaclab_tasks.core.velocity.velocity_env_cfg import EventsCfg, LocomotionVelocityRoughEnvCfg, MySceneCfg
+from isaaclab_tasks.core.velocity.velocity_env_cfg import (
+    VELOCITY_SIM_CFG,
+    EventsCfg,
+    LocomotionVelocityRoughEnvCfg,
+    MySceneCfg,
+)
 from isaaclab_tasks.utils import PresetCfg
 
 from isaaclab_assets.robots.asimov_1 import (
@@ -485,7 +490,7 @@ class TerminationsCfg:
 class Asimov1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
     """Configuration for Asimov-1 rough-terrain velocity tracking."""
 
-    sim: SimulationCfg = SimulationCfg(physics=Asimov1PhysicsCfg())
+    sim: SimulationCfg = replace(VELOCITY_SIM_CFG, physics=Asimov1PhysicsCfg())
     scene: Asimov1SceneCfg = Asimov1SceneCfg(num_envs=4096, env_spacing=2.5)
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()

@@ -34,8 +34,8 @@ install time. Most packages cannot be deselected at all.
    * - Missing module
      - What it means
    * - ``isaaclab``, ``isaaclab_assets``, ``isaaclab_tasks``, ``isaaclab_isaacsim``,
-       ``isaaclab_ov``, ``isaaclab_newton``, ``isaaclab_rl``, ``isaaclab_visualizers``,
-       ``isaaclab_contrib``, ``isaaclab_experimental``, ``isaaclab_ppisp``,
+       ``isaaclab_ov``, ``isaaclab_newton``, ``isaaclab_neural``, ``isaaclab_rl``,
+       ``isaaclab_visualizers``, ``isaaclab_contrib``, ``isaaclab_experimental``, ``isaaclab_ppisp``,
        ``isaaclab_tasks_experimental``
      - Core packages installed by ``uv sync``. Check that your command uses the
        checkout's uv environment.
@@ -48,6 +48,11 @@ install time. Most packages cannot be deselected at all.
    * - ``rsl_rl``, ``rl_games``, ``skrl``, ``stable_baselines3``
      - ``rsl_rl`` is installed by default. Select ``rl-games``, ``skrl``, or ``sb3``
        for the other frameworks, for example ``uv run --extra skrl isaaclab train ...``.
+   * - ``newton_neural``
+     - Optional library of neural robot dynamics models, which the ``newton_nerd`` and
+       ``newton_mjwarp_nerd`` physics presets and the scripts under ``scripts/neural`` run.
+       Select the ``newton-neural`` extra, for example
+       ``uv run --extra newton-neural isaaclab train ...``. See :ref:`newton-neural-robot-dynamics`.
    * - ``isaacsim``
      - Isaac Sim itself, which is never installed implicitly. See
        :ref:`troubleshooting-isaacsim-missing`.

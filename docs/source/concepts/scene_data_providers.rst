@@ -133,11 +133,14 @@ writable Fabric arrays. Renderers use this same path regardless of physics backe
 
 ``update_geometries(provider, frame)`` handles geometry. PhysX publishes native
 ``FabricPoints`` directly; other backends interpolate mesh points into GPU Fabric
-storage. Kit Hydra requires CPU destinations for ``Points`` and ``BasisCurves``,
-so SDP transfers them when their update interval elapses, without writing USD.
-World-space points reset their transform stack to avoid applying the body or
-environment pose twice. ``FabricMatrix44`` and ``FabricPoints`` hold arrays only,
-not bindings or engine handles.
+storage. SDP updates ``Points`` and ``BasisCurves`` when their update interval
+elapses, without writing USD. World-space points reset their transform stack to avoid
+applying the body or environment pose twice. ``FabricMatrix44`` and ``FabricPoints``
+hold arrays only, not bindings or engine handles.
+
+All geometry stays on the simulation device. This includes meshes, particle clouds such as
+MPM particles (``Points``), and cables (``BasisCurves``). On a GPU, Kit RTX reads the positions
+directly from GPU Fabric, so the CPU does not wait for the GPU.
 
 Newton backend
 --------------
