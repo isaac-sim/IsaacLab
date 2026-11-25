@@ -1,7 +1,7 @@
 .. _experimental-demos:
 
-Experimental Demos
-==================
+Demos
+=====
 
 The `Isaac Lab demos repository <https://github.com/isaac-sim/isaaclab_demos>`_ collects runnable demos built on Isaac
 Lab, outside its core packages. Each demo pins the Isaac Lab commit it was tested with, and the repository's launcher
