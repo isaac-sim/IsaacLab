@@ -362,6 +362,16 @@ How-to Guides
 
             :guide-tag:`PhysX` :guide-tag-newton:`Newton`
 
+      .. container:: guide-entry
+
+         :doc:`Training on neural robot dynamics </source/how-to/neural_robot_dynamics>`
+
+         Record robot trajectories from a task, train a neural dynamics model, and train RL policies on it.
+
+         .. container:: guide-metadata
+
+            :guide-tag-newton:`Newton`
+
    .. container:: guide-group
 
       .. rubric:: Sensors, Cameras, and Rendering

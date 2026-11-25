@@ -26,6 +26,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
+from isaaclab.utils import math as math_utils
 from isaaclab.utils.warp import ProxyArray
 
 import isaaclab_tasks.core.velocity.mdp as velocity_mdp1
@@ -168,38 +169,128 @@ def test_contact_terms_match_mdp1(robot_with_feet: Path):
             "value",
             mdp2.Observation(mdp.feet_air_time, inputs=air_time, params={"threshold": 0.1, "step_dt": mdp2.step_dt}),
         )
+        builder.add_observation(
+            "feet_air_time_positive_biped",
+            "value",
+            mdp2.Observation(
+                mdp.feet_air_time_positive_biped,
+                inputs={
+                    "current_air_time": contact_forces.current_air_time,
+                    "current_contact_time": contact_forces.current_contact_time,
+                    "command": mdp2.commands.forward,
+                    "body_ids": feet,
+                },
+                params={"threshold": 0.1, "overstay_scale": 0.5},
+            ),
+        )
+        builder.add_observation(
+            "feet_air_time_variance",
+            "value",
+            mdp2.Observation(
+                mdp.feet_air_time_variance,
+                inputs={
+                    "last_air_time": contact_forces.last_air_time,
+                    "last_contact_time": contact_forces.last_contact_time,
+                    "command": mdp2.commands.forward,
+                    "body_ids": feet,
+                },
+                params={"max_time": 0.5},
+            ),
+        )
+        builder.add_observation(
+            "feet_slide",
+            "value",
+            mdp2.Observation(
+                mdp.feet_slide,
+                inputs={
+                    "body_com_vel_w": robot.body_com_vel_w,
+                    "net_normal_forces_w_history": contact_forces.net_normal_forces_w_history,
+                    "body_ids": robot.bodies(".*_SHANK"),
+                    "sensor_ids": feet,
+                },
+            ),
+        )
         builder.add_termination(
             "illegal_contact", mdp2.Termination(mdp.illegal_contact, inputs=feet_contacts, params={"threshold": 50.0})
         )
+
+        # World configs that define a feet_slide use differently share its foot matching: with the same feet, each
+        # world reads its own contacts, and different feet fail the build rather than read another foot's sensor.
+        def replicated_feet_slide(*shanks: str) -> mdp2.MDPBuilder:
+            replicated = mdp2.MDPBuilder(env.scene_data.schema)
+            for shank, scale in zip(shanks, (1.0, 2.0)):
+                config = mdp2.MDPBuilder(env.scene_data.schema)
+                inputs = {
+                    "body_com_vel_w": robot.body_com_vel_w,
+                    "net_normal_forces_w_history": contact_forces.net_normal_forces_w_history,
+                    "body_ids": robot.bodies(shank),
+                    "sensor_ids": contact_forces.bodies(shank),
+                }
+                config.add_observation(
+                    "feet_slide", "value", mdp2.Observation(mdp.feet_slide, inputs=inputs, scale=scale)
+                )
+                replicated.replicate(config, NUM_ENVS // 2)
+            return replicated
+
+        mixed = replicated_feet_slide("LF_SHANK", "RH_SHANK").finalize(device=env.device)
+        with pytest.raises(ValueError, match="same feet"):
+            mdp2.startup(mixed, mixed.state(env.scene_data))
+
         # Both backends read the same scene.
-        models = {}
+        models, same_feet = {}, {}
         for backend in ("torch", "warp"):
-            model = builder.finalize(device=env.device, backend=backend, diagnostics=True)
-            state, transition = model.state(env.scene_data), model.transition()
-            mdp2.reset(model, state, ProxyArray(wp.ones(NUM_ENVS, dtype=wp.bool, device=env.device)))
-            models[backend] = model, state, transition
+            for built, source in ((models, builder), (same_feet, replicated_feet_slide(".*_SHANK", ".*_SHANK"))):
+                model = source.finalize(device=env.device, backend=backend, diagnostics=True)
+                state, transition = model.state(env.scene_data), model.transition()
+                mdp2.startup(model, state)  # Runs the init hooks, such as the foot matching of feet_slide.
+                mdp2.reset(model, state, ProxyArray(wp.ones(NUM_ENVS, dtype=wp.bool, device=env.device)))
+                built[backend] = model, state, transition
+        world_scales = torch.tensor([1.0, 2.0], device=env.device).repeat_interleave(NUM_ENVS // 2)
 
         mdp1_env = MDP1Env(env, torch.ones(NUM_ENVS, 3, device=env.device))
         sensor_cfg = SceneEntityCfg("contact_forces", body_names=".*_SHANK")
         sensor_cfg.resolve(env.scene)
+        feet_cfg = SceneEntityCfg("robot", body_names=".*_SHANK")
+        feet_cfg.resolve(env.scene)
 
         env.reset()
-        rewarded = False
+        # Tilted robots land on one foot first, so that their feet step unevenly and every reward is nonzero.
+        articulation = env.scene["robot"]
+        tilt = torch.linspace(-0.3, 0.3, NUM_ENVS, device=env.device)
+        root_pose = articulation.data.root_link_pose_w.torch.clone()
+        root_pose[:, 3:] = math_utils.quat_from_euler_xyz(tilt, tilt.flip(0), torch.zeros_like(tilt))
+        articulation.write_root_pose_to_sim_index(root_pose=root_pose)
+
+        rewards = ("feet_air_time", "feet_air_time_positive_biped", "feet_air_time_variance", "feet_slide")
+        nonzero = dict.fromkeys(rewards, False)
         for _ in range(40):
             env.step(torch.zeros(NUM_ENVS, env.mdp.action_dim, device=env.device))
             undesired_contacts = mdp1.undesired_contacts(mdp1_env, 1.0, sensor_cfg).float()
-            feet_air_time = velocity_mdp1.feet_air_time(mdp1_env, "forward", sensor_cfg, 0.1)
             illegal_contact = mdp1.illegal_contact(mdp1_env, 50.0, sensor_cfg)
-            rewarded |= bool(feet_air_time.abs().sum() > 0.0)
+            expected = {
+                "feet_air_time": velocity_mdp1.feet_air_time(mdp1_env, "forward", sensor_cfg, 0.1),
+                "feet_air_time_positive_biped": velocity_mdp1.feet_air_time_positive_biped(
+                    mdp1_env, "forward", 0.1, sensor_cfg, overstay_scale=0.5
+                ),
+                "feet_air_time_variance": velocity_mdp1.feet_air_time_variance(mdp1_env, "forward", sensor_cfg, 0.5),
+                "feet_slide": velocity_mdp1.feet_slide(mdp1_env, sensor_cfg, feet_cfg),
+            }
+            for name, value in expected.items():
+                nonzero[name] = nonzero[name] or bool(value.abs().sum() > 0.0)
 
             for model, state, transition in models.values():
                 mdp2.evaluate(model, state, transition)
                 observations = transition.observations
                 torch.testing.assert_close(observations["undesired_contacts"].torch[:, 0], undesired_contacts)
-                torch.testing.assert_close(observations["feet_air_time"].torch[:, 0], feet_air_time)
+                for name, value in expected.items():
+                    torch.testing.assert_close(observations[name].torch[:, 0], value, msg=name)
                 assert torch.equal(transition.termination_terms.torch[:, 0], illegal_contact)
+            for model, state, transition in same_feet.values():
+                mdp2.evaluate(model, state, transition)
+                feet_slide = transition.observations["feet_slide"].torch[:, 0]
+                torch.testing.assert_close(feet_slide, world_scales * expected["feet_slide"])
 
-        assert rewarded  # The feet landed during the rollout.
+        assert all(nonzero.values()), nonzero  # The feet landed and slid during the rollout.
 
         # A reset clears the contacts that ended the last episode.
         env.reset()

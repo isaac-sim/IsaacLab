@@ -8,9 +8,11 @@ __all__ = [
     "FoveatedCameraCfg",
     "FoveatedNewtonCamera",
     "FoveatedRTXCamera",
+    "ViewerGazeControls",
 ]
 
 from .foveated_camera import FoveatedCamera
 from .foveated_camera_cfg import FoveatedCameraCfg
 from .foveated_newton_camera import FoveatedNewtonCamera
 from .foveated_rtx_camera import FoveatedRTXCamera
+from .gaze_controls import ViewerGazeControls

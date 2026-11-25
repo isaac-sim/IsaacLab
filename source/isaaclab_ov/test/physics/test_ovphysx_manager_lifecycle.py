@@ -843,7 +843,7 @@ def test_warmup_collects_clone_receipt_before_model_init(
     else:
         physx = FakePhysX()
 
-    backend = SimpleNamespace(physx=physx, stage=None, owns_scene=True, load=lambda usda: None)
+    backend = SimpleNamespace(physx=physx, stage=None, owns_scene=True, load=lambda usda, **kwargs: None)
     stage = Usd.Stage.CreateInMemory()
     UsdPhysics.Scene.Define(stage, "/World/PhysicsScene")
     sim = manager._sim
@@ -869,3 +869,44 @@ def test_warmup_collects_clone_receipt_before_model_init(
         [] if clone_fails else (["warmup"] if explicit_warmup else []) + ["defer_bindings", PhysicsEvent.MODEL_INIT]
     )
     assert manager._warmup_done is (not clone_fails)
+
+
+@pytest.mark.parametrize("fail", [False, True], ids=["success", "attach-failure"])
+def test_load_scopes_compiled_stage_cache_opt_out(monkeypatch, manager_module, manager, fail):
+    """A subsequent attachment must inherit the original cache setting even after a failed attach."""
+    from ovphysx.types import CompiledStageCacheMode, GlobalConfigKey
+
+    key = GlobalConfigKey.COMPILED_STAGE_CACHE
+    mode = CompiledStageCacheMode.READ_ONLY
+
+    def get_mode(setting):
+        assert setting == key
+        return mode
+
+    def set_mode(setting, value):
+        assert setting == key
+        nonlocal mode
+        mode = value
+
+    monkeypatch.setattr(manager_module.ovphysx, "get_global_config", get_mode)
+    monkeypatch.setattr(manager_module.ovphysx, "set_global_config", set_mode)
+    receipt = object()
+
+    def attach(stage, *, read_ordinal):
+        assert mode == CompiledStageCacheMode.DISABLED
+        return receipt
+
+    def wait(task):
+        assert task is receipt
+        assert mode == CompiledStageCacheMode.READ_ONLY
+        if fail:
+            raise RuntimeError("attach failed")
+
+    backend = manager.backend
+    backend.scene = SimpleNamespace(stage=object(), ordinal=2, populate=lambda usda: None)
+    backend.physx = SimpleNamespace(attach_ovstage=attach, wait_task=wait)
+    with pytest.raises(RuntimeError, match="attach failed") if fail else nullcontext():
+        backend.load("#usda 1.0", disable_compiled_stage_cache=True)
+
+    assert mode == CompiledStageCacheMode.READ_ONLY
+    assert backend.stage is backend.scene.stage

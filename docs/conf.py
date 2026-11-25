@@ -34,6 +34,8 @@ sys.path.insert(0, os.path.abspath("../source/isaaclab_isaacsim"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_isaacsim/isaaclab_isaacsim"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_newton"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_newton/isaaclab_newton"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_neural"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_neural/isaaclab_neural"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_experimental"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_experimental/isaaclab_experimental"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_rl"))
@@ -302,6 +304,7 @@ autodoc_mock_imports = [
     "hydra.core.config_store",
     "omegaconf",
     "newton",
+    "newton_neural",
     "fovi",
 ]
 
@@ -563,6 +566,15 @@ _isaaclab_v2_3_2_only_docs = (
 )
 isaaclab_doc_redirects.update(
     {route: f"{_isaaclab_v2_3_2_docs_root}/{route}.html" for route in _isaaclab_v2_3_2_only_docs}
+)
+
+# API pages of the Warp environments, which moved under isaaclab_experimental.deprecated.
+_lab_experimental_api = "source/api/lab_experimental/isaaclab_experimental"
+isaaclab_doc_redirects.update(
+    {
+        f"{_lab_experimental_api}.{module}": f"{_lab_experimental_api}.deprecated.{module}"
+        for module in ("managers", "utils", "envs.mdp.actions")
+    }
 )
 
 _streaming_how_to = "source/how-to/visualizer_streaming_camera_view"
