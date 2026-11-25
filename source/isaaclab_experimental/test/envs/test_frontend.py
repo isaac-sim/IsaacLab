@@ -147,7 +147,7 @@ def test_warp_manager_build_constructs_warp_env_with_cfg():
         calls.append((cfg, kwargs))
         return expected_env
 
-    with patch.object(envs, "ManagerBasedRLEnvWarp", fake_env):
+    with patch.object(envs, "ManagerBasedRLEnvWarp", fake_env), pytest.warns(FutureWarning, match="MDP2"):
         env = WarpFrontend.build_env(cfg, "Isaac-Test", render_mode="rgb_array")
 
     assert env is expected_env

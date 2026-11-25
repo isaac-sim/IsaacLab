@@ -124,9 +124,9 @@ def add_frontend_args(parser: argparse.ArgumentParser) -> None:
         default="torch",
         help=(
             "Runtime that constructs the environment. 'torch' uses the registered stable environment via"
-            " gym.make. 'warp' (experimental) adapts a manager-based task config onto the Warp runtime, or"
-            " dispatches a direct task to its registered Warp environment; requires isaaclab_experimental"
-            " and `physics=newton_mjwarp`."
+            " gym.make. 'warp' (deprecated: MDP2 replaces it, see the '-MDP2' tasks) adapts a manager-based"
+            " task config onto the Warp runtime, or dispatches a direct task to its registered Warp environment;"
+            " requires isaaclab_experimental and `physics=newton_mjwarp`."
         ),
     )
 

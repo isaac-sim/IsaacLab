@@ -35,6 +35,7 @@ from __future__ import annotations
 import importlib
 import importlib.util
 import logging
+import warnings
 from collections.abc import Iterable, Iterator, Mapping
 from enum import StrEnum
 from types import ModuleType
@@ -117,6 +118,12 @@ class WarpFrontend:
                 (wrong physics, missing MDP twins, direct task without a warp
                 implementation).
         """
+        warnings.warn(
+            "--frontend warp is deprecated: MDP2 replaces it. Run the '-MDP2' tasks instead; see"
+            " https://isaac-sim.github.io/IsaacLab/main/source/experimental-features/mdp2.html",
+            FutureWarning,
+            stacklevel=2,
+        )
         if cls._detect_workflow(env_cfg) is Workflow.DIRECT:
             return cls._build_direct_env(env_cfg, task_id, **construct_kwargs)
         return cls._build_manager_env(env_cfg, **construct_kwargs)
