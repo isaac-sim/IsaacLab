@@ -22,8 +22,9 @@ from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass, replace
 
 from isaaclab_tasks.core.velocity.velocity_env_cfg import MySceneCfg
-from isaaclab_tasks.mdp2.velocity_go2.flat_env_cfg import TASK as GO2_TASK
 from isaaclab_tasks.utils import PresetCfg
+
+from .velocity_go2.flat_env_cfg import TASK as GO2_TASK
 
 SIM_DT = 0.005
 DECIMATION = 4

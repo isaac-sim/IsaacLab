@@ -14,6 +14,10 @@ import torch
 import warp as wp
 from isaaclab_experimental import mdp2
 from isaaclab_experimental.envs import MDP2RLEnv
+from isaaclab_tasks_experimental.mdp2.lift_kuka_allegro.lift_env_cfg import (
+    KukaAllegroLiftEnvCfg,
+    KukaAllegroLiftPhysicsCfg,
+)
 
 import isaaclab.envs.mdp as mdp1
 from isaaclab.managers import RewardTermCfg, SceneEntityCfg, TerminationTermCfg
@@ -21,7 +25,6 @@ from isaaclab.utils import math as math_utils
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_tasks.core.lift import mdp as lift_mdp1
-from isaaclab_tasks.mdp2.lift_kuka_allegro.lift_env_cfg import KukaAllegroLiftEnvCfg, KukaAllegroLiftPhysicsCfg
 
 pytestmark = [pytest.mark.kitless, pytest.mark.skipif(not torch.cuda.is_available(), reason="Newton needs a GPU")]
 
