@@ -46,14 +46,18 @@ def test_recording_model_and_optimizer_are_independent(task):
     assert env.observations
 
 
-def test_osc_does_not_inherit_neural_physics():
-    from isaaclab_tasks.core.reach.config.franka.franka_reach_env_cfg import FrankaReachEnvCfg, FrankaReachPhysicsCfg
+def test_reach_shares_neural_physics_declaration():
+    from isaaclab_tasks.core.reach.config.franka import franka_reach_env_cfg
+    from isaaclab_tasks.core.reach.reach_env_cfg import ReachPhysicsCfg
 
-    assert "newton_nerd" in FrankaReachPhysicsCfg.__configclass_own_fields__
-    assert "__post_init__" not in FrankaReachEnvCfg.__configclass_own_fields__
-    offered = enumerate_task_presets("Isaac-Reach-Franka-OSC")[PresetTarget.PHYSICS]
-    assert "newton_nerd" not in offered
-    assert "newton_nerd" in enumerate_task_presets(TASKS[0])[PresetTarget.PHYSICS]
+    assert "newton_nerd" in ReachPhysicsCfg.__configclass_own_fields__
+    assert not hasattr(franka_reach_env_cfg, "FrankaReachPhysicsCfg")
+    for task in (TASKS[0], "Isaac-Reach-Franka-OSC", "Isaac-Reach-UR10"):
+        assert "newton_nerd" in enumerate_task_presets(task)[PresetTarget.PHYSICS]
+    env, _ = resolve_task_config(TASKS[0], None, overrides=["physics=newton_nerd"])
+    assert env.sim.physics.solver_cfg.checkpoint == "logs/neural/reach_franka/flashnerd.pt"
+    assert env.sim.dt == pytest.approx(1 / 30)
+    assert env.decimation == env.sim.physics.num_substeps == env.sim.render_interval == 1
 
 
 def test_anymal_action_bounds_have_one_declaration():

@@ -299,11 +299,11 @@ def test_reach_newton_ik_rejects_physx():
 
 def test_reach_constructor_preserves_declared_simulation():
     """Inherited initialization must preserve the caller's declared physics and timing."""
-    from isaaclab_tasks.core.reach.config.franka.franka_reach_env_cfg import FrankaReachEnvCfg, FrankaReachPhysicsCfg
-    from isaaclab_tasks.core.reach.reach_env_cfg import REACH_SIM_CFG
+    from isaaclab_tasks.core.reach.config.franka.franka_reach_env_cfg import FrankaReachEnvCfg
+    from isaaclab_tasks.core.reach.reach_env_cfg import REACH_SIM_CFG, ReachPhysicsCfg
 
-    sim = replace(REACH_SIM_CFG, dt=0.01, render_interval=2, physics=FrankaReachPhysicsCfg())
+    sim = replace(REACH_SIM_CFG, dt=0.01, render_interval=2, physics=ReachPhysicsCfg())
     cfg = FrankaReachEnvCfg(sim=sim, decimation=2)
     assert cfg.sim.dt == 0.01
     assert cfg.sim.render_interval == cfg.decimation == 2
-    assert isinstance(cfg.sim.physics, FrankaReachPhysicsCfg)
+    assert isinstance(cfg.sim.physics, ReachPhysicsCfg)

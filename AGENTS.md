@@ -39,6 +39,8 @@ The guide owns shared contribution rules. Update them there instead of copying t
 
 - Declare neural physics alternatives in the task physics preset class and timing in config fields.
   Do not rebuild preset containers with `vars()` or inject neural variants from `__post_init__`.
+  Extend the existing shared physics configuration; do not add robot-specific physics subclasses
+  solely to declare a neural solver or checkpoint.
 
 - Keep preset discovery and resolution in task code and scripts, resolving before library construction.
   The neural library and its unit tests must not import task registries or implement preset selection.

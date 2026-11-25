@@ -8,6 +8,7 @@
 from dataclasses import MISSING
 
 from isaaclab_isaacsim.physics import PhysxCfg
+from isaaclab_neural.physics import NeRDSolverCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, SteelSolverCfg
 from isaaclab_ov.physics import OvPhysxCfg
 
@@ -29,7 +30,7 @@ from isaaclab.utils import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 from isaaclab.visualizers import VisualizerCfg
 
-from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.utils import PresetCfg, preset
 
 ##
 # Physics backend presets
@@ -68,6 +69,7 @@ class ReachPhysicsCfg(PresetCfg):
         ),
         num_substeps=2,
     )
+    newton_nerd: NewtonCfg = NewtonCfg(solver_cfg=NeRDSolverCfg(articulation="{ENV_REGEX_NS}/Robot"), num_substeps=1)
     default: NewtonCfg = newton_mjwarp
 
 
@@ -75,8 +77,8 @@ REACH_DECIMATION = 4
 """Physics steps per control period for numerical Reach physics."""
 
 REACH_SIM_CFG = sim_utils.SimulationCfg(
-    dt=1 / 120,
-    render_interval=REACH_DECIMATION,
+    dt=preset(default=1 / 120, newton_nerd=REACH_DECIMATION / 120),
+    render_interval=preset(default=REACH_DECIMATION, newton_nerd=1),
     physics=ReachPhysicsCfg(),
     visualizer_cfgs=VisualizerCfg(eye=(3.5, 3.5, 3.5)),
 )
@@ -262,6 +264,6 @@ class ReachEnvCfg(ManagerBasedRLEnvCfg):
     curriculum: CurriculumCfg = CurriculumCfg()
 
     # Simulation settings
-    decimation: int = REACH_DECIMATION
+    decimation: int = preset(default=REACH_DECIMATION, newton_nerd=1)
     episode_length_s: float = 12.0
     sim: sim_utils.SimulationCfg = REACH_SIM_CFG

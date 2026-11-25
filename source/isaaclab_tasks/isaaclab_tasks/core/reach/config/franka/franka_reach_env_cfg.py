@@ -40,7 +40,7 @@ from isaaclab_tasks.utils import PresetCfg, preset
 ##
 from isaaclab_assets import FRANKA_MINIMAL_CFG, FRANKA_PANDA_CFG  # isort: skip
 
-from ...reach_env_cfg import REACH_DECIMATION, REACH_SIM_CFG, ReachEnvCfg, ReachPhysicsCfg, RewardsCfg
+from ...reach_env_cfg import REACH_SIM_CFG, ReachEnvCfg, RewardsCfg
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -52,19 +52,6 @@ if TYPE_CHECKING:
 
 FRANKA_REACH_ROBOT_CFG = replace(FRANKA_PANDA_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 """Robot configuration shared by the scene and articulation-specific physics declarations."""
-
-
-@configclass
-class FrankaReachPhysicsCfg(ReachPhysicsCfg):
-    """Numerical and learned physics presets for joint-position Franka Reach."""
-
-    newton_nerd: NewtonCfg = replace(
-        REACH_SIM_CFG.physics.newton_mjwarp,
-        solver_cfg=NeRDSolverCfg(
-            checkpoint="logs/neural/reach_franka/flashnerd.pt", articulation=FRANKA_REACH_ROBOT_CFG.prim_path
-        ),
-        num_substeps=1,
-    )
 
 
 @configclass
@@ -299,12 +286,17 @@ class FrankaReachBaseEnvCfg(ReachEnvCfg):
 class FrankaReachEnvCfg(FrankaReachBaseEnvCfg):
     """Reach with the optional neural model of the joint-position-controlled arm."""
 
-    decimation: int = preset(default=REACH_DECIMATION, newton_nerd=1)
     sim: SimulationCfg = replace(
         REACH_SIM_CFG,
-        physics=FrankaReachPhysicsCfg(),
-        dt=preset(default=REACH_SIM_CFG.dt, newton_nerd=REACH_SIM_CFG.dt * REACH_DECIMATION),
-        render_interval=preset(default=REACH_SIM_CFG.render_interval, newton_nerd=1),
+        physics=replace(
+            REACH_SIM_CFG.physics,
+            newton_nerd=replace(
+                REACH_SIM_CFG.physics.newton_nerd,
+                solver_cfg=NeRDSolverCfg(
+                    checkpoint="logs/neural/reach_franka/flashnerd.pt", articulation=FRANKA_REACH_ROBOT_CFG.prim_path
+                ),
+            ),
+        ),
     )
 
 
