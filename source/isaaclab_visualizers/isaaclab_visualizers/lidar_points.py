@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""World-frame lidar hits shared by the Newton GL, Viser, and Kit visualizers."""
+"""World-frame lidar hits drawn by Newton GL and Viser, and the default camera framing they share with Kit."""
 
 from __future__ import annotations
 
