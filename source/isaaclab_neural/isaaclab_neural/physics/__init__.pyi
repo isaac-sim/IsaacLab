@@ -8,11 +8,9 @@ __all__ = [
     "MJWarpNeRDSolverCfg",
     "NeRDSolver",
     "NeRDSolverCfg",
-    "NewtonNeRDManager",
 ]
 
 from .mjwarp_nerd_solver import MJWarpNeRDSolver
 from .mjwarp_nerd_solver_cfg import MJWarpNeRDSolverCfg
 from .nerd_solver import NeRDSolver
 from .nerd_solver_cfg import NeRDSolverCfg
-from .newton_nerd_manager import NewtonNeRDManager

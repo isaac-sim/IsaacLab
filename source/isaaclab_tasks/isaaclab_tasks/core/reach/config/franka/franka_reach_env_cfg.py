@@ -294,13 +294,15 @@ class FrankaReachEnvCfg(FrankaReachBaseEnvCfg):
         # ``physics=newton_nerd`` steps the arm and its joint drives with a FlashNeRD model in place of MuJoCo Warp.
         nerd = replace(
             self.sim.physics.newton_mjwarp,
-            class_type="isaaclab_neural.physics.newton_nerd_manager:NewtonNeRDManager",
             solver_cfg=NeRDSolverCfg(
                 checkpoint="logs/neural/reach_franka/flashnerd.pt", articulation=self.scene.robot.prim_path
             ),
             num_substeps=1,
         )
         self.sim.physics = preset(**vars(self.sim.physics), newton_nerd=nerd)
+        self.sim.dt = preset(default=self.sim.dt, newton_nerd=self.sim.dt * self.decimation)
+        self.sim.render_interval = preset(default=self.sim.render_interval, newton_nerd=1)
+        self.decimation = preset(default=self.decimation, newton_nerd=1)
 
 
 def _pose_command_error(env: "ManagerBasedRLEnv", command_name: str) -> torch.Tensor:

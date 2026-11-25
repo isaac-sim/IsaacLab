@@ -37,7 +37,6 @@ class AllegroHandManagerPhysicsCfg(PhysicsCfg):
 
     newton_mjwarp_nerd = replace(
         PhysicsCfg().newton_mjwarp,
-        class_type="isaaclab_neural.physics.newton_nerd_manager:NewtonNeRDManager",
         solver_cfg=MJWarpNeRDSolverCfg.from_mjwarp(
             PhysicsCfg().newton_mjwarp.solver_cfg,
             checkpoint="logs/neural/allegro_hand/flashnerd.pt",

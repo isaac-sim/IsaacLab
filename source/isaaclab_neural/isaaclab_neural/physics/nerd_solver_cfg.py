@@ -23,18 +23,15 @@ if TYPE_CHECKING:
 class NeRDSolverCfg(NewtonSolverCfg):
     """Configuration for stepping a robot with ``newton-neural``'s standalone ``SolverNeRD``.
 
-    Use it as the solver of a :class:`~isaaclab_newton.physics.NewtonCfg` whose ``class_type`` is the
-    :class:`~isaaclab_neural.physics.NewtonNeRDManager` and whose ``num_substeps`` is 1. That manager takes one solver
-    step per environment step, the frame the model was trained on. Newton's collision pipeline runs only if a
-    contact sensor or the contact input of the model reads its contacts. In a task with neither, set ``collision_cfg``
-    of the physics to ``None``, since Isaac Lab refuses a collision configuration that no pipeline uses.
+    Use it as the solver of an ordinary :class:`~isaaclab_newton.physics.NewtonCfg`. Each solver step must
+    match the checkpoint's frame duration. For a model trained on one task control period, declare that period
+    as ``sim.dt``, set ``decimation=1`` and ``num_substeps=1``. The native solver rejects a mismatched timestep.
 
     Example:
         .. code-block:: python
 
             replace(
                 newton_mjwarp,
-                class_type="isaaclab_neural.physics.newton_nerd_manager:NewtonNeRDManager",
                 solver_cfg=NeRDSolverCfg(checkpoint="anymal_c.pt", articulation="{ENV_REGEX_NS}/Robot"),
                 num_substeps=1,
             )

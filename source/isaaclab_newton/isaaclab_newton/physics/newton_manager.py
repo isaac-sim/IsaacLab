@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import warp as wp
-from newton import Axis, Contacts, Model, ModelBuilder, ModelFlags, State
+from newton import Axis, Contacts, ModelBuilder, ModelFlags, State
 from newton.selection import ArticulationView
 from newton.sensors import SensorContact, SensorIMU
 from newton.solvers import SolverBase
@@ -25,14 +25,13 @@ import isaaclab.cloner as cloner
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataProvider
 from isaaclab.sim import SimulationContext
-from isaaclab.utils import instantiate
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.timer import Timer
 from isaaclab.utils.version import has_kit
 
 from isaaclab_newton.physics.newton_backend_cfg import NewtonBackendCfg
 from isaaclab_newton.physics.newton_builder_cfg import NewtonBuilderCfg
-from isaaclab_newton.physics.newton_manager_cfg import NewtonCfg, NewtonSolverCfg
+from isaaclab_newton.physics.newton_manager_cfg import NewtonCfg
 from isaaclab_newton.renderers.visual_material import (
     VisualMaterialWriter,
     VisualShapeColorWriter,
@@ -41,7 +40,6 @@ from isaaclab_newton.renderers.visual_material import (
 from .newton_backend import NewtonBackend, NewtonCloneRecord, SiteEntry
 from .newton_builder import create_builder
 from .newton_scene_data import NewtonSceneDataBackend
-from .newton_solver import NewtonSolver
 
 if TYPE_CHECKING:
     from isaaclab.assets import BaseArticulation
@@ -524,17 +522,10 @@ class NewtonManager(PhysicsManager):
                 relaxed_capture=self._relaxed_capture,
                 observable_kinds=set().union(*self._requested_solver_observables.values()),
                 initial_body_variants=() if self._clone is None else self._clone.initial_body_variants,
-                solver_factory=self.create_solver,
             )
         if self._handled_actions is not None:
             self._handle_actions()
         self._mark_transforms_changed()
-
-    def create_solver(
-        self, cfg: NewtonSolverCfg, model: Model, mode: wp.DeterministicMode, env_template: str | None
-    ) -> NewtonSolver:
-        """Construct the configured solver at the manager's resource ownership boundary."""
-        return instantiate(cfg, model, mode, env_template)
 
     def _relaxed_capture(self) -> bool:
         """Whether Kit rendering requires relaxed CUDA graph capture."""
@@ -708,7 +699,7 @@ class NewtonManager(PhysicsManager):
         """Whether :meth:`step` executes the full decimation loop; see :meth:`NewtonBackend.handles_decimation`."""
         return self.backend.handles_decimation()
 
-    def handle_actions(self, actions: ActionManager, scene: InteractiveScene, *, enabled: bool = True) -> bool:
+    def handle_actions(self, actions: ActionManager, scene: InteractiveScene) -> bool:
         """Run the environment's actions and asset writes as pre-actuator callbacks of every physics step.
 
         Only when both support graph capture; one :meth:`step` then advances the whole decimation loop. Hard resets
@@ -717,14 +708,10 @@ class NewtonManager(PhysicsManager):
         Args:
             actions: Environment action manager.
             scene: Scene whose assets write to the simulation.
-            enabled: Whether actions may run inside the physics step. Validation still runs when disabled.
 
         Returns:
             Whether the step now applies the actions and writes the assets.
         """
-        if not enabled:
-            self._handled_actions = None
-            return False
         self._handled_actions = (actions, scene)
         self._handle_actions()
         return self.backend.handles_actions

@@ -94,6 +94,7 @@ def test_neural_ownership_boundaries():
 
     root = Path(ISAACLAB_ROOT)
     neural = root / "source/isaaclab_neural/isaaclab_neural"
+    assert not (neural / "physics/newton_nerd_manager.py").exists()
     assert not (neural / "entrypoints/evaluate.py").exists()
     assert not (root / "scripts/neural/evaluate.py").exists()
     assert not (neural / "nerd_recipe.py").exists()
@@ -102,6 +103,7 @@ def test_neural_ownership_boundaries():
         assert not (neural / name).exists()
         assert (neural / owner / name).is_file()
     forbidden = {
+        "NewtonNeRDManager",
         "RecordingSimulation",
         "EnvSimulation",
         "TrajectoryRecorder",
@@ -117,7 +119,7 @@ def test_neural_ownership_boundaries():
             if isinstance(node, ast.ImportFrom):
                 assert not forbidden & {a.name for a in node.names}, path
             if path.parent.name == "physics" and isinstance(node, ast.Name):
-                assert node.id != "SimulationContext", path
+                assert node.id not in {"SimulationContext", "ActionManager", "JointPositionAction"}, path
     assert not list((root / "source/isaaclab_tasks/isaaclab_tasks").rglob("nerd_recipe*.py"))
     for package in ("isaaclab", "isaaclab_newton"):
         for path in (root / "source" / package / package).rglob("*.py"):

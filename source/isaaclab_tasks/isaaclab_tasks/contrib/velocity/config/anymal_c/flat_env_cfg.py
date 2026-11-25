@@ -45,7 +45,6 @@ class AnymalCFlatEnvCfg(AnymalCRoughEnvCfg):
         # actuator network of the legs.
         nerd = replace(
             newton_mjwarp,
-            class_type="isaaclab_neural.physics.newton_nerd_manager:NewtonNeRDManager",
             solver_cfg=NeRDSolverCfg(
                 checkpoint="logs/neural/anymal_c_flat/flashnerd.pt",
                 articulation=self.scene.robot.prim_path,
@@ -56,6 +55,9 @@ class AnymalCFlatEnvCfg(AnymalCRoughEnvCfg):
             default_shape_cfg=replace(newton_mjwarp.default_shape_cfg, margin=0.002),
         )
         self.sim.physics = preset(**vars(self.sim.physics), newton_nerd=nerd)
+        self.sim.dt = preset(default=self.sim.dt, newton_nerd=self.sim.dt * self.decimation)
+        self.sim.render_interval = preset(default=self.sim.render_interval, newton_nerd=1)
+        self.decimation = preset(default=self.decimation, newton_nerd=1)
         # The presets were built again, so the default is tied to its alternative once more.
         self.sim.physics.default = self.sim.physics.isaacsim_physx
         # The joint targets pass straight on to the model. The gains [N*m/rad, N*m*s/rad] only estimate the joint

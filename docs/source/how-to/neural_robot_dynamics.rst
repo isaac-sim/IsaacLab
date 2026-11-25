@@ -83,21 +83,24 @@ Train policies through the existing RL entrypoint and the task's declared physic
        --task Isaac-Reach-Franka physics=newton_nerd
 
 Franka reach and ANYmal C flat use ``physics=newton_nerd``. Allegro uses
-``physics=newton_mjwarp_nerd``. The standalone model advances one control period per step;
-task ``sim.dt`` and ``decimation`` retain their declared values. The timing manager verifies
-that the checkpoint's frame duration equals that control period. The free-motion model advances
-each MuJoCo Warp solver substep, retaining numerical contacts and object dynamics.
+``physics=newton_mjwarp_nerd``. Both use the ordinary Newton manager and backend.
+For standalone dynamics, the task preset declares one recorded control period as ``sim.dt`` and
+sets ``decimation=1`` and ``num_substeps=1``. The environment control period is preserved, and
+simulation time advances by the declared timestep. The free-motion model advances each MuJoCo Warp
+solver substep, retaining numerical contacts and object dynamics. Native stepping rejects a timestep
+that differs from the checkpoint frame.
 
-Solver construction receives the already-loaded learned model explicitly. It does not consult the
-global simulation singleton or use a cached-model lookup and reload path. NewtonBackend owns
-initialization, contacts, graph capture, resets and pending model changes.
+Each solver adapter loads its checkpoint once during normal solver construction. It does not consult
+the global simulation singleton or introduce a manager subclass or a cached-model lookup.
+NewtonBackend owns initialization, contacts, graph capture, resets and pending model changes.
+The native solver consumes the controls declared by its model directly from Newton's control buffers.
 
 The physical-model contract checks robot masses, inertias, centres of mass and armature. Free-motion
 models also check drive gains. Binding separately checks joint structure, frames and gravity. A mismatch
 requires recording and training a compatible checkpoint. The nominal task configurations omit known
 unsupported robot randomization. Runtime mutations retain the native solver's explicit warnings.
-For bounded exploration, sampling uses the action term's declared bounds and deployment validates
-joint-target clipping against the bounds persisted in the checkpoint.
+For bounded exploration, sampling uses the action term's declared bounds. Deployment task presets
+declare matching clipping; the physics integration does not inspect environment action classes.
 
 Standalone learned dynamics do not compute joint reaction wrenches or accelerations, and reject sensors
 that require those values. Contact-force observables are penetration-based indicators, not calibrated

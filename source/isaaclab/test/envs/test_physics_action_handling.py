@@ -53,5 +53,8 @@ def test_physics_handles_actions_only_when_nothing_runs_between_physics_steps(en
     env.sim = SimpleNamespace(backend_manager=backend)
     env.action_manager = object()
     ManagerBasedEnv._handle_physics_actions(env)
-    backend.handle_actions.assert_called_once_with(env.action_manager, env.scene, enabled=handled)
+    if handled:
+        backend.handle_actions.assert_called_once_with(env.action_manager, env.scene)
+    else:
+        backend.handle_actions.assert_not_called()
     assert env._physics_handles_actions is handled

@@ -554,8 +554,8 @@ class ManagerBasedEnv:
 
         Decided on the first step, so code that wraps the action manager after construction can mark it not graphable.
         """
-        self._physics_handles_actions = self.sim.backend_manager.handle_actions(
-            self.action_manager, self.scene, enabled=_physics_can_handle_actions(self)
+        self._physics_handles_actions = _physics_can_handle_actions(self) and self.sim.backend_manager.handle_actions(
+            self.action_manager, self.scene
         )
         self._physics_handles_decimation = self.sim.backend_manager.handles_decimation()
 

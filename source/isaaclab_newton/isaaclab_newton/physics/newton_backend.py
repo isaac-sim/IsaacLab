@@ -510,14 +510,12 @@ class NewtonBackend:
         relaxed_capture: Callable[[], bool] | None = None,
         observable_kinds: set[str] | None = None,
         initial_body_variants: tuple[tuple[int, int], ...] = (),
-        solver_factory: Callable = instantiate,
     ) -> None:
         """Build the solver and its contacts, run the solver-init callbacks, and evaluate the initial FK.
 
         Args:
             env_template: Environment prim path template that expands ``{ENV_REGEX_NS}`` in solver selectors.
             initial_body_variants: Clone selections applied after the solver compiles the shared shape layout.
-            solver_factory: Construction owner receiving the solver configuration, model, mode and environment template.
             relaxed_capture: Returns, when the step is captured, whether to capture in relaxed mode; see
                 :func:`capture_graph`. Defaults to strict capture.
             observable_kinds: Solver output kinds to allocate before solver-init callbacks bind their consumers.
@@ -531,7 +529,7 @@ class NewtonBackend:
         if self.cfg.collision_cfg is not None and (contact_max := self.cfg.collision_cfg.rigid_contact_max) is not None:
             # Solver scratch and the collision pipeline must agree on the explicit contact capacity.
             self.model.rigid_contact_max = contact_max
-        ops = self.solver_ops = solver_factory(solver_cfg, self.model, mode, env_template)
+        ops = self.solver_ops = instantiate(solver_cfg, self.model, mode, env_template)
         solver = self.solver = ops.native
         # A newly built solver already reflects the setup-time model. Subsequent changes remain queued.
         self.model_changes.clear()

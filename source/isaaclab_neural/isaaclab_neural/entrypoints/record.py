@@ -68,13 +68,6 @@ def main(argv: list[str] | None = None) -> None:
             nerd.metadata["isaaclab"] = {
                 "physical_model": physical_contract(backend.model, binding, free_motion=free_motion),
                 "model_cfg": to_dict(model_cfg),
-                "action_bounds": {}
-                if exploration.cfg.clip is None
-                else {
-                    "joints": list(binding.system.spec.actuated_joint_labels),
-                    "low": exploration.commands.low.tolist(),
-                    "high": exploration.commands.high.tolist(),
-                },
             }
             capture = env.recorder_manager.get_term("dynamics")
             capture.binding, capture.backend = binding, backend

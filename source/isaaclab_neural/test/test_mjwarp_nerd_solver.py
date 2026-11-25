@@ -112,7 +112,10 @@ def test_refusals(checkpoint: Path, device: str, tmp_path: Path):
     # A physics step whose solver steps are not frames of the model.
     env_cfg = nerd_task_cfg(TASK, checkpoint, 4, device)
     env_cfg.sim.dt = 0.01
-    refused(TASK, env_cfg, ValueError, r"Set env_cfg\.sim\.dt to 0\.0083")
+    with environment(TASK, env_cfg) as env:
+        env.reset()
+        with pytest.raises(ValueError, match="model was trained on frames"):
+            env.step(torch.zeros(env.num_envs, env.action_manager.total_action_dim, device=device))
 
     # A model of another kind of system than a robot, which is refused before a solver is built on it.
     env_cfg = nerd_task_cfg(TASK, save_point_model(tmp_path / "point.pt"), 4, device)

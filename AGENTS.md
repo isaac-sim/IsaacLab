@@ -33,6 +33,9 @@ The guide owns shared contribution rules. Update them there instead of copying t
 - Policy training, playback, and evaluation belong to the existing RL entrypoints. Keep dedicated
   neural entrypoints for dynamics recording and offline model fitting only.
 
+- Neural solvers use the existing Newton manager and solver-construction path. Declare timing in task
+  presets; consume Newton control buffers without inspecting environment action classes in physics code.
+
 ## Commits and branches
 
 - Work on a feature branch; do not commit directly to `main`.

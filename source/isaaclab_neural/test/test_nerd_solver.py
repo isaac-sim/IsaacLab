@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Integration tests for ``NewtonNeRDManager`` and ``NeRDSolver`` on the ANYmal C flat walking task."""
+"""Integration tests for ``NeRDSolver`` under the ordinary Newton manager on the ANYmal C flat walking task."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ pytest.importorskip("newton_neural", reason="needs the newton-neural extra")
 
 import newton
 import torch
-from isaaclab_neural.physics import NeRDSolverCfg, NewtonNeRDManager
+from isaaclab_newton.physics import NewtonManager
 from newton_neural import Frames
 from newton_neural.models import Precision
 from newton_neural.solvers import SolverNeRD
@@ -71,17 +71,19 @@ def test_nerd_task(checkpoint: Path, device: str, caplog: pytest.LogCaptureFixtu
     captured = torch.device(device).type == "cuda"
     mujoco = task_cfg(TASK, WORLD_COUNT, device)
     env_cfg = nerd_task_cfg(TASK, checkpoint, WORLD_COUNT, device)
+    env_cfg.sim.use_newton_actuators = captured
     solver_cfg, legs = env_cfg.sim.physics.solver_cfg, env_cfg.scene.robot.actuators["legs"]
     with recorded_warnings() as caught, environment(TASK, env_cfg, info=True) as env:
         manager = env.sim.backend_manager
         backend = manager.backend
         solver = backend.solver
-        assert isinstance(manager, NewtonNeRDManager)
+        assert type(manager) is NewtonManager
         assert isinstance(solver, SolverNeRD)
         nerd, binding, stepper = solver.nerd, solver.binding, solver.stepper
 
-        # The environment keeps the timing of the task, and a physics step is the frame of the model.
-        assert (env.physics_dt, env.cfg.decimation) == (mujoco.sim.dt, mujoco.decimation)
+        # Physics timing is explicit; the task control period stays equal to the numerical reference.
+        assert env.cfg.decimation == 1
+        assert env.physics_dt == pytest.approx(mujoco.sim.dt * mujoco.decimation)
         assert env.step_dt == pytest.approx(nerd.frame_dt, rel=1e-6)
         assert backend.dt == backend.solver_dt == nerd.frame_dt
         # The solver takes the precision of the preset and compiles the step on CUDA. It logs what it built,
@@ -109,7 +111,6 @@ def test_nerd_task(checkpoint: Path, device: str, caplog: pytest.LogCaptureFixtu
             assert observations["policy"].isfinite().all()
         assert env.sim.get_physics_step_count() - first_step == step_count
         assert manager.get_simulation_time() - start == pytest.approx(step_count * env.step_dt)
-        assert env._physics_handles_decimation
         assert list(backend.graphs) == ([("simulate", 1)] if captured else [])
 
         # A reset of some environments clears the history of the model in exactly those worlds.
@@ -201,12 +202,11 @@ def test_nerd_task(checkpoint: Path, device: str, caplog: pytest.LogCaptureFixtu
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_nerd_task_without_contact_sensors(checkpoint: Path, device: str):
-    """Run the walking task on the model without its contact sensor and expect no contact detection at all."""
+    """Run without contact sensors using the standard Newton contact lifecycle and explicit solver settings."""
     env_cfg = nerd_task_cfg(TASK, checkpoint, 4, device, precision="fp32", compile=False)
     env_cfg.scene.contact_forces = None
     env_cfg.rewards.feet_air_time = env_cfg.rewards.undesired_contacts = env_cfg.terminations.base_contact = None
-    # The probes of the model read no detected contacts, and Isaac Lab refuses the settings of a collision
-    # pipeline where none runs.
+    # Without explicit pipeline settings, Newton constructs its default collision pipeline.
     env_cfg.sim.physics.collision_cfg = None
     with environment(TASK, env_cfg) as env:
         backend = env.sim.backend_manager.backend
@@ -214,8 +214,8 @@ def test_nerd_task_without_contact_sensors(checkpoint: Path, device: str):
         for _ in range(8):
             observations, *_ = env.step(_random_actions(env))
         assert observations["policy"].isfinite().all()
-        assert backend.collision_pipeline is None
-        assert backend.contacts is None
+        assert backend.collision_pipeline is not None
+        assert backend.contacts is not None
         # The solver runs the step in the precision and without the compilation that the configuration asks for.
         stepper = backend.solver.stepper
         assert (stepper.precision, stepper.compiled) == (Precision.FP32, False)
@@ -224,7 +224,7 @@ def test_nerd_task_without_contact_sensors(checkpoint: Path, device: str):
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_step_without_an_environment(checkpoint: Path, device: str):
-    """Expect a step of the playing simulation without an environment to be refused until a decimation is declared."""
+    """A standalone simulation uses its declared timestep without an environment-specific timing handshake."""
     env_cfg = nerd_task_cfg(TASK, checkpoint, 4, device, compile=False)
     with simulation(env_cfg):
         sim = SimulationContext(env_cfg.sim)
@@ -236,50 +236,27 @@ def test_step_without_an_environment(checkpoint: Path, device: str):
         sim.pause()
         sim.step()
         sim.play()
-        # A loop that steps the playing simulation once per sim.dt would advance a frame of the model each time.
-        with pytest.raises(RuntimeError, match="no environment declared its decimation"):
-            sim.step()
-        assert manager.get_simulation_time() == 0.0
-        manager.set_decimation(env_cfg.decimation)
+        first_step = sim.get_physics_step_count()
         sim.step()
-        assert manager.get_simulation_time() == pytest.approx(env_cfg.sim.dt * env_cfg.decimation)
+        assert sim.get_physics_step_count() == first_step + 1
+        assert manager.get_simulation_time() == pytest.approx(env_cfg.sim.dt)
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_refusals(checkpoint: Path, device: str, tmp_path: Path):
     """Expect a task that does not fit the model to be refused with the configuration to change."""
-    # Another decimation, so that the control period is not the frame of the model.
+    # Native stepping rejects a timestep that differs from the checkpoint's model frame.
     env_cfg = nerd_task_cfg(TASK, checkpoint, 4, device)
-    env_cfg.decimation = 2
-    refused(TASK, env_cfg, ValueError, r"sim\.dt 0\.005 s times decimation 2\. A model that replaces the solver")
-
-    # Solver substeps, of which the model takes one per environment step.
-    env_cfg = nerd_task_cfg(TASK, checkpoint, 4, device)
-    env_cfg.sim.physics.num_substeps = 2
-    refused(TASK, env_cfg, ValueError, "got num_substeps 2. Set num_substeps of the NewtonCfg to 1")
-
-    # The manager of the model over the solver of the task.
-    env_cfg = task_cfg(TASK, 4, device)
-    env_cfg.sim.physics.class_type = NewtonNeRDManager
-    refused(TASK, env_cfg, ValueError, "is configured by a MJWarpSolverCfg. Give it a NeRDSolverCfg")
-
-    # The solver of the model under the manager of the task, which steps the solver steps of the task.
-    env_cfg = task_cfg(TASK, 4, device)
-    env_cfg.sim.physics.solver_cfg = NeRDSolverCfg(
-        checkpoint=str(checkpoint), articulation=env_cfg.scene.robot.prim_path
-    )
-    refused(TASK, env_cfg, TypeError, "required keyword-only arguments")
+    env_cfg.sim.dt /= 2
+    with environment(TASK, env_cfg) as env:
+        env.reset()
+        with pytest.raises(ValueError, match="model was trained on frames"):
+            env.step(_random_actions(env))
 
     # The physics of the model, with the actuator network of the task still running.
     env_cfg = nerd_task_cfg(TASK, checkpoint, 4, device)
     env_cfg.scene.robot.actuators = task_cfg(TASK, 4, device).scene.robot.actuators
     refused(TASK, env_cfg, ValueError, "ImplicitActuatorCfg")
-
-    # Actuator models in torch, which Isaac Lab runs with the Newton actuators off. The solver cannot see one that
-    # is left on the robot there.
-    env_cfg = nerd_task_cfg(TASK, checkpoint, 4, device)
-    env_cfg.sim.use_newton_actuators = False
-    refused(TASK, env_cfg, ValueError, r"Set env_cfg\.sim\.use_newton_actuators to True")
 
     # A robot that is not where the configuration says.
     env_cfg = nerd_task_cfg(TASK, checkpoint, 4, device, articulation="{ENV_REGEX_NS}/Arm")
@@ -304,7 +281,7 @@ def test_refusals(checkpoint: Path, device: str, tmp_path: Path):
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_checkpoint_contract_mismatches(checkpoint, device, tmp_path):
-    """Reject a physically different model and action bounds narrower than the deployed clipping."""
+    """Reject a checkpoint whose recorded robot properties differ from the built Newton model."""
     from newton_neural.models import NeRDBase
 
     nerd = NeRDBase.load(checkpoint, device="cpu")
@@ -312,14 +289,3 @@ def test_checkpoint_contract_mismatches(checkpoint, device, tmp_path):
     wrong_mass = tmp_path / "wrong_mass.pt"
     nerd.save(wrong_mass)
     refused(TASK, nerd_task_cfg(TASK, wrong_mass, 4, device), ValueError, "physical model differs")
-
-    nerd = NeRDBase.load(checkpoint, device="cpu")
-    bounds = nerd.metadata["isaaclab"]["action_bounds"]
-    bounds["low"] = [v + 0.1 for v in bounds["low"]]
-    bounds["high"] = [v - 0.1 for v in bounds["high"]]
-    narrow = tmp_path / "narrow.pt"
-    nerd.save(narrow)
-    with environment(TASK, nerd_task_cfg(TASK, narrow, 4, device)) as env:
-        env.reset()
-        with pytest.raises(ValueError, match="clipping exceeds"):
-            env.step(_random_actions(env))
