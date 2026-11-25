@@ -58,7 +58,7 @@ def _consuming_torch_stream(device: str):
     cuda_stream = wp.get_stream(device).cuda_stream
     if cuda_stream is None:
         return contextlib.nullcontext()
-    return torch.cuda.stream(torch.cuda.ExternalStream(cuda_stream))
+    return torch.cuda.stream(torch.cuda.ExternalStream(cuda_stream, device=device))
 
 
 def _channel(mapped, name: str, *, clone: bool = True) -> torch.Tensor | None:
