@@ -142,3 +142,23 @@ def _illegal_contact_torch(
 
 illegal_contact = Term(torch=_illegal_contact_torch, warp=_illegal_contact)
 """Whether a normal contact force on the ``body_ids`` bodies exceeded ``threshold`` in the sensor history."""
+
+
+@wp.func
+def _pose_command_success(
+    world: int,
+    position_error: wp.array(dtype=float),
+    orientation_error: wp.array(dtype=float),
+    position_threshold: float,
+    orientation_threshold: float,
+) -> bool:
+    return position_error[world] < position_threshold and orientation_error[world] < orientation_threshold
+
+
+pose_command_success = Term(
+    torch=lambda position_error, orientation_error, *, position_threshold, orientation_threshold: (
+        (position_error < position_threshold) & (orientation_error < orientation_threshold)
+    ),
+    warp=_pose_command_success,
+)
+"""Whether position and orientation errors are each below their respective pose tolerance."""

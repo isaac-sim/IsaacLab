@@ -35,7 +35,7 @@ if TYPE_CHECKING:
     from isaaclab.envs import DirectRLEnv, ManagerBasedRLEnv
 
     with contextlib.suppress(ImportError):
-        from isaaclab_experimental.envs import DirectRLEnvWarp, ManagerBasedRLEnvWarp
+        from isaaclab_experimental.deprecated.envs import DirectRLEnvWarp, ManagerBasedRLEnvWarp
 
 # remove SB3 warnings because PPO with bigger net actually benefits from GPU
 warnings.filterwarnings("ignore", message="You are trying to run PPO on the GPU")

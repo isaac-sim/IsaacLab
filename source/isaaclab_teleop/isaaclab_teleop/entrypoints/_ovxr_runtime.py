@@ -42,22 +42,25 @@ def pace_ovxr_control_loop(
     *,
     iteration_started_s: float,
     action_period_s: float,
-    step_hz: float = 0.0,
+    step_hz: float | None = None,
     wait_for_shutdown: Callable[[float], bool] | None = None,
     clock: Callable[[], float] | None = None,
 ) -> None:
     """Limit host control independently of the XR frame clock.
 
     Credit elapsed input, physics and publication work; an overrun adds no wait
-    or catch-up steps. With no explicit limit, active control remains unpaced
-    and paused polling retains the environment's action interval.
+    or catch-up steps. By default the target period is ``action_period_s``, the
+    environment step, so simulation time keeps pace with real time when the host
+    can. A positive ``step_hz`` replaces it with ``1 / step_hz``. Zero leaves
+    active control unpaced. Paused polling targets ``action_period_s`` unless a
+    positive ``step_hz`` is given.
 
     ``clock`` is the clock that measured ``iteration_started_s``; it defaults to
     :func:`time.perf_counter`.
     """
     if not using_ovxr or (action_applied and step_hz == 0.0):
         return
-    period_s = 1.0 / step_hz if step_hz > 0.0 else action_period_s
+    period_s = 1.0 / step_hz if step_hz else action_period_s
     remaining_s = period_s - ((time.perf_counter if clock is None else clock)() - iteration_started_s)
     if remaining_s > 0.0:
         if wait_for_shutdown is None:
