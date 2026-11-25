@@ -572,12 +572,12 @@ def _request_json(payload: dict[str, Any], api_key: str, deadline: float) -> dic
                 raise last_error from error
             retry_after = error.headers.get("Retry-After", "")
             delay = min(float(retry_after), 60.0) if retry_after.replace(".", "", 1).isdigit() else 2**attempt
-            time.sleep(delay)
+            time.sleep(min(delay, max(0.0, deadline - time.monotonic())))
         except urllib.error.URLError as error:
             last_error = ConflictResolutionError(f"NVIDIA inference request failed: {error.reason}")
             if attempt == 2:
                 raise last_error from error
-            time.sleep(2**attempt)
+            time.sleep(min(2**attempt, max(0.0, deadline - time.monotonic())))
     raise last_error or ConflictResolutionError("NVIDIA inference request failed")
 
 
