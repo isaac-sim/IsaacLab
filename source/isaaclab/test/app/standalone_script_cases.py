@@ -176,6 +176,8 @@ class LaunchCase:
             command.extend((self.renderer_option, self.renderer_backend))
         if self.visualizer is not None:
             command.extend((self.spec.visualizer_option, self.visualizer))
+        if self.physics_backend == "isaacsim_physx" or self.renderer_backend == "isaac_rtx" or self.visualizer == "kit":
+            command.insert(5, str(Path(__file__).with_name("_standalone_kit.py")))
         return command
 
 
