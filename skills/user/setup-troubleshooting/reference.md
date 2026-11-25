@@ -51,6 +51,7 @@ uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --max_iterations
 | Import fails | Active Python environment and Isaac Lab checkout |
 | `isaaclab_tasks` import fails | Run through `uv run python` from the intended Isaac Lab checkout, then confirm the source packages or external task package are installed with the intended `uv pip` environment |
 | App launch fails | Isaac Sim, display, driver, and launcher docs |
+| OmniGraph graph creation reports `Unable to create prim for graph` in headless Kit | OmniGraph boot-time schema guidance in `docs/source/refs/troubleshooting.rst` |
 | Task registration fails | Gym registration and task package import |
 | Backend preset fails | `uv run python scripts/environments/list_envs.py --show_presets` |
 | Camera or renderer fails | Renderer selection and sensor docs |

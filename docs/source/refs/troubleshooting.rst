@@ -126,6 +126,43 @@ Isaac Sim pip packages require GLIBC 2.35 or newer. Check your version with
 method for Isaac Sim instead.
 
 
+OmniGraph graph creation fails in headless Kit
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If creating an OmniGraph with ``og.Controller.edit()`` fails with
+``Unable to create prim for graph`` in a headless Isaac Lab experience, check
+whether the OmniGraph USD schema was available when Kit started.
+Enabling an extension at runtime can register its plugin after USD has
+already initialized its schema registry, leaving the ``OmniGraph`` prim
+definition unavailable.
+
+For scripts that accept Isaac Lab launcher arguments, pass the schema
+extension to Kit at startup, for example:
+
+.. code-block:: bash
+
+   uv run --extra isaacsim python my_script.py --kit_args="--enable omni.usd.schema.omnigraph"
+
+This applies to workflows that need USD-backed OmniGraph graphs, including
+ROS 2 bridge workflows. Enable any additional graph and bridge extensions
+required by your application separately.
+
+For a minimal verification using the current launch API, start Kit with
+the same argument and inspect the schema registry after launch:
+
+.. code-block:: python
+
+   from isaaclab.app import launch_simulation
+
+   with launch_simulation(None, {"require_kit": True, "kit_args": "--enable omni.usd.schema.omnigraph"}):
+       from pxr import Usd
+
+       assert Usd.SchemaRegistry().FindConcretePrimDefinition("OmniGraph") is not None
+
+If the definition is missing, restart the process with the boot-time
+argument rather than enabling the schema extension after Kit has started.
+
+
 PhysX backends
 --------------
 
