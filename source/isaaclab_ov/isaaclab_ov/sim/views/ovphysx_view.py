@@ -506,6 +506,39 @@ class OvPhysxView:
         self._check_device(src, device, attr, "source")
         binding.write(self._as_binding_view(src, binding, "source"), indices=indices, mask=mask)
 
+    def get_material_properties(self) -> wp.array:
+        """Read per-shape static friction, dynamic friction and restitution on the CPU.
+
+        The returned array has shape ``(num_instances, num_shapes, 3)``. Both
+        articulation and rigid-body views expose the same material interface.
+        """
+        return self.get_attribute(self._material_tensor_type())
+
+    def set_material_properties(self, values: wp.array, indices: wp.array | None = None) -> None:
+        """Write per-shape material properties for the selected instance rows.
+
+        Args:
+            values: Full CPU material tensor, shaped like :meth:`get_material_properties`.
+            indices: Optional CPU instance-row indices. If omitted, all rows are written.
+        """
+        self.set_attribute(self._material_tensor_type(), values, indices=indices)
+
+    def _material_tensor_type(self) -> TensorType:
+        """Resolve the native material binding for the prims owned by this view."""
+        for prefix, tensor_type in (
+            ("ARTICULATION_", TensorType.ARTICULATION_SHAPE_FRICTION_AND_RESTITUTION),
+            ("RIGID_BODY_", TensorType.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION),
+        ):
+            if any(binding.tensor_type.name.startswith(prefix) for binding in self._bindings.values()):
+                return tensor_type
+        for tensor_type in (
+            TensorType.ARTICULATION_SHAPE_FRICTION_AND_RESTITUTION,
+            TensorType.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION,
+        ):
+            if self.try_binding_for(tensor_type) is not None:
+                return tensor_type
+        raise self.AttributeUnavailable(f"No shape material binding exists for {self._target_repr()}.")
+
     # -- raw binding access (for asset/data-container adoption) ----------------
 
     def binding_for(self, name: str | Any) -> _BindingLike:

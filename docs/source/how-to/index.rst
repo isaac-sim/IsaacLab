@@ -62,16 +62,6 @@ How-to Guides
 
             :guide-tag:`PhysX` :guide-tag:`Isaac Sim`
 
-      .. container:: guide-entry
-
-         :doc:`Deep-dive into launching the simulation </source/how-to/launch_app>`
-
-         Configure and launch simulation applications from Python and the command line.
-
-         .. container:: guide-metadata
-
-            :guide-tag:`PhysX` :guide-tag:`Isaac Sim`
-
    .. container:: guide-group
 
       .. _asset-authoring:
@@ -584,11 +574,11 @@ How-to Guides
 
          :doc:`Recording animations of simulations </source/how-to/record_animation>`
 
-         Capture simulation state and export an animation.
+         Record Newton RTX video or use deprecated Kit USD animation workflows.
 
          .. container:: guide-metadata
 
-            :guide-tag:`PhysX` :guide-tag:`Isaac Sim`
+            :guide-tag-newton:`Newton` :guide-tag:`OvPhysX` :guide-tag:`RTX`
 
       .. container:: guide-entry
 

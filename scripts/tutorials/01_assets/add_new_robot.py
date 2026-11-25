@@ -4,7 +4,10 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import argparse
+from types import SimpleNamespace
 from typing import TYPE_CHECKING
+
+from isaaclab_ov.physics import OvPhysxCfg
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.utils import instantiate, replace
@@ -16,6 +19,7 @@ parser = argparse.ArgumentParser(
 parser.add_argument("--num_envs", type=int, default=1, help="Number of environments to spawn.")
 # append simulation launcher cli args
 add_launcher_args(parser)
+parser.set_defaults(visualizer=["newton_rtx"])
 # parse the arguments
 args_cli = parser.parse_args()
 
@@ -175,14 +179,17 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: "InteractiveScene"):
 def main():
     """Main function."""
     # Configure the simulation
-    sim_cfg = sim_utils.SimulationCfg(device=args_cli.device)
+    sim_cfg = sim_utils.SimulationCfg(
+        physics=OvPhysxCfg(),
+        device=args_cli.device,
+    )
     # Launch the simulator runtime that the configuration needs
-    with launch_simulation(sim_cfg, args_cli):
+    scene_cfg = NewRobotsSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0)
+    with launch_simulation(SimpleNamespace(sim=sim_cfg, scene=scene_cfg), args_cli):
         # Initialize the simulation context
         sim = sim_utils.SimulationContext(sim_cfg)
         sim.set_camera_view([3.5, 0.0, 3.2], [0.0, 0.0, 0.5])
         # Design scene
-        scene_cfg = NewRobotsSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0)
         scene = instantiate(scene_cfg)
         # Play the simulator
         sim.reset()

@@ -90,11 +90,11 @@ class TaskBalancedPPO(PPO):
             task_statistics[f"{task_name}_return_std"] = task_returns.std(unbiased=False).item()
         self.task_statistics = task_statistics
 
-    def update(self) -> dict[str, float]:
-        """Run PPO updates and append per-task rollout scale diagnostics."""
-        losses = super().update()
-        losses.update(self.task_statistics)
-        return losses
+    def update(self) -> tuple[dict[str, float], dict[str, float]]:
+        """Run PPO updates and append per-task rollout scale diagnostics to the statistics."""
+        losses, statistics = super().update()
+        statistics.update(self.task_statistics)
+        return losses, statistics
 
     def _validate_task_encoding(self, task_encoding: torch.Tensor) -> None:
         """Validate one-hot task identities stored in the rollout."""

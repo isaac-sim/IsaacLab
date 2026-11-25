@@ -30,14 +30,13 @@ def wrap_yaw(angle):
 
 
 def set_friction(asset, value, num_envs):
-    """Update material properties for a given asset."""
-    materials = wp.to_torch(asset.root_view.get_material_properties())
-    materials[..., 0] = value  # Static friction.
-    materials[..., 1] = value  # Dynamic friction.
-    env_ids = torch.arange(num_envs, device="cpu")
-    asset.root_view.set_material_properties(
-        wp.from_torch(materials.contiguous()), wp.from_torch(env_ids.to(torch.int32))
-    )
+    """Update shape friction while preserving the existing restitution."""
+    view = asset.root_view
+    materials = wp.to_torch(view.get_material_properties())
+    materials[..., 0] = value
+    materials[..., 1] = value
+    env_ids = wp.from_torch(torch.arange(num_envs, device="cpu", dtype=torch.int32))
+    view.set_material_properties(wp.from_torch(materials.contiguous()), env_ids)
 
 
 def set_body_inertias(robot):

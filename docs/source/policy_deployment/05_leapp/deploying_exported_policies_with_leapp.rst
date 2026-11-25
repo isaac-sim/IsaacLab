@@ -26,10 +26,10 @@ same backend extra and backend selector that you used for training and export, a
              --viz newton physics=newton_mjwarp
 
          # OV PhysX backend
-         uv run --extra ovphysx --extra leapp isaaclab leapp deploy \
+         uv run --extra ov --extra leapp isaaclab leapp deploy \
              --task <TASK_NAME> \
              --pipeline <PATH_TO_EXPORTED_LEAPP_YAML> \
-             --viz kit physics=ovphysx
+             --viz newton_rtx physics=ovphysx
 
          # Isaac Sim PhysX backend
          OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y uv run --extra isaacsim --extra leapp isaaclab leapp deploy \
@@ -49,10 +49,10 @@ same backend extra and backend selector that you used for training and export, a
              --viz newton physics=newton_mjwarp
 
          :: OV PhysX backend
-         uv run --extra ovphysx --extra leapp isaaclab leapp deploy ^
+         uv run --extra ov --extra leapp isaaclab leapp deploy ^
              --task <TASK_NAME> ^
              --pipeline <PATH_TO_EXPORTED_LEAPP_YAML> ^
-             --viz kit physics=ovphysx
+             --viz newton_rtx physics=ovphysx
 
          :: Isaac Sim PhysX backend
          set OMNI_KIT_ACCEPT_EULA=Y

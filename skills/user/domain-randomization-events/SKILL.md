@@ -19,8 +19,8 @@ Do not use this skill for unrelated curriculum, command sampling, or reward shap
 
 1. Identify what should vary: assets, physics properties, observations, initial state, external disturbances, or rendering.
 2. Identify the task workflow: direct (`DirectRLEnv` or `DirectMARLEnv`) or manager-based. Both can use `EventManager` through an `events` config.
-3. Identify the active target backend: PhysX, Newton, or both through `PresetCfg`.
-4. Check whether the randomization function has backend-specific behavior or unsupported backends in `source/isaaclab/isaaclab/envs/mdp/events.py`.
+3. Identify the active target backend: OvPhysX, Newton, or Isaac Sim PhysX, with `PresetCfg` when alternatives are needed. The manager-based base-environment tutorials use OvPhysX without Kit.
+4. Check whether the randomization function has backend-specific behavior or unsupported backends in `source/isaaclab/isaaclab/envs/mdp/events.py` and `visual_events.py`. For portable color randomization, declare a `VisualMaterialCfg` and use `randomize_visual_material` after initialization (`startup` or `reset`), not Kit Replicator's `randomize_visual_color`.
 5. Choose the event mode:
    - Use prestartup events for USD-level properties that must be authored before simulation starts.
    - Use startup events for one-time setup randomization after simulation starts.
