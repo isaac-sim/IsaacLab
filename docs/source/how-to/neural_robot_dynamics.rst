@@ -34,8 +34,7 @@ configurations and exploration terms live in ``record/``; policy agents stay in 
 
 Tasks register ``nerd_cfg_entry_point``, ``nerd_training_cfg_entry_point`` and
 ``nerd_recording_cfg_entry_point`` independently. The normal task resolver composes the selected
-recording environment with the model definition; it does not reconstruct another environment
-just to discover output paths.
+recording environment with the model definition.
 
 Record and train
 ----------------
@@ -97,8 +96,7 @@ simulation time advances by the declared timestep. The free-motion model advance
 solver substep, retaining numerical contacts and object dynamics. Native stepping rejects a timestep
 that differs from the checkpoint frame.
 
-Each solver adapter loads its checkpoint once during normal solver construction. It does not consult
-the global simulation singleton or introduce a manager subclass or a cached-model lookup.
+Each solver adapter loads its checkpoint once during normal solver construction.
 NewtonBackend owns initialization, contacts, graph capture, resets and pending model changes.
 The native solver consumes the controls declared by its model directly from Newton's control buffers.
 
@@ -107,7 +105,7 @@ models also check drive gains. Binding separately checks joint structure, frames
 requires recording and training a compatible checkpoint. The nominal task configurations omit known
 unsupported robot randomization. Runtime mutations retain the native solver's explicit warnings.
 For bounded exploration, sampling uses the action term's declared bounds. Deployment task presets
-declare matching clipping; the physics integration does not inspect environment action classes.
+declare matching clipping.
 
 Standalone learned dynamics do not compute joint reaction wrenches or accelerations, and reject sensors
 that require those values. Contact-force observables are penetration-based indicators, not calibrated
@@ -127,20 +125,10 @@ physics; ``--checkpoint`` selects the policy using the ordinary playback checkpo
        --task Isaac-Reach-Franka --checkpoint logs/rsl_rl/reach_franka_nerd/RUN/model_100.pt \
        physics=newton_mjwarp
 
-Evaluate additional checkpoints by invoking the same command again. Configuration resolves once,
-as in ordinary playback. Supply matching ``agent.*`` overrides when the policy was trained with
-settings that differ from the selected task defaults, including network dimensions and action clipping.
-For example, ANYmal C policies trained with neural physics use ``agent.clip_actions=1.5``.
-Saved agent YAML is not restored automatically.
+Evaluate additional checkpoints by invoking the same command again. Supply matching ``agent.*``
+overrides when the policy was trained with settings that differ from the selected task defaults,
+including network dimensions and action clipping. For example, ANYmal C policies trained with neural
+physics use ``agent.clip_actions=1.5``. Saved agent YAML is not restored automatically.
 
 The report counts each world's first episode once and reports reward, duration and termination
-fractions. It does not reconstruct per-world command metrics from already-aggregated reset logs.
-
-Migration
----------
-
-The combined recipe API has been removed from this unmerged integration. Model configuration,
-optimizer configuration and recording environments have separate registry entries as described above.
-The old recording simulation wrappers and recorder-owned loop are removed. Dataset and output checkpoint
-paths must be supplied explicitly. Existing checkpoints without Isaac Lab physical-contract metadata
-must be recorded and trained again.
+fractions. Command metrics are not part of the report.
