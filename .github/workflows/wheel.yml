@@ -182,10 +182,11 @@ jobs:
           WHEEL_SHA: ${{ github.sha }}
         run: bash tools/wheel_builder/build.sh
 
-      # The development branch may temporarily use Git-pinned dependencies. Release
-      # branches must remain publishable to PyPI and therefore reject direct URLs.
+      # TODO: Re-enable once Newton is released on a package index. Release wheels
+      # still need GitHub-pinned dependencies until then.
       - name: Validate PyPI metadata
         if: >-
+          false &&
           steps.changes.outputs.run_build == 'true' &&
           (startsWith(github.ref, 'refs/heads/release/') ||
            startsWith(github.base_ref, 'release/'))
