@@ -63,13 +63,13 @@ def prepare_humanoid_teleop_environment(cfg: ManagerBasedRLEnvCfg) -> None:
 
 @configclass
 class TeleopPhysicsCfg(PresetCfg):
-    """Keep Kit as the default and expose the supported standalone backends."""
+    """Default to OvPhysX and expose the other supported backends."""
 
     isaacsim_physx = PhysxCfg()
     ovphysx = OvPhysxCfg()
     newton_mjwarp = NewtonCfg(solver_cfg=MJWarpSolverCfg())
     physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
-    default = isaacsim_physx
+    default = ovphysx
 
 
 def check_backend_preparation(env_cfg: ManagerBasedRLEnvCfg, backend: str | None) -> bool:

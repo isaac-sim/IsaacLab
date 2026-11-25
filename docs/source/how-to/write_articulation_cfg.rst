@@ -355,13 +355,13 @@ See :ref:`tutorial-interactive-scene` for scene construction and
       :language: python
       :linenos:
 
-Run the example in the Isaac Sim viewport:
+Run the example in the Newton RTX visualizer:
 
 .. code-block:: bash
 
-   uv run isaaclab -p scripts/tutorials/01_assets/add_new_robot.py --viz kit
+   uv run --extra ov isaaclab -p scripts/tutorials/01_assets/add_new_robot.py --viz newton_rtx
 
-This example uses PhysX physics and requires Isaac Sim. The Dofbot gripper is not actuated
+This example uses OvPhysX without Isaac Sim. The Dofbot gripper is not actuated
 in this example, so a warning about unconfigured joints is expected. Stop the example with ``Ctrl+C``.
 
 .. figure:: ../_static/tutorials/tutorial_add_new_robot_result.jpg

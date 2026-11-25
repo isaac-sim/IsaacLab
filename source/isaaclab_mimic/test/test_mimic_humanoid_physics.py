@@ -52,9 +52,10 @@ def test_humanoid_mimic_construction_prepares_only_standalone_backends(monkeypat
 
     overrides = [] if physics is None else [f"physics={physics}"]
     cfg = parse_env_cfg(task, device="cpu", num_envs=1, overrides=overrides)
-    expected_type = {None: PhysxCfg, "isaacsim_physx": PhysxCfg, "ovphysx": OvPhysxCfg, "newton_mjwarp": NewtonCfg}
+    expected_type = {None: OvPhysxCfg, "isaacsim_physx": PhysxCfg, "ovphysx": OvPhysxCfg, "newton_mjwarp": NewtonCfg}
     assert type(cfg.sim.physics) is expected_type[physics]
-    prepared = physics if physics in ("ovphysx", "newton_mjwarp") else None
+    selected_physics = "ovphysx" if physics is None else physics
+    prepared = selected_physics if selected_physics in ("ovphysx", "newton_mjwarp") else None
 
     def inspect(cfg):
         assert type(cfg.sim.physics) is expected_type[physics]

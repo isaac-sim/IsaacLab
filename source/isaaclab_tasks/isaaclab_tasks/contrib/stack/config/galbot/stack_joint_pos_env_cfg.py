@@ -13,6 +13,7 @@ from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
@@ -29,6 +30,7 @@ from isaaclab_tasks.contrib.stack.stack_env_cfg import (
     raise_if_surface_gripper_on_gpu,
     raise_if_surface_gripper_on_newton,
 )
+from isaaclab_tasks.utils import preset
 
 ##
 # Pre-defined configs
@@ -248,7 +250,75 @@ class GalbotLeftArmCubeStackEnvCfg(StackEnvCfg):
         self.observations.subtask_terms = ObservationGalbotLeftArmGripperCfg().SubtaskCfg()
 
         # Set galbot as robot
-        self.scene.robot = replace(GALBOT_ONE_CHARLIE_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace(
+            GALBOT_ONE_CHARLIE_CFG,
+            prim_path="{ENV_REGEX_NS}/Robot",
+            body_ordering=preset(
+                default=(
+                    "base_link",
+                    "omni_chassis_base_link",
+                    "omni_chassis_leg_mount_link",
+                    "omni_chassis_lidar_sim_view_frame",
+                    "omni_chassis_ultrasonic_sim_view_frame1",
+                    "omni_chassis_ultrasonic_sim_view_frame2",
+                    "omni_chassis_ultrasonic_sim_view_frame3",
+                    "omni_chassis_ultrasonic_sim_view_frame4",
+                    "omni_chassis_ultrasonic_sim_view_frame5",
+                    "omni_chassis_ultrasonic_sim_view_frame6",
+                    "omni_chassis_ultrasonic_sim_view_frame7",
+                    "omni_chassis_ultrasonic_sim_view_frame8",
+                    "leg_base_link",
+                    "leg_link1",
+                    "leg_link2",
+                    "leg_link3",
+                    "leg_link4",
+                    "leg_end_effector_mount_link",
+                    "torso_base_link",
+                    "torso_back_left_camera_sim_view_frame",
+                    "torso_back_right_camera_sim_view_frame",
+                    "torso_front_left_camera_sim_view_frame",
+                    "torso_front_right_camera_sim_view_frame",
+                    "torso_head_mount_link",
+                    "torso_left_arm_mount_link",
+                    "torso_right_arm_mount_link",
+                    "head_base_link",
+                    "left_arm_base_link",
+                    "right_arm_base_link",
+                    "head_link1",
+                    "left_arm_link1",
+                    "right_arm_link1",
+                    "head_link2",
+                    "left_arm_link2",
+                    "right_arm_link2",
+                    "head_end_effector_mount_link",
+                    "left_arm_link3",
+                    "right_arm_link3",
+                    "head_camera_sim_view_frame",
+                    "left_arm_link4",
+                    "right_arm_link4",
+                    "left_arm_link5",
+                    "right_arm_link5",
+                    "left_arm_link6",
+                    "right_arm_link6",
+                    "left_arm_link7",
+                    "right_arm_link7",
+                    "left_arm_end_effector_mount_link",
+                    "right_arm_end_effector_mount_link",
+                    "left_arm_camera_sim_view_frame",
+                    "left_arm_force_sensor_sim_view_frame",
+                    "left_gripper_base_link",
+                    "right_arm_camera_sim_view_frame",
+                    "right_arm_force_sensor_sim_view_frame",
+                    "right_suction_cup_base_link",
+                    "left_gripper_left_link",
+                    "left_gripper_right_link",
+                    "left_gripper_tcp_link",
+                    "right_suction_cup_link1",
+                    "right_suction_cup_tcp_link",
+                ),
+                newton_mjwarp=None,
+            ),
+        )
 
         # Set actions for the specific robot type (galbot)
         self.actions.arm_action = mdp.JointPositionActionCfg(
@@ -351,6 +421,12 @@ class GalbotRightArmCubeStackEnvCfg(GalbotLeftArmCubeStackEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
+        # SurfaceGripper still uses Isaac Sim's GripperView.
+        self.sim.physics = preset(
+            default=self.sim.physics.isaacsim_physx,
+            isaacsim_physx=self.sim.physics.isaacsim_physx,
+            physx=PhysxAutoCfg(isaacsim_physx=self.sim.physics.isaacsim_physx),
+        )
 
         # Surface grippers currently require CPU simulation.
         self.sim.device = "cpu"

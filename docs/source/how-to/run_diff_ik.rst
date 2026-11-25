@@ -9,7 +9,7 @@ Use :class:`controllers.DifferentialIKController` to command an end-effector pos
 and compute joint position targets. This is useful for reaching and teleoperation,
 where specifying a hand pose is often easier than choosing each joint angle.
 
-This tutorial uses Isaac Sim PhysX and requires an Isaac Sim installation.
+This tutorial uses OvPhysX and the Newton RTX visualizer. Install the ``ov`` extra; Isaac Sim is not required.
 For controller selection and the control-loop walkthrough, see
 :doc:`../concepts/motion_generators`.
 
@@ -26,7 +26,7 @@ The tutorial corresponds to the ``run_diff_ik.py`` script in the
 
    .. literalinclude:: ../../../scripts/tutorials/05_controllers/run_diff_ik.py
       :language: python
-      :emphasize-lines: 98-100, 121-136, 156-158, 162-175
+      :emphasize-lines: 117-119, 140-155, 175-177, 181-194
       :linenos:
 
 
@@ -146,11 +146,11 @@ Now that we have gone through the code, let's run the script and see the result:
 
 .. tab-set::
 
-   .. tab-item:: Isaac Sim PhysX (uv)
+   .. tab-item:: OvPhysX (uv)
 
       .. code-block:: bash
 
-         uv run isaaclab -p scripts/tutorials/05_controllers/run_diff_ik.py --robot franka_panda --num_envs 128 --viz kit
+         uv run --extra ov isaaclab -p scripts/tutorials/05_controllers/run_diff_ik.py --robot franka_panda --num_envs 128 --viz newton_rtx
 
 The script will start a simulation with 128 robots. The robots will be controlled using the IK controller.
 The current and desired end-effector poses should be displayed using frame markers.

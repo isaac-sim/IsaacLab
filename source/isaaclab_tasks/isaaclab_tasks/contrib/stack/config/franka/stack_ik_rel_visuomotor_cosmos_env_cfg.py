@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+
 import isaaclab.sim as sim_utils
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -11,7 +12,7 @@ from isaaclab.sensors import CameraCfg
 from isaaclab.utils import configclass
 
 from isaaclab_tasks.contrib.stack import mdp
-from isaaclab_tasks.utils.presets import set_isaac_rtx_global_settings
+from isaaclab_tasks.utils.presets import MultiBackendRendererCfg, set_isaac_rtx_global_settings
 
 from . import stack_ik_rel_visuomotor_env_cfg
 
@@ -115,6 +116,7 @@ class FrankaCubeStackVisuomotorCosmosEnvCfg(stack_ik_rel_visuomotor_env_cfg.Fran
         # Set cameras
         # Set wrist camera
         self.scene.wrist_cam = CameraCfg(
+            renderer_cfg=MultiBackendRendererCfg().rtx,
             prim_path="{ENV_REGEX_NS}/Robot/(Geometry/.*/)?panda_hand/wrist_cam",
             update_period=0.0,
             height=200,
@@ -130,6 +132,7 @@ class FrankaCubeStackVisuomotorCosmosEnvCfg(stack_ik_rel_visuomotor_env_cfg.Fran
 
         # Set table view camera
         self.scene.table_cam = CameraCfg(
+            renderer_cfg=MultiBackendRendererCfg().rtx,
             prim_path="{ENV_REGEX_NS}/table_cam",
             update_period=0.0,
             height=200,

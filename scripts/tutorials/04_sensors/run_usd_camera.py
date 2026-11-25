@@ -7,21 +7,30 @@
 This script shows how to use the camera sensor from the Isaac Lab framework.
 
 Instead of using the simulator or OpenGL convention for the camera, we use the robotics or ROS convention.
+OVRTX supplies semantic and instance segmentation; it does not expose Isaac Sim's
+``instance_id_segmentation_fast`` output.
 
 .. code-block:: bash
 
     # Usage with GUI
-    uv run python scripts/tutorials/04_sensors/run_usd_camera.py --viz kit
+    uv run --extra ov python scripts/tutorials/04_sensors/run_usd_camera.py --viz newton_rtx
+
+    # Deprecated Isaac Sim path, including instance_id_segmentation_fast outputs
+    uv run --extra isaacsim python scripts/tutorials/04_sensors/run_usd_camera.py \
+        --physics isaacsim_physx --viz newton_gl --save
 
     # Usage with no visualizer
-    uv run python scripts/tutorials/04_sensors/run_usd_camera.py
+    uv run --extra ov python scripts/tutorials/04_sensors/run_usd_camera.py
 
 """
 
 """Parse the command-line arguments first."""
 
 import argparse
+from types import SimpleNamespace
 from typing import TYPE_CHECKING
+
+from isaaclab_ov.physics import OvPhysxCfg
 
 from isaaclab.app import add_launcher_args, launch_simulation
 
@@ -50,7 +59,9 @@ parser.add_argument(
     ),
 )
 # append simulation launcher cli args
+parser.add_argument("--physics", default="ovphysx", choices=["ovphysx", "isaacsim_physx"], help="Physics backend.")
 add_launcher_args(parser)
+parser.set_defaults(visualizer=["newton_rtx"])
 # parse the arguments
 args_cli = parser.parse_args()
 # Camera sensors require the rendering extensions in headless and viewport-free launches.
@@ -64,11 +75,13 @@ import random
 import numpy as np
 import torch
 from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
+from isaaclab_ov.renderers import OVRTXRendererCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import RigidObject, RigidObjectCfg
+from isaaclab.assets import AssetBaseCfg, RigidObject, RigidObjectCfg
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import RAY_CASTER_MARKER_CFG
+from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors.camera import CameraCfg
 from isaaclab.sensors.camera.utils import create_pointcloud_from_depth, save_images_to_file
 from isaaclab.utils import instantiate, replace
@@ -84,6 +97,7 @@ def define_sensor() -> "Camera":
     # This means the camera sensor will be attached to these prims.
     sim_utils.create_prim("/World/Origin_00", "Xform")
     sim_utils.create_prim("/World/Origin_01", "Xform")
+    renderer_type = IsaacRtxRendererCfg if args_cli.physics == "isaacsim_physx" else OVRTXRendererCfg
     camera_cfg = CameraCfg(
         prim_path="/World/Origin_[^/]+/CameraSensor",
         update_period=0,
@@ -95,11 +109,10 @@ def define_sensor() -> "Camera":
             "normals",
             "semantic_segmentation",
             "instance_segmentation",
-            "instance_id_segmentation_fast",
+            *(["instance_id_segmentation_fast"] if args_cli.physics == "isaacsim_physx" else []),
         ],
-        renderer_cfg=IsaacRtxRendererCfg(
+        renderer_cfg=renderer_type(
             colorize_semantic_segmentation=True,
-            colorize_instance_id_segmentation=True,
             colorize_instance_segmentation=True,
         ),
         spawn=sim_utils.PinholeCameraCfg(
@@ -255,21 +268,29 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
 def main():
     """Main function."""
     # Configure the simulation
-    sim_cfg = sim_utils.SimulationCfg(device=args_cli.device)
+    sim_cfg = sim_utils.SimulationCfg(
+        physics=OvPhysxCfg(),
+        device=args_cli.device,
+    )
     # Launch the simulator runtime that the configuration needs
-    with launch_simulation(sim_cfg, args_cli):
+    scene_cfg = InteractiveSceneCfg(num_envs=1, env_spacing=0.0)
+    scene_cfg.world = AssetBaseCfg(prim_path="/World")
+    with launch_simulation(SimpleNamespace(sim=sim_cfg, scene=scene_cfg), args_cli):
         # Initialize the simulation context
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
         sim.set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
         # Design scene
         scene_entities = design_scene()
+        # Declare the standalone world so scene-data consumers can discover its geometry.
+        scene = instantiate(scene_cfg)
         # Play simulator
         sim.reset()
         # Now we are ready!
         print("[INFO]: Setup complete...")
         # Run simulator
         run_simulator(sim, scene_entities)
+        del scene
 
 
 if __name__ == "__main__":

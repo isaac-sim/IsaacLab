@@ -8,7 +8,7 @@
 .. code-block:: bash
 
     # Usage
-    uv run python scripts/tutorials/00_sim/spawn_prims.py
+    uv run --extra ov python scripts/tutorials/00_sim/spawn_prims.py
 
 """
 
@@ -16,13 +16,19 @@
 
 
 import argparse
+from types import SimpleNamespace
+
+from isaaclab_ov.physics import OvPhysxCfg
 
 from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.utils import instantiate
 
 # create argparser
 parser = argparse.ArgumentParser(description="Tutorial on spawning prims into the scene.")
 # append simulation launcher cli args
 add_launcher_args(parser)
+parser.set_defaults(visualizer=["newton_rtx"])
 # parse the arguments
 args_cli = parser.parse_args()
 
@@ -31,6 +37,7 @@ args_cli = parser.parse_args()
 from isaaclab_isaacsim.sim.spawners.materials import PhysxDeformableBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
+from isaaclab.assets import AssetBaseCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 
@@ -89,15 +96,22 @@ def main():
     """Main function."""
 
     # Configure the simulation
-    sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device)
+    sim_cfg = sim_utils.SimulationCfg(
+        physics=OvPhysxCfg(),
+        dt=0.01,
+        device=args_cli.device,
+    )
     # Launch the simulator runtime that the configuration needs
-    with launch_simulation(sim_cfg, args_cli):
+    scene_cfg = InteractiveSceneCfg(num_envs=1, env_spacing=0.0)
+    scene_cfg.world = AssetBaseCfg(prim_path="/World")
+    with launch_simulation(SimpleNamespace(sim=sim_cfg, scene=scene_cfg), args_cli):
         # Initialize the simulation context
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
         sim.set_camera_view([2.0, 0.0, 2.5], [-0.5, 0.0, 0.5])
         # Design scene
         design_scene()
+        _scene = instantiate(scene_cfg)
         # Play the simulator
         sim.reset()
         # Now we are ready!

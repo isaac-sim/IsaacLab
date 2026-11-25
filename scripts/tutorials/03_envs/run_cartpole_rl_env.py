@@ -8,7 +8,7 @@ This script demonstrates how to run the RL environment for the cartpole balancin
 
 .. code-block:: bash
 
-    uv run python scripts/tutorials/03_envs/run_cartpole_rl_env.py --num_envs 32 --viz kit
+    uv run python scripts/tutorials/03_envs/run_cartpole_rl_env.py --num_envs 32 --viz newton_rtx
 
 Trailing ``key=value`` arguments (e.g. ``physics=isaacsim_physx``) are forwarded as Hydra-style
 overrides to the task configuration; see :func:`~isaaclab_tasks.utils.parse_env_cfg`.

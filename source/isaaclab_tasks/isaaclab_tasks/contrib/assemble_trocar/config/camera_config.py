@@ -10,8 +10,6 @@ include the basic configuration for different types of cameras, support scene-sp
 
 from collections.abc import Sequence
 
-from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
-
 import isaaclab.sim as sim_utils
 from isaaclab.sensors import CameraCfg
 from isaaclab.utils import configclass
@@ -63,8 +61,8 @@ class CameraBaseCfg:
             data_types = ("rgb",)
 
         return CameraCfg(
+            renderer_cfg=MultiBackendRendererCfg(default=MultiBackendRendererCfg().rtx),
             prim_path=prim_path,
-            renderer_cfg=MultiBackendRendererCfg(default=IsaacRtxRendererCfg()),
             update_period=update_period,
             height=height,
             width=width,
