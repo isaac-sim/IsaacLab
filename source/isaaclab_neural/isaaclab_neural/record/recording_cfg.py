@@ -27,13 +27,31 @@ class NeRDDynamicsRecorderCfg(RecorderTermCfg):
 
     class_type: str = "{DIR}.recording:NeRDDynamicsRecorder"
 
+    asset_name: str = "robot"
+    """Name of the recorded articulation in the scene."""
+
+    contact_bodies: str = ""
+    """Body-name glob for the ground probes recorded as contact input; empty records none.
+
+    The recording entrypoint sets it from the task's model definition.
+    """
+
+    prediction: str = "newton_neural.predictions:PredictionStateIncrement"
+    """Native prediction class whose labels are recorded.
+
+    The recording entrypoint sets it from the task's model definition.
+    """
+
     shard_frames: int = 256
     """Frames buffered for all environments before a shard is written."""
 
 
 @configclass
 class NeRDRecorderCfg(RecorderManagerBaseCfg):
-    """Recorder manager whose dynamics term writes native NeRD shards."""
+    """Recorder manager whose dynamics term writes native NeRD shards.
+
+    The dataset is the folder :attr:`dataset_filename` in :attr:`dataset_export_dir_path`.
+    """
 
     dataset_export_mode: DatasetExportMode = DatasetExportMode.EXPORT_NONE
     """The dynamics term writes batched shards itself, so the manager exports no per-environment episodes."""

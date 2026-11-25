@@ -40,8 +40,8 @@ just to discover output paths.
 Record and train
 ----------------
 
-Paths are explicit. The recording produces ``model.pt`` (the untrained model), native trajectory
-shards, ``meta.json`` and resolved settings under ``params/``.
+Paths are explicit. The recording produces native trajectory shards, ``meta.json``, which also describes
+the recorded robot, and the resolved environment settings under ``params/``.
 
 .. code-block:: bash
 
@@ -53,9 +53,12 @@ shards, ``meta.json`` and resolved settings under ``params/``.
        --task Isaac-Reach-Franka --dataset logs/neural/reach_franka/dataset \
        --checkpoint logs/neural/reach_franka/flashnerd.pt
 
-``agent.backbone_spans=[1,1]`` configures the model when recording. During training, the dataset's
-saved model is authoritative; ``agent.learning_rate=0.001`` or ``agent.batch_size=1024`` configures
-optimization independently. An output checkpoint is saved before the validation report.
+Training builds the model on the robot that the dataset describes, so the architecture can change
+without recording again: ``model.backbone_spans=[1,1]`` configures the model definition, and
+``agent.learning_rate=0.001`` or ``agent.batch_size=1024`` configures optimization independently.
+``model.prediction`` and ``model.contact_bodies`` select the recorded signals. Pass them to ``record.py``;
+training refuses a dataset that was recorded with other values. An output checkpoint is saved before the
+validation report.
 
 Franka explores the arm in free space using mixed joint targets. ANYmal explores moving and tilted
 poses using held joint targets and ground probes. Allegro records independent single-solver-step

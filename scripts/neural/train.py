@@ -3,10 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Fit a recorded model with independently selected optimizer settings.
+"""Fit the task's model definition to a recorded dataset.
 
-The dataset owns its model definition. Pass --dataset and --checkpoint explicitly; agent.<field> overrides
-configure NeRDTrainingCfg through the same task resolver as other training entrypoints.
+The model is built on the robot that the dataset describes, so one dataset fits any architecture.
+``model.<field>`` overrides configure the model definition and ``agent.<field>`` overrides configure
+NeRDTrainingCfg. Pass --dataset and --checkpoint explicitly.
 """
 
 # ruff: noqa: E402
@@ -23,7 +24,8 @@ wp.config.enable_backward = False
 
 import torch
 from isaaclab_neural import NeRDTrainingCfg
-from newton_neural.data import TrajectoryWindows
+from isaaclab_neural.nerd import build_model
+from newton_neural.data import TrajectoryDataset, TrajectoryWindows
 from newton_neural.evaluation import rollout_error
 from newton_neural.models import NeRDBase
 from newton_neural.training import LossOneStep, create_optimizer
@@ -31,6 +33,7 @@ from newton_neural.training import LossOneStep, create_optimizer
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config, setup_preset_cli
 
+MODEL_ENTRY_POINT = "nerd_cfg_entry_point"
 TRAINING_ENTRY_POINT = "nerd_training_cfg_entry_point"
 LOG_INTERVAL = 500  # Optimizer steps between two printed losses
 
@@ -117,20 +120,23 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--seed", type=int, default=0, help="Seed of the training.")
     args, overrides = setup_preset_cli(parser, argv)
 
-    _, cfg = resolve_task_config(args.task, TRAINING_ENTRY_POINT, overrides=overrides)
+    # The task resolver composes one configuration in its agent slot, so each definition is resolved on its own.
+    model_overrides = [f"agent.{token.removeprefix('model.')}" for token in overrides if token.startswith("model.")]
+    training_overrides = [token for token in overrides if not token.startswith("model.")]
+    _, cfg = resolve_task_config(args.task, TRAINING_ENTRY_POINT, overrides=training_overrides)
+    _, model_cfg = resolve_task_config(args.task, MODEL_ENTRY_POINT, overrides=model_overrides)
     checkpoint, dataset = args.checkpoint, args.dataset
-    untrained = dataset / "model.pt"
-    if not untrained.is_file():
-        parser.error(f"{dataset} has no recorded model.pt; record the dataset first")
+    if not (dataset / "meta.json").is_file():
+        parser.error(f"{dataset} holds no recorded dataset; record it first")
     if args.max_steps is not None:
         cfg.max_steps = args.max_steps
 
     torch.set_float32_matmul_precision("high")  # TF32 matrix products on GPUs with tensor cores
     torch.manual_seed(args.seed)
     device = ("cuda" if torch.cuda.is_available() else "cpu") if args.device is None else args.device
-    nerd = NeRDBase.load(untrained, device=device)
     windows, held_out = TrajectoryWindows(dataset, cfg.window, device=device).split()
     try:
+        nerd = build_model(TrajectoryDataset(dataset), model_cfg).to(device)
         check_report(nerd, held_out, cfg)
     except ValueError as error:
         parser.error(str(error))

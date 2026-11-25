@@ -13,8 +13,9 @@ import pytest
 
 pytest.importorskip("newton_neural", reason="needs the newton-neural extra")
 
+from isaaclab_neural.nerd import build_model
 from newton_neural.data import TrajectoryDataset, TrajectoryWindows
-from newton_neural.models import NeRDBase
+from newton_neural.systems import SystemBase
 
 from isaaclab.envs import ManagerBasedRLEnv
 
@@ -34,13 +35,13 @@ def test_dataset(task, tmp_path):
     dataset_path, frame_count = tmp_path / "dataset", 128
     record_dataset(task, dataset_path, WORLD_COUNT, frame_count, cuda_device())
     dataset = TrajectoryDataset(dataset_path)
-    nerd = NeRDBase.load(dataset_path / "model.pt", device="cpu")
     assert (dataset.world_count, dataset.frame_count) == (WORLD_COUNT, frame_count)
     assert dataset.generation["complete"]
-    assert dataset.signals == nerd.signals
-    assert not nerd.fitted
-    assert "physical_model" in nerd.metadata["isaaclab"]
     assert dataset.frame_dt > 0
+    # The dataset describes its robot, and holds the signals of the model that the task defines on it.
+    nerd = build_model(dataset, load_cfg_from_registry(task, "nerd_cfg_entry_point"))
+    assert dataset.signals == nerd.signals
+    assert nerd.metadata["isaaclab"]["physical_model"] == dataset.generation["isaaclab"]["physical_model"]
 
     arrays = dataset.arrays(0)
     starts, valid = arrays["episode_start"], arrays["valid"]
@@ -95,8 +96,8 @@ def test_frames_follow_environment_steps(task, tmp_path, monkeypatch):
     recorded = {name: np.concatenate([shard[name] for shard in shards], axis=1) for name in shards[0]}
     expected = {name: np.stack(values, axis=1) for name, values in live.items() if name != "joint_names"}
 
-    # The recorded signals follow the joint order of the model's system, Isaac Lab's the order of the asset.
-    labels = NeRDBase.load(dataset_path / "model.pt", device="cpu").system.spec.actuated_joint_labels
+    # The recorded signals follow the joint order of the recorded system, Isaac Lab's the order of the asset.
+    labels = SystemBase.create(**dataset.generation["isaaclab"]["system"]).spec.actuated_joint_labels
     order = [labels.index(name) for name in live["joint_names"]]
     joint_q = recorded["joint_q"][..., -len(labels) :]  # A floating base precedes the joint coordinates.
     assert np.array_equal(joint_q[..., order], expected["joint_pos"])

@@ -16,8 +16,10 @@ pytest.importorskip("newton_neural", reason="needs the newton-neural extra")
 
 import newton
 import torch
+from isaaclab_neural.nerd import build_model
 from isaaclab_newton.physics import NewtonManager
 from newton_neural import Frames
+from newton_neural.data import TrajectoryDataset
 from newton_neural.models import Precision
 from newton_neural.solvers import SolverNeRD
 
@@ -28,6 +30,7 @@ from isaaclab.sim.utils.stage import use_stage
 from isaaclab.test.utils import DeviceScope, test_devices
 
 from isaaclab_tasks.contrib.velocity.config.anymal_c.flat_env_cfg import ANYMAL_C_NERD_TARGET_REACH
+from isaaclab_tasks.utils import load_cfg_from_registry
 
 from nerd_test_utils import (  # isort: skip
     ANYMAL_C_FLAT,
@@ -269,8 +272,10 @@ def test_refusals(checkpoint: Path, device: str, tmp_path: Path):
     env_cfg.scene.robot.enable_joint_wrench = True
     refused(TASK, env_cfg, ValueError, r"body_qdd \(.*\) and body_parent_f \(")
 
-    # The untrained model that the record script leaves in the dataset, which has no frame to step the task by.
-    env_cfg = nerd_task_cfg(TASK, checkpoint.parent / "dataset" / "model.pt", 4, device)
+    # A model that was built on the dataset and never fitted, which has no frame to step the task by.
+    dataset = TrajectoryDataset(checkpoint.parent / "dataset")
+    build_model(dataset, load_cfg_from_registry(TASK, "nerd_cfg_entry_point")).save(tmp_path / "unfitted.pt")
+    env_cfg = nerd_task_cfg(TASK, tmp_path / "unfitted.pt", 4, device)
     refused(TASK, env_cfg, ValueError, "no frame duration.*Fit its normalization")
 
     # A task drives the joints and the actuators of a robot, so a model of another kind of system is refused, and

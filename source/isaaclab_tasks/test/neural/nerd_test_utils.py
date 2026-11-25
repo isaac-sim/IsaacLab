@@ -136,8 +136,7 @@ def record_and_train(task: str, folder: Path, *, num_envs: int, num_frames: int,
         max_steps: Optimizer steps.
 
     Returns:
-        The trained model file. The adjacent ``dataset`` folder holds native trajectories and the
-        recorded, untrained ``model.pt``.
+        The trained model file. The adjacent ``dataset`` folder holds the native trajectories.
     """
     from isaaclab.paths import ISAACLAB_ROOT  # noqa: PLC0415
 
