@@ -49,3 +49,111 @@ def test_newton_renderer_accepts_supported_data_types(cfg_cls):
     """The guard must not reject data types the Newton Warp renderer does publish."""
     cfg = resolve_presets(cfg_cls(), {"newton_warp", "rgb"})
     validate(cfg)  # must not raise
+
+
+@pytest.mark.parametrize("cfg_cls", _ENV_CFG_CLASSES)
+def test_lidar_preset_uses_one_ovrtx_renderer(cfg_cls):
+    """The lidar preset pins the lidar to OVRTX with motion BVH enabled and drops the camera."""
+    from isaaclab_ov.renderers import OVRTXRendererCfg
+
+    from isaaclab.sensors import LidarCfg
+
+    cfg = resolve_presets(cfg_cls(), {"lidar"})
+    validate(cfg)
+    assert isinstance(cfg.scene.lidar, LidarCfg)
+    assert isinstance(cfg.scene.lidar.renderer_cfg, OVRTXRendererCfg)
+    assert getattr(cfg.scene, "tiled_camera", None) is None
+    assert cfg.scene.lidar.output_frame_of_reference == "SENSOR"
+    assert cfg.scene.lidar.elements_coords_type == "CARTESIAN"
+    assert cfg.scene.lidar.far_range_m == 12.0
+    assert cfg.scene.lidar.max_returns == 1
+    assert cfg.scene.lidar.instant_lidar is True
+    assert cfg.scene.lidar.include_invalid_points is True
+    assert cfg.scene.lidar.renderer_cfg.motion_bvh == "auto"
+    assert cfg.scene.num_envs == 64
+    if cfg_cls is CartpoleDirectCameraEnvCfg:
+        from isaaclab_tasks.core.cartpole.cartpole_common import (
+            CARTPOLE_LIDAR_AZIMUTH_COUNT,
+            CARTPOLE_LIDAR_ELEVATION_COUNT,
+        )
+
+        assert cfg.observation_space == [1, CARTPOLE_LIDAR_ELEVATION_COUNT, CARTPOLE_LIDAR_AZIMUTH_COUNT]
+        assert cfg.state_space == 4
+
+
+def test_lidar_preset_selects_cnn_agents():
+    """The lidar observation is a range image, so the registered tasks select the camera CNN."""
+    import isaaclab_tasks  # noqa: F401
+    from isaaclab_tasks.utils.hydra import resolve_task_config
+
+    _, rl_games_cfg = resolve_task_config(
+        "Isaac-Cartpole-Camera", "rl_games_cfg_entry_point", overrides=["presets=lidar"]
+    )
+    rl_games_config = rl_games_cfg["params"]["config"]
+    assert "cnn" in rl_games_cfg["params"]["network"]
+    assert rl_games_config["name"] == "cartpole_camera"
+    assert rl_games_config["normalize_input"] is False
+
+    _, rsl_rl_cfg = resolve_task_config("Isaac-Cartpole-Camera", "rsl_rl_cfg_entry_point", overrides=["presets=lidar"])
+    assert rsl_rl_cfg.actor.class_name == "CNNModel"
+    assert rsl_rl_cfg.actor.obs_normalization is False
+    assert rsl_rl_cfg.obs_groups == {"actor": ["policy"], "critic": ["critic"]}
+
+    _, direct_rl_games_cfg = resolve_task_config(
+        "Isaac-Cartpole-Camera-Direct", "rl_games_cfg_entry_point", overrides=["presets=lidar"]
+    )
+    direct_rl_games_config = direct_rl_games_cfg["params"]["config"]
+    assert "cnn" in direct_rl_games_cfg["params"]["network"]
+    assert direct_rl_games_config["name"] == "cartpole_camera"
+    assert direct_rl_games_config["normalize_input"] is False
+
+    _, direct_rsl_rl_cfg = resolve_task_config(
+        "Isaac-Cartpole-Camera-Direct", "rsl_rl_cfg_entry_point", overrides=["presets=lidar"]
+    )
+    assert direct_rsl_rl_cfg.actor.class_name == "CNNModel"
+    assert direct_rsl_rl_cfg.actor.obs_normalization is False
+    assert direct_rsl_rl_cfg.obs_groups == {"actor": ["policy"], "critic": ["critic"]}
+    assert direct_rsl_rl_cfg.experiment_name == "cartpole_camera_direct"
+
+
+def test_lidar_range_image_places_rays_on_the_elevation_azimuth_grid():
+    """An interior ray lands on its elevation row and azimuth column, and a miss stays zero."""
+    import torch
+
+    from isaaclab_tasks.core.cartpole.cartpole_common import (
+        CARTPOLE_LIDAR_AZIMUTH_COUNT,
+        CARTPOLE_LIDAR_ELEVATION_COUNT,
+        CARTPOLE_LIDAR_FAR_RANGE,
+        CARTPOLE_LIDAR_SUBSAMPLING,
+        cartpole_lidar_range_image,
+    )
+
+    elevation, azimuth = 3, 5
+    ray = elevation * CARTPOLE_LIDAR_AZIMUTH_COUNT + azimuth
+    num_rays = CARTPOLE_LIDAR_ELEVATION_COUNT * CARTPOLE_LIDAR_AZIMUTH_COUNT
+    points = torch.full((2, num_rays, 3), float("nan"))
+    points[:, ray] = torch.tensor([6.0, 0.0, 0.0])
+    image = cartpole_lidar_range_image(points)
+
+    assert image.shape == (2, CARTPOLE_LIDAR_ELEVATION_COUNT, CARTPOLE_LIDAR_AZIMUTH_COUNT)
+    assert image[0, elevation, azimuth] == pytest.approx(6.0 / CARTPOLE_LIDAR_FAR_RANGE)
+    assert image[0, azimuth, elevation] == 0.0
+    assert image[0, 0, 0] == 0.0
+    assert float(image.max()) <= 1.0
+
+    published = num_rays // CARTPOLE_LIDAR_SUBSAMPLING
+    sparse = torch.full((2, published, 3), float("nan"))
+    sparse[:, ray // CARTPOLE_LIDAR_SUBSAMPLING] = torch.tensor([6.0, 0.0, 0.0])
+    sparse_image = cartpole_lidar_range_image(sparse)
+    assert sparse_image.shape == image.shape
+    assert sparse_image[0, elevation, azimuth] == pytest.approx(6.0 / CARTPOLE_LIDAR_FAR_RANGE)
+    assert sparse_image[0, 0, 1] == 0.0
+
+
+@pytest.mark.parametrize("cfg_cls", _ENV_CFG_CLASSES)
+def test_rgb_preset_has_no_lidar(cfg_cls):
+    """Existing camera presets do not gain a lidar or change renderer."""
+    cfg = resolve_presets(cfg_cls(), {"rgb"})
+    validate(cfg)
+    assert not hasattr(cfg.scene, "lidar")
+    assert cfg.scene.tiled_camera.data_types == ["rgb"]
