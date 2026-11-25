@@ -307,3 +307,24 @@ def test_reach_constructor_preserves_declared_simulation():
     assert cfg.sim.dt == 0.01
     assert cfg.sim.render_interval == cfg.decimation == 2
     assert isinstance(cfg.sim.physics, ReachPhysicsCfg)
+
+
+@pytest.mark.parametrize(
+    ("task", "selection", "reason"),
+    [
+        ("Isaac-Reach-Franka", "presets=hold", "does not support the 'hold' preset"),
+        ("Isaac-Reach-Franka", "presets=diffik", "requires the Franka joint-position action"),
+        ("Isaac-Reach-Franka", "presets=newton_ik", "requires the Franka joint-position action"),
+        ("Isaac-Reach-Franka-OSC", None, "requires the Franka joint-position action"),
+    ],
+)
+def test_reach_neural_physics_rejects_what_the_model_was_not_recorded_with(task, selection, reason, tmp_path):
+    """The neural arm model stands for the joint-position-controlled arm with its nominal gains."""
+    checkpoint = tmp_path / "model.pt"
+    checkpoint.touch()
+    overrides = ["physics=newton_nerd", f"env.sim.physics.solver_cfg.checkpoint={checkpoint}"]
+    # The joint-position task on the model is accepted, so a rejection below is due to the selection.
+    validate(resolve_task_config("Isaac-Reach-Franka", None, overrides=overrides)[0])
+    cfg, _ = resolve_task_config(task, None, overrides=[*overrides, *([selection] if selection else [])])
+    with pytest.raises(ValueError, match=reason):
+        validate(cfg)

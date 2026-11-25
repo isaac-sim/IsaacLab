@@ -164,6 +164,11 @@ class FrankaReachEnvCfg(ReachEnvCfg):
             self.sim.physics, NewtonCfg
         ):
             raise ValueError("The 'newton_ik' action preset requires a Newton physics preset.")
+        if isinstance(self.sim.physics, NewtonCfg) and isinstance(self.sim.physics.solver_cfg, NeRDSolverCfg):
+            if not isinstance(self.actions.arm_action, mdp.JointPositionActionCfg):
+                raise ValueError("The 'newton_nerd' physics preset requires the Franka joint-position action.")
+            if self.observations.policy.ee_target_error is not None:
+                raise ValueError("The 'newton_nerd' physics preset does not support the 'hold' preset.")
 
     def __post_init__(self):
         super().__post_init__()
