@@ -79,7 +79,6 @@ class KitVisualizer(BaseVisualizer):
         self._simulation_app = None
         self._viewport_window = None
         self._viewport_api = None
-        self._step_counter = 0
         self._hidden_env_visibilities: dict[str, str] = {}
         # PointInstancer prim path -> (had authored invisibleIds, previous value) for partial viz restore.
         self._point_instancer_invisible_ids_backup: dict[str, tuple[bool, object]] = {}
@@ -199,7 +198,7 @@ class KitVisualizer(BaseVisualizer):
             return
         self._app_pumped_this_step = False
         self._sim_time += dt
-        self._step_counter += 1
+
         # Headless mode: skip the app update and camera panel refresh; rendering is
         # triggered on demand by render_rgb_array() / render_tiled_rgb_array().
         if self._runtime_headless:
@@ -233,7 +232,7 @@ class KitVisualizer(BaseVisualizer):
         Debug draw is a viewport overlay, so the lidar product does not scan the points. A missing
         debug-draw interface is reported once and the step continues.
         """
-        hits = collect_lidar_hits(self._sim, self._env_ids, self._step_counter)
+        hits = collect_lidar_hits(self._sim, self._env_ids)
         if hits is None:
             return
         draw = self._lidar_debug_draw()
