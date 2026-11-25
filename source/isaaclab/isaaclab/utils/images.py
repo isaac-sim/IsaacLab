@@ -65,6 +65,56 @@ Normalizers.
 """
 
 
+def crop_and_resize_images(
+    image: torch.Tensor,
+    height: int | None = None,
+    width: int | None = None,
+    crop_scale: float = 0.0,
+    random_crop: bool = False,
+) -> torch.Tensor:
+    """Crop and bilinearly resize a BHWC image batch on its existing device.
+
+    Args:
+        image: Four-dimensional ``(B, H, W, C)`` uint8 or floating-point images.
+        height: Output height, or None to retain the input height.
+        width: Output width, or None to retain the input width.
+        crop_scale: Fraction removed from each spatial dimension, in ``[0, 1)``.
+        random_crop: Select independent crop offsets per image instead of a center crop.
+
+    Returns:
+        Images with shape ``(B, height, width, C)``, preserving dtype and device.
+        A no-op returns the original tensor; a center crop without resizing returns a
+        view sharing its storage. Random indexing and resizing allocate new storage.
+        Callers that mutate borrowed output must clone it first.
+
+    Raises:
+        ValueError: If crop_scale is outside ``[0, 1)``.
+    """
+    batch, source_height, source_width, _ = image.shape
+    size = (source_height if height is None else height, source_width if width is None else width)
+    if crop_scale:
+        if not 0 < crop_scale < 1:
+            raise ValueError("crop_scale must be in [0, 1).")
+        h, w = max(1, int(source_height * (1 - crop_scale))), max(1, int(source_width * (1 - crop_scale)))
+        if random_crop:
+            tops = torch.randint(source_height - h + 1, (batch, 1), device=image.device)
+            lefts = torch.randint(source_width - w + 1, (batch, 1), device=image.device)
+            rows = tops + torch.arange(h, device=image.device)
+            cols = lefts + torch.arange(w, device=image.device)
+            image = image[torch.arange(batch, device=image.device)[:, None, None], rows[:, :, None], cols[:, None, :]]
+        else:
+            top, left = (source_height - h) // 2, (source_width - w) // 2
+            image = image[:, top : top + h, left : left + w]
+    if image.shape[1:3] == size:
+        return image
+    resized = torch.nn.functional.interpolate(
+        image.permute(0, 3, 1, 2).float(), size=size, mode="bilinear", align_corners=False, antialias=True
+    ).permute(0, 2, 3, 1)
+    if image.dtype == torch.uint8:
+        resized = resized.clamp(0, 255)
+    return resized.to(image.dtype)
+
+
 def normalize_rgb(
     images: torch.Tensor,
     channel_dim: int = -1,

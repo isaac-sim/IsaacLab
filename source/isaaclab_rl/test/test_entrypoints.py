@@ -552,8 +552,18 @@ def test_rlinf_launch_passes_checkpoint_and_model_config_to_workers(tmp_path: Pa
             },
             "rollout": {"model": {"model_path": "./rollout", "rl_head_config": {"disable_dropout": True}}},
             "env": {
-                "train": {"init_params": {"id": "Test", "env_overrides": ["env.sim.physics.split=train"]}},
-                "eval": {"init_params": {"id": "Test", "env_overrides": ["env.sim.physics.split=validation"]}},
+                "train": {
+                    "init_params": {
+                        "id": "Test",
+                        "env_overrides": ["physics=physx", "env.sim.physics.split=train", "env.scene.num_envs=8"],
+                    }
+                },
+                "eval": {
+                    "init_params": {
+                        "id": "Test",
+                        "env_overrides": ["physics=physx", "env.sim.physics.split=validation", "env.scene.num_envs=4"],
+                    }
+                },
             },
         }
     )
@@ -561,15 +571,20 @@ def test_rlinf_launch_passes_checkpoint_and_model_config_to_workers(tmp_path: Pa
     checkpoint = step_dir if backend is train_rlinf else weights
     args = ["--config_path", str(tmp_path), "--config_name", "ppo", "--task", "Test-Cosmos"]
     args += ["--checkpoint", str(checkpoint.relative_to(tmp_path))]
-    args += ["env.scene.num_envs=2"]
+    args += ["physics=newton_mjwarp", "env.scene.num_envs=2"]
     with pytest.raises(RuntimeError, match="worker boundary"):
         backend.run(args)
     GlobalHydra.instance().clear()
     assert os.environ["RAY_ENABLE_UV_RUN_RUNTIME_ENV"] == "0"
     resolved = validate.call_args.args[0]
-    assert list(resolved.env.train.init_params.env_overrides) == ["env.sim.physics.split=train", "env.scene.num_envs=2"]
+    assert list(resolved.env.train.init_params.env_overrides) == [
+        "env.sim.physics.split=train",
+        "physics=newton_mjwarp",
+        "env.scene.num_envs=2",
+    ]
     assert list(resolved.env.eval.init_params.env_overrides) == [
         "env.sim.physics.split=validation",
+        "physics=newton_mjwarp",
         "env.scene.num_envs=2",
     ]
     assert (

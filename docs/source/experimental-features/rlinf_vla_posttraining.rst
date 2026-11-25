@@ -205,7 +205,10 @@ group, so downstream tasks do not need to be copied into Isaac Lab.
 Camera preprocessing is configured under each split's ``isaaclab`` section with
 ``gpu_resize_height``, ``gpu_resize_width``, ``gpu_crop_scale`` and
 ``gpu_crop_random``. Cropping runs before resizing on the image device, for both
-main and extra camera views. The default crop scale is zero.
+main and extra camera views. The default crop scale is zero. GR00T N1.5 requires
+the final train/eval image dimensions to match; incompatible dimensions raise an
+error when loading the policy. Random training crops and center evaluation crops
+may still differ while producing the same output dimensions.
 
 An external task may register ``rlinf_runner_context`` in its Gym specification
 kwargs as a ``module:callable`` string. The callable receives the RLinf runner
@@ -232,7 +235,8 @@ simulator resets automatically. Without this setting, existing recipes continue 
 count task terminations as success. Timeouts alone do not count as success.
 
 Train and evaluation retain their own ``init_params.env_overrides`` from the recipe.
-Command-line environment overrides are appended, so they take precedence on matching fields.
+Command-line environment overrides replace recipe entries with the same key before
+being appended, including preset selectors such as ``physics`` and ``renderer``.
 
 
 Quick Start

@@ -10,11 +10,23 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import os
+from collections.abc import Sequence
 from pathlib import Path
 
 from ..common import CHECKPOINT_SELECTORS, resolve_checkpoint_selector
 
 _BACKENDS_DIR = str(Path(__file__).parent.absolute())
+
+
+def merge_env_overrides(configured: Sequence[str], overrides: Sequence[str]) -> list[str]:
+    """Preserve recipe overrides except keys explicitly replaced by the CLI.
+
+    Preset selectors such as ``physics`` accumulate in task composition, so an overridden
+    recipe selector must be removed rather than left ahead of its CLI replacement.
+    Hydra add/delete prefixes do not change which configuration key is being replaced.
+    """
+    replaced = {item.partition("=")[0].lstrip("+-~") for item in overrides}
+    return [item for item in configured if item.partition("=")[0].lstrip("+-~") not in replaced] + list(overrides)
 
 
 def add_rlinf_args(parser: argparse.ArgumentParser) -> None:

@@ -339,3 +339,19 @@ class TestMakeCameraOutputGrid:
         images = torch.ones((1, 2, 3, 3), device=device)
         grid = make_camera_output_grid(images)
         assert grid.shape == (3, 2, 3)
+
+
+def test_crop_resize_preserves_dtype_device_and_storage_ownership() -> None:
+    """No-op and center-only crops borrow input storage; a resize owns its output."""
+    image = torch.arange(16, dtype=torch.uint8).reshape(1, 4, 4, 1)
+    assert images_utils.crop_and_resize_images(image) is image
+    cropped = images_utils.crop_and_resize_images(image, height=2, width=2, crop_scale=0.5)
+    assert cropped.tolist() == [[[[5], [6]], [[9], [10]]]]
+    cropped[0, 0, 0, 0] = 99
+    assert image[0, 1, 1, 0].item() == 99
+    resized = images_utils.crop_and_resize_images(image, height=2, width=3)
+    assert resized.shape == (1, 2, 3, 1)
+    assert resized.dtype == image.dtype and resized.device == image.device
+    original = image.clone()
+    resized.zero_()
+    torch.testing.assert_close(image, original)

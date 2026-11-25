@@ -112,7 +112,7 @@ def run(argv: list[str]) -> None:
             cfg.runner.only_eval = True
         for split in ("train", "eval"):
             configured = list(cfg.env[split].init_params.get("env_overrides") or ())
-            cfg.env[split].init_params.env_overrides = configured + args_cli.env_overrides
+            cfg.env[split].init_params.env_overrides = cli_args.merge_env_overrides(configured, args_cli.env_overrides)
         if args_cli.checkpoint:
             checkpoint_path = cli_args.resolve_rlinf_checkpoint(
                 args_cli.checkpoint,

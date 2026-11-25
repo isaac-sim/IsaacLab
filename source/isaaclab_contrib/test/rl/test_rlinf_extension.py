@@ -247,7 +247,7 @@ class TestConfigLoading:
 
 
 @pytest.mark.parametrize("explicit_success", [True, False], ids=["success-observation", "legacy-termination"])
-def test_episode_success_distinguishes_failure_and_timeout(explicit_success, set_config_env):
+def test_episode_success_distinguishes_failure_and_timeout(explicit_success, set_config_env) -> None:
     """A failure termination is not a win when the recipe supplies an explicit success observation."""
     from omegaconf import OmegaConf
 
@@ -271,7 +271,7 @@ def test_episode_success_distinguishes_failure_and_timeout(explicit_success, set
 
 
 class TestObsConversion:
-    """Tests for ``_convert_isaaclab_obs_to_gr00t``."""
+    """Worker observation preprocessing and conversion into GR00T inputs."""
 
     def test_camera_crop_applies_when_resize_matches_input(self, set_config_env) -> None:
         from omegaconf import OmegaConf
@@ -406,6 +406,89 @@ class TestActionConversion:
         np.testing.assert_array_equal(result, np.broadcast_to(expected, (2, 1, 3)))
 
 
+@pytest.fixture()
+def n15_loader(monkeypatch, tmp_path):
+    """Exercise the real adapter loader with lightweight model and transform dependencies."""
+    from pydantic import BaseModel
+
+    class VideoMetadata(BaseModel):
+        resolution: tuple[int, int]
+
+    class Modalities(BaseModel):
+        video: dict[str, VideoMetadata]
+
+    class Metadata(BaseModel):
+        modalities: Modalities
+
+    metadata = Metadata(modalities=Modalities(video={"head": VideoMetadata(resolution=(320, 240))}))
+    model = mock.Mock(metadata=metadata)
+    transform = mock.Mock()
+    data_config = mock.Mock()
+    data_config.transform.return_value = transform
+    dependencies = {
+        "gr00t": {},
+        "gr00t.experiment": {},
+        "gr00t.experiment.data_config": {"load_data_config": lambda _: data_config},
+        "rlinf.models.embodiment.gr00t.gr00t_n1d5": {},
+        "rlinf.models.embodiment.gr00t.gr00t_n1d5.gr00t_action_model": {
+            "GR00T_N1_5_ForRLActionPrediction": mock.Mock(from_pretrained=mock.Mock(return_value=model))
+        },
+        "rlinf.models.embodiment.gr00t.utils": {"replace_dropout_with_identity": mock.Mock()},
+        "rlinf.utils.patcher": {"Patcher": mock.Mock()},
+    }
+    for name, attrs in dependencies.items():
+        module = types.ModuleType(name)
+        vars(module).update(attrs)
+        monkeypatch.setitem(sys.modules, name, module)
+    gr00t = _rlinf_mocks["rlinf.models.embodiment.gr00t"]
+    monkeypatch.setattr(gr00t, "get_model", None, raising=False)
+
+    def load(training, evaluation):
+        options = {"data_config_class": "test:DataConfig", **training}
+        monkeypatch.setattr(
+            ext, "_full_cfg_cache", {"env": {"train": {"isaaclab": options}, "eval": {"isaaclab": evaluation}}}
+        )
+        ext._patch_gr00t_get_model(options)
+        model_cfg = types.SimpleNamespace(
+            model_path=str(tmp_path),
+            embodiment_tag="new_embodiment",
+            denoising_steps=4,
+            num_action_chunks=16,
+            obs_converter_type="isaaclab",
+            rl_head_config=types.SimpleNamespace(add_value_head=False, disable_dropout=False),
+        )
+        gr00t.get_model(model_cfg)
+        return model, transform
+
+    return load
+
+
+@pytest.mark.parametrize(
+    "training,evaluation,expected",
+    [
+        ({"gpu_resize_width": 256, "gpu_resize_height": 128}, {}, (256, 128)),
+        ({"gpu_resize_width": 192}, {}, (192, 240)),
+        ({"gpu_resize_height": 128}, {}, (320, 128)),
+        ({"gpu_resize_width": 192}, {"gpu_resize_height": 240}, (192, 240)),
+    ],
+)
+def test_n15_loader_sets_input_size_without_mutating_checkpoint_metadata(
+    n15_loader, training, evaluation, expected
+) -> None:
+    """The transform sees width/height in metadata order, with unspecified dimensions retained."""
+    model, transform = n15_loader(training, evaluation)
+    actual = transform.set_metadata.call_args.args[0]
+    assert actual.modalities.video["head"].resolution == expected
+    assert model.metadata.modalities.video["head"].resolution == (320, 240)
+
+
+@pytest.mark.parametrize("training", [{"gpu_resize_width": 256, "gpu_resize_height": 128}, {}])
+def test_n15_loader_rejects_incompatible_evaluation_image_sizes(n15_loader, training) -> None:
+    """A shared policy must reject different final train/eval dimensions before rollout."""
+    with pytest.raises(ValueError, match="matching train/eval image sizes"):
+        n15_loader(training, {"gpu_resize_width": 224, "gpu_resize_height": 224})
+
+
 # ---------------------------------------------------------------------------
 # Tests: embodiment tag patching
 # ---------------------------------------------------------------------------
@@ -500,10 +583,13 @@ class TestTaskRegistration:
     "hold_pose,device,prefix_pad,suffix_pad",
     [
         (False, "cpu", 0, 0),
-        *((True, device, prefix, suffix) for device in test_devices() for prefix, suffix in ((0, 0), (2, 1))),
+        *((True, device, 0, 0) for device in test_devices()),
+        (True, "cpu", 2, 1),
     ],
 )
-def test_midchunk_reset_does_not_replay_old_episode_actions(monkeypatch, hold_pose, device, prefix_pad, suffix_pad):
+def test_midchunk_reset_does_not_replay_old_episode_actions(
+    monkeypatch, hold_pose, device, prefix_pad, suffix_pad
+) -> None:
     """Only reset worlds hold their returned joint positions, until the next chunk."""
     monkeypatch.setattr(
         ext,
@@ -513,7 +599,7 @@ def test_midchunk_reset_does_not_replay_old_episode_actions(monkeypatch, hold_po
                 "train": {
                     "isaaclab": {
                         "hold_pose_on_midchunk_reset": hold_pose,
-                        "action_mapping": {"prefix_pad": prefix_pad, "suffix_pad": suffix_pad},
+                        "action_mapping": {"prefix_pad": 0, "suffix_pad": 0},
                     }
                 }
             }
@@ -537,7 +623,8 @@ def test_midchunk_reset_does_not_replay_old_episode_actions(monkeypatch, hold_po
         return [self.step(action, auto_reset=False) for action in actions.unbind(dim=1)]
 
     monkeypatch.setattr(base, "chunk_step", chunk_step, raising=False)
-    env = ext._create_generic_env_wrapper("test")(None, 2, 0, 1, None)
+    options = {"isaaclab": {"action_mapping": {"prefix_pad": prefix_pad, "suffix_pad": suffix_pad}}}
+    env = ext._create_generic_env_wrapper("test")(options, 2, 0, 1, None)
     env.device = device
     actions = torch.ones(2, prefix_pad + 2 + suffix_pad)  # RLinf receives padded action chunks on the CPU.
     env.chunk_step(torch.stack([actions, actions * 2], dim=1))

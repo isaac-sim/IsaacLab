@@ -53,6 +53,8 @@ import torch
 import yaml
 from rlinf.models.embodiment.gr00t import embodiment_tags
 
+from isaaclab.utils.images import crop_and_resize_images
+
 if TYPE_CHECKING:
     import torch
 
@@ -256,12 +258,26 @@ def _patch_gr00t_get_model(cfg: dict) -> None:
             rl_head_config=model_cfg.rl_head_config,
         )
 
-        if "gpu_resize_width" in cfg or "gpu_resize_height" in cfg:
+        evaluation_cfg = {**cfg, **_load_full_cfg().get("env", {}).get("eval", {}).get("isaaclab", {})}
+        resize_keys = ("gpu_resize_width", "gpu_resize_height")
+        if any(options.get(key) is not None for options in (cfg, evaluation_cfg) for key in resize_keys):
             # GR00T validates incoming video against the recording metadata. The env worker has already resized RGB.
             input_metadata = model.metadata.model_copy(deep=True)
             for video in input_metadata.modalities.video.values():
-                width, height = video.resolution
-                video.resolution = (cfg.get("gpu_resize_width", width), cfg.get("gpu_resize_height", height))
+                training_size = tuple(
+                    original if cfg.get(key) is None else cfg[key]
+                    for key, original in zip(resize_keys, video.resolution)
+                )
+                evaluation_size = tuple(
+                    original if evaluation_cfg.get(key) is None else evaluation_cfg[key]
+                    for key, original in zip(resize_keys, video.resolution)
+                )
+                if training_size != evaluation_size:
+                    raise ValueError(
+                        "GR00T N1.5 requires matching train/eval image sizes after GPU resizing "
+                        f"(width, height): train={training_size}, eval={evaluation_size}."
+                    )
+                video.resolution = training_size
             modality_transform.set_metadata(input_metadata)
 
         if rl_model_path:
@@ -436,34 +452,6 @@ def _register_isaaclab_envs() -> None:
     logger.debug(f"REGISTER_ISAACLAB_ENVS now contains: {list(REGISTER_ISAACLAB_ENVS.keys())}")
 
 
-def _prepare_camera_image(image: torch.Tensor, cfg: dict) -> torch.Tensor:
-    """Crop a batch of RGB frames and resize to the policy input dimensions on the image device."""
-    batch, height, width, _ = image.shape
-    size = (cfg.get("gpu_resize_height", height), cfg.get("gpu_resize_width", width))
-    fraction = cfg.get("gpu_crop_scale", 0.0)
-    if fraction:
-        if not 0 < fraction < 1:
-            raise ValueError("gpu_crop_scale must be in [0, 1).")
-        h, w = max(1, int(height * (1 - fraction))), max(1, int(width * (1 - fraction)))
-        if cfg.get("gpu_crop_random", False):
-            tops = torch.randint(height - h + 1, (batch, 1), device=image.device)
-            lefts = torch.randint(width - w + 1, (batch, 1), device=image.device)
-            rows = tops + torch.arange(h, device=image.device)
-            cols = lefts + torch.arange(w, device=image.device)
-            image = image[torch.arange(batch, device=image.device)[:, None, None], rows[:, :, None], cols[:, None, :]]
-        else:
-            top, left = (height - h) // 2, (width - w) // 2
-            image = image[:, top : top + h, left : left + w]
-    if image.shape[1:3] == size:
-        return image
-    resized = torch.nn.functional.interpolate(
-        image.permute(0, 3, 1, 2).float(), size=size, mode="bilinear", align_corners=False, antialias=True
-    ).permute(0, 2, 3, 1)
-    if image.dtype == torch.uint8:
-        resized = resized.clamp(0, 255)
-    return resized.to(image.dtype)
-
-
 def _create_generic_env_wrapper(task_id: str) -> type:
     """Create a generic wrapper class for an IsaacLab task.
 
@@ -499,9 +487,16 @@ def _create_generic_env_wrapper(task_id: str) -> type:
                 total_num_processes: Total number of worker processes.
                 worker_info: RLinf worker metadata.
             """
+            self._isaaclab_cfg = {**_get_isaaclab_cfg(), **(cfg.get("isaaclab", {}) if cfg is not None else {})}
+            self._image_options = {
+                "height": self._isaaclab_cfg.get("gpu_resize_height"),
+                "width": self._isaaclab_cfg.get("gpu_resize_width"),
+                "crop_scale": self._isaaclab_cfg.get("gpu_crop_scale", 0.0),
+                "random_crop": self._isaaclab_cfg.get("gpu_crop_random", False),
+            }
             super().__init__(cfg, num_envs, seed_offset, total_num_processes, worker_info)
 
-            self._hold_pose_on_midchunk_reset = _get_isaaclab_cfg().get("hold_pose_on_midchunk_reset", False)
+            self._hold_pose_on_midchunk_reset = self._isaaclab_cfg.get("hold_pose_on_midchunk_reset", False)
             self._chunk_done = None
             self._hold_actions = None
             self._success_observation = None
@@ -539,7 +534,7 @@ def _create_generic_env_wrapper(task_id: str) -> type:
             if self._chunk_done is not None and self._hold_actions is not None:
                 hold = self._hold_actions.to(actions)
                 if hold.shape[-1] != actions.shape[-1]:
-                    mapping = _get_isaaclab_cfg().get("action_mapping", {})
+                    mapping = self._isaaclab_cfg.get("action_mapping", {})
                     hold = torch.nn.functional.pad(hold, (mapping.get("prefix_pad", 0), mapping.get("suffix_pad", 0)))
                 actions = torch.where(self._chunk_done[:, None].to(actions.device), hold, actions)
             obs, reward, terminated, truncated, info = super().step(actions, auto_reset)
@@ -601,7 +596,7 @@ def _create_generic_env_wrapper(task_id: str) -> type:
             - ``"extra_view_images"``: ``(B, N, H, W, C)`` — stacked extra cameras.
             - ``"states"``: ``(B, D)`` — concatenated state vector.
             - ``"task_descriptions"``: ``list[str]`` — task descriptions.
-            Config is read from the YAML file via :func:`_get_isaaclab_cfg`.
+            Split configuration is resolved once when the worker is initialized.
 
             Args:
                 obs: Raw observation dictionary from the IsaacLab environment.
@@ -614,7 +609,7 @@ def _create_generic_env_wrapper(task_id: str) -> type:
             policy_obs = obs.get("policy", obs)
             camera_obs = obs.get("camera_images", {})
 
-            cfg = {**_get_isaaclab_cfg(), **self.cfg.get("isaaclab", {})}
+            cfg = self._isaaclab_cfg
             success_cfg = cfg.get("success_observation")
             self._success_observation = (
                 torch.as_tensor(obs[success_cfg["group"]][success_cfg["key"]], device=self.device, dtype=torch.bool)
@@ -636,14 +631,16 @@ def _create_generic_env_wrapper(task_id: str) -> type:
             # main_images: single camera key -> (B, H, W, C)
             main_key = cfg.get("main_images")
             if main_key and main_key in camera_obs:
-                rlinf_obs["main_images"] = _prepare_camera_image(camera_obs[main_key], cfg)
+                rlinf_obs["main_images"] = crop_and_resize_images(camera_obs[main_key], **self._image_options)
 
             # extra_view_images: camera key(s) -> stack to (B, N, H, W, C)
             extra_keys = cfg.get("extra_view_images")
             if extra_keys:
                 if isinstance(extra_keys, str):
                     extra_keys = [extra_keys]
-                extra_imgs = [_prepare_camera_image(camera_obs[k], cfg) for k in extra_keys if k in camera_obs]
+                extra_imgs = [
+                    crop_and_resize_images(camera_obs[k], **self._image_options) for k in extra_keys if k in camera_obs
+                ]
                 if extra_imgs:
                     rlinf_obs["extra_view_images"] = torch.stack(extra_imgs, dim=1)
 
@@ -680,7 +677,7 @@ def _create_generic_env_wrapper(task_id: str) -> type:
                 ``None`` if no camera image is available.
             """
             camera_obs = obs.get("camera_images", {})
-            cfg = _get_isaaclab_cfg()
+            cfg = self._isaaclab_cfg
             # Try main_images key, fallback to first available camera
             main_key = cfg.get("main_images")
             if main_key and main_key in camera_obs:
