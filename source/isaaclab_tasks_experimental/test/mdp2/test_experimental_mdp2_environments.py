@@ -55,8 +55,8 @@ def test_mdp2_environment_resets_and_steps(task_name):
 @pytest.mark.parametrize("disabled", [None, "action_rate", "joint_vel"])
 def test_reach_curriculum_sets_reward_weights_at_first_reset_after_threshold(disabled):
     """The Reach curriculum keeps its reward weights until the first reset after its step threshold, then sets them
-    in every world, from a captured step. It leaves out a reward that the task disables, and every other weight as
-    it is."""
+    in every world, from a captured step. It skips a reward that the task disables and leaves every other weight
+    unchanged."""
     task_name = "Isaac-Reach-Franka-MDP2"
     env_cfg, _ = resolve_task_config(task_name, None, overrides=["physics=newton_mjwarp"])
     env_cfg.sim.device = "cuda:0"
