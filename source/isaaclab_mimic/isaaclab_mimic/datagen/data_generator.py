@@ -215,7 +215,7 @@ class DataGenerator:
             # Randomize the start of the first subtask
             first_subtask_start_offsets = np.random.randint(
                 low=self.env_cfg.subtask_configs[eef_name][0].first_subtask_start_offset_range[0],
-                high=self.env_cfg.subtask_configs[eef_name][0].first_subtask_start_offset_range[0] + 1,
+                high=self.env_cfg.subtask_configs[eef_name][0].first_subtask_start_offset_range[1] + 1,
                 size=subtask_boundaries.shape[0],
             )
             subtask_boundaries[:, 0, 0] += first_subtask_start_offsets
