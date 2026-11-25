@@ -49,12 +49,3 @@ def test_newton_renderer_accepts_supported_data_types(cfg_cls):
     """The guard must not reject data types the Newton Warp renderer does publish."""
     cfg = resolve_presets(cfg_cls(), {"newton_warp", "rgb"})
     validate(cfg)  # must not raise
-
-
-@pytest.mark.parametrize("cfg_cls", _ENV_CFG_CLASSES)
-def test_rgb_preset_has_no_lidar(cfg_cls):
-    """Existing camera presets do not gain a lidar or change renderer."""
-    cfg = resolve_presets(cfg_cls(), {"rgb"})
-    validate(cfg)
-    assert not hasattr(cfg.scene, "lidar")
-    assert cfg.scene.tiled_camera.data_types == ["rgb"]

@@ -21,18 +21,18 @@ if TYPE_CHECKING:
 
 
 class CartpoleCameraEnv(CartpoleEnv):
-    """Cartpole environment driven by stacked camera observations.
-
-    The critic still reads the joint state.
-    """
+    """Cartpole environment driven by stacked camera observations."""
 
     cfg: CartpoleCameraEnvCfg
 
     def __init__(self, cfg: CartpoleCameraEnvCfg, render_mode: str | None = None, **kwargs):
         cfg.frame_stack = max(1, cfg.frame_stack)
         if isinstance(cfg.observation_space, list):
-            height, width = int(cfg.scene.tiled_camera.height), int(cfg.scene.tiled_camera.width)
-            cfg.observation_space = [int(cfg.observation_space[0]) * cfg.frame_stack, height, width]
+            cfg.observation_space = [
+                int(cfg.observation_space[0]) * cfg.frame_stack,
+                int(cfg.scene.tiled_camera.height),
+                int(cfg.scene.tiled_camera.width),
+            ]
 
         super().__init__(cfg, render_mode, **kwargs)
 
@@ -46,7 +46,6 @@ class CartpoleCameraEnv(CartpoleEnv):
         self._frames = CameraFrameStack(self.num_envs, self.device, self.cfg.frame_stack, channel_first=True)
 
     def _get_observations(self) -> dict:
-        critic_obs = super()._get_observations()["policy"]
         data_type = self.cfg.scene.tiled_camera.data_types[0]
         images = self._tiled_camera.data.output[data_type].torch
         if data_type == "albedo":
@@ -58,6 +57,7 @@ class CartpoleCameraEnv(CartpoleEnv):
         if self.cfg.write_image_to_file:
             save_images_to_file(self._tiled_camera.data.output[data_type].torch / 255.0, f"cartpole_{data_type}.png")
 
+        critic_obs = super()._get_observations()["policy"]
         return {"policy": obs, "critic": critic_obs}
 
     def _reset_idx(self, env_ids: Sequence[int] | None):

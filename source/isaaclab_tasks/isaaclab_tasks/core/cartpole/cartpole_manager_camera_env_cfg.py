@@ -161,5 +161,4 @@ class CartpoleCameraEnvCfg(PresetCfg):
     simple_shading_full_mdl = BaseCartpoleCameraEnvCfg(observations=image_observations_cfg("simple_shading_full_mdl"))
     resnet18 = BaseCartpoleCameraEnvCfg(observations=ResNet18ObservationCfg())
     theia_tiny = BaseCartpoleCameraEnvCfg(observations=TheiaTinyObservationCfg())
-
     default = rgb
