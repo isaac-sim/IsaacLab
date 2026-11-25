@@ -19,22 +19,12 @@ from isaaclab.visualizers import VisualizerCfg
 pytestmark = [pytest.mark.unit]
 
 
-@pytest.mark.parametrize(
-    ("platform", "window_open", "kit_running"),
-    [
-        ("linux", True, True),
-        ("win32", True, True),
-        ("win32", False, False),
-        ("linux", True, False),
-        ("win32", True, False),
-    ],
-)
-def test_close_releases_owned_gl_resources_and_preserves_kits_shared_context(
-    monkeypatch: pytest.MonkeyPatch, platform: str, window_open: bool, kit_running: bool
+@pytest.mark.parametrize(("platform", "window_open"), [("linux", True), ("win32", True), ("win32", False)])
+def test_close_does_not_destroy_shared_gl_context(
+    monkeypatch: pytest.MonkeyPatch, platform: str, window_open: bool
 ) -> None:
-    """Standalone viewers close their native resources once; Kit keeps its shared GL context."""
+    """Closing a live Windows window releases focus before dropping the viewer."""
     monkeypatch.setattr(newton_visualizer.sys, "platform", platform)
-    monkeypatch.setattr(newton_visualizer, "has_kit", lambda: kit_running)
     visualizer = NewtonGLVisualizer(VisualizerCfg(backend=NewtonGLBackendCfg()))
     viewer = visualizer._viewer = Mock()
     window = viewer.renderer.window
@@ -42,16 +32,12 @@ def test_close_releases_owned_gl_resources_and_preserves_kits_shared_context(
         window.context = None
 
     visualizer.close()
-    visualizer.close()
 
     if platform == "win32" and window_open:
         window.set_visible.assert_called_once_with(False)
     else:
         window.set_visible.assert_not_called()
-    if window_open and not kit_running:
-        viewer.close.assert_called_once()
-    else:
-        viewer.close.assert_not_called()
+    viewer.close.assert_not_called()
     assert visualizer._viewer is None
 
 

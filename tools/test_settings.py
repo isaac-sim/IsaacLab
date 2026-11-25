@@ -71,7 +71,7 @@ PER_TEST_STARTUP_TIMEOUTS = {
 """Per-test startup timeouts for cold external asset downloads."""
 
 PYTEST_WORKERS = {
-    # Owned GL/CUDA resources must close before RTX destruction when launches share a GPU.
+    # Keep standalone launches concurrent within the CI job's existing slot budget.
     "test_standalone_scripts.py": 4,
     # Contributed-environment smoke tests: environment runs of several seconds to 2 min each. The camera file
     # stays whole: its workers would each start the RTX renderer, and one environment dominates it.

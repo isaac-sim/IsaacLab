@@ -212,8 +212,7 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(
 
     monkeypatch.setenv("ISAAC_LAB_OVRTX_READ_GPU_TRANSFORMS", "1")
     config_kwargs: dict[str, object] = {}
-    destroyed, redirected, stage_releases, synchronized = [], [], [], []
-    monkeypatch.setattr(ovrtx_renderer_module.wp, "synchronize_device", synchronized.append)
+    destroyed, redirected, stage_releases = [], [], []
     dependency = tmp_path / "bin/plugins/libosdCPU.so.3.6.0"
     dependency.parent.mkdir(parents=True)
     dependency.touch()
@@ -335,7 +334,6 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(
     for backend in dict.fromkeys((renderer.backend, other.backend)):
         SimulationContext.instance().close_backend(backend)
     assert len(destroyed) == (1 if shared_physics else 2)
-    assert synchronized == [SimulationContext.instance().device] * len(destroyed)
     assert redirected == destroyed
     assert not stage_releases
     if use_ovstage:

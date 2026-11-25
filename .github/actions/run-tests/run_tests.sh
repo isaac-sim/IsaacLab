@@ -116,9 +116,6 @@ run_tests() {
     -e "OMNI_KIT_ACCEPT_EULA=yes"
     -e "ACCEPT_EULA=Y"
     -e "OMNI_KIT_DISABLE_CUP=1"
-    # OVRTX shutdown joins its telemetry worker, including any outstanding DNS lookup.
-    # CI does not need startup reports; opt out before the child process initializes OVRTX.
-    -e "NVIDIA_OMNIVERSE_PRODUCT_TELEMETRY_DISABLED=1"
     -e "ISAAC_SIM_HEADLESS=1"
     -e "ISAAC_SIM_LOW_MEMORY=1"
     -e "PYTHONUNBUFFERED=1"
