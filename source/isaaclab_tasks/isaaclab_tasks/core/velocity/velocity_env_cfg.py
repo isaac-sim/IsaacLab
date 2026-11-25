@@ -9,6 +9,7 @@ import math
 from dataclasses import MISSING
 
 from isaaclab_isaacsim.physics import PhysxCfg
+from isaaclab_neural.physics import NeRDSolverCfg
 from isaaclab_newton.physics import (
     KaminoPADMMSolverCfg,
     MJWarpSolverCfg,
@@ -35,7 +36,7 @@ from isaaclab.sensors import ContactSensorCfg, RayCasterCfg, patterns
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
@@ -69,6 +70,7 @@ class RoughPhysicsCfg(PresetCfg):
         debug_mode=False,
         default_shape_cfg=NewtonShapeCfg(margin=0.0, ke=160000.0, kd=1100.0),
     )
+    newton_nerd = replace(newton_mjwarp, solver_cfg=NeRDSolverCfg(articulation="{ENV_REGEX_NS}/Robot"), num_substeps=1)
     newton_steel = NewtonCfg(
         solver_cfg=SteelSolverCfg(
             update_mass_matrix_interval=2,
@@ -120,6 +122,7 @@ class MySceneCfg(InteractiveSceneCfg):
     # backend-specific fields such as ``global_world_only`` are ignored by the backends that do not use them
     height_scanner = RayCasterCfg(
         prim_path="{ENV_REGEX_NS}/Robot/base",
+        update_period=0.02,
         offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
         ray_alignment="yaw",
         pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=[1.6, 1.0]),
@@ -127,7 +130,9 @@ class MySceneCfg(InteractiveSceneCfg):
         mesh_prim_paths=["/World/ground"],
         global_world_only=True,
     )
-    contact_forces = ContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/[^/]*", history_length=3, track_air_time=True)
+    contact_forces = ContactSensorCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/[^/]*", history_length=3, track_air_time=True, update_period=0.005
+    )
     # lights
     sky_light = AssetBaseCfg(
         prim_path="/World/skyLight",
@@ -344,12 +349,18 @@ class CurriculumCfg:
 ##
 
 
+VELOCITY_SIM_CFG = SimulationCfg(dt=0.005, render_interval=4, physics=RoughPhysicsCfg())
+"""Shared simulation defaults for locomotion velocity tasks."""
+
+
 @configclass
 class LocomotionVelocityRoughEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the locomotion velocity-tracking environment."""
 
     # Simulation settings
-    sim: SimulationCfg = SimulationCfg(physics=RoughPhysicsCfg())
+    sim: SimulationCfg = VELOCITY_SIM_CFG
+    decimation: int = 4
+    episode_length_s: float = 20.0
     # Scene settings
     scene: MySceneCfg = MySceneCfg(num_envs=4096, env_spacing=2.5)
     # Basic settings
@@ -364,19 +375,7 @@ class LocomotionVelocityRoughEnvCfg(ManagerBasedRLEnvCfg):
 
     def __post_init__(self):
         """Post initialization."""
-        # general settings
-        self.decimation = 4
-        self.episode_length_s = 20.0
-        # simulation settings
-        self.sim.dt = 0.005
-        self.sim.render_interval = self.decimation
         self.sim.physics_material = self.scene.terrain.physics_material
-        # update sensor update periods
-        # we tick all the sensors based on the smallest update period (physics update period)
-        if self.scene.height_scanner is not None:
-            self.scene.height_scanner.update_period = self.decimation * self.sim.dt
-        if self.scene.contact_forces is not None:
-            self.scene.contact_forces.update_period = self.sim.dt
 
         # check if terrain levels curriculum is enabled - if so, enable curriculum for terrain generator
         # this generates terrains with increasing difficulty and is useful for training

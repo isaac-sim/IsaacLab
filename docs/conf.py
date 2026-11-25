@@ -34,6 +34,8 @@ sys.path.insert(0, os.path.abspath("../source/isaaclab_isaacsim"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_isaacsim/isaaclab_isaacsim"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_newton"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_newton/isaaclab_newton"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_neural"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_neural/isaaclab_neural"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_experimental"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_experimental/isaaclab_experimental"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_rl"))
@@ -302,6 +304,7 @@ autodoc_mock_imports = [
     "hydra.core.config_store",
     "omegaconf",
     "newton",
+    "newton_neural",
     "fovi",
 ]
 
