@@ -33,8 +33,7 @@ Prerequisites
 - **Isaac Lab** installed and configured
 - **Isaac-GR00T** repo (for VLA inference and data transforms)
 - A **pretrained VLA checkpoint** in HuggingFace format. The ``assemble_trocar`` recipe
-  uses the GR00T N1.5 100k SFT checkpoint from
-  `Trocar policy checkpoints <https://huggingface.co/nvidia/Assemble_Trocar>`__.
+  uses the updated GR00T N1.5 100k SFT checkpoint.
   Place its ``config.json``, model weights and ``experiment_cfg/`` directory directly in
   ``.pretrained_checkpoints/rlinf/Assemble_Trocar_SFT_100k`` relative to the Isaac Lab root,
   or pass the checkpoint directory with ``--model_path``.
