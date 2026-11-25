@@ -14,6 +14,7 @@ A renderer that implements lidar capture reads those attributes.
 
 from __future__ import annotations
 
+import math
 import sys
 from typing import TYPE_CHECKING
 
@@ -110,7 +111,6 @@ def spawn_lidar(prim_path: str, cfg: OVRTXLidarCfg) -> Usd.Prim:
     prim.CreateAttribute("omni:sensor:modelName", Sdf.ValueTypeNames.String).Set("LidarWpm")
     prim.CreateAttribute("cameraSensorType", Sdf.ValueTypeNames.Token).Set("lidar")
     prim.CreateAttribute("visibility", Sdf.ValueTypeNames.Token).Set("invisible")
-    prim.CreateAttribute("omni:sensor:frameRate", Sdf.ValueTypeNames.Double2).Set(Gf.Vec2d(10.0, 1.0))
 
     _author_wpm(prim, cfg)
 
@@ -169,17 +169,33 @@ class OVRTXLidar(SensorBase):
 
         spawn = self.cfg.spawn
         if spawn is None:
-            if not sim_utils.find_matching_prims(self.cfg.prim_path):
+            lidar_prims = sim_utils.find_matching_prims(self.cfg.prim_path)
+            if not lidar_prims:
                 raise RuntimeError(f"Lidar spawn is None, but no lidar prim was found at {self.cfg.prim_path!r}.")
         else:
             spawn_target = spawn.spawn_path or self.cfg.prim_path
             if sim_utils.find_first_matching_prim(spawn_target) is None:
                 spawn.func(spawn_target, self.cfg)
 
-            if not sim_utils.find_matching_prims(spawn_target):
+            lidar_prims = sim_utils.find_matching_prims(spawn_target)
+            if not lidar_prims:
                 raise RuntimeError(f"Could not find a lidar prim at {spawn_target!r}.")
 
         sim_ctx = sim_utils.SimulationContext.instance()
+        # Each capture steps the renderer by this interval. A capture reads the last frame of the step, so a
+        # scanned lidar must end each capture on a complete scan.
+        capture_interval = self.cfg.update_period or sim_ctx.get_physics_dt()
+        # A zero rate is written as (1, interval) so one scan lasts exactly one capture interval.
+        frame_rate = Gf.Vec2d(self.cfg.frame_rate, 1.0) if self.cfg.frame_rate else Gf.Vec2d(1.0, capture_interval)
+        scans = capture_interval * frame_rate[0] / frame_rate[1]
+        if not self.cfg.instant_lidar and (round(scans) < 1 or not math.isclose(scans, round(scans))):
+            raise ValueError(
+                f"Lidar with instant_lidar=False needs a capture interval of whole scans: {capture_interval} s"
+                f" capture, {self.cfg.frame_rate} Hz frame_rate."
+            )
+        for prim in lidar_prims:
+            prim.CreateAttribute("omni:sensor:frameRate", Sdf.ValueTypeNames.Double2).Set(frame_rate)
+
         sim_ctx.require_visual_shapes()
         self._renderer = sim_ctx.get_or_create_backend(self.cfg.renderer_cfg)
 

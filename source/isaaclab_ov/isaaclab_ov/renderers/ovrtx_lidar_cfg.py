@@ -96,6 +96,14 @@ class OVRTXLidarCfg(LidarCfg):
     :attr:`~isaaclab.sensors.lidar.LidarData.points`.
     """
 
+    frame_rate: float = 0.0
+    """Scans per second, in Hz. Defaults to 0, one scan per capture.
+
+    Zero scans once per capture interval: :attr:`update_period`, or the physics time step when the period is
+    zero. With ``instant_lidar=False`` the capture interval must be a whole number of scans, so each capture
+    ends on a complete scan.
+    """
+
     def __post_init__(self):
         if self.renderer_cfg.motion_bvh not in ("auto", "enable"):
             raise ValueError("OvRTX lidar requires motion_bvh='auto' or 'enable'.")
@@ -130,6 +138,9 @@ class OVRTXLidarCfg(LidarCfg):
 
         if self.far_range_m <= 0.0:
             raise ValueError(f"Lidar far_range_m must be positive, got {self.far_range_m}.")
+
+        if self.frame_rate < 0.0:
+            raise ValueError(f"Lidar frame_rate cannot be negative, got {self.frame_rate}.")
 
         if any(time < 0 for time in self.fire_time_ns):
             raise ValueError("Lidar fire_time_ns values cannot be negative.")

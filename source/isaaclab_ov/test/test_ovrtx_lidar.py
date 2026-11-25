@@ -44,10 +44,11 @@ def test_lidar_cfg_rejects_dropped_misses():
         validate(_lidar_cfg(include_invalid_points=False))
 
 
-def test_lidar_cfg_rejects_a_non_positive_azimuth_step():
-    """A rotary step of zero cannot divide the azimuth window."""
-    with pytest.raises(ValueError, match="rot_pattern_firing_res_deg"):
-        _lidar_cfg(rot_pattern_firing_res_deg=0.0)
+@pytest.mark.parametrize(("field", "value"), [("rot_pattern_firing_res_deg", 0.0), ("frame_rate", -1.0)])
+def test_lidar_cfg_rejects_an_invalid_rate(field, value):
+    """A zero azimuth step cannot divide the azimuth window, and a negative frame rate cannot schedule scans."""
+    with pytest.raises(ValueError, match=field):
+        _lidar_cfg(**{field: value})
 
 
 @pytest.mark.parametrize(
@@ -192,6 +193,7 @@ def test_tiled_lidar_returns_are_local_to_each_environment():
         spherical = replace(lidar, prim_path="{ENV_REGEX_NS}/Spherical", elements_coords_type="SPHERICAL")
         world = replace(lidar, prim_path="{ENV_REGEX_NS}/WorldLidar", output_frame_of_reference="WORLD")
         world_spherical = replace(world, prim_path="{ENV_REGEX_NS}/WorldSpherical", elements_coords_type="SPHERICAL")
+        non_instant = replace(lidar, prim_path="{ENV_REGEX_NS}/NonInstant", instant_lidar=False)
 
     with sim_utils.build_simulation_context(sim_cfg=sim_utils.SimulationCfg(physics=OvPhysxCfg())) as sim:
         scene = instantiate(SceneCfg(num_envs=2, env_spacing=8.0))
@@ -207,7 +209,11 @@ def test_tiled_lidar_returns_are_local_to_each_environment():
         assert torch.isfinite(points).all()
         torch.testing.assert_close(points[0], points[1], atol=1e-3, rtol=0.0)
 
-        for native, converted in ((lidar, scene["spherical"]), (scene["world"], scene["world_spherical"])):
+        for native, converted in (
+            (lidar, scene["spherical"]),
+            (scene["world"], scene["world_spherical"]),
+            (lidar, scene["non_instant"]),
+        ):
             expected, actual = native.data, converted.data
             assert expected.valid.torch.all()
             torch.testing.assert_close(actual.valid.torch, expected.valid.torch)
