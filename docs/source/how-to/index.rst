@@ -612,9 +612,3 @@ How-to Guides
 
       This collection is a work in progress. If a question is not answered here, open an issue on the
       `Isaac Lab GitHub repository <https://github.com/isaac-sim/IsaacLab>`_.
-
-.. toctree::
-   :hidden:
-
-   kitless_xr
-   kitless_xr_source

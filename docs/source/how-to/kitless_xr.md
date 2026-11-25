@@ -1,4 +1,5 @@
 ---
+orphan: true
 myst:
   heading_anchors: 2
 ---
