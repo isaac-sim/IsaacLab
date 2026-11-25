@@ -333,6 +333,8 @@ class OVRTXBackend:
     def close(self) -> None:
         """Destroy the engine; the simulation's backend registry releases any borrowed stage afterward."""
         if self.renderer is not None:
+            # Finish external CUDA producers before native teardown waits on their imported buffers.
+            wp.synchronize_device(self.cfg.device)
             # The SDK destroys bindings and detaches only if attached, including partial initialization.
             self.renderer.destroy()
             self.renderer = None

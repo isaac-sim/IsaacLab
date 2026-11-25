@@ -575,7 +575,7 @@ class _Viewer:
         self.closed = False
         self.camera = SimpleNamespace(get_view_matrix=lambda: np.eye(4, dtype=np.float32).ravel())
         self.picking = None
-        self.renderer = SimpleNamespace(window=SimpleNamespace(get_framebuffer_size=lambda: (640, 480)))
+        self.renderer = SimpleNamespace(window=SimpleNamespace(context=None, get_framebuffer_size=lambda: (640, 480)))
 
     def is_paused(self):
         return self.paused

@@ -562,14 +562,7 @@ def run_until_ready(
     process = subprocess.Popen(
         command,
         cwd=ROOT,
-        env={
-            **os.environ,
-            "PYTHONUNBUFFERED": "1",
-            "PYTHONPATH": os.pathsep.join(
-                filter(None, (str(Path(__file__).with_name("_standalone_diagnostics")), os.environ.get("PYTHONPATH")))
-            ),
-            "ISAACLAB_STANDALONE_TRACEBACK_INTERVAL": str(min(60.0, 0.8 * startup_timeout)),
-        },
+        env={**os.environ, "PYTHONUNBUFFERED": "1"},
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         start_new_session=True,

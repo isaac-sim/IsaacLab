@@ -579,19 +579,12 @@ def test_supervisor_runs_finite_scripts_to_exit_and_reports_shutdown_errors():
 
 
 @pytest.mark.parametrize("readiness_pattern", [r"READY", None], ids=["soaked", "finite"])
-def test_supervisor_bounds_run_time(readiness_pattern, monkeypatch, tmp_path):
-    """Hung scripts report stacks before termination, including nested CLI-launched children."""
-    source = "import time\ndef blocked_demo(): time.sleep(30)\nblocked_demo()"
-    monkeypatch.delenv("ISAACLAB_HANG_DUMP", raising=False)
-    if readiness_pattern is None:
-        source = f"import subprocess, sys; subprocess.run([sys.executable, '-c', {source!r}])"
-        monkeypatch.setenv("ISAACLAB_HANG_DUMP", str(tmp_path / "hang"))
-    result = run_until_ready(_python(source), readiness_pattern, startup_timeout=1.0)
+def test_supervisor_bounds_run_time(readiness_pattern):
+    """A script that never becomes ready or never exits is terminated at the time limit."""
+    result = run_until_ready(_python("import time; time.sleep(30)"), readiness_pattern, startup_timeout=0.05)
     assert not result.ready
     assert result.elapsed < 2.0
     assert result.returncode not in (None, 0)
-    dumps = "".join(path.read_text() for path in tmp_path.glob("hang.standalone-*.log"))
-    assert "in blocked_demo" in (dumps if readiness_pattern is None else result.output)
 
 
 def test_supervisor_retains_fatal_state_when_output_is_truncated(monkeypatch):
@@ -671,8 +664,6 @@ def _launch(case, *extra_args: str, screenshot_path: Path | None = None) -> None
         screenshot_path=screenshot_path,
         screenshot_delay=SCREENSHOT_DELAY,
     )
-    if result.elapsed >= 60 and (dump_path := os.environ.get("ISAACLAB_HANG_DUMP")):
-        Path(f"{dump_path}.{case.id}.output.log").write_text(result.output, encoding="utf-8")
     assert_smoke_passed(result, case)
 
 
