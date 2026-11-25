@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import math
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -19,7 +18,7 @@ from isaaclab.managers import CurriculumTermCfg
 from isaaclab.managers.manager_base import ManagerTermBase
 from isaaclab.utils import index_fill_
 
-from ..reset_sampler import ResetDatasetSamplerCfg
+from ..reset_sampler import ResetDatasetSamplerCfg, _CyclicReplay, _sampling_metrics
 
 if TYPE_CHECKING:
     from ..pour_env import FrankaPourEnv
@@ -51,7 +50,8 @@ class PourResetDatasetCurriculum(ManagerTermBase):
         self._replay_generator = torch.Generator(device=self._device)
         seed = env.cfg.seed if env.cfg.seed is not None else self._replay_generator.seed()
         self._replay_fraction = float(sampler_cfg.uniform_fraction) if sampling_mode == "adaptive" else 0.0
-        self._restart_replay(seed)
+        self._replay_generator.manual_seed(seed)
+        self._replay = _CyclicReplay(self._row_count, self._device, self._replay_generator)
         self._requested_rows = torch.empty_like(env.reset_dataset_row_id)
 
         # Core's Beta score has unit peak. Restore the raw kernel's scale so its
@@ -103,10 +103,11 @@ class PourResetDatasetCurriculum(ManagerTermBase):
         else:
             env_ids = torch.as_tensor(env_ids, device=self._device, dtype=torch.long)
         with self._sampler_stream():
-            if env._reset_dataset_reseed_pending:
-                seed = torch.initial_seed()
+            if (seed := env._reset_dataset_seed) is not None:
+                env._reset_dataset_seed = None
                 self._sampler.reseed(seed)
-                self._restart_replay(seed)
+                self._replay_generator.manual_seed(seed)
+                self._replay.restart(self._replay_generator)
 
             num_envs = env_ids.numel()
             if num_envs == 0:
@@ -155,51 +156,16 @@ class PourResetDatasetCurriculum(ManagerTermBase):
         self._requested_rows[env_ids] = rows
         self._sampler.reset(env_ids=env_ids, state_ids=self._requested_rows)
 
-    def _restart_replay(self, seed: int) -> None:
-        self._replay_generator.manual_seed(seed)
-        self._replay_credit = 0.0
-        self._replay_order = torch.randperm(self._row_count, device=self._device, generator=self._replay_generator)
-        self._replay_cursor = 0
-
     def _apply_cyclic_replay(self, env_ids: torch.Tensor) -> None:
         """Override the reserved assignments with complete shuffled passes over the dataset."""
         count = env_ids.numel()
-        credit = self._replay_credit + self._replay_fraction * count
-        replay_count = min(count, math.floor(credit + 1.0e-12))
-        self._replay_credit = credit - replay_count
-        if replay_count == 0:
-            return
-
-        slots = torch.randperm(count, device=self._device, generator=self._replay_generator)[:replay_count]
-        remaining = replay_count
-        chunks = []
-        while remaining:
-            take = min(remaining, self._row_count - self._replay_cursor)
-            chunks.append(self._replay_order[self._replay_cursor : self._replay_cursor + take])
-            self._replay_cursor += take
-            remaining -= take
-            if self._replay_cursor == self._row_count:
-                self._replay_order = torch.randperm(
-                    self._row_count, device=self._device, generator=self._replay_generator
-                )
-                self._replay_cursor = 0
-        self._reset_requested_rows(env_ids[slots], torch.cat(chunks))
+        replay_count = self._replay.reserve(count, self._replay_fraction)
+        if replay_count:
+            slots = torch.randperm(count, device=self._device, generator=self._replay_generator)[:replay_count]
+            self._reset_requested_rows(env_ids[slots], self._replay.take(replay_count, self._replay_generator))
 
     def _refresh_metrics_cache(self) -> None:
         """Refresh host logging metrics after a bounded number of reset assignments."""
-        probabilities = self._sampler.probabilities.torch
-        replay_fraction = self._replay_fraction
-        probabilities = probabilities * (1.0 - replay_fraction) + replay_fraction / self._row_count
-        top_count = max(1, math.ceil(0.01 * self._row_count))
-        effective_fraction, top_mass = torch.stack(
-            (
-                probabilities.square().sum().reciprocal() / self._row_count,
-                torch.topk(probabilities, top_count, sorted=False).values.sum(),
-            )
-        ).tolist()
-        self._metrics_cache = {
-            "sampler/effective_pool_fraction": effective_fraction,
-            "sampler/top_1_percent_mass": top_mass,
-            "sampler/uniform_replay_fraction": replay_fraction,
-        }
+        self._metrics_cache = _sampling_metrics(self._sampler.probabilities.torch, self._replay_fraction)
+        self._metrics_cache["sampler/uniform_replay_fraction"] = self._replay_fraction
         self._local_reset_assignments_since_metrics = 0

@@ -12,6 +12,7 @@ import pytest
 import torch
 
 from isaaclab.managers import CurriculumTermCfg
+from isaaclab.test.utils import DeviceScope, test_devices
 
 from isaaclab_tasks.contrib.franka_pour.mdp.reset_dataset import PourResetDatasetCurriculum
 from isaaclab_tasks.contrib.franka_pour.pour_env import FrankaPourEnv
@@ -20,7 +21,7 @@ from isaaclab_tasks.contrib.franka_pour.reset_sampler import ResetDatasetSampler
 pytestmark = [pytest.mark.unit, pytest.mark.kitless]
 
 
-def _make_curriculum(num_envs, row_count, *, device="cpu", **overrides):
+def _make_curriculum(num_envs, row_count, *, device="cpu", env=None, **overrides):
     cfg = SimpleNamespace(
         seed=17,
         reset_dataset_sampling_mode="adaptive",
@@ -29,11 +30,11 @@ def _make_curriculum(num_envs, row_count, *, device="cpu", **overrides):
         curriculum_freeze=False,
         pour_target_frac=0.7,
     )
-    for name, value in overrides.items():
-        setattr(cfg, name, value)
-
+    vars(cfg).update(overrides)
     progress = SimpleNamespace(ever_success=torch.zeros(num_envs, dtype=torch.bool, device=device))
-    env = SimpleNamespace(
+    if env is None:
+        env = SimpleNamespace()
+    vars(env).update(
         cfg=cfg,
         num_envs=num_envs,
         _reset_dataset_states={
@@ -44,7 +45,7 @@ def _make_curriculum(num_envs, row_count, *, device="cpu", **overrides):
         reset_buf=torch.zeros(num_envs, dtype=torch.bool, device=device),
         reset_dataset_row_id=torch.full((num_envs,), -1, device=device),
         pour_target_frac=torch.zeros(num_envs, device=device),
-        _reset_dataset_reseed_pending=False,
+        _reset_dataset_seed=None,
         termination_manager=SimpleNamespace(get_term_cfg=lambda name: SimpleNamespace(func=progress)),
     )
     return PourResetDatasetCurriculum(CurriculumTermCfg(func=PourResetDatasetCurriculum), env), env, progress
@@ -99,7 +100,7 @@ def test_franka_pour_replay_visits_each_row_in_successive_cycles():
         1, row_count, reset_dataset_sampler=ResetDatasetSamplerCfg(uniform_fraction=0.95)
     )
     env_ids = torch.tensor([0])
-    curriculum(env, env_ids)
+    assert curriculum(env, env_ids)["sampler/uniform_replay_fraction"] == 0.95
     for _ in range(2):
         rows = []
         for _ in range(row_count):
@@ -112,17 +113,15 @@ def test_franka_pour_replay_visits_each_row_in_successive_cycles():
 def test_franka_pour_explicit_reset_seed_restarts_sampling(method):
     """The real public reset methods reseed the task samplers on every explicit seed call."""
     count = 8
-    _, buffers, _ = _make_curriculum(count, row_count=17)
     env = object.__new__(FrankaPourEnv)
-    env.__dict__.update(vars(buffers))
+    env._is_closed = True
     env.scene = SimpleNamespace(num_envs=count, write_data_to_sim=lambda: None, reset_to=lambda *args, **kwargs: None)
     env.sim = SimpleNamespace(forward=lambda: None)
     env.recorder_manager = SimpleNamespace(record_pre_reset=lambda ids: None, record_post_reset=lambda ids: None)
     env.observation_manager = SimpleNamespace(compute=lambda **kwargs: {})
-    env.cfg.wait_for_textures = False
     env.has_rtx_sensors = False
     env.extras = {}
-    curriculum = PourResetDatasetCurriculum(CurriculumTermCfg(func=PourResetDatasetCurriculum), env)
+    curriculum, _, _ = _make_curriculum(count, row_count=17, env=env, wait_for_textures=False)
     env._reset_idx = lambda ids: curriculum(env, ids)
 
     reset = env.reset if method == "reset" else lambda **kwargs: env.reset_to({}, **kwargs)
@@ -135,25 +134,18 @@ def test_franka_pour_explicit_reset_seed_restarts_sampling(method):
     torch.testing.assert_close(env.reset_dataset_row_id, first)
 
 
-def test_legacy_franka_pour_sampler_preserves_import_and_metrics():
-    """The released sampler remains callable while downstream users migrate."""
-    with pytest.warns(DeprecationWarning, match="isaaclab.envs.reset.ResetStateSampler"):
-        sampler = ResetDatasetSampler(3, "cpu", ResetDatasetSamplerCfg(uniform_fraction=0.5))
-    assert sampler.metrics()["sampler/uniform_replay_fraction"] == pytest.approx(0.5)
-
-
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="requires a non-default CUDA stream")
-def test_franka_pour_resets_on_the_callers_cuda_stream():
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_franka_pour_resets_on_the_callers_cuda_stream(device):
     """An explicit playback row follows the queued Torch request on a non-default stream."""
     curriculum, env, _ = _make_curriculum(
         1,
         2,
-        device="cuda",
+        device=device,
         curriculum_freeze=True,
         reset_dataset_top_grasp_count=1,
         reset_dataset_sampler=ResetDatasetSamplerCfg(uniform_fraction=0.95),
     )
-    env_ids = torch.tensor([0], device="cuda")
+    env_ids = torch.tensor([0], device=device)
     curriculum(env, env_ids)
 
     # Warm the adaptive and forced paths and leave the last replay request at
@@ -167,8 +159,8 @@ def test_franka_pour_resets_on_the_callers_cuda_stream():
     assert env.reset_dataset_row_id.item() == 1
 
     env.cfg.curriculum_freeze = True
-    stream = torch.cuda.Stream()
-    stream.wait_stream(torch.cuda.current_stream())
+    stream = torch.cuda.Stream(device=device)
+    stream.wait_stream(torch.cuda.current_stream(device))
     with torch.cuda.stream(stream):
         torch.cuda._sleep(100_000_000)
         curriculum(env, env_ids)
@@ -215,14 +207,10 @@ def test_legacy_sampler_rolling_history_matches_per_row_deques():
             assert _ring_values(sampler, row) == list(history)
 
 
-@pytest.mark.filterwarnings("ignore:ResetDatasetSampler is deprecated:DeprecationWarning")
 def test_legacy_sampler_uniform_replay_covers_every_row_before_repeating(monkeypatch: pytest.MonkeyPatch):
-    """The configured replay fraction draws one complete shuffled cycle without replacement."""
-    sampler = ResetDatasetSampler(
-        5,
-        "cpu",
-        ResetDatasetSamplerCfg(uniform_fraction=0.5),
-    )
+    """The deprecated sampler still draws a complete shuffled cycle without replacement."""
+    with pytest.warns(DeprecationWarning, match="isaaclab.envs.reset.ResetStateSampler"):
+        sampler = ResetDatasetSampler(5, "cpu", ResetDatasetSamplerCfg(uniform_fraction=0.5))
     cyclic_rows: list[int] = []
     take_uniform_rows = sampler._take_uniform_rows
 
