@@ -5,8 +5,10 @@
   Reset places objects collision-free inside the polygon intersection of the declared, measured tabletop outline and a
   hand-defined robot workspace, preserving outlines and holes. Placement samples COM poses using
   collision geometry relative to the simulator COM, accounting for mesh and COM offsets from the asset origin.
-  The nine real table assets retain
-  their actual collisions, without a box proxy. Reset jointly samples a different table and feasible object placement, retrying smaller tables
+  Nine explicit NVIDIA-hosted SimReady table assets retain
+  their actual geometry and triangle collisions, without a box proxy. Articulated table equipment is frozen
+  at its authored assembly pose into a single kinematic table body. Measured usable panels exclude mounting
+  holes, grommets and elevated shelves. Reset jointly samples a different table and feasible object placement, retrying smaller tables
   that cannot fit the sampled objects. Table variants switch on reset with their matching
   poses and measured surfaces; category and size requirements expose tray- and container-placement
   instructions only where evaluable: the object fits its target and the gripper. Instructions name objects in
@@ -22,4 +24,5 @@
   original visual meshes and receiver cavities. The known failing large plastic plate is excluded.
   Four solver substeps with refreshed contacts and a shared gripper/object contact response reduce finger penetration
   during closing, without changing actuator gains or the robot's initial pose.
-  Table and stand assets continue to use the pinned HeteroTask dataset, its local cache, or ``VLA_BENCHMARKS_ASSETS_DIR``.
+  The robot support reuses the stainless SimReady table. Tables, support and movable objects need no
+  Hugging Face dataset, custom uploads or ``VLA_BENCHMARKS_ASSETS_DIR`` resolver.

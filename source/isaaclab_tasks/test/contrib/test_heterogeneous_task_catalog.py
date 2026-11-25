@@ -138,6 +138,10 @@ def test_bounded_combinations_do_not_expand_the_object_product():
         == len(catalog.TABLE_VARIANTS)
     )
     assert all(isinstance(table, sim_utils.UsdFileCfg) for table in tables.assets_cfg), "Use real table assets"
+    table_paths = {table.usd_path for table in tables.assets_cfg}
+    assert len(table_paths) == 9, "Use distinct assets rather than recolors or repeated tables"
+    assert all(path.startswith(f"{catalog.ISAAC_NUCLEUS_DIR}/SimReady/") for path in table_paths)
+    assert resolved.scene.table_fixture.spawn.usd_path in table_paths, "The robot support also uses SimReady"
 
     assert "Big_Plastic_Plate_A01" not in catalog.ASSET_CATALOG
     assert len({spawn.usd_path for spawn in catalog.ASSET_CATALOG.values()}) == 100

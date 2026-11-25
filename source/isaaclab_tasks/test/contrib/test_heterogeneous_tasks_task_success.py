@@ -90,6 +90,16 @@ def _table(path: Path):
     mesh.CreatePointsAttr(vertices)
     mesh.CreateFaceVertexCountsAttr([4] * 24)
     mesh.CreateFaceVertexIndicesAttr(indices)
+    # SimReady tables can ship articulated parts. Keep the assembly's geometry while freezing its bodies.
+    UsdPhysics.ArticulationRootAPI.Apply(root)
+    UsdPhysics.RigidBodyAPI.Apply(mesh.GetPrim())
+    leg = UsdGeom.Cube.Define(stage, "/table/leg")
+    leg.CreateSizeAttr(0.04)
+    leg.AddTranslateOp().Set((-0.4, 0.0, -0.15))
+    UsdPhysics.RigidBodyAPI.Apply(leg.GetPrim())
+    joint = UsdPhysics.FixedJoint.Define(stage, "/table/joint")
+    joint.CreateBody0Rel().SetTargets([mesh.GetPath()])
+    joint.CreateBody1Rel().SetTargets([leg.GetPath()])
     stage.GetRootLayer().Save()
 
 

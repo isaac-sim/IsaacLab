@@ -31,7 +31,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_assets.robots.franka import FRANKA_ROBOTIQ_GRIPPER_CFG
 
-from . import VLA_BENCHMARKS_ASSETS_DIR, mdp
+from . import mdp
 
 GRIPPER_BODY = "robot/Gripper/Robotiq_2F_85/left_inner_finger"
 """Gripper link, relative to the environment prim, whose contacts decide whether an object is held."""
@@ -69,126 +69,145 @@ class TableCfg(RigidObjectCfg):
     surface_holes: tuple[tuple[tuple[float, float], ...], ...] = ()
 
 
-EASTRURAL_TABLE_CFG = TableCfg(
+FLOOR_HEIGHT = -0.850005
+"""Measured floor height when the stainless table supports the robot base at Z=0."""
+
+# Measured in each USD root frame, in metres. Regions stay on the flat worktop, at least 5 mm inside its
+# edge. Packing/metal tables and the desk use their uninterrupted central panels, excluding mounting holes,
+# cable grommets and elevated shelves. The bedside table needs a 10 mm inset around its rounded corners.
+
+STAINLESS_TABLE_CFG = TableCfg(
     prim_path="{ENV_REGEX_NS}/work_table",
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{VLA_BENCHMARKS_ASSETS_DIR}/objects/av_eastrural_table/av_eastrural_table.usd",
+        usd_path=(
+            f"{ISAAC_NUCLEUS_DIR}/SimReady/Industrial/Warehouse/Equipment/"
+            "Stainless_Metal_Table_A03/sm_table_metal_stainless_a03_01.usd"
+        ),
         func=mdp.spawn_table,
+        make_uninstanceable=True,
+        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
         semantic_tags=[
             ("category", "table"),
             *[("object_count", str(count)) for count in range(OBJECT_COUNT[0], OBJECT_COUNT[1] + 1)],
         ],
-        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
     ),
-    init_state=RigidObjectCfg.InitialStateCfg(pos=(0.65, 0.0, -0.697)),
-    surface_outline=((-0.4557, -0.76215), (0.4557, -0.76215), (0.4557, 0.76215), (-0.4557, 0.76215)),
-    surface_height=0.762,
-)
-DESPERES_TABLE_CFG = EASTRURAL_TABLE_CFG.replace(
-    spawn=EASTRURAL_TABLE_CFG.spawn.replace(
-        usd_path=f"{VLA_BENCHMARKS_ASSETS_DIR}/objects/av_desperes_table/av_desperes_table.usd"
+    init_state=RigidObjectCfg.InitialStateCfg(
+        pos=(0.59844, 0.000565, -0.055237), rot=(0.0, 0.0, math.sqrt(0.5), math.sqrt(0.5))
     ),
-    init_state=EASTRURAL_TABLE_CFG.init_state.replace(rot=(0.0, 0.0, math.sqrt(0.5), math.sqrt(0.5))),
-    # The measured fixed centre panel; the extension leaves are not part of the placement region.
-    surface_outline=((-0.760438, -0.406075), (0.760438, -0.406075), (0.760438, 0.406075), (-0.760438, 0.406075)),
-    surface_height=0.76835005,
+    surface_outline=((-0.891539, -0.341436), (0.890409, -0.341436), (0.890409, 0.339439), (-0.891539, 0.339439)),
+    surface_height=0.055237,
 )
-# Place each asset on the common floor at Z=-0.697; tabletop heights remain asset-specific.
-OAK_TABLE_CFG = EASTRURAL_TABLE_CFG.replace(
-    spawn=EASTRURAL_TABLE_CFG.spawn.replace(usd_path=f"{VLA_BENCHMARKS_ASSETS_DIR}/objects/table_oak/table_oak.usd"),
-    init_state=EASTRURAL_TABLE_CFG.init_state.replace(pos=(0.65, 0.0, -0.347)),
-    surface_outline=((-0.348, -0.498), (-0.348, 0.498), (0.348, 0.498), (0.348, -0.498)),
-    surface_height=0.35,
-)
-BLACK_TABLE_CFG = OAK_TABLE_CFG.replace(
-    spawn=OAK_TABLE_CFG.spawn.replace(usd_path=f"{VLA_BENCHMARKS_ASSETS_DIR}/objects/table_black/table_black.usd")
-)
-MAPLE_TABLE_CFG = OAK_TABLE_CFG.replace(
-    spawn=OAK_TABLE_CFG.spawn.replace(usd_path=f"{VLA_BENCHMARKS_ASSETS_DIR}/objects/table_maple/table_maple.usd")
-)
-BAMBOO_TABLE_CFG = OAK_TABLE_CFG.replace(
-    spawn=OAK_TABLE_CFG.spawn.replace(usd_path=f"{VLA_BENCHMARKS_ASSETS_DIR}/objects/table_bamboo/table_bamboo.usd")
-)
-# Use the measured contiguous leaf; the separated panels are outside this support region.
-JENNINGS_TABLE_CFG = EASTRURAL_TABLE_CFG.replace(
-    spawn=EASTRURAL_TABLE_CFG.spawn.replace(
-        usd_path=f"{VLA_BENCHMARKS_ASSETS_DIR}/objects/av_jennings_table/av_jennings_table.usd"
+
+PACKING_TABLE_C01_CFG = STAINLESS_TABLE_CFG.replace(
+    spawn=STAINLESS_TABLE_CFG.spawn.replace(
+        usd_path=(
+            f"{ISAAC_NUCLEUS_DIR}/SimReady/Industrial/Warehouse/Equipment/"
+            "Heavy_Duty_Packing_Table_C01/sm_table_packing_heavyduty_c01_01.usd"
+        )
     ),
-    init_state=EASTRURAL_TABLE_CFG.init_state.replace(
-        pos=(0.65, -0.696875, -0.697), rot=(0.0, 0.0, math.sqrt(0.5), math.sqrt(0.5))
+    init_state=RigidObjectCfg.InitialStateCfg(
+        pos=(0.859741, 0.0, -0.850005), rot=(0.0, 0.0, math.sqrt(0.5), math.sqrt(0.5))
     ),
-    surface_outline=((0.2591, -0.31705), (0.2591, 0.31705), (1.13465, 0.31705), (1.13465, -0.31705)),
-    surface_height=0.762,
+    surface_outline=((-0.90807, -0.581883), (0.90807, -0.581883), (0.90807, 0.581882), (-0.90807, 0.581882)),
+    surface_height=0.994052,
 )
-END_TABLE_CFG = EASTRURAL_TABLE_CFG.replace(
-    spawn=EASTRURAL_TABLE_CFG.spawn.replace(
-        usd_path=f"{VLA_BENCHMARKS_ASSETS_DIR}/objects/appleseed_endtable/appleseed_endtable.usd"
+
+PACKING_TABLE_C02_CFG = STAINLESS_TABLE_CFG.replace(
+    spawn=STAINLESS_TABLE_CFG.spawn.replace(
+        usd_path=(
+            f"{ISAAC_NUCLEUS_DIR}/SimReady/Industrial/Warehouse/Equipment/"
+            "Heavy_Duty_Packing_Table_C02/sm_table_packing_heavyduty_c02_01.usd"
+        )
     ),
-    init_state=EASTRURAL_TABLE_CFG.init_state.replace(pos=(0.649625, -0.000475, -0.697)),
-    surface_outline=(
-        (-0.26995, -0.22155),
-        (-0.26995, 0.2225),
-        (-0.06965, 0.2216),
-        (-0.0696, 0.2017),
-        (-0.0683, 0.19995),
-        (-0.0045, 0.19925),
-        (-0.0045, 0.1427),
-        (-0.0026, 0.1408),
-        (0.0587, 0.1413),
-        (0.05965, 0.14285),
-        (0.05965, 0.1994),
-        (0.11605, 0.2),
-        (0.11735, 0.20175),
-        (0.11735, 0.22165),
-        (0.2707, 0.2225),
-        (0.26895, -0.22155),
+    init_state=RigidObjectCfg.InitialStateCfg(
+        pos=(0.631, 0.0, -0.850005), rot=(0.0, 0.0, math.sqrt(0.5), math.sqrt(0.5))
     ),
-    surface_height=0.63500077,
+    surface_outline=((-1.213215, -0.353142), (1.213215, -0.353142), (1.213215, 0.353142), (-1.213215, 0.353142)),
+    surface_height=0.994051,
 )
-SOFA_TABLE_CFG = EASTRURAL_TABLE_CFG.replace(
-    spawn=EASTRURAL_TABLE_CFG.spawn.replace(
-        usd_path=f"{VLA_BENCHMARKS_ASSETS_DIR}/objects/appleseed_sofatable/appleseed_sofatable.usd"
+
+DELUXE_PACKING_TABLE_CFG = STAINLESS_TABLE_CFG.replace(
+    spawn=STAINLESS_TABLE_CFG.spawn.replace(
+        usd_path=(
+            f"{ISAAC_NUCLEUS_DIR}/SimReady/Industrial/Warehouse/Equipment/"
+            "Deluxe_Packing_Table_A01/sm_table_deluxe_packing_a01_01.usd"
+        )
     ),
-    init_state=EASTRURAL_TABLE_CFG.init_state.replace(pos=(0.6494, 0.000275, -0.696824)),
-    surface_outline=(
-        (-0.19, -0.60425),
-        (-0.19, 0.60535),
-        (0.1912, 0.60535),
-        (0.1911, 0.1728),
-        (0.19, 0.03715),
-        (0.1573, 0.0367),
-        (0.15655, 0.03525),
-        (0.1564, 0.0052),
-        (0.11055, 0.0052),
-        (0.10925, 0.0046),
-        (0.10865, 0.0033),
-        (0.1086, -0.02735),
-        (0.1092, -0.02885),
-        (0.1105, -0.02945),
-        (0.1365, -0.02945),
-        (0.1366, -0.0579),
-        (0.1372, -0.0592),
-        (0.1385, -0.0598),
-        (0.17005, -0.0598),
-        (0.17045, -0.08955),
-        (0.1721, -0.09065),
-        (0.1901, -0.09065),
-        (0.1912, -0.6059),
+    init_state=RigidObjectCfg.InitialStateCfg(
+        pos=(0.737395, 0.0, -0.850005), rot=(0.0, 0.0, -math.sqrt(0.5), math.sqrt(0.5))
     ),
-    surface_height=0.74930084,
+    surface_outline=((-0.8, -0.469906), (0.8, -0.469906), (0.8, 0.15), (-0.8, 0.15)),
+    surface_height=0.927011,
 )
+
+SCISSOR_LIFT_TABLE_CFG = STAINLESS_TABLE_CFG.replace(
+    spawn=STAINLESS_TABLE_CFG.spawn.replace(
+        usd_path=(
+            f"{ISAAC_NUCLEUS_DIR}/SimReady/Industrial/Equipment/"
+            "Scissor_Mobile_Lift_Table_A01/sm_equipment_liftTable_scissorMobile_a01_01.usd"
+        )
+    ),
+    init_state=RigidObjectCfg.InitialStateCfg(
+        pos=(0.620413, 0.095614, -0.850005), rot=(0.0, 0.0, math.sqrt(0.5), math.sqrt(0.5))
+    ),
+    surface_outline=((-0.430533, -0.325908), (0.545674, -0.325908), (0.545674, 0.325908), (-0.430533, 0.325908)),
+    surface_height=1.133782,
+)
+
+METAL_TABLE_CFG = STAINLESS_TABLE_CFG.replace(
+    spawn=STAINLESS_TABLE_CFG.spawn.replace(
+        usd_path=(
+            f"{ISAAC_NUCLEUS_DIR}/SimReady/Industrial/Warehouse/Equipment/Metal_Table_A02/sm_table_metal_a02_01.usd"
+        )
+    ),
+    init_state=RigidObjectCfg.InitialStateCfg(pos=(0.680092, -0.000723, -0.850005), rot=(0.0, 0.0, 1.0, 0.0)),
+    surface_outline=((-0.429456, -0.8), (0.423137, -0.8), (0.423137, 0.8), (-0.429456, 0.8)),
+    surface_height=0.867673,
+)
+
+BEDSIDE_TABLE_CFG = STAINLESS_TABLE_CFG.replace(
+    spawn=STAINLESS_TABLE_CFG.spawn.replace(
+        usd_path=(
+            f"{ISAAC_NUCLEUS_DIR}/SimReady/Hospital/Room_and_Furniture/Table_Bedside_B01/sm_table_bedside_b01_01.usd"
+        )
+    ),
+    init_state=RigidObjectCfg.InitialStateCfg(
+        pos=(0.47609, -0.009427, -0.850184), rot=(0.0, 0.0, -math.sqrt(0.5), math.sqrt(0.5))
+    ),
+    surface_outline=((-0.207442, -0.215942), (0.207442, -0.215942), (0.207442, 0.215942), (-0.207442, 0.215942)),
+    surface_height=0.875,
+)
+
+KITCHEN_ISLAND_CFG = STAINLESS_TABLE_CFG.replace(
+    spawn=STAINLESS_TABLE_CFG.spawn.replace(
+        usd_path=(f"{ISAAC_NUCLEUS_DIR}/SimReady/Residential/Kitchen/Counters/Island_A01/sm_fixture_island_a01_01.usd")
+    ),
+    init_state=RigidObjectCfg.InitialStateCfg(pos=(0.565646, 0.0, -0.850005), rot=(0.0, 0.0, 0.0, 1.0)),
+    surface_outline=((-0.305646, -0.610446), (0.305646, -0.610446), (0.305646, 0.610446), (-0.305646, 0.610446)),
+    surface_height=0.900409,
+)
+
+DESK_CFG = STAINLESS_TABLE_CFG.replace(
+    spawn=STAINLESS_TABLE_CFG.spawn.replace(
+        usd_path=(f"{ISAAC_NUCLEUS_DIR}/SimReady/Hospital/Room_and_Furniture/Desk_A01/sm_desk_a01_01.usd")
+    ),
+    init_state=RigidObjectCfg.InitialStateCfg(pos=(0.651, 0.0, -0.85054), rot=(0.0, 0.0, 0.0, 1.0)),
+    surface_outline=((-0.39445, -0.5), (0.39445, -0.5), (0.39445, 0.5), (-0.39445, 0.5)),
+    surface_height=0.758063,
+)
+
 TABLE_VARIANTS = (
-    EASTRURAL_TABLE_CFG,
-    DESPERES_TABLE_CFG,
-    OAK_TABLE_CFG,
-    BLACK_TABLE_CFG,
-    MAPLE_TABLE_CFG,
-    BAMBOO_TABLE_CFG,
-    JENNINGS_TABLE_CFG,
-    END_TABLE_CFG,
-    SOFA_TABLE_CFG,
+    STAINLESS_TABLE_CFG,
+    PACKING_TABLE_C01_CFG,
+    PACKING_TABLE_C02_CFG,
+    DELUXE_PACKING_TABLE_CFG,
+    SCISSOR_LIFT_TABLE_CFG,
+    METAL_TABLE_CFG,
+    BEDSIDE_TABLE_CFG,
+    KITCHEN_ISLAND_CFG,
+    DESK_CFG,
 )
-"""Variable real table assets, including their own measured usable surfaces and poses."""
+"""Nine explicit NVIDIA-hosted SimReady tables, with measured worktops and floor-aligned poses."""
 
 EMPTY_OBJECT_CFG = sim_utils.SphereCfg(
     radius=0.001,
@@ -538,12 +557,12 @@ class TabletopSceneCfg(InteractiveSceneCfg):
             ),
         },
     )
-    table_fixture = AssetBaseCfg(
+    # Reuse the stainless SimReady table as the fixed robot mount; its top is exactly at the base frame.
+    table_fixture = STAINLESS_TABLE_CFG.replace(
         prim_path="{ENV_REGEX_NS}/table_fixture",
-        spawn=sim_utils.UsdFileCfg(usd_path=f"{VLA_BENCHMARKS_ASSETS_DIR}/scene/franka_table/franka_table.usd"),
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(-0.087, 0.0, 0.0), rot=(0.0, 0.0, 1.0, 0.0)),
+        init_state=STAINLESS_TABLE_CFG.init_state.replace(pos=(-0.25, 0.000565, -0.055237)),
     )
-    work_table = EASTRURAL_TABLE_CFG.replace(
+    work_table = STAINLESS_TABLE_CFG.replace(
         spawn=sim_utils.MultiAssetSpawnerCfg(
             assets_cfg=[table.spawn for table in TABLE_VARIANTS], static=False, random_choice=False
         )
@@ -552,7 +571,7 @@ class TabletopSceneCfg(InteractiveSceneCfg):
     ground = AssetBaseCfg(
         prim_path="/World/ground",
         spawn=sim_utils.GroundPlaneCfg(size=(500.0, 500.0)),
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, -0.697)),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, FLOOR_HEIGHT)),
     )
     dome_light = AssetBaseCfg(
         prim_path="/World/background",

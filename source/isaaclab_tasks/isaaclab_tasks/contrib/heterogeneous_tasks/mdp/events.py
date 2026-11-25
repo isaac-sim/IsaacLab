@@ -95,12 +95,31 @@ def _collision_geometry(spawn: sim_utils.SpawnerCfg) -> tuple[np.ndarray, np.nda
 
 
 def spawn_table(prim_path: str, cfg: sim_utils.UsdFileCfg, translation=None, orientation=None):
-    """Spawn the visual table asset and enable triangle collisions on its actual meshes."""
+    """Keep a table's full geometry at its authored assembly pose as one kinematic body.
+
+    SimReady packing, lift and bedside tables include articulated equipment or drawers. Freeze those parts
+    before variant import so the selected table has one body, while preserving every mesh and its transform.
+    Triangle collisions preserve open space beneath shelves and above the worktop.
+    """
     prim = sim_utils.spawn_from_usd(prim_path, cfg, translation=translation, orientation=orientation)
-    for mesh in Usd.PrimRange(prim, Usd.TraverseInstanceProxies()):
-        if mesh.IsA(UsdGeom.Mesh):
-            UsdPhysics.CollisionAPI.Apply(mesh).CreateCollisionEnabledAttr(True)
-            UsdPhysics.MeshCollisionAPI.Apply(mesh).CreateApproximationAttr("none")
+    for part in list(Usd.PrimRange(prim, Usd.TraverseInstanceProxies())):
+        if part.IsA(UsdPhysics.Joint):
+            part.SetActive(False)
+            continue
+        for schema in (
+            "PhysicsRigidBodyAPI",
+            "PhysxRigidBodyAPI",
+            "PhysicsArticulationRootAPI",
+            "PhysxArticulationAPI",
+        ):
+            if schema in part.GetAppliedSchemas():
+                part.RemoveAppliedSchema(schema)
+        if part.IsA(UsdGeom.Mesh):
+            UsdPhysics.CollisionAPI.Apply(part).CreateCollisionEnabledAttr(True)
+            UsdPhysics.MeshCollisionAPI.Apply(part).CreateApproximationAttr("none")
+    body = UsdPhysics.RigidBodyAPI.Apply(prim)
+    body.CreateRigidBodyEnabledAttr(True)
+    body.CreateKinematicEnabledAttr(True)
     return prim
 
 
