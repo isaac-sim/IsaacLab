@@ -26,6 +26,9 @@ _MAX_CONTEXT_CHARS = 1_500_000
 _MAX_FILE_CHARS = 750_000
 _MAX_SOURCE_DIFF_CHARS = 300_000
 _MAX_TOOL_OUTPUT_CHARS = 200_000
+_MAX_LIST_DIR_ENTRIES = 200
+_MAX_GREP_LINES = 100
+_MAX_SUMMARY_CLEAN_PATHS = 50
 _MAX_TOOL_CALLS = 10
 _MAX_CORRECTIONS = 2
 _MAX_MODEL_OUTPUT_TOKENS = 65_536
@@ -48,7 +51,9 @@ _TOOLS = [
         "type": "function",
         "function": {
             "name": "list_dir",
-            "description": "List files under a release-branch directory, recursively, up to 200 entries.",
+            "description": (
+                f"List files under a release-branch directory, recursively, up to {_MAX_LIST_DIR_ENTRIES} entries."
+            ),
             "parameters": {"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]},
         },
     },
@@ -56,7 +61,7 @@ _TOOLS = [
         "type": "function",
         "function": {
             "name": "grep",
-            "description": "Search release-branch files for a fixed string, up to 100 matching lines.",
+            "description": f"Search release-branch files for a fixed string, up to {_MAX_GREP_LINES} matching lines.",
             "parameters": {
                 "type": "object",
                 "properties": {"pattern": {"type": "string"}, "path": {"type": "string"}},
@@ -278,9 +283,9 @@ def write_summary(path: Path, model: str, result: dict[str, list[dict[str, str]]
     clean = context["cleanly_merged_paths"]
     if clean:
         lines += ["", "Applied by Git without conflict; check that these still fit the release branch:", ""]
-        lines += [f"- `{path}`" for path in clean[:50]]
-        if len(clean) > 50:
-            lines.append(f"- ...and {len(clean) - 50} more")
+        lines += [f"- `{path}`" for path in clean[:_MAX_SUMMARY_CLEAN_PATHS]]
+        if len(clean) > _MAX_SUMMARY_CLEAN_PATHS:
+            lines.append(f"- ...and {len(clean) - _MAX_SUMMARY_CLEAN_PATHS} more")
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
@@ -431,6 +436,8 @@ def _run_tool(call: dict[str, Any], target: str) -> str:
         arguments = json.loads(function.get("arguments") or "{}")
     except json.JSONDecodeError:
         return "error: tool arguments are not valid JSON"
+    if not isinstance(arguments, dict):
+        return "error: tool arguments must be a JSON object"
     path = str(arguments.get("path") or "").strip("/")
     print(f"Tool call: {name} {path!r}", flush=True)
     try:
@@ -440,13 +447,15 @@ def _run_tool(call: dict[str, Any], target: str) -> str:
             output = _git_bytes("show", f"{target}:{path}").decode("utf-8", errors="replace")
         elif name == "list_dir":
             entries = _git("ls-tree", "-r", "--name-only", target, "--", path).splitlines()
-            output = "\n".join(entries[:200]) + ("\n..." if len(entries) > 200 else "")
+            output = "\n".join(entries[:_MAX_LIST_DIR_ENTRIES]) + (
+                "\n..." if len(entries) > _MAX_LIST_DIR_ENTRIES else ""
+            )
         elif name == "grep":
             command = ["git", "grep", "-n", "-F", "-e", str(arguments.get("pattern", "")), target, "--"]
             if path:
                 command.append(path)
             matches = subprocess.run(command, capture_output=True).stdout.decode("utf-8", errors="replace")
-            output = "\n".join(matches.splitlines()[:100]) or "(no matches)"
+            output = "\n".join(matches.splitlines()[:_MAX_GREP_LINES]) or "(no matches)"
         else:
             return f"error: unknown tool {name!r}"
     except (ConflictResolutionError, subprocess.CalledProcessError) as error:
@@ -476,8 +485,8 @@ def _apply_edits(base: str, edits: Any, path: str) -> str:
 
 
 def _checked_content(content: Any, path: str) -> str:
-    """Require final file content to be bounded text."""
-    if not isinstance(content, str) or not content:
+    """Require final file content to be bounded text; an empty file is valid."""
+    if not isinstance(content, str):
         raise ConflictResolutionError(f"model returned no text content for {path!r}")
     if len(content) > _MAX_FILE_CHARS:
         raise ConflictResolutionError(f"model returned more than {_MAX_FILE_CHARS:,} characters for {path!r}")
