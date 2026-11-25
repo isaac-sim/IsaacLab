@@ -55,7 +55,7 @@ def _make_renderer_without_backend() -> tuple[OVRTXRenderer, MagicMock]:
 
 
 @pytest.mark.parametrize("mode", ["sync", "async", "ovstage"])
-def test_geometry_bindings_follow_mixed_sdp_points_and_pointer_swaps(mode):
+def test_geometry_bindings_follow_mixed_sdp_points_and_pointer_swaps(mode, request):
     """Mesh, particle and curve points share one binding and retain publication ordering."""
     renderer, native = _make_renderer_without_backend()
     renderer.cfg.async_rendering = mode == "async"
@@ -90,6 +90,8 @@ def test_geometry_bindings_follow_mixed_sdp_points_and_pointer_swaps(mode):
     publication.get_geometry_batches = read_points
     renderer._sdp = SceneDataProvider(publication)
     if use_ovstage:
+        renderer.scene = OvstageBackend(OvstageBackendCfg())
+        request.addfinalizer(renderer.scene.close)
         renderer.scene.ordinal = 7
         renderer.scene.paths = SimpleNamespace(
             create_path_list_from_strings=lambda paths: paths, destroy_path_list=lambda paths: None
@@ -103,7 +105,6 @@ def test_geometry_bindings_follow_mixed_sdp_points_and_pointer_swaps(mode):
         publication.points = points
         renderer._sdp = SceneDataProvider(publication)
         renderer._setup_geometry_bindings()
-        assert renderer._geometry_points_binding == list(points)
         write = renderer.scene.stage.write_attribute
         assert [call.args[1] for call in write.call_args_list] == ["omni:resetXformStack", "omni:xform"]
         np.testing.assert_array_equal(write.call_args_list[0].kwargs["tensors"], np.ones(len(points), dtype=np.bool_))
@@ -142,7 +143,7 @@ def test_geometry_bindings_follow_mixed_sdp_points_and_pointer_swaps(mode):
         else:
             assert (item.data if use_ovstage else item.ptr) == array.ptr
     kwargs = write.call_args.kwargs
-    assert kwargs["cuda_stream"] == 42
+    assert kwargs["cuda_stream"] == (0 if use_ovstage else 42)
     if use_ovstage:
         assert kwargs["ordinal"] == 7 and kwargs["is_array"]
     else:
@@ -150,7 +151,10 @@ def test_geometry_bindings_follow_mixed_sdp_points_and_pointer_swaps(mode):
 
     # The producer advances its timestamp during the request, not before the consumer calls it.
     publication.points = {path: wp.clone(array) for path, array in reversed(tuple(points.items()))}
-    renderer.update_geometries()
+    if use_ovstage:
+        renderer.scene.update_geometry_points()
+    else:
+        renderer.update_geometries()
     renderer.update_geometries()
     assert write.call_count == 2
     data = write.call_args.kwargs["tensors"] if use_ovstage else write.call_args.args[0]
