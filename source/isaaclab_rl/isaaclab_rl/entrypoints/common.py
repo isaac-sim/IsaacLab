@@ -124,9 +124,9 @@ def add_frontend_args(parser: argparse.ArgumentParser) -> None:
         default="torch",
         help=(
             "Runtime that constructs the environment. 'torch' uses the registered stable environment via"
-            " gym.make. 'warp' (experimental) adapts a manager-based task config onto the Warp runtime, or"
-            " dispatches a direct task to its registered Warp environment; requires isaaclab_experimental"
-            " and `physics=newton_mjwarp`."
+            " gym.make. 'warp' (deprecated: MDP2 replaces it, see the '-MDP2' tasks) adapts a manager-based"
+            " task config onto the Warp runtime, or dispatches a direct task to its registered Warp environment;"
+            " requires isaaclab_experimental and `physics=newton_mjwarp`."
         ),
     )
 
@@ -545,7 +545,7 @@ def create_isaaclab_env(
         env = gym.make(task, cfg=env_cfg)
     else:
         # the warp frontend lives in the optional isaaclab_experimental package
-        from isaaclab_experimental.envs.frontend import WarpFrontend
+        from isaaclab_experimental.deprecated.envs.frontend import WarpFrontend
 
         env = WarpFrontend.build_env(env_cfg, task)
     if convert_marl_to_single_agent and isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):

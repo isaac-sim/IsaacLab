@@ -267,7 +267,7 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
                 torch.testing.assert_close(sensor.data.normal_force_matrix_w.torch[:, :, 0], forces, atol=0.5, rtol=0.0)
 
             check_supporting_forces(1.0)
-            products = {sensor._render_data.render_product_path for sensor in (camera, other)}
+            products = {path for sensor in (camera, other) for path in sensor._render_data.render_product_paths}
             assert submissions and all(submitted == products for submitted in submissions)
             for sensor in (camera, other):
                 depth = sensor.data.output["depth"].torch[:, 16, 16, 0]

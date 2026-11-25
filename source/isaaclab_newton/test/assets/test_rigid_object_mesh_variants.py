@@ -19,6 +19,7 @@ from isaaclab_newton.physics import MJWarpSolverCfg, XPBDSolverCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
+from isaaclab.cloner import InclusionSet
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import build_simulation_context
 from isaaclab.test.utils import DeviceScope, test_devices
@@ -147,6 +148,43 @@ def test_native_selection_preserves_initial_worlds_and_unused_variant(device: st
         variants.fill_(1)
         wp.capture_launch(capture.graph)
         torch.testing.assert_close(asset.mesh_variant_ids.torch.cpu(), torch.tensor([2, 1], dtype=torch.int32))
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
+def test_semantic_worlds_choose_initial_variants(device: str) -> None:
+    """Semantic rules select the right native variants, including inherited wrapper tags."""
+
+    scene_cfg = _VariantSceneCfg(num_envs=4, env_spacing=2.0)
+    third = scene_cfg.object.spawn.assets_cfg[0].copy()
+    third.radius, third.mass_props.mass = 0.06, 27.0
+    scene_cfg.object.spawn.assets_cfg.append(third)
+    scene_cfg.fixture = _variant_object()
+    scene_cfg.fixture.prim_path = "{ENV_REGEX_NS}/Fixture"
+    scene_cfg.fixture.spawn.static = True
+    scene_cfg.fixture.init_state.pos = (0.5, 0.0, 0.2)
+    for obj, tags in zip(scene_cfg.object.spawn.assets_cfg, ([("assembly", "spare")], [], [("assembly", "drive")])):
+        obj.semantic_tags = tags
+    scene_cfg.fixture.spawn.assets_cfg[0].semantic_tags = [("assembly", "spare")]
+    scene_cfg.fixture.spawn.assets_cfg[1].semantic_tags = [("assembly", "spare"), ("assembly", "drive")]
+    scene_cfg.object.spawn.semantic_tags = [("domain", "mechanical")]
+    scene_cfg.fixture.spawn.semantic_tags = [("domain", "mechanical")]
+    scene_cfg.clone_cfg.clone_combinations = [
+        InclusionSet(assets=["object", "fixture"], match_tags=["assembly", "domain"]),
+    ]
+    sim_cfg = SimulationCfg(
+        device=device,
+        gravity=(0.0, 0.0, 0.0),
+        physics=NewtonCfg(solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=False), use_cuda_graph=False),
+    )
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        sim._app_control_on_stop_handle = None
+        scene = InteractiveScene(scene_cfg)
+        sim.register_interactive_scene(scene)
+        sim.reset()
+        asset, fixture = scene["object"], scene["fixture"]
+        torch.testing.assert_close(asset.mesh_variant_ids.torch.cpu(), torch.tensor([0, 0, 2, 2], dtype=torch.int32))
+        torch.testing.assert_close(asset.data.body_mass.torch[:, 0].cpu(), torch.tensor([1.0, 1.0, 27.0, 27.0]))
+        torch.testing.assert_close(fixture.data.body_mass.torch[:, 0].cpu(), torch.tensor([1.0, 8.0, 8.0, 8.0]))
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))

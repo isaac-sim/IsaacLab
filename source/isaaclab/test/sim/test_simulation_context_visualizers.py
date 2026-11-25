@@ -430,6 +430,9 @@ class _DummyViserSceneDataProvider:
     def create_mapping(self, paths):
         return None
 
+    def get_interactive_scene(self):
+        return None
+
     def get_transforms(self, output, **kwargs):
         output.transforms = wp.zeros(1, dtype=wp.transform, device="cpu")
         return True

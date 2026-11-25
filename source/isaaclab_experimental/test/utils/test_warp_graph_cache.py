@@ -10,7 +10,7 @@ from __future__ import annotations
 import unittest
 
 import warp as wp
-from isaaclab_experimental.utils.warp_graph_cache import WarpGraphCache
+from isaaclab_experimental.deprecated.utils.warp_graph_cache import WarpGraphCache
 
 
 @wp.kernel

@@ -811,7 +811,7 @@ def test_newton_visualizer_logs_native_contacts_when_available(monkeypatch):
     assert viewer.logged_contacts == (contacts, state)
 
 
-def test_newton_workspace_replay_preserves_physics_state_and_transport():
+def test_newton_workspace_replay_preserves_physics_state_and_transport(monkeypatch):
     """Workspace playback changes the displayed frame while physics and reset ownership stay in Isaac Lab."""
     pytest.importorskip("newton._src.viewer.gui.workspace")
     import newton
@@ -834,6 +834,13 @@ def test_newton_workspace_replay_preserves_physics_state_and_transport():
         ui=SimpleNamespace(section_errors={}),
     )
     displayed = []
+    point_batches = {}
+    viewer.device = model.device
+    viewer.log_points = lambda name, points, **kwargs: point_batches.__setitem__(name, points)
+    monkeypatch.setattr(
+        "isaaclab_visualizers.newton.newton_visualizer.collect_lidar_hits",
+        lambda *_: [("scan", np.array([[0, 0, 1]], dtype=np.float32))],
+    )
     viewer.begin_frame = lambda _time: None
     viewer.end_frame = lambda: None
     viewer.is_running = lambda: True
@@ -850,6 +857,7 @@ def test_newton_workspace_replay_preserves_physics_state_and_transport():
 
     state.body_q.assign(np.array([[1, 0, 0, 0, 0, 0, 1]], dtype=np.float32))
     visualizer.step(0.1)
+    assert point_batches["lidar/scan"] is not None
     history = viewer.gui.workspace.history
     assert not history.recording
     assert not history.frames  # Opting out must avoid even the initial GPU-to-host snapshot.
@@ -866,6 +874,7 @@ def test_newton_workspace_replay_preserves_physics_state_and_transport():
     visualizer._render_frame()
 
     assert displayed[-1][0, 0] == 1
+    assert point_batches["lidar/scan"] is None
     assert visualizer.backend.state_0 is state
     assert state.body_q is live_array
     assert state.body_q.numpy()[0, 0] == 2
@@ -882,6 +891,7 @@ def test_newton_workspace_replay_preserves_physics_state_and_transport():
     assert not visualizer.consume_step_request()
     visualizer._render_frame()
     assert displayed[-1][0, 0] == 2
+    assert point_batches["lidar/scan"] is not None
 
     # A paused physics step redraws with dt=0; history still follows actual physics progress.
     physics_steps = 3

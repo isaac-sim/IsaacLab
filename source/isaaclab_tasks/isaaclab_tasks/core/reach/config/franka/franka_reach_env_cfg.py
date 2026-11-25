@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 
 import torch
 from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
+from isaaclab_neural.physics import NeRDSolverCfg
 from isaaclab_newton.controllers.ik.newton_ik_objectives_cfg import (
     NewtonIKJointLimitObjectiveCfg,
     NewtonIKPoseObjectiveCfg,
@@ -28,6 +29,7 @@ from isaaclab.devices.keyboard import Se3KeyboardCfg
 from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
 from isaaclab.managers import ObservationTermCfg, RewardTermCfg, SceneEntityCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass, replace
 from isaaclab.utils import math as math_utils
 
@@ -38,7 +40,7 @@ from isaaclab_tasks.utils import PresetCfg, preset
 ##
 from isaaclab_assets import FRANKA_MINIMAL_CFG, FRANKA_PANDA_CFG  # isort: skip
 
-from ...reach_env_cfg import ReachEnvCfg, RewardsCfg
+from ...reach_env_cfg import REACH_SIM_CFG, ReachEnvCfg, RewardsCfg
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -46,6 +48,10 @@ if TYPE_CHECKING:
 ##
 # Environment configuration
 ##
+
+
+FRANKA_REACH_ROBOT_CFG = replace(FRANKA_PANDA_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+"""Robot configuration shared by the scene and articulation-specific physics declarations."""
 
 
 @configclass
@@ -135,6 +141,19 @@ class FrankaReachEnvCfg(ReachEnvCfg):
     and increases command-change penalties. These profiles modify only the task config.
     """
 
+    sim: SimulationCfg = replace(
+        REACH_SIM_CFG,
+        physics=replace(
+            REACH_SIM_CFG.physics,
+            newton_nerd=replace(
+                REACH_SIM_CFG.physics.newton_nerd,
+                solver_cfg=NeRDSolverCfg(
+                    checkpoint="logs/neural/reach_franka/flashnerd.pt", articulation=FRANKA_REACH_ROBOT_CFG.prim_path
+                ),
+            ),
+        ),
+    )
+
     def validate_config(self) -> None:
         """Validate the selected controller and physics backend."""
         if self.observations.policy.ee_target_error is not None and not isinstance(
@@ -145,11 +164,16 @@ class FrankaReachEnvCfg(ReachEnvCfg):
             self.sim.physics, NewtonCfg
         ):
             raise ValueError("The 'newton_ik' action preset requires a Newton physics preset.")
+        if isinstance(self.sim.physics, NewtonCfg) and isinstance(self.sim.physics.solver_cfg, NeRDSolverCfg):
+            if not isinstance(self.actions.arm_action, mdp.JointPositionActionCfg):
+                raise ValueError("The 'newton_nerd' physics preset requires the Franka joint-position action.")
+            if self.observations.policy.ee_target_error is not None:
+                raise ValueError("The 'newton_nerd' physics preset does not support the 'hold' preset.")
 
     def __post_init__(self):
         super().__post_init__()
 
-        self.scene.robot = replace(FRANKA_PANDA_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace(FRANKA_REACH_ROBOT_CFG)
         # Joint inertia varies substantially along the arm; damp each drive accordingly.
         self.scene.robot.actuators["panda_arm"].damping = {
             "panda_joint1": 40.0,

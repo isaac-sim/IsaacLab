@@ -195,6 +195,16 @@ class NewtonCollisionPipelineCfg:
     Defaults to ``True`` (same as Newton's default).
     """
 
+    include_static_kinematic_pairs: bool = True
+    """Whether to generate contacts for static-kinematic and kinematic-kinematic shape pairs.
+
+    Set to ``False`` to skip collision detection between immovable (static and kinematic) bodies,
+    which avoids generating contacts that dynamic solvers discard. Static-static pairs are always
+    filtered by Newton.
+
+    Defaults to ``True`` (same as Newton's default).
+    """
+
     rigid_contact_max: int | None = None
     """Maximum number of rigid contacts to allocate.
 
