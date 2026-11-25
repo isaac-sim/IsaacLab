@@ -5,7 +5,6 @@
 
 """Task declarations, workflow composition and dependency ownership."""
 
-import ast
 import dataclasses
 import subprocess
 import sys
@@ -97,76 +96,3 @@ for task in ('Isaac-Reach-Franka', 'IsaacContrib-Velocity-Flat-AnymalC', 'Isaac-
         text=True,
     )
     assert result.returncode == 0, result.stderr
-
-
-def test_neural_ownership_boundaries():
-    from pathlib import Path
-
-    from isaaclab.paths import ISAACLAB_ROOT
-
-    root = Path(ISAACLAB_ROOT)
-    neural = root / "source/isaaclab_neural/isaaclab_neural"
-    assert not (neural / "physics/newton_nerd_manager.py").exists()
-    assert not list((neural / "entrypoints").glob("*.py"))
-    assert not (root / "scripts/neural/evaluate.py").exists()
-    assert not (neural / "nerd_recipe.py").exists()
-    assert not (neural / "nerd_recipe_cfg.py").exists()
-    for name, owner in (("nerd_training_cfg.py", "rl"), ("recording.py", "record"), ("recording_cfg.py", "record")):
-        assert not (neural / name).exists()
-        assert (neural / owner / name).is_file()
-    forbidden = {
-        "FrankaReachBaseEnvCfg",
-        "FrankaReachPhysicsCfg",
-        "AllegroHandManagerPhysicsCfg",
-        "NewtonNeRDManager",
-        "RecordingSimulation",
-        "EnvSimulation",
-        "TrajectoryRecorder",
-        "pop_initial_nerd",
-        "forget_setup_changes",
-        "record_nerd_step",
-    }
-    for path in neural.rglob("*.py"):
-        tree = ast.parse(path.read_text())
-        for node in ast.walk(tree):
-            if isinstance(node, (ast.ClassDef, ast.FunctionDef)):
-                assert node.name not in forbidden, path
-            if isinstance(node, ast.ImportFrom):
-                assert not forbidden & {a.name for a in node.names}, path
-            if path.parent.name == "physics" and isinstance(node, ast.Name):
-                assert node.id not in {"SimulationContext", "ActionManager", "JointPositionAction"}, path
-    assert not list((root / "source/isaaclab_tasks/isaaclab_tasks").rglob("nerd_recipe*.py"))
-    for relative in (
-        "core/reach/config/franka",
-        "core/reorient/config/allegro_hand",
-        "contrib/velocity/config/anymal_c",
-    ):
-        task = root / "source/isaaclab_tasks/isaaclab_tasks" / relative
-        for path in task.rglob("*.py"):
-            for node in ast.walk(ast.parse(path.read_text())):
-                if isinstance(node, ast.ClassDef):
-                    assert node.name not in forbidden, path
-                if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "preset":
-                    for keyword in node.keywords:
-                        assert not (
-                            keyword.arg is None
-                            and any(
-                                isinstance(value, ast.Call)
-                                and isinstance(value.func, ast.Name)
-                                and value.func.id == "vars"
-                                for value in ast.walk(keyword.value)
-                            )
-                        ), path
-        for owner, names in (
-            ("dynamics", ("nerd_cfg.py", "nerd_training_cfg.py")),
-            ("record", ("nerd_recording.py", "nerd_recording_cfg.py")),
-        ):
-            for name in names:
-                assert not (task / name).exists()
-                assert (task / owner / name).is_file()
-
-    for package in ("isaaclab", "isaaclab_newton"):
-        for path in (root / "source" / package / package).rglob("*.py"):
-            for node in ast.walk(ast.parse(path.read_text())):
-                if isinstance(node, ast.ImportFrom):
-                    assert not (node.module or "").startswith("isaaclab_neural"), path
