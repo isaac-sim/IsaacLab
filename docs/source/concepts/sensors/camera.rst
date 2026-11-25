@@ -86,12 +86,9 @@ The sensors can use different resolutions and output types, and their poses upda
 Define all camera prims before initializing the simulation so they are included in the scene
 exported to OVRTX.
 
-A camera sensor with many environments, a large image size or many path-tracing samples per pixel
-can fail to render its first frame with OVRTX. By default, the renderer then tries smaller groups of
-environments, each with its own render product. The camera still returns one image per environment.
-To set the maximum number of environments in one render product, use
-:attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.max_envs_per_render_product`. See
-:ref:`known-issues-rtx-buffer-limit`.
+When the first frame of a large camera sensor fails, OVRTX renders the sensor in smaller groups of
+environments by default. :ref:`known-issues-rtx-buffer-limit` describes the setting
+:attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.max_envs_per_render_product` that limits the group size.
 
 .. _camera-configuration:
 

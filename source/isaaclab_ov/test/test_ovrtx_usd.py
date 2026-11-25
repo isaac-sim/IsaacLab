@@ -201,10 +201,8 @@ def test_render_var_prim_paths_cover_every_authored_render_var(camera_spec, rend
     ids=["auto", "all", "equal", "larger", "split"],
 )
 def test_render_products_author_one_tiled_image_per_environment_range(camera_spec, max_envs, layout):
-    """Each render product has a contiguous range of environments, its own tiled image and the RenderVars of the sensor.
-
-    With "auto", "all" or a limit not below the 5 environments, the sensor has one product with the plain name. This
-    product has all 5 environments in a tiled image of 3 x 2 tiles.
+    """Each render product has a contiguous range of environments, its own tiled image and the RenderVars of the
+    sensor.
     """
     paths = [f"/World/envs/env_{i}/Robot/head_cam" for i in range(5)]
     camera_spec = CameraRenderSpec(camera_spec.cfg, "cpu", 5, tuple(paths), 5)
@@ -225,7 +223,9 @@ def test_render_products_author_one_tiled_image_per_environment_range(camera_spe
 
 
 def test_split_render_data_rejects_incomplete_camera_paths(camera_spec):
-    """A split needs one camera path per environment. A list with only the prototype camera path cannot be split."""
+    """A sensor with only the prototype camera path cannot be split, because a split needs one camera path per
+    environment.
+    """
     spec = CameraRenderSpec(
         cfg=camera_spec.cfg,
         device="cpu",

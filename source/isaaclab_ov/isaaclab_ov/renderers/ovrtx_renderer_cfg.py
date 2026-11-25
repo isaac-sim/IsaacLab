@@ -82,28 +82,12 @@ class OVRTXRendererCfg(RendererCfg):
     max_envs_per_render_product: int | Literal["auto", "all"] = "auto"
     """Maximum number of environments in one render product of a camera sensor. Defaults to ``"auto"``.
 
-    With tiled rendering, a render product renders the images of a group of environments into one tiled image. A
-    camera sensor with many environments, a large image size or many path-tracing samples per pixel can fail to render
-    with one render product. Smaller groups of environments, each with its own render product, can avoid this failure.
-    The camera still returns one image per environment, with the shape ``(num_envs, H, W, C)`` and the same
-    environment order.
+    - ``"auto"``: One render product, and smaller groups of environments after a failed first frame.
+    - ``"all"``: Always one render product.
+    - An integer of at least 1: At most this many environments in one render product.
 
-    - ``"auto"``: Start with one render product. If the first frame fails, the renderer halves the environments per
-      render product of one camera sensor. It picks the sensor whose tiled image has the most pixels times
-      path-tracing samples per pixel. Then it renders the first frame again. It tries at most four smaller groups in
-      total, for all camera sensors together. If a smaller group renders, a warning gives the integer to set. This
-      search needs a camera prim in each environment.
-    - ``"all"``: Always use one render product.
-    - An integer ``M`` of at least 1: Always use ``ceil(num_envs / M)`` render products. For example, 5 environments
-      with ``M = 2`` give render products of 2, 2 and 1 environments.
-
-    Set the integer from the warning. This saves startup time and gives the same groups on every GPU. It can also
-    save GPU memory, because the failed tries stay in the scene until the camera is removed.
-
-    The value applies to every camera sensor of this renderer configuration. A lidar sensor shares this configuration
-    class and ignores the value. Set the same value on every OVRTX renderer configuration of a task. Without a
-    :ref:`shared OVStage <ov-clone-routing>`, another value gives another OVRTX renderer with its own copy of the
-    scene in GPU memory. See :ref:`known-issues-rtx-buffer-limit`.
+    The value applies to every camera sensor of this configuration and must be the same on every OVRTX renderer
+    configuration of a task (a lidar sensor ignores it). See :ref:`known-issues-rtx-buffer-limit`.
     """
 
     temp_usd_dir: str | None = None

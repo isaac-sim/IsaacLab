@@ -99,10 +99,7 @@ def _make_ovrtx_camera_render_data(render_scope_name: str = "RenderCamera_0") ->
 
 
 def _single_render_product(render_data: OVRTXCameraRenderData):
-    """Return the render product of a sensor that must have exactly one.
-
-    A test that reads only the first render product would not check the environments of a second one.
-    """
+    """Return the render product of a sensor that must have exactly one."""
     assert len(render_data.products) == 1, f"Expected one render product, got {render_data.render_product_paths}"
     return render_data.products[0]
 
@@ -506,7 +503,7 @@ def test_ovrtx_render_batch_empty_sequence_does_not_require_initialized_backend(
 @pytest.mark.parametrize("mode", ["sync", "ovstage", "async"])
 @pytest.mark.parametrize("failed_frame", [True, False], ids=["failed-frame", "other-error"])
 def test_ovrtx_failed_frame_error_names_the_render_product_split(mode, failed_frame):
-    """A failed frame gets one note about the render product split. Other step errors stay unchanged."""
+    """Only a failed frame gets a note about the render product split, and only one note."""
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._initialized_scene = True
     renderer._visual_material_writer_ref = None
@@ -560,7 +557,7 @@ def test_ovrtx_failed_frame_error_names_the_render_product_split(mode, failed_fr
     [("auto", True), ("all", True), (3, True), (0, False), (-2, False), (True, False), (None, False), ("ALL", False)],
 )
 def test_ovrtx_renderer_cfg_validates_render_product_split(max_envs, valid):
-    """The split is "auto", "all" or an integer >= 1. A camera rejects other values when it validates its config."""
+    """A camera rejects a split value other than "auto", "all" or an integer >= 1 when it validates its config."""
     cfg = replace(_make_camera_cfg(["rgb"]), renderer_cfg=OVRTXRendererCfg(max_envs_per_render_product=max_envs))
     if valid:
         validate(cfg)
@@ -578,11 +575,7 @@ _FAILED_FRAME = (
 def _add_search_camera(
     renderer: OVRTXRenderer, name: str, num_envs: int, max_envs: int | Literal["auto", "all"], width: int
 ):
-    """Register one square ``rgb`` sensor of ``num_envs`` environments with ``renderer``.
-
-    The renderer reads its split value when it registers a sensor. So each sensor can get its own value, like the
-    sensors of several renderer configurations on one shared engine.
-    """
+    """Register one square ``rgb`` sensor of ``num_envs`` environments with ``renderer``."""
     renderer.cfg.max_envs_per_render_product = max_envs
     cfg = _make_camera_cfg(["rgb"])
     cfg.prim_path = f"/World/envs/env_.*/{name}"
@@ -738,9 +731,8 @@ def test_ovrtx_render_batch_halves_envs_per_render_product_while_the_first_frame
 def test_ovrtx_render_batch_stops_the_split_search_after_the_last_smaller_layout(
     monkeypatch, caplog, use_ovstage, asynchronous, num_envs, products_per_step
 ):
-    """The search tries each smaller layout one time, down to 1 environment per render product.
-
-    It tries at most 4 smaller layouts. Then it raises the last failure.
+    """The search tries at most 4 smaller layouts, down to 1 environment per render product, then raises the last
+    failure.
     """
     renderer, (camera,) = _make_search_cameras(monkeypatch, use_ovstage, num_envs, [("auto", 64)])
     renderer.cfg.async_rendering = asynchronous
@@ -795,7 +787,7 @@ def test_ovrtx_render_batch_does_not_search_without_auto(monkeypatch, caplog, ma
 
 
 def test_ovrtx_split_search_names_an_auto_sensor_without_one_camera_path_per_environment(monkeypatch, caplog):
-    """The search cannot split an "auto" sensor with only one camera path. A warning and the error note name it."""
+    """A warning and the error note name an "auto" sensor that the search cannot split for lack of camera paths."""
     renderer, _ = _make_search_cameras(monkeypatch, False, 8, [])
     cfg = _make_camera_cfg(["rgb"])
     # The camera is not below an environment root, so the renderer cannot complete its camera paths.
@@ -824,10 +816,7 @@ def test_ovrtx_split_search_names_an_auto_sensor_without_one_camera_path_per_env
     ids=["first-write-fails", "last-write-fails", "last-copy-fails"],
 )
 def test_ovrtx_split_search_retires_every_failed_product_before_a_scene_write(monkeypatch, written, failing_write):
-    """A scene write that fails during the search leaves no failed render product in the submitted set.
-
-    The sensors without new render products leave the search. Their later renders name the write error as the cause.
-    """
+    """A scene write that fails during the search leaves no failed render product in the submitted set."""
     renderer, cameras = _make_search_cameras(monkeypatch, False, 8, [("auto", 64), ("auto", 64)])
     failed = set(renderer.backend.render_products)
     submissions = _install_step(renderer, lambda products: True)
@@ -853,10 +842,8 @@ def test_ovrtx_split_search_retires_every_failed_product_before_a_scene_write(mo
 
 
 def test_ovrtx_split_search_retires_every_failed_product_before_an_interrupted_scene_write(monkeypatch):
-    """An interrupt in the first scene write of the search leaves no failed render product in the submitted set.
-
-    An interrupt, for example Ctrl+C, is no ``Exception``, so it skips the clean-up after a failed scene write. OVRTX
-    can abort when a later step renders a failed render product again.
+    """An interrupt, which is no ``Exception``, in the first scene write of the search leaves no failed render product
+    in the submitted set.
     """
     renderer, cameras = _make_search_cameras(monkeypatch, False, 8, [("auto", 64), ("auto", 64)])
     failed = set(renderer.backend.render_products)
@@ -894,13 +881,7 @@ def test_ovrtx_split_search_leaves_out_a_sensor_removed_before_its_first_frame(m
     ],
 )
 def test_ovrtx_split_search_handles_a_sensor_removed_during_the_search(monkeypatch, num_envs, cameras, layouts):
-    """A sensor that a cleanup removes during the search gets no new render products.
-
-    The scene write of the first sensor cleans up the second sensor, for example through a callback. Of three equal
-    "auto" sensors, the search halves the first in the order of the engine, and the last keeps its split. A sensor
-    with 1 environment cannot be halved, so the search gives up on the "auto" sensor and raises the failed frame. It
-    still moves the sensor with an integer split to new render products.
-    """
+    """A sensor that a cleanup removes during the search gets no new render products."""
     renderer, sensors = _make_search_cameras(monkeypatch, False, num_envs, cameras)
     removed = sensors.pop(1)
     failed = set(renderer.backend.render_products)
@@ -947,10 +928,7 @@ def test_ovrtx_render_batch_does_not_search_after_another_error(monkeypatch):
 
 
 def _plan_sensor(*num_envs: int, searches_split: bool = True, spp: int = 1) -> types.SimpleNamespace:
-    """Stand-in with the fields that the split plan reads.
-
-    It has one render product for each number in ``num_envs``. Each tiled image is one row of 64 x 64 tiles.
-    """
+    """Stand-in with the fields that the split plan reads, with one render product per number in ``num_envs``."""
     products = [types.SimpleNamespace(num_envs=count, num_cols=count, num_rows=1) for count in num_envs]
     cfg = types.SimpleNamespace(render_settings={"omni:rtx:rtpt:spp": ("Int", spp)})
     return types.SimpleNamespace(
@@ -959,10 +937,7 @@ def _plan_sensor(*num_envs: int, searches_split: bool = True, spp: int = 1) -> t
 
 
 def _plan_ids(plan) -> list[tuple[int, int | None]]:
-    """Each sensor of ``plan`` by its identity with its next number of environments per render product.
-
-    Two stand-ins with the same fields are equal, so only the identity tells them apart.
-    """
+    """Each sensor of ``plan`` by its identity with its next number of environments per render product."""
     return [(id(data), max_envs) for data, max_envs in plan.max_envs_per_render_product]
 
 
@@ -1002,20 +977,7 @@ def _plan_ids(plan) -> list[tuple[int, int | None]]:
     ],
 )
 def test_ovrtx_split_plan_halves_one_sensor_or_gives_up(sensors, num_smaller_layouts, error, halved, next_max_envs):
-    """The plan halves the "auto" sensor with the most pixels in its tiled image times samples per pixel.
-
-    The other sensors keep their split.
-
-    - ``largest-buffer``: The halved sensor is not the first, so the row also checks that the plan keeps the order of
-      the engine.
-    - ``first-render-product``: 10 environments with a limit of 3 give render products of 3, 3, 3 and 1 environments.
-      The plan halves the first render product, so the next limit is 2, not 1.
-    - ``equal-sensors``: Of "auto" sensors with the same buffer size, the plan halves the first in the order of the
-      engine.
-    - ``after-the-limit`` and ``one-environment``: Without a sensor to halve, the plan gives up on the "auto" sensors
-      and keeps the split of the others.
-    - ``another-error``: Only a failed frame starts the search, so another error gives an empty plan.
-    """
+    """The plan halves the "auto" sensor with the largest buffer and keeps the split of the others, or it gives up."""
     if num_smaller_layouts == "limit":
         num_smaller_layouts = ovrtx_renderer_module._MAX_SMALLER_LAYOUTS
 
@@ -1087,11 +1049,8 @@ def test_ovrtx_split_search_covers_every_renderer_of_a_shared_engine(monkeypatch
 
 
 def _install_attribute_store(renderer: OVRTXRenderer, use_ovstage: bool) -> dict:
-    """Replace the attribute reads and writes of the scene with fakes over a dictionary.
-
-    Like OVRTX, the legacy fake raises when it reads a tag or an array without elements. Like OVStage, the OVStage fake
-    rejects a write of the prim path, and both a write and the release of a read group invalidate the data of the reads.
-    A write of the OVStage fake reads its data only in its wait, because only the wait guarantees that OVStage read it.
+    """Replace the attribute reads and writes of the scene with fakes over a dictionary, which fail like OVRTX and
+    OVStage.
 
     Returns:
         The attributes of each render product: ``{path: {name: (value, is_array, semantic)}}``.
@@ -1208,10 +1167,7 @@ def _install_attribute_store(renderer: OVRTXRenderer, use_ovstage: bool) -> dict
 
 @pytest.mark.parametrize("use_ovstage", [False, True], ids=["legacy", "ovstage"])
 def test_ovrtx_split_search_copies_the_attributes_of_the_failed_render_product(monkeypatch, use_ovstage):
-    """Attributes written onto the failed render product reach the new ones, which keep their own layout.
-
-    The copy skips the attributes of the layout, tags and arrays without elements, and goes on after each of them.
-    """
+    """Attributes written onto the failed render product reach the new ones, which keep their own layout."""
     import ovrtx
     import ovstage
 
@@ -1307,10 +1263,7 @@ def test_ovrtx_split_search_copies_the_attributes_of_the_failed_render_product(m
     ids=["legacy", "ovstage", "async-mesh", "async-particles", "async-cable"],
 )
 def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, capfd, use_ovstage, asynchronous, geometry):
-    """Cameras preserve independent captures, GPU input lifetimes, and reset/cleanup boundaries.
-
-    In the asynchronous rows, the second camera is a split sensor with two render products.
-    """
+    """Cameras preserve independent captures, GPU input lifetimes, and reset/cleanup boundaries."""
     from ovrtx import PrimMode
 
     from pxr import Gf, Usd, UsdGeom, UsdLux
@@ -1574,8 +1527,8 @@ def _assert_split_outputs_match(
 ) -> None:
     """Check that the outputs ``names`` equal those of ``reference`` in each environment.
 
-    Path tracing and DLSS depend on the pixel position in the tiled image. So color outputs match only in the mean of
-    each environment and channel. Other float outputs match per pixel, apart from rounding.
+    Color outputs match only in the mean, because path tracing and DLSS depend on the pixel position in the tiled
+    image.
     """
     for name in names:
         expected, actual = reference[name].torch, outputs[name].torch
@@ -1606,19 +1559,7 @@ def _segmentation_key(pixel: torch.Tensor) -> int | tuple[int, ...]:
 def test_ovrtx_split_sensor_outputs_match_single_product(
     monkeypatch, use_ovstage, colorize_semantic, colorize_instance, simple_shading_types
 ):
-    """A sensor split into render products gives the outputs of one render product, in environment order.
-
-    Each camera kind has two sensors: one with ``"all"``, so one render product, and one with 2 environments per
-    render product. One more sensor with ``"auto"`` gets its split from the search after a failed first frame. The
-    cameras of environments 0 to 3 see different parts of the near cube, so a swap of two environments changes every
-    output, also the mean colors. Only the camera of environment 4 sees the far cube, so only the last render product
-    of the split sees it.
-
-    The colorize settings apply to every sensor of a renderer, and each renderer start and stop costs seconds. So
-    the two rows swap the colorize values. Simple shading is a data type of a camera, so the rows spread the three
-    simple shading types over their camera kinds. An asynchronous row would not test the wait for a failed step,
-    because the injected failure raises before that wait.
-    """
+    """A sensor split into render products gives the outputs of one render product, in environment order."""
     import ovrtx
     import ovstage
 
@@ -1882,14 +1823,7 @@ def test_ovrtx_split_sensor_outputs_match_single_product(
 @pytest.mark.integration
 @pytest.mark.rendering
 def test_ovrtx_split_search_recovers_from_a_real_failed_frame(monkeypatch, caplog):
-    """A real failed first frame of OVRTX starts the search, so the error text of OVRTX still matches.
-
-    The search starts only when the error of OVRTX contains ``_FAILED_FRAME_TEXT``. The other search tests inject
-    that text, so they cannot notice when OVRTX changes it. This test makes a real frame fail: 4 environments of
-    1024 x 1024 pixels give a tiled image of 2048 x 2048 pixels, and 40 samples per pixel with the RTX anti-aliasing
-    need a sample buffer above the 4 GiB limit (about 28 bytes per sample and pixel). With the DLSS anti-aliasing of
-    the default settings, the same frame renders. After one halving, each render product needs about 2.4 GB.
-    """
+    """A real failed first frame of OVRTX starts the search, so the error text of OVRTX still matches."""
     import ovrtx
 
     from pxr import Gf, Usd, UsdGeom, UsdLux
@@ -2152,11 +2086,7 @@ def test_ovrtx_process_frame_routes_hdr_to_output_device(monkeypatch, source_dev
 
 @pytest.mark.parametrize("use_ovstage", [False, True])
 def test_ovrtx_process_frame_reads_authored_camera_render_vars(monkeypatch, use_ovstage):
-    """Both OVRTX APIs extract each camera's outputs using keys from its authored USD.
-
-    The 5 environments fill a tiled image of 3 x 2 tiles, and each tile has its own value. So a tile that is read
-    from the wrong position gives a wrong value.
-    """
+    """Both OVRTX APIs extract each camera's outputs using keys from its authored USD."""
     from pxr import Usd
 
     num_envs = 5
@@ -2238,13 +2168,7 @@ def test_ovrtx_process_frame_reads_authored_camera_render_vars(monkeypatch, use_
 
 @pytest.mark.parametrize("use_ovstage", [False, True])
 def test_ovrtx_process_frame_writes_each_render_product_into_its_environment_range(monkeypatch, use_ovstage):
-    """A split sensor registers one render product per environment range and writes each frame into that range.
-
-    5 environments with a limit of 3 give render products of 3 and 2 environments, with tiled images of 2 x 2 and
-    2 x 1 tiles. Each tile has the value of its environment, so a tile in a wrong environment gives a wrong value. A
-    missing frame or label map of the second render product raises before the first render product writes its
-    outputs. Every product carries the scene-wide label map, which is decoded once from the first product.
-    """
+    """A split sensor registers one render product per environment range and writes each frame into that range."""
     from .test_ovrtx_annotator_utils import _encode_identifier_map
 
     num_envs, untouched = 5, 255

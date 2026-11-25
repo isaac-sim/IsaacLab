@@ -248,29 +248,11 @@ memory. The threshold depends on the padded atlas dimensions and rendering setti
 no universal camera-count limit. See `Isaac Lab issue #8412`_ for affected configurations,
 reproduction steps, and fix status.
 
-The OVRTX renderer (``renderer=ovrtx``) fails a frame above this limit with an error instead. A
-render product renders the images of a group of environments into one tiled image. By default, the
-renderer then renders the images of one camera sensor in smaller groups of environments, each with
-its own render product. It tries again up to four times. The camera still returns one image per
-environment.
-
-:attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.max_envs_per_render_product` sets the maximum
-number of environments in one render product. When a smaller group renders, a warning gives this
-number. Set the attribute to this number to skip the search. This saves startup time and gives the
-same groups on every GPU. It can also save GPU memory, because the failed tries stay in the scene
-until the camera is removed.
-
-If the first frame still fails after the last try, the error names the largest group of each camera
-sensor. Set the value below that group, for example half of it. Each extra render product adds a
-constant time to every frame. The color of a pixel depends a little on its position in the tiled
-image, so two group sizes give slightly different color images.
-
-The value applies to every camera sensor of the renderer configuration. Set the same value on every
-OVRTX renderer configuration of the task, including ``NewtonGLBackendCfg.rtx_renderer_cfg`` of the
-Newton visualizer. Without a :ref:`shared OVStage <ov-clone-routing>`, each different value gets its
-own OVRTX renderer with its own copy of the scene in GPU memory. The automatic selector
-``renderer=rtx`` replaces the renderer configuration at launch and drops this value. On the command
-line, select ``renderer=ovrtx`` and set the value for each camera of the task:
+The OVRTX renderer (``renderer=ovrtx``) fails such a frame with an error. By default, it then
+renders the images of a camera sensor in smaller groups of environments.
+:attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.max_envs_per_render_product` gives the maximum
+group size, and the warning after a successful search names the value to set. Set the same value
+on every OVRTX renderer configuration of the task:
 
 .. code-block:: bash
 
@@ -278,8 +260,7 @@ line, select ``renderer=ovrtx`` and set the value for each camera of the task:
       physics=newton_mjwarp renderer=ovrtx \
       env.scene.tiled_camera.renderer_cfg.max_envs_per_render_product=256
 
-With the default 512 environments of this task, 256 gives two render products of 256 environments
-each.
+With the default 512 environments of this task, 256 gives two groups of 256 environments each.
 
 With other RTX renderers, or instead of smaller groups, reduce the image size, the number of
 environments, or path-tracing SPP. Then inspect images from all cameras before training. Fewer
