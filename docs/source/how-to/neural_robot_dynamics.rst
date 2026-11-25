@@ -59,6 +59,10 @@ without recording again: ``model.backbone_spans=[1,1]`` configures the model def
 training refuses a dataset that was recorded with other values. An output checkpoint is saved before the
 validation report.
 
+On a GPU, training and the physics presets run the model through ``torch.compile``, which needs Triton to
+generate CUDA code. PyTorch installs Triton on Linux only. Where it is missing, such as on Windows, they run
+the model without ``torch.compile`` and log a warning. This is slower and otherwise equivalent.
+
 Franka explores the arm in free space using mixed joint targets. ANYmal explores moving and tilted
 poses using held joint targets and ground probes. Allegro records independent single-solver-step
 samples with free-acceleration labels. Its recording configuration declares the reduced timestep
