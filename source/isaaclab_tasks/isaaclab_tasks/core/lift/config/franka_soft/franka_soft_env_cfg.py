@@ -20,6 +20,7 @@ from isaaclab_newton.physics import (
 from isaaclab_newton.physics.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import NewtonDeformableBodyMaterialCfg
+from isaaclab_ov.physics import OvPhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, VisualMaterialCfg
@@ -121,6 +122,7 @@ class DeformableCfg(PresetCfg):
         ),
     )
     isaacsim_physx = physx
+    ovphysx: DeformableObjectCfg = replace(physx, cloning_contexts=None)
 
     default = newton_mjwarp_vbd_proxy
 
@@ -173,6 +175,7 @@ class PhysicsCfg(PresetCfg):
     )
 
     isaacsim_physx: PhysxCfg = PhysxCfg()
+    ovphysx: OvPhysxCfg = OvPhysxCfg(disable_compiled_stage_cache=True)
 
     physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
 
@@ -592,6 +595,7 @@ class FrankaSoftSceneCfg(PresetCfg):
     # The PhysX deformable asset uses USD replication; other scene assets keep their backend route.
     physx: FrankaSoftBaseSceneCfg = FrankaSoftBaseSceneCfg(num_envs=2048, env_spacing=2.0)
     isaacsim_physx = physx
+    ovphysx = physx
 
     default = newton_mjwarp_vbd_proxy
 
@@ -603,6 +607,7 @@ class FrankaSoftCameraSceneCfg(PresetCfg):
     newton_mjwarp_vbd_proxy: FrankaSoftBaseCameraSceneCfg = FrankaSoftBaseCameraSceneCfg(num_envs=128, env_spacing=2.0)
     physx: FrankaSoftBaseCameraSceneCfg = FrankaSoftBaseCameraSceneCfg(num_envs=128, env_spacing=2.0)
     isaacsim_physx = physx
+    ovphysx = physx
     default = newton_mjwarp_vbd_proxy
 
 

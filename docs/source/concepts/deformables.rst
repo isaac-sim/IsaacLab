@@ -468,11 +468,7 @@ Cable rendering
 
 Cables render in the Kit viewport as ``UsdGeom.BasisCurves``. At render cadence the curve points are
 refreshed from the cable segment endpoints so the rendered shape always matches the simulation.
-
-.. note::
-    Curve points are synchronized through **CPU** Fabric because the RTX Hydra delegate does not
-    read GPU-backed Fabric arrays for ``BasisCurves`` (NVBug 6502662). Periodic curves are skipped
-    by the sync.
+The curve points stay on the simulation device. Periodic curves are skipped by the sync.
 
 Cable limitations
 ^^^^^^^^^^^^^^^^^
@@ -486,7 +482,6 @@ Cable limitations
   ball joint, so it constrains position only and the cable pivots freely at the anchor. Rigid plugs
   and end fittings that must transfer orientation are not representable.
 * **No damping knobs.** The four stiffness moduli are exposed; their damping counterparts are not.
-* **CPU-only render sync** (NVBug 6502662); periodic curves are not synced.
 
 .. note::
     An attachment joint is created only when the attachment stiffness is unauthored or infinite. A

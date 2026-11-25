@@ -75,7 +75,9 @@ Additional Public Classes
    :show-inheritance:
 
 .. autoclass:: InclusionSet
+   :members:
    :show-inheritance:
+   :exclude-members: __init__
 
 .. autoclass:: ReplicateContext
    :members:
