@@ -22,6 +22,8 @@ from newton_neural.systems import SystemArticulation
 
 from isaaclab.cloner import expand_env_regex_ns
 
+from ..nerd import default_compile
+
 if TYPE_CHECKING:
     from .nerd_solver_cfg import NeRDSolverCfg
 
@@ -73,7 +75,8 @@ class NeRDSolver(NewtonSolver):
     def build(self, model: Model, mode: wp.DeterministicMode, env_template: str | None) -> SolverNeRD:
         """Build ``SolverNeRD`` for the configured articulation and validate the Newton model."""
         cfg = self.cfg
-        nerd = load_nerd(cfg.checkpoint, wp.device_to_torch(model.device))
+        device = wp.device_to_torch(model.device)
+        nerd = load_nerd(cfg.checkpoint, device)
         require_articulation(nerd)
         requested = model.get_requested_state_attributes()
         unwritten = [f"{name} ({readers})" for name, readers in _UNWRITTEN_STATE.items() if name in requested]
@@ -88,7 +91,7 @@ class NeRDSolver(NewtonSolver):
             nerd,
             articulation=articulation_pattern(model, cfg.articulation, env_template),
             precision=cfg.precision,
-            compile=cfg.compile,
+            compile=default_compile(device) if cfg.compile is None else cfg.compile,
             # Disable internal solver graphs because Isaac Lab captures the full physics step itself.
             use_cuda_graph=False,
         )

@@ -660,6 +660,18 @@ def test_dispatch_uses_task_registered_default_backend(monkeypatch) -> None:
     assert received == {"module_name": "isaaclab_rl.entrypoints.backends.train_rsl_rl", "argv": ["--task", task_name]}
 
 
+def test_dispatch_finds_the_default_backend_of_experimental_tasks() -> None:
+    """Tasks of the optional experimental task package also select their registered default backend."""
+    pytest.importorskip("isaaclab_tasks_experimental")
+    # A fresh process, so that no earlier import has registered the experimental tasks.
+    code = (
+        "from isaaclab_rl.entrypoints.dispatch import _resolve_default_library\n"
+        "print(_resolve_default_library(['--task', 'Isaac-Cartpole-MDP2'], {'rsl_rl': ''}))"
+    )
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True)
+    assert result.stdout.strip().splitlines()[-1] == "rsl_rl"
+
+
 def test_dispatch_fuses_option_like_kit_args(monkeypatch) -> None:
     """Space-separated option-like Kit arguments are fused before backend parsing."""
     received: dict[str, object] = {}
