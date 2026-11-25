@@ -46,7 +46,11 @@ assert locked.wait(2)
 flush_stdio()
 os._exit(0)
 """
-    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=5, check=False)
+    environment = os.environ.copy()
+    environment.pop("PYTHONUNBUFFERED", None)
+    result = subprocess.run(
+        [sys.executable, "-c", code], env=environment, capture_output=True, text=True, timeout=5, check=False
+    )
     assert result.returncode == 0, result.stderr
     assert set(result.stdout.splitlines()) == {"python stdout", "native stdout"}
     assert set(result.stderr.splitlines()) == {"python stderr", "native stderr"}

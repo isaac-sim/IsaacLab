@@ -49,6 +49,7 @@ from isaaclab.sensors.camera import Camera
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.images import display_channels, sensor_key_for_gt_type
 from isaaclab.utils.math import quat_apply, quat_from_matrix, quat_mul
+from isaaclab.utils.version import has_kit
 from isaaclab.visualizers.base_visualizer import _VISUALIZER_MAX_TILES as MAX_TILED_ENVS
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, WindowCfg
@@ -2091,7 +2092,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             self._sim.backend_manager.register_state_force_callback(self._viewer_picking_binding.apply)
 
     def close(self) -> None:
-        """Release picking and scene references without destroying Kit's shared GL context."""
+        """Release owned GL resources while leaving Kit's shared context alive."""
         if self._is_closed:
             return
         self._close_key_event_source()
@@ -2110,11 +2111,15 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             if self._picking_enabled:
                 # Captured graphs retain neutral picking inputs until their last replay.
                 self._viewer_picking_binding.deactivate()
-            if sys.platform == "win32" and self._viewer is not None and not self._runtime_headless:
+            if self._viewer is not None:
                 window = self._viewer.renderer.window
                 if window.context is not None:
-                    # Release focus while pyglet's weak event handlers still have live targets.
-                    window.set_visible(False)
+                    if sys.platform == "win32" and not self._runtime_headless:
+                        # Release focus while pyglet's weak event handlers still have live targets.
+                        window.set_visible(False)
+                    if not has_kit():
+                        # CUDA/GL registrations must be released before the shared RTX engine is destroyed.
+                        self._viewer.close()
         finally:
             self._viewer = self.backend = self._transform_mapping = None
             super().close()
