@@ -606,6 +606,16 @@ How-to Guides
 
          Capture and inspect runtime traces with NVIDIA Nsight Systems.
 
+   .. container:: guide-group
+
+      .. rubric:: Model-based learning
+
+      .. container:: guide-entry
+
+         :doc:`SuperMimic-style Motion Tracking </source/experimental-features/model_based>`
+
+         Download reference data and train or play a G1 policy with RSL-RL SuperMimic.
+
 .. container:: guide-browser-note
 
    .. note::

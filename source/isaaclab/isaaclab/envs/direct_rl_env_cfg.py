@@ -96,6 +96,15 @@ class DirectRLEnvCfg:
         Currently consumed by the :class:`~isaaclab_rl.sb3.Sb3VecEnvWrapper` wrapper.
     """
 
+    final_obs_every_step: bool = False
+    """Whether to capture physical successor observations on every step. Defaults to False.
+
+    Capture precedes resets and interval events, even when :attr:`compute_final_obs` is False.
+    Every row of ``extras["final_obs"]`` is valid when ``extras["final_obs_every_step"]``
+    is True. Public resets clear both entries. Observation computation must support an
+    additional read without advancing history or other task state.
+    """
+
     episode_length_s: float = MISSING
     """Duration of an episode (in seconds).
 
