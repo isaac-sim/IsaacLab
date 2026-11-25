@@ -131,9 +131,11 @@ def test_humanoid_preparation_preserves_caller_changes_and_rejects_backend_switc
 
 
 def test_humanoid_preparation_resolves_directly_built_configs():
-    """A configuration built without task resolution is prepared with the default of every preset."""
+    """Direct construction resolves preset defaults and launches with compatible RTX rendering."""
     from isaaclab_ov.physics import OvPhysxCfg
     from isaaclab_ov.renderers import OVRTXRendererCfg
+
+    from isaaclab.app import validate_launch
 
     from isaaclab_tasks.contrib.locomanip_pick_place.fixed_base_upper_body_ik_g1_env_cfg import (
         FixedBaseUpperBodyIKG1EnvCfg,
@@ -143,6 +145,7 @@ def test_humanoid_preparation_resolves_directly_built_configs():
     cfg = FixedBaseUpperBodyIKG1EnvCfg()
     prepare_humanoid_teleop_environment(cfg)
     assert type(cfg.sim.physics) is OvPhysxCfg
+    validate_launch(cfg, {"visualizer": []})
     assert type(cfg.scene.robot_pov_cam.renderer_cfg) is OVRTXRendererCfg
 
 

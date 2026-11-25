@@ -414,7 +414,7 @@ def validate_launch(  # noqa: C901
 
     configs = _walk_runtime_configs(cfg, replacements)
     for camera in auto_rtx_cameras:
-        camera.__post_init__()
+        camera._forward_deprecated_renderer_fields()
     if kit_sources and implicit_viewer_cameras:
         # The OVRTX runtime cannot share a process with Kit, so a Kit run keeps the OpenGL view only.
         for name, visualizer, window_size, streaming_view in implicit_viewer_cameras:

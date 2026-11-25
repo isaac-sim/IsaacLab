@@ -13,6 +13,7 @@ import pytest
 import torch
 
 import isaaclab.sim as sim_utils
+from isaaclab.app import validate_launch
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.envs.mdp.actions.actions_cfg import OperationalSpaceControllerActionCfg
 from isaaclab.envs.utils.spaces import sample_space
@@ -347,6 +348,8 @@ def _check_random_actions(
         # ValueError. Consider filtering invalid combinations in setup_environment() rather than
         # forgiving them at runtime. See PR #5097 commit fb2c74a3862 for a workaround that caught
         # the error and called pytest.skip().
+        # Direct construction needs the same runtime resolution as the normal launcher before scene cloning.
+        validate_launch(env_cfg, {"visualizer": []})
         env = gym.make(task_name, cfg=env_cfg)
 
         # disable control on stop
