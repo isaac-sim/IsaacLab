@@ -36,8 +36,8 @@ def test_bounded_combinations_do_not_expand_the_object_product():
     assert all(spawn.func == default_spawner for spawn in catalog.ASSET_CATALOG.values()), (
         "Collision cooking belongs to the backend, not custom catalog spawning hooks"
     )
-    cfg, _ = resolve_task_config("IsaacContrib-VLA-Heterogeneous-Franka", "", overrides=[])
-    assert type(cfg) is catalog.VLAHeterogeneousEnvCfg
+    cfg, _ = resolve_task_config("IsaacContrib-TableTop-PickPlace-Franka", "", overrides=[])
+    assert type(cfg) is catalog.TabletopPickPlaceEnvCfg
     assert len(catalog.ASSET_CATALOG) == 100
     assert set(cfg.tasks) == {"put_in_container", "put_on_tray"}
     assert cfg.events.place_objects.params["object_count"] == catalog.OBJECT_COUNT

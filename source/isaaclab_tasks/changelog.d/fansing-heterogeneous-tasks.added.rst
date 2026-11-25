@@ -1,4 +1,4 @@
-* Added ``IsaacContrib-VLA-Heterogeneous-Franka``: a shared tabletop scene for vision-language-action policies
+* Added ``IsaacContrib-TableTop-PickPlace-Franka``: a shared tabletop scene for vision-language-action policies
   on Newton, with bounded combinations from a tagged object catalog instead of fixed per-benchmark layouts.
   Sampling chooses categories uniformly before assets uniformly within each category, without enumerating combinations.
   Every slot offers the complete catalog and a non-colliding placeholder. Every reset resamples the object count,

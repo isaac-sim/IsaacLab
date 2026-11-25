@@ -8,11 +8,11 @@
 import gymnasium as gym
 
 gym.register(
-    id="IsaacContrib-VLA-Heterogeneous-Franka",
+    id="IsaacContrib-TableTop-PickPlace-Franka",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": (
-            "isaaclab_tasks.contrib.heterogeneous_tasks.heterogeneous_tasks_env_cfg:VLAHeterogeneousEnvCfg"
+            "isaaclab_tasks.contrib.heterogeneous_tasks.heterogeneous_tasks_env_cfg:TabletopPickPlaceEnvCfg"
         )
     },
     disable_env_checker=True,

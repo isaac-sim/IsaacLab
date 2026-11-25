@@ -558,7 +558,7 @@ class TerminationsCfg:
 
 
 @configclass
-class VLAHeterogeneousEnvCfg(ManagerBasedRLEnvCfg):
+class TabletopPickPlaceEnvCfg(ManagerBasedRLEnvCfg):
     """Sample bounded object combinations; tasks become available from categories and geometric fit.
 
     ``OBJECTS_CFG`` declares the object collection before environment construction. Empty placeholders
