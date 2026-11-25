@@ -35,10 +35,11 @@ class ActionOp:
     name: str
     target: FieldSelector
     columns: slice  # Columns of the action
-    scale: float
+    scale: float | tuple[float, ...]
     offset: float | FieldSelector  # A field gives an offset per element
     worlds: tuple[int, ...] | None = None  # Worlds where the op is active, None for every world
     subset: SubsetSelector | None = None  # Elements of the target it writes, None for all of them
+    clip: tuple[tuple[float, float], ...] | None = None
 
 
 @dataclass(frozen=True)

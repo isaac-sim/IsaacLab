@@ -44,6 +44,10 @@ list configuration fields and defaults.
    * - :class:`~isaaclab_newton.physics.MPMSolverCfg`
      - :ref:`newton-using-mpm` for how the integration works and
        :ref:`newton-tuning-mpm` for parameter studies
+   * - :class:`~isaaclab_neural.physics.NeRDSolverCfg` and
+       :class:`~isaaclab_neural.physics.MJWarpNeRDSolverCfg`
+     - :ref:`newton-neural-robot-dynamics` for training policies on neural
+       robot dynamics models, which need the ``newton-neural`` extra
 
 Additional solver configurations are
 :class:`~isaaclab_newton.physics.XPBDSolverCfg` and

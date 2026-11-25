@@ -66,7 +66,6 @@ class FrankaReachEnvCfg(franka_reach_env_cfg.FrankaReachEnvCfg):
         steel_solver.update_mass_matrix_interval = 2
         steel_solver.articulation_constraint_max = 64
         steel_solver.enable_joint_velocity_limits = True
-
         # The OSC action term replaces the parent's arm-controller presets, so the parent's controller-keyed
         # variants would only zero the action-magnitude reward weight or attach 6D teleop devices here. Resolve
         # their defaults and keep ``diffik_abs`` as a deprecated no-op alias so existing command lines keep working.

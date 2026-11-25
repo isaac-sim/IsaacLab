@@ -124,6 +124,7 @@ def test_all_extra_aggregates_curated_ov_rl_and_visualizer_extras(source_checkou
         "video",
         "optix",
         "fovi",
+        "newton-neural",
         "leapp",
         "wandb",
         "test",
