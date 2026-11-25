@@ -87,6 +87,13 @@ class KitBackendCfg(VisualizerBackendCfg):
         origin_track_path = "robot/panda_hand"  # track panda_hand body on robot
     """
 
+    show_lidar_points: bool = False
+    """Copy lidar hits to the viewer and draw them.
+
+    Off by default. A dense scan is expensive to move to the host and upload every visualizer step.
+    Kit honors this flag only; there is no runtime checkbox.
+    """
+
 
 @configclass
 class KitVisualizerCfg(KitBackendCfg, VisualizerCfg):
