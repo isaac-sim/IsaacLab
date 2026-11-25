@@ -267,6 +267,8 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             index_fill_(not_yet_reset, reset_env_ids, False)
             manual_reset_ids = not_yet_reset.nonzero(as_tuple=False).squeeze(-1).int()
             if len(manual_reset_ids) > 0:
+                if self.cfg.compute_final_obs and len(reset_env_ids) == 0:
+                    self.extras["final_obs"] = self.observation_manager.compute()
                 # mark as terminated so RL wrappers observe the episode boundary
                 index_fill_(self.reset_terminated, manual_reset_ids, True)
                 # mirror the recorder lifecycle used for normal resets
