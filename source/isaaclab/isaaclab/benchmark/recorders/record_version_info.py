@@ -121,7 +121,7 @@ class VersionInfoRecorder(MeasurementDataRecorder):
 
         # RL frameworks
         self._record("rl_games", self._get_pkg_version("rl_games"))
-        self._record("rsl_rl", self._get_pkg_version("rsl-rl-lib"))
+        self._record("rsl_rl", self._get_pkg_version("rsl-rl-lib-extras"))
         self._record("stable_baselines3", self._get_pkg_version("stable_baselines3"))
         self._record("skrl", self._get_pkg_version("skrl"))
 

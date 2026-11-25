@@ -8,9 +8,13 @@ __all__ = [
     "EpisodeData",
     "HDF5DatasetFileHandler",
     "MotionLoader",
+    "MotionLibrary",
+    "CsvMotionCfg",
+    "load_csv_motion",
+    "resample_motion",
 ]
 
 from .dataset_file_handler_base import DatasetFileHandlerBase
 from .episode_data import EpisodeData
 from .hdf5_dataset_file_handler import HDF5DatasetFileHandler
-from .motion_loader import MotionLoader
+from .motion_loader import CsvMotionCfg, MotionLibrary, MotionLoader, load_csv_motion, resample_motion

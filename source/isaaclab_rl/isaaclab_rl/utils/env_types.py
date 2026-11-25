@@ -35,7 +35,7 @@ def check_env_type(env: Any, *, allow_multi_agent: bool = False, allow_manager_b
     if allow_manager_based_env:
         allowed_types.append(ManagerBasedEnv)
     with contextlib.suppress(ImportError):
-        from isaaclab_experimental.envs import DirectRLEnvWarp, ManagerBasedEnvWarp, ManagerBasedRLEnvWarp
+        from isaaclab_experimental.deprecated.envs import DirectRLEnvWarp, ManagerBasedEnvWarp, ManagerBasedRLEnvWarp
 
         allowed_types += [ManagerBasedRLEnvWarp, DirectRLEnvWarp]
         if allow_manager_based_env:

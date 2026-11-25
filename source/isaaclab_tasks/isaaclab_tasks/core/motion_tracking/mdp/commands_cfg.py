@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 from isaaclab.managers import CommandTermCfg
 from isaaclab.utils import configclass
+from isaaclab.utils.datasets import CsvMotionCfg
 
 if TYPE_CHECKING:
     from .commands import MotionCommand
@@ -26,7 +27,12 @@ class MotionCommandCfg(CommandTermCfg):
     asset_name: str = MISSING
     """Articulation to control."""
     motion_file: str = MISSING
-    """NPZ path; see the data loader for the array format."""
+    """NPZ/CSV/NPY reference path or directory; files are read without modifying the source."""
+    source_fps: float = 30.0
+    """Frame rate for pose-only CSV/NPY input."""
+    csv: CsvMotionCfg = CsvMotionCfg()
+    sampling_mode: str = "adaptive"
+    """Reset phase: failure-adaptive sampling or the start of each clip (``start``)."""
     anchor_body_name: str = MISSING
     """Body defining the reference alignment frame."""
     body_names: list[str] = MISSING

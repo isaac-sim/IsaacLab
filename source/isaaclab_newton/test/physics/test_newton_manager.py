@@ -819,6 +819,14 @@ def test_model_changes_notify_the_solver_once_per_step_and_warn_once_when_ignore
     ignored = ModelFlags.BODY_INERTIAL_PROPERTIES
     backend = _recording_backend(events, ignored_model_changes={ignored: "Ignored model change"})
 
+    # Construction incorporates setup edits; edits made by solver-init consumers still need notification.
+    backend.model_changes.add(ignored)
+    backend.solver_init_callbacks.append(lambda: backend.model_changes.add(ModelFlags.JOINT_PROPERTIES))
+    backend.init_solver()
+    backend.step()
+    assert [event for event in events if event[0] == "notify"] == [("notify", ModelFlags.JOINT_PROPERTIES)]
+    events.clear()
+
     with caplog.at_level(logging.WARNING, logger=newton_backend.__name__):
         for flag in (ignored, ModelFlags.JOINT_DOF_PROPERTIES, ignored):
             backend.model_changes.add(flag)
