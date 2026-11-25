@@ -573,20 +573,25 @@ class NewtonManager(PhysicsManager):
         if self._requested_solver_observables.pop(owner, None) is None:
             return
         backend = self.backend
-        if backend is None or backend.solver_observables is None:
+        step_observables = None if backend is None else backend._step_observables
+        if step_observables is None:
             return
-        kinds = set().union(*self._requested_solver_observables.values())
-        if kinds == backend.solver_observables.kinds:
+        caller_kinds = set().union(*self._requested_solver_observables.values())
+        step_kinds = caller_kinds | backend._diagnostic_observable_kinds
+        current_caller = backend.solver_observables.kinds if backend.solver_observables is not None else frozenset()
+        current_step = step_observables.kinds
+        if caller_kinds == current_caller and step_kinds == current_step:
             return
-        backend.solver_observables = backend.solver_observables.select(kinds) if kinds else None
+        backend.solver_observables = step_observables.select(caller_kinds) if caller_kinds else None
+        backend._step_observables = step_observables.select(step_kinds) if step_kinds else None
         if backend.contact_observables is not None:
             backend.contact_observables = backend.contact_observables.select(
-                kinds | SensorContact.solver_observable_kinds
+                step_kinds | SensorContact.solver_observable_kinds
             )
         backend.invalidate_graph()
 
     def get_solver_observables(self) -> SolverBase.Observables | None:
-        """Return the outputs populated by each solver substep, or ``None`` when unrequested."""
+        """Return the caller-requested outputs populated by each solver substep, or ``None``."""
         return self.backend.solver_observables if self.backend is not None else None
 
     def get_scene_data_provider(self) -> SceneDataProvider:

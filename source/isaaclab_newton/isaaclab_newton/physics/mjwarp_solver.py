@@ -8,12 +8,13 @@
 from __future__ import annotations
 
 import logging
+from functools import cache
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import warp as wp
-from newton import Contacts, Model, State
-from newton.solvers import SolverMuJoCo
+from newton import Contacts, Control, Model, State
+from newton.solvers import SolverBase, SolverMuJoCo
 
 from .newton_solver import NewtonSolver, solver_kwargs
 
@@ -24,6 +25,21 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _SENSORS_BY_STATE_ATTRIBUTE = {"body_qdd": "the IMU or PVA sensor", "body_parent_f": "the joint-wrench sensor"}
+
+_MUJOCO_WARP_OVERFLOW_LABELS = {
+    "NEFC": "constraint rows (njmax)",
+    "NJMAX_NNZ": "constraint Jacobian nonzeros (njmax_nnz)",
+    "BROADPHASE": "broadphase buffer",
+    "NARROWPHASE": "narrowphase/contact buffer",
+    "CCD": "CCD buffer",
+    "HFIELD": "height-field collision buffer",
+    "CONTACT_MATCH": "contact-match sensor buffer",
+    "NVMAX": "island active-DOF buffer (nvmax)",
+    "EPA_HORIZON": "EPA horizon buffer",
+    "ITERATIONS": "solver iteration cap (iterations)",
+    "LS_ITERATIONS": "line-search iteration cap (ls_iterations)",
+    "TACTILE": "tactile sensor collision-pair buffer",
+}
 
 
 @wp.func
@@ -67,6 +83,17 @@ class MJWarpSolver(NewtonSolver):
     solver_class = SolverMuJoCo
     single_state = True
     max_deterministic_mode = wp.DeterministicMode.RUN_TO_RUN
+
+    def __init__(
+        self,
+        cfg: MJWarpSolverCfg,
+        model: Model,
+        mode: wp.DeterministicMode,
+        env_template: str | None = None,
+    ) -> None:
+        super().__init__(cfg, model, mode, env_template)
+        self._step_observables: SolverBase.Observables | None = None
+        self._warned_overflow_bits: int = 0
 
     @classmethod
     def applied_deterministic_mode(cls, cfg: MJWarpSolverCfg, mode: wp.DeterministicMode) -> wp.DeterministicMode:
@@ -157,6 +184,20 @@ class MJWarpSolver(NewtonSolver):
                 device=faults.device,
             )
 
+    def step(
+        self,
+        state_in: State,
+        state_out: State,
+        control: Control,
+        contacts: Contacts | None,
+        dt: float,
+        *,
+        observables: SolverBase.Observables | None = None,
+    ) -> None:
+        """Advance one substep and retain the outputs inspected after the step."""
+        self._step_observables = observables
+        super().step(state_in, state_out, control, contacts, dt, observables=observables)
+
     def reset(self, state: State, world_mask: wp.array) -> None:
         """Clear solver history and synchronize authored joint state for masked worlds.
 
@@ -177,9 +218,10 @@ class MJWarpSolver(NewtonSolver):
             solver._update_mjc_data(data, solver.model, state, world_mask=world_mask)
 
     def check_step(self, captured: bool, debug: bool) -> None:
-        """Log MuJoCo solver convergence statistics in debug mode."""
+        """Log MuJoCo capacity-overflow and convergence diagnostics in debug mode."""
         if not debug:
             return
+        self._warn_overflow()
         solver = self.native
         niter = solver.mjw_data.solver_niter.numpy()
         data = {"max": np.max(niter), "mean": np.mean(niter), "min": np.min(niter), "std": np.std(niter)}
@@ -193,3 +235,65 @@ class MJWarpSolver(NewtonSolver):
         from .mjwarp_tendon_control import create_mjwarp_tendon_control
 
         return create_mjwarp_tendon_control(articulation, model)
+
+    def _diagnostic_observables(self) -> frozenset[str]:
+        """Return the overflow observable needed for debug diagnostics, when the backend supports it."""
+        if self.cfg.use_mujoco_cpu:
+            return frozenset()
+        return frozenset({SolverMuJoCo.ObservableKind.OVERFLOW})
+
+    def _warn_overflow(self) -> None:
+        """Warn once per newly observed capacity-overflow buffer."""
+        if self._step_observables is None or self._step_observables.overflow is None:
+            return
+        masks = self._step_observables.overflow.numpy()
+        if masks.size == 0:
+            return
+        all_bits = int(np.bitwise_or.reduce(masks))
+        new_bits = all_bits & ~self._warned_overflow_bits
+        if new_bits == 0:
+            return
+        self._warned_overflow_bits |= new_bits
+
+        world_masks = masks[:-1]
+        global_mask = int(masks[-1])
+        affected_worlds = np.flatnonzero(world_masks & new_bits)
+        global_affected = bool(global_mask & new_bits)
+
+        labels = _overflow_labels()
+        names, known_bits = [], 0
+        for bit in sorted(labels):
+            if new_bits & bit:
+                names.append(labels[bit])
+                known_bits |= bit
+        unknown_bits = new_bits & ~known_bits
+        if unknown_bits:
+            names.append(f"unknown overflow bits 0x{unknown_bits:x}")
+
+        worlds = [str(int(index)) for index in affected_worlds[:8]]
+        if affected_worlds.size > len(worlds):
+            worlds.append(f"and {affected_worlds.size - len(worlds)} more")
+        scope = f"{affected_worlds.size} environment(s) ({', '.join(worlds)})" if affected_worlds.size else ""
+        if global_affected:
+            scope = f"{scope} and the global world" if scope else "the global world"
+        logger.warning(
+            "MJWarp capacity overflow in %s: %s. "
+            "Increase the named capacity; dropped contacts or constraints can invalidate the simulation.",
+            scope,
+            ", ".join(names),
+        )
+
+
+@cache
+def _overflow_labels() -> dict[int, str]:
+    """Return user-facing labels for Newton and MuJoCo Warp overflow bits."""
+    labels = {
+        int(SolverMuJoCo.OverflowBits.CONTACT_PIPELINE): "collision pipeline contact buffer (rigid_contact_max)",
+        int(SolverMuJoCo.OverflowBits.SOLVER_NCONMAX): "solver contact buffer (nconmax)",
+    }
+    _, mujoco_warp = SolverMuJoCo.import_mujoco()
+    for name, label in _MUJOCO_WARP_OVERFLOW_LABELS.items():
+        flag = getattr(mujoco_warp.OverflowType, name, None)
+        if flag is not None:
+            labels[int(flag)] = label
+    return labels

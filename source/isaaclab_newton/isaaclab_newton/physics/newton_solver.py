@@ -268,3 +268,7 @@ class NewtonSolver:
             "The configured solver does not drive fixed tendons. Fixed-tendon targets require a solver that transmits"
             " to tendons, such as MJWarp."
         )
+
+    def _diagnostic_observables(self) -> frozenset[str]:
+        """Return solver outputs this driver consumes for its own diagnostics."""
+        return frozenset()
