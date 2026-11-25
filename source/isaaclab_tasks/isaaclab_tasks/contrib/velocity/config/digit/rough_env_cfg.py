@@ -21,7 +21,11 @@ from isaaclab.utils import configclass, replace
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
 import isaaclab_tasks.core.velocity.mdp as mdp
-from isaaclab_tasks.core.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg, RoughPhysicsCfg
+from isaaclab_tasks.core.velocity.velocity_env_cfg import (
+    VELOCITY_SIM_CFG,
+    LocomotionVelocityRoughEnvCfg,
+    RoughPhysicsCfg,
+)
 from isaaclab_tasks.utils import PresetCfg, preset
 
 from isaaclab_assets.robots.agility import ARM_JOINT_NAMES, DIGIT_V4_CFG, LEG_JOINT_NAMES
@@ -242,7 +246,7 @@ class DigitActionsCfg:
 
 @configclass
 class DigitRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
-    sim: SimulationCfg = SimulationCfg(physics=DigitPhysicsCfg())
+    sim: SimulationCfg = replace(VELOCITY_SIM_CFG, physics=DigitPhysicsCfg())
     rewards: DigitRewards = DigitRewards()
     observations: DigitObservations = DigitObservations()
     terminations: DigitTerminationsCfg = DigitTerminationsCfg()

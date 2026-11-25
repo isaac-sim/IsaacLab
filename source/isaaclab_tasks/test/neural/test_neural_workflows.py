@@ -46,10 +46,14 @@ def test_recording_model_and_optimizer_are_independent(task):
     assert env.observations
 
 
-def test_reach_shares_neural_physics_declaration():
+def test_neural_solvers_use_shared_physics_declarations():
     from isaaclab_tasks.core.reach.config.franka import franka_reach_env_cfg
     from isaaclab_tasks.core.reach.reach_env_cfg import ReachPhysicsCfg
+    from isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_common import PhysicsCfg
+    from isaaclab_tasks.core.velocity.velocity_env_cfg import RoughPhysicsCfg
 
+    assert "newton_nerd" in RoughPhysicsCfg.__configclass_own_fields__
+    assert "newton_mjwarp_nerd" in PhysicsCfg.__configclass_own_fields__
     assert "newton_nerd" in ReachPhysicsCfg.__configclass_own_fields__
     assert not hasattr(franka_reach_env_cfg, "FrankaReachPhysicsCfg")
     for task in (TASKS[0], "Isaac-Reach-Franka-OSC", "Isaac-Reach-UR10"):
@@ -111,6 +115,9 @@ def test_neural_ownership_boundaries():
         assert not (neural / name).exists()
         assert (neural / owner / name).is_file()
     forbidden = {
+        "FrankaReachBaseEnvCfg",
+        "FrankaReachPhysicsCfg",
+        "AllegroHandManagerPhysicsCfg",
         "NewtonNeRDManager",
         "RecordingSimulation",
         "EnvSimulation",
@@ -135,6 +142,21 @@ def test_neural_ownership_boundaries():
         "contrib/velocity/config/anymal_c",
     ):
         task = root / "source/isaaclab_tasks/isaaclab_tasks" / relative
+        for path in task.rglob("*.py"):
+            for node in ast.walk(ast.parse(path.read_text())):
+                if isinstance(node, ast.ClassDef):
+                    assert node.name not in forbidden, path
+                if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "preset":
+                    for keyword in node.keywords:
+                        assert not (
+                            keyword.arg is None
+                            and any(
+                                isinstance(value, ast.Call)
+                                and isinstance(value.func, ast.Name)
+                                and value.func.id == "vars"
+                                for value in ast.walk(keyword.value)
+                            )
+                        ), path
         for owner, names in (
             ("dynamics", ("nerd_cfg.py", "nerd_training_cfg.py")),
             ("record", ("nerd_recording.py", "nerd_recording_cfg.py")),

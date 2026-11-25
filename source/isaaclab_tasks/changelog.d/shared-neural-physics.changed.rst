@@ -1,0 +1,1 @@
+* Declared NeRD solvers in the existing shared locomotion and Allegro physics configurations. Removed the Allegro neural-only physics subclass, ANYmal preset reconstruction, and the redundant Franka environment base. Locomotion timing and sensor periods now have declarative defaults that dependent tasks reuse.

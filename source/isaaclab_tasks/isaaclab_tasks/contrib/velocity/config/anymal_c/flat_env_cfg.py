@@ -6,8 +6,10 @@
 from isaaclab_neural.physics import NeRDSolverCfg
 
 from isaaclab.actuators import ImplicitActuatorCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass, replace
 
+from isaaclab_tasks.core.velocity.velocity_env_cfg import VELOCITY_SIM_CFG
 from isaaclab_tasks.utils import preset
 
 from .rough_env_cfg import AnymalCRoughEnvCfg
@@ -17,6 +19,26 @@ ANYMAL_C_NERD_TARGET_REACH = 0.75
 
 @configclass
 class AnymalCFlatEnvCfg(AnymalCRoughEnvCfg):
+    decimation: int = preset(default=4, newton_nerd=1)
+    sim: SimulationCfg = replace(
+        VELOCITY_SIM_CFG,
+        dt=preset(default=0.005, newton_nerd=0.02),
+        render_interval=preset(default=4, newton_nerd=1),
+        physics=replace(
+            VELOCITY_SIM_CFG.physics,
+            newton_nerd=replace(
+                VELOCITY_SIM_CFG.physics.newton_nerd,
+                solver_cfg=NeRDSolverCfg(
+                    checkpoint="logs/neural/anymal_c_flat/flashnerd.pt",
+                    articulation="{ENV_REGEX_NS}/Robot",
+                    precision="fp16",
+                ),
+                # Keep contact sensors active when predicted feet hover just above the ground.
+                default_shape_cfg=replace(VELOCITY_SIM_CFG.physics.newton_nerd.default_shape_cfg, margin=0.002),
+            ),
+        ),
+    )
+
     def __post_init__(self):
         super().__post_init__()
 
@@ -41,25 +63,6 @@ class AnymalCFlatEnvCfg(AnymalCRoughEnvCfg):
         # curriculum
         self.curriculum.terrain_levels = None
 
-        # ``physics=newton_nerd`` steps the robot with a FlashNeRD model, which stands for MuJoCo Warp and for the
-        # actuator network of the legs.
-        nerd = replace(
-            newton_mjwarp,
-            solver_cfg=NeRDSolverCfg(
-                checkpoint="logs/neural/anymal_c_flat/flashnerd.pt",
-                articulation=self.scene.robot.prim_path,
-                precision="fp16",
-            ),
-            num_substeps=1,
-            # A margin of 2 mm keeps the contact sensors on when a predicted foot hovers just above the ground.
-            default_shape_cfg=replace(newton_mjwarp.default_shape_cfg, margin=0.002),
-        )
-        self.sim.physics = preset(**vars(self.sim.physics), newton_nerd=nerd)
-        self.sim.dt = preset(default=self.sim.dt, newton_nerd=self.sim.dt * self.decimation)
-        self.sim.render_interval = preset(default=self.sim.render_interval, newton_nerd=1)
-        self.decimation = preset(default=self.decimation, newton_nerd=1)
-        # The presets were built again, so the default is tied to its alternative once more.
-        self.sim.physics.default = self.sim.physics.isaacsim_physx
         # The joint targets pass straight on to the model. The gains [N*m/rad, N*m*s/rad] only estimate the joint
         # efforts that the torque penalty reads.
         legs = self.scene.robot.actuators["legs"]

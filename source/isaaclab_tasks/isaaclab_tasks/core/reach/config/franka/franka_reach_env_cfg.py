@@ -127,7 +127,7 @@ class FrankaReachRewardsCfg(RewardsCfg):
 
 
 @configclass
-class FrankaReachBaseEnvCfg(ReachEnvCfg):
+class FrankaReachEnvCfg(ReachEnvCfg):
     """Franka Reach configuration with selectable arm and physics presets.
 
     The ``hold`` preset keeps one goal throughout the episode and rewards pose success
@@ -140,6 +140,19 @@ class FrankaReachBaseEnvCfg(ReachEnvCfg):
     Newton holding uses softer arm stiffness; PhysX holding retains authored stiffness
     and increases command-change penalties. These profiles modify only the task config.
     """
+
+    sim: SimulationCfg = replace(
+        REACH_SIM_CFG,
+        physics=replace(
+            REACH_SIM_CFG.physics,
+            newton_nerd=replace(
+                REACH_SIM_CFG.physics.newton_nerd,
+                solver_cfg=NeRDSolverCfg(
+                    checkpoint="logs/neural/reach_franka/flashnerd.pt", articulation=FRANKA_REACH_ROBOT_CFG.prim_path
+                ),
+            ),
+        ),
+    )
 
     def validate_config(self) -> None:
         """Validate the selected controller and physics backend."""
@@ -280,24 +293,6 @@ class FrankaReachBaseEnvCfg(ReachEnvCfg):
             default=self.curriculum.action_rate.params["weight"],
             hold=preset(**{backend: profile["curriculum_action_rate"] for backend, profile in hold_profiles.items()}),
         )
-
-
-@configclass
-class FrankaReachEnvCfg(FrankaReachBaseEnvCfg):
-    """Reach with the optional neural model of the joint-position-controlled arm."""
-
-    sim: SimulationCfg = replace(
-        REACH_SIM_CFG,
-        physics=replace(
-            REACH_SIM_CFG.physics,
-            newton_nerd=replace(
-                REACH_SIM_CFG.physics.newton_nerd,
-                solver_cfg=NeRDSolverCfg(
-                    checkpoint="logs/neural/reach_franka/flashnerd.pt", articulation=FRANKA_REACH_ROBOT_CFG.prim_path
-                ),
-            ),
-        ),
-    )
 
 
 def _pose_command_error(env: "ManagerBasedRLEnv", command_name: str) -> torch.Tensor:

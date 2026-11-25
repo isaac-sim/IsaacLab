@@ -13,7 +13,7 @@ from isaaclab.utils import configclass, replace
 
 from isaaclab_tasks.utils import preset
 
-from ..franka_reach_env_cfg import FrankaReachBaseEnvCfg
+from ..franka_reach_env_cfg import FrankaReachEnvCfg
 
 
 @configclass
@@ -36,7 +36,7 @@ class FrankaNeRDExplorationCfg(NeRDExplorationActionCfg):
     drift_timescale: float = 100.0
 
 
-_TASK = FrankaReachBaseEnvCfg()
+_TASK = FrankaReachEnvCfg()
 
 
 @configclass

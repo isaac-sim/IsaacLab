@@ -21,7 +21,7 @@ from . import franka_reach_env_cfg
 
 
 @configclass
-class FrankaReachEnvCfg(franka_reach_env_cfg.FrankaReachBaseEnvCfg):
+class FrankaReachEnvCfg(franka_reach_env_cfg.FrankaReachEnvCfg):
     """Franka reach configuration driven by an operational space controller."""
 
     def validate_config(self) -> None:
