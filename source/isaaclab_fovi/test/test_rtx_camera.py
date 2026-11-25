@@ -30,14 +30,6 @@ from isaaclab.utils.warp import ProxyArray
 pytestmark = pytest.mark.kitless
 
 
-def test_async_ovrtx_with_the_sensor_mask_is_rejected(monkeypatch) -> None:
-    # The camera never initializes, so its destructor has nothing to release.
-    monkeypatch.setattr(FoveatedRTXCamera, "__del__", lambda self: None, raising=False)
-    renderer = SimpleNamespace(renderer_type="ovrtx", async_rendering=True)
-    with pytest.raises(ValueError, match="async_rendering"):
-        FoveatedRTXCamera(SimpleNamespace(renderer_cfg=renderer, mask_to_sensor_fov=True))
-
-
 def test_near_clip_comes_from_spawn_or_else_the_camera_prim() -> None:
     pxr = pytest.importorskip("pxr")
     stage = pxr.Usd.Stage.CreateInMemory()

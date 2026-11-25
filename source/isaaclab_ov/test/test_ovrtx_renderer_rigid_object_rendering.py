@@ -50,7 +50,6 @@ def test_kinematic_rigid_object_scale_and_pose_are_rendered(monkeypatch: pytest.
     import ovstage
     from isaaclab_ov.renderers import ovrtx_renderer
 
-    monkeypatch.delenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", raising=False)
     monkeypatch.setenv("ISAAC_LAB_SHARE_OVSTAGE", "1")
     copies, attached = [], []
     clone = ovstage.Stage.clone
@@ -116,7 +115,6 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
     from isaaclab.sensors import CameraCfg, ExposureCfg
     from isaaclab.utils import configclass, instantiate, replace
 
-    monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1")
     monkeypatch.setenv("ISAAC_LAB_SHARE_OVSTAGE", "1")
 
     @configclass

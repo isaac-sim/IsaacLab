@@ -67,9 +67,9 @@ class OVRTXRendererCfg(RendererCfg):
     """Route scene copies through OvStage; sharing with OvPhysX is optional."""
 
     async_rendering: bool = False
-    """Compatibility option; OvStage always renders synchronously.
+    """Deprecated. OVRTX renders synchronously through OvStage, so this option has no effect.
 
-    Setting this to True logs a warning and uses synchronous rendering.
+    Setting this to True emits a :class:`DeprecationWarning`. The field will be removed in a future release.
     """
 
     max_envs_per_render_product: int | Literal["auto", "all"] = "auto"

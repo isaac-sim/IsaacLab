@@ -403,10 +403,10 @@ OvStage rendering and migration
 OVRTX renders synchronously through OvStage. Scene writes finish and the stage ordinal is sealed
 before each render; camera outputs contain the current capture.
 
-The deprecated renderer-owned scene path and its asynchronous pipeline have been removed.
-:attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.async_rendering` remains a compatibility option:
-setting it to ``True`` logs a warning and still renders synchronously. Remove this override from
-existing configurations. Delayed-image ``capture`` metadata is no longer produced by OVRTX.
+The renderer-owned scene path, deprecated in OVRTX 0.4, and its asynchronous pipeline have been
+removed. :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.async_rendering` is deprecated and has no
+effect: setting it to ``True`` emits a :class:`DeprecationWarning` and still renders synchronously.
+Remove this override from existing configurations. Delayed-image ``capture`` metadata is no longer produced by OVRTX.
 Use the camera's current pose and intrinsic fields with its rendered image.
 
 

@@ -17,8 +17,8 @@ Clone routing
 
 ``OvrtxReplicateContext.prepare`` in ``isaaclab_ov/cloner/replicate.py`` acquires a simulation-owned
 OvStage before constructing its OVRTX borrower. OVRTX always uses OvStage for population, cloning,
-queries, and attribute writes, with either Newton or OVPhysX physics. The deprecated renderer-owned
-scene API and ``ovrtx_replicate`` helper have been removed. Use
+queries, and attribute writes, with either Newton or OVPhysX physics. The renderer-owned scene API,
+deprecated in OVRTX 0.4, is no longer used. ``ovrtx_replicate`` is deprecated; use
 :func:`~isaaclab_ov.cloner.ovstage_replicate` for native rendering copies.
 
 ``ISAAC_LAB_OVRTX_USE_OVSTAGE`` is no longer read; remove it from launch scripts.

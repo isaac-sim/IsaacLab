@@ -11,6 +11,7 @@ import logging
 import math
 import os
 import re
+import warnings
 from collections.abc import Iterable, Sequence
 from functools import cache, partial
 from typing import TYPE_CHECKING
@@ -27,6 +28,8 @@ from isaaclab_ov.stage import OvstageBackend, OvstageBackendCfg
 from isaaclab_ov.stage import ovstage_replicate as ovstage_replicate
 
 if TYPE_CHECKING:
+    import ovrtx
+
     from isaaclab.cloner import ClonePlan
     from isaaclab.sim import SimulationContext
 
@@ -220,7 +223,12 @@ class OvrtxReplicateContext(cloner.ReplicateContext):
             renderer.backend = sim.get_or_create_backend(backend_cfg)
             renderer.scene = scene
             if renderer.cfg.async_rendering:
-                logger.warning("Asynchronous OVRTX rendering is unsupported with ovstage; rendering synchronously.")
+                warnings.warn(
+                    "OVRTXRendererCfg.async_rendering is deprecated and has no effect: OVRTX renders synchronously"
+                    " through OvStage. Remove the override; the field will be removed in a future release.",
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
 
 
 class OvstageReplicateContext(cloner.ReplicateContext):
@@ -319,6 +327,43 @@ def ovphysx_replicate(
     if sim is None:
         raise RuntimeError("OvPhysX replication requires an active SimulationContext.")
     sim.backend_manager._clone_recipes.extend(recipes)
+
+
+def ovrtx_replicate(
+    renderer: ovrtx.Renderer,
+    copies: Sequence[tuple[str, Sequence[str]]],
+    env_paths: Sequence[str],
+    positions: np.ndarray | None = None,
+) -> None:
+    """Apply prepared subtree copies and environment placement to a native OVRTX scene.
+
+    .. deprecated::
+        Isaac Lab no longer uses renderer-owned OVRTX scenes, and OVRTX deprecated their clone API in 0.4.
+        Use :func:`ovstage_replicate`. This function will be removed in a future release.
+
+    Args:
+        renderer: Native renderer holding the source prims.
+        copies: Source paths paired with destination paths, ordered with parents before children.
+            Sources with no destinations are retained prototypes; self-copies must be excluded.
+        env_paths: Environment-root paths in placement order.
+        positions: Optional environment positions [m], shape ``[len(env_paths), 3]``.
+    """
+    warnings.warn(
+        "ovrtx_replicate is deprecated; use ovstage_replicate. It will be removed in a future release.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    from ovrtx import PrimMode, Semantic  # noqa: PLC0415
+
+    for source, targets in copies:
+        if targets:
+            renderer.clone_usd(source, targets)
+    if positions is not None and env_paths:
+        xforms = np.tile(np.eye(4, dtype=np.float64), (len(env_paths), 1, 1))
+        xforms[:, 3, :3] = positions
+        renderer.write_attribute(
+            env_paths, "omni:xform", xforms, semantic=Semantic.XFORM_MAT4x4, prim_mode=PrimMode.MUST_EXIST
+        )
 
 
 def _convert_legacy_joint_properties(

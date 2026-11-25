@@ -159,8 +159,7 @@ def _simulation_registry(monkeypatch):
 
     from isaaclab.renderers import RenderContext
 
-    for name in ("ISAAC_LAB_OVRTX_USE_OVSTAGE", "ISAAC_LAB_SHARE_OVSTAGE"):
-        monkeypatch.delenv(name, raising=False)
+    monkeypatch.delenv("ISAAC_LAB_SHARE_OVSTAGE", raising=False)
     registry = []
     sim = types.SimpleNamespace(
         device="cpu",
@@ -183,21 +182,8 @@ def _simulation_registry(monkeypatch):
     monkeypatch.setattr(SimulationContext, "_instance", sim)
 
 
-@pytest.mark.parametrize(
-    "settings, with_physics, shared_physics",
-    [
-        ((None, None), False, False),
-        ((None, None), True, False),
-        (("1", None), False, False),
-        (("1", None), True, False),
-        (("0", None), True, False),
-        ((None, "1"), True, True),
-        (("0", "1"), True, True),
-    ],
-)
-def test_ovrtx_renderer_config_enables_supported_runtime_options(
-    monkeypatch, tmp_path, settings, with_physics, shared_physics
-):
+@pytest.mark.parametrize("with_physics, shared_physics", [(False, False), (True, False), (True, True)])
+def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch, tmp_path, with_physics, shared_physics):
     """Preparation resolves routes before native allocation; registry ownership outlives borrowers."""
     from isaaclab_ov.cloner import OvPhysxReplicateContext, OvrtxReplicateContext, OvstageReplicateContext
 
@@ -233,9 +219,8 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(
         "cuda:1": types.SimpleNamespace(is_cuda=True, ordinal=1),
     }
     monkeypatch.setattr(ovrtx_renderer_module.wp, "get_device", devices.__getitem__)
-    for name, value in zip(("ISAAC_LAB_OVRTX_USE_OVSTAGE", "ISAAC_LAB_SHARE_OVSTAGE"), settings):
-        if value is not None:
-            monkeypatch.setenv(name, value)
+    if shared_physics:
+        monkeypatch.setenv("ISAAC_LAB_SHARE_OVSTAGE", "1")
 
     @contextlib.contextmanager
     def stage_resource(label):
@@ -279,7 +264,9 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(
     sim.render_context.ensure_initialize()
     # Adding a consumer must retain the route selected before native construction.
     monkeypatch.setenv("ISAAC_LAB_SHARE_OVSTAGE", str(int(not shared_physics)))
-    other = sim.get_or_create_backend(replace(cfg, enable_shadows=True))
+    # The deprecated async flag only warns; the consumer still renders synchronously.
+    with pytest.warns(DeprecationWarning, match="async_rendering is deprecated"):
+        other = sim.get_or_create_backend(replace(cfg, enable_shadows=True, async_rendering=True))
     assert other.backend is not None
     assert (other.backend is renderer.backend) is shared_physics
     assert (other.scene is renderer.scene) is shared_physics
@@ -302,7 +289,6 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(
     assert bool(sim.backend_manager._clone_recipes) is with_physics
     # Repeated preparation retains the selected resource identity.
     resources = tuple(sim._backend_registry)
-    monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "0")
     OvrtxReplicateContext.prepare(sim, {OvrtxReplicateContext: set()})
     assert tuple(sim._backend_registry) == resources
     assert renderer.scene.cfg.population_domains == ovrtx_renderer_module.ovstage.PopulationDomain.RENDERING
