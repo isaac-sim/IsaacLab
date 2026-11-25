@@ -49,7 +49,7 @@ def set_isaac_rtx_global_settings(renderer_cfg: Any, **settings: Any) -> None:
         if getattr(cfg, "renderer_type", None) in ("isaac_rtx", "auto_rtx") and hasattr(cfg, "global_settings"):
             for key, value in settings.items():
                 setattr(cfg.global_settings, key, value)
-        for attr_name in ("default", "isaacsim_rtx"):
+        for attr_name in ("default", "rtx", "isaacsim_rtx"):
             _visit(getattr(cfg, attr_name, None))
 
     _visit(renderer_cfg)

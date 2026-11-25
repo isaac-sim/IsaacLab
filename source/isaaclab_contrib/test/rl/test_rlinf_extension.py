@@ -311,24 +311,6 @@ class TestObsConversion:
         torch.testing.assert_close(obs["main_images"], head[:, 1:3, 1:4])
         torch.testing.assert_close(obs["extra_view_images"], wrist[:, None, 1:3, 1:4])
 
-    def test_midchunk_hold_pads_only_the_reset_environments_action(self) -> None:
-        mapping = {"hold_pose_on_midchunk_reset": True, "action_mapping": {"prefix_pad": 2, "suffix_pad": 1}}
-        base = _rlinf_mocks["rlinf.envs.isaaclab.isaaclab_env"].IsaaclabBaseEnv
-        states = torch.tensor([[1.0, 2.0], [3.0, 4.0]])
-        actions = torch.arange(10, dtype=torch.float32).reshape(2, 5)
-        done = torch.tensor([True, False])
-        result = ({"states": states}, torch.zeros(2), done, torch.zeros_like(done), {})
-        with (
-            mock.patch.object(ext, "_get_isaaclab_cfg", return_value=mapping),
-            mock.patch.object(base, "step", return_value=result, create=True) as step,
-        ):
-            env = ext._create_generic_env_wrapper("test")({}, 2, 0, 1, None)
-            env._chunk_done, env._hold_actions = done.clone(), states
-            env.step(actions)
-        forwarded, _ = step.call_args.args
-        torch.testing.assert_close(forwarded[0], torch.tensor([0.0, 0.0, 1.0, 2.0, 0.0]))
-        torch.testing.assert_close(forwarded[1], actions[1])
-
     def test_extra_view_images_conversion(self, set_config_env) -> None:
         """Extra view images should be split into separate GR00T video keys."""
         ext._load_full_cfg()
@@ -514,11 +496,28 @@ class TestTaskRegistration:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("hold_pose,device", [(False, "cpu"), *((True, device) for device in test_devices())])
-def test_midchunk_reset_does_not_replay_old_episode_actions(monkeypatch, hold_pose, device):
+@pytest.mark.parametrize(
+    "hold_pose,device,prefix_pad,suffix_pad",
+    [
+        (False, "cpu", 0, 0),
+        *((True, device, prefix, suffix) for device in test_devices() for prefix, suffix in ((0, 0), (2, 1))),
+    ],
+)
+def test_midchunk_reset_does_not_replay_old_episode_actions(monkeypatch, hold_pose, device, prefix_pad, suffix_pad):
     """Only reset worlds hold their returned joint positions, until the next chunk."""
     monkeypatch.setattr(
-        ext, "_full_cfg_cache", {"env": {"train": {"isaaclab": {"hold_pose_on_midchunk_reset": hold_pose}}}}
+        ext,
+        "_full_cfg_cache",
+        {
+            "env": {
+                "train": {
+                    "isaaclab": {
+                        "hold_pose_on_midchunk_reset": hold_pose,
+                        "action_mapping": {"prefix_pad": prefix_pad, "suffix_pad": suffix_pad},
+                    }
+                }
+            }
+        },
     )
     base = _rlinf_mocks["rlinf.envs.isaaclab.isaaclab_env"].IsaaclabBaseEnv
     states = torch.tensor([[0.2, 0.3], [0.4, 0.5]], device=device)
@@ -540,11 +539,13 @@ def test_midchunk_reset_does_not_replay_old_episode_actions(monkeypatch, hold_po
     monkeypatch.setattr(base, "chunk_step", chunk_step, raising=False)
     env = ext._create_generic_env_wrapper("test")(None, 2, 0, 1, None)
     env.device = device
-    actions = torch.ones(2, 2)  # The RLinf env worker receives action chunks on the CPU.
+    actions = torch.ones(2, prefix_pad + 2 + suffix_pad)  # RLinf receives padded action chunks on the CPU.
     env.chunk_step(torch.stack([actions, actions * 2], dim=1))
     expected = (actions * 2).to(device)
     if hold_pose:
-        expected[0] = states[0]
+        expected[0] = torch.cat(
+            (torch.zeros(prefix_pad, device=device), states[0], torch.zeros(suffix_pad, device=device))
+        )
     torch.testing.assert_close(step.call_args.args[0], expected)
     env.step(actions * 3)
     torch.testing.assert_close(step.call_args.args[0], actions * 3)

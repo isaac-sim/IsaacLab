@@ -10,3 +10,4 @@
 * Updated the RLinf recipe to use the 100k SFT checkpoint directory
   ``.pretrained_checkpoints/rlinf/Assemble_Trocar_SFT_100k`` and the instruction
   ``install trocar from tray`` for training and evaluation. Use ``--model_path`` to select another checkpoint.
+* Preserved the task's transparency, anti-aliasing and RTX settings when selecting ``renderer=rtx`` explicitly.
