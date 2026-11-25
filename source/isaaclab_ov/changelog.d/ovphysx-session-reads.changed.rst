@@ -1,5 +1,5 @@
 * Changed :meth:`~isaaclab_ov.sim.views.OvPhysxView.read_into` and
-  :meth:`~isaaclab_ov.sim.views.OvPhysxView.get_attribute` to read the simulation state of a CUDA simulation through
+  :meth:`~isaaclab_ov.sim.views.OvPhysxView.get_attribute` with ``out`` to read the simulation state of a CUDA simulation through
   captured ovphysx session reads instead of blocking ``TensorBinding`` reads: articulation root poses and velocities;
   link poses, velocities, accelerations and incoming joint forces; joint positions and velocities; Jacobians and mass
   matrices; rigid-body poses, velocities and accelerations, articulation links included; and

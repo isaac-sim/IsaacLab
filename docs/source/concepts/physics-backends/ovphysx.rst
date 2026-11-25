@@ -437,8 +437,8 @@ mass matrices, deformable nodes) replays an OvPhysX session read captured into
 a CUDA graph on the first read of each destination buffer. Pass a buffer kept
 across calls; for a one-off read, call ``get_attribute`` without ``out``. The
 replay runs on the caller's current Warp stream, so work queued on that stream
-afterwards sees the values; work on another non-blocking stream waits for that
-stream first. This includes the cached poses ``SceneDataProvider`` returns,
+afterwards sees the values; work on another non-blocking stream must first wait
+for that stream, which the caller arranges. This includes the cached poses ``SceneDataProvider`` returns,
 which are filled on the stream of the call that refreshed them. A structural edit made through the native handle,
 such as enabling or disabling a rigid body or adding or removing prims, is not
 reported by OvPhysX: call ``sim.backend_manager.invalidate_session_reads()``

@@ -433,13 +433,12 @@ class OvPhysxView:
             a flat array matching the binding shape is allocated with the Warp scalar dtype
             resolved from the binding's DLPack metadata (see :data:`_ATTR_DTYPE`).
         """
+        if out is not None:
+            self.read_into(name, out)
+            return out
         tt = self._resolve(name)
         binding = self._binding(tt)
         device = self._native_device(tt)
-        if out is not None:
-            self._check_device(out, device, tensor_type_name(tt), "destination")
-            self.read_into(tt, out)
-            return out
         alloc_shape, dtype = self._attribute_dtype(tt, binding)
         buf = wp.zeros(alloc_shape, dtype=dtype, device=device)
         # ``buf`` is freshly allocated here, so it is never a persistent destination: route it
@@ -450,23 +449,22 @@ class OvPhysxView:
         return buf
 
     def read_into(self, name: str | Any, dst: wp.array) -> None:
-        """Fill ``dst`` in place from the attribute binding (zero-copy).
+        """Fill ``dst`` in place (zero-copy), by one of two paths.
 
-        ``dst`` may be a structured-dtype buffer (e.g. ``wp.transformf``); it is read
-        through a binding-scalar reinterpret view that matches the binding's flat shape, so
-        the structured GPU/CPU buffer is filled directly with no extra copy. This is the
-        path the asset data containers use. The reinterpret view for a given ``dst`` is
-        built once and reused across calls (see :meth:`_read_view`) so the wheel's
-        object-identity read cache stays warm -- callers can pass the structured buffer
-        directly each step without maintaining their own reinterpret cache.
+        ``dst`` may be a structured-dtype buffer (e.g. ``wp.transformf``); it is filled through a binding-scalar
+        reinterpret view that matches the binding's flat shape, with no extra copy. This is the path the asset data
+        containers use.
 
-        On a CUDA simulation, the simulation state in
-        :data:`~isaaclab_ov.sim.views.ovphysx_session_reads.READS` replays a captured ovphysx session read into ``dst``
-        on the caller's current Warp stream and returns without waiting for the GPU; work queued after the call on
-        that stream sees the values, and work on another non-blocking stream must first wait for that stream, as
-        for any asynchronous Warp launch. Each destination captures its own graph on its first read, so pass a buffer
-        kept across calls; for a one-off read, call :meth:`get_attribute` without ``out``. Every other read, and every
-        read of a CPU simulation, reads the binding.
+        - **Simulation state on a CUDA simulation** (the types in
+          :data:`~isaaclab_ov.sim.views.ovphysx_session_reads.READS`): replays a captured ovphysx session read into
+          ``dst`` on the caller's current Warp stream and returns without waiting for the GPU. Work queued after the
+          call on that stream sees the values; work on another non-blocking stream must first wait for that stream,
+          which the caller arranges, as for any asynchronous Warp launch. Each destination captures its own graph on
+          its first read, so pass a buffer kept across calls; for a one-off read, call :meth:`get_attribute`
+          without ``out``.
+        - **Every other read, and every read of a CPU simulation**: a blocking ``TensorBinding`` read. The reinterpret
+          view for a given ``dst`` is built once and reused across calls (see :meth:`_read_view`), so the wheel's
+          object-identity read cache stays warm.
 
         Args:
             name: Lowercased ``TensorType`` name or the member itself.
@@ -486,10 +484,10 @@ class OvPhysxView:
         # A collection key reads the type its binding was created as, in that binding's layout. Every other type
         # reads its binding with no further lookup, as before the session reads.
         key = self._key_aliases.get(tt, tt)
-        if key in READS:
-            reads = OvPhysxSessionReads.for_physx(self._physx)
-            if reads is not None and reads.read_into(self, key, binding, view):
-                return
+        reads = OvPhysxSessionReads.for_physx(self._physx) if key in READS else None
+        if reads is not None:
+            reads.read_into(self, key, binding, view)
+            return
         binding.read(view)
 
     def set_attribute(
@@ -529,6 +527,9 @@ class OvPhysxView:
         src = self._as_wp(values, device)
         self._check_device(src, device, attr, "source")
         binding.write(self._as_binding_view(src, binding, "source"), indices=indices, mask=mask)
+        reads = OvPhysxSessionReads.for_physx(self._physx)
+        if reads is not None:
+            reads.note_write(tt)
 
     def get_material_properties(self) -> wp.array:
         """Read per-shape static friction, dynamic friction and restitution on the CPU.

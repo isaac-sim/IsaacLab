@@ -8,17 +8,13 @@
 On a CUDA scene, :class:`OvPhysxSessionReads` serves the tensor types in :data:`READS`: simulation state that ovphysx
 keeps on the GPU. The first read of a (view, tensor type, destination) holds an ovphysx query over the binding's prims,
 maps the session's rows onto the binding's layout, and captures "session read + placement kernels" into one CUDA
-graph; every later read replays it on the caller's current Warp stream without waiting on the host (ovphysx
-ADR-0055). The graph writes the destination in place, so a caller passes a buffer it keeps, as the asset data classes
-do. Every other type, and every read of a CPU scene, stays on the binding: ovphysx cannot capture its host-resident
-properties or contacts, and an uncaptured session read costs more per call than the binding read.
+graph; every later read replays it. Every other type, and every read of a CPU scene, stays on the binding: ovphysx
+cannot capture its host-resident properties or contacts, and an uncaptured session read costs more per call than the
+binding read.
 
-Values and row order are the binding's, except that joint values, which the session reports in degrees on angular
-axes, may differ in the last bit, and deformable positions, which the session reports in the simulation mesh's frame,
-carry float32 rounding from that transform.
-
-The module is internal to :mod:`isaaclab_ov`: :class:`OvPhysxBackend` owns one instance per CUDA ``PhysX`` instance and
-:class:`OvPhysxView` routes to it; nothing else calls it.
+The module is internal to :mod:`isaaclab_ov`: :class:`OvPhysxBackend` owns one instance per CUDA ``PhysX`` instance,
+:class:`OvPhysxView` routes its reads and writes to it, and :class:`OvPhysxManager` waits for its replays before a
+step, invalidates its captures before a structural edit and closes it before the stage detaches.
 """
 
 from __future__ import annotations
@@ -64,6 +60,9 @@ _KINEMATIC_READS = frozenset((TensorType.ARTICULATION_JACOBIAN, TensorType.ARTIC
 """Types computed from the link poses, which a joint-state write leaves stale until a kinematic refresh. Their
 binding reads refresh the kinematics themselves; the session reads do not, so they refresh first."""
 
+_KINEMATIC_WRITES = frozenset((TensorType.ARTICULATION_DOF_POSITION, TensorType.ARTICULATION_ROOT_POSE))
+"""Writes that leave the link poses stale until a kinematic refresh; a write through a view marks them stale."""
+
 _DEFORMABLES = (SimObjectType.DEFORMABLE_VOLUME, SimObjectType.DEFORMABLE_SURFACE)
 
 _ANGULAR_JOINT_TYPES = (2, 3, 4)
@@ -103,12 +102,6 @@ def _place_points(
     dst[d] = p[0]
     dst[d + 1] = p[1]
     dst[d + 2] = p[2]
-
-
-@wp.kernel
-def _clear(dst: wp.array(dtype=wp.float32)):
-    """Zero the destination, so the binding rows the session does not hold read zero, as the binding pads them."""
-    dst[wp.tid()] = 0.0
 
 
 @dataclass(eq=False)
@@ -207,7 +200,7 @@ class OvPhysxSessionReads:
 
     _by_physx: ClassVar[dict[int, OvPhysxSessionReads]] = {}
 
-    def __init__(self, physx: Any, stage: Any, device: str):
+    def __init__(self, physx: Any, stage: Any, device: str) -> None:
         self._physx = physx
         self._stage = stage
         self._device = wp.get_device(device)
@@ -220,15 +213,13 @@ class OvPhysxSessionReads:
         """The last replay on each stream that replayed, by stream handle."""
         self.refresh_kinematics: Callable[[], None] | None = None
         """Refreshes stale articulation kinematics on :attr:`stream`; set by the physics manager."""
+        self.kinematics_written: Callable[[], None] | None = None
+        """Marks the articulation kinematics stale after a joint-position or root-pose write; set by the physics
+        manager."""
         self.world_transforms: Callable[[list[str]], np.ndarray] | None = None
         """World transform of each prim on the stage ovphysx loaded, as column-vector 4x4 matrices [m]; set by the
         physics manager. Deformable ``points`` reads take their sim meshes' frames from it."""
         OvPhysxSessionReads._by_physx[id(physx)] = self
-
-    @classmethod
-    def for_physx(cls, physx: Any) -> OvPhysxSessionReads | None:
-        """Return the session reads of ``physx``, or ``None`` on a CPU scene, which reads its bindings."""
-        return cls._by_physx.get(id(physx))
 
     @property
     def stream(self) -> wp.Stream:
@@ -238,21 +229,16 @@ class OvPhysxSessionReads:
         """
         return wp.get_stream(self._device)
 
-    def read_into(self, view: Any, tensor_type: TensorType, binding: Any, dst: wp.array) -> bool:
-        """Replay the captured read of ``tensor_type`` into the flat binding-layout ``dst``.
-
-        Returns:
-            Whether the session served the read; ``False`` for a type outside :data:`READS`, which the binding reads.
+    def read_into(self, view: Any, tensor_type: TensorType, binding: Any, dst: wp.array) -> None:
+        """Replay the captured read of ``tensor_type``, a type in :data:`READS`, into the flat binding-layout ``dst``.
 
         Raises:
             ValueError: If the session's rows cannot be laid out over the binding's.
             RuntimeError: If called while the device is capturing a CUDA graph.
         """
-        # 1. Types and destinations the session does not replay.
-        if tensor_type not in READS:
-            return False
-        if dst.size == 0:  # e.g. the joints of an articulation without DOFs: nothing to read
-            return True
+        # 1. Destinations with nothing to read, e.g. the joints of an articulation without DOFs.
+        if dst.size == 0:
+            return
         if self._device.is_capturing:
             raise RuntimeError(f"Cannot read {tensor_type.name} while {self._device} is capturing a CUDA graph.")
         # 2. Capture the plan on the first read of this view, type and destination.
@@ -266,7 +252,14 @@ class OvPhysxSessionReads:
             self.refresh_kinematics()
         wp.capture_launch(plan.graph, stream=stream)
         self._pending[stream.cuda_stream] = stream.record_event(self._pending.get(stream.cuda_stream))
-        return True
+
+    def note_write(self, tensor_type: TensorType) -> None:
+        """Mark the kinematics stale after a view wrote ``tensor_type``, so link-pose-derived reads refresh them first.
+
+        A binding read of a Jacobian or mass matrix refreshes the kinematics itself; a replay does not.
+        """
+        if tensor_type in _KINEMATIC_WRITES and self.kinematics_written is not None:
+            self.kinematics_written()
 
     def wait(self) -> None:
         """Block until every launched replay has finished: ovphysx forbids stepping while one runs."""
@@ -297,17 +290,10 @@ class OvPhysxSessionReads:
         OvPhysxSessionReads._by_physx.pop(id(self._physx), None)
         self.invalidate()
 
-    @staticmethod
-    def _close(plans: list[_Plan]) -> None:
-        """Close every plan, then raise the first failure."""
-        failures = []
-        for plan in plans:
-            try:
-                plan.close()
-            except Exception as failure:
-                failures.append(failure)
-        if failures:
-            raise failures[0]
+    @classmethod
+    def for_physx(cls, physx: Any) -> OvPhysxSessionReads | None:
+        """Return the session reads of ``physx``, or ``None`` on a CPU scene, which reads its bindings."""
+        return cls._by_physx.get(id(physx))
 
     def _capture(self, tensor_type: TensorType, binding: Any, dst: wp.array) -> _Plan:
         """Map the session's rows onto ``dst``, then capture every source's read and placement kernels in one graph."""
@@ -329,9 +315,12 @@ class OvPhysxSessionReads:
             # 3. Capture every source's read and placement kernels into one graph.
             flat = wp.array(ptr=dst.ptr, dtype=wp.float32, shape=(dst.size,), device=dst.device)
             self._physx.wait_all()  # no deferred release may run inside the capture
-            with wp.ScopedCapture(device=self._device, stream=self._stream) as capture:
-                if plan.padded:
-                    wp.launch(_clear, dim=dst.size, outputs=[flat], device=self._device, stream=self._stream)
+            with (
+                wp.ScopedCapture(device=self._device, stream=self._stream) as capture,
+                wp.ScopedStream(self._stream, sync_enter=False),  # zero_() runs on the current stream
+            ):
+                if plan.padded:  # the binding rows the session does not hold read zero, as the binding pads them
+                    flat.zero_()
                 for source in plan.sources:
                     names_read = [name for name, _ in source.attributes]
                     source.read = self._physx.read(source.query, names_read, cuda_stream=self._cuda_stream).wait()
@@ -435,7 +424,8 @@ class OvPhysxSessionReads:
             raise ValueError(
                 f"The session reads {list(zip(session_rows, counts))[:3]}; the binding holds {nodes} nodes."
             )
-        # 2. Node i of body b lands on binding row b * nodes + i.
+        # 2. Node i of body b lands on binding row b * nodes + i; the nodes of shorter bodies leave padded rows.
+        plan.padded = plan.padded or any(count < nodes for count in counts)
         body_of = {prim: body for body, prim in enumerate(prims)}
         bodies = np.repeat([body_of[prim] for prim in session_rows], counts)
         dst_rows = bodies * nodes + np.concatenate([np.arange(count) for count in counts])
@@ -477,11 +467,13 @@ class OvPhysxSessionReads:
             return source, _row_paths(warm, groups), counts
         finally:
             # 3. Release the warm read, and the query when the session read none of the prims.
-            warm.close().wait()
-            if source not in plan.sources:  # read none: release the query now
-                source.query.close().wait()
+            try:
+                warm.close().wait()
+            finally:
+                if source not in plan.sources:  # read none: release the query now
+                    source.query.close().wait()
 
-    def _fill(self, source: _Source, dst_rows: Any, scales: Any = None, bodies: Any = None, frames: Any = None):
+    def _fill(self, source: _Source, dst_rows: Any, scales: Any = None, bodies: Any = None, frames: Any = None) -> None:
         """Upload where each of the source's session rows lands, on the simulation device."""
         device = self._device
         source.dst_rows = wp.array(np.asarray(dst_rows, dtype=np.int32), dtype=wp.int32, device=device)
@@ -539,3 +531,15 @@ class OvPhysxSessionReads:
                 .reshape(len(row_of), -1)[order]
                 for group in groups
             }
+
+    @staticmethod
+    def _close(plans: list[_Plan]) -> None:
+        """Close every plan, then raise the first failure."""
+        failures = []
+        for plan in plans:
+            try:
+                plan.close()
+            except Exception as failure:
+                failures.append(failure)
+        if failures:
+            raise failures[0]

@@ -873,23 +873,31 @@ def test_session_reads_on_the_null_stream(device: str) -> None:
 
 @pytest.mark.parametrize("device", _CUDA_DEVICES)
 @pytest.mark.parametrize("tensor_type", [TT.JACOBIAN, TT.MASS_MATRIX])
-def test_session_kinematic_reads_follow_joint_writes(device: str, tensor_type: int) -> None:
-    """A session read of a link-pose-derived type sees a joint write with no step or binding read in between.
+@pytest.mark.parametrize("write", ["asset", "view"])
+def test_session_kinematic_reads_follow_joint_writes(device: str, tensor_type: int, write: str) -> None:
+    """A session read of a link-pose-derived type sees a joint write, through the asset or straight through its view,
+    with no step or binding read in between.
 
-    A binding read refreshes the kinematics itself; a session read relies on the manager's refresh. The test builds its
-    own scene: on the module scene it passed with that refresh removed once other tests had run first.
+    A binding read refreshes the kinematics itself; a session read relies on the manager's refresh, which both writes
+    mark due. The test builds its own scene: on the module scene it passed with that refresh removed once other tests
+    had run first.
     """
     sim_cfg = SimulationCfg(physics=OvPhysxCfg(), device=device)
     with build_simulation_context(device=device, sim_cfg=sim_cfg, auto_add_lighting=False) as sim:
         articulation = _spawn_island("dynamics", _ISLANDS["dynamics"], y_offset=0.0)
         sim.reset()
         view = articulation.root_view
+        joints = articulation.data.joint_pos.torch.clone()  # the asset's joint order
+        view_joints = wp.to_torch(binding_values(view, TT.DOF_POSITION)).clone()  # the view's DOF order
         replayed = wp.zeros_like(binding_values(view, tensor_type))
         view.read_into(tensor_type, replayed)
         before = wp.to_torch(replayed).clone()
-        joints = articulation.data.joint_pos.torch.clone()
-        joints[:, 1] += 0.2
-        articulation.write_joint_position_to_sim_index(position=joints)
+        if write == "asset":
+            joints[:, 1] += 0.2
+            articulation.write_joint_position_to_sim_index(position=joints)
+        else:
+            view_joints[:, 1] += 0.2
+            view.set_attribute(TT.DOF_POSITION, wp.from_torch(view_joints))
         view.read_into(tensor_type, replayed)
         after = wp.to_torch(replayed).clone()
         assert not torch.equal(after, before), "the read after the joint write kept the old kinematics"
@@ -1015,7 +1023,7 @@ def test_session_reads_match_bindings(scene: _ArticulationScene, tensor_type: in
     expected = {}
     for name, articulation in scene.islands.items():
         view = articulation.root_view
-        # The plan built above, right after the writes, serves the read.
+        # This read, right after the writes, replays the plan captured above.
         with replays_only(view, tensor_type):
             view.read_into(tensor_type, replayed[name])
         expected[name] = binding_values(view, tensor_type)

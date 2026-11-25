@@ -43,6 +43,7 @@ from isaaclab.utils import configclass  # noqa: E402
 from ..deformable_utils import (  # noqa: E402
     pre_tetrahedralized_deformable_spawn_cfg,
     pretriangulated_surface_deformable_spawn_cfg,
+    spawn_pre_tetrahedralized_deformable,
 )
 
 pytestmark = pytest.mark.ov
@@ -1066,6 +1067,50 @@ def test_session_deformable_reads_match_bindings(kind: str) -> None:
             atol = 1e-6 if tensor_type in (TT.DEFORMABLE_SIM_NODAL_POSITION, TT.SURFACE_DEFORMABLE_SIM_POSITION) else 0
             torch.testing.assert_close(wp.to_torch(values), wp.to_torch(expected[tensor_type]), atol=atol, rtol=0.0)
         del replayed, values, expected
+
+
+def _keep_first_tetrahedron(stage: Usd.Stage, path: str) -> None:
+    """Cut a spawned five-node volume deformable down to its first tetrahedron: four nodes."""
+    prim = stage.GetPrimAtPath(path)
+    points = list(prim.GetAttribute("points").Get())[:4]
+    for name in ("deformablePose:default:omniphysics:points", "omniphysics:restShapePoints", "points"):
+        prim.GetAttribute(name).Set(points)
+    prim.GetAttribute("velocities").Set([Gf.Vec3f()] * len(points))
+    for name in ("omniphysics:restTetVtxIndices", "tetVertexIndices"):
+        prim.GetAttribute(name).Set([Gf.Vec4i(0, 1, 2, 3)])
+    faces = [Gf.Vec3i(0, 2, 1), Gf.Vec3i(0, 1, 3), Gf.Vec3i(0, 3, 2), Gf.Vec3i(1, 2, 3)]
+    prim.GetAttribute("surfaceFaceVertexIndices").Set(faces)
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
+def test_session_deformable_reads_pad_shorter_bodies() -> None:
+    """A view over deformables with different node counts reads the binding's padding for the shorter body's missing
+    nodes, not what the destination held before."""
+    from isaaclab_ov.sim.views import OvPhysxView
+    from isaaclab_ov.test.fixtures.views.session_reads import binding_values, replays_only
+
+    with _ovphysx_sim_context(device="cuda:0") as sim:
+        paths = []
+        for index in range(2):
+            sim_utils.create_prim(f"/World/Mixed_{index}", "Xform", translation=(index * 1.0, 0.0, 1.0))
+            spawn_pre_tetrahedralized_deformable(
+                f"/World/Mixed_{index}/Object", pre_tetrahedralized_deformable_spawn_cfg()
+            )
+            paths.append(f"/World/Mixed_{index}/Object/simulation")
+        _keep_first_tetrahedron(sim_utils.get_current_stage(), paths[1])
+        sim.reset()
+        view = OvPhysxView(sim.backend_manager.get_physx_instance(), prim_paths=paths, device="cuda:0")
+        try:
+            expected = binding_values(view, TT.DEFORMABLE_SIM_NODAL_POSITION)
+            assert expected.shape[1] == 5, "the four-node body needs a padded row"
+            replayed = wp.zeros_like(expected)
+            view.read_into(TT.DEFORMABLE_SIM_NODAL_POSITION, replayed)  # captures the plan
+            replayed.fill_(-1.0)
+            with replays_only(view, TT.DEFORMABLE_SIM_NODAL_POSITION):
+                view.read_into(TT.DEFORMABLE_SIM_NODAL_POSITION, replayed)
+            torch.testing.assert_close(wp.to_torch(replayed), wp.to_torch(expected), atol=1e-5, rtol=0.0)
+        finally:
+            view.close()
 
 
 def _assert_session_points_in_sim_mesh_frame(view, reads, position_type) -> None:

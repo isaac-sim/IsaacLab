@@ -312,7 +312,7 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
         """Publish native rigid-body poses [m, xyzw].
 
         On CUDA the poses are filled on the stream of the call that refreshed them this frame; a reader on another
-        non-blocking stream waits for that stream first.
+        non-blocking stream must first wait for that stream, which the reader arranges.
         """
         self._ensure_setup()
         if self._transforms.timestamp != self.transforms_timestamp:
@@ -851,6 +851,8 @@ class OvPhysxManager(PhysicsManager):
         if self.backend.session_reads is not None:
             # Session reads of Jacobians and mass matrices do not refresh kinematics themselves, as binding reads did.
             self.backend.session_reads.refresh_kinematics = self.update_kinematics
+            # A joint-position or root-pose write through a view marks them stale, as the asset writes do.
+            self.backend.session_reads.kinematics_written = self._mark_kinematics_dirty
             # Session reads report deformable points in the sim-mesh frame; the stage just loaded holds those frames.
             self.backend.session_reads.world_transforms = self._loaded_world_transforms
         logger.info("OvPhysxManager: attached OVStage to ovphysx (device=%s)", ovphysx_device)
@@ -876,6 +878,10 @@ class OvPhysxManager(PhysicsManager):
             self._scene_data_backend._ensure_setup()
             shared_scene.complete_render_copies()
         self._warmup_done = True
+
+    def _mark_kinematics_dirty(self) -> None:
+        """Mark the articulation kinematics stale, so the next read that needs them refreshes them first."""
+        self.kinematics_dirty = True
 
     def _loaded_world_transforms(self, paths: list[str]) -> np.ndarray:
         """World transform of each prim on the stage ovphysx loaded, as column-vector float32 4x4 matrices [m].
