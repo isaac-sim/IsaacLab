@@ -131,137 +131,13 @@ variant because their batched Newton views currently require a uniform body layo
    :end-at: scene_cfg.robot.spawn.usd_path = scene_cfg.robot.spawn.usd_path[0]
    :dedent: 8
 
-To sample categories before assets, use the same semantic tags with ``sample_by``:
-
-.. code-block:: python
-
-   InclusionSet(assets=["object_0", "object_1", "object_2"], sample_by="category")
-
-Each slot first chooses a category uniformly, then chooses a variant uniformly within that category.
-The categories are independent between slots; unlike ``match_tags=["category"]``, they need not be equal.
-A category with 900 assets gets the same probability as one with 25. No category combinations are
-listed or expanded. Every candidate must carry the requested tag. Multiple values give an asset
-membership in multiple categories, so use one value per asset for disjoint sampling categories.
-``sample_by`` can be combined with ``match_tags``: compatibility is resolved first, then sampling
-chooses among the remaining categories and assets. Both decisions use the scene's clone strategy
-and random state. Unclaimed assets keep their independent behavior.
-
-With ``match_tags=[]`` and ``sample_by=None`` (the defaults), the existing independent Cartesian
-product and assignment behavior are preserved. Inclusion interpretation stays in scene planning. ``ReplicateSession`` forwards the
-resolved definitions without applying tag matching or task-specific rules.
-
-The tabletop example in ``contrib/heterogeneous_tasks`` samples object combinations with a
-bounded count. It samples the count uniformly, then a category independently for each occupied slot,
-then an asset uniformly within each chosen category. The catalog distinguishes food, bottles, cans, tools,
-utensils, miscellaneous objects, plates, trays and containers. Ordinary inclusion matching represents
-count groups without expanding their products; ``sample_by="category"`` balances the category selection.
-Objects carry semantic category tags; task families become available only when distinct
-instances have the required categories and compatible sizes. Task binding and geometric reset stay
-local to the example, outside replication execution.
-
-For example:
-
-.. code-block:: python
-
-   cfg = VLAHeterogeneousEnvCfg(
-       scene=TabletopSceneCfg(num_envs=128, env_spacing=10.0, objects=OBJECTS_CFG.copy()),
-   )
-   cfg.events.place_objects.params["workspace"] = ROBOT_WORKSPACE
-   cfg.events.place_objects.params["table_variants"] = TABLE_VARIANTS
-
-``OBJECT_COUNT = (2, 8)`` sets the bounds in the scene definition. ``OBJECTS_CFG`` is a complete
-``RigidObjectCollectionCfg`` declaration; the scene references it directly. Customize or compose
-collection members using ``.copy()`` and ``.replace()`` before constructing the environment. Likewise,
-``CAMERA_CFG`` supplies the camera defaults and each view replaces its path and offset; the exterior view
-looks over the robot's left shoulder, as in the DROID setup, and the wrist view also replaces the lens. No
-config factory or ``__post_init__`` hook generates scene fields or rewrites the event configuration.
-Catalog assets compose ordinary ``UsdFileCfg`` entries and collision fragments; collision cooking belongs
-at the backend import boundary, rather than task-local config subclasses or custom object spawners.
-
-``ASSET_CATALOG`` contains 100 NVIDIA-hosted SimReady movable assets: food, cans, bottles, bowls,
-small tools, utensils, trays, a small plate and a notebook. It declares relative USD paths, sampling
-categories and maximum world counts directly in the scene config. Assets wider than 25 cm are limited
-to two-object worlds; assets wider than 15 cm to at most four; smaller assets allow up to eight.
-These measured limits restrict candidates through ``object_count`` tags before category and asset sampling;
-they do not guarantee that every composition fits every table. The known failing large plastic plate is
-excluded. ``NewtonCfg(sdf_mesh_reduction=0.75)`` retains original visual meshes while targeting 75% fewer
-SDF collision triangles during source import, before replication. Newton cooks native
-SDFs with 0.75 mm voxels, preserving receiver cavities. SimReady PhysX certification alone does not
-validate contact behavior under Newton. Assets are downloaded through the normal cache at scene construction,
-not when importing the configuration. The tables and robot stand still use the pinned HeteroTask dataset.
-
-``ROBOT_WORKSPACE`` defines an axis-aligned placement volume by hand in the environment frame. Reset intersects it with
-the selected table's declared, measured support outline, preserving its boundaries and any ``surface_holes``.
-The intersection is a polygon region, not a bounding rectangle.
-Horizontal tables with arbitrary yaw are supported. Every object's full conservative collision
-footprint must be covered by that region; its height must also remain inside the workspace bounds.
-Larger objects are placed first, with random yaw, a mixture of boundary and interior position proposals,
-and clearance from earlier convex footprints, so round plates can be packed without reserving empty
-bounding-box corners. Newton's narrow-phase collision detection rejects penetrating
-placements, including robot intersections, without stepping physics. Placement retries are bounded;
-a workspace that cannot hold the selected objects raises a clear error instead of accepting overlaps.
-``TableCfg`` extends a rigid-object declaration with ``surface_outline``, ``surface_height`` and optional
-``surface_holes``. ``TABLE_VARIANTS`` contains all nine table assets in the dataset: Eastrural,
-Desperes, oak, black, maple, bamboo, Jennings, the end table and the sofa table. They retain their real
-geometry and collisions, with individually measured usable support regions. Their roots place the feet
-on the common floor, preserving the different tabletop heights. Desperes uses its fixed
-central panel, and Jennings uses one contiguous leaf rather than spanning the separated panels.
-The scene declares them with ``MultiAssetSpawnerCfg(static=False)`` and includes ``work_table`` alongside
-``objects`` in its inclusion set, so initial table choices also vary across worlds. Reset jointly samples
-another table and collision-free object placement. It rejects candidates whose measured surface/workspace
-intersection has insufficient area, then checks full footprints and actual contacts. A small table cannot
-invalidate a composition that fits on another variant. Accepted resets always change the table; placement
-retries remain bounded and fail clearly when no other table can fit the selected world.
-Partial resets preserve tables in untouched worlds. Add tables by composing complete ``TableCfg``
-values and using the same ordered tuple for the spawner and reset term. Measured dimensions are plain
-config values; reset does not parse table meshes or infer a surface.
-
-``CAMERA_CFG.renderer_cfg`` declares the Newton renderer's ambient and directional light colors.
-These control the camera image directly; USD dome and sphere lights do not currently control this renderer.
-The scene preserves the original task's robot home pose, arm impedance and disabled self-collisions.
-The Robotiq base hull overlaps its internal knuckles, so enabling self-contact deforms the open linkage.
-External contacts remain enabled.
-
-The workspace is hand-defined; this example does not compute inverse-kinematics reachability.
-
-Movable-object combinations are sampled once when the scene is built; reset changes the table and
-randomizes object poses. The table and robot do
-not count toward ``OBJECT_COUNT``. The example retains a rectangular object collection using hidden inactive
-bodies and Newton mesh variants; inactive bodies are parked away from the workspace. Combinations may
-repeat instances, and there is no list of authored benchmark layouts. So that every world offers a task,
-``SLOT_ASSETS`` restricts the first two objects of a world: the first is a tray or a bowl of 12 cm or more
-(``RECEIVER_ASSETS``), the second a prop that suits the gripper and fits every such receiver
-(``MOVABLE_ASSETS``, by the rules below). The other objects are sampled freely, except that they are no further
-trays or bowls. The two bowls of 10 cm (``Kitchenware_Bowl_E01`` and ``Bowl_M01``) are therefore not sampled.
-
-After reset, ``env.tabletop.available_tasks[world]`` lists the evaluable instruction bindings.
-``put_in_container`` requires a container and a distinct movable object that fits its inset footprint;
-``put_on_tray`` similarly requires a tray. Placing objects on a plate is left out until the catalog has a
-plate that policies can use: its only one is a 10 cm dish with 4 cm walls. The current fit
-check uses conservative collision bounds with an inset for walls; it is not a grasp or motion planner.
-The object to move also has to suit the gripper: ``graspable_size`` of the reset term excludes objects with
-an extent below 2 cm, which the gripper cannot pinch, and objects whose narrower side exceeds the 85 mm
-opening of the Robotiq 2F-85. Such props still appear in the scenes, as receivers or as distractors.
-Instructions name objects in plain words: by the catalog label without its asset code (``Ketchup_A02`` reads
-"ketchup"), or by the ``name`` semantic tag of the asset, which ``ASSET_NAMES`` sets for the bowls to tell them
-apart by color ("grey bowl"). When several objects of a world share a name, one instruction stands for all of
-them: any of those objects in or on any of those targets counts. Reset selects an available binding
-and publishes ``env.tabletop.instructions``. To request another binding on the next reset, use
-``env.tabletop.set_task([world], [binding_index])``. With another object collection, a world with no binding
-keeps its sampled objects, has an empty instruction and does not report task success. Success requires the target to carry the selected
-object: the object is released and at rest, the center of its bounds lies inside the target's bounding
-rectangle, it touches the target and not the table, and the target is upright; containment also requires its
-bottom below the rim. Corners may overhang, and a rim may rise above the surface that carries the object.
-Fixed per-benchmark poses, instructions and Gym IDs are replaced by these task families.
-
 For more detail on prototype assignment and replication, see :doc:`cloning`.
 
 Reset-time selection
 ~~~~~~~~~~~~~~~~~~~~
 
 A rigid object's multi-asset spawner defines the variants and their IDs in list order. Clone composition chooses
-the initial variant for each world, using those same IDs. A reset event can change it before writing the
-episode's pose and velocity:
+the initial variant for each world. A reset event can change it before writing the episode's pose and velocity:
 
 .. code-block:: python
 
