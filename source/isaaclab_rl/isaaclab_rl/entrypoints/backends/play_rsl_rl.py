@@ -103,11 +103,6 @@ def _resolve_checkpoint(
 def run(argv: list[str]) -> None:
     """Play a checkpoint of an RSL-RL agent."""
     args_cli = _parse_args(argv)
-    if args_cli.task in ("Isaac-Motion-Tracking-GenCoord-G1", "IsaacContrib-Motion-Tracking-GenCoord-G1"):
-        from .play_model_based import run as play_published_motion
-
-        play_published_motion(argv)
-        return
     with startup_screen(args_cli, num_stages=3) as screen:
         env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent, play_mode=not args_cli.train_env_cfg)
         pre_launch_video_config(env_cfg, args_cli)
@@ -152,17 +147,13 @@ def run(argv: list[str]) -> None:
             runner.export_policy_to_jit(path=export_model_dir, filename="policy.pt")
             runner.export_policy_to_onnx(path=export_model_dir, filename="policy.onnx")
 
+            obs = env.get_observations()
+
+            def step() -> None:
+                nonlocal obs
+                obs, _, dones, _ = env.step(policy(obs))
+                # reset recurrent states for episodes that have terminated
+                policy.reset(dones)
+
             screen.close()
-            play_policy(env, policy, args_cli, env_cfg)
-
-
-def play_policy(env, policy, args_cli, env_cfg, *, max_steps=None):
-    """Run a loaded RSL-RL policy with shared video and real-time playback controls."""
-    obs = env.get_observations()
-
-    def step() -> None:
-        nonlocal obs
-        obs, _, dones, _ = env.step(policy(obs))
-        policy.reset(dones)
-
-    run_playback(step, dt=env.unwrapped.step_dt, args_cli=args_cli, env_cfg=env_cfg, max_steps=max_steps)
+            run_playback(step, dt=env.unwrapped.step_dt, args_cli=args_cli, env_cfg=env_cfg)
