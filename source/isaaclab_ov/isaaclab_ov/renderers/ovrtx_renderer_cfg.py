@@ -41,6 +41,8 @@ class OVRTXBackendCfg(BackendCfg):
     """Whether OVRTX reads its GPU transform cache, resolved before native construction."""
     device: str = MISSING
     """Normalized simulation device: ``cpu`` or ``cuda:<index>``."""
+    motion_bvh: Literal["disable", "enable", "auto"] | None = None
+    """Motion BVH mode passed to the native engine."""
 
 
 @configclass
@@ -150,6 +152,9 @@ class OVRTXRendererCfg(RendererCfg):
     OVRTX does not support ``instance_id_segmentation_fast``. Use
     :attr:`colorize_instance_segmentation` to control colorization of the supported instance segmentation output.
     """
+
+    motion_bvh: Literal["disable", "enable", "auto"] | None = None
+    """Motion BVH mode for non-visual sensor pipelines."""
 
     def validate_config(self) -> None:
         """Validate the render product split."""
