@@ -25,6 +25,11 @@ from isaaclab_tasks.contrib.robot_pov_camera_cfg import g1_robot_pov_camera_cfg,
 from isaaclab_tasks.utils import preset
 
 from isaaclab_assets.robots.unitree import G1_29DOF_CFG
+from isaaclab_assets.robots.unitree_g1_oem import (
+    G1_DEX3_HAND_CONTACT_LINKS,
+    G1_OEM_FLOATING_DEX3_URI,
+    spawn_g1_oem_usd,
+)
 
 from ..teleop_physics_cfg import (
     TeleopPhysicsCfg,
@@ -283,25 +288,42 @@ class FixedBaseUpperBodyIKG1SceneCfg(InteractiveSceneCfg):
     )
 
     # Unitree G1 Humanoid robot - fixed base configuration
-    robot: ArticulationCfg = replace(G1_29DOF_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+    robot: ArticulationCfg = replace(
+        G1_29DOF_CFG,
+        prim_path="{ENV_REGEX_NS}/Robot",
+        spawn=replace(G1_29DOF_CFG.spawn, activate_contact_sensors=True, fix_root_link=True),
+    )
+    robot.spawn = preset(
+        default=robot.spawn,
+        oem=replace(robot.spawn, usd_path=G1_OEM_FLOATING_DEX3_URI, variants=None, func=spawn_g1_oem_usd),
+    )
 
     # Share the calibrated head view with the locomanipulation G1 task.
     robot_pov_cam = g1_robot_pov_camera_cfg()
+    robot_pov_cam = preset(
+        default=robot_pov_cam,
+        oem=replace(robot_pov_cam, prim_path="{ENV_REGEX_NS}/Robot/head_link/RobotHeadCam"),
+    )
 
     # Wrist cameras exist only with ``presets=rgb``, so the state-only default renders none.
     left_wrist_cam: CameraCfg | None = preset(default=None, rgb=_LEFT_WRIST_CAM)
     right_wrist_cam: CameraCfg | None = preset(default=None, rgb=_RIGHT_WRIST_CAM)
 
-    # Per-hand contact sensors over all finger links, used to drive controller
-    # haptics (see HapticFeedbackCfg below). Requires activate_contact_sensors
-    # on the robot spawn, enabled in the env __post_init__.
+    # Report contacts on the palm and fingers for controller haptics; the OEM hand links sit beside the wrist
+    # camera mounts directly under the robot root.
     left_hand_contact = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/left_hand/left_hand_[^/]*_link",
+        prim_path=preset(
+            default="{ENV_REGEX_NS}/Robot/left_hand/left_hand_[^/]*_link",
+            oem=f"{{ENV_REGEX_NS}}/Robot/left_hand_{G1_DEX3_HAND_CONTACT_LINKS}_link",
+        ),
         update_period=0.0,
         history_length=3,
     )
     right_hand_contact = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/right_hand/right_hand_[^/]*_link",
+        prim_path=preset(
+            default="{ENV_REGEX_NS}/Robot/right_hand/right_hand_[^/]*_link",
+            oem=f"{{ENV_REGEX_NS}}/Robot/right_hand_{G1_DEX3_HAND_CONTACT_LINKS}_link",
+        ),
         update_period=0.0,
         history_length=3,
     )
@@ -317,11 +339,6 @@ class FixedBaseUpperBodyIKG1SceneCfg(InteractiveSceneCfg):
         prim_path="/World/light",
         spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
     )
-
-    def __post_init__(self):
-        """Post initialization."""
-        # Set the robot to fixed base
-        self.robot.spawn.fix_root_link = True
 
 
 @configclass
@@ -476,10 +493,6 @@ class FixedBaseUpperBodyIKG1EnvCfg(ManagerBasedRLEnvCfg):
 
         # Defer Nucleus path resolution to controller initialization at runtime.
         self.actions.upper_body_ik.controller.urdf_path = urdf_omniverse_path
-
-        # The scene always contains hand contact sensors, so their target bodies must have the
-        # contact reporter API even when the optional teleop package is unavailable.
-        self.scene.robot.spawn.activate_contact_sensors = True
 
         if ISAACLAB_TELEOP_AVAILABLE:
             from isaaclab_teleop import (

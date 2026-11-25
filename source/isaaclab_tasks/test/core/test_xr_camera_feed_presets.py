@@ -29,7 +29,7 @@ def test_xr_camera_reference_task_selects_recorded_camera():
 def test_g1_xr_camera_uses_calibration_and_head_locked_panel(env_cfg_type):
     """Both G1 tasks present the calibrated camera in a headset-following panel."""
     cfg = env_cfg_type()
-    camera_cfg = cfg.scene.robot_pov_cam
+    camera_cfg = resolve_presets(cfg.scene.robot_pov_cam)
     # The head panel is part of every feed selection.
     feed_cfg = resolve_presets(cfg.isaac_teleop.xr_camera_feeds)[0]
 
@@ -50,8 +50,8 @@ def test_g1_xr_camera_uses_calibration_and_head_locked_panel(env_cfg_type):
     assert feed_cfg.enable_dlss_ray_reconstruction is True
     assert feed_cfg.dlss_exec_mode == "quality"
     assert feed_cfg.max_update_hz == (20.0 if env_cfg_type is FixedBaseUpperBodyIKG1EnvCfg else 0.0)
-    assert camera_cfg.renderer_cfg.default == IsaacRtxRendererCfg()
-    assert camera_cfg.renderer_cfg.isaacsim_rtx == IsaacRtxRendererCfg()
+    assert camera_cfg.renderer_cfg == IsaacRtxRendererCfg()
+    assert resolve_presets(cfg.scene.robot_pov_cam, selected=("isaacsim_rtx",)).renderer_cfg == IsaacRtxRendererCfg()
 
 
 @pytest.mark.parametrize("selection", [[], ["presets=rgb"]])

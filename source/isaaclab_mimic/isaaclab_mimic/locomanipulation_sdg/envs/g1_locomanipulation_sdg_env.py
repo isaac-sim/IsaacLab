@@ -37,7 +37,10 @@ class G1LocomanipulationSDGEnv(LocomanipulationSDGEnv):
 
         camera_height, camera_width = (320, 512) if cfg.high_res_video else (160, 256)
         cfg.scene.add_robot_pov_cam(
-            camera_height, camera_width, use_nurec_renderer_settings=cfg.background_usd_path is not None
+            camera_height,
+            camera_width,
+            use_nurec_renderer_settings=cfg.background_usd_path is not None,
+            prim_path=cfg.d435_camera_prim_path,
         )
 
         cfg.scene.add_forklifts(self._num_forklifts)

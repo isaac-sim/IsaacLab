@@ -26,8 +26,14 @@ from isaaclab_tasks.contrib.locomanip_pick_place.configs.agile_locomotion_observ
 )
 from isaaclab_tasks.contrib.packing_table import configure_packing_table_collisions
 from isaaclab_tasks.contrib.pick_place import mdp as manip_mdp
+from isaaclab_tasks.utils.hydra import preset
 
 from isaaclab_assets.robots.unitree import G1_29DOF_CFG
+from isaaclab_assets.robots.unitree_g1_oem import (
+    G1_DEX3_HAND_CONTACT_LINKS,
+    G1_OEM_FLOATING_DEX3_URI,
+    spawn_g1_oem_usd,
+)
 
 from ..teleop_physics_cfg import (
     TeleopPhysicsCfg,
@@ -296,20 +302,37 @@ class LocomanipulationG1SceneCfg(InteractiveSceneCfg):
     )
 
     # Humanoid robot w/ arms higher
-    robot: ArticulationCfg = replace(G1_29DOF_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+    robot: ArticulationCfg = replace(
+        G1_29DOF_CFG,
+        prim_path="{ENV_REGEX_NS}/Robot",
+        spawn=replace(G1_29DOF_CFG.spawn, activate_contact_sensors=True),
+    )
+    robot.spawn = preset(
+        default=robot.spawn,
+        oem=replace(robot.spawn, usd_path=G1_OEM_FLOATING_DEX3_URI, variants=None, func=spawn_g1_oem_usd),
+    )
 
     robot_pov_cam = g1_robot_pov_camera_cfg()
+    robot_pov_cam = preset(
+        default=robot_pov_cam,
+        oem=replace(robot_pov_cam, prim_path="{ENV_REGEX_NS}/Robot/head_link/RobotHeadCam"),
+    )
 
-    # Per-hand contact sensors over all finger links, used to drive controller
-    # haptics (see HapticFeedbackCfg below). Requires activate_contact_sensors
-    # on the robot spawn, enabled in the env __post_init__.
+    # Report contacts on the palm and fingers for controller haptics; the OEM hand links sit beside the wrist
+    # camera mounts directly under the robot root.
     left_hand_contact = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/left_hand/left_hand_[^/]*_link",
+        prim_path=preset(
+            default="{ENV_REGEX_NS}/Robot/left_hand/left_hand_[^/]*_link",
+            oem=f"{{ENV_REGEX_NS}}/Robot/left_hand_{G1_DEX3_HAND_CONTACT_LINKS}_link",
+        ),
         update_period=0.0,
         history_length=3,
     )
     right_hand_contact = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/right_hand/right_hand_[^/]*_link",
+        prim_path=preset(
+            default="{ENV_REGEX_NS}/Robot/right_hand/right_hand_[^/]*_link",
+            oem=f"{{ENV_REGEX_NS}}/Robot/right_hand_{G1_DEX3_HAND_CONTACT_LINKS}_link",
+        ),
         update_period=0.0,
         history_length=3,
     )
@@ -483,10 +506,6 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
 
         # Set the URDF path for the IK controller. Path resolution (Nucleus → local) happens at runtime.
         self.actions.upper_body_ik.controller.urdf_path = f"{ISAACLAB_NUCLEUS_DIR}/Controllers/LocomanipulationAssets/unitree_g1_kinematics_asset/g1_29dof_with_hand_only_kinematics.urdf"  # noqa: E501
-
-        # The scene always contains hand contact sensors, so their target bodies must have the
-        # contact reporter API even when the optional teleop package is unavailable.
-        self.scene.robot.spawn.activate_contact_sensors = True
 
         if ISAACLAB_TELEOP_AVAILABLE:
             from isaaclab_teleop import (

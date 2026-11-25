@@ -20,7 +20,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.contrib.assemble_trocar import mdp
@@ -33,7 +33,10 @@ from isaaclab_tasks.contrib.assemble_trocar.config.assemble_trocar_assets import
     spawn_usd_with_newton_compatible_colliders,
 )
 from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.utils.hydra import preset
 from isaaclab_tasks.utils.presets import set_isaac_rtx_global_settings
+
+from isaaclab_assets.robots.unitree_g1_oem import G1_OEM_FIXED_DEX3_URI, spawn_g1_oem_usd
 
 joint_names = [
     "left_hip_pitch_joint",
@@ -98,6 +101,11 @@ class AssembleTrocarSceneCfg(InteractiveSceneCfg):
         init_pos=(-1.84919, 1.94, 0.81168), init_rot=(0.0, 0.0, 0.0, 1.0)
     )
     robot.spawn.func = spawn_usd_with_newton_compatible_colliders
+    # The Healthcare asset is a copy of Unitree's fixed-base Dex3 package; the OEM preset loads the pinned original.
+    robot.spawn = preset(
+        default=robot.spawn,
+        oem=replace(robot.spawn, usd_path=G1_OEM_FIXED_DEX3_URI, variants=None, func=spawn_g1_oem_usd),
+    )
     # add camera configuration
     front_camera = CameraPresets.g1_front_camera()
     left_wrist_camera = CameraPresets.left_dex3_wrist_camera()
