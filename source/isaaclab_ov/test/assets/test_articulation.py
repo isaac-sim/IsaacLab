@@ -32,7 +32,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import numpy as np
 import pytest
@@ -54,6 +54,7 @@ from isaaclab_ov.physics import OvPhysxCfg, OvPhysxManager  # noqa: E402
 from isaaclab_ov.sim.views.ovphysx_session_reads import OvPhysxSessionReads, _read_groups  # noqa: E402
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView  # noqa: E402
 from isaaclab_ov.test.fixtures.views import MockOvPhysxBindingSet  # noqa: E402
+from isaaclab_ov.test.fixtures.views.session_reads import binding_values, replays_only  # noqa: E402
 from ovphysx.types import SimObjectType  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
@@ -84,8 +85,6 @@ from isaaclab_assets import FRANKA_PANDA_CFG  # noqa: E402
 pytestmark = [pytest.mark.integration, pytest.mark.ov]
 
 _FIXTURE = Path(__file__).parent / "data" / "articulation_ordering_branching.usda"
-_REPLAY_ONLY = "read_into did not replay its captured session read"
-"""Failure of a binding read or a new capture where only the captured plan may serve the read."""
 _STIFFNESS, _DAMPING, _MAX_FORCE = 5.0, 0.5, 100.0
 _ALL_DEVICES = test_devices()
 _CUDA_DEVICES = test_devices(DeviceScope.CUDA)
@@ -380,16 +379,7 @@ def scene(request: pytest.FixtureRequest) -> Iterator[_ArticulationScene]:
 
 def _read_binding_to_torch(articulation: Articulation, tensor_type: int, device: str | torch.device) -> torch.Tensor:
     """Read an OVPhysX attribute straight from its TensorBinding on its native device and move it to *device*."""
-    return wp.to_torch(_binding_values(articulation.root_view, tensor_type)).to(device)
-
-
-def _binding_values(view: OvPhysxView, tensor_type: int) -> wp.array:
-    """Read ``tensor_type`` straight from its TensorBinding: the reference a session read must match."""
-    binding = view.binding_for(tensor_type)
-    # Shape and device from the binding itself: get_attribute would run (and register) a session read.
-    values = wp.zeros(tuple(binding.shape), dtype=wp.float32, device=view._native_device(view._resolve(tensor_type)))
-    binding.read(view._read_view(values, binding))
-    return values
+    return wp.to_torch(binding_values(articulation.root_view, tensor_type)).to(device)
 
 
 def _spawn_own_articulation(**cfg) -> Articulation:
@@ -844,17 +834,12 @@ def test_session_reads_pad_shorter_articulations(device: str, tmp_path: Path) ->
         view = OvPhysxView(sim.backend_manager.get_physx_instance(), prim_paths=roots, device=device)
         try:
             for tensor_type in (TT.LINK_POSE, TT.LINK_VELOCITY, TT.DOF_POSITION, TT.DOF_VELOCITY):
-                expected = _binding_values(view, tensor_type)
+                expected = binding_values(view, tensor_type)
                 replayed = wp.zeros_like(expected)
                 view.read_into(tensor_type, replayed)  # captures the plan
                 replayed.fill_(-1.0)  # the replay must write the padding too
-                with (
-                    patch.object(type(view.binding_for(tensor_type)), "read", side_effect=AssertionError(_REPLAY_ONLY)),
-                    patch.object(OvPhysxSessionReads, "_capture", side_effect=AssertionError(_REPLAY_ONLY)),
-                    patch.object(wp, "capture_launch", wraps=wp.capture_launch) as launch,
-                ):
+                with replays_only(view, tensor_type):
                     view.read_into(tensor_type, replayed)
-                assert launch.call_count == 1, _REPLAY_ONLY
                 _assert_session_matches(wp.to_torch(replayed), wp.to_torch(expected), tensor_type, tensor_type.name)
         finally:
             view.close()
@@ -879,11 +864,36 @@ def test_session_reads_on_the_null_stream(device: str) -> None:
         sim.step()  # refreshes the kinematics on the null stream
         view = robot.root_view
         for tensor_type in (TT.ROOT_POSE, TT.LINK_POSE, TT.DOF_POSITION, TT.JACOBIAN):
-            expected = _binding_values(view, tensor_type)
+            expected = binding_values(view, tensor_type)
             replayed = wp.zeros_like(expected)
             view.read_into(tensor_type, replayed)
             wp.synchronize_device(device)
             _assert_session_matches(wp.to_torch(replayed), wp.to_torch(expected), tensor_type, tensor_type.name)
+
+
+@pytest.mark.parametrize("device", _CUDA_DEVICES)
+@pytest.mark.parametrize("tensor_type", [TT.JACOBIAN, TT.MASS_MATRIX])
+def test_session_kinematic_reads_follow_joint_writes(device: str, tensor_type: int) -> None:
+    """A session read of a link-pose-derived type sees a joint write with no step or binding read in between.
+
+    A binding read refreshes the kinematics itself; a session read relies on the manager's refresh. The test builds its
+    own scene: on the module scene it passed with that refresh removed once other tests had run first.
+    """
+    sim_cfg = SimulationCfg(physics=OvPhysxCfg(), device=device)
+    with build_simulation_context(device=device, sim_cfg=sim_cfg, auto_add_lighting=False) as sim:
+        articulation = _spawn_island("dynamics", _ISLANDS["dynamics"], y_offset=0.0)
+        sim.reset()
+        view = articulation.root_view
+        replayed = wp.zeros_like(binding_values(view, tensor_type))
+        view.read_into(tensor_type, replayed)
+        before = wp.to_torch(replayed).clone()
+        joints = articulation.data.joint_pos.torch.clone()
+        joints[:, 1] += 0.2
+        articulation.write_joint_position_to_sim_index(position=joints)
+        view.read_into(tensor_type, replayed)
+        after = wp.to_torch(replayed).clone()
+        assert not torch.equal(after, before), "the read after the joint write kept the old kinematics"
+        torch.testing.assert_close(after, wp.to_torch(binding_values(view, tensor_type)), atol=0.0, rtol=0.0)
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CPU))
@@ -991,7 +1001,7 @@ def test_session_reads_match_bindings(scene: _ArticulationScene, tensor_type: in
     reads after steps and writes."""
     replayed = {}
     for name, articulation in scene.islands.items():  # the first read builds (and captures) each plan
-        replayed[name] = wp.zeros_like(_binding_values(articulation.root_view, tensor_type))
+        replayed[name] = wp.zeros_like(binding_values(articulation.root_view, tensor_type))
         articulation.root_view.read_into(tensor_type, replayed[name])
     for _ in range(3):
         scene.sim.step()
@@ -1005,15 +1015,10 @@ def test_session_reads_match_bindings(scene: _ArticulationScene, tensor_type: in
     expected = {}
     for name, articulation in scene.islands.items():
         view = articulation.root_view
-        # The plan built above, right after the writes, serves the read: no binding read, no new capture.
-        with (
-            patch.object(type(view.binding_for(tensor_type)), "read", side_effect=AssertionError(_REPLAY_ONLY)),
-            patch.object(OvPhysxSessionReads, "_capture", side_effect=AssertionError(_REPLAY_ONLY)),
-            patch.object(wp, "capture_launch", wraps=wp.capture_launch) as launch,
-        ):
+        # The plan built above, right after the writes, serves the read.
+        with replays_only(view, tensor_type):
             view.read_into(tensor_type, replayed[name])
-        assert launch.call_count == 1, _REPLAY_ONLY
-        expected[name] = _binding_values(view, tensor_type)
+        expected[name] = binding_values(view, tensor_type)
     if tensor_type == TT.DOF_POSITION:  # before the equivalence, so a unit change in ovphysx reports itself
         _assert_session_reports_degrees(scene)
     for name in scene.islands:
@@ -1033,7 +1038,7 @@ def _assert_session_reports_degrees(scene: _ArticulationScene) -> None:
         view = articulation.root_view
         reads = OvPhysxSessionReads.for_physx(articulation._ovphysx)
         binding = view.binding_for(TT.DOF_POSITION)
-        expected = _binding_values(view, TT.DOF_POSITION).numpy()
+        expected = binding_values(view, TT.DOF_POSITION).numpy()
         with ovstage.PathDictionary(reads._stage) as paths:
             # 1. A revolute DOF away from zero (NaN excluded), and its joint.
             table = reads._articulation_table(binding, ("dofJointPath", "dofJointType", "dofCount"), paths)
@@ -1067,27 +1072,6 @@ def _assert_session_reports_degrees(scene: _ArticulationScene) -> None:
 
 
 @pytest.mark.parametrize("scene", _CUDA_DEVICES, indirect=True)
-@pytest.mark.parametrize("tensor_type", [TT.JACOBIAN, TT.MASS_MATRIX])
-def test_session_kinematic_reads_follow_joint_writes(scene: _ArticulationScene, tensor_type: int) -> None:
-    """A session read of a link-pose-derived type sees a joint write with no binding read in between.
-
-    The binding read refreshed the kinematics itself; the session read relies on the manager's refresh.
-    """
-    articulation = scene.islands["dynamics"]
-    view = articulation.root_view
-    replayed = wp.zeros_like(_binding_values(view, tensor_type))
-    view.read_into(tensor_type, replayed)
-    before = wp.to_torch(replayed).clone()
-    joints = articulation.data.joint_pos.torch.clone()
-    joints[:, 1] += 0.2
-    articulation.write_joint_position_to_sim_index(position=joints)
-    view.read_into(tensor_type, replayed)
-    after = wp.to_torch(replayed).clone()
-    assert not torch.equal(after, before)
-    torch.testing.assert_close(after, wp.to_torch(_binding_values(view, tensor_type)), atol=0.0, rtol=0.0)
-
-
-@pytest.mark.parametrize("scene", _CUDA_DEVICES, indirect=True)
 @pytest.mark.parametrize("tensor_type", [TT.RIGID_BODY_POSE, TT.RIGID_BODY_VELOCITY, TT.RIGID_BODY_ACCELERATION])
 def test_session_rigid_body_reads_of_links_match_bindings(scene: _ArticulationScene, tensor_type: int) -> None:
     """A rigid-body view over articulation links, as sensors attach to, reads them as links and matches the binding."""
@@ -1099,29 +1083,35 @@ def test_session_rigid_body_reads_of_links_match_bindings(scene: _ArticulationSc
     ]
     view = OvPhysxView(articulation._ovphysx, prim_paths=paths, device=scene.device)
     try:
-        expected = _binding_values(view, tensor_type)
+        expected = binding_values(view, tensor_type)
         replayed = wp.zeros_like(expected)
-        view.read_into(tensor_type, replayed)
-        reads = OvPhysxSessionReads.for_physx(articulation._ovphysx)
-        assert any(key[:2] == (id(view), tensor_type) for key in reads._plans)
+        view.read_into(tensor_type, replayed)  # captures the plan
+        replayed.fill_(-1.0)
+        with replays_only(view, tensor_type):
+            view.read_into(tensor_type, replayed)
         torch.testing.assert_close(wp.to_torch(replayed), wp.to_torch(expected), atol=0.0, rtol=0.0)
     finally:
         view.close()
 
 
 @pytest.mark.parametrize("scene", _CUDA_DEVICES, indirect=True)
-@pytest.mark.parametrize(
-    "tensor_type", [TT.DOF_STIFFNESS, TT.BODY_MASS, TT.SHAPE_FRICTION_AND_RESTITUTION, TT.GRAVITY_FORCE]
-)
-def test_uncaptured_reads_stay_on_bindings(scene: _ArticulationScene, tensor_type: int) -> None:
-    """Reads a capture cannot serve read their binding and plan no session read: properties, which ovphysx keeps on the
-    host, and the gravity force, whose kernel takes the scene gravity of the launch."""
-    view = scene.islands["ordered"].root_view
-    values = wp.zeros_like(_binding_values(view, tensor_type))
-    view.read_into(tensor_type, values)
-    reads = OvPhysxSessionReads.for_physx(scene.islands["ordered"]._ovphysx)
-    assert not any(key[:2] == (id(view), tensor_type) for key in reads._plans)
-    torch.testing.assert_close(wp.to_torch(values), wp.to_torch(_binding_values(view, tensor_type)), atol=0.0, rtol=0.0)
+def test_gravity_force_reads_follow_set_gravity(scene: _ArticulationScene) -> None:
+    """The gravity compensation force follows ``set_gravity``: its kernel takes the scene gravity of each launch, which
+    a captured read would keep from its capture."""
+    manager = scene.sim.backend_manager
+    view = scene.islands["dynamics"].root_view
+    forces = wp.zeros_like(binding_values(view, TT.GRAVITY_FORCE))
+    view.read_into(TT.GRAVITY_FORCE, forces)
+    assert wp.to_torch(forces).abs().max() > 0.0
+    try:
+        manager.set_gravity((0.0, 0.0, 0.0))
+        scene.sim.step()
+        view.read_into(TT.GRAVITY_FORCE, forces)
+        expected = wp.to_torch(binding_values(view, TT.GRAVITY_FORCE))
+        assert expected.abs().max() == 0.0
+        torch.testing.assert_close(wp.to_torch(forces), expected, atol=0.0, rtol=0.0)
+    finally:
+        manager.set_gravity(tuple(scene.sim.cfg.gravity))
 
 
 @pytest.mark.parametrize("scene", _ALL_DEVICES, indirect=True)
