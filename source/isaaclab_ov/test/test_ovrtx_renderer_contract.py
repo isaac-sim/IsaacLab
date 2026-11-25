@@ -1860,6 +1860,114 @@ def test_ovrtx_split_sensor_outputs_match_single_product(
             SimulationContext.instance().close_backend(renderer.scene)
 
 
+@pytest.mark.integration
+@pytest.mark.rendering
+def test_ovrtx_split_search_recovers_from_a_real_failed_frame(monkeypatch, caplog):
+    """A real failed first frame of OVRTX starts the search, so the error text of OVRTX still matches.
+
+    The search starts only when the error of OVRTX contains ``_FAILED_FRAME_TEXT``. The other search tests inject
+    that text, so they cannot notice when OVRTX changes it. This test makes a real frame fail: 4 environments of
+    1024 x 1024 pixels give a tiled image of 2048 x 2048 pixels, and 40 samples per pixel with the RTX anti-aliasing
+    need a sample buffer above the 4 GiB limit (about 28 bytes per sample and pixel). With the DLSS anti-aliasing of
+    the default settings, the same frame renders. After one halving, each render product needs about 2.4 GB.
+    """
+    import ovrtx
+
+    from pxr import Gf, Usd, UsdGeom, UsdLux
+
+    from isaaclab.cloner import make_clone_plan, replicate
+    from isaaclab.scene_data import SceneDataProvider
+    from isaaclab.utils.math import convert_camera_frame_orientation_convention
+
+    if not torch.cuda.is_available():
+        pytest.skip("OVRTX rendering requires CUDA")
+    if torch.cuda.get_device_properties(0).total_memory < 16 * 1024**3:
+        pytest.skip("The failed frame allocates its oversized buffer first and needs about 13 GB of GPU memory")
+    num_envs, image_size, spp = 4, 1024, 40
+    SimulationContext.instance().device = "cuda:0"
+    env_template = "/World/envs/env_{}"
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
+    UsdGeom.SetStageMetersPerUnit(stage, 1.0)
+    UsdLux.DomeLight.Define(stage, "/World/Light").CreateIntensityAttr(1000.0)
+    for index in range(num_envs):
+        UsdGeom.Xform.Define(stage, env_template.format(index))
+    UsdGeom.Camera.Define(stage, env_template.format(0) + "/cam0").AddTranslateOp().Set(Gf.Vec3d(0, 0, 5))
+    UsdGeom.Cube.Define(stage, env_template.format(0) + "/cube").CreateSizeAttr(_SPLIT_CUBE_SIZE)
+
+    errors = []
+    native_step = ovrtx.Renderer.step
+
+    def recording_step(renderer, render_products, *args, **kwargs):
+        try:
+            return native_step(renderer, render_products, *args, **kwargs)
+        except RuntimeError as error:
+            errors.append(str(error))
+            raise
+
+    monkeypatch.setattr(ovrtx.Renderer, "step", recording_step)
+    renderer = SimulationContext.instance().get_or_create_backend(OVRTXRendererCfg())
+    renderer._sdp = SceneDataProvider(
+        types.SimpleNamespace(transform_paths=[], geometry_timestamp=0, get_geometry_batches=lambda _format: [])
+    )
+    plan = make_clone_plan(
+        (AssetBaseCfg(prim_path=env_template.format("[^/]+"), cloning_contexts=renderer.cfg.cloning_contexts),),
+        ((0,),),
+        num_envs,
+        positions=np.zeros((num_envs, 3), dtype=np.float32),
+        env_template=env_template,
+    )
+    SimulationContext.instance().plan = plan
+    replicate(plan)
+    try:
+        renderer.prepare_stage(stage, num_envs)
+        camera_cfg = _make_camera_cfg(["rgb"])
+        camera_cfg.height = camera_cfg.width = image_size
+        camera_cfg.render_settings = {"omni:rtx:rtpt:spp": ("Int", spp), "omni:rtx:post:aa:op": ("Token", "rtxaa")}
+        spec = CameraRenderSpec(
+            cfg=camera_cfg,
+            device="cuda:0",
+            num_instances=num_envs,
+            view_count=num_envs,
+            camera_prim_paths=tuple(env_template.format(i) + "/cam0" for i in range(num_envs)),
+        )
+        rd = renderer.create_render_data(spec)
+        data = CameraData.allocate(
+            data_types=["rgb"],
+            height=image_size,
+            width=image_size,
+            num_views=num_envs,
+            device="cuda:0",
+            supported_specs=renderer.supported_output_types(),
+        )
+        renderer.set_outputs(rd, data.output)
+        positions = torch.tensor([[0.0, 0.0, 5.0]] * num_envs, device="cuda:0")
+        quats = convert_camera_frame_orientation_convention(
+            torch.tensor([[0.0, 0, 0, 1.0]] * num_envs, device="cuda:0"), origin="opengl", target="world"
+        )
+        renderer.update_camera(
+            rd,
+            ProxyArray(wp.from_torch(positions, dtype=wp.vec3f)),
+            ProxyArray(wp.from_torch(quats, dtype=wp.quatf)),
+            None,
+        )
+
+        with caplog.at_level(logging.WARNING):
+            renderer.render_batch([rd])
+        renderer.read_output(rd, data)
+
+        assert len(errors) == 1 and ovrtx_renderer_module._FAILED_FRAME_TEXT in errors[0], errors
+        assert [product.num_envs for product in rd.products] == [2, 2]
+        assert any("max_envs_per_render_product=2 " in record.getMessage() for record in caplog.records)
+        # The environments show the same scene, so each one has the same mean color, and none stays black.
+        means = data.output["rgb"].torch.float().mean(dim=(1, 2, 3))
+        assert means.min() > 0
+        torch.testing.assert_close(means, means[:1].expand(num_envs), atol=1.0, rtol=0)
+    finally:
+        renderer.close()
+        SimulationContext.instance().close_backend(renderer.backend)
+
+
 @pytest.mark.parametrize("batch", [False, True], ids=["lazy", "batched"])
 def test_async_cameras_publish_independently_with_capture_metadata_and_reset(monkeypatch, batch):
     """Real captures match delayed metadata; generated images and other cameras cannot replace them."""
@@ -2183,7 +2291,9 @@ def test_ovrtx_process_frame_writes_each_render_product_into_its_environment_ran
 
     def process(product_frames=None):
         product_frames = product_frames or [[frame] for frame in frames]
-        products = {path: types.SimpleNamespace(frames=found) for path, found in zip(paths, product_frames, strict=True)}
+        products = {
+            path: types.SimpleNamespace(frames=found) for path, found in zip(paths, product_frames, strict=True)
+        }
         renderer._process_render_products((render_data,), products)
 
     def assert_outputs(expected):
