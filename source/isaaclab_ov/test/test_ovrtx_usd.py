@@ -200,11 +200,11 @@ def test_render_var_prim_paths_cover_every_authored_render_var(camera_spec, rend
     ],
     ids=["auto", "all", "equal", "larger", "split"],
 )
-def test_render_products_author_one_atlas_per_environment_range(camera_spec, max_envs, layout):
-    """Each render product has a contiguous range of environments, its own atlas and the RenderVars of the sensor.
+def test_render_products_author_one_tiled_image_per_environment_range(camera_spec, max_envs, layout):
+    """Each render product has a contiguous range of environments, its own tiled image and the RenderVars of the sensor.
 
     With "auto", "all" or a limit not below the 5 environments, the sensor has one product with the plain name. This
-    product has all 5 environments in an atlas of 3 x 2 tiles.
+    product has all 5 environments in a tiled image of 3 x 2 tiles.
     """
     paths = [f"/World/envs/env_{i}/Robot/head_cam" for i in range(5)]
     camera_spec = CameraRenderSpec(camera_spec.cfg, "cpu", 5, tuple(paths), 5)
@@ -217,7 +217,7 @@ def test_render_products_author_one_atlas_per_environment_range(camera_spec, max
     for prim, (_, _, cols, rows) in zip(products, layout, strict=True):
         # Every render product starts with the camera of environment zero as a placeholder.
         assert prim.GetRelationship("camera").GetTargets() == [Sdf.Path(paths[0])]
-        # Each tile of the atlas has the 16 x 8 pixels of the camera.
+        # Each tile of the tiled image has the 16 x 8 pixels of the camera.
         assert prim.GetAttribute("resolution").Get() == Gf.Vec2i(cols * 16, rows * 8)
         assert prim.GetRelationship("orderedVars").GetTargets() == [Sdf.Path("/RenderCamera_0/Vars/LdrColor")]
         assert prim.GetAttribute("omni:rtx:quality").Get() == 0
@@ -233,7 +233,7 @@ def test_split_render_data_rejects_incomplete_camera_paths(camera_spec):
         camera_prim_paths=camera_spec.camera_prim_paths[:1],
         view_count=2,
     )
-    with pytest.raises(ValueError, match="one camera path per environment"):
+    with pytest.raises(ValueError, match="needs a camera prim in each environment"):
         _make_render_data(spec, 1)
 
 

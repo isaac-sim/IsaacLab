@@ -239,8 +239,7 @@ the physics backend.
 
 Increasing the camera count, resolution, or path-tracing samples per pixel (SPP) can cause camera
 views to become black or corrupted without raising an error. Simulation and training can continue
-with invalid observations. For a buffer above 4 GiB, the OVRTX renderer fails the frame with an
-error instead.
+with invalid observations.
 
 Camera views are combined into a tiled image (an atlas). On affected renderer versions, the
 rendering workload for a large atlas can exceed the supported Vulkan shader-access range for a
@@ -249,39 +248,43 @@ memory. The threshold depends on the padded atlas dimensions and rendering setti
 no universal camera-count limit. See `Isaac Lab issue #8412`_ for affected configurations,
 reproduction steps, and fix status.
 
-The OVRTX renderer (``renderer=ovrtx``) splits a camera sensor over several render products after a
-failed first frame. Each render product then renders a contiguous range of environments into a
-smaller atlas. With the default ``"auto"`` of
-:attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.max_envs_per_render_product`, the renderer halves
-the environments per render product of one sensor. Then it renders the frame again, up to four
-times. When a split renders, a warning gives the number of environments per render product. Set
-this number as the value to skip the search and to keep the same split on every GPU and driver. If
-several sensors get a warning, set the smallest number.
+The OVRTX renderer (``renderer=ovrtx``) fails a frame above this limit with an error instead. A
+render product renders the images of a group of environments into one tiled image. By default, the
+renderer then renders the images of one camera sensor in smaller groups of environments, each with
+its own render product. It tries again up to four times. The camera still returns one image per
+environment.
 
-Each extra render product adds a fixed cost to every frame. The failed render products stay in the
-scene until the sensor cleanup, so the search can need more GPU memory than the final split.
-Path tracing and DLSS depend on the pixel position in the atlas, so another split can change the
-color outputs a little.
+:attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.max_envs_per_render_product` sets the maximum
+number of environments in one render product. When a smaller group renders, a warning gives this
+number. Set the attribute to this number to skip the search. This saves startup time and gives the
+same groups on every GPU. It can also save GPU memory, because the failed tries stay in the scene
+until the camera is removed.
 
-The value applies to every camera sensor of a renderer configuration. Set the same value on every
+If the first frame still fails after the last try, the error names the largest group of each camera
+sensor. Set the value below that group, for example half of it. Each extra render product adds a
+constant time to every frame. The color of a pixel depends a little on its position in the tiled
+image, so two group sizes give slightly different color images.
+
+The value applies to every camera sensor of the renderer configuration. Set the same value on every
 OVRTX renderer configuration of the task, including ``NewtonGLBackendCfg.rtx_renderer_cfg`` of the
-Newton visualizer. Without a :ref:`shared OVStage <ov-clone-routing>`, each configuration with
-another value gets its own OVRTX renderer with its own copy of the scene. On the command line,
-select the OVRTX renderer with ``renderer=ovrtx`` and set the value for each camera of the task:
+Newton visualizer. Without a :ref:`shared OVStage <ov-clone-routing>`, each different value gets its
+own OVRTX renderer with its own copy of the scene in GPU memory. The automatic selector
+``renderer=rtx`` replaces the renderer configuration at launch and drops this value. On the command
+line, select ``renderer=ovrtx`` and set the value for each camera of the task:
 
 .. code-block:: bash
 
    uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Camera \
       physics=newton_mjwarp renderer=ovrtx \
-      env.scene.tiled_camera.renderer_cfg.max_envs_per_render_product=1280
+      env.scene.tiled_camera.renderer_cfg.max_envs_per_render_product=256
 
-``renderer=rtx`` replaces the renderer configuration at launch with a default one, so it drops this
-value and the OVRTX renderer uses ``"auto"``.
+With the default 512 environments of this task, 256 gives two render products of 256 environments
+each.
 
-With other RTX renderers, or instead of a split, reduce the camera resolution, camera count, or
-path-tracing SPP, and inspect images from all cameras before training. Reducing the camera count may
-leave the atlas dimensions unchanged because of tile padding. Path-tracing SPP is distinct from the
-direct-lighting ``samples_per_pixel`` setting.
+With other RTX renderers, or instead of smaller groups, reduce the image size, the number of
+environments, or path-tracing SPP. Then inspect images from all cameras before training. Fewer
+environments can leave the tiled image the same size because of tile padding. Path-tracing SPP is
+distinct from the direct-lighting ``samples_per_pixel`` setting.
 
 If RTX image quality is not required, the Newton Warp and Newton OptiX renderers
 (``renderer=newton_warp`` or ``renderer=newton_optix``) do not render through Vulkan and are not

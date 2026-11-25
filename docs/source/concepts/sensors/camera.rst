@@ -77,14 +77,19 @@ See :doc:`/source/concepts/backends_and_presets` for preset discovery and
 :ref:`renderer-visual-comparison` for a same-scene comparison of the renderer outputs.
 
 With OVRTX, separate camera sensors share the scene and renderer when their renderer
-configurations match, while each sensor owns a separate tiled render product. For example,
-``env_0/head_camera`` and ``env_1/head_camera`` form one product, while
-``env_0/wrist_camera`` and ``env_1/wrist_camera`` form another. The sensors can use different
-resolutions and output types, and their poses update independently. Define all camera prims
-before initializing the simulation so they are included in the scene exported to OVRTX.
+configurations match. Each sensor owns its own render products. A render product renders the
+images of a group of environments into one tiled image. For example, ``env_0/head_camera`` and
+``env_1/head_camera`` render into one product, while ``env_0/wrist_camera`` and
+``env_1/wrist_camera`` render into another.
 
-Very large camera sensors can fail to render with OVRTX. In this case, the renderer splits such a
-sensor over several render products automatically. To set the split by hand, use
+The sensors can use different resolutions and output types, and their poses update independently.
+Define all camera prims before initializing the simulation so they are included in the scene
+exported to OVRTX.
+
+A camera sensor with many environments, a large image size or many path-tracing samples per pixel
+can fail to render its first frame with OVRTX. By default, the renderer then tries smaller groups of
+environments, each with its own render product. The camera still returns one image per environment.
+To set the maximum number of environments in one render product, use
 :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.max_envs_per_render_product`. See
 :ref:`known-issues-rtx-buffer-limit`.
 

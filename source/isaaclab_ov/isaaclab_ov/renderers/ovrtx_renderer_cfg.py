@@ -82,20 +82,28 @@ class OVRTXRendererCfg(RendererCfg):
     max_envs_per_render_product: int | Literal["auto", "all"] = "auto"
     """Maximum number of environments in one render product of a camera sensor. Defaults to ``"auto"``.
 
-    A render product renders the images of its environments into one tiled image. A very large camera sensor can
-    fail to render with one render product. Several render products, each with a smaller tiled image, can avoid this
-    failure. The output shapes and the environment order do not change.
+    With tiled rendering, a render product renders the images of a group of environments into one tiled image. A
+    camera sensor with many environments, a large image size or many path-tracing samples per pixel can fail to render
+    with one render product. Smaller groups of environments, each with its own render product, can avoid this failure.
+    The camera still returns one image per environment, with the shape ``(num_envs, H, W, C)`` and the same
+    environment order.
 
-    - ``"auto"``: A camera sensor starts with one render product. If its first frame fails, the renderer searches
-      for a split. A warning then gives the integer of the split.
-    - ``"all"``: A camera sensor always has one render product.
-    - An integer ``M`` of at least 1: A camera sensor always has ``ceil(num_envs / M)`` render products. This skips
-      the search.
+    - ``"auto"``: Start with one render product. If the first frame fails, the renderer halves the environments per
+      render product of one camera sensor. It picks the sensor whose tiled image has the most pixels times
+      path-tracing samples per pixel. Then it renders the first frame again. It tries at most four smaller groups in
+      total, for all camera sensors together. If a smaller group renders, a warning gives the integer to set. This
+      search needs a camera prim in each environment.
+    - ``"all"``: Always use one render product.
+    - An integer ``M`` of at least 1: Always use ``ceil(num_envs / M)`` render products. For example, 5 environments
+      with ``M = 2`` give render products of 2, 2 and 1 environments.
 
-    The value applies to every camera sensor of this renderer configuration, but each failed frame of the search
-    splits only one sensor. A lidar sensor shares this configuration class and ignores the value. Set the same
-    value on every OVRTX renderer configuration of a task. Without a shared OVStage, another value gives another
-    OVRTX renderer with its own copy of the scene. See :ref:`known-issues-rtx-buffer-limit`.
+    Set the integer from the warning. This saves startup time and gives the same groups on every GPU. It can also
+    save GPU memory, because the failed tries stay in the scene until the camera is removed.
+
+    The value applies to every camera sensor of this renderer configuration. A lidar sensor shares this configuration
+    class and ignores the value. Set the same value on every OVRTX renderer configuration of a task. Without a
+    :ref:`shared OVStage <ov-clone-routing>`, another value gives another OVRTX renderer with its own copy of the
+    scene in GPU memory. See :ref:`known-issues-rtx-buffer-limit`.
     """
 
     temp_usd_dir: str | None = None
@@ -165,7 +173,7 @@ class OVRTXRendererCfg(RendererCfg):
     """Motion BVH mode for non-visual sensor pipelines."""
 
     def validate_config(self) -> None:
-        """Validate the render product split."""
+        """Check that :attr:`max_envs_per_render_product` is ``"auto"``, ``"all"`` or an integer of at least 1."""
         max_envs = self.max_envs_per_render_product
         if not (type(max_envs) is int and max_envs >= 1) and max_envs not in ("auto", "all"):
             raise ValueError(
