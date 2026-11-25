@@ -1,0 +1,1 @@
+* Declared Franka neural physics alongside the numerical presets and selected timing through configuration fields. Shared Reach initialization no longer overwrites declared simulation settings; OSC retains its numerical-only physics configuration.

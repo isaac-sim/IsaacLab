@@ -29,6 +29,7 @@ from isaaclab.devices.keyboard import Se3KeyboardCfg
 from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
 from isaaclab.managers import ObservationTermCfg, RewardTermCfg, SceneEntityCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass, replace
 from isaaclab.utils import math as math_utils
 
@@ -39,7 +40,7 @@ from isaaclab_tasks.utils import PresetCfg, preset
 ##
 from isaaclab_assets import FRANKA_MINIMAL_CFG, FRANKA_PANDA_CFG  # isort: skip
 
-from ...reach_env_cfg import ReachEnvCfg, RewardsCfg
+from ...reach_env_cfg import REACH_DECIMATION, REACH_SIM_CFG, ReachEnvCfg, ReachPhysicsCfg, RewardsCfg
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -47,6 +48,23 @@ if TYPE_CHECKING:
 ##
 # Environment configuration
 ##
+
+
+FRANKA_REACH_ROBOT_CFG = replace(FRANKA_PANDA_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+"""Robot configuration shared by the scene and articulation-specific physics declarations."""
+
+
+@configclass
+class FrankaReachPhysicsCfg(ReachPhysicsCfg):
+    """Numerical and learned physics presets for joint-position Franka Reach."""
+
+    newton_nerd: NewtonCfg = replace(
+        REACH_SIM_CFG.physics.newton_mjwarp,
+        solver_cfg=NeRDSolverCfg(
+            checkpoint="logs/neural/reach_franka/flashnerd.pt", articulation=FRANKA_REACH_ROBOT_CFG.prim_path
+        ),
+        num_substeps=1,
+    )
 
 
 @configclass
@@ -150,7 +168,7 @@ class FrankaReachBaseEnvCfg(ReachEnvCfg):
     def __post_init__(self):
         super().__post_init__()
 
-        self.scene.robot = replace(FRANKA_PANDA_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace(FRANKA_REACH_ROBOT_CFG)
         # Joint inertia varies substantially along the arm; damp each drive accordingly.
         self.scene.robot.actuators["panda_arm"].damping = {
             "panda_joint1": 40.0,
@@ -281,28 +299,13 @@ class FrankaReachBaseEnvCfg(ReachEnvCfg):
 class FrankaReachEnvCfg(FrankaReachBaseEnvCfg):
     """Reach with the optional neural model of the joint-position-controlled arm."""
 
-    def validate_config(self):
-        super().validate_config()
-        if isinstance(getattr(self.sim.physics, "solver_cfg", None), NeRDSolverCfg):
-            if not isinstance(self.actions.arm_action, mdp.JointPositionActionCfg):
-                raise ValueError("The 'newton_nerd' physics preset requires the Franka joint-position action.")
-            if self.observations.policy.ee_target_error is not None:
-                raise ValueError("The 'newton_nerd' physics preset does not support the 'hold' preset.")
-
-    def __post_init__(self):
-        super().__post_init__()
-        # ``physics=newton_nerd`` steps the arm and its joint drives with a FlashNeRD model in place of MuJoCo Warp.
-        nerd = replace(
-            self.sim.physics.newton_mjwarp,
-            solver_cfg=NeRDSolverCfg(
-                checkpoint="logs/neural/reach_franka/flashnerd.pt", articulation=self.scene.robot.prim_path
-            ),
-            num_substeps=1,
-        )
-        self.sim.physics = preset(**vars(self.sim.physics), newton_nerd=nerd)
-        self.sim.dt = preset(default=self.sim.dt, newton_nerd=self.sim.dt * self.decimation)
-        self.sim.render_interval = preset(default=self.sim.render_interval, newton_nerd=1)
-        self.decimation = preset(default=self.decimation, newton_nerd=1)
+    decimation: int = preset(default=REACH_DECIMATION, newton_nerd=1)
+    sim: SimulationCfg = replace(
+        REACH_SIM_CFG,
+        physics=FrankaReachPhysicsCfg(),
+        dt=preset(default=REACH_SIM_CFG.dt, newton_nerd=REACH_SIM_CFG.dt * REACH_DECIMATION),
+        render_interval=preset(default=REACH_SIM_CFG.render_interval, newton_nerd=1),
+    )
 
 
 def _pose_command_error(env: "ManagerBasedRLEnv", command_name: str) -> torch.Tensor:

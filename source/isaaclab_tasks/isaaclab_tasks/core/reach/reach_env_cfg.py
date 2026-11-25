@@ -71,6 +71,18 @@ class ReachPhysicsCfg(PresetCfg):
     default: NewtonCfg = newton_mjwarp
 
 
+REACH_DECIMATION = 4
+"""Physics steps per control period for numerical Reach physics."""
+
+REACH_SIM_CFG = sim_utils.SimulationCfg(
+    dt=1 / 120,
+    render_interval=REACH_DECIMATION,
+    physics=ReachPhysicsCfg(),
+    visualizer_cfgs=VisualizerCfg(eye=(3.5, 3.5, 3.5)),
+)
+"""Shared simulation defaults for Reach tasks."""
+
+
 ##
 # Scene definition
 ##
@@ -249,14 +261,7 @@ class ReachEnvCfg(ManagerBasedRLEnvCfg):
     events: EventCfg = EventCfg()
     curriculum: CurriculumCfg = CurriculumCfg()
 
-    def __post_init__(self):
-        """Post initialization."""
-        # general settings
-        self.decimation = 4
-        self.episode_length_s = 12.0
-        # simulation settings
-        self.sim.dt = 1 / 120
-        self.sim.render_interval = self.decimation
-        self.sim.physics = ReachPhysicsCfg()
-        # visualizer settings
-        self.sim.visualizer_cfgs = VisualizerCfg(eye=(3.5, 3.5, 3.5))
+    # Simulation settings
+    decimation: int = REACH_DECIMATION
+    episode_length_s: float = 12.0
+    sim: sim_utils.SimulationCfg = REACH_SIM_CFG
