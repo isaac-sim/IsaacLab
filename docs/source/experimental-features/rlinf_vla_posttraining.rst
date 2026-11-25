@@ -33,7 +33,8 @@ Prerequisites
 - **Isaac Lab** installed and configured
 - **Isaac-GR00T** repo (for VLA inference and data transforms)
 - A **pretrained VLA checkpoint** in HuggingFace format. The ``assemble_trocar`` recipe
-  uses the updated GR00T N1.5 100k SFT checkpoint.
+  uses the updated GR00T N1.5
+  `100k SFT checkpoint <https://huggingface.co/nvidia/s2r_models_dev/tree/main/mingxinz/sft/g1/trocar_install_segfixed/rot_0_10_320ep_sim_78ep_real_8gpu_100k>`__.
   Place its ``config.json``, model weights and ``experiment_cfg/`` directory directly in
   ``.pretrained_checkpoints/rlinf/Assemble_Trocar_SFT_100k`` relative to the Isaac Lab root,
   or pass the checkpoint directory with ``--model_path``.
@@ -42,8 +43,11 @@ Prerequisites
 Trocar task assets and policy compatibility
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The updated ``assemble_trocar`` task also requires the matching asset pack. Set
-``ASSET_LOCAL`` before starting Isaac Lab to the extracted asset root, which must contain:
+The updated ``assemble_trocar`` task also requires the matching
+`asset pack <https://drive.google.com/file/d/1EDkToctifZRvdCVy8lZyYBGauUn36i_w/view?usp=sharing>`__.
+The assets and checkpoint are currently shared privately; public release is pending.
+The revised robot, scene and instrument assets align the simulation with the real setup.
+Extract the ZIP and set ``ASSET_LOCAL`` before starting Isaac Lab to the extracted asset root, which must contain:
 
 .. code-block:: text
 
