@@ -40,8 +40,12 @@ class NeRDSolverCfg(NewtonSolverCfg):
     class_type: type[NeRDSolver] | str = "{DIR}.nerd_solver:NeRDSolver"
     """Solver adapter class wrapping ``newton_neural.solvers.SolverNeRD``."""
 
-    checkpoint: str = MISSING
-    """Path to the saved state-increment model checkpoint."""
+    checkpoint: str = ""
+    """Path to the saved state-increment model checkpoint.
+
+    A shared physics declaration leaves it empty, and a task that has a model sets it. Validation rejects an
+    empty path, so a task without a model does not offer the preset as runnable.
+    """
 
     articulation: str = MISSING
     """Robot prim path regex (e.g., ``"{ENV_REGEX_NS}/Robot"``) matching Newton articulation labels from start."""
@@ -53,12 +57,18 @@ class NeRDSolverCfg(NewtonSolverCfg):
     """Optional ``torch.compile`` toggle (defaults to ``True`` on CUDA)."""
 
     def validate_config(self) -> None:
-        """Raise ``ValueError`` with training instructions if :attr:`checkpoint` does not exist."""
+        """Raise ``ValueError`` if :attr:`checkpoint` is empty or does not exist, with training instructions."""
         require_checkpoint(self.checkpoint)
 
 
 def require_checkpoint(checkpoint: str) -> None:
-    """Validate that the configured checkpoint exists on disk."""
+    """Validate that a checkpoint is configured and exists on disk."""
+    if not checkpoint:
+        raise ValueError(
+            "the task declares no neural dynamics model for this physics preset. Record and train one with "
+            "scripts/neural/record.py and scripts/neural/train.py for a task that registers a model, or name a "
+            "compatible model file with env.sim.physics.solver_cfg.checkpoint=<path>"
+        )
     path = Path(checkpoint)
     if path.is_file():
         return

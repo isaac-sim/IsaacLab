@@ -32,8 +32,12 @@ class MJWarpNeRDSolverCfg(MJWarpSolverCfg):
     class_type: type[MJWarpNeRDSolver] | str = "{DIR}.mjwarp_nerd_solver:MJWarpNeRDSolver"
     """Solver adapter class wrapping ``newton_neural.solvers.SolverNeRDMuJoCo``."""
 
-    checkpoint: str = MISSING
-    """Path to the saved free-motion model checkpoint."""
+    checkpoint: str = ""
+    """Path to the saved free-motion model checkpoint.
+
+    A shared physics declaration leaves it empty, and a task that has a model sets it. Validation rejects an
+    empty path, so a task without a model does not offer the preset as runnable.
+    """
 
     articulation: str = MISSING
     """Robot prim path regex (e.g., ``"{ENV_REGEX_NS}/Robot"``) matching Newton articulation labels from start."""
@@ -45,7 +49,7 @@ class MJWarpNeRDSolverCfg(MJWarpSolverCfg):
     """Optional ``torch.compile`` toggle (defaults to ``True`` on CUDA)."""
 
     def validate_config(self) -> None:
-        """Raise ``ValueError`` with training instructions if :attr:`checkpoint` does not exist."""
+        """Raise ``ValueError`` if :attr:`checkpoint` is empty or does not exist, with training instructions."""
         require_checkpoint(self.checkpoint)
 
     @classmethod
