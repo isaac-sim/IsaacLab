@@ -341,9 +341,6 @@ OVERRIDES = {
     "scripts/tutorials/00_sim/create_empty.py": ScriptOverride(
         fixed_physics_backend="ovphysx", visualizers=(None, "newton")
     ),
-    "scripts/tutorials/00_sim/launch_app.py": ScriptOverride(
-        fixed_physics_backend="ovphysx", visualizers=(None, "newton")
-    ),
     "scripts/tutorials/00_sim/log_time.py": ScriptOverride(
         fixed_physics_backend="ovphysx", visualizers=(None, "newton")
     ),
@@ -353,10 +350,14 @@ OVERRIDES = {
     "scripts/tutorials/01_assets/run_surface_gripper.py": ScriptOverride(
         args=("--device", "cpu"), visualizers=(None, "newton")
     ),
-    "scripts/tutorials/03_envs/create_cartpole_base_env.py": ScriptOverride(readiness_pattern=r"Resetting environment"),
-    "scripts/tutorials/03_envs/create_cube_base_env.py": ScriptOverride(readiness_pattern=r"Mean position error"),
+    "scripts/tutorials/03_envs/create_cartpole_base_env.py": ScriptOverride(
+        readiness_pattern=r"Resetting environment", fixed_physics_backend="ovphysx", visualizers=(None, "newton")
+    ),
+    "scripts/tutorials/03_envs/create_cube_base_env.py": ScriptOverride(
+        readiness_pattern=r"Mean position error", fixed_physics_backend="ovphysx", visualizers=(None, "newton")
+    ),
     "scripts/tutorials/03_envs/create_quadruped_base_env.py": ScriptOverride(
-        readiness_pattern=r"Resetting environment"
+        readiness_pattern=r"Resetting environment", fixed_physics_backend="ovphysx", visualizers=(None, "newton")
     ),
     "scripts/tutorials/03_envs/policy_inference_in_usd.py": ScriptOverride(
         skip_reason="requires a user-supplied TorchScript checkpoint"
