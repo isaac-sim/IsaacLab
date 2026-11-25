@@ -465,6 +465,14 @@ class DirectRLEnv(gym.Env):
                     self.extras["final_obs"] = tree_map(torch.clone, self._compute_observations())
                 index_fill_(self.reset_terminated, manual_reset_ids, True)
                 self._reset_idx(manual_reset_ids)
+                if (
+                    self.render_enabled
+                    and is_rendering
+                    and self.has_rtx_sensors
+                    and self.cfg.num_rerenders_on_reset > 0
+                ):
+                    for _ in range(self.cfg.num_rerenders_on_reset):
+                        self.sim.render()
 
         # post-step: step interval event
         if self.cfg.events:
