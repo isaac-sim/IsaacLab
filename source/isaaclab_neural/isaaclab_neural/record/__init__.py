@@ -3,4 +3,4 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Neural dynamics recording through Isaac Lab recorder terms."""
+"""Workflow-owned capture of neural dynamics trajectories."""

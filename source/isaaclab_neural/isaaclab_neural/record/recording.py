@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Exploration actions and the recorder term that writes native NeRD datasets."""
+"""Exploration actions and batched capture for native NeRD datasets."""
 
 from __future__ import annotations
 
@@ -20,11 +20,11 @@ from newton_neural.systems import BindingArticulation, SystemArticulation
 
 from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
 from isaaclab.envs.mdp.actions.joint_actions import JointPositionAction
-from isaaclab.managers import RecorderTerm
+from isaaclab.envs.mdp.recorders import get_episode_metadata
 from isaaclab.utils import string_to_callable
 
 from ..physics.nerd_solver import physical_contract
-from .recording_cfg import NeRDDynamicsRecorderCfg, NeRDExplorationActionCfg
+from .recording_cfg import NeRDExplorationActionCfg
 
 
 class NeRDExplorationAction(JointPositionAction):
@@ -111,34 +111,45 @@ def exploration_timeout(env: ManagerBasedRLEnv) -> torch.Tensor:
     return env.episode_length_buf >= exploration.length
 
 
-class NeRDDynamicsRecorder(RecorderTerm):
+class NeRDDynamicsRecorder:
     """Capture one frame per environment step and write contiguous per-environment shards.
 
-    The pre-step hook copies state and contact inputs; the post-step hook adds the consumed controls, the
-    free-motion label and validity. Frames stay batched across environments and reach the native
-    ``TrajectoryWriter`` every :attr:`~NeRDDynamicsRecorderCfg.shard_frames` steps, so recording materializes
+    The workflow captures state and contact inputs before stepping, then consumed controls, the free-motion label
+    and validity after stepping. Frames stay batched across environments and reach the native
+    ``TrajectoryWriter`` every :attr:`shard_frames` steps, so recording materializes
     no per-episode data. A reset marks the next frame of its environments as an episode start.
 
-    The term binds the configured articulation itself and records the signals that the configured contact
+    The recorder binds the configured articulation itself and records the signals that the configured contact
     input and prediction need. The dataset describes the recorded robot, so that a model of any architecture
     is built on it when fitting. The workflow closes the recorder when it ends.
     """
 
-    def __init__(self, cfg: NeRDDynamicsRecorderCfg, env: ManagerBasedRLEnv) -> None:
-        super().__init__(cfg, env)
+    def __init__(
+        self,
+        env: ManagerBasedRLEnv,
+        dataset: Path,
+        *,
+        contact_bodies: str = "",
+        prediction: str = "newton_neural.predictions:PredictionStateIncrement",
+        shard_frames: int = 256,
+    ) -> None:
+        self.env = env
+        self.dataset = dataset
+        self.shard_frames = shard_frames
+        self.model_inputs = {"contact_bodies": contact_bodies, "prediction": prediction}
         self.backend = env.sim.backend_manager.backend
         model = self.backend.model
-        articulations = env.scene[cfg.asset_name].root_view.articulation_ids.numpy().ravel().tolist()
+        articulations = env.scene["robot"].root_view.articulation_ids.numpy().ravel().tolist()
         self.system = SystemArticulation.from_model(model, articulations)
         self.binding = self.system.bind(model, articulations)
         self.contact_input = None
         self.sensor = None
-        if cfg.contact_bodies:
+        if contact_bodies:
             self.contact_input = ContactInputProbes.from_model(
-                model, self.system, bodies=cfg.contact_bodies, articulation=articulations
+                model, self.system, bodies=contact_bodies, articulation=articulations
             )
             self.sensor = self.contact_input.sensor(model, self.binding)
-        prediction = string_to_callable(cfg.prediction)()
+        prediction = string_to_callable(prediction)()
         self.free_columns = None
         if not prediction.integrates:
             self.free_columns = free_acceleration_indices(self.backend.solver, self.binding)
@@ -171,25 +182,23 @@ class NeRDDynamicsRecorder(RecorderTerm):
             "physical_model": physical_contract(
                 self.backend.model, self.binding, free_motion=self.free_columns is not None
             ),
-            "model_inputs": {"contact_bodies": self.cfg.contact_bodies, "prediction": self.cfg.prediction},
+            "model_inputs": self.model_inputs,
         }
 
-    def record_post_reset(self, env_ids: Sequence[int] | slice | None) -> tuple[None, None]:
+    def reset(self, env_ids: Sequence[int] | slice | None) -> None:
         self._starting[slice(None) if env_ids is None else env_ids] = True
-        return None, None
 
-    def record_pre_step(self) -> tuple[None, None]:
+    def record_pre_step(self) -> None:
         if self.writer is None:
             # Opened at the first step: startup events run after the managers are built and may still edit the robot.
-            recorders = self._env.cfg.recorders
-            generation = {**self._env.recorder_manager.get_ep_meta(), "isaaclab": self.description()}
+            generation = {**get_episode_metadata(self.env), "isaaclab": self.description()}
             self.writer = TrajectoryWriter(
-                Path(recorders.dataset_export_dir_path) / recorders.dataset_filename,
+                self.dataset,
                 self.signals,
-                self._env.step_dt,
+                self.env.step_dt,
                 generation=generation,
             )
-        self._env.sim.forward()
+        self.env.sim.forward()
         backend = self.backend
         if backend.collision_pipeline is not None:
             horizon = min(backend.num_substeps, backend.cfg.collision_decimation or backend.num_substeps)
@@ -198,9 +207,8 @@ class NeRDDynamicsRecorder(RecorderTerm):
         if self.sensor is not None:
             features = self.sensor.update(backend.state_0, backend.contacts)
             self.frame.update({name: value.clone() for name, value in features.items()})
-        return None, None
 
-    def record_post_step(self) -> tuple[None, None]:
+    def record_post_step(self) -> None:
         frame = self.frame
         # Buffered frames outlive the step, so the control buffers that later steps overwrite are copied.
         controls = self.binding.read_control(self.backend.control)
@@ -208,16 +216,15 @@ class NeRDDynamicsRecorder(RecorderTerm):
         if self.free_columns is not None:
             acceleration = wp.to_torch(self.backend.solver.mjw_data.qacc_smooth)
             frame["joint_qdd_free"] = acceleration.gather(1, self.free_columns)
-        valid = ~self._env.reset_terminated
+        valid = ~self.env.reset_terminated
         for value in frame.values():
             valid = valid & torch.isfinite(value).flatten(1).all(dim=1)
         self._frames.append(frame)
         self._episode_starts.append(self._starting.clone())
         self._valid.append(valid)
         self._starting.zero_()
-        if len(self._frames) >= self.cfg.shard_frames:
+        if len(self._frames) >= self.shard_frames:
             self.flush()
-        return None, None
 
     def flush(self) -> None:
         """Write the buffered frames of all environments as one shard that continues the previous one."""

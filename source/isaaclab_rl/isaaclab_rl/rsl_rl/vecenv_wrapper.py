@@ -146,6 +146,7 @@ class RslRlVecEnvWrapper(VecEnv):
     def reset(self) -> tuple[TensorDict, dict]:  # noqa: D102
         # reset the environment
         obs_dict, extras = self.env.reset()
+        extras.pop("final_obs_every_step", None)
         return TensorDict(obs_dict, batch_size=[self.num_envs]), extras
 
     def get_observations(self) -> TensorDict:

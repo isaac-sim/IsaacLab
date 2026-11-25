@@ -416,6 +416,8 @@ before changing an interface. Apply these rules when adding code or cleaning up 
   computations, resets, command/event updates, and observation computation. Do not hide that
   sequence behind broad ``simulate``, ``compute_transition``, ``reset_done``, or ``finish_step``
   phase methods. Concrete custom step functions may place capture calls directly in that sequence.
+  Put workflow-specific manager-based step ordering and extra observation passes in a complete
+  ``step_fn`` override selected by the workflow, instead of adding behavior flags to the standard environment.
 * Keep dataset capture in recording workflows or explicit custom step functions. Standard environments
   must not own episode recorders, dispatch capture hooks, or consult recording capabilities when
   deciding physics action ownership. Episode storage must not depend on environment managers or

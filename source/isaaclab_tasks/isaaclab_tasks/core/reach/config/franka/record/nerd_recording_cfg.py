@@ -5,7 +5,7 @@
 
 """Recording action configuration for Franka."""
 
-from isaaclab_neural.record.recording_cfg import NeRDExplorationActionCfg, NeRDRecorderCfg
+from isaaclab_neural.record.recording_cfg import NeRDExplorationActionCfg
 
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import EventTermCfg, TerminationTermCfg
@@ -58,7 +58,6 @@ class FrankaRecordingActionsCfg:
 class FrankaNeRDRecordingEnvCfg(ManagerBasedRLEnvCfg):
     """Reference scene, exploration terms and standard recorder terms."""
 
-    recorders = NeRDRecorderCfg()
     scene = _SCENE
     sim = replace(
         _TASK.sim,

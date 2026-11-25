@@ -149,9 +149,10 @@ def test_recorder_storage_boundary(source_checkout_root):
     assert not (source_checkout_root / "source/isaaclab/isaaclab/managers/recorder_manager.py").exists()
     assert not (source_checkout_root / "source/isaaclab/isaaclab/envs/mdp/recorders/recorders_cfg.py").exists()
     import isaaclab.managers as managers
-    from isaaclab.envs import ManagerBasedEnvCfg
+    from isaaclab.envs import ManagerBasedEnvCfg, ManagerBasedRLEnvCfg
 
     assert "recorders" not in ManagerBasedEnvCfg.__dataclass_fields__
+    assert "final_obs_every_step" not in ManagerBasedRLEnvCfg.__dataclass_fields__
     import isaaclab.envs.mdp as mdp
     from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
     from isaaclab.envs.mdp import recorders
@@ -168,7 +169,7 @@ def test_recorder_storage_boundary(source_checkout_root):
     assert "simulate" not in vars(ManagerBasedEnv)
     assert not {"compute_transition", "reset_done", "finish_step"} & vars(ManagerBasedRLEnv).keys()
     assert not {"RecorderManager", "RecorderManagerBaseCfg", "RecorderTerm", "RecorderTermCfg"} & set(managers.__all__)
-    for package in ("isaaclab", "isaaclab_experimental", "isaaclab_tasks"):
+    for package in ("isaaclab", "isaaclab_experimental", "isaaclab_tasks", "isaaclab_neural"):
         package_dir = source_checkout_root / "source" / package / package
         for path in package_dir.rglob("*env*.py"):
             tree = ast.parse(path.read_text())

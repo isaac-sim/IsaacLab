@@ -6,7 +6,7 @@
 """Neural dynamics model definitions, independent optimizer settings and Newton solver integration.
 
 NeRDCfg describes a model. NeRDTrainingCfg describes optimization. Recording environments declare their own
-exploration actions, reset events and RecorderManager terms. The recording and training scripts own task composition
+exploration actions and reset events. The recording and training scripts own task composition
 and import the optional newton-neural library only when executed; configuration imports remain independent of it.
 """
 

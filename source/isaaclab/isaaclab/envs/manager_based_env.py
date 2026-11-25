@@ -453,7 +453,6 @@ class ManagerBasedEnv:
             env_ids = slice(None)
         # terminal observations belong to the step that captured them
         self.extras.pop("final_obs", None)
-        self.extras.pop("final_obs_every_step", None)
 
         # set the seed
         if seed is not None:
@@ -511,7 +510,6 @@ class ManagerBasedEnv:
             env_ids = slice(None)
         # terminal observations belong to the step that captured them
         self.extras.pop("final_obs", None)
-        self.extras.pop("final_obs_every_step", None)
 
         # set the seed
         if seed is not None:
