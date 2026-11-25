@@ -83,6 +83,11 @@ configurations match, while each sensor owns a separate tiled render product. Fo
 resolutions and output types, and their poses update independently. Define all camera prims
 before initializing the simulation so they are included in the scene exported to OVRTX.
 
+Very large camera sensors can fail to render with OVRTX. In this case, the renderer splits such a
+sensor over several render products automatically. To set the split by hand, use
+:attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.max_envs_per_render_product`. See
+:ref:`renderers-ovrtx-render-product-split`.
+
 .. _camera-configuration:
 
 Configure a camera
