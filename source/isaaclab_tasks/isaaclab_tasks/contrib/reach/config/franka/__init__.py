@@ -18,7 +18,7 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.ik_abs_env_cfg:FrankaReachEnvCfg",
-        "deprecated": {"alias": "--task Isaac-Reach-Franka physics=ovphysx presets=diffik_abs"},
+        "deprecated": {"alias": "--task Isaac-Reach-Franka physics=isaacsim_physx presets=diffik_abs"},
     },
     disable_env_checker=True,
 )

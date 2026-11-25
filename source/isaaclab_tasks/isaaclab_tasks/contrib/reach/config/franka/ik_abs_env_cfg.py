@@ -17,4 +17,4 @@ class FrankaReachEnvCfg(franka_reach_env_cfg.FrankaReachEnvCfg):
 
     def __post_init__(self) -> None:
         super().__post_init__()
-        resolve_presets(self, selected=("diffik_abs", "ovphysx"))
+        resolve_presets(self, selected=("diffik_abs", "isaacsim_physx"))

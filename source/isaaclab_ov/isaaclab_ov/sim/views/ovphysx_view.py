@@ -525,6 +525,12 @@ class OvPhysxView:
 
     def _material_tensor_type(self) -> TensorType:
         """Resolve the native material binding for the prims owned by this view."""
+        for prefix, tensor_type in (
+            ("ARTICULATION_", TensorType.ARTICULATION_SHAPE_FRICTION_AND_RESTITUTION),
+            ("RIGID_BODY_", TensorType.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION),
+        ):
+            if any(binding.tensor_type.name.startswith(prefix) for binding in self._bindings.values()):
+                return tensor_type
         for tensor_type in (
             TensorType.ARTICULATION_SHAPE_FRICTION_AND_RESTITUTION,
             TensorType.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION,

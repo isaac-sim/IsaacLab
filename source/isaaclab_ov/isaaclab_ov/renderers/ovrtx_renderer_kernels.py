@@ -14,6 +14,27 @@ from isaaclab.renderers.segmentation_colors import random_color_from_id_wp
 
 
 @wp.kernel(enable_backward=False)
+def remap_semantic_colors_kernel(
+    image: wp.array(dtype=wp.uint8, ndim=4),
+    source_colors: wp.array(dtype=wp.uint32),
+    target_colors: wp.array(dtype=wp.uint8, ndim=2),
+):
+    """Apply a class palette to colorized pixels without cascading color replacements."""
+    env, y, x = wp.tid()
+    color = (
+        wp.uint32(image[env, y, x, 0])
+        + wp.uint32(image[env, y, x, 1]) * wp.uint32(256)
+        + wp.uint32(image[env, y, x, 2]) * wp.uint32(65536)
+        + wp.uint32(image[env, y, x, 3]) * wp.uint32(16777216)
+    )
+    for entry in range(source_colors.shape[0]):
+        if color == source_colors[entry]:
+            for channel in range(4):
+                image[env, y, x, channel] = target_colors[entry, channel]
+            break
+
+
+@wp.kernel(enable_backward=False)
 def create_marker_transforms_kernel(
     positions: wp.array(dtype=wp.vec3),
     orientations: wp.array(dtype=wp.quat),

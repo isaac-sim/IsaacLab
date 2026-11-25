@@ -2216,13 +2216,18 @@ def test_ovrtx_process_frame_writes_each_render_product_into_its_environment_ran
     )
 
 
-@pytest.mark.parametrize("colorized", [False, True])
-def test_segmentation_outputs_share_metadata_and_clear_stale_labels(monkeypatch, colorized):
+@pytest.mark.parametrize(
+    ("colorized", "palette"),
+    [(False, {}), (True, {}), (True, {"class:cone": (255, 36, 66, 255)})],
+    ids=["ids", "generated-colors", "class-palette"],
+)
+def test_segmentation_outputs_share_metadata_and_clear_stale_labels(monkeypatch, colorized, palette):
     """Pixel types, label keys and missing-map handling follow the requested output contract."""
     from isaaclab.renderers.segmentation_colors import random_color_from_id
 
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._device = "cpu"
+    renderer.cfg.semantic_segmentation_mapping = palette
     renderer.cfg.colorize_semantic_segmentation = renderer.cfg.colorize_instance_segmentation = colorized
     render_data = _make_ovrtx_camera_render_data()
     kinds = ["semantic_segmentation", "instance_segmentation"]
@@ -2264,12 +2269,14 @@ def test_segmentation_outputs_share_metadata_and_clear_stale_labels(monkeypatch,
     renderer._process_render_frames(render_data, [frame], render_data.warp_buffers)
     renderer.read_output(render_data, camera_data)
     pixel = random_color_from_id(2) if colorized else 2
+    semantic_pixel = palette.get("class:cone", pixel) if colorized else pixel
     for kind in kinds:
         output = camera_data.output[kind].warp
         assert output.dtype == (wp.uint8 if colorized else wp.int32)
         assert output.shape == (2, 8, 16, 4 if colorized else 1)
-        np.testing.assert_array_equal(output.numpy(), np.broadcast_to(pixel, output.shape))
-    assert camera_data.info[kinds[0]]["idToLabels"][pixel] == {"class": "cone"}
+        expected_pixel = semantic_pixel if kind == "semantic_segmentation" else pixel
+        np.testing.assert_array_equal(output.numpy(), np.broadcast_to(expected_pixel, output.shape))
+    assert camera_data.info[kinds[0]]["idToLabels"][semantic_pixel] == {"class": "cone"}
     assert camera_data.info[kinds[1]]["idToLabels"][pixel] == "/World/Cone"
     assert camera_data.info[kinds[1]]["idToSemantics"][pixel] == {"class": "cone"}
     frame.render_vars[render_data.render_var_keys["SemanticIdMap"]].map.assert_called_once()

@@ -259,6 +259,9 @@ class CameraCfg(SensorBaseCfg):
         when that cfg defines the same-named field.
         """
         renderer_type = getattr(self.renderer_cfg, "renderer_type", None)
+        if renderer_type == "auto_rtx":
+            # The launcher forwards these fields after choosing the concrete RTX runtime.
+            return
         if renderer_type == "default":
             from ...utils.backend_utils import get_default_renderer_cfg
 

@@ -286,3 +286,36 @@ def test_the_launcher_physics_selector_warns_for_isaac_sim_and_still_selects_it(
     with pytest.warns(FutureWarning, match="'isaacsim_physx' runs on Isaac Sim"):
         sim_launcher.validate_launch(cfg, {"physics": "isaacsim_physx"})
     assert isinstance(cfg.physics, PhysxCfg)
+
+
+@pytest.mark.kitless
+@pytest.mark.parametrize("kit", [False, True], ids=["ovphysx", "isaacsim-physx"])
+def test_automatic_rtx_preserves_camera_palette_and_kit_settings(kit):
+    """Runtime selection retains the existing camera palette and explicit Kit renderer tuning."""
+    from isaaclab.sensors import CameraCfg
+    from isaaclab.sim import PinholeCameraCfg
+
+    from isaaclab_tasks.utils.presets import MultiBackendRendererCfg, set_isaac_rtx_global_settings
+
+    palette = {"class:cube": (255, 36, 66, 255)}
+    scene = InteractiveSceneCfg(num_envs=1, env_spacing=1.0)
+    scene.camera = CameraCfg(
+        prim_path="{ENV_REGEX_NS}/Camera",
+        height=8,
+        width=16,
+        spawn=PinholeCameraCfg(),
+        renderer_cfg=MultiBackendRendererCfg().rtx,
+        semantic_segmentation_mapping=palette,
+    )
+    set_isaac_rtx_global_settings(scene.camera.renderer_cfg, antialiasing_mode="DLAA")
+    cfg = types.SimpleNamespace(
+        sim=SimulationCfg(physics=sim_launcher.PhysxCfg() if kit else sim_launcher.OvPhysxCfg()), scene=scene
+    )
+
+    sim_launcher.validate_launch(cfg, {"visualizer": []})
+
+    renderer = scene.camera.renderer_cfg
+    assert isinstance(renderer, sim_launcher.IsaacRtxRendererCfg if kit else sim_launcher.OVRTXRendererCfg)
+    assert renderer.semantic_segmentation_mapping == palette
+    if kit:
+        assert renderer.global_settings.antialiasing_mode == "DLAA"

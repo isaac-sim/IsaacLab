@@ -5,7 +5,7 @@
 
 from typing import Any, ClassVar
 
-from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
+from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg, IsaacRtxRendererGlobalSettingsCfg
 from isaaclab_newton.renderers import NewtonOptixRendererCfg, NewtonWarpRendererCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_visualizers.kit import KitBackendCfg
@@ -25,15 +25,7 @@ from .hydra import PresetCfg
 @configclass
 class _AutoRtxRendererCfg(RendererCfg):
     renderer_type: str = "auto_rtx"
-
-
-@configclass
-class RtxRendererCfg(PresetCfg):
-    """Select standalone or Isaac Sim RTX for tasks requiring the RTX renderer family."""
-
-    isaacsim_rtx: IsaacRtxRendererCfg = IsaacRtxRendererCfg()
-    ovrtx: OVRTXRendererCfg = OVRTXRendererCfg()
-    default: OVRTXRendererCfg = ovrtx
+    global_settings: IsaacRtxRendererGlobalSettingsCfg = IsaacRtxRendererGlobalSettingsCfg()
 
 
 @configclass
@@ -54,7 +46,7 @@ def set_isaac_rtx_global_settings(renderer_cfg: Any, **settings: Any) -> None:
         if cfg is None or id(cfg) in visited:
             return
         visited.add(id(cfg))
-        if getattr(cfg, "renderer_type", None) == "isaac_rtx" and hasattr(cfg, "global_settings"):
+        if getattr(cfg, "renderer_type", None) in ("isaac_rtx", "auto_rtx") and hasattr(cfg, "global_settings"):
             for key, value in settings.items():
                 setattr(cfg.global_settings, key, value)
         for attr_name in ("default", "isaacsim_rtx"):
