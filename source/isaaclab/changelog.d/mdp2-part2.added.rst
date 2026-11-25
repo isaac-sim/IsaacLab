@@ -1,5 +1,5 @@
 * Added :attr:`~isaaclab.actuators.ActuatorBase.capturable`, which says whether a CUDA graph can replay an actuator's
-  compute and masked reset with Torch work inside it. Delayed PD actuators qualify: their masked resets draw delays
+  compute and masked reset with Torch work inside it. Delayed actuators qualify: their masked resets draw delays
   from a device stream, which a replayed graph advances. The network actuators, which subclass a capturable motor
   model, are not capturable.
 * Added :meth:`~isaaclab.physics.PhysicsManager.supports_step_capture` and
