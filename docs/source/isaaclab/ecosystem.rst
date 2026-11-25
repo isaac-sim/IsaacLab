@@ -34,8 +34,7 @@ Isaac Sim PhysX implementation and a standalone (Kit-less) OvPhysX implementatio
      - Task and feature coverage varies by solver, and changing solvers can require retuning
    * - **OvPhysX**
      - Kit-less PhysX workflows
-     - Stable standalone PhysX runtime with feature parity with Isaac Sim PhysX through Isaac Lab's
-       shared APIs; pairs with kit-less OVRTX rendering
+     - PhysX SDK available through a standalone runtime and can pair with kit-less OVRTX rendering
      - Cannot be mixed together with Isaac Sim workflows
    * - **Isaac Sim PhysX**
      - Isaac Sim workflows that require full Kit integration

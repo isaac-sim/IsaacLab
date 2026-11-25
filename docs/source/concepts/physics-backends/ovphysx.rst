@@ -3,11 +3,6 @@
 OvPhysX
 ========
 
-OvPhysX is a stable physics backend with feature parity with Isaac Sim PhysX
-through Isaac Lab's shared scene, asset, sensor, and task APIs. Use it for PhysX
-simulation without Isaac Sim or Omniverse Kit. Backend-specific configuration
-and limits are described below.
-
 .. warning::
 
     Do not combine OvPhysX with the Kit visualizer. Commands such as
@@ -72,8 +67,8 @@ The deprecated Franka absolute-IK alias follows the migrated OvPhysX default.
 Prefer its canonical command, ``--task Isaac-Reach-Franka physics=ovphysx presets=diffik_abs``;
 the canonical task also exposes ``physics=isaacsim_physx`` during the transition.
 
-Supported features
-------------------
+What works today
+----------------
 
 OvPhysX supports the following components. The notes describe requirements and
 limits to consider when configuring a task.
@@ -300,10 +295,10 @@ nodes. Initialization raises an error for mixed node counts instead of exposing
 padded state that would produce incorrect reductions.
 
 Deformable scenes also require full-stage materialization. Startup cost therefore
-grows with the number of authored environments. Use this path for small validation
-scenes; training-scale workloads with thousands of environments are not currently
-supported. Deformable bodies are not supported by the heterogeneous fast-path
-cloner.
+grows with the number of authored environments. For large scenes, see
+`Compiled-stage cache`_ for the cache opt-out used by the Franka cloth and
+soft-beam lift presets. Deformable bodies are not supported by the heterogeneous
+fast-path cloner.
 
 .. _ovphysx-native-access:
 
