@@ -1,0 +1,425 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Reinforcement-learning configuration for Franka cube stacking."""
+
+import math
+
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
+from isaaclab_newton.sim.schemas import NewtonMaterialPropertiesCfg
+
+import isaaclab.sim as sim_utils
+from isaaclab.actuators import ImplicitActuatorCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg
+from isaaclab.managers import CurriculumTermCfg as CurrTerm
+from isaaclab.managers import EventTermCfg as EventTerm
+from isaaclab.managers import ObservationGroupCfg as ObsGroup
+from isaaclab.managers import ObservationTermCfg as ObsTerm
+from isaaclab.managers import RewardTermCfg as RewTerm
+from isaaclab.managers import SceneEntityCfg
+from isaaclab.managers import TerminationTermCfg as DoneTerm
+from isaaclab.sim.schemas import UsdPhysicsCollisionCfg, UsdPhysicsRigidBodyCfg
+from isaaclab.utils.configclass import configclass
+from isaaclab.visualizers import VisualizerCfg
+
+from isaaclab_tasks.utils import SuccessMonitorCfg, preset
+
+from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG
+
+from ... import mdp
+from ...constants import FRANKA_STACK_ARM_WORKSPACE_LOWER, FRANKA_STACK_ARM_WORKSPACE_UPPER
+from ...spawners import ColoredCuboidCfg
+from ...stack_env_cfg import StackCommonTerminationsCfg, StackEnvCfg, apply_default_semantics
+
+
+@configclass
+class EventCfg:
+    """Reset from a shared cache of validated full-task stack states."""
+
+    reset_from_state_buffer = EventTerm(
+        func=mdp.StackResetStateTable,
+        mode="reset",
+        params={
+            "closed_finger_position": 0.020,
+            "placed_finger_position": 0.021,
+            "open_finger_position": 0.04,
+            # Eighteen balanced workspace/source-order layouts each receive 64
+            # independently scattered table starts. This yields 1,152 broad
+            # table starts without making the table family dominate.
+            "table_rows_per_layout": 64,
+            # Cached intermediate states are authored hand-object contacts and
+            # must remain exact. Table starts receive broad
+            # robot variation and coherent planar cube transforms instead.
+            "arm_joint_noise_range": 0.0,
+            "table_arm_joint_noise_range": 0.080,
+            "table_cube_planar_translation_range": 0.015,
+            "table_cube_rotation_range": 0.45,
+            "fixed_recipe": None,
+            "fixed_role_permutation": None,
+        },
+    )
+
+
+@configclass
+class FrankaStackStateObservationCfg(ObsGroup):
+    """Canonical full-state interface for the Franka stack policy."""
+
+    # The published state actors were trained with action history first.
+    actions = ObsTerm(func=mdp.last_action)
+    joint_pos = ObsTerm(
+        func=mdp.joint_pos_rel,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=["panda_joint.*"])},
+    )
+    joint_vel = ObsTerm(
+        func=mdp.joint_vel_rel,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=["panda_joint.*"])},
+    )
+    object = ObsTerm(func=mdp.role_conditioned_stack_obs)
+    gripper_pos = ObsTerm(func=mdp.gripper_pos)
+    eef_velocity = ObsTerm(func=mdp.franka_ee_velocity)
+    eef_axes = ObsTerm(func=mdp.franka_ee_axes)
+
+    def __post_init__(self) -> None:
+        self.enable_corruption = False
+        self.concatenate_terms = True
+
+
+@configclass
+class FrankaStackObservationsCfg:
+    """Observation groups for state-based Franka stacking."""
+
+    policy: FrankaStackStateObservationCfg = FrankaStackStateObservationCfg()
+
+
+@configclass
+class RewardsCfg:
+    """Sparse terminal objective plus safety regularizers."""
+
+    success = RewTerm(
+        func=mdp.stack_success_pulse,
+        params={"context_term_name": "progress_context"},
+        # The reward function cancels RewardManager's step_dt integration, so
+        # this is an exact +2 episode impulse at any policy frequency.
+        weight=2.0,
+    )
+    failure = RewTerm(
+        func=mdp.irrecoverable_stack_failure,
+        params={"success_termination_name": "success"},
+        # Preserve the established -0.0002 terminal impulse independently of
+        # the policy timestep.
+        weight=-2.0e-4,
+    )
+    action_l2 = RewTerm(func=mdp.action_term_l2, params={"action_name": "arm_action"}, weight=-1.0e-4)
+    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-1.0e-4)
+    joint_vel = RewTerm(
+        func=mdp.finite_joint_velocity_l2,
+        params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names=["panda_joint.*"]),
+            "maximum_velocity": 3.0,
+        },
+        weight=-1.0e-4,
+    )
+
+
+@configclass
+class CurriculumCfg:
+    """Guaranteed table starts plus target-rate intermediate states."""
+
+    reset_sampling = CurrTerm(
+        func=mdp.StackResetTableCurriculum,
+        params={
+            "success_context_name": "learning_progress_context",
+            "final_success_context_name": "progress_context",
+            # Use the same shared rolling-success monitor as Lift and the
+            # conveyor task. Its target-rate weights concentrate sampling near
+            # 50% competence while retaining a floor at both extremes.
+            "success_monitor": SuccessMonitorCfg(
+                monitored_history_len=50,
+                target_success_rate=0.50,
+                kappa=1.0,
+                temperature=1.0,
+            ),
+            # Preserve a table-start learning stream regardless of the
+            # adaptive intermediate-state distribution. The remaining 65% is
+            # sampled from non-table rows by the rolling-success kernel.
+            "table_sampling_probability": 0.35,
+        },
+    )
+
+
+@configclass
+class FrankaStackTerminationsCfg(StackCommonTerminationsCfg):
+    """Evaluate the newly settled stack before forwarding it to the success term."""
+
+    progress_context = DoneTerm(
+        func=mdp.StableOrderInvariantStackGoal,
+        params={
+            "minimum_episode_steps": 3,
+            "hold_steps": 5,
+            "maximum_cube_velocity": 0.10,
+            "minimum_finger_release_position": 0.023,
+        },
+    )
+    learning_progress_context = DoneTerm(
+        func=mdp.StackResetLearningProgress,
+        params={"minimum_episode_steps": 3},
+    )
+    success = DoneTerm(
+        func=mdp.success_after_minimum_horizon,
+        params={
+            "context_term_name": "progress_context",
+            # The context already requires five consecutive stable,
+            # released-stack frames. Terminate on that physical hold
+            # instead of leaving a solved scene alive for five seconds,
+            # which invites post-success oscillation and reward cycling.
+            "minimum_episode_length_s": 0.1,
+        },
+    )
+    nonfinite_robot_state = DoneTerm(
+        func=mdp.nonfinite_robot_state,
+        params={"robot_cfg": SceneEntityCfg("robot", joint_names=["panda_joint.*"])},
+    )
+    nonfinite_cube_state = DoneTerm(func=mdp.nonfinite_cube_state)
+    cube_workspace_invalid = DoneTerm(func=mdp.CubeOutOfWorkspace)
+
+
+@configclass
+class FrankaCubeStackRLEnvCfg(StackEnvCfg):
+    """Train a color-order-invariant three-cube stack from physical reset rows."""
+
+    observations: FrankaStackObservationsCfg = FrankaStackObservationsCfg()
+    rewards: RewardsCfg = RewardsCfg()
+    events: EventCfg = EventCfg()
+    curriculum: CurriculumCfg = CurriculumCfg()
+    terminations: FrankaStackTerminationsCfg = FrankaStackTerminationsCfg()
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+
+        robot = FRANKA_PANDA_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        robot.spawn.variants["Physics"] = "mujoco"
+        robot.init_state = ArticulationCfg.InitialStateCfg(
+            joint_pos={
+                "panda_joint1": 0.0444,
+                "panda_joint2": -0.1894,
+                "panda_joint3": -0.1107,
+                "panda_joint4": -2.5148,
+                "panda_joint5": 0.0044,
+                "panda_joint6": 2.3775,
+                "panda_joint7": 0.6952,
+                "panda_finger_joint.*": 0.04,
+            },
+        )
+        # Keep the shared asset's passive mimic follower; tune only the active drives.
+        robot.actuators.update(
+            {
+                "panda_arm": ImplicitActuatorCfg(
+                    joint_names_expr=["panda_joint[1-7]"],
+                    joint_effort_limit={"panda_joint[1-4]": 87.0, "panda_joint[5-7]": 12.0},
+                    # Record the Panda's rated joint-speed envelope. MJWarp exposes but
+                    # does not enforce these fields; action scaling, gains, effort limits,
+                    # and armature determine the live Newton response.
+                    joint_velocity_limit={"panda_joint[1-4]": 2.175, "panda_joint[5-7]": 2.61},
+                    stiffness={
+                        "panda_joint[1-4]": 600.0,
+                        "panda_joint5": 250.0,
+                        "panda_joint6": 150.0,
+                        "panda_joint7": 50.0,
+                    },
+                    damping={
+                        "panda_joint[1-4]": 50.0,
+                        "panda_joint5": 30.0,
+                        "panda_joint6": 25.0,
+                        "panda_joint7": 15.0,
+                    },
+                    armature={
+                        "panda_joint[1-2]": 0.6057,
+                        "panda_joint[3-4]": 0.4625,
+                        "panda_joint[5-7]": 0.2055,
+                    },
+                    viscous_friction=0.0,
+                ),
+                "panda_hand": ImplicitActuatorCfg(
+                    joint_names_expr=["panda_finger_joint1"],
+                    joint_effort_limit=70.0,
+                    joint_velocity_limit=2.0,
+                    stiffness=350.0,
+                    damping=175.0,
+                    armature=0.1,
+                    viscous_friction=0.0,
+                ),
+            }
+        )
+        self.scene.robot = robot
+        apply_default_semantics(self.scene)
+        self.gripper_joint_names = ["panda_finger_.*"]
+        self.gripper_open_val = 0.04
+        self.gripper_threshold = 0.005
+        # Newton needs a fixed rigid root to discover the Seattle table's
+        # separately instanced visual and collision subtrees. Keep this
+        # backend-specific override local to the RL task.
+        self.scene.table.spawn.rigid_props = UsdPhysicsRigidBodyCfg(kinematic_enabled=True)
+        # The Seattle table's authored collision top is 3 mm below its visible
+        # tabletop. Add an invisible native contact surface at visual z=0 so
+        # cubes rest on what the policy and viewer see. The original collider
+        # remains below as a fallback for the rest of the table geometry.
+        self.scene.table_contact_surface = AssetBaseCfg(
+            prim_path="{ENV_REGEX_NS}/TableContactSurface",
+            init_state=AssetBaseCfg.InitialStateCfg(pos=(0.3439, 0.0, -0.02)),
+            spawn=sim_utils.CuboidCfg(
+                size=(1.28, 0.91, 0.04),
+                visible=False,
+                rigid_props=UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
+                collision_props=UsdPhysicsCollisionCfg(collision_enabled=True),
+                physics_material=NewtonMaterialPropertiesCfg(
+                    static_friction=1.0,
+                    dynamic_friction=0.8,
+                    restitution=0.0,
+                    torsional_friction=0.002,
+                    rolling_friction=0.0001,
+                    contact_stiffness=1.0e4,
+                    contact_damping=200.0,
+                ),
+            ),
+        )
+        self.sim.gravity = (0.0, 0.0, -9.81)
+        self.scene.robot.spawn.rigid_props.disable_gravity = False
+
+        # Solve constraints with MJWarp and generate contacts with Newton's collision pipeline.
+        physics = NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(
+                solver="newton",
+                integrator="implicitfast",
+                njmax=256,
+                nconmax=100,
+                impratio=10.0,
+                cone="elliptic",
+                use_mujoco_contacts=False,
+            ),
+            # Refresh contacts for each 5 ms substep so a released tower can settle.
+            num_substeps=2,
+            collision_decimation=1,
+            use_cuda_graph=True,
+            collision_cfg=NewtonCollisionPipelineCfg(
+                broad_phase="explicit",
+                reduce_contacts=True,
+            ),
+            # Preserve the authored 4 cm cube and finger surfaces. A positive
+            # gap creates speculative contacts before those surfaces touch;
+            # fresh 5 ms collision queries make that unnecessary here.
+            default_shape_cfg=NewtonShapeCfg(margin=0.0, gap=0.0),
+        )
+        self.sim.physics = preset(default=physics, newton_mjwarp=physics)
+        self.scene.replicate_physics = True
+        # Match Cube Lift's 50 Hz policy rate: two 100 Hz physics ticks for
+        # every relative joint-position command.
+        self.decimation = 2
+        self.sim.render_interval = 2
+
+        # Keep the standard Franka Lift joint-position interface, but express
+        # each command as a residual around the measured reset pose. The reset
+        # table contains valid grasps and near-placement states; a zero-mean
+        # absolute target immediately destroys those states, whereas a zero
+        # residual holds them. The larger scale restores enough joint-space
+        # authority to acquire cubes from table starts.
+        self.actions.arm_action = mdp.WorkspaceBoundedRelativeJointPositionActionCfg(
+            asset_name="robot",
+            joint_names=["panda_joint.*"],
+            # At 50 Hz, a 0.05 rad measured-state residual caps the commanded
+            # target slew at 2.5 rad/s. MJWarp does not hard-enforce actuator
+            # velocity-limit fields.
+            scale=0.05,
+            max_delta=0.05,
+            workspace_lower=FRANKA_STACK_ARM_WORKSPACE_LOWER,
+            workspace_upper=FRANKA_STACK_ARM_WORKSPACE_UPPER,
+            gravity_compensation=True,
+        )
+        self.actions.gripper_action = mdp.ResetBufferedGripperActionCfg(
+            asset_name="robot",
+            joint_names=["panda_finger_joint1"],
+            open_command_expr={"panda_finger_.*": 0.04},
+            close_command_expr={"panda_finger_.*": 0.0},
+            # Give Newton 100 ms to establish reset-authored finger contacts.
+            # Supported place endpoints are tagged as released, so this guard
+            # cannot crush a cube that already rests on the stack.
+            force_close_steps=5,
+        )
+
+        # Side-by-side table rows must have time for two picks, two placements,
+        # and release. Near-goal rows still terminate early on success.
+        self.episode_length_s = 20.0
+
+        # Keep cube identity stable through an episode. The reset table maps
+        # stack roles over all six physical cube permutations, providing order
+        # invariance as data augmentation without dynamically re-sorting input
+        # slots at the critical grasp-to-lift transition.
+        self.scene.ee_frame = None
+
+        # Provide one backend-neutral camera hint. The selected Kit or Newton
+        # visualizer receives these values at runtime.
+        self.sim.default_visualizer_cfg = VisualizerCfg(
+            eye=(1.4, 1.4, 0.9),
+            lookat=(0.5, 0.0, 0.1),
+        )
+
+        # Native cuboids avoid asset-specific block materials. Their standard geometry
+        # owns both collision and rendering; a USD displayColor keeps the
+        # colors available in both Kit and kitless Newton visualization.
+        cube_colors = ((0.05, 0.15, 0.80), (0.80, 0.05, 0.05), (0.05, 0.65, 0.10))
+        for cube, color in zip((self.scene.cube_1, self.scene.cube_2, self.scene.cube_3), cube_colors, strict=True):
+            semantic_tags = cube.spawn.semantic_tags
+            cube.spawn = ColoredCuboidCfg(
+                size=(0.04, 0.04, 0.04),
+                display_color=color,
+                rigid_props=UsdPhysicsRigidBodyCfg(),
+                collision_props=UsdPhysicsCollisionCfg(collision_enabled=True),
+                mass_props=sim_utils.MassCfg(mass=0.05),
+                physics_material=NewtonMaterialPropertiesCfg(
+                    static_friction=1.0,
+                    dynamic_friction=0.8,
+                    restitution=0.0,
+                    torsional_friction=0.002,
+                    rolling_friction=0.0001,
+                    # Reduce visible resting overlap in a three-cube tower.
+                    # Newton's 2.5 kN/m fallback shortens the 12 cm tower by
+                    # roughly 0.9 mm; these gains reduce that to about 0.25 mm.
+                    contact_stiffness=1.0e4,
+                    contact_damping=200.0,
+                ),
+                semantic_tags=semantic_tags,
+            )
+
+    def validate_config(self) -> None:
+        """Validate task-specific constraints beyond the shared configuration checks."""
+        physics = self.sim.physics
+        if not isinstance(physics, NewtonCfg) or not isinstance(physics.solver_cfg, MJWarpSolverCfg):
+            raise TypeError("Stack RL tasks require Newton MJWarp.")
+        if physics.solver_cfg.use_mujoco_contacts or physics.collision_decimation > physics.num_substeps:
+            raise ValueError("Stacking requires external contacts refreshed at least once per physics tick.")
+
+        arm = self.actions.arm_action
+        if not 0.0 < arm.scale <= arm.max_delta:
+            raise ValueError("Relative-action scale must be positive and cannot exceed max_delta.")
+        if len(arm.workspace_lower) != len(arm.workspace_upper) or not arm.workspace_lower:
+            raise ValueError("Arm workspace bounds must have equal, non-zero lengths.")
+        if any(
+            not math.isfinite(lower)
+            or not math.isfinite(upper)
+            or lower + arm.joint_limit_margin >= upper - arm.joint_limit_margin
+            for lower, upper in zip(arm.workspace_lower, arm.workspace_upper, strict=True)
+        ):
+            raise ValueError("Arm workspace bounds must be finite and wider than twice the joint-limit margin.")
+
+    def play_mode(self) -> None:
+        """Configure randomized table starts for policy evaluation."""
+        super().play_mode()
+        self.scene.env_spacing = 2.5
+        self.episode_length_s = 30.0
+        # Sample only from the randomized table partition. Avoid a brittle
+        # numeric row ID so evaluation follows cache-size changes.
+        self.events.reset_from_state_buffer.params["fixed_recipe"] = int(mdp.StackResetRecipe.TABLE)
+        if isinstance(self.actions.gripper_action, mdp.ResetBufferedGripperActionCfg):
+            self.actions.gripper_action.force_close_steps = 0
+        self.curriculum = None
