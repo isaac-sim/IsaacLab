@@ -39,9 +39,9 @@ from ..visualizers.image_view import ImageView
 from ..visualizers.visualizer_cfg import (
     PerspectiveCameraCfg,
     SceneCameraCfg,
+    TrackingCameraCfg,
     VisualizerCfg,
     migrate_visualizer_cfgs,
-    with_free_view,
 )
 from .utils import create_new_stage
 from .utils import stage as stage_utils
@@ -55,6 +55,27 @@ from .simulation_cfg import BackendCfg, SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
 
 logger = logging.getLogger(__name__)
+
+
+def _with_free_view(
+    cameras: list[PerspectiveCameraCfg | SceneCameraCfg],
+    eye: tuple[float, float, float],
+    lookat: tuple[float, float, float],
+    focal_length: float,
+) -> list[PerspectiveCameraCfg | SceneCameraCfg]:
+    """Return *cameras* with a free perspective view added when it has tracking cameras but no free view of its own.
+
+    A tracking camera follows a robot or frames an environment, so the interactive view that a user moves stays
+    available beside it, at the visualizer's own ``eye``, ``lookat`` and ``focal_length``. The free view goes
+    right before the first tracking camera, so scene cameras declared ahead of it stay first. This camera policy is
+    temporary here: the visualizers should resolve their own camera lists from ``VisualizerCfg.cameras``.
+    """
+    perspective = [camera for camera in cameras if isinstance(camera, PerspectiveCameraCfg)]
+    if perspective and all(isinstance(camera, TrackingCameraCfg) for camera in perspective):
+        free = PerspectiveCameraCfg(eye=eye, lookat=lookat, focal_length=focal_length)
+        first_tracking = next(i for i, camera in enumerate(cameras) if isinstance(camera, PerspectiveCameraCfg))
+        return [*cameras[:first_tracking], free, *cameras[first_tracking:]]
+    return cameras
 
 
 class SimulationContext:
@@ -432,7 +453,7 @@ class SimulationContext:
                         eye=visualizer.cfg.eye, lookat=visualizer.cfg.lookat, focal_length=visualizer.cfg.focal_length
                     )
                 ])  # fmt: skip
-            cameras = with_free_view(cameras, visualizer.cfg.eye, visualizer.cfg.lookat, visualizer.cfg.focal_length)
+            cameras = _with_free_view(cameras, visualizer.cfg.eye, visualizer.cfg.lookat, visualizer.cfg.focal_length)
             if visualizer.cfg.view is None and visualizer.cfg.streaming_view:
                 sensors = self._scene_data_provider.get_camera_sensors()
                 env_template = self._clone_plan.env_template if self._clone_plan is not None else DEFAULT_ENV_TEMPLATE

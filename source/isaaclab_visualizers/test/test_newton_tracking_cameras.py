@@ -91,7 +91,7 @@ def test_a_tracking_camera_points_the_viewer_without_changing_the_configured_pos
     camera = viz._viewer.camera
     assert (camera.pos.x, camera.pos.y, camera.pos.z) == (11.0, 2.0, 3.0)
     assert camera.target == (10.0, 0.0, 1.0)
-    assert camera.fov == pytest.approx(viz._focal_length_to_vertical_fov_degrees(24.0))
+    assert camera.fov == pytest.approx(35.34, abs=0.05)  # 2 * atan(15.2908 / (2 * 24)) for USD's default aperture
     assert viz.cfg.eye == (4.0, -4.0, 3.0) and viz.cfg.focal_length == 12.0
 
 

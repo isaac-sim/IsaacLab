@@ -32,26 +32,6 @@ VISUALIZER_ALIAS_OPTIONS = {"newton_rtx": {"initial_renderer": "rtx"}}
 """Backend options an alias in :data:`VISUALIZER_ALIASES` sets on the visualizer it selects."""
 
 
-def with_free_view(
-    cameras: list[PerspectiveCameraCfg | SceneCameraCfg],
-    eye: tuple[float, float, float],
-    lookat: tuple[float, float, float],
-    focal_length: float,
-) -> list[PerspectiveCameraCfg | SceneCameraCfg]:
-    """Return *cameras* with a free perspective view added when it has tracking cameras but no free view of its own.
-
-    A tracking camera follows a robot or frames an environment, so the interactive view that a user moves stays
-    available beside it, at the visualizer's own ``eye``, ``lookat`` and ``focal_length``. The free view goes
-    right before the first tracking camera, so scene cameras declared ahead of it stay first.
-    """
-    perspective = [camera for camera in cameras if isinstance(camera, PerspectiveCameraCfg)]
-    if perspective and all(isinstance(camera, TrackingCameraCfg) for camera in perspective):
-        free = PerspectiveCameraCfg(eye=eye, lookat=lookat, focal_length=focal_length)
-        first_tracking = next(i for i, camera in enumerate(cameras) if isinstance(camera, PerspectiveCameraCfg))
-        return [*cameras[:first_tracking], free, *cameras[first_tracking:]]
-    return cameras
-
-
 @configclass
 class PerspectiveCameraCfg:
     """Initial pose and optics for an interactive perspective camera.
@@ -254,7 +234,7 @@ class VisualizerCfg:
     PerspectiveCameraCfg configures the interactive view and may appear at most once, TrackingCameraCfg a view that
     frames an environment or follows an asset, and SceneCameraCfg refers to an existing scene sensor.
     Newton GL and RTX display the first source and offer a dropdown for switching sources. Newton GL adds a free
-    view in front of a leading TrackingCameraCfg (see ``with_free_view``) and shows that one first.
+    view in front of a leading TrackingCameraCfg and shows that one first.
     Kit, Rerun, and Viser display the first scene source in their camera panel.
     None uses eye/lookat/focal_length and the streaming settings below.
     Every explicit scene source must provide all requested streaming_gt_types channels.

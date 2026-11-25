@@ -109,7 +109,7 @@ class CameraFollower:
     def asset_names(self) -> list[str]:
         """Return the names of the scene assets the view can follow."""
         scene = self._scene
-        return [*getattr(scene, "articulations", {}), *getattr(scene, "rigid_objects", {})]
+        return [*scene.articulations, *scene.rigid_objects]
 
     def body_names(self, asset_name: str) -> list[str]:
         """Return the body names of the scene asset *asset_name*, or an empty list when it has none."""
