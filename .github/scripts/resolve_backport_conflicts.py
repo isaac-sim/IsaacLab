@@ -665,9 +665,14 @@ def _resolved_mode(metadata: dict[str, Any]) -> str:
 
 
 def _validate_repository_path(path: str) -> None:
-    """Reject absolute, empty, or parent-traversing Git paths."""
+    """Reject empty, absolute, non-canonical, parent-traversing, or Git-metadata paths."""
     pure_path = PurePosixPath(path)
-    if not path or pure_path.is_absolute() or any(part in {"", ".", ".."} for part in pure_path.parts):
+    if (
+        not path
+        or pure_path.is_absolute()
+        or pure_path.as_posix() != path
+        or any(part == ".." or part.casefold() == ".git" for part in pure_path.parts)
+    ):
         raise ConflictResolutionError(f"unsafe repository path: {path!r}")
 
 

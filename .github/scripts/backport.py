@@ -13,7 +13,7 @@ import json
 import re
 import subprocess
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 _AUTOMATION_PREFIX = ".github/"
 _BACKPORT_MARKER = "backport-active-release"
@@ -84,6 +84,11 @@ def validate_candidate(
     """
     source_paths = changed_paths(source_parent, source)
     kept_paths, extra_paths = _resolution_exceptions(resolution_report)
+    noncanonical_extra_paths = {path for path in extra_paths if PurePosixPath(path).as_posix() != path}
+    if noncanonical_extra_paths:
+        raise BackportValidationError(
+            "inferred extra edits must use canonical repository paths: " + _format_paths(noncanonical_extra_paths)
+        )
     automation_extra_paths = {path for path in extra_paths if path.startswith(_AUTOMATION_PREFIX)}
     if automation_extra_paths:
         raise BackportValidationError(
