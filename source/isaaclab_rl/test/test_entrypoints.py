@@ -512,17 +512,54 @@ def test_rlinf_rejects_pretrained_checkpoint() -> None:
         resolve_rlinf_checkpoint("pretrained", log_root_path="logs/rlinf", task="Isaac-Task", config_name="ppo")
 
 
-@pytest.mark.parametrize("backend", [train_rlinf, play_rlinf], ids=["train", "play"])
-def test_rlinf_launch_passes_checkpoint_and_model_config_to_workers(tmp_path: Path, monkeypatch, backend) -> None:
-    """Real CLI composition supplies the native RLinf weight/resume hooks before workers start."""
-    validate = mock.Mock(side_effect=RuntimeError("worker boundary"))
+@pytest.mark.parametrize(
+    "backend,boundary,with_context",
+    [
+        (train_rlinf, "validation", False),
+        (play_rlinf, "validation", False),
+        (train_rlinf, None, False),
+        (train_rlinf, None, True),
+        (train_rlinf, "training", True),
+    ],
+    ids=["train-validation", "play-validation", "train-no-context", "train-context", "train-context-error"],
+)
+def test_rlinf_launch_passes_checkpoint_and_model_config_to_workers(
+    tmp_path: Path, monkeypatch, backend, boundary, with_context
+) -> None:
+    """CLI composition preserves worker settings and cleans up a configured training context."""
+    validate = mock.Mock(side_effect=RuntimeError("worker boundary") if boundary == "validation" else lambda cfg: cfg)
+    events = []
+    runner = mock.Mock()
+    runner.init_workers.side_effect = lambda: events.append("initialize")
+
+    def run_training():
+        events.append("train")
+        if boundary == "training":
+            raise RuntimeError("training boundary")
+
+    runner.run.side_effect = run_training
+
+    @contextlib.contextmanager
+    def training_context(actual_runner, overrides):
+        assert actual_runner is runner
+        assert overrides == ["physics=newton_mjwarp", "env.scene.num_envs=2"]
+        events.append("enter")
+        try:
+            yield
+        finally:
+            events.append("exit")
+
+    context_module = types.ModuleType("_rlinf_context_test")
+    context_module.training_context = training_context
+    monkeypatch.setitem(sys.modules, context_module.__name__, context_module)
     modules = {
         "rlinf": {},
         "rlinf.config": {"validate_cfg": validate},
-        "rlinf.runners.embodied_runner": {"EmbodiedRunner": mock.Mock()},
+        "rlinf.runners.embodied_runner": {"EmbodiedRunner": mock.Mock(return_value=runner)},
         "rlinf.runners.embodied_eval_runner": {"EmbodiedEvalRunner": mock.Mock()},
         "rlinf.scheduler": {"Cluster": mock.Mock()},
         "rlinf.utils.placement": {"HybridComponentPlacement": mock.Mock()},
+        "rlinf.workers.actor.fsdp_actor_worker": {"EmbodiedFSDPActor": mock.Mock()},
         "rlinf.workers.env.env_worker": {"EnvWorker": mock.Mock()},
         "rlinf.workers.rollout.hf.huggingface_worker": {"MultiStepRolloutWorker": mock.Mock()},
     }
@@ -546,17 +583,25 @@ def test_rlinf_launch_passes_checkpoint_and_model_config_to_workers(tmp_path: Pa
     weights.touch()
     cfg = OmegaConf.create(
         {
-            "runner": {"logger": {"log_path": "unused"}},
+            "runner": {"logger": {"log_path": "unused"}, "max_epochs": 1},
+            "algorithm": {"loss_type": "actor_critic"},
+            "cluster": {},
             "actor": {
-                "model": {"model_path": "./base", "model_type": "gr00t", "rl_head_config": {"add_value_head": True}}
+                "group_name": "actor",
+                "model": {"model_path": "./base", "model_type": "gr00t", "rl_head_config": {"add_value_head": True}},
             },
-            "rollout": {"model": {"model_path": "./rollout", "rl_head_config": {"disable_dropout": True}}},
+            "rollout": {
+                "group_name": "rollout",
+                "model": {"model_path": "./rollout", "rl_head_config": {"disable_dropout": True}},
+            },
             "env": {
+                "group_name": "env",
                 "train": {
+                    "total_num_envs": 1,
                     "init_params": {
                         "id": "Test",
                         "env_overrides": ["physics=physx", "env.sim.physics.split=train", "env.scene.num_envs=8"],
-                    }
+                    },
                 },
                 "eval": {
                     "init_params": {
@@ -567,13 +612,21 @@ def test_rlinf_launch_passes_checkpoint_and_model_config_to_workers(tmp_path: Pa
             },
         }
     )
+    if with_context:
+        cfg.runner.isaaclab_context = "_rlinf_context_test:training_context"
     OmegaConf.save(cfg, tmp_path / "ppo.yaml")
     checkpoint = step_dir if backend is train_rlinf else weights
     args = ["--config_path", str(tmp_path), "--config_name", "ppo", "--task", "Test-Cosmos"]
     args += ["--checkpoint", str(checkpoint.relative_to(tmp_path))]
     args += ["physics=newton_mjwarp", "env.scene.num_envs=2"]
-    with pytest.raises(RuntimeError, match="worker boundary"):
+    if boundary:
+        message = "worker boundary" if boundary == "validation" else "training boundary"
+        with pytest.raises(RuntimeError, match=message):
+            backend.run(args)
+    else:
         backend.run(args)
+    expected_events = [] if boundary == "validation" else ["initialize", "train"]
+    assert events == (["enter", *expected_events, "exit"] if with_context else expected_events)
     GlobalHydra.instance().clear()
     assert os.environ["RAY_ENABLE_UV_RUN_RUNTIME_ENV"] == "0"
     resolved = validate.call_args.args[0]

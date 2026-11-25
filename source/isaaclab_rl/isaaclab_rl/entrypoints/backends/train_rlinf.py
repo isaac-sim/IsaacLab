@@ -66,7 +66,6 @@ def run(argv: list[str]) -> None:
     # rlinf reads RLINF_EXT_MODULE and RLINF_CONFIG_FILE at import time, so it is imported after the setup above
     import rlinf  # noqa: F401
     import torch.multiprocessing as mp
-    from gymnasium.envs.registration import load_env_creator, registry
     from hydra import compose, initialize_config_dir
     from hydra.core.global_hydra import GlobalHydra
     from omegaconf import OmegaConf, open_dict
@@ -76,6 +75,8 @@ def run(argv: list[str]) -> None:
     from rlinf.utils.placement import HybridComponentPlacement
     from rlinf.workers.env.env_worker import EnvWorker
     from rlinf.workers.rollout.hf.huggingface_worker import MultiStepRolloutWorker
+
+    from isaaclab.utils.string import string_to_callable
 
     mp.set_start_method("spawn", force=True)
 
@@ -168,10 +169,9 @@ def run(argv: list[str]) -> None:
     )
 
     runner = EmbodiedRunner(cfg=cfg, actor=actor_group, rollout=rollout_group, env=env_group)
-    spec = registry.get(task_id)
     context = nullcontext()
-    if spec and (entry_point := spec.kwargs.get("rlinf_runner_context")):
-        context = load_env_creator(entry_point)(runner, args_cli.env_overrides)
+    if entry_point := cfg.runner.get("isaaclab_context"):
+        context = string_to_callable(entry_point)(runner, args_cli.env_overrides)
     with context:
         runner.init_workers()
         runner.run()

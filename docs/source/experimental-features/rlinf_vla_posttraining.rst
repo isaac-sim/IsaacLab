@@ -210,11 +210,19 @@ the final train/eval image dimensions to match; incompatible dimensions raise an
 error when loading the policy. Random training crops and center evaluation crops
 may still differ while producing the same output dimensions.
 
-An external task may register ``rlinf_runner_context`` in its Gym specification
-kwargs as a ``module:callable`` string. The callable receives the RLinf runner
-and CLI environment overrides and returns a context manager around worker
-initialization and training. Tasks without this entry run as before. Keep
-service-specific behavior in the downstream task.
+A training recipe may set ``runner.isaaclab_context`` to a ``module:callable``
+string to manage optional services around worker initialization and training:
+
+.. code-block:: yaml
+
+   runner:
+     isaaclab_context: my_demo.training:service_context
+
+The callable receives the RLinf runner and CLI environment overrides and returns
+a context manager. Its cleanup runs after training, including on an exception.
+Recipes without this setting run as before. Keep service-specific behavior in the
+downstream task; the context is training configuration and is not passed to Gym
+environment constructors.
 
 
 Episode success metrics

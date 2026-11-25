@@ -1,1 +1,1 @@
-* Added a registered task context around RLinf worker initialization and training so external tasks can manage optional services.
+* Added an optional ``runner.isaaclab_context`` training recipe setting around RLinf worker initialization and training, without adding environment constructor parameters.
