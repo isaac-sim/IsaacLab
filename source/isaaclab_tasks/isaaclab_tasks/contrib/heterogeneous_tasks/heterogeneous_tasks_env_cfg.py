@@ -43,7 +43,7 @@ CAMERA_CFG = CameraCfg(
     height=252,
     data_types=["rgb"],
     update_period=0.0,
-    renderer_cfg=NewtonWarpRendererCfg(ambient_light_color=(1.0, 1.0, 1.0), default_light_color=(0.5, 0.5, 0.5)),
+    renderer_cfg=NewtonWarpRendererCfg(),
     spawn=sim_utils.PinholeCameraCfg(
         focal_length=2.1,
         focus_distance=28.0,
@@ -556,17 +556,12 @@ class TabletopSceneCfg(InteractiveSceneCfg):
     )
     dome_light = AssetBaseCfg(
         prim_path="/World/background",
-        spawn=sim_utils.DomeLightCfg(
-            intensity=500.0,
-            texture_file=f"{VLA_BENCHMARKS_ASSETS_DIR}/scene/home_office.exr",
-            texture_format="latlong",
-            visible_in_primary_ray=True,
-        ),
+        spawn=sim_utils.DomeLightCfg(intensity=1.0),
     )
-    sphere_light = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/sphere",
-        spawn=sim_utils.SphereLightCfg(intensity=5000.0, radius=0.5),
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, -0.6, 0.7)),
+    distant_light = AssetBaseCfg(
+        prim_path="/World/key_light",
+        spawn=sim_utils.DistantLightCfg(intensity=0.5),
+        init_state=AssetBaseCfg.InitialStateCfg(rot=(0.3250576, 0.3250576, 0.0, 0.8880738)),
     )
     # The exterior view of the DROID setup: over the robot's left shoulder, looking at the workspace.
     over_shoulder_left_camera = CAMERA_CFG.replace(

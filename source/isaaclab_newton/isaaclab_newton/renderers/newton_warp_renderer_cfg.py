@@ -68,13 +68,7 @@ class NewtonWarpRendererCfg(RendererCfg):
     """
 
     create_default_light: bool = True
-    """Create a default directional light source in the scene."""
-
-    ambient_light_color: tuple[float, float, float] | None = None
-    """Uniform linear RGB ambient radiance, or ``None`` to retain Newton's hemispheric defaults."""
-
-    default_light_color: tuple[float, float, float] | None = None
-    """Linear RGB radiance of the default directional light, or ``None`` for Newton's default."""
+    """Create a fallback directional light when the scene has no authored lights."""
 
     semantic_filter: str | list[str] = "*:*"
     """A string or list specifying a semantic filter predicate for :attr:`semantic_segmentation` and

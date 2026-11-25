@@ -38,7 +38,12 @@ from isaaclab_newton.cloner.newton_clone_utils import (
     replicate_builder_mapping,
 )
 from isaaclab_newton.physics import NewtonBuilderCfg, NewtonCfg, NewtonCloneRecord
-from isaaclab_newton.physics.newton_builder import create_builder, inject_terrain_heightfields, usd_schema_resolvers
+from isaaclab_newton.physics.newton_builder import (
+    create_builder,
+    import_builder_lights,
+    inject_terrain_heightfields,
+    usd_schema_resolvers,
+)
 from isaaclab_newton.sim.spawners.mpm.mpm import _SIMULATION_POINTS_SUFFIX
 
 _PER_WORLD_BUILDER_HOOKS: list[Callable[[ModelBuilder, int, np.ndarray, np.ndarray], None]] = []
@@ -335,6 +340,8 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
     local_site_map, world_xforms = replicate_builder_mapping(
         builder, plan, positions, quaternions, source_builders, source_inverse=source_inverse, **options
     )
+    if load_visual_shapes:
+        import_builder_lights(builder, stage, global_paths=global_paths, source_paths=source_paths)
     site_index_map = {label: (idx, None) for label, idx in global_sites.items()}
     site_index_map.update((label, (None, per_world)) for label, per_world in local_site_map.items())
     if newton_physics:

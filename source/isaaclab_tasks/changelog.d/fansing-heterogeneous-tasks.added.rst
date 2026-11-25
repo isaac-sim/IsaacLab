@@ -12,6 +12,7 @@
   instructions only where evaluable: the object fits its target and the gripper. Instructions name objects in
   plain words without asset codes, the bowls by their color, and stand for every object and target of the names
   they use. A placement counts when the target carries the released object at rest.
+  Scene-authored dome and distant lights supply Newton camera illumination through builder translation.
   Camera and object collection constants compose directly through config copies and replacements, without
   config factories or post-init scene generation. The robot preserves its original home pose, arm impedance and
   disabled self-collisions, preventing internal collision hulls from deforming the open Robotiq linkage.
