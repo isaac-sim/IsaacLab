@@ -42,6 +42,8 @@ class randomize_rigid_body_material(ManagerTermBase):
             cfg: Event configuration.
             env: Environment owning this term.
         """
+        if cfg.params.get("contact_stiffness_range") is not None or cfg.params.get("contact_damping_range") is not None:
+            raise NotImplementedError("OVPhysX does not expose runtime contact stiffness/damping material bindings.")
         super().__init__(cfg, env)
         asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         asset: RigidObject | Articulation = env.scene[asset_cfg.name]
@@ -316,7 +318,7 @@ class randomize_physics_scene_gravity(_GravityRandomization):
             env: Environment owning this term.
         """
         super().__init__(cfg, env, device="cpu")
-        self._manager = env.sim.physics_manager
+        self._manager = env.sim.backend_manager
 
     def __call__(
         self,

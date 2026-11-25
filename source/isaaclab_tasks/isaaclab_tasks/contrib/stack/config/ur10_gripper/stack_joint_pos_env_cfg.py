@@ -3,13 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_physx.assets import SurfaceGripperCfg
-from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
+from isaaclab_isaacsim.assets import SurfaceGripperCfg
+from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
 
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.envs.mdp.actions.actions_cfg import SurfaceGripperBinaryActionCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
@@ -23,6 +24,7 @@ from isaaclab_tasks.contrib.stack.stack_env_cfg import (
     raise_if_surface_gripper_on_gpu,
     raise_if_surface_gripper_on_newton,
 )
+from isaaclab_tasks.utils import preset
 
 from isaaclab_assets.robots.universal_robots import (  # isort: skip
     UR10_LONG_SUCTION_CFG,
@@ -96,6 +98,12 @@ class UR10CubeStackEnvCfg(StackEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
+        # SurfaceGripper still uses Isaac Sim's GripperView.
+        self.sim.physics = preset(
+            default=self.sim.physics.isaacsim_physx,
+            isaacsim_physx=self.sim.physics.isaacsim_physx,
+            physx=PhysxAutoCfg(isaacsim_physx=self.sim.physics.isaacsim_physx),
+        )
 
         # Set events
         self.events = EventCfgLongSuction()

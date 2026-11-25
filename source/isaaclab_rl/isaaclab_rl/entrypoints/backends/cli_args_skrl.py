@@ -21,7 +21,7 @@ def add_skrl_args(parser: argparse.ArgumentParser) -> None:
         "--ml_framework",
         type=str,
         default="torch",
-        choices=["torch", "jax"],
+        choices=["torch", "jax", "warp"],
         help="The ML framework used for training the skrl agent.",
     )
     arg_group.add_argument(

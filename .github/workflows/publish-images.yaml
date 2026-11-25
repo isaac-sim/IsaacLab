@@ -6,15 +6,14 @@
 name: Publish Docker Images
 
 on:
-  # Nightly build + publish from develop and release/3.0.0. No push triggers — workflow_dispatch
-  # also accepts any publishable branch. main is intentionally excluded: main images are built
-  # by postmerge-ci.yml on push instead.
+  # Nightly build + publish from the default branch and release/3.0.0. No push
+  # triggers — workflow_dispatch also accepts any publishable branch.
   schedule:
     - cron: '0 2 * * *'  # 6pm PST / 7pm PDT
   workflow_dispatch:
     inputs:
       branch:
-        description: 'Branch to build and publish (e.g. develop, release/3.0.0)'
+        description: 'Branch to build and publish (e.g. main, release/3.0.0)'
         required: true
         type: string
 
@@ -23,11 +22,10 @@ permissions:
 
 # Branches the nightly cron publishes. Single source of truth — include only
 # active branches that receive new commits. Mirrors CRON_BRANCHES in
-# nightly-changelog.yml. Whitespace per entry is stripped. main is excluded on
-# purpose (it builds on the public isaac-sim base via postmerge-ci.yml).
+# nightly-changelog.yml. Whitespace per entry is stripped.
 env:
   NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
-  CRON_BRANCHES: develop,release/3.0.0
+  CRON_BRANCHES: ${{ github.event.repository.default_branch }},release/3.0.0
 
 jobs:
   resolve-branches:
@@ -170,12 +168,12 @@ jobs:
         echo "IsaacSim base image: ${{ steps.config.outputs.isaacsim_image_name }}:$IMAGE_BASE_VERSION"
         echo "Target Isaac Lab image: $IMAGE"
 
-        # Build the tag list for the branch (main is published separately via
-        # postmerge-ci.yml, so it is not handled here).
+        # Build the tag list for the branch.
         #
         # Tagging scheme:
-        #   - develop:    $IMAGE:latest-develop               (moves to newest develop build)
-        #                 $IMAGE:latest-develop-<full-sha>    (immutable per-commit)
+        #   - default:    $IMAGE:latest-<branch>               (moves to newest default-branch build)
+        #                 $IMAGE:latest-<branch>-<full-sha>    (immutable per-commit)
+        #                 $IMAGE:latest-develop                (temporary compatibility tag on main)
         #   - release/X:  $IMAGE:latest-release-X             (moves to newest build on that release branch)
         #                 $IMAGE:latest-release-X-<full-sha>  (immutable per-commit)
         #
@@ -184,22 +182,21 @@ jobs:
         # publish, so the nightly build is skipped (see the guard below).
         MOVING_TAG=""
         IMMUTABLE_TAG=""
+        LEGACY_MOVING_TAG=""
 
         case "$BRANCH_NAME" in
-          develop)
-            MOVING_TAG="$IMAGE:latest-develop$SUFFIX"
-            IMMUTABLE_TAG="$IMAGE:latest-develop-$FULL_SHA$SUFFIX"
+          main|develop)
+            MOVING_TAG="$IMAGE:latest-$BRANCH_NAME$SUFFIX"
+            IMMUTABLE_TAG="$IMAGE:latest-$BRANCH_NAME-$FULL_SHA$SUFFIX"
+            if [ "$BRANCH_NAME" = "main" ]; then
+              LEGACY_MOVING_TAG="$IMAGE:latest-develop$SUFFIX"
+            fi
             ;;
           release/*)
             # Sanitize the part after release/ for use as a Docker tag suffix.
             RELEASE_SUFFIX=$(echo "${BRANCH_NAME#release/}" | sed 's/[^a-zA-Z0-9._-]/-/g')
             MOVING_TAG="$IMAGE:latest-release-$RELEASE_SUFFIX$SUFFIX"
             IMMUTABLE_TAG="$IMAGE:latest-release-$RELEASE_SUFFIX-$FULL_SHA$SUFFIX"
-            ;;
-          main)
-            # main is intentionally not published here; see postmerge-ci.yml for main.
-            echo "Branch 'main' is not published by this workflow; skipping. See postmerge-ci.yml for main."
-            exit 0
             ;;
           *)
             echo "Branch '$BRANCH_NAME' is not configured for publishing; skipping."
@@ -216,6 +213,9 @@ jobs:
         fi
 
         TAGS=("$MOVING_TAG" "$IMMUTABLE_TAG")
+        if [ -n "$LEGACY_MOVING_TAG" ]; then
+          TAGS+=("$LEGACY_MOVING_TAG")
+        fi
 
         EXPLICIT_PLATFORMS="${{ matrix.image.platforms }}"
 

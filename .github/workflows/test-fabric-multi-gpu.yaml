@@ -6,7 +6,7 @@
 # FabricFrameView multi-GPU unit tests
 #
 # Runs the cuda:1-parameterized unit tests in
-# source/isaaclab_physx/test/sim/test_views_xform_prim_fabric.py on the
+# source/isaaclab_isaacsim/test/sim/test_views_xform_prim_fabric.py on the
 # dedicated multi-GPU runner.  Kept separate from test-multi-gpu.yaml so
 # changes to FabricFrameView do not gate distributed-training validation and
 # vice versa.  Runner preconditions (label, install step, GPU pre-flight) are
@@ -22,8 +22,8 @@ name: FabricFrameView Multi-GPU Tests
 # on:
 #   pull_request:
 #     paths:
-#       - "source/isaaclab_physx/isaaclab_physx/sim/views/fabric_frame_view.py"
-#       - "source/isaaclab_physx/test/sim/test_views_xform_prim_fabric.py"
+#       - "source/isaaclab_isaacsim/isaaclab_isaacsim/sim/views/fabric_frame_view.py"
+#       - "source/isaaclab_isaacsim/test/sim/test_views_xform_prim_fabric.py"
 #       - ".github/workflows/test-fabric-multi-gpu.yaml"
 #   workflow_dispatch:
 on:
@@ -71,4 +71,4 @@ jobs:
           ISAACLAB_TEST_MULTI_GPU: "1"
         run: |
           uv run --no-sync isaaclab -p -m pytest \
-            source/isaaclab_physx/test/sim/test_views_xform_prim_fabric.py -v
+            source/isaaclab_isaacsim/test/sim/test_views_xform_prim_fabric.py -v

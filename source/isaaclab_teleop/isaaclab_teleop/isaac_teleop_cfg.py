@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import MISSING, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from isaaclab.utils import configclass
 
@@ -37,6 +37,8 @@ no client connected, working around ``XR_ERROR_FORM_FACTOR_UNAVAILABLE`` (``-35`
 if TYPE_CHECKING:
     from isaacteleop.retargeting_engine.interface import BaseRetargeter, OutputCombiner
     from isaacteleop.teleop_session_manager import PluginConfig, RetargetingExecutionConfig
+
+    from isaaclab.envs import ManagerBasedRLEnvCfg
 
 
 @configclass
@@ -234,7 +236,9 @@ class IsaacTeleopCfg:
     it is not installed). When ``None``, Isaac Lab resolves it at session start to
     Isaac Capture's pipelined, deadline-paced default
     (``RetargetingExecutionConfig(mode="pipelined", pacing=DeadlinePacingConfig(safety_margin_s=0.025))``),
-    where ``isaacteleop`` is guaranteed to be available. Set this explicitly to
+    where ``isaacteleop`` is guaranteed to be available. An MCAP replay without Kit resolves it to
+    ``RetargetingExecutionConfig(mode="sync")`` instead, so that every step consumes exactly the next
+    recorded frame. Set this explicitly to
     ``RetargetingExecutionConfig(mode="sync")`` for exact current-frame
     retargeting while debugging or comparing behavior.
     """
@@ -284,22 +288,70 @@ class IsaacTeleopCfg:
     """Optional USD prim path whose world frame becomes the target coordinate
     frame for all output poses.
 
-    When set, the device automatically reads this prim's world transform each
-    frame and uses its inverse as the ``target_T_world`` rebase matrix in
+    The prim must exist when entering the device context. Its Fabric attribute is bound
+    once at that point; a missing prim raises :class:`ValueError` before the session starts.
+    Each frame reads its current world transform and uses its inverse as the
+    ``target_T_world`` rebase matrix in
     :meth:`~isaaclab_teleop.IsaacTeleopDevice.advance`.  An explicit
     ``target_T_world`` argument to :meth:`~isaaclab_teleop.IsaacTeleopDevice.advance`
     takes precedence over this config.
 
     Typical usage: set to the robot base link prim path so that an IK
     controller receives end-effector poses in the robot's base frame.
+    :func:`create_isaac_teleop_device` expands ``{ENV_REGEX_NS}`` when given an ``env_prim_path``.
 
     Example::
 
         IsaacTeleopCfg(
-            target_frame_prim_path="/World/envs/env_0/Robot/base_link",
+            target_frame_prim_path="{ENV_REGEX_NS}/Robot/base_link",
             ...
         )
     """
 
     app_name: str = "IsaacLabTeleop"
     """Application name for the Isaac Capture session."""
+
+    require_initial_bimanual_hand_tracking: bool = False
+    """Wait for both hands to be present before the first environment step.
+
+    An environment or device reset clears the initialization latch. Later
+    tracking loss follows the configured retargeting pipeline's behavior.
+    """
+    prepare_environment: Callable[[ManagerBasedRLEnvCfg], None] | None = None
+    """Optional task-owned preparation of the resolved environment configuration.
+
+    The teleoperation launchers (live, replay and recording) call this once, after launcher
+    validation and before creating any simulation resources, including the OVXR bootstrap. The hook may rely
+    on resolved presets and on the validated runtime selections, such as the physics
+    and renderer backends, and must not change them. A task's environment entry point
+    may apply the same preparation again, so it must be idempotent. Keep this
+    callable's imports safe before simulator startup.
+
+    .. note::
+
+        This hook is experimental and may change or be removed in a future release, for example once
+        tasks declare their backend-specific settings through presets.
+    """
+    action_conditioner: Callable[[Any, Any, dict[str, Any]], Any] | None = None
+    """Optional task-owned pre-step action conditioner.
+
+    The callable receives ``(env, action, state)``. The launcher retains the
+    state dictionary across active frames and clears it on pause or reset.
+    State updates from a frame that fails validation after conditioning are discarded.
+
+    .. note::
+
+        This hook is experimental and may change or be removed in a future release, for example once
+        the task's action term conditions its own targets.
+    """
+    action_validator: Callable[[Any], str | None] | None = None
+    """Optional task-owned fail-closed action validator.
+
+    Return ``None`` for a valid action or a concise reason to render without a
+    physics step. Validation runs both before and after conditioning.
+
+    .. note::
+
+        This hook is experimental and may change or be removed in a future release, for example once
+        the task's action term validates its own targets.
+    """

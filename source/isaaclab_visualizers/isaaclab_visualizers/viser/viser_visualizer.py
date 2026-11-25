@@ -23,13 +23,13 @@ from newton.viewer import ViewerViser
 
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sim import SimulationContext
+from isaaclab.visualizers import VisualizerCfg
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg
 
+from isaaclab_visualizers.lidar_points import frame_visualizer_closeup, sync_lidar_hits
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
 from isaaclab_visualizers.newton_adapter import log_geo_with_expanded_plane_scale
-
-from .viser_visualizer_cfg import ViserVisualizerCfg
 
 logger = logging.getLogger(__name__)
 
@@ -278,18 +278,18 @@ class NewtonViewerViser(ViewerViser):
 class ViserVisualizer(BaseVisualizer):
     """Viser web-based visualizer backed by Newton's ViewerViser."""
 
-    def __init__(self, cfg: ViserVisualizerCfg):
+    def __init__(self, cfg: VisualizerCfg):
         """Initialize Viser visualizer state.
 
         Args:
             cfg: Viser visualizer configuration.
         """
         super().__init__(cfg)
-        self.cfg: ViserVisualizerCfg = cfg
         self._viewer: NewtonViewerViser | None = None
         self.backend = None
         self._pending_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self._warned_marker_render_failure = False
+        self._logged_lidar_names: list[str] = []
         self._paused_rendering = False
         self._paused_simulation = False
 
@@ -312,27 +312,30 @@ class ViserVisualizer(BaseVisualizer):
         self._transform_mapping = scene_data_provider.create_mapping(list(self.backend.model.body_label))
 
         self._viewer = NewtonViewerViser(
-            port=self.cfg.port,
-            bind_address=self.cfg.bind_address,
+            port=self.cfg.backend.port,
+            bind_address=self.cfg.backend.bind_address,
             label="Isaac Lab",
             verbose=False,
-            share=self.cfg.share,
-            record_to_viser=self.cfg.record_to_viser,
+            share=self.cfg.backend.share,
+            record_to_viser=self.cfg.backend.record_to_viser,
         )
         self._viewer._server.gui.add_markdown(f"Physics: {_BACKEND_DISPLAY_NAMES[self.physics_backend]}")
-        viewer_url = self._viewer._share_url or f"http://{self.cfg.display_address}:{self.cfg.port}"
-        if self.cfg.verbose:
+        viewer_url = self._viewer._share_url or f"http://{self.cfg.backend.display_address}:{self.cfg.backend.port}"
+        if self.cfg.backend.verbose:
             print()
             self._log_viewer_url("ViserVisualizer", viewer_url)
         self._viewer.set_model(self.backend.model)
-        self._viewer.show_particles = self.cfg.show_particles
+        self._geometry_change_version = self.backend.geometry_change_version
+        self._viewer.show_particles = self.cfg.backend.show_particles
+        self._viewer.show_lidar_hits = self.cfg.backend.show_lidar_hits
         # set_model() clears model-dependent GUI elements; build the sidebar afterwards.
         self._setup_isaaclab_sidebar(self._viewer._server)
         self._viewer.set_visible_worlds(self._env_ids)
         # Preserve simulation world positions rather than adding viewer-side offsets.
         self._viewer.set_world_offsets((0.0, 0.0, 0.0))
-        if self.cfg.open_browser:
+        if self.cfg.backend.open_browser:
             webbrowser.open_new_tab(viewer_url)
+        frame_visualizer_closeup(self, cameras)
         self.set_camera_view(self.cfg.eye, self.cfg.lookat)
         self._viewer.marker_groups = sim.vis_marker_registry.get_groups().values()
         num_visualized_envs = len(self._env_ids) if self._env_ids is not None else num_envs
@@ -344,10 +347,10 @@ class ViserVisualizer(BaseVisualizer):
                 ("lookat", self.cfg.lookat),
                 ("focal_length", self.cfg.focal_length),
                 ("num_visualized_envs", num_visualized_envs),
-                ("bind_address", self.cfg.bind_address),
-                ("display_address", self.cfg.display_address),
-                ("port", self.cfg.port),
-                ("record_to_viser", self.cfg.record_to_viser or "<none>"),
+                ("bind_address", self.cfg.backend.bind_address),
+                ("display_address", self.cfg.backend.display_address),
+                ("port", self.cfg.backend.port),
+                ("record_to_viser", self.cfg.backend.record_to_viser or "<none>"),
             ],
         )
         self._is_initialized = True
@@ -390,9 +393,13 @@ class ViserVisualizer(BaseVisualizer):
                     backend.state_0.body_q = poses.transforms
                 if backend.geometry_offsets:
                     provider.get_geometry_points(output=backend.state_0.particle_q, offsets=backend.geometry_offsets)
+                if self._geometry_change_version != backend.geometry_change_version:
+                    self._viewer.notify_model_changed(newton.ModelFlags.SHAPE_TYPE_AND_SOURCE)
+                    self._geometry_change_version = backend.geometry_change_version
                 self._viewer.log_state(self.backend.state_0)
                 if self.cfg.enable_markers:
                     self._render_markers(self.backend.model.num_envs)
+                self._log_lidar_hits()
             self._render_live_plots()
             self._push_streaming_frame()
         finally:
@@ -410,6 +417,14 @@ class ViserVisualizer(BaseVisualizer):
         # Letterbox to 16:9 so the composite isn't stretched when Viser fills
         # the browser canvas.  Black bars are added on whichever axis needs it.
         self._viewer._server.scene.set_background_image(_letterbox_16_9(composite), format="jpeg")
+
+    def _log_lidar_hits(self) -> None:
+        """Log lidar hits into the Viser scene when the overlay is enabled."""
+        if self._viewer is None:
+            return
+        self._logged_lidar_names = sync_lidar_hits(
+            self._sim, self._env_ids, self._viewer, self._viewer.show_lidar_hits, self._logged_lidar_names
+        )
 
     def _render_markers(self, num_envs: int) -> None:
         """Render marker overlays without letting them interrupt Viser body updates."""
@@ -433,6 +448,7 @@ class ViserVisualizer(BaseVisualizer):
         self.backend = backend
         self._transform_mapping = self._sim.get_scene_data_provider().create_mapping(list(backend.model.body_label))
         self._viewer.set_model(backend.model)
+        self._geometry_change_version = backend.geometry_change_version
         self._setup_isaaclab_sidebar(self._viewer._server)
         self._viewer.set_visible_worlds(self._env_ids)
         self._viewer.set_world_offsets((0.0, 0.0, 0.0))
@@ -443,12 +459,14 @@ class ViserVisualizer(BaseVisualizer):
             return
         try:
             self._viewer.close()
-            if self.cfg.record_to_viser:
-                if os.path.exists(self.cfg.record_to_viser):
-                    size = os.path.getsize(self.cfg.record_to_viser)
-                    logger.info("[ViserVisualizer] Recording saved: %s (%s bytes)", self.cfg.record_to_viser, size)
+            if self.cfg.backend.record_to_viser:
+                if os.path.exists(self.cfg.backend.record_to_viser):
+                    size = os.path.getsize(self.cfg.backend.record_to_viser)
+                    logger.info(
+                        "[ViserVisualizer] Recording saved: %s (%s bytes)", self.cfg.backend.record_to_viser, size
+                    )
                 else:
-                    logger.warning("[ViserVisualizer] Recording file not found: %s", self.cfg.record_to_viser)
+                    logger.warning("[ViserVisualizer] Recording file not found: %s", self.cfg.backend.record_to_viser)
         except Exception as exc:
             logger.warning("[ViserVisualizer] Error during close: %s", exc)
 
@@ -548,6 +566,7 @@ class ViserVisualizer(BaseVisualizer):
                 ("Springs", "show_springs"),
                 ("Cloth", "show_triangles"),
                 ("Inertia Boxes", "show_inertia_boxes"),
+                ("Lidar Hits", "show_lidar_hits"),
             ]
             with vis_folder:
                 for label, attr in _VIZ_FLAGS:

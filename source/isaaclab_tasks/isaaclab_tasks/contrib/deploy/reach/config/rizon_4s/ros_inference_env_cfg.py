@@ -11,10 +11,7 @@ from .joint_pos_env_cfg import Rizon4sReachEnvCfg
 
 @configclass
 class Rizon4sReachROSInferenceEnvCfg(Rizon4sReachEnvCfg):
-    """ROS / Isaac Manipulator inference fields plus deployment alignment for NVIDIA Hubble Lab.
-
-    The Hubble-specific block in this config matches how the Flexiv Rizon 4s is mounted there.
-    """
+    """ROS / Isaac Manipulator inference fields for the Flexiv Rizon 4s reach task."""
 
     def __post_init__(self):
         # post init of parent

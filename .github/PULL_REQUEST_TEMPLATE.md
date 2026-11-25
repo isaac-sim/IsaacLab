@@ -28,7 +28,7 @@ is demanded by more than one party. -->
 
 ## Release backport
 
-- [ ] <!-- backport-active-release --> Backport this pull request to the active release branch after it merges into `develop`
+- [ ] <!-- backport-active-release --> Backport this pull request to the active release branch after it merges into `main`
 
 ## Screenshots
 
@@ -47,13 +47,14 @@ To upload images to a PR -- simply drag and drop an image while in edit mode and
 ## Checklist
 
 Docker and GPU tests run on demand. Push the commits you want tested, then
-comment `run-ci` on the pull request.
+comment `run-ci` on the pull request, or `run-ci ovstage` to include kitless OVStage rendering tests for that run.
+Subsequent pushes and plain `run-ci` comments do not run OVStage tests unless you comment `run-ci ovstage` again.
 
 - [ ] I have read and understood the [contribution guidelines](https://isaac-sim.github.io/IsaacLab/main/source/refs/contributing.html)
 - [ ] I have run the [`pre-commit` checks](https://pre-commit.com/) with `uv run isaaclab --format`
 - [ ] I have made corresponding changes to the documentation
 - [ ] My changes generate no new warnings
-- [ ] I have validated the changed behavior with focused coverage and applied the [test-audit criteria](https://github.com/isaac-sim/IsaacLab/blob/develop/skills/developer/test-audit/SKILL.md) to any test changes
+- [ ] I have validated the changed behavior with focused coverage and applied the [test-audit criteria](https://github.com/isaac-sim/IsaacLab/blob/HEAD/skills/developer/test-audit/SKILL.md) to any test changes
 - [ ] I have added a changelog fragment under `source/<pkg>/changelog.d/` for every touched package (do **not** edit `CHANGELOG.rst` or bump package versions — CI handles that)
 - [ ] I have added my name to the `CONTRIBUTORS.md` or my name already exists there
 

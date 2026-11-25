@@ -44,7 +44,7 @@ def test_training_request_builds_complete_cli() -> None:
         success_threshold=0.8,
         success_window=5,
         measure_synchronized_step_breakdown=True,
-        presets=("newton_mjwarp", "newton_renderer"),
+        presets=("newton_mjwarp", "newton_warp"),
         backend_args=("--resume",),
         hydra_args=("env.scene.num_envs=32",),
         output=BenchmarkOutputConfig(path=Path("/tmp/results"), formatters=("schema", "summary")),
@@ -100,7 +100,7 @@ def test_training_request_builds_complete_cli() -> None:
         "3.0",
         "--kit_args=--ext-folder=/tmp/extensions",
         "--resume",
-        "presets=newton_mjwarp,newton_renderer",
+        "presets=newton_mjwarp,newton_warp",
         "env.scene.num_envs=32",
     ]
 

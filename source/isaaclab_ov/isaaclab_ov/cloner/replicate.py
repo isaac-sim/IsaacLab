@@ -3,12 +3,16 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""OvPhysX clone-context dispatch from the active clone plan."""
+"""OV clone-context dispatch and native replication operations."""
 
 from __future__ import annotations
 
 import logging
+import math
+import os
+import re
 from collections.abc import Iterable, Sequence
+from functools import cache, partial
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -16,13 +20,19 @@ import numpy as np
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab import cloner
-from isaaclab.physics import PhysicsManager
 
 from isaaclab_ov._clone import CloneRecipe
+from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg, OVRTXRendererCfg
+from isaaclab_ov.stage import OvstageBackend, OvstageBackendCfg
+from isaaclab_ov.stage import ovstage_replicate as ovstage_replicate
 
 if TYPE_CHECKING:
+    import ovrtx
+
     from isaaclab.cloner import ClonePlan
     from isaaclab.sim import SimulationContext
+
+    from isaaclab_ov.renderers.ovrtx_renderer import OVRTXBackend
 
 
 logger = logging.getLogger(__name__)
@@ -119,19 +129,8 @@ def _clone_recipes(
     return recipes
 
 
-class OvPhysxReplicateContext:
+class OvPhysxReplicateContext(cloner.ReplicateContext):
     """Apply one clone plan to an OvPhysX simulation."""
-
-    replicate_priority = 0
-
-    def __init__(self, sim_context: SimulationContext):
-        """Initialize the context.
-
-        Args:
-            sim_context: Simulation context that owns this clone backend.
-        """
-        self._sim = sim_context
-        self.stage = sim_context.stage
 
     def replicate(self, plan: ClonePlan, asset_prototype_ids: tuple[int, ...]) -> None:
         """Publish clone operations from this context's source declarations.
@@ -155,8 +154,183 @@ class OvPhysxReplicateContext:
                 if (asset := plan.topology.world_prototypes[index]) in asset_prototype_ids:
                     copies.append(((sources[asset], templates[index]), targets))
         env_ids = np.arange(len(plan.topology.world_prototype_layout))
-        recipes = _clone_recipes(self.stage, copies, env_ids, plan.positions, None)
-        self._sim.physics_manager._clone_recipes.extend(recipes)
+        recipes = _clone_recipes(self._sim.stage, copies, env_ids, plan.positions, None)
+        self._sim.backend_manager._clone_recipes.extend(recipes)
+
+
+class OvrtxReplicateContext(cloner.ReplicateContext):
+    """Prepare routed copies for OVRTX engines that own their scene internally."""
+
+    replicate_priority = 100
+
+    @staticmethod
+    def prepare(sim: SimulationContext, routing: dict[type[cloner.ReplicateContext], set[int]]) -> None:
+        """Resolve OVRTX's clone route and acquire resources before replication begins.
+
+        Select runtime settings here without importing renderer implementations.
+
+        Args:
+            sim: Simulation that owns the configured consumers and native resources.
+            routing: Asset routes to merge when physics and rendering share one stage.
+        """
+        renderers = sim.get_backends(OVRTXRendererCfg)
+        if not renderers:
+            return
+        initialized = next((renderer for renderer in renderers if renderer.backend is not None), None)
+        if initialized is not None:
+            use_ovstage = initialized._use_ovstage
+            share_ovstage = initialized.backend.cfg.scene_key is None
+        else:
+            # Default to native OVRTX cloning to preserve camera-task throughput on both physics backends.
+            # Keep sharing opt-in until OVPhysX cold binding and shared-stage update performance are fixed.
+            with_ovphysx = sim.backend_manager.clone_context_type is OvPhysxReplicateContext
+            value = os.environ.get("ISAAC_LAB_OVRTX_USE_OVSTAGE", "0").strip()
+            if value not in {"0", "1"}:
+                raise ValueError(f"Invalid ISAAC_LAB_OVRTX_USE_OVSTAGE: {value!r}. Expected 0 or 1.")
+            share_ovstage = os.environ.get("ISAAC_LAB_SHARE_OVSTAGE") == "1"
+            use_ovstage = share_ovstage or value == "1"
+            if share_ovstage and not with_ovphysx:
+                raise ValueError("Shared OVStage cloning requires OVPhysX.")
+        if share_ovstage and sim.backend_manager.backend is not None and sim.backend_manager.backend.owns_scene:
+            raise RuntimeError("Configure OVRTX cameras before the first OVPhysX reset to share its OVStage.")
+        if use_ovstage:
+            if share_ovstage:
+                # Keep the physics route so the existing planner builds native clone recipes.
+                routing.setdefault(OvstageReplicateContext, set()).update(routing.get(OvPhysxReplicateContext, ()))
+            routing.setdefault(OvstageReplicateContext, set()).update(routing.pop(OvrtxReplicateContext, ()))
+            sim.clone_contexts.pop(OvrtxReplicateContext, None)
+
+        # Stage ownership is settled before native construction. Register the stage before its borrowers.
+        for renderer in renderers:
+            if renderer.backend is not None:
+                continue
+            read_gpu_transforms = os.environ.get("ISAAC_LAB_OVRTX_READ_GPU_TRANSFORMS", "1").strip()
+            if read_gpu_transforms not in {"0", "1"}:
+                raise ValueError(
+                    f"Invalid ISAAC_LAB_OVRTX_READ_GPU_TRANSFORMS: {read_gpu_transforms!r}. Expected 0 or 1."
+                )
+            backend_cfg = OVRTXBackendCfg(
+                scene_key=None if share_ovstage else renderer.cfg,
+                log_file_path=renderer.cfg.log_file_path,
+                log_level=renderer.cfg.log_level,
+                use_ovstage=use_ovstage,
+                read_gpu_transforms=read_gpu_transforms == "1",
+                motion_bvh=renderer.cfg.motion_bvh,
+                device=sim.device,
+            )
+            if share_ovstage and any(other.cfg != backend_cfg for other in sim.get_backends(OVRTXBackendCfg)):
+                raise ValueError(
+                    "A shared OVStage requires one OVRTX engine; use the same native logging/transform settings."
+                )
+            scene = None
+            if use_ovstage:
+                scene = sim.get_or_create_backend(
+                    OvstageBackendCfg(
+                        scene_key=None if share_ovstage else backend_cfg,
+                        populate_physics=share_ovstage,
+                        defer_render_copies=share_ovstage,
+                    )
+                )
+            renderer.backend = sim.get_or_create_backend(backend_cfg)
+            renderer.scene = scene if use_ovstage else renderer.backend
+            renderer._use_ovstage = use_ovstage
+            if renderer.cfg.async_rendering and use_ovstage:
+                logger.warning("Asynchronous OVRTX rendering is unsupported with ovstage; rendering synchronously.")
+
+    def replicate(self, plan: ClonePlan, asset_prototype_ids: tuple[int, ...]) -> None:
+        """Publish routed copies, environment paths and positions to native OVRTX scene owners.
+
+        Engines borrowing an OVStage receive their copies through that stage's context.
+
+        Args:
+            plan: Replication layout shared by every clone backend.
+            asset_prototype_ids: Asset definitions routed to native OVRTX scenes.
+        """
+        backends = [backend for backend in self._sim.get_backends(OVRTXBackendCfg) if not backend.cfg.use_ovstage]
+        _prepare_scene_copies(plan, asset_prototype_ids, backends)
+
+
+class OvstageReplicateContext(cloner.ReplicateContext):
+    """Prepare routed copies for simulation-owned stages, independently of their consumers."""
+
+    replicate_priority = 100
+
+    def replicate(self, plan: ClonePlan, asset_prototype_ids: tuple[int, ...]) -> None:
+        """Publish routed copies, environment paths and positions to simulation-owned stages.
+
+        Args:
+            plan: Replication layout shared by every clone backend.
+            asset_prototype_ids: Asset definitions routed to OVStage resources.
+        """
+        _prepare_scene_copies(plan, asset_prototype_ids, self._sim.get_backends(OvstageBackendCfg))
+
+
+def _prepare_scene_copies(
+    plan: ClonePlan, asset_prototype_ids: tuple[int, ...], backends: Sequence[OVRTXBackend | OvstageBackend]
+) -> None:
+    """Store prepared subtree copies on their owners; consumers never reinterpret the clone plan."""
+    if not backends:
+        return
+    sources = cloner.path.get_asset_prototype_paths(plan)
+    templates, starts, world_ids, world_starts = cloner.path.get_world_prototype_asset_templates(
+        plan, include_world_indices=True
+    )
+    assets = plan.topology.world_prototypes
+    copies = {}
+    for group in np.flatnonzero(np.diff(world_starts)):
+        targets = world_ids[world_starts[group] : world_starts[group + 1]]
+        members = [index for index in range(*starts[group : group + 2]) if assets[index] in asset_prototype_ids]
+        destinations = [templates[index] for index in members]
+        for index, parent in zip(members, cloner.path.get_parent_indices(destinations), strict=True):
+            source, template = sources[assets[index]], templates[index]
+            if parent != -1:
+                ancestor = members[parent]
+                suffix = cloner.path.relative_to(template, templates[ancestor])
+                if source == sources[assets[ancestor]] + suffix:
+                    continue
+            copies.setdefault((source, template), []).extend(template.format(int(world)) for world in targets)
+    # Native clones cannot overwrite existing prims. Keep self-only sources for export,
+    # but omit self-copies and children already carried by the same parent copy.
+    native_copies = [
+        (source, [target for target in copies[source, template] if target != source])
+        for source, template in sorted(copies, key=lambda copy: copy[1].count("/"))
+    ]
+    env_paths = [plan.env_template.format(world) for world in range(len(plan.topology.world_prototype_layout))]
+    cloned_paths = {target for _, targets in native_copies for target in targets}
+    population_env_paths = [path for path in env_paths if path not in cloned_paths]
+    for backend in backends:
+        backend.population_env_paths = population_env_paths
+        backend.clone_copies = native_copies
+        backend.clone_env_paths = env_paths
+        backend.clone_positions = plan.positions
+
+
+def ovrtx_replicate(
+    renderer: ovrtx.Renderer,
+    copies: Sequence[tuple[str, Sequence[str]]],
+    env_paths: Sequence[str],
+    positions: np.ndarray | None = None,
+) -> None:
+    """Apply prepared subtree copies and environment placement to a native OVRTX scene.
+
+    Args:
+        renderer: Native renderer holding the source prims.
+        copies: Source paths paired with destination paths, ordered with parents before children.
+            Sources with no destinations are retained prototypes; self-copies must be excluded.
+        env_paths: Environment-root paths in placement order.
+        positions: Optional environment positions [m], shape ``[len(env_paths), 3]``.
+    """
+    from ovrtx import PrimMode, Semantic  # noqa: PLC0415
+
+    for source, targets in copies:
+        if targets:
+            renderer.clone_usd(source, targets)
+    if positions is not None and env_paths:
+        xforms = np.tile(np.eye(4, dtype=np.float64), (len(env_paths), 1, 1))
+        xforms[:, 3, :3] = positions
+        renderer.write_attribute(
+            env_paths, "omni:xform", xforms, semantic=Semantic.XFORM_MAT4x4, prim_mode=PrimMode.MUST_EXIST
+        )
 
 
 def ovphysx_replicate(
@@ -194,35 +368,172 @@ def ovphysx_replicate(
     pairs = zip(sources, destinations, strict=True)
     copies = ((pair, np.flatnonzero(mapping[index])) for index, pair in enumerate(pairs))
     recipes = _clone_recipes(stage, copies, env_ids, positions, quaternions)
-    sim = PhysicsManager._sim
+    from isaaclab.sim import SimulationContext
+
+    sim = SimulationContext.instance()
     if sim is None:
         raise RuntimeError("OvPhysX replication requires an active SimulationContext.")
-    sim.physics_manager._clone_recipes.extend(recipes)
+    sim.backend_manager._clone_recipes.extend(recipes)
+
+
+def _convert_legacy_joint_properties(
+    layer: Sdf.Layer, friction_replacements: dict[str, tuple[float, float, float]] | None = None
+) -> None:
+    """Translate authored joint properties, including flattened instance prototypes, in place.
+
+    Call only on the temporary export layer. Both namespaces store angular velocity
+    in degrees per second and armature in mass times length squared. Existing Newton
+    opinions and per-axis PhysX opinions retain precedence. Friction coefficients have
+    no equivalent in the new effort-based schema and must be migrated explicitly.
+    """
+    replacements = []
+    for pattern, values in (friction_replacements or {}).items():
+        if len(values) != 3 or not all(math.isfinite(value) and value >= 0 for value in values):
+            raise ValueError(
+                f"Invalid joint friction replacement for {pattern}: expected three finite nonnegative values."
+            )
+        if values[0] < values[1]:
+            raise ValueError(
+                f"Invalid joint friction replacement for {pattern}: static effort must be >= dynamic effort."
+            )
+        replacements.append((re.compile(pattern), values))
+    paths = []
+    layer.Traverse(Sdf.Path.absoluteRootPath, paths.append)
+    for path in paths:
+        prim = layer.GetPrimAtPath(path)
+        if prim is None or prim.typeName == "PhysicsFixedJoint":
+            continue
+        friction = prim.attributes.get("physxJoint:jointFriction")
+        if friction is not None and (
+            friction.default not in (None, 0.0, Sdf.ValueBlock()) or layer.ListTimeSamplesForPath(friction.path)
+        ):
+            matches = [values for pattern, values in replacements if pattern.fullmatch(prim.name)]
+            if len(matches) > 1:
+                raise ValueError(f"Multiple joint friction replacements match {path}.")
+            axis = {"PhysicsRevoluteJoint": "angular", "PhysicsPrismaticJoint": "linear"}.get(prim.typeName)
+            if not matches or axis is None or layer.ListTimeSamplesForPath(friction.path):
+                raise ValueError(
+                    f"OVPhysX cannot preserve legacy joint friction on {path}. "
+                    "Remove physxJoint:jointFriction and retune NewtonJointAPI newton:friction/newton:damping "
+                    "or configure legacy_joint_friction_replacements with calibrated efforts; "
+                    "the old coefficient has no exact conversion."
+                )
+            static_name = f"physxJointAxis:{axis}:staticFrictionEffort"
+            dynamic_name = f"physxJointAxis:{axis}:dynamicFrictionEffort"
+            # Keep existing modern opinions, including explicit zeros. Migration supplies only
+            # missing properties; the native parser owns Newton/per-axis precedence.
+            schemas = list(prim.GetInfo("apiSchemas").GetAppliedItems()) if prim.HasInfo("apiSchemas") else []
+            schema = f"PhysxJointAxisAPI:{axis}"
+            if schema not in schemas:
+                prim.SetInfo("apiSchemas", Sdf.TokenListOp.CreateExplicit([*schemas, schema]))
+            if "newton:friction" not in prim.attributes:
+                for name, value in zip((static_name, dynamic_name), matches[0][:2], strict=True):
+                    if name not in prim.attributes:
+                        Sdf.AttributeSpec(prim, name, Sdf.ValueTypeNames.Float).default = value
+            # Validate the effective pair after per-axis overrides and Newton fallback.
+            efforts = []
+            for name in (static_name, dynamic_name):
+                attr = prim.attributes.get(name) or prim.attributes.get("newton:friction")
+                if attr is None or layer.ListTimeSamplesForPath(attr.path):
+                    raise ValueError(f"Cannot validate migrated friction on {path}; author constant friction efforts.")
+                value = attr.default
+                if not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0:
+                    raise ValueError(f"Invalid migrated friction on {path}: expected finite nonnegative efforts.")
+                efforts.append(value)
+            if efforts[0] < efforts[1]:
+                raise ValueError(f"Invalid migrated friction on {path}: static effort must be >= dynamic effort.")
+            viscous_name = f"physxJointAxis:{axis}:viscousFrictionCoefficient"
+            if "newton:damping" not in prim.attributes and viscous_name not in prim.attributes:
+                # Angular USD damping is effort*s/degree; runtime coefficients use radians.
+                value = matches[0][2] * (math.pi / 180.0 if axis == "angular" else 1.0)
+                Sdf.AttributeSpec(prim, viscous_name, Sdf.ValueTypeNames.Float).default = value
+            prim.RemoveProperty(friction)
+        for old_name, new_name, default in (
+            ("physxJoint:maxJointVelocity", "newton:velocityLimit", float("inf")),
+            ("physxJoint:armature", "newton:armature", 0.0),
+        ):
+            old = prim.attributes.get(old_name)
+            if old is None:
+                continue
+            modern = prim.attributes.get(new_name)
+            if modern is not None and (modern.HasDefaultValue() or layer.ListTimeSamplesForPath(modern.path)):
+                continue
+            if layer.ListTimeSamplesForPath(old.path):
+                raise ValueError(f"OVPhysX cannot preserve time-sampled {old_name} on {path}; migrate to {new_name}.")
+            if not old.HasDefaultValue() or old.default == Sdf.ValueBlock():
+                continue
+            if prim.typeName not in (
+                "PhysicsRevoluteJoint",
+                "PhysicsPrismaticJoint",
+                "PhysicsSphericalJoint",
+                "PhysicsJoint",
+            ):
+                if old.default != default:
+                    raise ValueError(f"OVPhysX cannot preserve {old_name} on {prim.typeName} at {path}.")
+                continue
+            schemas = list(prim.GetInfo("apiSchemas").GetAppliedItems()) if prim.HasInfo("apiSchemas") else []
+            if "NewtonJointAPI" not in schemas:
+                prim.SetInfo("apiSchemas", Sdf.TokenListOp.CreateExplicit([*schemas, "NewtonJointAPI"]))
+            attribute = modern or Sdf.AttributeSpec(prim, new_name, old.typeName)
+            attribute.default = old.default
+
+
+def _classify_physics(stage: Usd.Stage, source: str) -> tuple[bool, bool]:
+    """Return (has_physics, has_bodies_or_colliders) with one traversal of a source subtree."""
+    root = stage.GetPrimAtPath(source)
+    if not root:
+        return False, False
+    has_physics = False
+    for prim in Usd.PrimRange(root, Usd.TraverseInstanceProxies()):
+        if prim.HasAPI(UsdPhysics.RigidBodyAPI) or prim.HasAPI(UsdPhysics.CollisionAPI):
+            return True, True
+        if not has_physics:
+            # Typed schemas, API schemas and authored properties also carry physics.
+            has_physics = (
+                prim.IsA(UsdPhysics.Joint)
+                or prim.GetTypeName().startswith(("Physics", "Physx", "OmniPhysics", "Newton"))
+                or any(
+                    schema.startswith(("Physics", "Physx", "OmniPhysics", "Newton"))
+                    for schema in prim.GetPrimTypeInfo().GetAppliedAPISchemas()
+                )
+                or any(
+                    prop.GetName().startswith(("physics:", "physx", "omniphysics:", "newton:"))
+                    for prop in prim.GetAuthoredProperties()
+                )
+            )
+    return has_physics, False
 
 
 def _serialize_stage(
-    stage: Usd.Stage, recipes: Sequence[CloneRecipe], full_stage: bool, plan: ClonePlan | None = None
+    stage: Usd.Stage,
+    recipes: Sequence[CloneRecipe],
+    full_stage: bool,
+    plan: ClonePlan | None = None,
+    *,
+    friction_replacements: dict[str, tuple[float, float, float]] | None = None,
+    filter_render_only: bool = False,
+    preserve_physics_ancestors: bool = False,
 ) -> tuple[str, list[CloneRecipe]]:
     """Export complete original worlds once and compile copies from those originals.
 
     Parsed bodies have native environment ID zero. An original-bearing world must therefore
     import all its assets together; its copies inherit one collision group and environment ID.
-    CPU, features without native cloning, and acceleration-spring materials with positive
-    compliant-contact stiffness import every declared world instead.
+    CPU and features without native cloning import every declared world instead.
+
+    When ``preserve_physics_ancestors`` is enabled, retain empty ancestors with authored
+    physics properties even when no API schema is applied.
+
+    Physics-only roots without bodies or colliders cannot use native replication. Route them
+    through USD replication so their destinations exist at attachment; standalone joint cloning is unsafe.
+
+    ``filter_render_only`` omits render-only recipes when sharing a stage. Physics classification
+    is cached per source for this export only, including original-world selection and native validation.
     """
-    if recipes and not full_stage:
-        # Native clones lose acceleration-spring material behavior in OVPhysX 0.6.3.
-        for prim in stage.Traverse(Usd.TraverseInstanceProxies()):
-            acceleration = prim.GetAttribute("physxMaterial:compliantContactAccelerationSpring")
-            stiffness = prim.GetAttribute("physxMaterial:compliantContactStiffness")
-            if acceleration and acceleration.Get() and stiffness and (stiffness.Get() or 0.0) > 0.0:
-                logger.warning(
-                    "Importing the full scene through USD to preserve acceleration-spring contact behavior "
-                    "for material %s. Native-cloning startup savings are disabled.",
-                    prim.GetPath(),
-                )
-                full_stage = True
-                break
+
+    physics_content = cache(partial(_classify_physics, stage))
+    if filter_render_only:
+        recipes = [recipe for recipe in recipes if physics_content(recipe[0])[0]]
+
     # Group worlds by their declared asset memberships, not by completed-stage discovery.
     sources = tuple(Sdf.Path(source) for source, _, _, _, _ in recipes)
     memberships = {}
@@ -247,11 +558,7 @@ def _serialize_stage(
                         uncovered = {world for world in uncovered if template.format(world) not in copied_paths}
                 if not uncovered:
                     continue
-                prim = stage.GetPrimAtPath(source)
-                if prim and any(
-                    child.HasAPI(UsdPhysics.RigidBodyAPI) or child.HasAPI(UsdPhysics.CollisionAPI)
-                    for child in Usd.PrimRange(prim, Usd.TraverseInstanceProxies())
-                ):
+                if physics_content(source)[0]:
                     originals.update(uncovered)
     for index, (_, _, _, world_ids, _) in enumerate(recipes):
         for world in world_ids or ():
@@ -264,27 +571,40 @@ def _serialize_stage(
 
     # Materialize only originals on GPU. Each native destination is absent from the export.
     layer = stage.Flatten()
+    _convert_legacy_joint_properties(layer, friction_replacements)
     exported = Usd.Stage.Open(layer)
     xforms = UsdGeom.XformCache()
     native = {}
     for recipe in sorted(recipes, key=lambda recipe: recipe[0].count("/")):
         source, targets, transforms, world_ids, source_world = recipe
         target_by_world = dict(zip(world_ids, targets, strict=True)) if world_ids is not None else {}
-        source_pose = xforms.GetLocalToWorldTransform(stage.GetPrimAtPath(source))
+        source_prim = stage.GetPrimAtPath(source)
+        if not full_stage and any(
+            target != source and (world_ids is None or world_ids[index] not in originals)
+            for index, target in enumerate(targets)
+        ):
+            # Physics authoring is not itself proof that native replication supports this root.
+            has_physics, has_bodies_or_colliders = physics_content(source)
+            if has_physics and not has_bodies_or_colliders:
+                raise ValueError(
+                    f"Cannot natively clone physics source {source!r} without rigid bodies or colliders. "
+                    "Materialize these prims through USD replication before physics attachment."
+                )
+        source_pose = xforms.GetLocalToWorldTransform(source_prim)
         for index, target in enumerate(targets):
-            if target == source:
-                continue
             target_path = Sdf.Path(target)
-            if any(path.HasPrefix(target_path) for path in sources):
+            if target != source and any(path.HasPrefix(target_path) for path in sources):
                 raise ValueError(f"OvPhysX clone target {target!r} overlaps a clone source.")
             world = world_ids[index] if world_ids is not None else None
-            if full_stage or world in originals:
+            if full_stage or world in originals or target == source:
                 # References preserve joint relationships and any authored target opinions.
                 prim = exported.GetPrimAtPath(target)
                 authored = bool(prim)
                 prim = prim or exported.DefinePrim(target, "Xform")
-                prim.GetReferences().AddInternalReference(source)
-                if transforms and not authored:
+                if target != source:
+                    prim.GetReferences().AddInternalReference(source)
+                # Originals also need plan placement; the authoring stage contains only prototypes.
+                if transforms and (not authored or target == source):
                     pose = transforms[index]
                     anchor = Gf.Matrix4d().SetRotate(Gf.Quatd(pose[6], Gf.Vec3d(*pose[3:6])))
                     anchor.SetTranslateOnly(Gf.Vec3d(*pose[:3]))
@@ -311,7 +631,14 @@ def _serialize_stage(
                 # Empty clone ancestors make native literal-path lookup enumerate every world.
                 spec = layer.GetPrimAtPath(target_path.GetParentPath())
                 while spec and not spec.nameChildren and spec.typeName in ("", "Xform"):
-                    if spec.HasInfo("apiSchemas") or any(source.HasPrefix(spec.path) for source in sources):
+                    if (
+                        spec.HasInfo("apiSchemas")
+                        or any(source.HasPrefix(spec.path) for source in sources)
+                        or (
+                            preserve_physics_ancestors
+                            and any(prop.name.startswith(("physics:", "physx")) for prop in spec.properties)
+                        )
+                    ):
                         break
                     parent = spec.nameParent
                     del (parent.nameChildren if parent else layer.rootPrims)[spec.name]

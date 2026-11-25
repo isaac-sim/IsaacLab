@@ -17,6 +17,7 @@ import numpy as np
 import torch
 import warp as wp
 
+from isaaclab import cloner
 from isaaclab.controllers.differential_ik import DifferentialIKController
 from isaaclab.managers import CommandTerm, ManagerTermBase
 from isaaclab.utils import index_fill_
@@ -124,10 +125,11 @@ def _resample_reset_kernel(
 class LetterTypingCommand(CommandTerm):
     """Letter-typing command for the procedural SO101 keyboard.
 
-    Each episode samples a fixed-length target sequence of key slots. The agent "types" by fully
-    pressing then releasing a key joint: a keystroke is registered once on each press edge, so
-    holding a key down counts as a single key. Every key pressed on a given step registers (a
-    real-keyboard model), so mashing several keys at once types them all - the extras land as mistakes.
+    Each episode samples a fixed-length target sequence of key slots. The agent "types" by pressing a
+    key joint past its actuation point (``actuation_fraction`` of its travel) then releasing it: a
+    keystroke is registered once on each press edge, so holding a key down counts as a single key.
+    Every key pressed on a given step registers (a real-keyboard model), so mashing several keys at
+    once types them all - the extras land as mistakes.
     Pressing the backspace key deletes the last typed key. The typed buffer cannot grow past its width
     (``max_len``), so once it is full the agent must backspace before it can type again.
 
@@ -168,10 +170,10 @@ class LetterTypingCommand(CommandTerm):
             num_instances = len(prim_paths)
             env_part = []
             for path in prim_paths:
-                env_match = re.search(r"/env_([0-9]+)", path)
+                env_match = cloner.path.match(path, env.scene.cloner_cfg.clone_template)
                 part_match = re.search(r"/part_([0-9]+)", path)
                 assert env_match is not None, f"{path!r} is not inside a numbered environment"
-                env_part.append((int(env_match.group(1)), int(part_match.group(1)) if part_match else 0))
+                env_part.append((int(env_match.instance), int(part_match.group(1)) if part_match else 0))
         else:
             num_instances = int(view.count)
             per_world = max(num_instances // self.num_envs, 1)
@@ -188,6 +190,8 @@ class LetterTypingCommand(CommandTerm):
                 joint_col[env_id, slot] = col
                 body_col[env_id, slot] = body_col_of_local[local]
         self._inst_idx = torch.as_tensor(inst, device=self.device)
+        # Each partition occupies one block of dof key slots in the existing per-env instance map.
+        self.keyboard_instance_ids = self._inst_idx[:, ::dof]
         self._col_idx = torch.as_tensor(joint_col, device=self.device)
         self._body_col_idx = torch.as_tensor(body_col, device=self.device)
 

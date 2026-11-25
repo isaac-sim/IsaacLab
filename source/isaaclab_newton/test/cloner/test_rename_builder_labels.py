@@ -45,8 +45,10 @@ class TestReplicateBuilderMapping(unittest.TestCase):
         builder = newton.ModelBuilder()
         with mock.patch.object(builder, "replicate", wraps=builder.replicate) as replicate:
             replicate_builder_mapping(
-                builder, plan, plan.positions, np.tile([0, 0, 0, 1], (20, 1)), assets, env_ids=np.arange(20)
-            )
+                builder, plan, plan.positions, np.tile([0, 0, 0, 1], (20, 1)), assets,
+                source_inverse={path: np.asarray(wp.transform()) for path in assets},
+                env_ids=np.arange(20),
+            )  # fmt: skip
         self.assertEqual(replicate.call_count, 5)
         self.assertEqual(builder.world_count, 20)
         self.assertEqual(builder.body_count, 36)
@@ -84,8 +86,10 @@ class TestReplicateBuilderMapping(unittest.TestCase):
         plan = make_clone_plan(tuple(AssetBaseCfg(prim_path=path) for path in (source_path, other_path)), ((0, 1),), 3)
         with mock.patch.object(builder, "replicate", wraps=builder.replicate) as replicate:
             local_site_map, _ = replicate_builder_mapping(
-                builder, plan, positions, quaternions, assets, env_ids=np.arange(3, dtype=np.int64), **sites
-            )
+                builder, plan, positions, quaternions, assets,
+                source_inverse={path: np.array([-2, 0, 0, 0, 0, 0, 1], dtype=np.float32) for path in assets},
+                env_ids=np.arange(3, dtype=np.int64), **sites,
+            )  # fmt: skip
 
         replicate.assert_called_once()
         for name, index in (("ee", site_idx), ("origin", root_site_idx)):
@@ -105,7 +109,7 @@ class TestVisualizationClonePlan(unittest.TestCase):
     def setUp(self):
         self.sim = object.__new__(SimulationContext)
         self.sim.cfg = SimpleNamespace(physics=object(), device="cpu")
-        self.sim.physics_manager = SimpleNamespace(get_device=lambda: "cpu")
+        self.sim.backend_manager = SimpleNamespace(get_device=lambda: "cpu")
         self.sim.stage, self.sim._backend_registry = None, []
         patch = mock.patch.object(SimulationContext, "instance", return_value=self.sim)
         patch.start()
@@ -227,9 +231,9 @@ class TestVisualizationClonePlan(unittest.TestCase):
         assets += tuple(AssetBaseCfg(prim_path=path) for path in shared)
         plan = make_clone_plan(assets, ((0, 1),), 2, shared_assets=range(2, len(assets)), env_template="/Scene/copy_{}")
         bindings = {"/PhysicsOwned": [0]}
-        with mock.patch.object(replicate_module.NewtonManager, "_cable_bindings", bindings):
+        with mock.patch.object(self.sim.backend_manager, "_cable_bindings", bindings, create=True):
             builder, _, _ = NewtonReplicateContext(self.sim).replicate(plan, (0, *range(2, len(shared) + 2)))
-            self.assertIs(replicate_module.NewtonManager._cable_bindings, bindings)
+            self.assertIs(self.sim.backend_manager._cable_bindings, bindings)
         for path in ("/Scene/SharedRope", "/Scene/copy_0/Rope", "/Scene/copy_1/Rope"):
             self.assertTrue(all(f"{path}_edge_capsule_{index}" in builder.shape_label for index in range(2)))
         self.assertFalse(any("OtherRope" in path for path in builder.shape_label))
@@ -322,9 +326,11 @@ class TestVisualizationClonePlan(unittest.TestCase):
                 for _, path in env_paths
             )
             + (AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Material", cloning_contexts=()),),
-            positions=np.asarray(((0, 0, 0), (3, 0, 0), (6, 0, 0)), dtype=np.float32),
+            positions=np.asarray(((4, 1, 0), (7, 1, 0), (10, 1, 0)), dtype=np.float32),
         )
         builder, _, _ = NewtonReplicateContext(self.sim).replicate(plan, (0, 1))
+        # Authored source placement and planned destination placement are independent.
+        np.testing.assert_allclose(np.asarray(builder.body_q)[:, :3], plan.positions)
         self.assertEqual(builder.body_label, [f"/World/envs/env_{i}/Object" for i in range(3)])
         self.assertEqual(
             builder.shape_label,
@@ -396,7 +402,7 @@ class TestVisualizationClonePlan(unittest.TestCase):
                 origins = np.zeros((3, 3)) if positions is None else positions
                 for world, env_id in enumerate(env_ids):
                     xform = wp.transform(origins[world], quaternions[world])
-                    meshes = {"Parent/Cloth/sim": vertices[:3] + [15, 0, 0] - origins[0]}
+                    meshes = {"Parent/Cloth/sim": vertices[:3] + [5, 0, 0]}
                     if world == 1:
                         meshes.update({"Volume/vis": visual, "Volume_1/vis": visual, "Tet/sim": vertices})
                     for suffix, points in meshes.items():
@@ -482,7 +488,10 @@ class TestReplicationNamesItsCopies(unittest.TestCase):
             return add_builder(destination, asset, **kwargs)
 
         with mock.patch.object(newton.ModelBuilder, "add_builder", append_copy):
-            replicate_builder_mapping(builder, plan, positions, quaternions, assets, env_ids=env_ids)
+            replicate_builder_mapping(
+                builder, plan, positions, quaternions, assets,
+                source_inverse={path: np.asarray(wp.transform()) for path in assets}, env_ids=env_ids,
+            )  # fmt: skip
         for name, source_labels in original.items():
             expected = [
                 label.replace(self._SRC, f"{self._ENV.format(i)}/Robot", 1) for i in env_ids for label in source_labels
@@ -507,7 +516,10 @@ class TestReplicationNamesItsCopies(unittest.TestCase):
         root = self._ENV.format(0)
         plan = make_clone_plan((AssetBaseCfg(prim_path=root),), ((0,),), len(env_ids))
         rooted = newton.ModelBuilder()
-        replicate_builder_mapping(rooted, plan, positions, quaternions, {root: source}, env_ids=env_ids)
+        replicate_builder_mapping(
+            rooted, plan, positions, quaternions, {root: source},
+            source_inverse={root: np.asarray(wp.transform())}, env_ids=env_ids,
+        )  # fmt: skip
         for name in label_names:
             self.assertEqual(getattr(rooted, name), getattr(builder, name))
         for name in source_paths:
@@ -526,8 +538,9 @@ class TestReplicationNamesItsCopies(unittest.TestCase):
         positions = np.zeros((2, 3), dtype=np.float32)
         rotations = np.array([[0.0, 0.0, 0.0, 1.0]] * 2, dtype=np.float32)
         replicate_builder_mapping(
-            builder, plan, positions, rotations, {self._SRC: source}, env_ids=env_ids, per_world_builder_hooks=(hook,)
-        )
+            builder, plan, positions, rotations, {self._SRC: source},
+            source_inverse={self._SRC: np.asarray(wp.transform())}, env_ids=env_ids, per_world_builder_hooks=(hook,),
+        )  # fmt: skip
         self.assertEqual(
             builder.body_label,
             [f"/World/envs/env_{env_id}/Robot/{label}" for env_id in env_ids for label in ("base", "hook")],

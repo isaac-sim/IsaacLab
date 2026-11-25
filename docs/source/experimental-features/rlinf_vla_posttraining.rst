@@ -3,9 +3,8 @@
 RL Post-Training for VLA Models
 ================================
 
-`RLinf <https://github.com/RLinf/RLinf.git>`_ is a flexible and scalable open-source RL infrastructure designed for
-Embodied and Agentic AI. This integration enables **reinforcement learning fine-tuning of Vision-Language-Action
-(VLA) models** (e.g., GR00T, OpenVLA) on Isaac Lab simulation tasks.
+`RLinf <https://github.com/RLinf/RLinf.git>`_ fine-tunes pretrained vision-language-action
+(VLA) models, such as GR00T and OpenVLA, with reinforcement learning on Isaac Lab tasks.
 
 The typical workflow follows three stages:
 
@@ -19,34 +18,9 @@ Overview
 The RLinf integration allows Isaac Lab users to:
 
 - Fine-tune pretrained VLA models on Isaac Lab tasks using PPO / Actor-Critic / SAC
-- Leverage RLinf's FSDP-based distributed training across multiple GPUs/nodes
+- Distribute training across GPUs and nodes with FSDP
 - Define observation/action mappings from Isaac Lab to GR00T format via a single YAML config
 - Register Isaac Lab tasks into RLinf without modifying RLinf source code
-
-Architecture
-------------
-
-.. code-block:: text
-
-    ┌────────────────────────────────────────────────────────────────┐
-    │                         RLinf Runner                           │
-    │                 (EmbodiedRunner / EvalRunner)                  │
-    ├────────────────┬──────────────────────┬────────────────────────┤
-    │  Actor Worker  │   Rollout Worker     │      Env Worker        │
-    │  (FSDP)        │  (HF Inference)      │  (IsaacLab Sim)        │
-    │                │                      │                        │
-    │ Policy         │  Multi-step rollout  │ IsaacLabGenericEnv     │
-    │ Update         │  with VLA model      │  ├─ _make_env_function │
-    │                │                      │  ├─ _wrap_obs          │
-    │                │                      │  └─ _wrap_action       │
-    └────────────────┴──────────────────────┴────────────────────────┘
-
-**Data flow:**
-
-1. ``EnvWorker`` runs Isaac Lab simulation and converts observations to RLinf format
-2. ``RolloutWorker`` runs VLA model inference (e.g., GR00T) to produce actions
-3. Actions are converted back to Isaac Lab format and stepped in the environment
-4. ``ActorWorker`` updates the VLA model with PPO/actor-critic loss via FSDP
 
 Prerequisites
 -------------
@@ -102,8 +76,9 @@ the alternative model dependencies below.
    uv pip install -e ".[base]" --no-deps
    cd ../
 
-   # Step 4: Install flash-attn (see "Skipping flash-attn" below if this fails)
-   pip install flash-attn==2.8.3 --no-build-isolation --no-deps
+   # Step 4: Install flash-attn from source (requires CUDA 13 nvcc)
+   uv pip install ninja packaging psutil wheel
+   uv pip install flash-attn==2.8.3 --no-build-isolation --no-deps
 
 Existing RLinf 0.2 installations must rerun Step 1 to use the shared RLinf revision above.
 Both GR00T generations use its per-generation model packages and action registries.
@@ -154,11 +129,52 @@ these entries belong under ``env.train.isaaclab``:
      language: annotation.human.task_description
      # Keep the checkpoint's video and state mappings here as well.
    action_mapping:
-     keys: [action.left_arm, action.right_arm, action.left_hand, action.right_hand]
+     keys: [left_arm, right_arm, left_hand, right_hand]
 
 Without these entries, the language key remains ``annotation.human.action.task_description``
 and actions retain the model's dictionary order. When set, ``keys`` must list every action part
 to emit, in environment order. Use ``uv run --no-sync`` to preserve the pins.
+
+H2 + Sharpa checkpoints and assets
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The H2 examples use N1.7. Download the checkpoint for either task and the shared Cosmos backbone:
+
+.. code-block:: bash
+
+   uv run --no-sync hf download nvidia/GR00T-N1.7-3B_Pick_Place_Apple \
+       --local-dir .pretrained_checkpoints/rlinf/GR00T-N1.7-3B_Pick_Place_Apple
+   uv run --no-sync hf download nvidia/GR00T-N1.7-3B_Pack_AGX \
+       --local-dir .pretrained_checkpoints/rlinf/GR00T-N1.7-3B_Pack_AGX
+   uv run --no-sync hf download nvidia/Cosmos-Reason2-2B --local-dir .pretrained_checkpoints/rlinf/Cosmos-Reason2-2B
+
+Authenticate with ``uv run --no-sync hf auth login`` if required, using an account with access to the
+selected checkpoint repositories.
+
+The recorded evaluations used the task author's checkpoints below. Repository access is required;
+anonymous requests return HTTP 401.
+
+* Apple: repository ``LiFanxing/pnp_apple``, revision ``1f136aee682574518e8fc36e20a091211f10c8b4``,
+  directory ``checkpoint_1``.
+* Pack AGX: repository ``LiFanxing/pack_agx``, revision ``40a2c24c04e58a66d1c703dd0cb3027c696eb76c``,
+  directory ``rl_pack_agx_orin_contR_004pos_10ang-1/global_step_800``.
+
+To use either with the shared Cosmos backbone, authenticate and download the indicated directory at
+its revision, then pass its local path to ``isaaclab play`` with ``--model_path``. The directory must
+contain ``config.json``.
+
+The H2 + Sharpa robot, NuRec capture, and scene objects are hosted on the official Isaac asset server
+under :attr:`~isaaclab.utils.assets.ISAACLAB_NUCLEUS_DIR`. To use a local mirror, configure the shared
+Isaac asset root before launching:
+
+.. code-block:: bash
+
+   export ISAACSIM_ASSET_ROOT=/path/to/mirror
+
+The mirror must retain the ``Isaac/IsaacLab`` subtree, including ``Robots/Unitree/H2``,
+``Environments/NuRec``, and ``Objects``. For example, the robot USD must be located at
+``/path/to/mirror/Isaac/IsaacLab/Robots/Unitree/H2/H2_with_sharpa_flat.usd``.
+
 
 .. _rlinf-decord-aarch64:
 
@@ -234,6 +250,43 @@ RLinf requires Ray for worker scheduling in both training and evaluation, includ
    The ``--config_path`` flag is optional. When omitted, the scripts automatically
    search the ``isaaclab_tasks`` package for the matching YAML configuration file.
 
+Each H2 task registers its environment from ``<task>_env_cfg.py`` and keeps its RLinf recipe in ``agents/``.
+The recipe names include the task so that RLinf can find each one by name.
+Use ``rlinf_gr00t_pick_and_place_apple_ppo_cfg`` for Apple or ``rlinf_gr00t_pack_agx_ppo_cfg`` for AGX.
+Both recipes use the model download locations above.
+
+.. code-block:: bash
+
+   uv run --no-sync isaaclab train --rl_library rlinf --config_name rlinf_gr00t_pick_and_place_apple_ppo_cfg
+   uv run --no-sync isaaclab play --rl_library rlinf --config_name rlinf_gr00t_pick_and_place_apple_ppo_cfg --video
+
+Changing ``--num_envs`` alone can break RLinf's batch arithmetic:
+``total_num_envs * max_steps_per_rollout_epoch / num_action_chunks`` must remain a multiple of
+``actor.global_batch_size``. For a smaller smoke run, copy the YAML, reduce its batch sizes too,
+and select it with ``--config_path``.
+
+Physics Backend
+~~~~~~~~~~~~~~~
+
+The ``assemble_trocar`` task runs on PhysX by default. To use Newton (MuJoCo-Warp) instead,
+append ``physics=newton_mjwarp`` to the training or evaluation command:
+
+.. code-block:: bash
+
+   uv run --no-sync isaaclab train --rl_library rlinf \
+       --config_name isaaclab_ppo_gr00t_assemble_trocar \
+       --model_path /path/to/base_model \
+       physics=newton_mjwarp
+
+Trailing ``KEY=VALUE`` arguments are environment config overrides that RLinf forwards to every
+environment worker, for training and evaluation alike. For example,
+``env.terminations.task_success.params.success_stage=3`` ends episodes after the insertion stage.
+
+.. note::
+
+   Contact dynamics differ between the backends, so the published ``Assemble_Trocar`` checkpoint
+   succeeds less often on Newton than on PhysX until it is RL fine-tuned on Newton.
+
 Checkpoints
 -----------
 
@@ -299,6 +352,31 @@ actions with the returned joint positions until the next chunk. The configured `
 must contain only those joint positions, in the same order and units as the environment actions.
 This option defaults to false and does not apply to delta-position, velocity, or torque actions.
 
+Architecture
+------------
+
+.. code-block:: text
+
+    ┌────────────────────────────────────────────────────────────────┐
+    │                         RLinf Runner                           │
+    │                 (EmbodiedRunner / EvalRunner)                  │
+    ├────────────────┬──────────────────────┬────────────────────────┤
+    │  Actor Worker  │   Rollout Worker     │      Env Worker        │
+    │  (FSDP)        │  (HF Inference)      │  (IsaacLab Sim)        │
+    │                │                      │                        │
+    │ Policy         │  Multi-step rollout  │ IsaacLabGenericEnv     │
+    │ Update         │  with VLA model      │  ├─ _make_env_function │
+    │                │                      │  ├─ _wrap_obs          │
+    │                │                      │  └─ _wrap_action       │
+    └────────────────┴──────────────────────┴────────────────────────┘
+
+**Data flow:**
+
+1. ``EnvWorker`` runs Isaac Lab simulation and converts observations to RLinf format
+2. ``RolloutWorker`` runs VLA model inference (e.g., GR00T) to produce actions
+3. Actions are converted back to Isaac Lab format and stepped in the environment
+4. ``ActorWorker`` updates the VLA model with PPO/actor-critic loss via FSDP
+
 Key Files
 ---------
 
@@ -315,3 +393,33 @@ Key Files
 
 For detailed configuration options, CLI arguments, and how to add new tasks,
 use the unified ``uv run isaaclab train --rl_library rlinf`` and ``uv run isaaclab play --rl_library rlinf`` commands.
+
+Attribution and Citation
+------------------------
+
+SimReady Assets
+~~~~~~~~~~~~~~~
+
+The SimReady scene assets used by the post-training tasks are powered by
+`Lightwheel <https://lightwheel.ai/>`__.
+
+.. attention::
+
+   These assets are licensed under the `Creative Commons Attribution-NonCommercial 4.0 International
+   License <https://creativecommons.org/licenses/by-nc/4.0/>`__, whose terms are collected in
+   ``docs/licenses/assets/lightwheel-license.txt``. Commercial use is not granted.
+
+RL Training Framework
+~~~~~~~~~~~~~~~~~~~~~
+
+The RL training framework is powered by `RLinf <https://github.com/RLinf/RLinf>`__. If you find the
+RL capabilities helpful, please cite:
+
+.. code-block:: text
+
+   @article{yu2025rlinf,
+     title={RLinf: Flexible and Efficient Large-scale Reinforcement Learning via Macro-to-Micro Flexibility},
+     author={Yu, Chao and Wang, Yuanqing and Guo, Zhen and Lin, Hao and Xu, Si and Zang, Hongzhi},
+     journal={arXiv preprint arXiv:2509.15965},
+     year={2025}
+   }

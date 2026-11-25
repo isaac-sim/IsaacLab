@@ -28,7 +28,7 @@ import importlib
 import gymnasium as gym
 import isaaclab_tasks_experimental  # noqa: F401
 import pytest
-from isaaclab_experimental.envs.frontend import WarpFrontend
+from isaaclab_experimental.deprecated.envs.frontend import WarpFrontend
 from isaaclab_newton.physics import NewtonCfg
 
 # Registering the task packages is the whole point — import for side effects.
@@ -69,7 +69,7 @@ _WARP_SUPPORTED_TASKS = frozenset(
 # env class; direct tasks provide their own env class (resolved by name-based
 # mirror, or an explicit ``warp_entry_point`` override). Their task terms are not
 # cfg-adapted, so they are excluded here.
-_MANAGER_WARP_ENTRY_POINT = "isaaclab_experimental.envs:ManagerBasedRLEnvWarp"
+_MANAGER_WARP_ENTRY_POINT = "isaaclab_experimental.deprecated.envs:ManagerBasedRLEnvWarp"
 
 _WARP_ROOTS = ("isaaclab_experimental", "isaaclab_tasks_experimental")
 
@@ -208,7 +208,7 @@ _DIRECT_WARP_TASKS = [
 def test_direct_task_resolves_to_warp_env_class_by_name(task_id: str):
     """Stable direct tasks resolve their warp env class by name-based mirror
     resolution alone — no ``warp_entry_point`` declaration is needed."""
-    from isaaclab_experimental.envs.frontend import WarpFrontend
+    from isaaclab_experimental.deprecated.envs.frontend import WarpFrontend
 
     assert (gym.spec(task_id).kwargs or {}).get("warp_entry_point") is None
     env_class = WarpFrontend._resolve_direct_warp_class(task_id)
@@ -219,12 +219,14 @@ def test_direct_task_resolves_to_warp_env_class_by_name(task_id: str):
 
 def test_stable_cartpole_cfg_adapts_to_current_warp_module_layout():
     """The stable Cartpole cfg resolves task-specific twins in the current package layout."""
-    from isaaclab_experimental.managers.action_manager import ActionTerm
+    from isaaclab_experimental.deprecated.managers.action_manager import ActionTerm
 
     cfg = _load_adapted_cfg("Isaac-Cartpole")
 
-    assert cfg.rewards.pole_pos.func.__module__.startswith("isaaclab_tasks_experimental.core.cartpole.mdp")
-    assert cfg.rewards.success_rate.func.__module__.startswith("isaaclab_tasks_experimental.core.cartpole.mdp")
+    assert cfg.rewards.pole_pos.func.__module__.startswith("isaaclab_tasks_experimental.deprecated.core.cartpole.mdp")
+    assert cfg.rewards.success_rate.func.__module__.startswith(
+        "isaaclab_tasks_experimental.deprecated.core.cartpole.mdp"
+    )
     assert issubclass(cfg.actions.joint_effort.class_type, ActionTerm)
 
 
@@ -264,7 +266,7 @@ def test_stable_observation_noise_converts_to_warp_twins():
 
 def test_noise_cfg_without_warp_twin_is_a_hard_error():
     """Class-based noise models have no warp twin yet: adapting must fail loudly."""
-    from isaaclab_experimental.envs.frontend import FrontendIncompatibleError
+    from isaaclab_experimental.deprecated.envs.frontend import FrontendIncompatibleError
 
     from isaaclab.utils.noise import NoiseModelCfg, UniformNoiseCfg
 
@@ -273,3 +275,9 @@ def test_noise_cfg_without_warp_twin_is_a_hard_error():
     term.noise = NoiseModelCfg(noise_cfg=UniformNoiseCfg())
     with pytest.raises(FrontendIncompatibleError, match="noise"):
         WarpFrontend.adapt_cfg(cfg)
+
+
+def test_mdp2_tasks_do_not_adapt_for_warp():
+    """MDP2 tasks run on MDP2Env: the warp frontend refuses them instead of building warp managers from them."""
+    cfg, _ = resolve_task_config("Isaac-Cartpole-MDP2", "", overrides=("physics=newton_mjwarp",))
+    assert "MDP2" in WarpFrontend.check_compatibility(cfg)

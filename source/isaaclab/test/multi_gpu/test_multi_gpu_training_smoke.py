@@ -82,11 +82,11 @@ _STACKS = [
     pytest.param("isaacsim_physx,isaacsim_rtx", id="isaacsim_physx-kit_rtx"),
     pytest.param("newton_mjwarp,isaacsim_rtx", id="newton-kit_rtx"),
     # Kit physics with a kitless renderer: still a Kit process, so it stays in the Kit lane.
-    pytest.param("isaacsim_physx,newton_renderer", id="isaacsim_physx-newton_renderer"),
-    pytest.param("newton_mjwarp,ovrtx", id="newton-ovrtx", marks=pytest.mark.kitless),
-    pytest.param("newton_mjwarp,newton_renderer", id="newton-newton_renderer", marks=pytest.mark.kitless),
-    pytest.param("ovphysx,newton_renderer", id="ovphysx-newton_renderer", marks=pytest.mark.kitless),
-    pytest.param("ovphysx,ovrtx", id="ovphysx-ovrtx", marks=pytest.mark.kitless),
+    pytest.param("isaacsim_physx,newton_warp", id="isaacsim_physx-newton_warp"),
+    pytest.param("newton_mjwarp,ovrtx", id="newton-ovrtx", marks=[pytest.mark.kitless, pytest.mark.ov]),
+    pytest.param("newton_mjwarp,newton_warp", id="newton-newton_warp", marks=pytest.mark.kitless),
+    pytest.param("ovphysx,newton_warp", id="ovphysx-newton_warp", marks=[pytest.mark.kitless, pytest.mark.ov]),
+    pytest.param("ovphysx,ovrtx", id="ovphysx-ovrtx", marks=[pytest.mark.kitless, pytest.mark.ov]),
 ]
 
 _DEVICE_ORDERS = [

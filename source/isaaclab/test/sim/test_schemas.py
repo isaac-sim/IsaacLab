@@ -12,7 +12,7 @@ import math
 import warnings
 
 import pytest
-from isaaclab_physx.sim.schemas import (
+from isaaclab_isaacsim.sim.schemas import (
     PhysxArticulationRootPropertiesCfg,
     PhysxCollisionCfg,
     PhysxCollisionPropertiesCfg,
@@ -20,7 +20,7 @@ from isaaclab_physx.sim.schemas import (
     PhysxJointDrivePropertiesCfg,
     PhysxRigidBodyPropertiesCfg,
 )
-from isaaclab_physx.sim.spawners.materials import (
+from isaaclab_isaacsim.sim.spawners.materials import (
     PhysxRigidBodyMaterialCfg,
     PhysxSurfaceDeformableBodyMaterialCfg,
 )
@@ -412,6 +412,71 @@ def test_modify_articulation_root_fix_root_link_uses_given_stage(setup_simulatio
     assert joint.GetJointEnabledAttr().Get() is False
 
 
+@pytest.mark.parametrize("legacy_writer", [False, True], ids=["fragments", "legacy"])
+def test_fix_root_link_preserves_fixed_world_joint_root(setup_simulation, caplog, legacy_writer):
+    """Enable the existing joint with True; warn and preserve it with False."""
+    stage = sim_utils.get_current_stage()
+    sim_utils.create_prim("/World/Robot", prim_type="Xform")
+    UsdPhysics.RigidBodyAPI.Apply(sim_utils.create_prim("/World/Robot/base", prim_type="Xform"))
+    joint = UsdPhysics.FixedJoint.Define(stage, "/World/Robot/root_joint")
+    joint.CreateBody0Rel().SetTargets(["/World/Robot"])
+    joint.CreateBody1Rel().SetTargets(["/World/Robot/base"])
+    joint.CreateJointEnabledAttr(False)
+    UsdPhysics.ArticulationRootAPI.Apply(joint.GetPrim())
+
+    for fix_root_link in (True, False):
+        # Exercise the legacy subtree lookup's empty-world-target case when disabling.
+        if not fix_root_link and legacy_writer:
+            joint.GetBody0Rel().SetTargets([])
+        with caplog.at_level("WARNING"):
+            if legacy_writer:
+                with pytest.warns(DeprecationWarning, match="modify_articulation_root_properties"):
+                    schemas.modify_articulation_root_properties(
+                        "/World/Robot/root_joint", schemas.ArticulationRootBaseCfg(fix_root_link=fix_root_link)
+                    )
+            else:
+                schemas.apply_articulation_root_properties("/World/Robot/root_joint", [], fix_root_link=fix_root_link)
+        assert joint.GetJointEnabledAttr().Get() is True
+
+    assert "fix_root_link=False is not supported for articulation '/World/Robot/root_joint'" in caplog.text
+    robot = stage.GetPrimAtPath("/World/Robot")
+    assert [prim.GetName() for prim in Usd.PrimRange(robot) if prim.IsA(UsdPhysics.Joint)] == ["root_joint"]
+    roots = [prim.GetName() for prim in Usd.PrimRange(robot) if prim.HasAPI(UsdPhysics.ArticulationRootAPI)]
+    assert roots == ["root_joint"]
+
+
+@pytest.mark.parametrize(
+    "body0, body1",
+    [
+        ("/World/Robot/base", "/World/Robot/link"),
+        ("/World/Robot/static_base", "/World/Robot/link"),
+        ("/World/Robot", "/World/Robot"),
+        ("/World/Robot", "/World/Robot/static_base"),
+    ],
+    ids=["rigid_base", "static_collider_base", "no_rigid_body", "world_static_collider"],
+)
+def test_fix_root_link_rejects_non_world_fixed_joint_root(setup_simulation, body0, body1):
+    """``fix_root_link=True`` still raises for a fixed joint root between two bodies, a body and a static collider,
+    or two prims that are not rigid bodies."""
+    stage = sim_utils.get_current_stage()
+    sim_utils.create_prim("/World/Robot", prim_type="Xform")
+    UsdPhysics.RigidBodyAPI.Apply(sim_utils.create_prim("/World/Robot/base", prim_type="Xform"))
+    UsdPhysics.CollisionAPI.Apply(sim_utils.create_prim("/World/Robot/static_base", prim_type="Cube"))
+    UsdPhysics.RigidBodyAPI.Apply(sim_utils.create_prim("/World/Robot/link", prim_type="Xform"))
+    joint = UsdPhysics.FixedJoint.Define(stage, "/World/Robot/joint")
+    joint.CreateBody0Rel().SetTargets([body0])
+    joint.CreateBody1Rel().SetTargets([body1])
+    UsdPhysics.ArticulationRootAPI.Apply(joint.GetPrim())
+
+    with pytest.raises(NotImplementedError):
+        schemas.apply_articulation_root_properties("/World/Robot/joint", [], fix_root_link=True)
+    with pytest.warns(DeprecationWarning, match="modify_articulation_root_properties"):
+        with pytest.raises(NotImplementedError):
+            schemas.modify_articulation_root_properties(
+                "/World/Robot/joint", schemas.ArticulationRootBaseCfg(fix_root_link=True)
+            )
+
+
 @pytest.mark.isaacsim_ci
 def test_physx_articulation_root_writes_self_collisions(setup_simulation):
     """Setting ``enabled_self_collisions`` on ``PhysxArticulationRootPropertiesCfg`` must author
@@ -489,7 +554,7 @@ def test_physx_convex_hull_writes_tuning_attrs(setup_simulation):
     """Setting tuning fields on ``PhysxConvexHullPropertiesCfg`` authors the
     ``physxConvexHullCollision:*`` namespaced attributes AND applies
     ``PhysxConvexHullCollisionAPI``."""
-    from isaaclab_physx.sim.schemas import PhysxConvexHullPropertiesCfg
+    from isaaclab_isaacsim.sim.schemas import PhysxConvexHullPropertiesCfg
 
     from pxr import UsdGeom
 
@@ -513,7 +578,7 @@ def test_physx_convex_hull_no_physx_schema_when_no_tuning_fields_set(setup_simul
     """Regression: ``PhysxConvexHullPropertiesCfg()`` with all tuning fields None must NOT
     apply ``PhysxConvexHullCollisionAPI``. The approximation token is still authored on the
     standard ``UsdPhysics.MeshCollisionAPI``."""
-    from isaaclab_physx.sim.schemas import PhysxConvexHullPropertiesCfg
+    from isaaclab_isaacsim.sim.schemas import PhysxConvexHullPropertiesCfg
 
     from pxr import UsdGeom
 
@@ -543,7 +608,7 @@ def test_bounding_cube_default_token(setup_simulation):
 def test_usd_api_physx_api_attrs_deprecated(setup_simulation):
     """Reading ``cfg.usd_api`` and ``cfg.physx_api`` on the new mesh cfgs emits a
     DeprecationWarning and returns the legacy-mapped string value."""
-    from isaaclab_physx.sim.schemas import PhysxConvexHullPropertiesCfg
+    from isaaclab_isaacsim.sim.schemas import PhysxConvexHullPropertiesCfg
 
     cfg = PhysxConvexHullPropertiesCfg()
 
@@ -1000,9 +1065,9 @@ def _validate_joint_drive_properties_on_prim(prim_path: str, joint_cfg, verbose:
 @pytest.mark.parametrize("kind", ["volume", "surface"])
 def test_physx_deformable_fragments(setup_simulation, kind):
     """Create OmniPhysics rest/bind poses and compose PhysX body and material fragments."""
-    from isaaclab_physx.physics import PhysxManager
-    from isaaclab_physx.sim.schemas import PhysxDeformableBodyCfg, PhysxSurfaceDeformableBodyCfg
-    from isaaclab_physx.sim.spawners.materials import PhysxDeformableMaterialCfg, PhysxSurfaceDeformableMaterialCfg
+    from isaaclab_isaacsim.physics import PhysxManager
+    from isaaclab_isaacsim.sim.schemas import PhysxDeformableBodyCfg, PhysxSurfaceDeformableBodyCfg
+    from isaaclab_isaacsim.sim.spawners.materials import PhysxDeformableMaterialCfg, PhysxSurfaceDeformableMaterialCfg
 
     from pxr import Usd, UsdGeom
 

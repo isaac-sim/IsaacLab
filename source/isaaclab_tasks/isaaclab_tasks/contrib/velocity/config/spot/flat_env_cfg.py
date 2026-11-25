@@ -3,15 +3,15 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from isaaclab_isaacsim.physics import PhysxCfg
+from isaaclab_isaacsim.sim.spawners.materials import PhysxRigidBodyMaterialCfg
 from isaaclab_newton.physics import (
-    KaminoPADMMSolverCfg,
     MJWarpSolverCfg,
     NewtonCfg,
     NewtonCollisionPipelineCfg,
     NewtonShapeCfg,
 )
-from isaaclab_physx.physics import PhysxCfg
-from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg
+from isaaclab_ov.physics import OvPhysxCfg
 
 import isaaclab.sim as sim_utils
 import isaaclab.terrains as terrain_gen
@@ -37,8 +37,14 @@ from isaaclab_tasks.utils import PresetCfg
 @configclass
 class PhysicsCfg(PresetCfg):
     isaacsim_physx = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
-    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
-    default = isaacsim_physx
+    ovphysx = OvPhysxCfg(
+        bounce_threshold_velocity=0.5,
+        friction_correlation_distance=0.025,
+        friction_offset_threshold=0.04,
+        gpu_max_rigid_patch_count=10 * 2**15,
+    )
+    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
+    default = ovphysx
     newton_mjwarp = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             njmax=130,
@@ -53,7 +59,6 @@ class PhysicsCfg(PresetCfg):
         debug_mode=False,
         default_shape_cfg=NewtonShapeCfg(margin=0.01),
     )
-    newton_kamino = NewtonCfg(solver_cfg=KaminoPADMMSolverCfg(max_contacts_per_world=64))
 
 
 ##
@@ -233,9 +238,9 @@ class SpotPhysxEventCfg(SpotNewtonEventCfg, SpotStartupEventCfg):
 class SpotEventCfg(PresetCfg):
     physx = SpotPhysxEventCfg()
     isaacsim_physx = physx
-    default = isaacsim_physx
+    ovphysx = physx
+    default = ovphysx
     newton_mjwarp = SpotNewtonEventCfg()
-    newton_kamino = newton_mjwarp
 
 
 @configclass
@@ -411,4 +416,4 @@ class SpotFlatEnvCfg(LocomotionVelocityRoughEnvCfg):
 
         # no height scan
         self.scene.height_scanner = None
-        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(10.5, 10.5, 0.3))
+        self.sim.visualizer_cfgs = VisualizerCfg(eye=(10.5, 10.5, 0.3))

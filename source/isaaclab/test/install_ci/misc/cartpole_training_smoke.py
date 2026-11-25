@@ -7,13 +7,18 @@
 
 The caller owns environment preparation. Architecture CI executes all probes
 inside its prepared image, while kit-less image validation runs the state-training probe.
+With ``--run-gpu``, camera training also runs on every other physics and renderer pairing,
+which needs the ``isaacsim`` and ``ov`` extras.
 """
 
 from __future__ import annotations
 
+import itertools
 import subprocess
 import sys
 from pathlib import Path
+
+import pytest
 
 _STATE_TRAIN_CMD = [
     "train",
@@ -36,9 +41,23 @@ _CAMERA_TRAIN_CMD = [
     "Isaac-Cartpole-Camera-Direct",
     "--num_envs",
     "16",
-    "presets=newton_mjwarp,newton_renderer",
+    "presets=newton_mjwarp,newton_warp",
     "--max_iterations",
     "2",
+]
+
+_PHYSICS = ("newton_mjwarp", "newton_kamino", "isaacsim_physx", "ovphysx")
+_RENDERERS = ("newton_warp", "ovrtx", "isaacsim_rtx")
+_KIT = {"isaacsim_physx", "isaacsim_rtx"}
+_KITLESS_ONLY = {"ovphysx", "ovrtx"}
+
+# Isaac Sim / Kit cannot share a process with OvPhysX or OVRTX (isaaclab.app.sim_launcher.validate_launch),
+# and _CAMERA_TRAIN_CMD already covers newton_mjwarp with newton_warp.
+_OTHER_CAMERA_PAIRINGS = [
+    pytest.param(physics, renderer, id=f"{physics}-{renderer}")
+    for physics, renderer in itertools.product(_PHYSICS, _RENDERERS)
+    if not ({physics, renderer} & _KIT and {physics, renderer} & _KITLESS_ONLY)
+    and (physics, renderer) != ("newton_mjwarp", "newton_warp")
 ]
 
 
@@ -85,7 +104,7 @@ def test_render_cartpole_camera_produces_valid_observation_and_reward() -> None:
     from isaaclab_tasks.utils import resolve_task_config
 
     env_cfg, _ = resolve_task_config(
-        "Isaac-Cartpole-Camera-Direct", "", overrides=("physics=newton_mjwarp", "renderer=newton_renderer")
+        "Isaac-Cartpole-Camera-Direct", "", overrides=("physics=newton_mjwarp", "renderer=newton_warp")
     )
     env_cfg.scene.num_envs = 2
     env_cfg.frame_stack = 1
@@ -113,6 +132,15 @@ def test_train_cartpole_camera_completes() -> None:
     """Verify that camera-observation Cartpole completes short RSL-RL training."""
     # A cold camera run compiles shaders before training begins.
     _run_training(_CAMERA_TRAIN_CMD, timeout=1800)
+
+
+@pytest.mark.gpu
+@pytest.mark.parametrize(("physics", "renderer"), _OTHER_CAMERA_PAIRINGS)
+def test_train_cartpole_camera_on_other_backends(physics: str, renderer: str) -> None:
+    """Verify that camera Cartpole completes short RSL-RL training on one more backend pairing."""
+    command = [f"presets={physics},{renderer}" if arg.startswith("presets=") else arg for arg in _CAMERA_TRAIN_CMD]
+    # A cold run compiles kernels and shaders before training begins.
+    _run_training(command, timeout=1800)
 
 
 if __name__ == "__main__":

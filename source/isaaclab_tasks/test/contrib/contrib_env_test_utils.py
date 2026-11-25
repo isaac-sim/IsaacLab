@@ -8,8 +8,8 @@
 The smoke tests are split by the runtime each environment needs, so a test process only starts what its
 environments use: ``kitless`` environments run without Isaac Sim, ``kit`` environments need Isaac Sim for
 PhysX but no renderer, and ``kit_cameras`` environments also need the RTX renderer, the expensive part of
-starting Isaac Sim. The runtime comes from :func:`isaaclab.app.sim_launcher.scan`, the same check
-``launch_simulation`` uses to decide whether to start Isaac Sim, so a new environment lands in the right file
+starting Isaac Sim. The runtime comes from the requirements ``launch_simulation`` checks to decide
+whether to start Isaac Sim, so a new environment lands in the right file
 without being listed anywhere.
 
 Contributed environments are intentionally sampled once per task package, robot directory, and runtime.
@@ -22,7 +22,7 @@ from typing import Literal
 import gymnasium as gym
 import pytest
 
-from isaaclab.app.sim_launcher import scan
+from isaaclab.app import validate_launch
 
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
@@ -34,6 +34,8 @@ Runtime = Literal["kitless", "kit", "kit_cameras"]
 _SKIPPED_TASKS = {
     "IsaacContrib-AutoMate-Assembly-Direct": "Requires CUDA support outside the standard environment test runner.",
     "IsaacContrib-AutoMate-Disassembly-Direct": "Requires CUDA support outside the standard environment test runner.",
+    "IsaacContrib-Cartpole-Lidar": "Requires OVRTX tiled lidar and CUDA.",
+    "IsaacContrib-Cartpole-Lidar-Direct": "Requires OVRTX tiled lidar and CUDA.",
 }
 _SKIPPED_TASK_SUBSTRINGS = {
     "RmpFlow": "Uses SingleArticulation, which requires an update.",
@@ -43,15 +45,14 @@ _SKIPPED_TASK_SUBSTRINGS = {
 _COVERED_TASKS = [
     "IsaacContrib-Lift-Cube-Franka",  # Already covered by test_environment_determinism.py
 ]
+_COVERED_TASK_PREFIXES = (
+    # The VLA assets are downloaded from Hugging Face; the reset and task bindings have native coverage.
+    "IsaacContrib-VLA-",
+)
 
 
 def _skip_reason(task_name: str) -> str | None:
     """Return the documented reason for skipping a contributed environment."""
-    if task_name == "IsaacContrib-Shoelace-DualFranka":
-        from isaaclab_tasks.contrib.shoelace.shoelace_constants import SHOELACE_ASSETS
-
-        if not all(path.is_file() for path in SHOELACE_ASSETS):
-            return "Requires shoelace USD assets; hosting is pending core-team agreement."
     if task_name in _SKIPPED_TASKS:
         return _SKIPPED_TASKS[task_name]
     return next((reason for substring, reason in _SKIPPED_TASK_SUBSTRINGS.items() if substring in task_name), None)
@@ -59,10 +60,11 @@ def _skip_reason(task_name: str) -> str | None:
 
 def task_runtime(task_name: str) -> Runtime:
     """Return the runtime an environment's default configuration launches with."""
-    config_scan = scan(parse_env_cfg(task_name))
-    if not config_scan.needs_kit:
+    args = {}
+    _, kit_sources = validate_launch(parse_env_cfg(task_name), args)
+    if not kit_sources:
         return "kitless"
-    return "kit_cameras" if config_scan.has_kit_camera else "kit"
+    return "kit_cameras" if args["enable_cameras"] else "kit"
 
 
 def _variant_family(task_name: str) -> tuple[str, str]:
@@ -90,7 +92,8 @@ def contrib_environment_params(runtime: Runtime) -> list:
     """
     tasks_by_family: dict[tuple[str, str, Runtime], list[str]] = defaultdict(list)
     task_marks = {}
-    for task_param in setup_environment(multi_agent=False, tier="contrib", exclude_task_names=_COVERED_TASKS):
+    covered = [*_COVERED_TASKS, *(name for name in gym.registry if name.startswith(_COVERED_TASK_PREFIXES))]
+    for task_param in setup_environment(multi_agent=False, tier="contrib", exclude_task_names=covered):
         task_name = getattr(task_param, "values", (task_param,))[0]
         task_marks[task_name] = getattr(task_param, "marks", ())
         tasks_by_family[(*_variant_family(task_name), task_runtime(task_name))].append(task_name)
@@ -111,6 +114,8 @@ def contrib_environment_params(runtime: Runtime) -> list:
 
 def num_envs(task_name: str) -> int:
     """Return how many environments the smoke test steps for a task."""
-    if task_name in ("IsaacContrib-Franka-Pour", "IsaacContrib-UR10-Particle-Push"):
+    if task_name == "IsaacContrib-NIST-Franka":
+        return 64
+    if task_name in ("IsaacContrib-Franka-Pour", "IsaacContrib-G1-Terrain", "IsaacContrib-UR10-Particle-Push"):
         return 1
     return 3 if task_name == "IsaacContrib-Multitask-Manipulation" else 2

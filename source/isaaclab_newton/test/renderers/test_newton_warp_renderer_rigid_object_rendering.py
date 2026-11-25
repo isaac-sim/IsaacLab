@@ -16,7 +16,6 @@ launch_test_simulation(enable_cameras=True)
 import numpy as np
 import pytest
 import warp as wp
-from isaaclab_newton.physics import NewtonManager
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_newton.renderers.newton_warp_renderer import NewtonWarpRenderer
 
@@ -36,13 +35,13 @@ pytestmark = [pytest.mark.integration, pytest.mark.rendering, pytest.mark.isaacs
 
 
 def test_kinematic_rigid_object_scale_and_pose_are_rendered() -> None:
-    """Kinematic PhysX transforms and root scale must reach Newton Warp."""
+    """Kinematic PhysX transforms and root scale must reach two Newton Warp cameras sharing one renderer."""
     run_rigid_object_scale_and_pose_rendering_contract(
         RigidObjectRenderingBackend(
             name="newton_warp (PhysX)",
             simulation_context_factory=lambda: build_simulation_context(device="cuda:0", gravity_enabled=False),
             renderer_cfg=NewtonWarpRendererCfg(),
-            cleanup=NewtonManager.clear,
+            with_second_camera=True,
         )
     )
 
@@ -55,7 +54,7 @@ def test_intrinsic_updates_preserve_shared_ray_storage(device):
         width=16,
         height=8,
         _intrinsic_status=wp.zeros(1, dtype=wp.int32, device=device),
-        camera_rays=wp.empty((1, 8, 16, 2), dtype=wp.vec3f, device=device),
+        camera_rays=wp.empty((8, 16, 1, 2), dtype=wp.vec3f, device=device),
     )
     renderer = NewtonWarpRenderer.__new__(NewtonWarpRenderer)
     matrix = np.array([[20.0, 0, 8], [0, 20.0, 4], [0, 0, 1]], dtype=np.float32)

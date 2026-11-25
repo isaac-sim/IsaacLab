@@ -12,20 +12,26 @@ compressibility comparison to observe the response to sustained compression.
 
 .. code-block:: bash
 
-    uv run --extra isaacsim python scripts/tutorials/08_mpm/material_parameters.py \
-      --preset young_modulus --visualizer kit
+    uv run --extra ovrtx python scripts/tutorials/08_mpm/material_parameters.py \
+      --preset young_modulus --visualizer newton_rtx
 """
 
 from __future__ import annotations
 
 import argparse
 import logging
+from types import SimpleNamespace
 from typing import NamedTuple
 
 import numpy as np
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.app.logging_utils import configure_console_logging
+from isaaclab.utils import instantiate
+from isaaclab.visualizers import VisualizerCfg
+
+from isaaclab_tasks.utils import resolve_presets
+from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
 
 logger = logging.getLogger("isaaclab.tutorials.mpm.material_parameters")
 
@@ -233,7 +239,7 @@ parser.add_argument(
     help="Compress sphere specimens with a descending kinematic plate after they settle.",
 )
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["kit"])
+parser.set_defaults(visualizer=["newton_rtx"])
 args_cli = parser.parse_args()
 
 if not 0.0 <= args_cli.particle_jitter_fraction <= 0.5:
@@ -304,35 +310,6 @@ def material_values_for_variant(index: int) -> dict[str, float]:
     return material_values
 
 
-def create_visualizer_cfgs():
-    """Create the configured Kit or Newton visualizer."""
-    requested = args_cli.visualizer or []
-    cfgs = []
-    if "kit" in requested:
-        from isaaclab_visualizers.kit import KitVisualizerCfg
-
-        cfgs.append(KitVisualizerCfg(eye=CAMERA_EYE, lookat=CAMERA_TARGET, focal_length=32.0))
-    if not {"newton", "newton_gl", "newton_rtx"}.intersection(requested):
-        return cfgs
-
-    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
-
-    for name in requested:
-        if name not in {"newton", "newton_gl", "newton_rtx"}:
-            continue
-        cfg_type = NewtonRTXVisualizerCfg if name == "newton_rtx" else NewtonGLVisualizerCfg
-        visualizer_kwargs = {} if name == "newton_rtx" else {"show_particles": True}
-        cfgs.append(
-            cfg_type(
-                eye=CAMERA_EYE,
-                lookat=CAMERA_TARGET,
-                streaming_view=False,
-                **visualizer_kwargs,
-            )
-        )
-    return cfgs
-
-
 def create_sim_cfg():
     """Create the shared implicit-MPM solver configuration."""
     from isaaclab_newton.physics import MPMSolverCfg, NewtonCfg
@@ -343,7 +320,12 @@ def create_sim_cfg():
         dt=1.0 / args_cli.simulation_hz,
         device=args_cli.device,
         gravity=(0.0, 0.0, -9.81),
-        visualizer_cfgs=create_visualizer_cfgs(),
+        visualizer_cfgs=VisualizerCfg(
+            eye=CAMERA_EYE,
+            lookat=CAMERA_TARGET,
+            focal_length=32.0,
+            backend=MultiBackendVisualizerCfg(),
+        ),
         physics=NewtonCfg(
             solver_cfg=MPMSolverCfg(
                 voxel_size=args_cli.voxel_size,
@@ -371,10 +353,10 @@ def create_sim_cfg():
 
 def create_scene_cfg():
     """Create the side-by-side tuning specimens and their impact plinths."""
+    from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
     from isaaclab_newton.assets import MPMObjectCfg
     from isaaclab_newton.sim.schemas import NewtonCollisionCfg
     from isaaclab_newton.sim.spawners.mpm import MPMParticleMaterialCfg, MPMPointsCfg
-    from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
     import isaaclab.sim as sim_utils
     from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
@@ -580,13 +562,13 @@ def run_simulator(sim, scene) -> None:
 def main() -> None:
     """Launch the selected MPM material comparison."""
     configure_console_logging(vars(args_cli))
-    sim_cfg = create_sim_cfg()
-    with launch_simulation(sim_cfg, args_cli):
+    sim_cfg = resolve_presets(create_sim_cfg(), overrides={"visualizer_cfgs.backend": args_cli.visualizer})
+    scene_cfg = create_scene_cfg()
+    with launch_simulation(SimpleNamespace(sim=sim_cfg, scene=scene_cfg), args_cli):
         import isaaclab.sim as sim_utils
-        from isaaclab.scene import InteractiveScene
 
         sim = sim_utils.SimulationContext(sim_cfg)
-        scene = InteractiveScene(create_scene_cfg())
+        scene = instantiate(scene_cfg)
         sim.reset()
         sim.set_camera_view(eye=CAMERA_EYE, target=CAMERA_TARGET)
         particle_count = sum(scene[name].particles_per_object for name in SPECIMEN_NAMES)

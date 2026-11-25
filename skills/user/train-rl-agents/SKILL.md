@@ -50,7 +50,7 @@ uv run --no-project python tools/skills/cli.py check
 
 ## Maintenance
 
-Keep this skill synchronized with `docs/source/concepts/reinforcement_learning.rst`, `docs/source/setup/installation/index.rst`, RL training tutorials under `docs/source/how-to/`, and agent configs under `source/isaaclab_tasks/isaaclab_tasks/`. If framework commands or config formats change, update the official training docs or maintained examples first.
+Keep this skill synchronized with `docs/source/concepts/reinforcement_learning.rst`, `docs/source/isaaclab/installation.rst`, RL training tutorials under `docs/source/how-to/`, and agent configs under `source/isaaclab_tasks/isaaclab_tasks/`. If framework commands or config formats change, update the official training docs or maintained examples first.
 
 ## References
 

@@ -12,7 +12,7 @@ straight. The two renders must therefore differ meaningfully. The reconstructed 
 are also checked end-to-end against the authored, non-square, off-center calibration.
 
 Notes:
-  * Runs **kit-less**: this test does not call :class:`~isaaclab_physx.app.KitLauncher`. ``ovrtx`` and Isaac
+  * Runs **kit-less**: this test does not call :class:`~isaaclab_isaacsim.app.KitLauncher`. ``ovrtx`` and Isaac
     Sim Kit ship conflicting RTX hydra libraries that cannot co-load; see
     :func:`isaaclab.app.sim_launcher.launch_simulation`.
   * Uses Newton physics because ``ovrtx`` is incompatible with Kit/Isaac Sim.
@@ -27,7 +27,7 @@ import importlib.util
 import numpy as np
 import pytest
 
-pytestmark = [pytest.mark.integration, pytest.mark.rendering]
+pytestmark = [pytest.mark.integration, pytest.mark.rendering, pytest.mark.ov]
 
 _REQUIRED_MODULES = ("isaaclab_ov", "ovrtx", "isaaclab_newton")
 _MISSING_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
@@ -38,7 +38,7 @@ _SKIP_MISSING_OVRTX = pytest.mark.skipif(
 
 if not _MISSING_MODULES:
     import torch
-    from isaaclab_newton.physics.mjwarp_manager_cfg import MJWarpSolverCfg
+    from isaaclab_newton.physics.mjwarp_solver_cfg import MJWarpSolverCfg
     from isaaclab_newton.physics.newton_manager_cfg import NewtonCfg
     from isaaclab_ov.renderers import OVRTXRendererCfg
 

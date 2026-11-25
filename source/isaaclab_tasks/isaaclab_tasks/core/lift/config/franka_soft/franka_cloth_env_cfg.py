@@ -7,6 +7,9 @@
 
 from __future__ import annotations
 
+from isaaclab_isaacsim.physics import PhysxCfg
+from isaaclab_isaacsim.sim.schemas import PhysxCollisionCfg, PhysxDeformableBodyPropertiesCfg, PhysxRigidBodyCfg
+from isaaclab_isaacsim.sim.spawners.materials import PhysxSurfaceDeformableBodyMaterialCfg
 from isaaclab_newton.physics import (
     MJWarpSolverCfg,
     NewtonCfg,
@@ -14,11 +17,10 @@ from isaaclab_newton.physics import (
     NewtonSoftContactCfg,
     VBDSolverCfg,
 )
+from isaaclab_newton.physics.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import NewtonSurfaceDeformableBodyMaterialCfg
-from isaaclab_physx.physics import PhysxCfg
-from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxDeformableBodyPropertiesCfg, PhysxRigidBodyCfg
-from isaaclab_physx.sim.spawners.materials import PhysxSurfaceDeformableBodyMaterialCfg
+from isaaclab_ov.physics import OvPhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
@@ -28,9 +30,7 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sensors import CameraCfg
-from isaaclab.utils import configclass
-
-from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
+from isaaclab.utils import configclass, replace
 
 from isaaclab_tasks.utils import PresetCfg
 
@@ -56,7 +56,7 @@ class PhysicsCfg(PresetCfg):
                         ls_iterations=50,
                         integrator="implicitfast",
                     ),
-                    bodies=[r"/World/envs/env_[^/]+/Robot", r"/World/envs/env_[^/]+/Support(Neg|Pos)Y"],
+                    bodies=[r"{ENV_REGEX_NS}/Robot", r"{ENV_REGEX_NS}/Support(Neg|Pos)Y"],
                 ),
                 CouplerEntryCfg(
                     name="soft",
@@ -70,9 +70,9 @@ class PhysicsCfg(PresetCfg):
                     source="rigid",
                     destination="soft",
                     bodies=[
-                        r"/World/envs/env_[^/]+/Robot/Geometry/.*panda_hand",
-                        r"/World/envs/env_[^/]+/Robot/Geometry/.*panda_(left|right)finger",
-                        r"/World/envs/env_[^/]+/Support(Neg|Pos)Y",
+                        r"{ENV_REGEX_NS}/Robot/Geometry/.*panda_hand",
+                        r"{ENV_REGEX_NS}/Robot/Geometry/.*panda_(left|right)finger",
+                        r"{ENV_REGEX_NS}/Support(Neg|Pos)Y",
                     ],
                     collide_interval=1,
                     collision_pipeline=NewtonCollisionPipelineCfg(
@@ -91,6 +91,7 @@ class PhysicsCfg(PresetCfg):
     )
 
     isaacsim_physx: PhysxCfg = PhysxCfg(gpu_found_lost_pairs_capacity=2**22)
+    ovphysx: OvPhysxCfg = OvPhysxCfg(disable_compiled_stage_cache=True, gpu_found_lost_pairs_capacity=2**22)
 
     physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
 
@@ -138,6 +139,7 @@ class DeformableCfg(PresetCfg):
 
     physx: DeformableObjectCfg = DeformableObjectCfg(
         prim_path="{ENV_REGEX_NS}/Deformable",
+        cloning_contexts=("isaaclab.cloner:UsdReplicateContext",),
         init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.4, 0.0, 0.102), rot=(0.70710678, 0.0, 0.0, 0.70710678)),
         spawn=sim_utils.MeshRectangleCfg(
             size=(0.2, 0.2),
@@ -159,6 +161,7 @@ class DeformableCfg(PresetCfg):
         ),
     )
     isaacsim_physx = physx
+    ovphysx: DeformableObjectCfg = replace(physx, cloning_contexts=None)
 
     default = newton_mjwarp_vbd_proxy
 
@@ -193,13 +196,12 @@ class FrankaClothSceneCfg(soft.FrankaSoftBaseSceneCfg):
 class FrankaClothScenePresetCfg(PresetCfg):
     """Preset config for the Franka surface deformable scene."""
 
-    newton_mjwarp_vbd_proxy: FrankaClothSceneCfg = FrankaClothSceneCfg(
-        num_envs=2048, env_spacing=2.0, replicate_physics=True
-    )
+    newton_mjwarp_vbd_proxy: FrankaClothSceneCfg = FrankaClothSceneCfg(num_envs=2048, env_spacing=2.0)
 
-    # Isaac Sim PhysX does not support replicating physics for deformable objects
-    physx: FrankaClothSceneCfg = FrankaClothSceneCfg(num_envs=2048, env_spacing=2.0, replicate_physics=False)
+    # The PhysX deformable asset uses USD replication; other scene assets keep their backend route.
+    physx: FrankaClothSceneCfg = FrankaClothSceneCfg(num_envs=2048, env_spacing=2.0)
     isaacsim_physx = physx
+    ovphysx = physx
 
     default = newton_mjwarp_vbd_proxy
 
@@ -215,11 +217,10 @@ class FrankaClothCameraSceneCfg(FrankaClothSceneCfg):
 class FrankaClothCameraScenePresetCfg(PresetCfg):
     """Scene presets for visual Franka cloth lifting."""
 
-    newton_mjwarp_vbd_proxy: FrankaClothCameraSceneCfg = FrankaClothCameraSceneCfg(
-        num_envs=128, env_spacing=2.5, replicate_physics=True
-    )
-    physx: FrankaClothCameraSceneCfg = FrankaClothCameraSceneCfg(num_envs=128, env_spacing=2.5, replicate_physics=False)
+    newton_mjwarp_vbd_proxy: FrankaClothCameraSceneCfg = FrankaClothCameraSceneCfg(num_envs=128, env_spacing=2.5)
+    physx: FrankaClothCameraSceneCfg = FrankaClothCameraSceneCfg(num_envs=128, env_spacing=2.5)
     isaacsim_physx = physx
+    ovphysx = physx
     default = newton_mjwarp_vbd_proxy
 
 
@@ -293,3 +294,8 @@ class FrankaClothCameraEnvCfg(FrankaClothEnvCfg):
         super().__post_init__()
         # warm up the RTX render product and annotator; Newton skips the PhysX asset-loading render loop
         self.num_rerenders_on_reset = 2
+
+    def validate_config(self):
+        """Reject the Newton OptiX renderer, which does not trace deformable objects."""
+        if self.scene.base_camera.renderer_cfg.renderer_type == "newton_optix":
+            raise ValueError("renderer=newton_optix does not render deformable objects. Use renderer=newton_warp.")

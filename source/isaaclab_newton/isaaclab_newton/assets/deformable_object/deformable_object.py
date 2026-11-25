@@ -17,8 +17,8 @@ import warp as wp
 from isaaclab.assets.deformable_object.base_deformable_object import BaseDeformableObject
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.warp.memory import resolve_1d_indices, resolve_1d_mask, resolve_ids
 
-from ...physics.newton_manager import NewtonManager as SimulationManager
 from .deformable_object_data import DeformableObjectData
 from .kernels import (
     compute_nodal_state_w,
@@ -122,7 +122,7 @@ class DeformableObject(BaseDeformableObject):
         if self._data.nodal_kinematic_target is None:
             return
 
-        model = SimulationManager.get_model()
+        model = self._backend_manager.backend.model
 
         for state in self._iter_particle_states():
             wp.launch(
@@ -186,7 +186,7 @@ class DeformableObject(BaseDeformableObject):
                 device=self.device,
             )
 
-        SimulationManager._mark_particles_dirty()
+        self._backend_manager._mark_particles_dirty()
         self._invalidate_nodal_pos_cache()
 
     def write_nodal_velocity_to_sim_index(
@@ -301,7 +301,7 @@ class DeformableObject(BaseDeformableObject):
                 device=self.device,
             )
 
-        SimulationManager._mark_particles_dirty()
+        self._backend_manager._mark_particles_dirty()
         self._invalidate_nodal_pos_cache()
         self._invalidate_nodal_vel_cache()
 
@@ -334,7 +334,7 @@ class DeformableObject(BaseDeformableObject):
                 device=self.device,
             )
 
-        SimulationManager._mark_particles_dirty()
+        self._backend_manager._mark_particles_dirty()
         self._invalidate_nodal_pos_cache()
 
     def write_nodal_velocity_to_sim_mask(
@@ -403,27 +403,15 @@ class DeformableObject(BaseDeformableObject):
 
     def _resolve_env_ids(self, env_ids):
         """Resolve environment indices to a warp int32 array."""
-        if env_ids is None or (isinstance(env_ids, slice) and env_ids == slice(None)):
-            return self._ALL_INDICES
-        elif isinstance(env_ids, list):
-            return wp.array(env_ids, dtype=wp.int32, device=self.device)
-        elif isinstance(env_ids, torch.Tensor):
-            return wp.from_torch(env_ids.to(torch.int32), dtype=wp.int32)
-        return env_ids
+        return resolve_1d_indices(resolve_ids(ids=env_ids, all_ids=self._ALL_INDICES))
 
     def _resolve_mask(self, mask: wp.array | torch.Tensor | None, full_mask: wp.array) -> wp.array:
         """Resolve an environment mask to a warp bool array."""
-        if mask is None:
-            return full_mask
-        if isinstance(mask, torch.Tensor):
-            if mask.dtype != torch.bool:
-                mask = mask.to(torch.bool)
-            return wp.from_torch(mask, dtype=wp.bool)
-        return mask
+        return resolve_1d_mask(mask=mask, all_mask=full_mask)
 
     def _iter_particle_states(self):
         """Yield active Newton states."""
-        for state in (SimulationManager.get_state_0(), SimulationManager.get_state_1()):
+        for state in (self._backend_manager.backend.state_0, self._backend_manager.backend.state_1):
             if state is None:
                 continue
             yield state
@@ -446,7 +434,7 @@ class DeformableObject(BaseDeformableObject):
         # https://github.com/newton-physics/newton/pull/3326.
         pattern = re.compile(self.cfg.prim_path)
         selected = [
-            value for path, value in SimulationManager.backend.deformable_ranges.items() if pattern.fullmatch(path)
+            value for path, value in self._backend_manager.backend.deformable_ranges.items() if pattern.fullmatch(path)
         ]
         if not selected:
             raise RuntimeError(f"No imported deformable matches '{self.cfg.prim_path}'.")
@@ -468,6 +456,7 @@ class DeformableObject(BaseDeformableObject):
             particles_per_body=self._particles_per_body,
             num_instances=self._num_instances,
             device=self.device,
+            backend_manager=self._backend_manager,
         )
 
         # Create buffers
@@ -493,7 +482,7 @@ class DeformableObject(BaseDeformableObject):
             device=self.device,
         )
         self._data.default_nodal_state_w = ProxyArray(default_nodal_state_w)
-        model = SimulationManager.get_model()
+        model = self._backend_manager.backend.model
         self._default_particle_inv_mass = wp.empty(shape, dtype=wp.float32, device=self.device)
         self._default_particle_flags = wp.empty(shape, dtype=wp.int32, device=self.device)
         for source, default in (

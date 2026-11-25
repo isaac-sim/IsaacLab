@@ -45,8 +45,8 @@ from environ_docs import (  # noqa: E402
     ENVIRONMENT_BROWSER_TASKS_END_MARKER,
     ENVIRONMENT_BROWSER_TASKS_START_MARKER,
     EnvironmentDocRow,
-    _apply_preset_exclusions,
     _physics_names_for_docs,
+    _supports_warp_frontend,
     apply_rl_library_overrides,
     collect_environment_browser_preview_images,
     collect_environment_doc_rows,
@@ -80,6 +80,16 @@ def test_get_workflow_detects_custom_manager_based_subclass():
         pass
 
     assert get_workflow(CustomManagerBasedEnv) == "Manager Based"
+
+
+def test_mdp2_tasks_use_the_mdp2_workflow_without_the_warp_frontend():
+    import isaaclab_tasks_experimental  # noqa: F401
+
+    spec = gym.spec("Isaac-Cartpole-MDP2")
+    workflow = get_workflow(spec.entry_point)
+
+    assert workflow == "MDP2"
+    assert not _supports_warp_frontend(spec.id, workflow, {PresetTarget.PHYSICS: ["newton_mjwarp"]})
 
 
 def test_collect_environment_doc_rows_detects_custom_manager_based_subclasses():
@@ -184,7 +194,7 @@ def test_format_presets_rst_hides_physics_backend_mirrors_without_physics_preset
     formatted = format_presets_rst(
         {
             PresetTarget.PHYSICS: ["isaacsim_physx", "newton_mjwarp", "physx"],
-            PresetTarget.DOMAIN: ["newton_mjwarp", "ovphysx", "physx"],
+            PresetTarget.DOMAIN: ["newton_mjwarp", "newton_steel", "ovphysx", "physx"],
         }
     )
     assert formatted == "**physics=** ``isaacsim_physx``, ``newton_mjwarp``"
@@ -212,51 +222,73 @@ def test_format_presets_rst_keeps_ovphysx_on_physics():
     assert formatted == ("**physics=** ``isaacsim_physx``, ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``")
 
 
-def test_physics_names_for_docs_infers_physx_from_default():
+def test_physics_names_for_docs_infers_physx_from_default(monkeypatch):
+    from isaaclab_isaacsim.physics import PhysxCfg
+    from isaaclab_newton.physics import NewtonCfg
+
+    from isaaclab.sim import SimulationCfg
+    from isaaclab.utils import configclass
+
+    from isaaclab_tasks.utils import PresetCfg
+
+    @configclass
+    class LegacyPhysicsCfg(PresetCfg):
+        default = PhysxCfg()
+        newton_mjwarp = NewtonCfg()
+
+    @configclass
+    class LegacyEnvCfg:
+        sim = SimulationCfg(physics=LegacyPhysicsCfg())
+
+    task_name = "Isaac-Test-Legacy-Physics"
+    monkeypatch.setitem(
+        gym.registry,
+        task_name,
+        EnvSpec(id=task_name, entry_point=ManagerBasedRLEnv, kwargs={"env_cfg_entry_point": LegacyEnvCfg}),
+    )
     names = _physics_names_for_docs(
-        "IsaacContrib-Velocity-Flat-AnymalC",
+        task_name,
         {PresetTarget.PHYSICS: ["newton_mjwarp"], PresetTarget.DOMAIN: [], PresetTarget.RENDERER: []},
     )
     assert names == ["newton_mjwarp", "physx"]
 
 
-@pytest.mark.parametrize(
-    "task_name",
-    [
-        "IsaacContrib-Factory-Franka",
-        "IsaacContrib-Stack-Cube-Franka",
-        "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor",
-        "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-Joint-Position",
-        "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-RmpFlow",
-        "IsaacContrib-Stack-Cube-UR10-Long-Suction-IK-Rel",
-    ],
-)
-def test_preset_exclusions_remove_runtime_disabled_task_combinations(task_name: str):
-    presets = {
-        PresetTarget.PHYSICS: ["isaacsim_physx", "newton_mjwarp"],
-        PresetTarget.RENDERER: ["isaacsim_rtx", "newton_renderer"],
-        PresetTarget.DOMAIN: ["rgb"],
+def test_collect_environment_doc_rows_reports_curated_mjwarp_support():
+    # Exercise every explicit stack-task exclusion plus representative supported and guarded rows.
+    expected = {
+        "IsaacContrib-NIST-Franka": False,
+        "IsaacContrib-Place-Mug-Agibot-Left-Arm-RmpFlow": False,
+        "IsaacContrib-Stack-Cube-Bin-Franka-IK-Rel-Mimic": False,
+        "IsaacContrib-Stack-Cube-BlueGreen-Franka-IK-Rel": False,
+        "IsaacContrib-Stack-Cube-BlueGreenRed-Franka-IK-Rel": False,
+        "IsaacContrib-Stack-Cube-Franka": False,
+        "IsaacContrib-Stack-Cube-Franka-IK-Abs": False,
+        "IsaacContrib-Stack-Cube-Franka-IK-Rel": False,
+        "IsaacContrib-Stack-Cube-Franka-IK-Rel-Blueprint": False,
+        "IsaacContrib-Stack-Cube-Franka-IK-Rel-Skillgen": False,
+        "IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor": False,
+        "IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos": False,
+        "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow": False,
+        "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor": False,
+        "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-Joint-Position": False,
+        "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-RmpFlow": False,
+        "IsaacContrib-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow": False,
+        "IsaacContrib-Stack-Cube-RedGreen-Franka-IK-Rel": False,
+        "IsaacContrib-Stack-Cube-RedGreenBlue-Franka-IK-Rel": False,
+        "IsaacContrib-Stack-Cube-SO101-IK-Abs-v0": False,
+        "IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0": False,
+        "IsaacContrib-Stack-Cube-SO101-v0": False,
+        "IsaacContrib-Stack-Cube-UR10-Long-Suction-IK-Rel": False,
     }
 
-    excluded = _apply_preset_exclusions(task_name, presets)
-
-    assert excluded == {
-        PresetTarget.PHYSICS: ["isaacsim_physx"],
-        PresetTarget.RENDERER: ["isaacsim_rtx", "newton_renderer"],
-        PresetTarget.DOMAIN: ["rgb"],
+    rows = collect_environment_doc_rows([gym.spec(task_name) for task_name in expected])
+    actual = {
+        row.task_name: "newton_mjwarp" in row.presets.get(PresetTarget.PHYSICS, [])
+        for row in rows
+        if row.presets is not None
     }
 
-
-def test_preset_exclusions_keep_supported_task_combinations():
-    presets = {
-        PresetTarget.PHYSICS: ["isaacsim_physx", "newton_mjwarp"],
-        PresetTarget.RENDERER: ["isaacsim_rtx", "newton_renderer"],
-        PresetTarget.DOMAIN: ["rgb"],
-    }
-
-    unchanged = _apply_preset_exclusions("Isaac-Lift-Franka", presets)
-
-    assert unchanged == presets
+    assert actual == expected
 
 
 def test_collect_environment_doc_rows_from_mock_specs():

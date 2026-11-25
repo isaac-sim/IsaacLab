@@ -7,7 +7,7 @@
 
 .. code-block:: bash
 
-    # Usage with default PhysX physics and default kit visualizer.
+    # Usage with default PhysX physics and default Newton visualizer.
     uvx --from 'isaaclab[isaacsim]' isaaclab example arl-robot-1
 
     # Usage with Newton visualizer and default PhysX physics.
@@ -27,7 +27,7 @@ parser = argparse.ArgumentParser(
 parser.add_argument("--physics", default="isaacsim_physx", choices=["isaacsim_physx"], help="Physics backend.")
 parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["kit"])
+parser.set_defaults(visualizer=["newton"])
 args_cli = parser.parse_args()
 if args_cli.max_steps == 0 or args_cli.max_steps < -1:
     parser.error("--max_steps must be positive or -1.")
@@ -35,7 +35,6 @@ if args_cli.max_steps == 0 or args_cli.max_steps < -1:
 import torch
 
 import isaaclab.sim as sim_utils
-from isaaclab.physics import PhysicsCfg
 
 from isaaclab_contrib.controllers.lee_position_control import LeePosController
 from isaaclab_contrib.controllers.lee_position_control_cfg import LeePosControllerCfg
@@ -45,15 +44,9 @@ from isaaclab_assets.robots.arl_robot_1 import ARL_ROBOT_1_CFG
 
 def main():
     """Main function to spawn arl_robot_1."""
-    with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
-        # Create simulation context
-        # ThrusterCfg is implemented in Isaac Lab and has no Newton-native execution path.
-        sim_cfg = sim_utils.SimulationCfg(
-            dt=0.01,
-            device=args_cli.device,
-            physics=physics_cfg,
-            use_newton_actuators=False,
-        )
+    # ThrusterCfg is implemented in Isaac Lab and has no Newton-native execution path.
+    sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device, use_newton_actuators=False)
+    with launch_simulation(sim_cfg, args_cli):
         sim = sim_utils.SimulationContext(sim_cfg)
 
         # Create a dome light with light blue color

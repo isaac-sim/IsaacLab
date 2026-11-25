@@ -18,6 +18,7 @@
     Camera
     CameraData
     CameraCfg
+    ExposureCfg
     ContactSensor
     ContactSensorData
     ContactSensorCfg
@@ -94,6 +95,10 @@ USD Camera
     :inherited-members:
     :show-inheritance:
     :exclude-members: __init__, class_type, OffsetCfg
+
+.. autoclass:: ExposureCfg
+    :members:
+    :exclude-members: __init__
 
 
 Contact Sensor
@@ -221,6 +226,9 @@ Inertia Measurement Unit
 
 Pose Velocity Acceleration Sensor
 ---------------------------------
+
+The PVA data hierarchy remains available. Read standard measurements from
+``sensor.data``; direct construction can use ``isaaclab.sensors.PvaData``.
 
 .. autoclass:: Pva
     :members:

@@ -160,7 +160,8 @@ def capture_versions(bm: Any) -> Versions:
         git_dirty=dev.get("dirty", False),
         numpy=md.get("numpy_version"),
         isaaclab_newton=md.get("isaaclab_newton_version"),
-        isaaclab_physx=md.get("isaaclab_physx_version"),
+        # The record field keeps its name; the package that fills it was renamed from isaaclab_physx.
+        isaaclab_physx=md.get("isaaclab_isaacsim_version") or md.get("isaaclab_physx_version"),
         isaaclab_ov=md.get("isaaclab_ov_version"),
         isaaclab_tasks=md.get("isaaclab_tasks_version"),
         isaaclab_rl=md.get("isaaclab_rl_version"),
@@ -270,18 +271,18 @@ def run_config_from_env_cfg(env_cfg: object) -> RunConfig:
     # Config identities keep this lookup independent of optional simulator imports.
     # Ordering preserves the existing Kamino-before-MJWarp primary backend label.
     physics_names = {
-        "isaaclab_newton.physics.kamino_manager_cfg._KaminoSolverCfgBase": "newton_kamino",
-        "isaaclab_newton.physics.mjwarp_manager_cfg.MJWarpSolverCfg": "newton_mjwarp",
-        "isaaclab_physx.physics.physx_manager_cfg.PhysxCfg": "physx",
+        "isaaclab_newton.physics.kamino_solver_cfg._KaminoSolverCfgBase": "newton_kamino",
+        "isaaclab_newton.physics.mjwarp_solver_cfg.MJWarpSolverCfg": "newton_mjwarp",
+        "isaaclab_isaacsim.physics.physx_manager_cfg.PhysxCfg": "physx",
         "isaaclab_ov.physics.ovphysx_manager_cfg.OvPhysxCfg": "ovphysx",
-        "isaaclab_newton.physics.featherstone_manager_cfg.FeatherstoneSolverCfg": "newton_featherstone",
-        "isaaclab_newton.physics.xpbd_manager_cfg.XPBDSolverCfg": "newton_xpbd",
-        "isaaclab_newton.physics.vbd_manager_cfg.VBDSolverCfg": "newton_vbd",
-        "isaaclab_newton.physics.mpm_manager_cfg.MPMSolverCfg": "newton_mpm",
+        "isaaclab_newton.physics.featherstone_solver_cfg.FeatherstoneSolverCfg": "newton_featherstone",
+        "isaaclab_newton.physics.steel_solver_cfg.SteelSolverCfg": "newton_steel",
+        "isaaclab_newton.physics.xpbd_solver_cfg.XPBDSolverCfg": "newton_xpbd",
+        "isaaclab_newton.physics.vbd_solver_cfg.VBDSolverCfg": "newton_vbd",
+        "isaaclab_newton.physics.mpm_solver_cfg.MPMSolverCfg": "newton_mpm",
         "isaaclab_newton.physics.newton_manager_cfg.NewtonCfg": "newton",
-        "isaaclab_contrib.coupling.coupler_cfg.CouplerProxyCfg": "proxy",
-        "isaaclab_contrib.coupling.coupler_cfg.CouplerAdmmCfg": "admm",
-        "isaaclab_contrib.custom_coupling.newton_manager_cfg.CoupledMJWarpVBDSolverCfg": "custom",
+        "isaaclab_newton.physics.coupling.coupler_cfg.CouplerProxyCfg": "proxy",
+        "isaaclab_newton.physics.coupling.coupler_cfg.CouplerAdmmCfg": "admm",
     }
     physics_cfg = getattr(getattr(env_cfg, "sim", None), "physics", None)
     solvers = set()
@@ -310,9 +311,6 @@ def run_config_from_env_cfg(env_cfg: object) -> RunConfig:
         elif name in ("proxy", "admm"):
             coupling = name
             stack.extend(entry.solver_cfg for entry in node.entries)
-        elif name == "custom":
-            coupling = f"custom_{node.coupling_mode}"
-            stack.extend((node.rigid_solver_cfg, node.soft_solver_cfg))
         elif name is not None:
             solvers.add(name)
         else:
@@ -322,7 +320,12 @@ def run_config_from_env_cfg(env_cfg: object) -> RunConfig:
         raise ValueError(f"Unsupported concrete physics config: {type(physics_cfg).__name__}.")
     physics = next(name for name in physics_names.values() if name in solvers)
 
-    renderer_names = {"isaac_rtx": "isaacsim_rtx", "ovrtx": "ovrtx", "newton_warp": "newton"}
+    renderer_names = {
+        "isaac_rtx": "isaacsim_rtx",
+        "ovrtx": "ovrtx",
+        "newton_warp": "newton",
+        "newton_optix": "newton_optix",
+    }
     rendering = None
     for node in _iter_config_nodes(env_cfg):
         rendering = renderer_names.get(getattr(node, "renderer_type", None))

@@ -11,18 +11,15 @@ While going through this tutorial, we recommend you to pay attention to how a cu
 is defined. The action term is responsible for processing the raw actions and applying them to the
 scene entities.
 
-We also define an event term called 'randomize_scale' that randomizes the scale of
-the cube. This event term has the mode 'prestartup', which means that it is applied on the USD stage
-before the simulation starts. Additionally, the flag 'replicate_physics' is set to False,
-which means that the cube is not replicated across multiple environments but rather each
-environment gets its own cube instance.
+Three declared cube sizes preserve per-environment variation under physics replication. The reset event
+changes position, and a startup event changes visual color.
 
 The rest of the environment is similar to the previous tutorials.
 
 .. code-block:: bash
 
     # Run the script
-    uv run python scripts/tutorials/03_envs/create_cube_base_env.py --num_envs 32
+    uv run --extra ov python scripts/tutorials/03_envs/create_cube_base_env.py --num_envs 32
 
 """
 
@@ -42,17 +39,19 @@ parser.add_argument("--num_envs", type=int, default=64, help="Number of environm
 
 # append simulation launcher cli args
 add_launcher_args(parser)
+parser.set_defaults(visualizer=["newton_rtx"])
 # parse the arguments
 args_cli = parser.parse_args()
 
 """Rest everything follows."""
 
 import torch
-from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
+from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
+from isaaclab_ov.physics import OvPhysxCfg
 
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
-from isaaclab.assets import AssetBaseCfg, RigidObject, RigidObjectCfg
+from isaaclab.assets import AssetBaseCfg, RigidObject, RigidObjectCfg, VisualMaterialCfg
 from isaaclab.envs import ManagerBasedEnvCfg
 from isaaclab.managers import ActionTerm, ActionTermCfg, SceneEntityCfg
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -89,7 +88,7 @@ class CubeActionTerm(ActionTerm):
     """
 
     _asset: RigidObject
-    """The articulation asset on which the action term is applied."""
+    """The rigid object asset on which the action term is applied."""
 
     def __init__(self, cfg: CubeActionTermCfg, env: ManagerBasedEnv):
         # call super constructor
@@ -156,7 +155,7 @@ class CubeActionTermCfg(ActionTermCfg):
 
 
 def base_position(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
-    """Root linear velocity in the asset's root frame."""
+    """Root position of the asset relative to its environment origin."""
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
     return asset.data.root_pos_w.torch - env.scene.env_origins
@@ -180,14 +179,22 @@ class MySceneCfg(InteractiveSceneCfg):
     # add cube
     cube: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/cube",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.2, 0.2, 0.2),
-            rigid_props=PhysxRigidBodyCfg(max_depenetration_velocity=1.0, disable_gravity=True),
-            mass_props=sim_utils.MassCfg(mass=1.0),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.0, 0.0)),
+        spawn=sim_utils.MultiAssetSpawnerCfg(
+            assets_cfg=[
+                sim_utils.CuboidCfg(
+                    size=(edge, edge, edge),
+                    rigid_props=PhysxRigidBodyCfg(max_depenetration_velocity=1.0, disable_gravity=True),
+                    mass_props=sim_utils.MassCfg(mass=1.0),
+                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.0, 0.0)),
+                )
+                for edge in (0.12, 0.20, 0.28)
+            ]
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 5)),
     )
+
+    # Wrap the material spawned with each cube so events can update it without Kit.
+    cube_material = VisualMaterialCfg(prim_path="{ENV_REGEX_NS}/cube/geometry/material", spawn=None)
 
     # lights
     light = AssetBaseCfg(
@@ -248,30 +255,13 @@ class EventCfg:
         },
     )
 
-    # This event term randomizes the scale of the cube.
-    # The mode is set to 'prestartup', which means that the scale is randomize on the USD stage before the
-    # simulation starts.
-    # Note: USD-level randomizations require the flag 'replicate_physics' to be set to False.
-    randomize_scale = EventTerm(
-        func=mdp.randomize_rigid_body_scale,
-        mode="prestartup",
-        params={
-            "scale_range": {"x": (0.5, 1.5), "y": (0.5, 1.5), "z": (0.5, 1.5)},
-            "asset_cfg": SceneEntityCfg("cube"),
-        },
-    )
-
-    # This event term randomizes the visual color of the cube.
-    # Similar to the scale randomization, this is also a USD-level randomization and requires the flag
-    # 'replicate_physics' to be set to False.
+    # Randomize each cube's color once, after its runtime material is initialized.
     randomize_color = EventTerm(
-        func=mdp.randomize_visual_color,
-        mode="prestartup",
+        func=mdp.randomize_visual_material,
+        mode="startup",
         params={
-            "colors": {"r": (0.0, 1.0), "g": (0.0, 1.0), "b": (0.0, 1.0)},
-            "asset_cfg": SceneEntityCfg("cube"),
-            "mesh_name": "geometry/mesh",
-            "event_name": "rep_cube_randomize_color",
+            "materials": SceneEntityCfg("cube_material"),
+            "channels": {"color": {"r": (0.0, 1.0), "g": (0.0, 1.0), "b": (0.0, 1.0)}},
         },
     )
 
@@ -283,13 +273,10 @@ class EventCfg:
 
 @configclass
 class CubeEnvCfg(ManagerBasedEnvCfg):
-    """Configuration for the locomotion velocity-tracking environment."""
+    """Configuration for the floating cube environment."""
 
     # Scene settings
-    # The flag 'replicate_physics' is set to False, which means that the cube is not replicated
-    # across multiple environments but rather each environment gets its own cube instance.
-    # This allows modifying the cube's properties independently for each environment.
-    scene: MySceneCfg = MySceneCfg(num_envs=args_cli.num_envs, env_spacing=2.5, replicate_physics=False)
+    scene: MySceneCfg = MySceneCfg(num_envs=args_cli.num_envs, env_spacing=2.5)
 
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
@@ -301,12 +288,13 @@ class CubeEnvCfg(ManagerBasedEnvCfg):
         # general settings
         self.decimation = 2
         # simulation settings
+        self.sim.physics = OvPhysxCfg()
         self.sim.dt = 0.01
         self.sim.physics_material = self.scene.terrain.physics_material
         self.sim.render_interval = 2  # render interval should be a multiple of decimation
         self.sim.device = args_cli.device
         # viewer settings
-        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(5.0, 5.0, 5.0), lookat=(0.0, 0.0, 2.0))
+        self.sim.visualizer_cfgs = VisualizerCfg(eye=(5.0, 5.0, 5.0), lookat=(0.0, 0.0, 2.0))
 
 
 def main():

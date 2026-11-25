@@ -99,7 +99,8 @@ class NoiseModelWithAdditiveBiasCfg(NoiseModelCfg):
     bias_noise_cfg: NoiseCfg = MISSING
     """The noise configuration for the bias.
 
-    Based on this configuration, the bias is sampled at every reset of the noise model.
+    Based on this configuration, the bias is sampled at every reset of the noise model. The noise is applied to
+    zeros, so the ``"add"`` and ``"abs"`` operations both draw the bias directly, while ``"scale"`` yields no bias.
     """
 
     sample_bias_per_component: bool = True

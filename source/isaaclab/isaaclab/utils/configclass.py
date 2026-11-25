@@ -241,7 +241,10 @@ def _wrap_resolvable_strings(value: Any, module_dir: str | None = None, _seen: s
     if is_dataclass_instance:
         for key, item in value.__dict__.items():
             nested_module_dir = _field_module_dir(value, key)
-            setattr(value, key, _wrap_resolvable_strings(item, module_dir=nested_module_dir, _seen=_seen))
+            wrapped = _wrap_resolvable_strings(item, module_dir=nested_module_dir, _seen=_seen)
+            # assign only what changed, so frozen dataclasses with nothing to wrap are accepted
+            if wrapped is not item:
+                setattr(value, key, wrapped)
     return value
 
 
@@ -321,7 +324,12 @@ def _add_annotation_types(cls):
     cls.__annotations__ = hints
 
 
-def _validate(obj: object, prefix: str = "", _custom_validators: list[Callable[[], None]] | None = None) -> list[str]:
+def _validate(
+    obj: object,
+    prefix: str = "",
+    _custom_validators: list[Callable[[], None]] | None = None,
+    _visited: set[int] | None = None,
+) -> list[str]:
     """Check the validity of configclass object.
 
     This function checks if the object is a valid configclass object. A valid configclass object contains no MISSING
@@ -340,6 +348,8 @@ def _validate(obj: object, prefix: str = "", _custom_validators: list[Callable[[
         obj: The object to check.
         prefix: The prefix to add to the missing fields. Defaults to ''.
         _custom_validators: Internal post-order accumulator for custom validation hooks.
+        _visited: Internal ids of the objects already traversed, so that objects that refer back to themselves,
+            such as the module of a Warp function held by a config, are entered once.
 
     Returns:
         A list of missing fields.
@@ -351,6 +361,8 @@ def _validate(obj: object, prefix: str = "", _custom_validators: list[Callable[[
     is_root = _custom_validators is None and prefix == ""
     if _custom_validators is None:
         _custom_validators = []
+    if _visited is None:
+        _visited = set()
 
     if type(obj).__name__ == "MeshConverterCfg":
         return missing_fields
@@ -361,7 +373,9 @@ def _validate(obj: object, prefix: str = "", _custom_validators: list[Callable[[
     elif isinstance(obj, (list, tuple)):
         for index, item in enumerate(obj):
             current_path = f"{prefix}[{index}]"
-            missing_fields.extend(_validate(item, prefix=current_path, _custom_validators=_custom_validators))
+            missing_fields.extend(
+                _validate(item, prefix=current_path, _custom_validators=_custom_validators, _visited=_visited)
+            )
         return missing_fields
     elif isinstance(obj, dict):
         # Convert any non-string keys to strings to allow validation of dict with non-string keys
@@ -370,6 +384,9 @@ def _validate(obj: object, prefix: str = "", _custom_validators: list[Callable[[
         else:
             obj_dict = obj
     elif hasattr(obj, "__dict__"):
+        if id(obj) in _visited:
+            return missing_fields
+        _visited.add(id(obj))
         obj_dict = obj.__dict__
     else:
         return missing_fields
@@ -379,7 +396,9 @@ def _validate(obj: object, prefix: str = "", _custom_validators: list[Callable[[
         if key.startswith("__"):
             continue
         current_path = f"{prefix}.{key}" if prefix else key
-        missing_fields.extend(_validate(value, prefix=current_path, _custom_validators=_custom_validators))
+        missing_fields.extend(
+            _validate(value, prefix=current_path, _custom_validators=_custom_validators, _visited=_visited)
+        )
 
     # Collect hooks in post-order so nested configs validate before their owners.
     # Arbitrary nested objects are traversed for missing fields but do not participate in this protocol.

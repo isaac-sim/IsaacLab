@@ -27,7 +27,7 @@ def test_command_lists_non_isaac_prefixed_task_from_current_project(tmp_path, mo
         '[project]\nname = "example"\n[project.entry-points."isaaclab.tasks"]\nexample = "example.tasks"\n'
     )
     monkeypatch.chdir(working_dir)
-    monkeypatch.setattr("isaaclab.cli.commands.list_envs.importlib.metadata.entry_points", lambda **kwargs: [])
+    monkeypatch.setattr("isaaclab.cli.importlib.metadata.entry_points", lambda **kwargs: [])
 
     try:
         command_list_envs([])

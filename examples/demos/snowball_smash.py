@@ -22,8 +22,13 @@ import argparse
 from typing import NamedTuple
 
 import numpy as np
+from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
 from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.visualizers import VisualizerCfg
+
+from isaaclab_tasks.utils import resolve_presets
+from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
 
 
 class SnowballSpec(NamedTuple):
@@ -59,7 +64,7 @@ parser.add_argument("--mpm_iterations", type=int, default=100, help="Maximum MPM
 parser.add_argument("--rigid_substeps", type=int, default=4, help="MuJoCo-Warp substeps per coupled step.")
 parser.add_argument("--disable_cuda_graph", action="store_true", help="Disable CUDA graph capture for debugging.")
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["newton_gl"])
+parser.set_defaults(visualizer=["newton"])
 args_cli = parser.parse_args()
 
 
@@ -102,22 +107,6 @@ CAMERA_EYE = (-4.2, -3.2, 2.2)
 CAMERA_TARGET = (0.0, 0.0, 0.9)
 
 
-def create_visualizer_cfgs():
-    """Create demo-specific visualizer configs for the requested backends."""
-    if not any(v in (args_cli.visualizer or []) for v in ("newton", "newton_gl", "newton_rtx")):
-        return []
-
-    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
-
-    cfg_type = NewtonRTXVisualizerCfg if args_cli.visualizer == ["newton_rtx"] else NewtonGLVisualizerCfg
-    return [
-        cfg_type(
-            show_particles=True,
-            particle_color=SNOW_COLOR,
-        )
-    ]
-
-
 def create_snowball_points(radius: float, seed: int) -> np.ndarray:
     """Create jittered local-space sphere points."""
     dim = int(2.0 * radius / SNOW_SPACING) + 1
@@ -136,10 +125,9 @@ def create_snowball_points(radius: float, seed: int) -> np.ndarray:
 def create_sim_cfg():
     """Create the proxy-coupled Newton simulation configuration."""
     from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg, NewtonCfg
+    from isaaclab_newton.physics.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
     import isaaclab.sim as sim_utils
-
-    from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
     if not str(args_cli.device).startswith("cuda"):
         raise RuntimeError("The graph-captured implicit-MPM coupling demo requires a CUDA device.")
@@ -203,7 +191,9 @@ def create_sim_cfg():
         dt=1.0 / FPS,
         device=args_cli.device,
         gravity=(0.0, 0.0, -9.81),
-        visualizer_cfgs=create_visualizer_cfgs(),
+        visualizer_cfgs=VisualizerCfg(
+            backend=MultiBackendVisualizerCfg(newton_gl=NewtonGLBackendCfg(particle_color=SNOW_COLOR)),
+        ),
         physics=NewtonCfg(
             solver_cfg=solver_cfg,
             num_substeps=1,
@@ -349,7 +339,7 @@ def run_simulator(sim, scene) -> None:
 
 def main() -> None:
     """Set up and run the Newton MPM snowball-smash demo."""
-    sim_cfg = create_sim_cfg()
+    sim_cfg = resolve_presets(create_sim_cfg(), overrides={"visualizer_cfgs.backend": args_cli.visualizer})
     with launch_simulation(sim_cfg, args_cli):
         import isaaclab.sim as sim_utils
         from isaaclab.scene import InteractiveScene

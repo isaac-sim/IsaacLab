@@ -10,14 +10,14 @@ from typing import Any
 
 import numpy as np
 import warp as wp
-from newton import JointType, ModelBuilder, ShapeFlags
+from newton import JointType, Mesh, ModelBuilder, ShapeFlags
 
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
 from isaaclab.cloner import ClonePlan
 from isaaclab.cloner import path as clone_path
 from isaaclab.scene_data.deformable_discovery import DeformableStageEntry
-from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
+from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors, resolve_display_color
 from isaaclab.utils.string import to_camel_case
 
 from isaaclab_newton.renderers.visual_material import import_builder_visual_material_paths
@@ -27,13 +27,16 @@ from isaaclab_newton.sim.spawners.materials import (
 )
 
 
-def add_deformable_from_usd(builder: ModelBuilder, stage: Usd.Stage, geometry: DeformableStageEntry) -> None:
+def add_deformable_from_usd(
+    builder: ModelBuilder, stage: Usd.Stage, geometry: DeformableStageEntry, color: tuple[float, float, float] | None
+) -> None:
     """Add a discovered deformable's geometry, Newton material, and native element ranges.
 
     Args:
         builder: Source builder that receives the complete deformable prototype.
         stage: Stage containing the authored geometry and bound physics material.
         geometry: Deformable prototype discovered beneath an imported source.
+        color: sRGB display color of the deformable, or ``None`` for Newton's default.
 
     Note:
         Replace this importer with native ``add_usd`` when Isaac Lab's authored schemas and
@@ -65,15 +68,17 @@ def add_deformable_from_usd(builder: ModelBuilder, stage: Usd.Stage, geometry: D
         scale=1.0,
         vel=wp.vec3(),
         label=geometry.root_path,
+        color=color,
         **material_kwargs,
     )
 
 
 def add_visual_deformables_to_sources(
-    builders: dict[str, ModelBuilder], entries: Sequence[DeformableStageEntry]
+    builders: dict[str, ModelBuilder], stage: Usd.Stage, entries: Sequence[DeformableStageEntry]
 ) -> None:
     """Add each visual deformable to every imported source containing its USD subtree."""
     for entry in entries:
+        color = resolve_display_color(stage, entry.vis_mesh_path)
         for path in reversed(Sdf.Path(entry.root_path).GetPrefixes()):
             builder = builders.get(str(path))
             if builder is None:
@@ -88,7 +93,7 @@ def add_visual_deformables_to_sources(
                 add_mesh = builder.add_soft_mesh
                 mesh = dict(vertices=entry.vertices, indices=entry.indices, density=1000.0)
                 mesh.update(k_mu=1e5, k_lambda=1e5, k_damp=0.0)
-            add_mesh(label=entry.vis_mesh_path, **mesh, **pose)
+            add_mesh(label=entry.vis_mesh_path, color=color, **mesh, **pose)
 
 
 def build_source_builders(
@@ -101,6 +106,7 @@ def build_source_builders(
     load_visual_shapes: bool = True,
     skip_mesh_approximation: bool = False,
     import_results_out: dict[str, dict[str, Any]] | None = None,
+    sdf_mesh_reduction: float | None = None,
 ) -> dict[str, ModelBuilder]:
     """Build one Newton builder for each clone source prim path.
 
@@ -118,10 +124,13 @@ def build_source_builders(
             USD parse time and memory that only pays off when the shapes are rendered
             or ray cast.
         skip_mesh_approximation: Whether to skip collision mesh approximation during import.
+        sdf_mesh_reduction: Optional target fraction of triangles removed from SDF collision meshes.
+            Visual geometry and body inertia are retained; reduction precedes replication and SDF cooking.
         import_results_out: Optional caller-owned output mapping populated in place with each
             source's USD import result.
     """
     builders = {}
+    collision_meshes = {}
     sources = tuple(dict.fromkeys(sources))
     for source in sources:
         builder = create_builder()
@@ -134,7 +143,26 @@ def build_source_builders(
             schema_resolvers=schema_resolvers,
             ignore_paths=ignore_paths or (),
             return_deformable_results=True,
+            allow_unsafe_torch_checkpoints=True,
         )
+        if sdf_mesh_reduction is not None and not skip_mesh_approximation:
+            sdf_shapes = [
+                i
+                for i, flags in enumerate(builder.shape_flags)
+                if flags & ShapeFlags.COLLIDE_SHAPES
+                and (
+                    builder.shape_sdf_max_resolution[i] is not None
+                    or builder.shape_sdf_target_voxel_size[i] is not None
+                )
+            ]
+            if sdf_shapes:
+                builder.approximate_meshes(
+                    method="quadratic",
+                    shape_indices=sdf_shapes,
+                    target_reduction=sdf_mesh_reduction,
+                    keep_visual_shapes=load_visual_shapes,
+                    raise_on_failure=True,
+                )
         replace_newton_builder_shape_colors(builder, stage)
         if load_visual_shapes:
             # Newton groups all static shapes under body -1. Use imported visual paths to
@@ -166,6 +194,22 @@ def build_source_builders(
                 if visible and imageable.ComputePurpose() in (UsdGeom.Tokens.default_, UsdGeom.Tokens.proxy):
                     builder.shape_flags[index] |= ShapeFlags.VISIBLE
             import_builder_visual_material_paths(builder, stage)
+        # Native deferred SDF caching keys by Mesh identity. Reuse identical collision-only sources
+        # across slots so their textures are cooked once; visual meshes and prebuilt SDFs stay independent.
+        for index, mesh in enumerate(builder.shape_source):
+            if (
+                isinstance(mesh, Mesh)
+                and mesh.sdf is None
+                and not mesh.enable_surface_velocity
+                and builder.shape_flags[index] & ShapeFlags.COLLIDE_SHAPES
+                and not builder.shape_flags[index] & ShapeFlags.VISIBLE
+                and (
+                    builder.shape_sdf_max_resolution[index] is not None
+                    or builder.shape_sdf_target_voxel_size[index] is not None
+                )
+            ):
+                key = (hash(mesh), mesh.maxhullvert)
+                builder.shape_source[index] = collision_meshes.setdefault(key, mesh)
         _name_root_joints_after_their_body(builder)
         builders[source] = builder
         if import_results_out is not None:
@@ -282,13 +326,14 @@ def replicate_builder_mapping(
     quaternions: np.ndarray,
     source_builders: dict[str, ModelBuilder],
     *,
+    source_inverse: dict[str, np.ndarray],
     env_ids: np.ndarray,
     source_site_indices: dict[int, dict[str, list[int]]] | None = None,
     env_root_sites: dict[str, wp.transform] | None = None,
     per_world_builder_hooks: Sequence[Callable[[ModelBuilder, int, np.ndarray, np.ndarray], None]] = (),
     source_builder_added: Callable[[str, str, int, int], None] | None = None,
 ) -> tuple[dict[str, list[list[int]]], list[wp.transform]]:
-    """Compose routed source builders once per world prototype, then batch their selected worlds."""
+    """Compose sources using their authored inverse frames, then place each world from the plan."""
     topology, env_template = plan.topology, plan.env_template
     layout = topology.world_prototype_layout
     source_site_indices = source_site_indices or {}
@@ -296,15 +341,12 @@ def replicate_builder_mapping(
     num_worlds = len(layout)
     xforms_np = np.concatenate((positions, quaternions), axis=1).astype(np.float32, copy=False)
     world_xforms = [wp.transform(*xform) for xform in xforms_np]
-    source_worlds = {str(env_id): world for world, env_id in enumerate(env_ids)}
     initial_sites = source_site_indices.get(id(builder), {})
     local_site_map = {label: [indices.copy() for _ in range(num_worlds)] for label, indices in initial_sites.items()}
-    source_inverse = {}
     sources = clone_path.get_asset_prototype_paths(plan)
     templates, starts = clone_path.get_world_prototype_asset_templates(plan)
     world_builders = {}
-    prototype_ids, first_world_ids = np.unique(layout, return_index=True)
-    for prototype_id, first_world in zip((-1, *prototype_ids), (-1, *first_world_ids), strict=True):
+    for prototype_id in (-1, *np.unique(layout)):
         start, end = starts[prototype_id + 1 : prototype_id + 3]
         reference_paths = [(sources[topology.world_prototypes[index]], templates[index]) for index in range(start, end)]
         available = [(source, template) for source, template in reference_paths if source in source_builders]
@@ -314,22 +356,13 @@ def replicate_builder_mapping(
         prototype = builder if prototype_id == -1 else ModelBuilder(up_axis=builder.up_axis)
         sites, asset_offsets = {}, []
         for source, destination in components:
-            # Remove the source world's placement before composing assets into other world prototypes.
-            if source not in source_inverse:
-                match = clone_path.match(source, env_template)
-                # The first destination also covers plans that remap an authored source ID outside env_ids.
-                source_world = source_worlds.get(match.instance, first_world) if match is not None else None
-                source_inverse[source] = (
-                    np.asarray(wp.transform(), dtype=np.float32)
-                    if prototype_id == -1 or source_world is None
-                    else np.asarray(wp.transform_inverse(world_xforms[source_world]), dtype=np.float32)
-                )
             asset = source_builders[source]
             asset_offsets.append((prototype.shape_count, prototype.particle_count))
             for label, indices in source_site_indices.get(id(asset), {}).items():
                 sites.setdefault(label, []).extend(prototype.shape_count + index for index in indices)
             prefix = "" if prototype_id == -1 else env_template
-            _add_asset_builder(prototype, asset, source, destination, prefix, reference_paths, source_inverse[source])
+            xform = np.asarray(wp.transform(), dtype=np.float32) if prototype_id == -1 else source_inverse[source]
+            _add_asset_builder(prototype, asset, source, destination, prefix, reference_paths, xform)
         if prototype_id == -1:
             for label, indices in sites.items():
                 local_site_map[label] = np.tile(indices, (num_worlds, 1)).tolist()

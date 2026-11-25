@@ -44,6 +44,15 @@ each comparison while varying one material parameter. The annotated values
 are examples for observing different responses, not calibrated material
 recommendations.
 
+Try material changes on a single 2,744-particle blob falling onto a cylinder
+inside a tub. Presets provide qualitative references; reset the scene to apply
+material changes and repeat the same drop.
+
+.. isaaclab-demos:: mpm
+   :title: Explore MPM materials
+   :physics: mpm
+   :activity: tuning
+
 .. list-table:: Values shown in the material recordings
    :header-rows: 1
    :widths: 21 35 44
@@ -156,7 +165,7 @@ simulation time.
       .. raw:: html
 
          <video autoplay loop muted playsinline controls preload="metadata" style="width:100%;">
-           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_elastic_stiffness.mp4" type="video/mp4">
+           <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/mpm/mpm_elastic_stiffness.mp4" type="video/mp4">
          </video>
 
       Plate compression at 100 kPa, 300 kPa, and 1 MPa.
@@ -167,7 +176,7 @@ simulation time.
       .. raw:: html
 
          <video autoplay loop muted playsinline controls preload="metadata" style="width:100%;">
-           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_compressibility.mp4" type="video/mp4">
+           <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/mpm/mpm_compressibility.mp4" type="video/mp4">
          </video>
 
       Plate compression at Poisson ratios 0.05, 0.30, and 0.499 with E = 50 kPa.
@@ -178,7 +187,7 @@ simulation time.
       .. raw:: html
 
          <video autoplay loop muted playsinline controls preload="metadata" style="width:100%;">
-           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_friction.mp4" type="video/mp4">
+           <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/mpm/mpm_friction.mp4" type="video/mp4">
          </video>
 
       Runout for internal friction 0, 0.68, and 2.0; cohesion is unchanged.
@@ -189,7 +198,7 @@ simulation time.
       .. raw:: html
 
          <video autoplay loop muted playsinline controls preload="metadata" style="width:100%;">
-           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_tensile_strength.mp4" type="video/mp4">
+           <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/mpm/mpm_tensile_strength.mp4" type="video/mp4">
          </video>
 
       Tensile yield ratios 0, 0.01, and 0.05.
@@ -200,7 +209,7 @@ simulation time.
       .. raw:: html
 
          <video autoplay loop muted playsinline controls preload="metadata" style="width:100%;">
-           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_pressure_yield.mp4" type="video/mp4">
+           <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/mpm/mpm_pressure_yield.mp4" type="video/mp4">
          </video>
 
       Stronger impact reveals compression at 100 kPa, 1 MPa, and 4 MPa.
@@ -211,7 +220,7 @@ simulation time.
       .. raw:: html
 
          <video autoplay loop muted playsinline controls preload="metadata" style="width:100%;">
-           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_hardening.mp4" type="video/mp4">
+           <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/mpm/mpm_hardening.mp4" type="video/mp4">
          </video>
 
       Fixed strength (0) versus slow (0.05) and rapid (5) strength buildup.
@@ -222,7 +231,7 @@ simulation time.
       .. raw:: html
 
          <video autoplay loop muted playsinline controls preload="metadata" style="width:100%;">
-           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_dilatancy.mp4" type="video/mp4">
+           <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/mpm/mpm_dilatancy.mp4" type="video/mp4">
          </video>
 
       Spreading and packing for dilatancy 0, 0.1, and 1.
@@ -233,7 +242,7 @@ simulation time.
       .. raw:: html
 
          <video autoplay loop muted playsinline controls preload="metadata" style="width:100%;">
-           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_yield_stress.mp4" type="video/mp4">
+           <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/mpm/mpm_yield_stress.mp4" type="video/mp4">
          </video>
 
       Retained shape at 0, 10 kPa, and 20 kPa.
@@ -244,7 +253,7 @@ simulation time.
       .. raw:: html
 
          <video autoplay loop muted playsinline controls preload="metadata" style="width:100%;">
-           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_viscosity.mp4" type="video/mp4">
+           <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/mpm/mpm_viscosity.mp4" type="video/mp4">
          </video>
 
       Rate of plastic flow at 0, 10 Pa·s, and 500 Pa·s.
@@ -255,7 +264,7 @@ simulation time.
       .. raw:: html
 
          <video autoplay loop muted playsinline controls preload="metadata" style="width:100%;">
-           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_particle_jitter.mp4" type="video/mp4">
+           <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/mpm/mpm_particle_jitter.mp4" type="video/mp4">
          </video>
 
       Aligned sampling versus deterministic 30% particle-spacing jitter.
@@ -272,7 +281,7 @@ Nearly Rigid Limit
       .. raw:: html
 
          <video autoplay loop muted playsinline controls preload="metadata" style="width:100%;">
-           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_rigid_limit.mp4" type="video/mp4">
+           <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/mpm/mpm_rigid_limit.mp4" type="video/mp4">
          </video>
 
       Inspect matched colored primitives rolling down separated inclines. This

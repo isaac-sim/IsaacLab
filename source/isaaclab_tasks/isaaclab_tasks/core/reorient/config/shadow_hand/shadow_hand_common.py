@@ -10,10 +10,10 @@ domain-randomization presets, and the sim mixins. No task tunables: reward
 scales and thresholds live inline in the workflow configuration files.
 """
 
+from isaaclab_isaacsim.physics import PhysxCfg
+from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_ov.physics import OvPhysxCfg
-from isaaclab_physx.physics import PhysxCfg
-from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
@@ -26,7 +26,11 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_tasks.utils import PresetCfg
 
-from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_NEWTON_CFG, SHADOW_HAND_PHYSX_CFG
+from isaaclab_assets.robots.shadow_hand import (
+    SHADOW_HAND_FRICTION_REPLACEMENTS,
+    SHADOW_HAND_NEWTON_CFG,
+    SHADOW_HAND_PHYSX_CFG,
+)
 
 from ... import mdp
 
@@ -131,7 +135,7 @@ class ShadowHandManagerResetEventCfg:
         func=mdp.reset_reorient_hand,
         mode="reset",
         params={
-            "joint_position_noise": 0.2,  # [rad]
+            "joint_position_noise": 0.2,  # fraction from default toward a uniform sample within the joint limits
             "joint_velocity_noise": 0.0,  # [rad/s]
         },
     )
@@ -159,17 +163,8 @@ class ShadowHandRobotCfg(PresetCfg):
     needs a per-engine value is a defect to fix in the asset, not a preset to add.
     """
 
-    # ``spawn_path`` authors only the prototype env; the scene clone plan replicates the rest
-    newton_mjwarp = replace(
-        SHADOW_HAND_NEWTON_CFG,
-        prim_path="{ENV_REGEX_NS}/Robot",
-        spawn=replace(SHADOW_HAND_NEWTON_CFG.spawn, spawn_path="/World/envs/env_0/Robot"),
-    )
-    isaacsim_physx = replace(
-        SHADOW_HAND_PHYSX_CFG,
-        prim_path="{ENV_REGEX_NS}/Robot",
-        spawn=replace(SHADOW_HAND_PHYSX_CFG.spawn, spawn_path="/World/envs/env_0/Robot"),
-    )
+    newton_mjwarp = replace(SHADOW_HAND_NEWTON_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+    isaacsim_physx = replace(SHADOW_HAND_PHYSX_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     physx = isaacsim_physx
     ovphysx = isaacsim_physx
     default = newton_mjwarp
@@ -178,7 +173,6 @@ class ShadowHandRobotCfg(PresetCfg):
 CUBE_CFG = RigidObjectCfg(
     prim_path="{ENV_REGEX_NS}/object",
     spawn=sim_utils.UsdFileCfg(
-        spawn_path="/World/envs/env_0/object",
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
         rigid_props=[
             sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=False),
@@ -235,6 +229,9 @@ class PhysicsCfg(PresetCfg):
         ),
         num_substeps=2,
     )
-    ovphysx = OvPhysxCfg()
+    ovphysx = OvPhysxCfg(
+        # Both driven and tendon joints use these measured 0.6 runtime efforts.
+        legacy_joint_friction_replacements=SHADOW_HAND_FRICTION_REPLACEMENTS,
+    )
     physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
     default = newton_mjwarp

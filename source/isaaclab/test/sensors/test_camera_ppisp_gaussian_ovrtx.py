@@ -29,7 +29,7 @@ between renderers.
 
 Notes:
   * Runs **kit-less**: this test does not call
-    :class:`~isaaclab_physx.app.KitLauncher`. ``ovrtx`` and Isaac Sim Kit ship the
+    :class:`~isaaclab_isaacsim.app.KitLauncher`. ``ovrtx`` and Isaac Sim Kit ship the
     same RTX hydra libraries (``librtx.hydra.so``, ``liblegacy.hydra.so``)
     under conflicting USD namespaces; loading both into the same process
     causes a dynamic-linker crash. See
@@ -38,9 +38,9 @@ Notes:
   * Uses Newton physics because ``ovrtx`` is incompatible with Kit/Isaac Sim
     and the PhysX backend requires Kit (``carb``) to bootstrap.
   * Requests ``"rgb_hdr"`` in ``data_types`` because the test asserts the raw
-    HDR source with :func:`assert_ppisp_lifts_exposure`. The PPISP render path
-    itself also allocates an internal HDR buffer when ``isp_cfg`` is set, so
-    ``"rgb_hdr"`` is not required just to enable PPISP.
+    HDR source with :func:`assert_ppisp_lifts_exposure`. The camera also
+    requests the PPISP processor's HDR input itself, so ``"rgb_hdr"`` is not
+    required just to enable PPISP.
 """
 
 import importlib.util
@@ -64,7 +64,7 @@ from generate_synthetic_gaussian_asset import (
 
 from isaaclab.sim import SimulationCfg
 
-pytestmark = [pytest.mark.integration, pytest.mark.rendering]
+pytestmark = [pytest.mark.integration, pytest.mark.rendering, pytest.mark.ov]
 
 # Use collection-time skip markers so unavailable optional modules remain
 # visible per test in reports.
@@ -76,7 +76,7 @@ _SKIP_MISSING_OVRTX = pytest.mark.skipif(
 )
 
 if not _MISSING_MODULES:
-    from isaaclab_newton.physics.mjwarp_manager_cfg import MJWarpSolverCfg  # noqa: E402
+    from isaaclab_newton.physics.mjwarp_solver_cfg import MJWarpSolverCfg  # noqa: E402
     from isaaclab_newton.physics.newton_manager_cfg import NewtonCfg  # noqa: E402
     from isaaclab_ov.renderers import OVRTXRendererCfg  # noqa: E402
 else:

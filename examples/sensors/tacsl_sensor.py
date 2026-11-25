@@ -19,7 +19,7 @@ tactile sensing with the GelSight finger setup.
         --num_envs 16 \
         --contact_object_type nut \
         --save_viz \
-        --viz kit
+        --viz newton
 
 """
 
@@ -70,6 +70,7 @@ parser.add_argument(
 )
 
 add_launcher_args(parser)
+parser.set_defaults(visualizer=["newton"])
 args_cli = parser.parse_args()
 if args_cli.num_envs < 1:
     parser.error("--num_envs must be at least 1.")
@@ -84,10 +85,10 @@ if args_cli.use_tactile_rgb:
 import cv2
 import numpy as np
 import torch
+from isaaclab_isaacsim.physics import PhysxCfg
+from isaaclab_isaacsim.sim.schemas import PhysxArticulationCfg, PhysxCollisionCfg, PhysxRigidBodyCfg
+from isaaclab_isaacsim.sim.spawners.materials import PhysxRigidBodyMaterialCfg
 from isaaclab_newton.sim.schemas import NewtonArticulationCfg
-from isaaclab_physx.physics import PhysxCfg
-from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxCollisionCfg, PhysxRigidBodyCfg
-from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
@@ -415,10 +416,7 @@ def main() -> None:
         # The tactile RGB path internally uses an RTX camera that may request only non-color render products.
         # Isaac RTX can disable color rendering for that case, which makes the Kit viewport black even though
         # the sensor images are produced correctly. Keep color rendering enabled when a Kit viewport is active.
-        visualizers = args_cli.visualizer
-        if isinstance(visualizers, str):
-            visualizers = [token.strip() for token in visualizers.split(",")]
-        if args_cli.use_tactile_rgb and "kit" in visualizers:
+        if args_cli.use_tactile_rgb and any(cfg.backend.visualizer_type == "kit" for cfg in sim.cfg.visualizer_cfgs):
             print("[INFO]: Keeping RTX color rendering enabled for Kit viewport visualization.")
             sim.set_setting("/rtx/sdg/force/disableColorRender", False)
 

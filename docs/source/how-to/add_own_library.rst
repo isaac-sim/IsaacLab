@@ -72,7 +72,7 @@ Isaac Lab, you will first need to make a wrapper for the library, as explained i
 
 The following steps can be followed to integrate a new library with Isaac Lab:
 
-1. Add your library as an extra-dependency in the ``setup.py`` for the extension ``isaaclab_rl``.
+1. Add your library as an optional dependency (extra) under ``[project.optional-dependencies]`` in the repository root ``pyproject.toml``.
    This will ensure that the library is installed when you install Isaac Lab or it will complain if the library is not
    installed or available.
 2. Install your library in the Python environment used by Isaac Lab. You can do this by following the steps mentioned

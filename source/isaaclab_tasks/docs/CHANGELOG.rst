@@ -3,6 +3,515 @@ Changelog
 
 .. towncrier release notes start
 
+31.0.0 (2026-11-19)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the ``newton_optix`` renderer preset for :class:`~isaaclab_newton.renderers.NewtonOptixRendererCfg`.
+* Added Newton-based G1 whole-body motion tracking with server-hosted named reference data,
+  asymmetric actor/critic observations, adaptive phase sampling and domain randomization.
+  Episodes end at clip boundaries, and relative tracking rewards align to the current robot pose.
+* Added :class:`~isaaclab_tasks.core.lift.config.franka_soft.agents.rsl_rl_ppo_cfg.FrankaClothCameraPPORunnerCfg`
+  so ``Isaac-Lift-Cloth-Franka-Camera`` logs to its own experiment directory.
+* Added ``Isaac-Cartpole-MDP2``, the Cartpole task written with :mod:`isaaclab_experimental.mdp2` and run by
+  :class:`~isaaclab_experimental.envs.MDP2RLEnv` on Newton, in :mod:`isaaclab_tasks.mdp2`.
+* Added ``Isaac-Velocity-Flat-UnitreeGo2-MDP2``, the Unitree Go2 flat velocity task written with
+  :mod:`isaaclab_experimental.mdp2`, with its startup randomization and heading commands. Its play mode removes the
+  random pushes.
+* Added ``Isaac-Velocity-Flat-WalkStand-UnitreeGo2-MDP2``, which trains one Go2 policy in a scene where half of the
+  worlds follow velocity commands and the other half stand still, with their own rewards.
+* Added ``Isaac-Lift-KukaAllegro-MDP2``, the Kuka Allegro lift task written with :mod:`isaaclab_experimental.mdp2`,
+  with its adaptive difficulty curriculum, curriculum gravity, and a reset bank of valid start states per world, all
+  inside the step's CUDA graph. Its play mode starts the curriculum at its end, so a trained policy plays with
+  gravity.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Changed the non-camera soft-beam ``rsl_rl`` experiment name from ``franka_soft`` to
+  ``lift_soft``, matching the ``lift_cloth`` and ``lift_cable`` naming of the sibling tasks. This
+  also moves the logs of the contributed ``IsaacContrib-Lift-Soft-Franka-Custom-Coupling`` task,
+  which reuses the same runner config. Existing checkpoints remain loadable: update log and
+  checkpoint paths that refer to ``logs/rsl_rl/franka_soft``, or pass
+  ``--experiment_name franka_soft``.
+* **Breaking:** Split the camera ``rsl_rl`` experiment name ``franka_deformable_camera``, which
+  ``Isaac-Lift-Soft-Franka-Camera`` and ``Isaac-Lift-Cloth-Franka-Camera`` previously shared, into
+  ``lift_soft_camera`` and ``lift_cloth_camera``. Because both tasks have identical observation and
+  action shapes, a run of one task could silently load the other's checkpoint when replaying without
+  an explicit ``--checkpoint``. Move runs out of ``logs/rsl_rl/franka_deformable_camera`` into the
+  new per-task directories, using the ``task`` field of each run's ``run_manifest.json`` to tell them
+  apart.
+* Changed ``isaaclab_tasks`` to depend on ``isaaclab_experimental``, which provides
+  :class:`~isaaclab_experimental.envs.MDP2RLEnv` for the :mod:`isaaclab_tasks.mdp2` tasks.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated the ``newton_renderer`` renderer preset in favor of ``newton_warp``, which names the Newton Warp
+  renderer the same way as ``newton_optix``.
+
+Fixed
+^^^^^
+
+* Authored compliant lift-object contacts with stiffness [2500 N/m] and damping [100 N*s/m], retaining the shared bucketed material randomizer.
+* Fixed the task auto-import skipping packages whose names start with a blacklisted name, such as
+  :mod:`isaaclab_tasks.mdp2` for ``.mdp``. Blacklisted names now match whole package names.
+* Fixed :func:`~isaaclab_tasks.utils.hydra.resolve_presets` reassigning unchanged tuples, which failed on frozen
+  dataclasses in the configuration tree.
+
+
+30.5.0 (2026-11-18)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Enabled the minimal collision variant for Go2, ANYmal-D, and G1 29-DoF velocity tasks.
+* Removed ``rigid_compliant_alm=True`` from the shoelace and GB300 Sharpa insertion VBD solver configurations;
+  Newton now always uses compliant ALM.
+* Loaded the G1 platform, ramp, and granular courses from server-hosted, self-contained, solid-color USD assets
+  instead of generating terrain and textures at runtime. Included the dynamic PhysX particle initial
+  state and contacts in a dedicated USD, and declared Newton MPM objects, solver coupling, SONIC gains,
+  and control cadence through backend presets. Retained only device/readback initialization and the
+  post-depth-initialization appearance switch at runtime. Demo commands remain unchanged.
+* Selected courses through the existing ``platforms``, ``ramps``, and ``granular`` presets;
+  removed the ``terrain_name`` field. Preserved explicitly supplied simulation and terrain
+  configurations.
+* Reused the core G1 velocity robot and depth-student defaults in the fixed-course demos,
+  preserving their existing effort limits, full collision variant, and SONIC gain overrides.
+
+Fixed
+^^^^^
+
+* Restored the original minimal G1 rough and flat environment and PPO configurations,
+  including the flat task's ``policy`` observation group. Registered the visual
+  locomotion deployment teacher separately as ``Isaac-Velocity-Rough-G1-29DoF``.
+
+
+30.4.0 (2026-11-17)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a Newton (MuJoCo-Warp) physics preset to the assemble trocar task, selected with
+  ``physics=newton_mjwarp``. PhysX remains the default.
+* Added ``Isaac-Velocity-Flat-H2`` and ``Isaac-Velocity-Rough-H2`` with RSL-RL PPO configurations
+  for training Unitree H2 velocity-tracking policies from scratch. Falls terminate on excessive
+  root tilt, with an additional minimum root height on flat terrain.
+* Added foot-flight, foot-separation, contact-conditioned knee-flexion, and walking yaw-momentum
+  penalties for humanoid locomotion.
+* The biped air-time reward optionally penalizes ongoing swings beyond its duration threshold.
+* Enabled minimal collision geometry for H2 velocity tasks.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Replaced ``G1_29DOF_BODY_JOINT_INDICES`` and ``G1_DEX3_JOINT_INDICES`` in the assemble trocar
+  config with ``G1_29DOF_BODY_JOINT_NAMES`` and ``G1_DEX3_JOINT_NAMES``. The observations now select joints by
+  name, since the joint order differs between physics backends.
+
+Fixed
+^^^^^
+
+* Fixed the assemble trocar task never advancing its stage. The ``update_stage`` reward term had weight 0, which
+  the reward manager skips, so no stage reward or success termination was ever triggered.
+* Added the RLinf patch weight syncer configuration required to start training.
+* Matched the Newton trocar bore friction to PhysX's average-combine result without changing PhysX.
+* Stiffened only the Newton trocar bore contact to prevent the obturator from penetrating the bore wall and wedging,
+  while leaving the hand-facing grip colliders unchanged.
+* Stiffened the Newton hand-trocar contact so the closed fingers no longer sink into and hook the held trocar, which
+  kept the hand from releasing it during placement.
+* Scoped the healthcare G1 and tray USD compatibility adaptations to the assemble trocar task instead of changing
+  Newton's importer globally.
+
+
+30.3.1 (2026-11-16)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the AMP humanoid tasks spawning and tracking the reference motion upside down by converting the motion loader's wxyz rotations to the library's xyzw convention in the reset root pose and the reference AMP observation.
+
+
+30.3.0 (2026-11-14)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the ``IsaacContrib-Velocity-Rough-Asimov1`` velocity-tracking task for the Asimov-1 humanoid,
+  using the shared velocity configuration, reward terms, and observation delay. Robot-specific terms
+  include episode-aware swing heights, foot-height rewards relative to the last ground contact,
+  whole-body angular momentum, and joint-zero calibration offsets owned by the action term.
+
+
+30.2.0 (2026-11-11)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added tuned ``presets=newton_steel`` configurations to supported rigid-body tasks without changing their substep counts.
+* Selected driven Franka assets for Steel and enabled parallel streams for the SO101 keyboard contact solve.
+
+
+30.1.3 (2026-11-10)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the coupled tasks to import their couplers from :mod:`isaaclab_newton.physics.coupling`.
+
+Fixed
+^^^^^
+
+* Fixed the Franka Pour curriculum gripper filtering each command against itself once joint actions processed in
+  place.
+
+
+30.1.2 (2026-11-07)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the Rizon coffee MPM solver to build through the instance :class:`~isaaclab_newton.physics.NewtonSolver` API.
+* Migrated the NIST Franka actuator configurations to the canonical actuator and joint limit
+  fields after the deprecated aliases were removed, preserving the distinct rated and solver limits.
+
+
+30.1.1 (2026-11-05)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed command-line overrides of configuration class fields silently adding a misspelled field and leaving the
+  intended field unchanged. Such an override now warns with the override and the missing field. Keys of
+  dictionaries, such as a dictionary-based agent configuration, are not checked.
+
+
+30.1.0 (2026-11-04)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added optional left/right data augmentation for MicroDuck walking, with servo-axis-aware observation and action reflection and no mirror loss.
+
+Changed
+^^^^^^^
+
+* Promoted the locomotion-first recipe to the default ``IsaacContrib-Velocity-Rough-MicroDuck``
+  task with 16,384 environments, earlier action smoothing, delayed standing, head-pose and
+  center-of-mass curricula, a 0.5 rad/s yaw-tracking reward width, and left/right data augmentation
+  without mirror loss. Kept the flat task's defaults unchanged.
+
+Fixed
+^^^^^
+
+* Resolved MicroDuck symmetry observation columns from the observation manager's term names and dimensions,
+  so same-width term reorderings are reflected correctly and unsupported terms or shapes are rejected.
+
+
+30.0.0 (2026-11-03)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Placed generic reward, clearance termination and step-scheduled curriculum terms in the core MDP,
+  keeping foot-support geometry in the velocity MDP modules.
+* Declared the G1 teacher's static reward settings in ``G1Rewards`` and preserved the flat task's
+  reward settings through explicit configuration overrides.
+* Composed the G1 environments from scene, event, curriculum, termination and observation configurations,
+  nesting the depth-camera configuration in its student scene and leaving environment initialization to supply
+  asset-derived action scales and sole geometry.
+* Moved G1 symmetry helpers alongside the other velocity-task robot symmetry modules.
+* Reused the common depth-image observation with a G1 image-processing modifier, keeping observation
+  group definitions inline in the observations configurations. Named groups by their contents: current
+  proprioception, proprioception history, ray-cast height scans and depth images. Apply student supervision
+  noise and reflected-camera overrides in the observations configuration's post-initialization hook.
+* Declared the teacher's symmetry settings directly in its PPO algorithm configuration.
+* **Breaking:** Renamed the flat G1 observation group from ``policy`` to ``proprio``. Update observation-group
+  references and configuration overrides to use ``proprio``.
+* Moved the G1 mesh-terrain preset into the G1 terrain configuration module.
+* Removed the rough G1 actuator-path override, using the current default shared across physics backends.
+  The configured implicit actuators retain their solver-owned drives.
+* Read G1 sole geometry and reference torques from the asset during environment initialization,
+  reusing configured actuator stiffnesses without loading USD while constructing configurations.
+* **Breaking:** Replaced the legacy rough G1 configuration with the teacher configuration under
+  ``Isaac-Velocity-Rough-G1``. Changed callers of ``Isaac-Velocity-Rough-G1-Teacher`` to use that task ID;
+  callers of ``G1RoughEnvCfg`` and ``G1RoughPPORunnerCfg`` must use ``G1RoughTeacherEnvCfg`` and
+  ``G1RoughTeacherPPORunnerCfg``. Preserved the teacher, depth-student and flat task settings.
+* Changed the lift, locomotion, Franka pour, Rizon coffee and UR10 particle-push resets to write joint positions and
+  velocities with ``write_joint_position_to_sim_index`` and ``write_joint_velocity_to_sim_index`` instead of the
+  deprecated ``write_joint_state_to_sim_index``.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed the SKRL registration and recipe for ``Isaac-Velocity-Flat-G1``. Use
+  ``--rl_library rsl_rl`` to train, play or export this task.
+
+Fixed
+^^^^^
+
+* Updated the G1 teacher/depth-student terrain, rewards, action scales, actuator limits and mirror
+  augmentation, including teacher-only checkpoint loading and per-step normalization.
+
+
+29.1.1 (2026-10-31)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the GB300 insertion IK capture to :func:`newton_backend.capture_graph
+  <isaaclab_newton.physics.newton_backend.capture_graph>`.
+
+Fixed
+^^^^^
+
+* Fixed FORGE orientation clipping to use consistent Euler angle ranges, correcting roll motion near 180 degrees and preserving the yaw joint-limit convention.
+
+
+29.1.0 (2026-10-28)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added automatic sample-budget scaling for MicroDuck walking with 4,096 environments per GPU, dividing the iteration budget, checkpoint interval, and fixed-step curriculum boundaries by ``WORLD_SIZE``. Added paired ``env.ngpus`` and ``env.nnodes`` Hydra overrides for explicit recipe scaling.
+
+Changed
+^^^^^^^
+
+* Changed MicroDuck flat and rough walking to use the AGILE combined recipe by default, including with backlash.
+  Custom tasks can retain the previous recipe by overriding the tracking rewards and action-rate curriculum
+  and setting ``rewards.pose.params["standing_only"] = False``.
+* Changed the contrib Newton tasks with custom solvers (GB300 insertion, Rizon coffee) to
+  :class:`~isaaclab_newton.physics.NewtonSolver` subclasses selected by their solver configurations, and the
+  MPM tasks to :func:`~isaaclab_newton.physics.reset_mpm_solver_state`.
+
+Fixed
+^^^^^
+
+* Fixed MicroDuck rough-terrain progression for slow commands and direction changes by using accumulated walking and command tracking instead of net displacement.
+* Fixed task interpolation resolution for dictionary agents when no extra Hydra options were supplied.
+* Fixed Hydra 1.4 configuration composition and repeated task registration to avoid migration warnings
+  while preserving replacement with the latest task configuration.
+
+
+29.0.3 (2026-10-27)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the contrib Newton tasks to read Newton state, contacts and replication outputs from the physics manager's
+  backend and replication outputs.
+
+Fixed
+^^^^^
+
+* Fixed the SO-101 stacking pipeline for Isaac Capture 1.7 by removing the retired
+  ``orientation_offset`` argument and calibration constant. Orientation follows the SDK's
+  engage-relative clutch model seeded from the configured home transform, with the existing
+  eight-element pose and analog-gripper action order preserved.
+
+
+29.0.2 (2026-10-25)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed task asset lookups, coupled solver selectors, and teleoperation paths to follow the
+  scene's clone template instead of assuming the default environment namespace.
+
+
+29.0.1 (2026-10-22)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Kept the coffee demo's kitchen presentation out of the Newton physics model.
+
+
+29.0.0 (2026-10-21)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Moved task visualizer presets into ``VisualizerCfg.backend``. Configure common view
+  settings once with ``VisualizerCfg(..., backend=MultiBackendVisualizerCfg())`` instead of backend-specific
+  viewer declarations or ``SimulationCfg.default_visualizer_cfg``. Unselected visualizer presets resolved to ``[]``.
+* Composed standalone visualizer declarations before calling the core launcher, preserving declared backend options.
+
+Fixed
+^^^^^
+
+* Preserved selected visualizers when copying Franka Pour and UR10 Particle Push task configurations.
+* Preserved selected backends and window settings when reorientation play mode changed the camera pose.
+
+
+28.3.0 (2026-10-20)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``action_rate_penalty_scale`` to ``Isaac-Shadow-Handover-Direct`` to optionally penalize changes of each
+  hand's actions between steps for smoother motion; it is disabled by default.
+
+Changed
+^^^^^^^
+
+* Changed ``Isaac-Shadow-Handover-Direct`` and ``Isaac-Shadow-Handover`` to start each episode with the object in a
+  random hand (``randomize_start_hand``). Set ``randomize_start_hand=False`` for the previous fixed right-to-left
+  start.
+* Changed both handover tasks to start the object at the holding hand's goal point, 3 cm closer to the palm than
+  before, and renamed the Direct ``goal_position_offset`` and the command's ``position_offset`` to
+  ``hold_position_offset`` since it now sets both points.
+
+
+28.2.0 (2026-10-19)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``visualizer=NAME[,...]`` alongside physics and renderer selectors. Accepted ``--physics``,
+  ``--renderer``, and ``--visualizer`` (also ``--viz``) as aliases before task composition without
+  forwarding preset names to Kit. Explicit selections took precedence over script defaults;
+  conflicting selections reported an error. Custom visualizers used existing ``PresetCfg`` alternatives.
+* Added ``MultiBackendVisualizerCfg`` in ``isaaclab_tasks.utils.presets`` for configurable viewer alternatives.
+  Completed task selection before passing concrete configs to the runtime launcher.
+
+Changed
+^^^^^^^
+
+* Changed the contrib Newton tasks to reach the physics manager through ``env.sim.backend_manager``.
+
+Fixed
+^^^^^
+
+* Used the supplied command-line arguments when selecting the task for preset help, including repeated ``--task`` options.
+* Preserved dictionary keys in discovered paths for nested preset alternatives.
+* Preserved multiple configured viewers of one type and kept explicit viewer preset paths ahead of global selectors.
+
+
+28.1.1 (2026-10-18)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* PhysX Franka soft and cloth scenes now route deformables through USD cloning within the shared scene
+  clone plan, so each environment has a live deformable without a scene-wide physics replication switch.
+
+
+28.1.0 (2026-10-17)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :func:`~isaaclab_tasks.utils.hydra.is_task_run_launchable` to check one exact preset combination of a task.
+* Added ``IsaacContrib-Velocity-Flat-MicroDuck``, a flat walking task using Newton MJWarp and BAM
+  servos, with the original MicroDuck policy interface and an RSL-RL PPO configuration.
+* Added ``IsaacContrib-Velocity-Rough-MicroDuck`` with gentle terrain, a terrain curriculum,
+  and terrain-relative foot clearance.
+* Added a ``backlash`` preset to the MicroDuck walking tasks for the robot with gearbox play,
+  with output-side encoder observations and head-pose rewards.
+* Added a non-learning Rizon-Sharpa coffee IK demo with coupled Newton MPM/MJWarp,
+  a mounted spoon, a single scoop/pour/stir controller and per-world resets.
+* Added physical soluble-coffee conversion, conservative colour transport and
+  native grains and bounded liquid surfaces, including refracting water for RTX.
+* Loaded a self-contained hosted asset bundle and a render-only kitchen shared
+  by Kit and Newton RTX; retained Newton GL's tabletop scene and the native recorder.
+* Added :func:`~isaaclab_tasks.utils.hydra.resolve_task_runs` to list the preset combinations a task can
+  launch, one per distinct resolved config, rejecting those the env config or the launcher refuses.
+* Added G1 platform, ramp, and granular terrain demonstrations with pretrained depth and SONIC policies,
+  automatic checkpoint downloads, and RTX rendering through ``examples/g1_terrain.py``
+  and ``isaaclab demo sonic``.
+  Supported Isaac Sim PhysX and Newton MJWarp, with PBD and MPM respectively for granular terrain.
+  Selected courses through a shared task preset and declared terrain materials and collision properties
+  with standard spawner configurations.
+  Kept pretrained depth and SONIC policy inference in the task's ``agents`` package.
+  Shared spectator setup across the entry points, derived SONIC joint mappings from named joints,
+  and used the launcher's selected CUDA device for PhysX particles and SONIC inference.
+* Added a non-RL manager-based RJ45 insertion/extraction environment using spring-clip retention,
+  native hydroelastic contact, a VBD cable, and CUDA-captured Newton IK.
+* Added renderer-only data-center scenery for Kit/Newton RTX and one full-detail rack for NewtonGL.
+
+Changed
+^^^^^^^
+
+* Reduced the coffee demo's bowl and water fill, used a shallow cup, and shortened
+  the scoop-to-stir motion while retaining a minimum delivered dose.
+* Increased physical coffee sampling with fewer rendering grains and adjusted
+  spoon contact capacity and margins.
+* Smoothed native liquid reconstruction and strengthened the dissolved coffee tint.
+* Removed the cabinet visual material overrides from the direct and manager-based cabinet tasks to use the original asset materials.
+* Updated the coffee demo to publish grains and liquid materials through the scene camera's shared RTX renderer. Authored its backdrop before camera initialization and removed its Newton RTX viewer subclass.
+* Restored coffee geometry publication in GL frames and moved RTX publication to camera capture, including recording without a window. Kept liquid colors and grain widths on the GPU during RTX updates.
+
+Fixed
+^^^^^
+
+* Loaded the coffee robot from its own asset bundle so the teapot/RJ45 environment
+  override cannot select an incompatible prepared USD. Use
+  ``ISAACLAB_COFFEE_ASSET_ROOT`` to select the coffee bundle, including ``Robot/``.
+* Improved typed backend selector errors for tasks that do not expose selectable backend presets.
+* Migrated the OVPhysX 0.7 presets for Allegro, Kuka-Allegro, and Shadow Hand tasks to explicit friction efforts matching their existing runtime actuator settings.
+* Fixed SO-101 keyboard resets under PhysX when each environment contains multiple keyboard articulations, and aligned the keyboard pool with the 19 training variants.
+* Fixed overly sensitive keyboard, gamepad, and SpaceMouse teleoperation in ``Isaac-Reach-Franka`` with the
+  ``diffik`` and ``newton_ik`` presets. Full device input now commands 0.025 m and 0.025 rad per step, the
+  same end-effector motion as ``IsaacContrib-Stack-Cube-Franka-IK-Rel``.
+* Fixed the dual-Franka shoelace task loading assets from an untracked local directory by using
+  the hosted Isaac Lab shoelace assets, configuring all six rod gain slots for Newton VBD, and
+  enabling its contributed-environment smoke coverage.
+* Fixed G1 terrain scene preparation to support runs without the Kit visualizer.
+* Allowed stack, pick-place, and locomanipulation environments to load without the optional
+  ``isaaclab_teleop`` package while preserving non-XR Isaac Teleop pipelines when it is installed.
+* Fixed the Spot velocity environment's advertised Newton presets by removing the nonfunctional Kamino option.
+* Added a soft rear fill light to improve visibility of the Sharpa RJ45 hand and connector in the data-center scene.
+
+
+28.0.0 (2026-10-14)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Changed ``Isaac-Shadow-Handover-Direct`` and ``Isaac-Shadow-Handover`` to alternate
+  their goal between the two hands after each completed transfer, continuing until
+  timeout or an object drop.
+* Added ``success_steps_required`` (20 cumulative steps inside the success distance; must be positive) to
+  both workflows and ``goal_position_offset`` to the Direct configuration. The manager
+  command's ``position_offset`` now uses each hand's local root frame instead of the
+  object's initial position; update custom offsets for this frame change.
+* Changed ``Metrics/success_rate`` to report ``goals / (goals + 1)`` and added
+  ``Metrics/consecutive_success`` for the number of transfers per episode. Success rates
+  from the previous single-goal task are not directly comparable; retrain policies for
+  the alternating task objective.
+* Changed the default recording view of both handover tasks to face one hand pair from the
+  side instead of the gap between environment rows.
+* Simplified task preset traversal and CLI help, preserving selection validation and deprecated-name warnings.
+* **Breaking:** Consolidated task preset parsing and categories in ``isaaclab_tasks.utils.hydra``.
+  Replace direct imports from ``isaaclab_tasks.utils.preset_cli`` and ``isaaclab_tasks.utils.preset_target``
+  with imports from ``isaaclab_tasks.utils.hydra``; ``isaaclab_tasks.utils.setup_preset_cli`` stayed unchanged.
+
+
 27.0.0 (2026-10-13)
 ~~~~~~~~~~~~~~~~~~~
 

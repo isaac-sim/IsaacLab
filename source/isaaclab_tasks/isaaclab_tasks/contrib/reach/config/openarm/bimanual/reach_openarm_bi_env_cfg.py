@@ -10,6 +10,8 @@ We modified parts of the environment—such as the target’s position and orien
 import math
 from dataclasses import MISSING
 
+from isaaclab_ov.physics import OvPhysxCfg
+
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
@@ -326,10 +328,13 @@ class ReachEnvCfg(ManagerBasedRLEnvCfg):
 
     def __post_init__(self):
         """Post initialization."""
+        self.sim.physics = OvPhysxCfg(
+            bounce_threshold_velocity=0.5, friction_correlation_distance=0.025, friction_offset_threshold=0.04
+        )
         # general settings
         self.decimation = 2
         self.sim.render_interval = self.decimation
         self.episode_length_s = 24.0
-        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(3.5, 3.5, 3.5))
+        self.sim.visualizer_cfgs = VisualizerCfg(eye=(3.5, 3.5, 3.5))
         # simulation settings
         self.sim.dt = 1.0 / 60.0

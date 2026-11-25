@@ -3,13 +3,16 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for PPISP USD parsing helpers."""
+"""Tests for PPISP configuration and camera USD settings."""
 
 from __future__ import annotations
 
 import pytest
 from isaaclab_ppisp import (
     PpispCfg,
+    PpispProcessor,
+    PpispProcessorCfg,
+    apply_rtx_exposure_overrides,
     auto_any_ppisp_cfg,
     auto_camera_ppisp_cfg,
     default_ppisp_inputs,
@@ -272,3 +275,76 @@ def test_ppisp_cfg_from_usd_camera_validates_controller_weights_len():
 
     with pytest.raises(ValueError, match=f"Expected {PPISP_CONTROLLER_EXPECTED_WEIGHTS_LEN}"):
         ppisp_cfg_from_usd_camera(camera)
+
+
+def test_apply_rtx_exposure_overrides_resets_authored_exposure_values():
+    """PPISP neutralizes RTX exposure while preserving other camera schema edits."""
+    stage = Usd.Stage.CreateInMemory()
+    prim = _author_camera(stage)
+    prim.SetMetadata("apiSchemas", Sdf.TokenListOp.Create(prependedItems=["ExistingAPI"], deletedItems=["RetiredAPI"]))
+    prim.CreateAttribute("exposure", Sdf.ValueTypeNames.Float).Set(2.0)
+    prim.CreateAttribute("exposure:fStop", Sdf.ValueTypeNames.Float).Set(2.8)
+    prim.CreateAttribute("exposure:iso", Sdf.ValueTypeNames.Float).Set(800.0)
+    prim.CreateAttribute("exposure:responsivity", Sdf.ValueTypeNames.Float).Set(0.5)
+    prim.CreateAttribute("exposure:time", Sdf.ValueTypeNames.Float).Set(1.0 / 60.0)
+    prim.CreateAttribute("omni:rtx:autoExposure:enabled", Sdf.ValueTypeNames.Bool).Set(True)
+
+    with pytest.warns(DeprecationWarning, match="apply_rtx_exposure_overrides is deprecated"):
+        apply_rtx_exposure_overrides(stage, [str(prim.GetPath())])
+
+    assert prim.GetAttribute("exposure").Get() == 0.0
+    assert prim.GetAttribute("exposure:fStop").Get() == 1.0
+    assert prim.GetAttribute("exposure:iso").Get() == 0.0
+    assert prim.GetAttribute("exposure:responsivity").Get() == 1.0
+    assert prim.GetAttribute("exposure:time").Get() == 1.0
+    assert prim.GetAttribute("omni:rtx:autoExposure:enabled").Get() is False
+    # These APIs route camera exposure attributes into RTX's per-camera settings.
+    api_schemas = prim.GetMetadata("apiSchemas")
+    assert api_schemas is not None
+    applied = api_schemas.GetAppliedItems()
+    assert "OmniRtxCameraAutoExposureAPI_1" in applied
+    assert "OmniRtxCameraExposureAPI_1" in applied
+    assert "ExistingAPI" in applied
+    authored_schemas = stage.GetRootLayer().GetPrimAtPath(prim.GetPath()).GetInfo("apiSchemas")
+    assert authored_schemas.deletedItems == ["RetiredAPI"]
+
+
+def test_neutral_exposure_needs_the_rtx_schemas_that_apply_it():
+    """Neutral exposure values without the RTX exposure schemas do not reach RTX, so they are not neutral."""
+    from isaaclab.sensors.camera.camera_exposure import NEUTRAL_EXPOSURE, apply_neutral_exposure, has_neutral_exposure
+
+    stage = Usd.Stage.CreateInMemory()
+    prim = _author_camera(stage)
+    for name, value_type, value in NEUTRAL_EXPOSURE:
+        prim.CreateAttribute(name, getattr(Sdf.ValueTypeNames, value_type)).Set(value)
+
+    assert not has_neutral_exposure(prim)
+    apply_neutral_exposure(stage, [str(prim.GetPath())])
+    assert has_neutral_exposure(prim)
+
+
+@pytest.mark.parametrize("renderer_type", ["isaac_rtx", "ovrtx", "newton_warp"])
+def test_ppisp_processor_requires_neutral_camera_exposure_on_rtx(renderer_type, caplog):
+    """Camera preparation resolves discovery and, on RTX, requires neutral exposure instead of authoring it."""
+    from isaaclab.renderers import RendererCfg
+    from isaaclab.sensors.camera import CameraISPMode
+    from isaaclab.sensors.camera.camera_exposure import apply_neutral_exposure
+
+    stage = Usd.Stage.CreateInMemory()
+    ppisp_camera = _author_ppisp_camera(stage, "/World/Camera", inherits=None, attrs={"exposureOffset": 1.5})
+    _author_camera(stage, "/World/Plain")
+    ppisp_camera.CreateAttribute("exposure:iso", Sdf.ValueTypeNames.Float).Set(800.0)
+    cfg, renderer_cfg = PpispProcessorCfg(isp_cfg=CameraISPMode.AUTO_CAMERA), RendererCfg(renderer_type=renderer_type)
+
+    assert PpispProcessor.prepare_camera(cfg, stage, ["/World/Plain"], renderer_cfg) is None
+    assert "/World/Plain" in caplog.text and "runs without PPISP" in caplog.text  # the removal is reported
+    if renderer_type != "newton_warp":
+        with pytest.raises(ValueError, match=r'ExposureCfg\(mode="neutral"\)'):
+            PpispProcessor.prepare_camera(cfg, stage, ["/World/Camera"], renderer_cfg)
+        # The processor reports the camera's exposure but never changes it.
+        assert ppisp_camera.GetAttribute("exposure:iso").Get() == 800.0
+        apply_neutral_exposure(stage, ["/World/Camera"])
+
+    prepared = PpispProcessor.prepare_camera(cfg, stage, ["/World/Camera"], renderer_cfg)
+
+    assert prepared.isp_cfg.inputs["exposureOffset"] == pytest.approx(1.5)

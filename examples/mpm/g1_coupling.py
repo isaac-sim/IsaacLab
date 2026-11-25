@@ -14,8 +14,8 @@ robot. Compare its progress and balance with ``--coupling one_way`` and
 
 .. code-block:: bash
 
-    uvx --from 'isaaclab[isaacsim,rsl-rl]' isaaclab example mpm-g1-coupling \
-      --coupling two_way --visualizer kit
+    uvx --from 'isaaclab[rsl-rl,ovrtx]' isaaclab example mpm-g1-coupling \
+      --coupling two_way --visualizer newton_rtx
 """
 
 from __future__ import annotations
@@ -29,6 +29,8 @@ import numpy as np
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.app.logging_utils import configure_console_logging
+
+from isaaclab_tasks.utils import setup_preset_cli
 
 logger = logging.getLogger("isaaclab.examples.mpm.g1_coupling")
 
@@ -153,8 +155,8 @@ parser.add_argument(
 )
 parser.add_argument("--disable_cuda_graph", action="store_true", help="Disable Newton CUDA graphs for debugging.")
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["kit"])
-args_cli = parser.parse_args()
+parser.set_defaults(visualizer=["newton_rtx"])
+args_cli, overrides = setup_preset_cli(parser)
 
 if not np.isfinite(args_cli.command_speed) or args_cli.command_speed <= 0.0:
     parser.error("--command_speed must be finite and positive")
@@ -195,8 +197,8 @@ def _kinematic_box(
     contact_margin: float,
 ) -> Any:
     """Create one visible kinematic collider."""
+    from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
     from isaaclab_newton.sim.schemas import NewtonCollisionCfg
-    from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
     import isaaclab.sim as sim_utils
     from isaaclab.assets import RigidObjectCfg
@@ -241,7 +243,7 @@ def _configure_common_environment(env_cfg: Any) -> None:
     env_cfg.scene.terrain = None
     env_cfg.scene.height_scanner = None
     env_cfg.scene.contact_forces = None
-    env_cfg.observations.policy.height_scan = None
+    env_cfg.observations.height_scan = None
     env_cfg.scene.robot.init_state.pos = (ROBOT_START_X, 0.0, 0.74)
     if args_cli.proxy_bodies == "robot":
         # The velocity task normally uses g1_minimal.usd, whose only collision
@@ -291,29 +293,10 @@ def _configure_common_environment(env_cfg: Any) -> None:
     env_cfg.rewards.feet_air_time = None
     env_cfg.rewards.feet_slide = None
 
-    requested_visualizers = args_cli.visualizer or []
-    visualizer_cfgs = []
-    if "kit" in requested_visualizers:
-        from isaaclab_visualizers.kit import KitVisualizerCfg
-
-        visualizer_cfgs.append(KitVisualizerCfg(eye=CAMERA_EYE, lookat=CAMERA_TARGET, focal_length=CAMERA_FOCAL_LENGTH))
-    if {"newton", "newton_gl", "newton_rtx"}.intersection(requested_visualizers):
-        from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
-
-        for name in requested_visualizers:
-            if name not in {"newton", "newton_gl", "newton_rtx"}:
-                continue
-            cfg_type = NewtonRTXVisualizerCfg if name == "newton_rtx" else NewtonGLVisualizerCfg
-            visualizer_kwargs = {} if name == "newton_rtx" else {"show_particles": True}
-            visualizer_cfgs.append(
-                cfg_type(
-                    eye=CAMERA_EYE,
-                    lookat=CAMERA_TARGET,
-                    streaming_view=False,
-                    **visualizer_kwargs,
-                )
-            )
-    env_cfg.sim.visualizer_cfgs = visualizer_cfgs
+    for visualizer in env_cfg.sim.visualizer_cfgs:
+        visualizer.eye = CAMERA_EYE
+        visualizer.lookat = CAMERA_TARGET
+        visualizer.focal_length = CAMERA_FOCAL_LENGTH
     env_cfg.scene.backdrop = AssetBaseCfg(
         prim_path="/World/PresentationGround",
         spawn=sim_utils.GroundPlaneCfg(size=(20.0, 16.0)),
@@ -345,13 +328,12 @@ def _configure_particle_runway(env_cfg: Any) -> None:
     """Add the rigid runway, three particle strips, and directed coupler."""
     from isaaclab_newton.assets import MPMObjectCfg
     from isaaclab_newton.physics import MPMSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
-    from isaaclab_newton.sim.spawners.mpm import MPMGridCfg, MPMParticleMaterialCfg
-
-    from isaaclab_contrib.coupling import (
+    from isaaclab_newton.physics.coupling import (
         CouplerEntryCfg,
         CouplerProxyCfg,
         CouplerProxyMappingCfg,
     )
+    from isaaclab_newton.sim.spawners.mpm import MPMGridCfg, MPMParticleMaterialCfg
 
     previous_physics = env_cfg.sim.physics
     rigid_solver_cfg = previous_physics.solver_cfg.replace(
@@ -494,7 +476,7 @@ def main() -> None:
         TASK,
         "rsl_rl_cfg_entry_point",
         play_mode=True,
-        overrides=("physics=newton_mjwarp",),
+        overrides=("physics=newton_mjwarp", *overrides),
     )
 
     checkpoint = Path(args_cli.checkpoint).expanduser().resolve() if args_cli.checkpoint else None

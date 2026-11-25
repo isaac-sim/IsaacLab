@@ -14,7 +14,6 @@ import warp as wp
 
 from pxr import UsdGeom
 
-from ...utils import index_fill_
 from ...utils import math as math_utils
 from ...utils.warp import ProxyArray
 from ...utils.warp.kernels import raycast_mesh_masked_kernel
@@ -151,6 +150,7 @@ class BaseRayCasterCamera(BaseRayCaster):
         env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
         # reset the timestamps
         SensorBase.reset(self, env_mask=env_mask)
+        self._invalidate_buffers(env_mask)
         # reset the data through the same Warp path used by updates.
         # note: this recomputation is useful if one performs events such as randomizations on the camera poses.
         self._update_ray_infos(env_mask)
@@ -175,6 +175,9 @@ class BaseRayCasterCamera(BaseRayCaster):
         See :meth:`isaaclab.utils.math.convert_camera_frame_orientation_convention` for more details
         on the conventions.
 
+        Call this method after simulation initialization, for example after resetting the simulation,
+        so the sensor's physics-ready callback has run.
+
         Args:
             positions: The cartesian coordinates (in meters). Shape is (N, 3).
                 Defaults to None, in which case the camera position in not changed.
@@ -182,9 +185,6 @@ class BaseRayCasterCamera(BaseRayCaster):
                 Defaults to None, in which case the camera orientation in not changed.
             env_ids: A sensor ids to manipulate. Defaults to None, which means all sensor indices.
             convention: The convention in which the poses are fed. Defaults to "ros".
-
-        Raises:
-            RuntimeError: If the camera prim is not set. Need to call :meth:`initialize` method first.
         """
         # resolve env_ids for compact source arrays and env mask for output refresh
         if env_ids is None or isinstance(env_ids, slice):
@@ -195,9 +195,7 @@ class BaseRayCasterCamera(BaseRayCaster):
         else:
             self._target_env_ids_torch = torch.as_tensor(env_ids, dtype=torch.int32, device=self._device).reshape(-1)
             env_ids_wp = wp.from_torch(self._target_env_ids_torch, dtype=wp.int32)
-            self._reset_mask.zero_()
-            index_fill_(self._reset_mask_torch, self._target_env_ids_torch, True)
-            env_mask = self._reset_mask
+            env_mask = self._resolve_indices_and_mask(env_ids_wp)
             count = self._target_env_ids_torch.numel()
             use_env_ids = True
 
@@ -252,14 +250,16 @@ class BaseRayCasterCamera(BaseRayCaster):
     ):
         """Set the poses of the camera from the eye position and look-at target position.
 
+        Call this method after simulation initialization, for example after resetting the simulation,
+        so the sensor's physics-ready callback has run.
+
         Args:
             eyes: The positions of the camera's eye. Shape is (N, 3).
             targets: The target locations to look at. Shape is (N, 3).
             env_ids: A sensor ids to manipulate. Defaults to None, which means all sensor indices.
 
         Raises:
-            RuntimeError: If the camera prim is not set. Need to call :meth:`initialize` method first.
-            NotImplementedError: If the stage up-axis is not "Y" or "Z".
+            ValueError: If the stage up-axis is not "Y" or "Z".
         """
         # get up axis of current stage
         up_axis = UsdGeom.GetStageUpAxis(self.stage)

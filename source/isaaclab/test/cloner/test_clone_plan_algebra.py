@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for the cloner path/query algebra.
+"""Tests for inclusion definitions and the cloner path/query algebra.
 
 These exercise :class:`isaaclab.cloner.path` and :class:`isaaclab.cloner.query`, which are pure
 string/array operations over topology and path templates. They need no stage, no
@@ -21,7 +21,7 @@ import warp as wp
 
 from isaaclab import cloner
 from isaaclab.assets import AssetBaseCfg
-from isaaclab.cloner import make_clone_plan
+from isaaclab.cloner import InclusionSet, make_clone_plan, make_valid_clone_combinations
 from isaaclab.sim import CuboidCfg
 
 ##
@@ -83,7 +83,7 @@ def test_path_match_captures_the_clone_slot():
             cloner.path.match("/World/envs/env_3/Robot", invalid)
 
 
-def test_cloner_imports_without_kit():
+def test_clone_ownership_and_import_boundaries():
     """Importing the package in a clean interpreter must not drag in pxr.
 
     Topology and path queries must stay independent of USD execution. Loading pxr before
@@ -105,14 +105,48 @@ def test_cloner_imports_without_kit():
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == "False", "generic clone topology and queries imported the USD backend"
 
-    # Only cloning execution and its lifecycle owners may access context instances.
-    for path in Path(__file__).resolve().parents[3].glob("*/isaaclab*/**/*.py"):
-        tree = ast.parse(path.read_text())
-        if "cloner" in path.parts or path.name in {"simulation_context.py", "render_context.py"}:
+    assert not {"variants", "layouts", "num_worlds", "seed"} & InclusionSet.__dataclass_fields__.keys(), (
+        "Inclusion rules select semantic configurations rather than positional variant pins"
+    )
+
+    assert not hasattr(cloner, "MatchedWorlds"), "InclusionSet owns declarative semantic matching"
+    assert not hasattr(InclusionSet, "worlds"), "Users configure semantic matching without overriding methods"
+
+    source = Path(__file__).resolve().parents[3]
+    for file in source.glob("*/isaaclab*/**/*.py"):
+        tree = ast.parse(file.read_text())
+        if file.name == "replicate_session.py":
+            assert not any(
+                isinstance(node, (ast.FunctionDef, ast.ClassDef))
+                and node.name in {"InclusionSet", "make_valid_clone_combinations"}
+                or isinstance(node, ast.Attribute)
+                and node.attr in {"layouts", "worlds"}
+                or isinstance(node, ast.Name)
+                and node.id == "InclusionSet"
+                for node in ast.walk(tree)
+            ), "Inclusion definitions must resolve legal layouts before ReplicateSession consumes them"
+        # Only cloning execution and its lifecycle owners may access context instances.
+        if "cloner" not in file.parts and file.name not in {"simulation_context.py", "render_context.py"}:
+            assert not any(
+                isinstance(node, ast.Attribute) and node.attr == "clone_contexts" for node in ast.walk(tree)
+            ), f"{file} accessed clone contexts; consumers must use the plan and path/query utilities"
+        # The default layout has one owner; consumers use declarations or bound paths.
+        if file == source / "isaaclab/isaaclab/cloner/cloner_cfg.py":
             continue
-        assert not any(isinstance(node, ast.Attribute) and node.attr == "clone_contexts" for node in ast.walk(tree)), (
-            f"{path} accessed clone contexts; consumers must use the plan and path/query utilities"
-        )
+        documentation = {
+            id(node.value)
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant)
+        }
+        literals = [
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Constant)
+            and isinstance(node.value, str)
+            and id(node) not in documentation
+            and "/World/envs" in node.value
+        ]
+        assert not literals, f"{file}:{literals[0].lineno}: use the declared clone template or bound paths"
 
 
 @pytest.mark.parametrize("shared_assets", [(), (0,)])
@@ -201,9 +235,20 @@ def test_world_topology_weights_empty_worlds_and_invalid_membership():
         result = cloner.query.get_asset_prototype_world_index(topology, selector)
         for actual, expected in zip(result, (indices, starts), strict=True):
             np.testing.assert_array_equal(actual, expected)
-    for members in ((2,), (-1,), (0.5,), ("0",)):
+    # Factorized and concrete definitions can share one plan; identical sampled worlds reuse a prototype.
+    grouped = make_clone_plan(assets, (((0, 1),), (0,)), 4, shared_assets=(1,))
+    np.testing.assert_array_equal(grouped.topology.world_prototype_layout, [0, 1, 0, 0])
+    np.testing.assert_array_equal(grouped.topology.world_prototype_starts, [0, 1, 2, 3])
+    np.testing.assert_array_equal(grouped.topology.world_prototypes, [1, 0, 1])
+    for members in ((2,), (-1,), (0.5,), ("0",), ((),), ((0, 2),), (np.array([[0]]),)):
         with pytest.raises(ValueError, match="integer indices"):
             make_clone_plan(assets, (members,), 1)
+
+    def invalid_candidates(weights, count):
+        return np.full(count, 0 if len(weights) == 1 else -1, dtype=np.int32)
+
+    with pytest.raises(ValueError, match="valid candidate index"):
+        make_clone_plan(assets, (((0, 1),),), 1, clone_strategy=invalid_candidates)
     for selector in ("/Banana", np.array([0.5]), np.array([[0]])):
         with pytest.raises(TypeError, match="integer IDs"):
             cloner.query.get_asset_prototype_world_index(plan.topology, selector)
@@ -310,3 +355,131 @@ def test_batched_world_queries(device, worlds, num_worlds, shared, selectors):
             starts = short[1] if device == "numpy" else short[1].numpy()
             np.testing.assert_array_equal(values, [-99])
             assert starts[-1, -1] == len(expected)
+
+
+def test_inclusion_semantic_groups_remain_factorized_until_scene_selection():
+    """One thousand variants in five categories need five groups, not 200**8 worlds per group."""
+    variants = [CuboidCfg(size=(1.0, 1.0, 1.0), semantic_tags=[("category", str(i % 5))]) for i in range(1000)]
+    names = [f"object_{index}" for index in range(8)]
+    rules = [InclusionSet(assets=names, match_tags=["category"])]
+    groups, weights = make_valid_clone_combinations(names, [variants] * 8, rules)
+    assert len(groups) == 5
+    assert all(len(group) == 8 and all(len(slot) == 200 for slot in group) for group in groups)
+    np.testing.assert_array_equal(weights, [0.2] * 5)
+    plan = make_clone_plan(variants * 8, groups, 128, weights=weights)
+    topology = plan.topology
+    assert len(topology.world_prototype_layout) == 128
+    assert len(topology.world_prototype_starts) <= 130
+    categories = []
+    for prototype in topology.world_prototype_layout:
+        start, end = topology.world_prototype_starts[prototype + 1 : prototype + 3]
+        row = topology.world_prototypes[start:end]
+        assert len(row) == 8
+        assert len(set(row % 1000 % 5)) == 1
+        categories.append(row[0] % 5)
+    np.testing.assert_array_equal(np.bincount(categories), [26, 25, 26, 25, 26])
+
+    # The existing random strategy and external NumPy seed own both levels of selection.
+    state = np.random.get_state()
+    try:
+        np.random.seed(42)
+        random_plan = make_clone_plan(variants * 8, groups, 128, weights=weights, clone_strategy=cloner.random)
+        np.random.seed(42)
+        repeated = make_clone_plan(variants * 8, groups, 128, weights=weights, clone_strategy=cloner.random)
+    finally:
+        np.random.set_state(state)
+    np.testing.assert_array_equal(random_plan.topology.world_prototypes, repeated.topology.world_prototypes)
+    np.testing.assert_array_equal(random_plan.topology.world_prototype_layout, repeated.topology.world_prototype_layout)
+    rows = random_plan.topology.world_prototypes.reshape(-1, 8)
+    assert (rows % 5 == rows[:, :1] % 5).all()
+    assert (rows[:, 0] % 1000 != rows[:, 1] % 1000).any()
+
+    # Category-first sampling alone must not mean all slots share a category or enumerate worlds.
+    sampled, weights = make_valid_clone_combinations(
+        ["left", "right"],
+        [variants, list(reversed(variants))],
+        [InclusionSet(assets=["left", "right"], sample_by="category")],
+    )
+    assert len(sampled) == 1
+    plan = make_clone_plan(variants + list(reversed(variants)), sampled, 5, weights=weights)
+    rows = plan.topology.world_prototypes.reshape(-1, 2)
+    np.testing.assert_array_equal(rows[:, 0] % 5, np.arange(5))
+    np.testing.assert_array_equal((1999 - rows[:, 1]) % 5, np.arange(4, -1, -1))
+    untagged = variants[0].replace(semantic_tags=[])
+    # Entry sampling treats each asset equally and does not require category tags.
+    entries = [variants[0], variants[5], untagged]
+    direct, weights = make_valid_clone_combinations(
+        ["item"], [entries], [InclusionSet(assets=["item"], sample_by="entry")]
+    )
+    plan = make_clone_plan(entries, direct, 6, weights=weights)
+    topology = plan.topology
+    selected = topology.world_prototypes[topology.world_prototype_starts[topology.world_prototype_layout + 1]]
+    np.testing.assert_array_equal(np.bincount(selected), [2, 2, 2])
+    for mode in ("size", None):
+        with pytest.raises(ValueError, match="sample_by must be 'category' or 'entry'"):
+            make_valid_clone_combinations(["item"], [entries], [InclusionSet(assets=["item"], sample_by=mode)])
+    with pytest.raises(ValueError, match="without 'category' tags"):
+        make_valid_clone_combinations(["item"], [[untagged]], [InclusionSet(assets=["item"], sample_by="category")])
+
+
+def test_inclusion_multi_value_tags_repeated_instances_and_unclaimed_assets():
+    gears = [
+        CuboidCfg(size=(1.0, 1.0, 1.0), semantic_tags=[("size", size), ("assembly", "drive")])
+        for size in ("small", "medium", "large")
+    ]
+    fixtures = [gear.copy() for gear in gears]
+    fixtures.append(
+        CuboidCfg(
+            size=(1.0, 1.0, 1.0),
+            semantic_tags=[
+                ("size", "small"),
+                ("size", "medium"),
+                ("size", "large"),
+                ("assembly", "drive"),
+            ],
+        )
+    )
+    # A size match alone is insufficient when the assembly differs.
+    fixtures.append(CuboidCfg(size=(1.0, 1.0, 1.0), semantic_tags=[("size", "small"), ("assembly", "other")]))
+    robot = CuboidCfg(size=(1.0, 1.0, 1.0))
+    groups, weights = make_valid_clone_combinations(
+        ["robot", "gear", "fixture"],
+        [[robot], gears, fixtures],
+        [InclusionSet(assets=["gear", "gear", "fixture"], match_tags=["size", "assembly"], weight=3.0)],
+    )
+    assert groups == (
+        ((0,), (1,), (1,), (4, 7)),
+        ((0,), (2,), (2,), (5, 7)),
+        ((0,), (3,), (3,), (6, 7)),
+    )
+    np.testing.assert_array_equal(weights, [1.0] * 3)
+    plan = make_clone_plan([robot, *gears, *fixtures], groups, 6, weights=weights)
+    np.testing.assert_array_equal(
+        plan.topology.world_prototypes, [0, 1, 1, 4, 0, 1, 1, 7, 0, 2, 2, 5, 0, 2, 2, 7, 0, 3, 3, 6, 0, 3, 3, 7]
+    )
+    # No matching configured retains the existing independent product and weights.
+    worlds, weights = make_valid_clone_combinations(["gear", "fixture"], [gears[:2], fixtures[:3]])
+    assert worlds == ((0, 2), (0, 3), (0, 4), (1, 2), (1, 3), (1, 4))
+    np.testing.assert_array_equal(weights, [1 / 6] * 6)
+    # A collection's members retain separate columns, despite sharing one scene name.
+    worlds, _ = make_valid_clone_combinations(["collection", "collection"], [gears[:2], fixtures[:2]])
+    assert worlds == ((0, 2), (0, 3), (1, 2), (1, 3))
+
+
+@pytest.mark.parametrize("invalid", ["missing-tag", "incompatible", "unknown", "empty"])
+def test_inclusion_matching_rejects_invalid_definitions(invalid):
+    part = CuboidCfg(size=(1.0, 1.0, 1.0), semantic_tags=[("size", "small")])
+    tool = CuboidCfg(size=(1.0, 1.0, 1.0), semantic_tags=[("size", "large")])
+    inclusion = InclusionSet(assets=["part", "tool"], match_tags=["size"])
+    candidates = [[part], [tool]]
+    message = "at least one compatible world"
+    if invalid == "missing-tag":
+        tool.semantic_tags = None
+    elif invalid == "unknown":
+        inclusion.assets.append("unknown")
+        message = "Unknown assets"
+    elif invalid == "empty":
+        candidates[0] = []
+        message = "nonempty group"
+    with pytest.raises(ValueError, match=message):
+        make_valid_clone_combinations(["part", "tool"], candidates, [inclusion])

@@ -6,11 +6,13 @@
 from dataclasses import MISSING
 
 import numpy as np
-from isaaclab_teleop import IsaacTeleopCfg
+from isaaclab_ov.physics import OvPhysxCfg
 
 from isaaclab.actuators import ImplicitActuatorCfg
+from isaaclab.physics import PhysxAutoCfg
 from isaaclab.utils import configclass, replace
 
+from isaaclab_tasks.contrib import ISAACLAB_TELEOP_AVAILABLE
 from isaaclab_tasks.contrib.stack import mdp
 from isaaclab_tasks.utils import preset
 
@@ -24,12 +26,6 @@ from .stack_joint_pos_env_cfg import SO101_GRIPPER_CLOSE, SO101_GRIPPER_OPEN
 ##
 from isaaclab_assets.robots.so101 import SO101_HIGH_PD_CFG  # isort: skip
 
-# ``isaaclab_teleop`` imports cleanly without the optional ``isaacteleop`` package (the heavy
-# import is deferred to session start), so no import guard is needed here. This lightweight
-# marker lets the env test suite categorize this as a teleop env (see
-# ``isaaclab_tasks/test/env_test_utils.py::_is_teleop_env``).
-_TELEOP_AVAILABLE = True
-
 # Analog-gripper action affine: ``joint = offset + scale * closedness`` maps the retargeter's
 # closedness ``c in [0, 1]`` to a ``gripper`` joint target [rad]. ``offset == OPEN`` (so ``c=0``
 # is fully open) and ``offset + scale == CLOSE`` (so ``c=1`` is fully closed). Tied to the
@@ -37,30 +33,20 @@ _TELEOP_AVAILABLE = True
 _SO101_GRIPPER_OFFSET = SO101_GRIPPER_OPEN  # [rad] closedness c=0 -> open
 _SO101_GRIPPER_SCALE = SO101_GRIPPER_CLOSE - SO101_GRIPPER_OPEN  # [rad] c=1 -> close
 
-# Clutch EE reset-origin home: the ``base_T_ee`` transform [m] for the gripper's pose in the
-# robot base frame at the seated reset pose. The clutch seeds its home from this on reset / first
-# engage (no live end-effector is read; the base rebase is handled upstream by
-# ``target_frame_prim_path`` and the EE state forward is the clutch's own running home). The robot
-# ``init_state`` MUST forward-kinematics to this value, or engaging snaps the arm -- this is the
-# forward kinematics of the seated ``_SO101_STACK_INIT_JOINT_POS`` measured in sim, so re-measure
-# (read ``ee_frame.data.target_pos_source`` at reset) if those init joints change. Only the
-# translation drives the IK position command; the orientation command is the live controller grip
-# orientation composed with the clutch's fixed calibration offset, not this transform's rotation.
-_BASE_T_GRIPPER_HOME = np.eye(4, dtype=np.float32)
-_BASE_T_GRIPPER_HOME[:3, 3] = (0.01918, -0.18852, 0.18887)
-
-# Fixed controller-grip -> gripper_link orientation calibration offset [x, y, z, w] (xyzw),
-# passed to the clutch as a body-frame right multiply. ``None`` uses the clutch default (Rz(pi)).
-# Derivation: with ``q_grip`` the controller grip orientation and ``q_G0`` the gripper_link
-# orientation in the base frame (both xyzw) at the reset pose, the offset is
-# ``quat_inv(q_grip) (x) q_G0`` (xyzw); tuning it here needs no Teleop rebuild.
-# Set to RPY (roll, pitch, yaw) = (-90, 0, 60) degrees (intrinsic XYZ), i.e.
-# ``Rotation.from_euler("XYZ", [-90, 0, 60], degrees=True).as_quat()``.
-_SO101_ORIENTATION_OFFSET_XYZW: tuple[float, float, float, float] | None = (
-    -0.61237244,
-    0.35355339,
-    0.35355339,
-    0.61237244,
+# Clutch reset-origin target: the ``base_T_ee`` transform [m] in the robot base frame.
+# The home position matches the seated ``_SO101_STACK_INIT_JOINT_POS`` measured in sim; re-measure
+# ``ee_frame.data.target_pos_source`` at reset if those joints change. The rotation block defines
+# the home orientation target. Capture 1.7 seeds both channels from this transform on reset and
+# applies controller motion relative to each engage, retaining the commanded pose on re-clutch.
+# The base rebase is handled upstream by ``target_frame_prim_path``; no live EE pose is read here.
+_BASE_T_GRIPPER_HOME = np.array(
+    [
+        [0.00000711, 1.0, -0.00000682, 0.02061444],
+        [-0.71735179, 0.00000985, 0.69671114, -0.18883384],
+        [0.69671114, -0.00000006, 0.71735179, 0.19226513],
+        [0.0, 0.0, 0.0, 1.0],
+    ],
+    dtype=np.float32,
 )
 
 
@@ -73,10 +59,11 @@ def _build_so101_stack_pipeline():
 
     The SO-101 is 5-DOF and driven by a full-SE3-pose IK over all 5 arm joints (shoulder_pan,
     shoulder_lift, elbow_flex, wrist_flex, wrist_roll): the clutch emits the controller pose
-    (position + grip orientation composed with a fixed calibration offset) and the IK tracks
+    (position + engage-relative orientation) and the IK tracks
     position exactly while best-effort tracking orientation (soft-weighted). The gripper jaw
     tracks the trigger proportionally (analog), and the EE position is clutch-rebased around a
-    captured origin so engaging teleop does not teleport the arm.
+    captured origin. Orientation is also relative to the engage pose, seeded from the configured
+    home rotation, so re-engaging retains the last commanded pose.
 
     Returns:
         OutputCombiner with a single "action" output containing the flattened
@@ -116,11 +103,6 @@ def _build_so101_stack_pipeline():
         name="ee_pose",
         input_device=ControllersSource.RIGHT,
         home_base_T_ee=_BASE_T_GRIPPER_HOME,
-        orientation_offset=(
-            np.array(_SO101_ORIENTATION_OFFSET_XYZW, dtype=np.float64)
-            if _SO101_ORIENTATION_OFFSET_XYZW is not None
-            else None
-        ),
     )
     connected_clutch = clutch.connect(
         {
@@ -208,6 +190,21 @@ class SO101CubeStackEnvCfg(stack_joint_pos_env_cfg.SO101CubeStackEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
+        isaacsim_physx = self.sim.physics.isaacsim_physx
+        # Match the stack family's Isaac Sim PhysX grasp tuning on the OvPhysX backend.
+        ovphysx = OvPhysxCfg(
+            bounce_threshold_velocity=isaacsim_physx.bounce_threshold_velocity,
+            friction_correlation_distance=isaacsim_physx.friction_correlation_distance,
+            solve_articulation_contact_last=isaacsim_physx.solve_articulation_contact_last,
+        )
+        self.sim.physics = preset(
+            default=self.sim.physics.default,
+            isaacsim_physx=isaacsim_physx,
+            # The automatic selector picks the same tuned OvPhysX config when Isaac Sim is absent.
+            physx=PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx),
+            newton_mjwarp=self.sim.physics.newton_mjwarp,
+            ovphysx=ovphysx,
+        )
 
         # Switch to a stiffer PD controller so the arm tracks IK targets well. Replace the robot
         # configured by the parent so its task-specific seated root and stack joint pose are retained.
@@ -228,7 +225,9 @@ class SO101CubeStackEnvCfg(stack_joint_pos_env_cfg.SO101CubeStackEnvCfg):
                 variants={
                     "Robot": "robot",
                     "Sensor": "sensors",
-                    "Physics": preset(default="physx", isaacsim_physx="physx", physx="physx", newton_mjwarp="physics"),
+                    "Physics": preset(
+                        default="physx", isaacsim_physx="physx", physx="physx", ovphysx="physx", newton_mjwarp="physics"
+                    ),
                 },
             ),
             actuators={
@@ -290,16 +289,25 @@ class SO101CubeStackEnvCfg(stack_joint_pos_env_cfg.SO101CubeStackEnvCfg):
         )
 
         # Isaac Capture-based teleoperation pipeline
-        self.isaac_teleop = IsaacTeleopCfg(
-            pipeline_builder=_build_so101_stack_pipeline,
-            sim_device=self.sim.device,
-            xr_cfg=self.xr,
-            # Rebase all teleop output poses into the robot base frame: the device reads this
-            # prim's world transform each frame and left-multiplies its inverse onto the XR
-            # anchor (``base_T_world @ world_T_anchor``), so the clutch retargeter works
-            # in the base frame -- the IK command's root frame (the FrameTransformer source
-            # also uses ``Robot/base``). The clutch's reset-origin home (_BASE_T_GRIPPER_HOME)
-            # provides the engage seed, so no live end-effector feed is needed. Teleop runs a
-            # single env (env_0).
-            target_frame_prim_path="/World/envs/env_0/Robot/base",
-        )
+        if ISAACLAB_TELEOP_AVAILABLE:
+            from isaaclab_teleop import IsaacTeleopCfg
+
+            self.isaac_teleop = IsaacTeleopCfg(
+                pipeline_builder=_build_so101_stack_pipeline,
+                prepare_environment=_prepare_so101_teleop_environment,
+                sim_device=self.sim.device,
+                # Rebase all teleop output poses into the robot base frame: the device reads this
+                # prim's world transform each frame and left-multiplies its inverse onto the XR
+                # anchor (``base_T_world @ world_T_anchor``), so the clutch retargeter works
+                # in the base frame -- the IK command's root frame (the FrameTransformer source
+                # also uses ``Robot/base``). The clutch's reset-origin home (_BASE_T_GRIPPER_HOME)
+                # provides the engage seed, so no live end-effector feed is needed. Teleop runs a
+                # single env (env_0).
+                target_frame_prim_path="{ENV_REGEX_NS}/Robot/base",
+                **({"xr_cfg": self.xr} if self.xr is not None else {}),
+            )
+
+
+def _prepare_so101_teleop_environment(cfg: SO101CubeStackEnvCfg) -> None:
+    """Match reset joints to the calibrated clutch home for live teleop and recording."""
+    cfg.events.randomize_joint_state.params["std"] = 0.0

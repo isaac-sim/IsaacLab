@@ -10,7 +10,7 @@ a real OVPhysX :class:`~isaaclab_ov.assets.RigidObject` and :class:`~isaaclab_ov
 the backend dispatch itself is exercised (it previously fell through to the PhysX implementation, whose
 ``root_view`` accessors do not exist on :class:`~isaaclab_ov.sim.views.OvPhysxView`). The ``cfg`` /
 ``env`` / ``asset_cfg`` inputs are stubbed: the term only reads ``cfg.params["asset_cfg"]``,
-``env.scene[...]``, ``env.scene.num_envs`` and ``env.sim.physics_manager``.
+``env.scene[...]``, ``env.scene.num_envs`` and ``env.sim.backend_manager``.
 
 Kitless; the CPU and CUDA cases run in one process.
 """
@@ -37,6 +37,8 @@ from isaaclab.utils import replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR  # noqa: E402
 
 from isaaclab_assets import CARTPOLE_CFG  # isort:skip  # noqa: E402
+
+pytestmark = pytest.mark.ov
 
 wp.init()
 

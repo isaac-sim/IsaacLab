@@ -17,8 +17,8 @@ Reference:
 
 import math
 
+from isaaclab_isaacsim.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 from isaaclab_newton.sim.schemas import NewtonArticulationCfg
-from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -101,3 +101,9 @@ ALLEGRO_ACTUATED_JOINT_NAMES: list[str] = [
     "thumb_joint_3",
 ]
 """Allegro Hand actuated joint names, in the Direct task's actuation order."""
+
+
+ALLEGRO_HAND_FRICTION_REPLACEMENTS = {
+    "(index|middle|ring|thumb)_joint_[0-3]": (ALLEGRO_HAND_CFG.actuators["fingers"].friction, 0.0, 0.0)
+}
+"""OVPhysX legacy friction replacements matching the robot actuator efforts, in SI units."""

@@ -26,7 +26,6 @@ from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.controllers import DifferentialIKController, DifferentialIKControllerCfg
 from isaaclab.devices import HaplyDeviceCfg
-from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
@@ -65,7 +64,7 @@ parser.add_argument(
 )
 
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["newton_gl"])
+parser.set_defaults(visualizer=["newton"])
 args_cli = parser.parse_args()
 if args_cli.max_steps == 0 or args_cli.max_steps < -1:
     parser.error("--max_steps must be positive or -1.")
@@ -127,8 +126,7 @@ class FrankaHaplySceneCfg(InteractiveSceneCfg):
         init_state=AssetBaseCfg.InitialStateCfg(pos=(0.50, 0.0, 1.05), rot=(0.707, 0, 0, 0.707)),
     )
 
-    robot_cfg: ArticulationCfg = replace(FRANKA_PANDA_HIGH_PD_CFG, prim_path="{ENV_REGEX_NS}/Robot")
-    robot = instantiate(robot_cfg)
+    robot: ArticulationCfg = replace(FRANKA_PANDA_HIGH_PD_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     robot.init_state.pos = (-0.02, 0.0, 1.05)
     robot.spawn.activate_contact_sensors = True
     robot.spawn.variants["Physics"] = "mujoco" if args_cli.physics == "newton_mjwarp" else "physx"
@@ -336,8 +334,8 @@ def run_simulator(
 
 def main() -> None:
     """Set up and run the Haply teleoperation example."""
-    with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
-        sim_cfg = sim_utils.SimulationCfg(device=args_cli.device, dt=1 / 200, physics=physics_cfg)
+    sim_cfg = sim_utils.SimulationCfg(dt=1 / 200, device=args_cli.device)
+    with launch_simulation(sim_cfg, args_cli):
         sim = sim_utils.SimulationContext(sim_cfg)
 
         # set the simulation view

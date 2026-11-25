@@ -9,10 +9,11 @@ Asset and marker configurations, joint/body name lists, backend physics
 presets, and the sim mixin. No task tunables.
 """
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_isaacsim.physics import PhysxCfg
+from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
+from isaaclab_neural.physics import MJWarpNeRDSolverCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, SteelSolverCfg
 from isaaclab_ov.physics import OvPhysxCfg
-from isaaclab_physx.physics import PhysxCfg
-from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
@@ -23,7 +24,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_tasks.utils import PresetCfg
 
-from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG
+from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG, ALLEGRO_HAND_FRICTION_REPLACEMENTS
 
 ALLEGRO_HAND_ROBOT_CFG = replace(ALLEGRO_HAND_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
@@ -86,6 +87,30 @@ class PhysicsCfg(PresetCfg):
         ),
         num_substeps=2,
     )
-    ovphysx = OvPhysxCfg()
+    newton_mjwarp_nerd = replace(
+        newton_mjwarp,
+        solver_cfg=MJWarpNeRDSolverCfg.from_mjwarp(
+            newton_mjwarp.solver_cfg,
+            checkpoint="logs/neural/allegro_hand/flashnerd.pt",
+            articulation=ALLEGRO_HAND_ROBOT_CFG.prim_path,
+        ),
+    )
+    newton_steel = NewtonCfg(
+        solver_cfg=SteelSolverCfg(
+            update_mass_matrix_interval=2,
+            enable_joint_limits=True,
+            enable_joint_velocity_limits=True,
+            iterations=8,
+            articulation_constraint_max=192,
+            free_body_constraint_max=64,
+            contact_friction_gap_max=0.001,
+            contact_torsion=False,
+        ),
+        num_substeps=2,
+    )
+    ovphysx = OvPhysxCfg(
+        # Match the measured 0.6 runtime actuator efforts, not the USD coefficient (0.035).
+        legacy_joint_friction_replacements=ALLEGRO_HAND_FRICTION_REPLACEMENTS,
+    )
     physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
     default = newton_mjwarp

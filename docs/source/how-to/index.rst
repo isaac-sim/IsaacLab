@@ -11,12 +11,6 @@ How-to Guides
 .. role:: guide-tag-newton
    :class: guide-tag guide-tag-newton
 
-.. container:: guide-browser-intro
-
-   Find step-by-step guides for building with Isaac Lab. Search by topic, then open a guide without leaving this page.
-   Backend tags identify the physics backends covered by each guide, and ``Isaac Sim`` marks guides whose
-   documented workflow requires the Isaac Sim runtime. Guides without tags cover backend-independent concepts.
-
 .. raw:: html
 
    <div class="guide-browser-toolbar" data-guide-browser>
@@ -68,16 +62,6 @@ How-to Guides
 
             :guide-tag:`PhysX` :guide-tag:`Isaac Sim`
 
-      .. container:: guide-entry
-
-         :doc:`Deep-dive into launching the simulation </source/how-to/launch_app>`
-
-         Configure and launch simulation applications from Python and the command line.
-
-         .. container:: guide-metadata
-
-            :guide-tag:`PhysX` :guide-tag:`Isaac Sim`
-
    .. container:: guide-group
 
       .. _asset-authoring:
@@ -118,11 +102,21 @@ How-to Guides
 
          :doc:`Interacting with a surface gripper </source/how-to/run_surface_gripper>`
 
-         Attach and release rigid objects with a surface gripper.
+         Configure a scene-owned Newton suction tool or operate an authored PhysX gripper.
 
          .. container:: guide-metadata
 
-            :guide-tag:`PhysX` :guide-tag:`Isaac Sim`
+            :guide-tag-newton:`Newton` :guide-tag:`PhysX` :guide-tag:`Isaac Sim`
+
+      .. container:: guide-entry
+
+         :doc:`Controlling conveyors </source/how-to/conveyors>`
+
+         Configure batched conveyor speeds and directions with the Isaac Lab controller.
+
+         .. container:: guide-metadata
+
+            :guide-tag-newton:`Newton`
 
       .. container:: guide-entry
 
@@ -212,6 +206,16 @@ How-to Guides
 
       .. container:: guide-entry
 
+         :doc:`Native reset-state buffers </source/how-to/reset_state_buffers>`
+
+         Create native state banks and sample useful starts through the existing Lift reset event.
+
+         .. container:: guide-metadata
+
+            :guide-tag:`PhysX` :guide-tag-newton:`Newton`
+
+      .. container:: guide-entry
+
          :doc:`Creating a manager-based base environment </source/how-to/create_manager_base_env>`
 
          Build a non-RL environment from reusable manager terms.
@@ -259,6 +263,26 @@ How-to Guides
          .. container:: guide-metadata
 
             :guide-tag:`PhysX` :guide-tag-newton:`Newton`
+
+      .. container:: guide-entry
+
+         :doc:`Training a G1 motion-tracking policy </source/how-to/train_g1_motion_tracking>`
+
+         Select a reference motion, train the G1 with Newton, and play or record a checkpoint.
+
+         .. container:: guide-metadata
+
+            :guide-tag-newton:`Newton`
+
+      .. container:: guide-entry
+
+         :doc:`Training MicroDuck </source/how-to/train_microduck>`
+
+         Train flat or rough walking and scale its recipe for distributed training.
+
+         .. container:: guide-metadata
+
+            :guide-tag-newton:`Newton`
 
       .. container:: guide-entry
 
@@ -328,6 +352,16 @@ How-to Guides
 
             :guide-tag:`PhysX` :guide-tag-newton:`Newton`
 
+      .. container:: guide-entry
+
+         :doc:`Training on neural robot dynamics </source/how-to/neural_robot_dynamics>`
+
+         Record robot trajectories from a task, train a neural dynamics model, and train RL policies on it.
+
+         .. container:: guide-metadata
+
+            :guide-tag-newton:`Newton`
+
    .. container:: guide-group
 
       .. rubric:: Sensors, Cameras, and Rendering
@@ -356,7 +390,7 @@ How-to Guides
 
          :doc:`Select and configure a Renderer </source/how-to/configure_rendering>`
 
-         Choose Newton Warp, OVRTX, or legacy Isaac RTX and tune the selected renderer.
+         Choose Newton Warp, Newton OptiX, OVRTX, or legacy Isaac RTX and tune the selected renderer.
 
          .. container:: guide-metadata
 
@@ -430,6 +464,16 @@ How-to Guides
 
       .. container:: guide-entry
 
+         :doc:`Exporting an environment to USD </source/how-to/export_environment_to_usd>`
+
+         Write one initialized environment as USD that Isaac Sim, OVPhysX or Newton imports with the same physics.
+
+         .. container:: guide-metadata
+
+            :guide-tag:`PhysX` :guide-tag-newton:`Newton` :guide-tag:`Isaac Sim`
+
+      .. container:: guide-entry
+
          :doc:`Working with ProxyArray </source/how-to/proxy_array>`
 
          Consume asset and sensor data through Torch and Warp while keeping retained views valid.
@@ -466,7 +510,7 @@ How-to Guides
 
          :doc:`Tuning the Kamino solver </source/how-to/solver_tuning_kamino>`
 
-         Tune Newton Kamino PADMM or DVI convergence, stabilization, timestep, and substeps.
+         Tune Newton Kamino PADMM or SCC convergence, stabilization, timestep, and substeps.
 
          .. container:: guide-metadata
 
@@ -508,6 +552,12 @@ How-to Guides
 
       .. container:: guide-entry
 
+         :doc:`Kitless XR with Isaac Capture </source/how-to/kitless_xr>`
+
+         Install Isaac Capture and OVXR packages for live teleoperation and MCAP replay.
+
+      .. container:: guide-entry
+
          :doc:`Setting up Haply teleoperation </source/how-to/haply_teleoperation>`
 
          Use Haply devices for robot control with directional force feedback.
@@ -524,11 +574,11 @@ How-to Guides
 
          :doc:`Recording animations of simulations </source/how-to/record_animation>`
 
-         Capture simulation state and export an animation.
+         Record Newton RTX video or use deprecated Kit USD animation workflows.
 
          .. container:: guide-metadata
 
-            :guide-tag:`PhysX` :guide-tag:`Isaac Sim`
+            :guide-tag-newton:`Newton` :guide-tag:`OvPhysX` :guide-tag:`RTX`
 
       .. container:: guide-entry
 
@@ -546,9 +596,25 @@ How-to Guides
 
          Capture and inspect runtime traces with NVIDIA Nsight Systems.
 
+   .. container:: guide-group
+
+      .. rubric:: Model-based learning
+
+      .. container:: guide-entry
+
+         :doc:`SuperMimic-style Motion Tracking </source/experimental-features/model_based>`
+
+         Download reference data and train or play a G1 policy with RSL-RL SuperMimic.
+
 .. container:: guide-browser-note
 
    .. note::
 
       This collection is a work in progress. If a question is not answered here, open an issue on the
       `Isaac Lab GitHub repository <https://github.com/isaac-sim/IsaacLab>`_.
+
+.. toctree::
+   :hidden:
+
+   kitless_xr
+   kitless_xr_source

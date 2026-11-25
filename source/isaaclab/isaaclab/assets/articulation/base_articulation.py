@@ -19,7 +19,7 @@ import warp as wp
 
 from ...sim import SimulationContext
 from ...utils.buffers import TimestampedBuffer
-from ...utils.leapp.leapp_semantics import OutputKindEnum, joint_names_resolver, leapp_tensor_semantics
+from ...utils.leapp.leapp_semantics import Kind, joint_axes_resolver, leapp_tensor_semantics
 from ...utils.warp import ProxyArray
 from ..asset_base import AssetBase
 from . import ordering_kernels
@@ -1597,7 +1597,7 @@ class BaseArticulation(AssetBase):
         body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Set inertias of all bodies in the simulation world frame.
+        """Set inertias of all bodies about their centers of mass, expressed in the body link frames.
 
         .. note::
             This method expects partial data.
@@ -1621,7 +1621,7 @@ class BaseArticulation(AssetBase):
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set inertias of all bodies in the simulation world frame.
+        """Set inertias of all bodies about their centers of mass, expressed in the body link frames.
 
         .. note::
             This method expects full data.
@@ -1637,7 +1637,7 @@ class BaseArticulation(AssetBase):
         """
         raise NotImplementedError()
 
-    @leapp_tensor_semantics(kind=OutputKindEnum.JOINT_POSITION, element_names_resolver=joint_names_resolver)
+    @leapp_tensor_semantics(kind=Kind.JOINT_POSITION, axes_resolver=joint_axes_resolver)
     def set_joint_position_target_index(
         self,
         *,
@@ -1649,7 +1649,7 @@ class BaseArticulation(AssetBase):
         """Set joint position targets into internal buffers.
 
         .. deprecated::
-            Use :attr:`isaaclab.actuators.ActuatorCollection.command` and call
+            Use :attr:`isaaclab.actuators.ActuatorCollection.target_command` and call
             ``set_position_index``.
 
         .. note::
@@ -1676,51 +1676,7 @@ class BaseArticulation(AssetBase):
             value=target, joint_ids=joint_ids, env_ids=env_ids, full_data=full_data
         )
 
-    def _write_deprecated_native_actuator_gain(
-        self,
-        writer_name: Literal["write_actuator_stiffness_to_sim", "write_actuator_damping_to_sim"],
-        gain_name: Literal["kp", "kd"],
-        values: torch.Tensor,
-        env_ids: torch.Tensor,
-        joint_ids: torch.Tensor,
-    ) -> None:
-        """Warn and forward a legacy native-controller gain write."""
-        from ...actuators.newton import write_group_parameter  # noqa: PLC0415
-
-        warnings.warn(
-            f"{writer_name} is deprecated in 3.x and will be removed in 3.1. Use "
-            "randomize_actuator_gains for managed randomization or "
-            "isaaclab.actuators.newton.write_group_parameter for direct controller writes.",
-            DeprecationWarning,
-            stacklevel=3,
-        )
-        # Split the articulation-level joint selection into per-group columns.
-        joint_ids_long = joint_ids.to(self.device, dtype=torch.long)
-        for group_name in getattr(self.actuators, "_native_group_names", ()):
-            group_joints = self.actuators._group_joint_indices[group_name]
-            if isinstance(group_joints, slice):
-                in_group = torch.ones_like(joint_ids_long, dtype=torch.bool)
-                group_columns = joint_ids_long
-            else:
-                column_of_joint = torch.full((self.num_joints,), -1, dtype=torch.long, device=self.device)
-                group_joints = group_joints.to(self.device, dtype=torch.long)
-                column_of_joint[group_joints] = torch.arange(group_joints.numel(), device=self.device)
-                columns = column_of_joint[joint_ids_long]
-                in_group = columns >= 0
-                group_columns = columns[in_group]
-            if not bool(in_group.any()):
-                continue
-            write_group_parameter(
-                self.actuators,
-                group_name,
-                "controller",
-                gain_name,
-                values[:, in_group],
-                env_ids=env_ids,
-                joint_ids=group_columns,
-            )
-
-    @leapp_tensor_semantics(kind=OutputKindEnum.JOINT_POSITION, element_names_resolver=joint_names_resolver)
+    @leapp_tensor_semantics(kind=Kind.JOINT_POSITION, axes_resolver=joint_axes_resolver)
     def set_joint_position_target_mask(
         self,
         *,
@@ -1731,7 +1687,7 @@ class BaseArticulation(AssetBase):
         """Set joint position targets into internal buffers.
 
         .. deprecated::
-            Use :attr:`isaaclab.actuators.ActuatorCollection.command` and call
+            Use :attr:`isaaclab.actuators.ActuatorCollection.target_command` and call
             ``set_position_mask``.
 
         .. note::
@@ -1758,7 +1714,7 @@ class BaseArticulation(AssetBase):
             env_mask=_as_bool_mask(env_mask),
         )
 
-    @leapp_tensor_semantics(kind=OutputKindEnum.JOINT_VELOCITY, element_names_resolver=joint_names_resolver)
+    @leapp_tensor_semantics(kind=Kind.JOINT_VELOCITY, axes_resolver=joint_axes_resolver)
     def set_joint_velocity_target_index(
         self,
         *,
@@ -1770,7 +1726,7 @@ class BaseArticulation(AssetBase):
         """Set joint velocity targets into internal buffers.
 
         .. deprecated::
-            Use :attr:`isaaclab.actuators.ActuatorCollection.command` and call
+            Use :attr:`isaaclab.actuators.ActuatorCollection.target_command` and call
             ``set_velocity_index``.
 
         .. note::
@@ -1797,7 +1753,7 @@ class BaseArticulation(AssetBase):
             value=target, joint_ids=joint_ids, env_ids=env_ids, full_data=full_data
         )
 
-    @leapp_tensor_semantics(kind=OutputKindEnum.JOINT_VELOCITY, element_names_resolver=joint_names_resolver)
+    @leapp_tensor_semantics(kind=Kind.JOINT_VELOCITY, axes_resolver=joint_axes_resolver)
     def set_joint_velocity_target_mask(
         self,
         *,
@@ -1808,7 +1764,7 @@ class BaseArticulation(AssetBase):
         """Set joint velocity targets into internal buffers.
 
         .. deprecated::
-            Use :attr:`isaaclab.actuators.ActuatorCollection.command` and call
+            Use :attr:`isaaclab.actuators.ActuatorCollection.target_command` and call
             ``set_velocity_mask``.
 
         .. note::
@@ -1835,7 +1791,7 @@ class BaseArticulation(AssetBase):
             env_mask=_as_bool_mask(env_mask),
         )
 
-    @leapp_tensor_semantics(kind=OutputKindEnum.JOINT_EFFORT, element_names_resolver=joint_names_resolver)
+    @leapp_tensor_semantics(kind=Kind.JOINT_EFFORT, axes_resolver=joint_axes_resolver)
     def set_joint_effort_target_index(
         self,
         *,
@@ -1847,7 +1803,7 @@ class BaseArticulation(AssetBase):
         """Set joint efforts into internal buffers.
 
         .. deprecated::
-            Use :attr:`isaaclab.actuators.ActuatorCollection.command` and call
+            Use :attr:`isaaclab.actuators.ActuatorCollection.target_command` and call
             ``set_effort_index``.
 
         .. note::
@@ -1874,7 +1830,7 @@ class BaseArticulation(AssetBase):
             value=target, joint_ids=joint_ids, env_ids=env_ids, full_data=full_data
         )
 
-    @leapp_tensor_semantics(kind=OutputKindEnum.JOINT_EFFORT, element_names_resolver=joint_names_resolver)
+    @leapp_tensor_semantics(kind=Kind.JOINT_EFFORT, axes_resolver=joint_axes_resolver)
     def set_joint_effort_target_mask(
         self,
         *,
@@ -1885,7 +1841,7 @@ class BaseArticulation(AssetBase):
         """Set joint efforts into internal buffers.
 
         .. deprecated::
-            Use :attr:`isaaclab.actuators.ActuatorCollection.command` and call
+            Use :attr:`isaaclab.actuators.ActuatorCollection.target_command` and call
             ``set_effort_mask``.
 
         .. note::
@@ -3241,7 +3197,7 @@ class BaseArticulation(AssetBase):
         joint_ids: Sequence[int] | slice | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Deprecated. Use :attr:`isaaclab.actuators.ActuatorCollection.command` and call
+        """Deprecated. Use :attr:`isaaclab.actuators.ActuatorCollection.target_command` and call
         ``set_position_index``.
         """
         warnings.warn(
@@ -3260,7 +3216,7 @@ class BaseArticulation(AssetBase):
         joint_ids: Sequence[int] | slice | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Deprecated. Use :attr:`isaaclab.actuators.ActuatorCollection.command` and call
+        """Deprecated. Use :attr:`isaaclab.actuators.ActuatorCollection.target_command` and call
         ``set_velocity_index``.
         """
         warnings.warn(
@@ -3279,7 +3235,7 @@ class BaseArticulation(AssetBase):
         joint_ids: Sequence[int] | slice | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Deprecated. Use :attr:`isaaclab.actuators.ActuatorCollection.command` and call
+        """Deprecated. Use :attr:`isaaclab.actuators.ActuatorCollection.target_command` and call
         ``set_effort_index``.
         """
         warnings.warn(

@@ -36,7 +36,7 @@ Query: "My ANYmal-D PhysX policy falls over instantly in Newton."
 Expected behavior:
 
 - Recognize immediate collapse (rather than graceful degradation) as an ordering symptom, not a solver-dynamics one.
-- Add `env.scene.robot.joint_ordering=physx env.scene.robot.body_ordering=physx` to the Newton replay, naming the source checkpoint's convention.
+- Set `env.scene.robot.joint_ordering=physx env.scene.robot.body_ordering=physx` on the Newton replay when the policy was trained with `physx`; otherwise replay with explicit name lists recorded in PhysX without an ordering.
 - Confirm by comparing `joint_names` with `backend_joint_names` and the body equivalents.
 
 Known failure modes:

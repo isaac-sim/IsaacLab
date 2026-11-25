@@ -3,6 +3,46 @@ Changelog
 
 .. towncrier release notes start
 
+2.3.0 (2026-11-17)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``H2_CFG`` for the official Unitree H2 USD asset with 31 actuated joints, locomotion PD gains,
+  and an initial height that places the soles close to the ground.
+* Used the published Isaac Lab H2 USD asset.
+
+Fixed
+^^^^^
+
+* Removed the zero solver velocity limit from the G129 Dex3 waist actuators, which caused unstable arm motion.
+
+
+2.2.0 (2026-11-14)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :obj:`~isaaclab_assets.robots.asimov_1.ASIMOV_1_CFG` for the Asimov-1 humanoid with delayed PD actuators.
+
+
+2.1.0 (2026-10-17)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added MicroDuck backlash configurations for the walking and all-collisions variants, with
+  fourteen passive gearbox-play hinges per robot.
+* Added configurations for the Pollen Robotics MicroDuck walking and all-collisions variants with
+  BAM servos, and :data:`~isaaclab_assets.robots.microduck.MICRODUCK_JOINT_NAMES` with its leg and
+  head subsets in the robot's servo order. The configurations require native Newton actuator
+  execution with the MJWarp solver.
+* Added robot-owned OVPhysX friction migration profiles derived from Allegro, Kuka-Allegro, and Shadow Hand actuator settings.
+
+
 2.0.1 (2026-10-03)
 ~~~~~~~~~~~~~~~~~~
 

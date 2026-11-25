@@ -179,7 +179,7 @@ class HumanoidEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the manager-based Humanoid walking environment."""
 
     # Scene settings
-    scene: HumanoidSceneCfg = HumanoidSceneCfg(num_envs=4096, env_spacing=5.0, clone_in_fabric=True)
+    scene: HumanoidSceneCfg = HumanoidSceneCfg(num_envs=4096, env_spacing=5.0)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()

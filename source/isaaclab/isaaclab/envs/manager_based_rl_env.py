@@ -205,7 +205,11 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         Returns:
             A tuple containing the observations, rewards, resets (terminated and truncated) and extras.
         """
+        # terminal observations belong to the step that captured them
+        self.extras.pop("final_obs", None)
         self.action_manager.process_action(action.to(self.device))
+        if self._physics_handles_actions is None:
+            self._handle_physics_actions()
 
         self.recorder_manager.record_pre_step()
 
@@ -217,8 +221,9 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         steps_per_call = self.cfg.decimation if self._physics_handles_decimation else 1
         for _ in range(self.cfg.decimation // steps_per_call):
             self._sim_step_counter += steps_per_call
-            self.action_manager.apply_action()
-            self.scene.write_data_to_sim()
+            if not self._physics_handles_actions:
+                self.action_manager.apply_action()
+                self.scene.write_data_to_sim()
             self.sim.step(render=False)
             self.recorder_manager.record_post_physics_decimation_step()
             # render_enabled=False skips Kit (camera/GUI); standalone visualizers still update
@@ -236,10 +241,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         self.reset_time_outs = self.termination_manager.time_outs
         self.reward_buf = self.reward_manager.compute(dt=self.step_dt)
 
-        if len(self.recorder_manager.active_terms) > 0:
-            # update observations for recording if needed
-            self.obs_buf = self.observation_manager.compute()
-            self.recorder_manager.record_post_step()
+        self.recorder_manager.record_post_step()
 
         # -- reset envs that terminated/timed-out and log the episode information
         reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1).int()
@@ -258,18 +260,25 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             self.recorder_manager.record_post_reset(reset_env_ids)
 
         # -- handle episode reset requested from visualizer UI controls
+        manual_reset_ids = reset_env_ids[:0]
         if self.sim.consume_reset_request():
             # Only reset envs not already reset this step to avoid redundant resets.
             not_yet_reset = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
             index_fill_(not_yet_reset, reset_env_ids, False)
             manual_reset_ids = not_yet_reset.nonzero(as_tuple=False).squeeze(-1).int()
             if len(manual_reset_ids) > 0:
+                if self.cfg.compute_final_obs and len(reset_env_ids) == 0:
+                    self.extras["final_obs"] = self.observation_manager.compute()
                 # mark as terminated so RL wrappers observe the episode boundary
                 index_fill_(self.reset_terminated, manual_reset_ids, True)
                 # mirror the recorder lifecycle used for normal resets
                 self.recorder_manager.record_pre_reset(manual_reset_ids)
                 self._reset_idx(manual_reset_ids)
                 self.recorder_manager.record_post_reset(manual_reset_ids)
+
+        if len(reset_env_ids) > 0 or len(manual_reset_ids) > 0:
+            # Reset writes invalidate derived body poses used by observations and rewards.
+            self.sim.forward()
 
         self.command_manager.compute(dt=self.step_dt)
         if "interval" in self.event_manager.active_terms:
@@ -303,9 +312,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             None.
 
         Raises:
-            RuntimeError: If mode is set to "rgb_data" and simulation render mode does not support it.
-                In this case, the simulation render mode must be set to ``RenderMode.PARTIAL_RENDERING``
-                or ``RenderMode.FULL_RENDERING``.
             NotImplementedError: If an unsupported rendering mode is specified.
         """
         # run a rendering step of the simulator

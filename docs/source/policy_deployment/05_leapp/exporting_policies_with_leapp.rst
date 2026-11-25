@@ -3,20 +3,18 @@ Exporting Policies with LEAPP
 
 .. currentmodule:: isaaclab
 
-This guide covers how to export and deploy trained reinforcement learning policies from Isaac Lab using
-`LEAPP <https://nvidia-isaac.github.io/leapp/>`__ (Lightweight Export Annotations for Policy Pipelines).
-The main goal of the LEAPP export path is to package a policy together with the input and output
-semantics needed for deployment, so downstream users do not need to reimplement Isaac Lab
-observation preprocessing, action postprocessing, or recurrent-state handling by hand.
+`LEAPP <https://nvidia-isaac.github.io/leapp/>`__ (Lightweight Export Annotations for
+Policy Pipelines) exports a trained policy together with its observation processing,
+action processing, and recurrent-state handling. This keeps deployment consistent
+with training without reimplementing those operations by hand.
 
-The Isaac Lab LEAPP exporter traces the data flowing between the policy and the simulation,
-capturing the operations applied along the way. It also embeds semantic metadata for the exported
-policy inputs and outputs. Isaac Lab can consume these exports through :class:`~envs.LeappDeploymentEnv`
-for deployment in simulation. You can also deploy LEAPP-exported policies directly on real robots through ROS using
-`Isaac ROS Deploy <https://nvidia-isaac-ros.github.io/repositories_and_packages/isaac_ros_deploy/index.html>`__
-or build your own deployment orchestration by parsing the YAML.
+The exporter traces tensor operations and records input and output metadata.
+Run the exported policy in simulation with :class:`~envs.LeappDeploymentEnv`, on a
+robot with `Isaac ROS Deploy
+<https://nvidia-isaac-ros.github.io/repositories_and_packages/isaac_ros_deploy/index.html>`__,
+or in a custom runtime that reads the exported YAML.
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/ur10_sim_vs_real.gif
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/policy_deployment/leapp/ur10_sim_vs_real.gif
    :width: 100%
    :align: center
    :alt: Side-by-side UR10 reaching motions in Isaac Lab on the left and on a physical robot on the right.
@@ -49,7 +47,7 @@ Supported Workflows
 Prerequisites
 -------------
 
-This export flow requires ``leapp``, Python >= 3.10, and PyTorch >= 2.6.
+This export flow requires ``leapp==0.8.1``, Python >= 3.10, and PyTorch >= 2.7.
 ``leapp`` is a specialized optional extra (it is not part of ``--extra all``).
 
 Select extras the same way as ``isaaclab train``: add ``--extra leapp`` on every
@@ -77,7 +75,7 @@ Export a trained policy, then launch the exported policy in Isaac Lab:
    uv run --extra leapp isaaclab leapp deploy \
        --task <TASK_NAME> \
        --pipeline <PATH_TO_EXPORTED_LEAPP_YAML> \
-       --viz newton_gl physics=newton_mjwarp
+       --viz newton physics=newton_mjwarp
 
 Continue with the sections below to select a different RL library, configure the
 export, and validate the generated artifacts.
@@ -239,6 +237,31 @@ backend-specific and launcher arguments (see :func:`~isaaclab.app.add_launcher_a
    If no matching artifact has been published, the exporter reports that it is unavailable and
    exits. Train the task locally and omit ``--checkpoint`` for automatic discovery, or pass an
    explicit checkpoint path. See :ref:`pretrained-checkpoints` for checkpoint availability.
+
+
+Command labels and detailed layouts
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Command configurations accept plain ``element_names``. For example, a planar velocity command
+uses ``["x", "y", "angular_z"]``. A flat list labels a vector command; nested lists label each
+non-environment dimension in order. The exporter adds the system dimension and uses the quantity
+kind to distinguish spatial components from named elements such as joints or bodies.
+
+For detailed layouts, ``axes`` accepts one LEAPP axis descriptor per tensor dimension, including
+the environment dimension. It takes precedence over ``element_names``. Use it for unnamed
+dimensions, sampled time axes with a period, or custom dimension meanings. Neither interface
+changes the tensor shape or reorders its values. Legacy velocity labels such as ``lin_vel_x`` and
+``ang_vel_z`` are normalized to ``x`` and ``angular_z`` for built-in velocity kinds.
+
+Data-property and actuator-write annotations support the same choice through
+``@leapp_tensor_semantics``. Their dynamic label resolvers receive the data object;
+``axes_resolver`` also receives the tensor. Explicit axes or an axis resolver's result take
+precedence over simple names.
+
+Existing bundles with legacy ``element_names`` remain readable. ``isaaclab_connection`` identifies
+the source property or destination method, while the names preserve joint subsets and ordering.
+New exports use the LEAPP 0.8.1 axis format regardless of which configuration interface supplied
+the labels.
 
 
 How It Works (High Level)

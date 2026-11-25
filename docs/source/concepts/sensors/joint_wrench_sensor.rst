@@ -6,9 +6,9 @@
 Joint Wrench Sensor
 ===================
 
-A :class:`~sensors.JointWrenchSensor` reports the incoming reaction wrench at each selected
-articulation body's parent joint. It exposes force [N] and torque [N·m] separately, with entries
-ordered by :attr:`~sensors.JointWrenchSensor.body_names`.
+A :class:`~sensors.JointWrenchSensor` measures reaction forces and torques at
+articulation bodies' parent joints. Forces use newtons and torques use newton-meters;
+entries follow :attr:`~sensors.JointWrenchSensor.body_names`.
 
 Wrench convention
 -----------------

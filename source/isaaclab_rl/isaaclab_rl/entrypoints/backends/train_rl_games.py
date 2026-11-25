@@ -98,6 +98,7 @@ def _resolve_checkpoint(args_cli: argparse.Namespace, agent_cfg: dict, log_root_
             checkpoint_pattern=r".*\.pth",
             other_dirs=["nn"],
             preferred_checkpoint_pattern=rf"{re.escape(config_name)}\.pth",
+            latest_checkpoint_pattern=rf"(?:last_)?({re.escape(config_name)}_(?:ep|frame)_.*)\.pth",
             metadata={"agent": args_cli.agent},
         )
     return retrieve_file_path(args_cli.checkpoint)

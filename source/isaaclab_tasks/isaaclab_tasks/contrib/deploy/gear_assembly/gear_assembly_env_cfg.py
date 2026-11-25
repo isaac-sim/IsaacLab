@@ -6,8 +6,8 @@
 import os
 from dataclasses import MISSING
 
-from isaaclab_physx.physics import PhysxCfg
-from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxRigidBodyCfg
+from isaaclab_isaacsim.sim.schemas import PhysxCollisionCfg, PhysxRigidBodyCfg
+from isaaclab_ov.physics import OvPhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
@@ -42,9 +42,6 @@ ASSETS_DIR = os.path.join(CONFIG_DIR, "assets")
 @configclass
 class GearAssemblySceneCfg(InteractiveSceneCfg):
     """Configuration for the scene with a robotic arm."""
-
-    # Disable scene replication to allow USD-level randomization
-    replicate_physics = False
 
     # world
     ground = AssetBaseCfg(
@@ -313,8 +310,14 @@ class GearAssemblyEnvCfg(ManagerBasedRLEnvCfg):
     terminations: TerminationsCfg = TerminationsCfg()
     events: EventCfg = EventCfg()
     sim: SimulationCfg = SimulationCfg(
-        physics=PhysxCfg(  # Important to prevent collisionStackSize buffer overflow in contact-rich environments.
-            gpu_collision_stack_size=2**30, gpu_max_rigid_contact_count=2**23, gpu_max_rigid_patch_count=2**23
+        physics=OvPhysxCfg(
+            bounce_threshold_velocity=0.5,
+            friction_correlation_distance=0.025,
+            friction_offset_threshold=0.04,
+            # Prevent collisionStackSize buffer overflow in contact-rich environments.
+            gpu_collision_stack_size=2**30,
+            gpu_max_rigid_contact_count=2**23,
+            gpu_max_rigid_patch_count=2**23,
         ),
     )
 
@@ -322,7 +325,7 @@ class GearAssemblyEnvCfg(ManagerBasedRLEnvCfg):
         """Post initialization."""
         # general settings
         self.episode_length_s = 6.66
-        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(3.5, 3.5, 3.5))
+        self.sim.visualizer_cfgs = VisualizerCfg(eye=(3.5, 3.5, 3.5))
         # simulation settings
         self.decimation = 4
         self.sim.render_interval = self.decimation

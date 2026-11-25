@@ -8,7 +8,7 @@ from __future__ import annotations
 import os
 from dataclasses import MISSING
 
-from isaaclab_physx.physics import PhysxCfg
+from isaaclab_isaacsim.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -85,7 +85,7 @@ class HumanoidAmpEnvCfg(DirectRLEnvCfg):
     )
 
     # scene
-    scene: HumanoidAmpSceneCfg = HumanoidAmpSceneCfg(num_envs=4096, env_spacing=10.0, replicate_physics=True)
+    scene: HumanoidAmpSceneCfg = HumanoidAmpSceneCfg(num_envs=4096, env_spacing=10.0)
 
 
 @configclass

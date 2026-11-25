@@ -26,11 +26,11 @@ from hydra.core.global_hydra import GlobalHydra
 from omegaconf import OmegaConf
 
 from isaaclab import cli
+from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg
 
 from isaaclab_rl.entrypoints import PlaybackRequest, SimpleAgentRequest, TrainingRequest, api, dispatch, simple_agents
 from isaaclab_rl.entrypoints.backends import play_rlinf, train_rlinf
-from isaaclab_rl.entrypoints.backends.cli_args_rsl_rl import checkpoint_load_cfg
-from isaaclab_rl.entrypoints.simple_agents import create_zero_action_policy
+from isaaclab_rl.entrypoints.simple_agents import create_random_action_policy, create_zero_action_policy
 
 
 @pytest.mark.parametrize(
@@ -205,6 +205,7 @@ def test_zero_agent_supports_composite_direct_action_spaces() -> None:
     )
     unwrapped = SimpleNamespace(
         action_manager=None,
+        cfg=DirectRLEnvCfg(),
         single_action_space=action_space,
         device="cpu",
         num_envs=2,
@@ -216,22 +217,43 @@ def test_zero_agent_supports_composite_direct_action_spaces() -> None:
     assert torch.equal(actions["discrete"], torch.zeros(2, 1, dtype=torch.int64))
 
 
-def test_zero_agent_supports_direct_multi_agent_action_spaces() -> None:
-    """Direct multi-agent environments receive a zero action for every agent."""
+@pytest.mark.parametrize("policy_name", ["zero", "random"])
+def test_simple_agents_support_direct_multi_agent_action_spaces(policy_name: simple_agents.PolicyName) -> None:
+    """Direct MARL playback receives batched actions for every agent from either policy."""
     unwrapped = SimpleNamespace(
+        cfg=DirectMARLEnvCfg(),
         action_manager=None,
         action_spaces={
             "robot": gym.spaces.Box(low=-1.0, high=1.0, shape=(2,), dtype=np.float32),
-            "object": gym.spaces.Discrete(2),
+            "object": (
+                gym.spaces.Discrete(2)
+                if policy_name == "zero"
+                else gym.spaces.Box(low=-np.inf, high=np.inf, shape=(1,), dtype=np.float32)
+            ),
         },
         device="cpu",
         num_envs=3,
     )
+    env = SimpleNamespace(unwrapped=unwrapped, action_space=unwrapped.action_spaces.__getitem__)
+    create_policy = create_zero_action_policy if policy_name == "zero" else create_random_action_policy
+    policy = create_policy(env)
+    actions = policy()
 
-    actions = create_zero_action_policy(SimpleNamespace(unwrapped=unwrapped))()
-
-    assert torch.equal(actions["robot"], torch.zeros(3, 2))
-    assert torch.equal(actions["object"], torch.zeros(3, 1, dtype=torch.int64))
+    assert set(actions) == {"robot", "object"}
+    assert actions["robot"].shape == (3, 2)
+    assert actions["object"].shape == (3, 1)
+    if policy_name == "zero":
+        assert torch.equal(actions["robot"], torch.zeros(3, 2))
+        assert torch.equal(actions["object"], torch.zeros(3, 1, dtype=torch.int64))
+    else:
+        next_actions = policy()
+        for agent in actions:
+            for sample in (actions[agent], next_actions[agent]):
+                assert sample.shape == actions[agent].shape
+                assert sample.dtype == torch.float32
+                assert sample.device == torch.device("cpu")
+                assert torch.all((sample >= -1) & (sample <= 1))
+            assert not torch.equal(actions[agent], next_actions[agent])
 
 
 def test_simple_agents_parse_device_and_default_to_no_visualizer(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -241,7 +263,8 @@ def test_simple_agents_parse_device_and_default_to_no_visualizer(monkeypatch: py
     args = simple_agents._parse_args([], "zero")
 
     assert args.device is None
-    assert args.visualizer == []
+    assert "visualizer" not in vars(args)
+    assert not any(arg.startswith("visualizer=") for arg in sys.argv)
 
     args = simple_agents._parse_args(["--device", "cuda:1"], "random")
 
@@ -462,6 +485,15 @@ def test_rlinf_parser_uses_unified_checkpoint_and_iteration_flags() -> None:
     assert args.max_iterations == 10
 
 
+@pytest.mark.parametrize("backend", [train_rlinf, play_rlinf], ids=["train", "play"])
+def test_rlinf_parser_accepts_env_overrides_between_flags(backend) -> None:
+    """Trailing KEY=VALUE env overrides may be mixed with the RLinf options."""
+    args = backend._parse_args(["--config_name", "ppo", "physics=newton_mjwarp", "--seed", "1", "a.b=2"])
+
+    assert args.env_overrides == ["physics=newton_mjwarp", "a.b=2"]
+    assert args.seed == 1
+
+
 def test_torchrl_parser_accepts_run_name(monkeypatch) -> None:
     """TorchRL accepts the same run-name option exposed by the other training frontends."""
     from isaaclab_rl.entrypoints.backends import train_torchrl
@@ -628,6 +660,18 @@ def test_dispatch_uses_task_registered_default_backend(monkeypatch) -> None:
     assert received == {"module_name": "isaaclab_rl.entrypoints.backends.train_rsl_rl", "argv": ["--task", task_name]}
 
 
+def test_dispatch_finds_the_default_backend_of_experimental_tasks() -> None:
+    """Tasks of the optional experimental task package also select their registered default backend."""
+    pytest.importorskip("isaaclab_tasks_experimental")
+    # A fresh process, so that no earlier import has registered the experimental tasks.
+    code = (
+        "from isaaclab_rl.entrypoints.dispatch import _resolve_default_library\n"
+        "print(_resolve_default_library(['--task', 'Isaac-Cartpole-MDP2'], {'rsl_rl': ''}))"
+    )
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True)
+    assert result.stdout.strip().splitlines()[-1] == "rsl_rl"
+
+
 def test_dispatch_fuses_option_like_kit_args(monkeypatch) -> None:
     """Space-separated option-like Kit arguments are fused before backend parsing."""
     received: dict[str, object] = {}
@@ -728,13 +772,14 @@ def test_failed_rsl_training_restores_torch_backend_state(monkeypatch) -> None:
     assert _torch_backend_state() == caller_state
 
 
-def test_rsl_training_registers_external_task_before_agent_discovery(monkeypatch) -> None:
-    """RSL-RL parses tasks registered by its external callback."""
-    from isaaclab_rl.entrypoints.backends import train_rsl_rl
-
+@pytest.mark.parametrize("mode", ["train", "play"])
+def test_rsl_registers_external_task_before_agent_discovery(monkeypatch, mode) -> None:
+    """External task registration preserves selector aliases through callback filtering."""
+    entrypoint = importlib.import_module(f"isaaclab_rl.entrypoints.backends.{mode}_rsl_rl")
     task_name = "Isaac-ExternalCallbackOrderTest"
     callback_module_name = "_external_callback_order_test"
     callback_module = types.ModuleType(callback_module_name)
+    selections = ["--physics", "newton_mjwarp", "--renderer", "newton_warp", "--viz", "kit"]
 
     def register_task() -> list[str]:
         gym.register(
@@ -742,31 +787,27 @@ def test_rsl_training_registers_external_task_before_agent_discovery(monkeypatch
             entry_point="dummy:Env",
             kwargs={"rsl_rl_cfg_entry_point": "dummy:AgentCfg"},
         )
-        return []
+        return selections
 
     callback_module.register_task = register_task
     monkeypatch.setitem(sys.modules, callback_module_name, callback_module)
-    monkeypatch.setattr(
-        sys,
-        "argv",
-        [
-            "train.py",
-            "--task",
-            task_name,
-            "--external_callback",
-            f"{callback_module_name}.register_task",
-            "--no-resume_optimizer_state",
-        ],
-    )
+    argv = [f"{mode}.py", "--task", task_name]
+    argv += ["--external_callback", f"{callback_module_name}.register_task", *selections, "--callback_option=42"]
+    if mode == "train":
+        argv.append("--no-resume_optimizer_state")
+    monkeypatch.setattr(sys, "argv", argv)
     gym.registry.pop(task_name, None)
 
     try:
-        args = train_rsl_rl._parse_args(sys.argv[1:])
+        args = entrypoint._parse_args(sys.argv[1:])
     finally:
         gym.registry.pop(task_name, None)
 
     assert args.task == task_name
-    assert not args.resume_optimizer_state
+    if mode == "train":
+        assert not args.resume_optimizer_state
+    assert sys.argv[1:] == ["physics=newton_mjwarp", "renderer=newton_warp", "visualizer=kit"]
+    assert not {"physics", "renderer", "visualizer"}.intersection(vars(args))
 
 
 def test_skrl_training_restores_jax_backend(monkeypatch) -> None:
@@ -868,11 +909,11 @@ def test_rsl_rl_checkpoint_preserves_selected_optimizer_state(
 ) -> None:
     """Runner continuation restores models, iteration, and RND while optionally resetting the policy optimizer."""
     pytest.importorskip("rsl_rl")
-    from rsl_rl.runners import DistillationRunner, OnPolicyRunner
     from tensordict import TensorDict
 
+    from isaaclab_rl.entrypoints.backends.runner_rsl_rl import create_rsl_rl_runner, rsl_rl_load_cfg
+
     distillation = runner_class == "DistillationRunner"
-    runner_type = DistillationRunner if distillation else OnPolicyRunner
     model_names = ("student", "teacher") if distillation else ("actor", "critic")
     obs = TensorDict({"obs": torch.ones(1, 2)}, batch_size=[1])
     env = SimpleNamespace(
@@ -887,6 +928,7 @@ def test_rsl_rl_checkpoint_preserves_selected_optimizer_state(
             **{name: {"class_name": "MLPModel", "hidden_dims": [4]} for name in model_names},
         }
         if not distillation:
+            cfg["actor"]["distribution_cfg"] = {"class_name": "GaussianDistribution", "init_std": 1.0}
             cfg["algorithm"]["rnd_cfg"] = {
                 "num_outputs": 2,
                 "predictor_hidden_dims": [4],
@@ -894,7 +936,8 @@ def test_rsl_rl_checkpoint_preserves_selected_optimizer_state(
                 "weight": 1.0,
                 "learning_rate": learning_rate,
             }
-        return runner_type(env, cfg, device="cpu")
+        agent_cfg = SimpleNamespace(**cfg, class_name=f"rsl_rl.runners:{runner_class}", device="cpu")
+        return create_rsl_rl_runner(env, agent_cfg)
 
     source = make_runner(3e-4)
     source.alg.get_policy()(obs).sum().backward()
@@ -906,7 +949,7 @@ def test_rsl_rl_checkpoint_preserves_selected_optimizer_state(
     checkpoint = str(tmp_path / "model.pt")
     source.save(checkpoint)
     destination = make_runner(1e-5)
-    destination.load(checkpoint, load_cfg=checkpoint_load_cfg(resume_optimizer_state, runner_class=runner_class))
+    destination.load(checkpoint, load_cfg=rsl_rl_load_cfg(destination, resume_optimizer_state))
 
     assert destination.current_learning_iteration == source.current_learning_iteration
     if distillation:
@@ -920,3 +963,60 @@ def test_rsl_rl_checkpoint_preserves_selected_optimizer_state(
         assert not destination.alg.optimizer.state
     else:
         torch.testing.assert_close(destination_state["optimizer_state_dict"], source_state["optimizer_state_dict"])
+
+
+@pytest.mark.parametrize(
+    ("entry", "num_actions"),
+    [
+        ("isaaclab_tasks.contrib.keyboard.agents.rsl_rl_ppo_cfg:SO101PPORunnerCfg", 6),
+        ("isaaclab_tasks.contrib.multitask_manipulation.agents.rsl_rl_ppo_cfg:MultitaskManipulationPPORunnerCfg", 22),
+        ("isaaclab_tasks.core.lift.config.kuka_allegro.agents.rsl_rl_ppo_cfg:KukaAllegroSingleCameraPPORunnerCfg", 16),
+    ],
+)
+def test_custom_rsl_models_construct_from_serialized_configs(entry: str, num_actions: int) -> None:
+    """Model-specific options do not leak into existing custom constructor signatures."""
+    from rsl_rl.utils import resolve_callable
+    from tensordict import TensorDict
+
+    cfg = resolve_callable(entry)().to_dict()
+    assert "network_cfg" not in cfg["actor"] and "network_cfg" not in cfg["critic"]
+    obs = TensorDict(
+        {
+            "policy": torch.randn(4, 30),
+            "proprio": torch.randn(4, 12),
+            "perception": torch.randn(4, 5),
+            "base_image": torch.zeros(4, 3, 64, 64, dtype=torch.uint8),
+        },
+        batch_size=[4],
+    )
+    obs["policy"][:, :3] = torch.nn.functional.one_hot(torch.arange(4) % 3, 3).float()
+    cfg["multi_gpu"] = None
+    algorithm = resolve_callable(cfg["algorithm"]["class_name"]).construct_algorithm(
+        obs, SimpleNamespace(num_envs=4, num_actions=num_actions), cfg, "cpu"
+    )
+    assert algorithm.actor(obs).shape == (4, num_actions)
+    assert torch.isfinite(algorithm.critic(obs)).all()
+
+
+def test_sac_configuration_tracks_native_constructor() -> None:
+    """Typed SAC options track the constructor while retaining the task learning rates."""
+    import inspect
+    from dataclasses import MISSING, fields
+
+    from rsl_rl.algorithms import SAC
+
+    from isaaclab_rl.rsl_rl import RslRlSacAlgorithmCfg
+
+    cfg = RslRlSacAlgorithmCfg()
+    parameters = inspect.signature(SAC.__init__).parameters
+    injected = {"self", "actor", "critics", "storage", "device", "multi_gpu_cfg"}
+    construction = {"class_name", "num_critics", "replay_buffer_capacity", "max_replay_memory_fraction"}
+    assert {field.name for field in fields(cfg)} - construction == set(parameters) - injected
+    for name, parameter in parameters.items():
+        if name not in injected and not isinstance(getattr(cfg, name), type(MISSING)):
+            expected = (
+                1e-4
+                if name in {"actor_learning_rate", "critic_learning_rate", "alpha_learning_rate"}
+                else parameter.default
+            )
+            assert getattr(cfg, name) == expected, name

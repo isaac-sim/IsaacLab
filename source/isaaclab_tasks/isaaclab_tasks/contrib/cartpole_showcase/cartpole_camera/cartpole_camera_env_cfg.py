@@ -8,6 +8,8 @@ from __future__ import annotations
 import math
 
 from gymnasium import spaces
+from isaaclab_ov.physics import OvPhysxCfg
+from isaaclab_ov.renderers import OVRTXRendererCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
@@ -30,6 +32,7 @@ def get_tiled_camera_cfg(data_type: str, width: int = 100, height: int = 100) ->
         prim_path="{ENV_REGEX_NS}/Camera",
         offset=CameraCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"),
         data_types=[data_type],
+        renderer_cfg=OVRTXRendererCfg(),
         spawn=sim_utils.PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
         ),
@@ -62,7 +65,13 @@ class CartpoleCameraEnvCfg(DirectRLEnvCfg):
     action_scale = 100.0  # [N]
 
     # simulation
-    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation)
+    sim: SimulationCfg = SimulationCfg(
+        dt=1 / 120,
+        render_interval=decimation,
+        physics=OvPhysxCfg(
+            bounce_threshold_velocity=0.5, friction_correlation_distance=0.025, friction_offset_threshold=0.04
+        ),
+    )
 
     # robot
     cart_dof_name = "slider_to_cart"
@@ -78,7 +87,7 @@ class CartpoleCameraEnvCfg(DirectRLEnvCfg):
     observation_space = list(_RGB_IMAGE_SHAPE)
 
     # scene
-    scene: CartpoleCameraSceneCfg = CartpoleCameraSceneCfg(num_envs=512, env_spacing=20.0, replicate_physics=True)
+    scene: CartpoleCameraSceneCfg = CartpoleCameraSceneCfg(num_envs=512, env_spacing=20.0)
 
     # reset
     max_cart_pos = 3.0  # the cart is reset if it exceeds that position [m]
@@ -95,7 +104,7 @@ class CartpoleCameraEnvCfg(DirectRLEnvCfg):
     rew_scale_pole_vel = -0.005
 
     def __post_init__(self):
-        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(20.0, 20.0, 20.0))
+        self.sim.visualizer_cfgs = VisualizerCfg(eye=(20.0, 20.0, 20.0))
 
 
 ###
@@ -419,10 +428,6 @@ class CartpoleCameraShowcasePresetsEnvCfg(PresetCfg):
     Each variant attribute is an instance of an existing per-shape cfg class
     declared above. The hydra resolver picks one based on ``presets=<name>``;
     the default is ``box_box`` (matching the canonical cartpole camera shape).
-    The retired per-shape task IDs are registered in the sibling
-    ``__init__.py`` with a ``deprecated={"alias": ...}`` kwarg so
-    ``parse_cfg.load_cfg_from_registry`` emits a ``FutureWarning`` when
-    one of them is loaded.
     """
 
     box_box = BoxBoxEnvCfg()

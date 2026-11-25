@@ -15,7 +15,7 @@ from isaaclab.managers.action_manager import ActionTerm
 from isaaclab.utils import index_fill_
 
 if TYPE_CHECKING:
-    from isaaclab_physx.assets import SurfaceGripper
+    from isaaclab.assets import SurfaceGripper
 
     from ... import ManagerBasedEnv
     from . import actions_cfg

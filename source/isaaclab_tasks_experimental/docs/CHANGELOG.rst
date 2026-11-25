@@ -3,6 +3,20 @@ Changelog
 
 .. towncrier release notes start
 
+1.0.2 (2026-10-27)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Reused shared Warp quaternion and rigid-body mathematics in task terms and reorientation.
+
+Fixed
+^^^^^
+
+* Corrected reorientation angular error to use xyzw components and shared shortest-rotation math.
+
+
 1.0.1 (2026-10-10)
 ~~~~~~~~~~~~~~~~~~
 

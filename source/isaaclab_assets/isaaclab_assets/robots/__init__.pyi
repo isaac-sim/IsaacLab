@@ -10,6 +10,7 @@ __all__ = [
     "DIGIT_V4_CFG",
     "ALLEGRO_HAND_CFG",
     "ANT_CFG",
+    "ASIMOV_1_CFG",
     "ANYDRIVE_3_SIMPLE_ACTUATOR_CFG",
     "ANYDRIVE_3_LSTM_ACTUATOR_CFG",
     "ANYMAL_B_CFG",
@@ -36,6 +37,10 @@ __all__ = [
     "KINOVA_JACO2_N6S300_CFG",
     "KINOVA_GEN3_N7_CFG",
     "KUKA_ALLEGRO_CFG",
+    "MICRODUCK_CFG",
+    "MICRODUCK_ALLCOLLISIONS_CFG",
+    "MICRODUCK_BACKLASH_CFG",
+    "MICRODUCK_ALLCOLLISIONS_BACKLASH_CFG",
     "PICK_AND_PLACE_CFG",
     "CRAZYFLIE_CFG",
     "RIDGEBACK_FRANKA_PANDA_CFG",
@@ -53,6 +58,8 @@ __all__ = [
     "UNITREE_GO2_CFG",
     "H1_CFG",
     "H1_MINIMAL_CFG",
+    "H2_CFG",
+    "H2_SHARPA_CFG",
     "G1_CFG",
     "G1_MINIMAL_CFG",
     "G1_29DOF_CFG",
@@ -71,6 +78,7 @@ from .agibot import AGIBOT_A2D_CFG
 from .agility import LEG_JOINT_NAMES, ARM_JOINT_NAMES, DIGIT_V4_CFG
 from .allegro import ALLEGRO_HAND_CFG
 from .ant import ANT_CFG
+from .asimov_1 import ASIMOV_1_CFG
 from .anymal import (
     ANYDRIVE_3_SIMPLE_ACTUATOR_CFG,
     ANYDRIVE_3_LSTM_ACTUATOR_CFG,
@@ -98,6 +106,12 @@ from .humanoid import HUMANOID_CFG
 from .humanoid_28 import HUMANOID_28_CFG
 from .kinova import KINOVA_JACO2_N7S300_CFG, KINOVA_JACO2_N6S300_CFG, KINOVA_GEN3_N7_CFG
 from .kuka_allegro import KUKA_ALLEGRO_CFG
+from .microduck import (
+    MICRODUCK_CFG,
+    MICRODUCK_ALLCOLLISIONS_CFG,
+    MICRODUCK_BACKLASH_CFG,
+    MICRODUCK_ALLCOLLISIONS_BACKLASH_CFG,
+)
 from .pick_and_place import PICK_AND_PLACE_CFG
 from .quadcopter import CRAZYFLIE_CFG
 from .ridgeback_franka import RIDGEBACK_FRANKA_PANDA_CFG
@@ -112,6 +126,8 @@ from .unitree import (
     UNITREE_GO2_CFG,
     H1_CFG,
     H1_MINIMAL_CFG,
+    H2_CFG,
+    H2_SHARPA_CFG,
     G1_CFG,
     G1_MINIMAL_CFG,
     G1_29DOF_CFG,

@@ -8,11 +8,11 @@ from __future__ import annotations
 import os
 from typing import Literal, cast
 
+from isaaclab_isaacsim.physics import PhysxCfg
+from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
-from isaaclab_newton.renderers import NewtonWarpRendererCfg
+from isaaclab_newton.renderers import NewtonOptixRendererCfg, NewtonWarpRendererCfg
 from isaaclab_ov.physics import OvPhysxCfg
-from isaaclab_physx.physics import PhysxCfg
-from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -112,7 +112,8 @@ class RenderBenchmarkTiledCameraCfg(PresetCfg):
         width: int = int(os.getenv("BENCHMARK_RENDER_RESOLUTION", "256"))
         height: int = int(os.getenv("BENCHMARK_RENDER_RESOLUTION", "256"))
         renderer_cfg: MultiBackendRendererCfg = MultiBackendRendererCfg(
-            newton_renderer=NewtonWarpRendererCfg(enable_shadows=True),
+            newton_warp=NewtonWarpRendererCfg(enable_shadows=True),
+            newton_optix=NewtonOptixRendererCfg(enable_shadows=True),
         )
 
     default = BaseRenderBenchmarkCameraCfg(data_types=["rgb"])
@@ -218,7 +219,7 @@ class RenderBenchmarkFrankaCabinetEnvCfg(DirectRLEnvCfg):
 
     sim: SimulationCfg = SimulationCfg(dt=1.0 / 120.0, render_interval=2, physics=RenderBenchmarkPhysicsCfg())
 
-    scene: RenderBenchmarkSceneCfg = RenderBenchmarkSceneCfg(num_envs=4, env_spacing=3.0, replicate_physics=True)
+    scene: RenderBenchmarkSceneCfg = RenderBenchmarkSceneCfg(num_envs=4, env_spacing=3.0)
 
     joint_animation_amplitude: float = 0.4
     """Peak sinusoidal offset from each joint's default position [m or rad, depending on joint type].

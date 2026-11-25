@@ -69,10 +69,10 @@ class randomize_visual_shape(FactoryBase, ManagerTermBase):
     @classmethod
     def _get_backend(cls, cfg: EventTermCfg, env: ManagerBasedEnv) -> str:
         consumers = (
-            *(cfg.visualizer_type for cfg in env.sim.cfg.visualizer_cfgs if cfg.visualizer_type),
+            *(cfg.backend.visualizer_type for cfg in env.sim.cfg.visualizer_cfgs if cfg.backend),
             *env.sim.render_context.renderer_types,
         )
-        supported = ("newton_gl", "newton_rtx", "newton_warp")
+        supported = ("newton", "newton_warp", "ovrtx", "newton_optix")
         if consumers and all(name in supported for name in consumers):
             return "newton"
         raise NotImplementedError(

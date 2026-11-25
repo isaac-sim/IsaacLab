@@ -29,10 +29,9 @@ material models.
 Running the tutorials
 ---------------------
 
-The material and rigid-body tutorials launch Kit by default, requiring the
-``isaacsim`` extra. The surface-reconstruction tutorial launches Newton GL by
-default. Use ``--viz`` to select another visualizer; Newton RTX also requires
-``uv run --extra ovrtx``.
+The material and rigid-body tutorials use Newton RTX by default, requiring the
+``ovrtx`` extra. The surface-reconstruction tutorial uses the Newton visualizer.
+Use ``--viz`` to select another visualizer.
 
 
 Comparing material parameters
@@ -48,15 +47,15 @@ Elastic stiffness with ``--press_spheres``:
 .. raw:: html
 
    <video autoplay loop muted playsinline preload="metadata" aria-label="MPM elastic stiffness comparison under compression" style="width:100%; max-width:960px;">
-     <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_elastic_stiffness.mp4" type="video/mp4">
+     <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/mpm/mpm_elastic_stiffness.mp4" type="video/mp4">
    </video>
 
 Start with the elastic stiffness comparison:
 
 .. code-block:: bash
 
-   uv run --extra isaacsim python scripts/tutorials/08_mpm/material_parameters.py \
-     --preset young_modulus --viz kit
+   uv run --extra ovrtx python scripts/tutorials/08_mpm/material_parameters.py \
+     --preset young_modulus --viz newton_rtx
 
 The three specimens share the same geometry, initial velocities, particle
 mass, solver settings, and seeded particle layout. Their Young's moduli are
@@ -112,8 +111,8 @@ To apply sustained compression, add ``--press_spheres`` to either sphere preset:
 
 .. code-block:: bash
 
-   uv run --extra isaacsim python scripts/tutorials/08_mpm/material_parameters.py \
-     --preset poisson_ratio --press_spheres --viz kit
+   uv run --extra ovrtx python scripts/tutorials/08_mpm/material_parameters.py \
+     --preset poisson_ratio --press_spheres --viz newton_rtx
 
 The plates descend after a two-second settling period and hold the spheres
 under compression. Compare the lateral expansion and volume response while
@@ -136,13 +135,13 @@ total mass.
 .. raw:: html
 
    <video autoplay loop muted playsinline preload="metadata" aria-label="Rigid bodies and MPM objects descending identical inclines" style="width:100%; max-width:960px;">
-     <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_rigid_limit.mp4" type="video/mp4">
+     <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/mpm/mpm_rigid_limit.mp4" type="video/mp4">
    </video>
 
 .. code-block:: bash
 
-   uv run --extra isaacsim python scripts/tutorials/08_mpm/rigid_body_equivalence.py \
-     --viz kit
+   uv run --extra ovrtx python scripts/tutorials/08_mpm/rigid_body_equivalence.py \
+     --viz newton_rtx
 
 The MPM objects use a large finite stiffness and pressure-yield threshold to
 approximate a rigid material. Compare their rolling, sliding, and shape
@@ -166,13 +165,13 @@ for rendering, while leaving the particle simulation unchanged.
 .. raw:: html
 
    <video autoplay loop muted playsinline preload="metadata" aria-label="Reconstructed water surface falling into a shallow pool" style="width:100%; max-width:960px;">
-     <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_surface_reconstruction.mp4" type="video/mp4">
+     <source src="https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/physics/mpm/mpm_surface_reconstruction.mp4" type="video/mp4">
    </video>
 
 .. code-block:: bash
 
    uv run python scripts/tutorials/08_mpm/surface_reconstruction.py \
-     --surface_preset balanced --viz newton_gl
+     --surface_preset balanced --viz newton
 
 Run the same scene again with another ``--surface_preset``:
 
@@ -205,9 +204,10 @@ receive the mesh for the current particle state. See
 
 .. note::
 
-   Surface reconstruction supports Newton GL and Newton RTX only, not Kit,
-   Viser, or Rerun. Select ``--fluid_render_mode particles`` to use these
-   visualizers without surface reconstruction.
+   This tutorial selects Newton, with OpenGL or RTX rendering, for surface reconstruction.
+   Select ``--fluid_render_mode particles`` for Kit, Viser, or Rerun.
+   The shared ``ParticleSurfaceRenderer`` also supports Kit; see the teapot
+   example in :ref:`newton-using-mpm`.
 
 
 Comparing one-way and two-way coupling

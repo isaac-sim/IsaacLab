@@ -16,8 +16,8 @@ Reference:
 
 """
 
+from isaaclab_isaacsim.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 from isaaclab_newton.sim.schemas import NewtonArticulationCfg
-from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -137,3 +137,10 @@ KUKA_ALLEGRO_CFG = ArticulationCfg(
     },
     soft_joint_pos_limit_factor=1.0,
 )
+
+
+KUKA_ALLEGRO_FRICTION_REPLACEMENTS = {
+    pattern: (effort, 0.0, 0.0)
+    for pattern, effort in KUKA_ALLEGRO_CFG.actuators["kuka_allegro_actuators"].friction.items()
+}
+"""OVPhysX legacy friction replacements matching the robot actuator efforts, in SI units."""

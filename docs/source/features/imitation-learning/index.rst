@@ -1,8 +1,10 @@
 Imitation Learning
 ==================
 
-In this section, we show existing scripts for running imitation learning
-with Isaac Lab.
+.. include:: /source/features/imitation-learning/_mimic_deprecation.include
+
+Collect demonstrations, generate additional data, and train imitation-learning
+policies with the workflows below.
 
 .. toctree::
   :maxdepth: 1

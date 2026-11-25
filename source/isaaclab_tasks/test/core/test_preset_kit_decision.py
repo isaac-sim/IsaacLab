@@ -15,18 +15,32 @@ from types import SimpleNamespace
 
 import gymnasium as gym
 import pytest
-from isaaclab_physx.physics import PhysxCfg
+from isaaclab_isaacsim.physics import PhysxCfg
+from isaaclab_ov.physics import OvPhysxCfg
 
+from isaaclab.app import validate_launch
 from isaaclab.envs import ManagerBasedEnvCfg
 from isaaclab.physics import PhysicsCfg, PhysxAutoCfg
 from isaaclab.utils.string import string_to_callable
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config
-from isaaclab_tasks.utils.hydra import PresetTarget, collect_presets, enumerate_task_presets, resolve_presets
+from isaaclab_tasks.utils.hydra import (
+    PresetTarget,
+    collect_presets,
+    enumerate_task_presets,
+    resolve_presets,
+    resolve_task_runs,
+)
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
 _CAMERA_PRESETS_TASK = "Isaac-Cartpole-Camera-Direct"
+_FRANKA_DEFORMABLE_TASKS = (
+    "Isaac-Lift-Cloth-Franka",
+    "Isaac-Lift-Cloth-Franka-Camera",
+    "Isaac-Lift-Soft-Franka",
+    "Isaac-Lift-Soft-Franka-Camera",
+)
 
 
 def _physics_cfg(value):
@@ -120,9 +134,24 @@ def test_registered_task_physx_presets_keep_auto_selection_explicit():
                 if isinstance(default_cfg, PhysxCfg):
                     assert default_cfg == isaacsim_cfg, location
                 assert auto_cfg.isaacsim_physx == isaacsim_cfg, location
-                assert auto_cfg.ovphysx == physics_fields.get("ovphysx"), location
+                # The deformable lift tasks enable OvPhysX only through the concrete selector.
+                if task_id not in _FRANKA_DEFORMABLE_TASKS or path != "sim.physics":
+                    assert auto_cfg.ovphysx == physics_fields.get("ovphysx"), location
             elif has_auto_physx and "physx" in fields:
                 assert fields.get("isaacsim_physx") == fields["physx"], location
+
+
+@pytest.mark.parametrize("task_id", _FRANKA_DEFORMABLE_TASKS)
+def test_franka_deformable_ovphysx_requires_explicit_selection(task_id):
+    """The OvPhysX opt-out is available explicitly while ``physics=physx`` keeps using Isaac Sim."""
+    explicit_cfg, _ = resolve_task_config(task_id, None, overrides=["physics=ovphysx"])
+    validate_launch(explicit_cfg)
+    assert isinstance(explicit_cfg.sim.physics, OvPhysxCfg)
+    assert explicit_cfg.sim.physics.disable_compiled_stage_cache
+
+    auto_cfg, _ = resolve_task_config(task_id, None, overrides=["physics=physx"])
+    validate_launch(auto_cfg)
+    assert isinstance(auto_cfg.sim.physics, PhysxCfg)
 
 
 @pytest.mark.parametrize(
@@ -150,3 +179,16 @@ def test_physx_and_isaacsim_physx_presets_conflict():
     """``physx`` and ``isaacsim_physx`` are distinct choices even when both use PhysxCfg."""
     with pytest.raises(ValueError, match="Conflicting global presets"):
         _resolve_with_presets("physx,isaacsim_physx")
+
+
+def test_resolve_task_runs_lists_each_launchable_combination_once():
+    """OvPhysX and OVRTX never pair with Kit, env-config checks apply, and a selector folds into its target."""
+    runs = resolve_task_runs(_CAMERA_PRESETS_TASK)
+
+    pairs = {(physics, renderer) for physics, renderer, _ in runs}
+    assert {("ovphysx", "ovrtx"), ("isaacsim_physx", "isaacsim_rtx")} <= pairs
+    assert not {("isaacsim_physx", "ovrtx"), ("ovphysx", "isaacsim_rtx")} & pairs
+    # The Warp renderer cannot produce shaded images; the env config rejects that pairing.
+    assert ("newton_mjwarp", "newton_warp", "simple_shading_full_mdl") not in runs
+    # ``physx`` and ``rtx`` select a concrete backend, so they resolve to a run already listed.
+    assert not {"physx", "rtx"} & {name for physics, renderer, _ in runs for name in (physics, renderer)}

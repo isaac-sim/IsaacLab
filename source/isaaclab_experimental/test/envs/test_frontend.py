@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for :mod:`isaaclab_experimental.envs.frontend`.
+"""Tests for :mod:`isaaclab_experimental.deprecated.envs.frontend`.
 
 Pure-Python unit tests; no app launch. Covers:
 
@@ -30,15 +30,15 @@ from typing import Any
 from unittest.mock import patch
 
 import gymnasium as gym
-import isaaclab_experimental.envs.frontend as fe
+import isaaclab_experimental.deprecated.envs.frontend as fe
 import pytest
-from isaaclab_experimental.envs.frontend import (
+from isaaclab_experimental.deprecated.envs.frontend import (
     FrontendIncompatibleError,
     WarpFrontend,
 )
-from isaaclab_experimental.managers.scene_entity_cfg import SceneEntityCfg as WarpSceneEntityCfg
+from isaaclab_experimental.deprecated.managers.scene_entity_cfg import SceneEntityCfg as WarpSceneEntityCfg
+from isaaclab_isaacsim.physics import PhysxCfg
 from isaaclab_newton.physics import NewtonCfg
-from isaaclab_physx.physics import PhysxCfg
 
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers.manager_term_cfg import EventTermCfg, ObservationTermCfg, RewardTermCfg
@@ -75,8 +75,8 @@ class _WarpActionCls:
     pass
 
 
-_warp_twin_func.__module__ = "isaaclab_experimental.envs.mdp"
-_WarpActionCls.__module__ = "isaaclab_experimental.envs.mdp"
+_warp_twin_func.__module__ = "isaaclab_experimental.deprecated.envs.mdp"
+_WarpActionCls.__module__ = "isaaclab_experimental.deprecated.envs.mdp"
 
 
 @configclass
@@ -137,7 +137,7 @@ def _term(func=None, params: dict | None = None) -> RewardTermCfg:
 def test_warp_manager_build_constructs_warp_env_with_cfg():
     # Cfg adaptation happens inside ManagerBasedRLEnvWarp.__init__, so build()
     # only selects the env class and forwards the cfg and construct kwargs.
-    import isaaclab_experimental.envs as envs
+    import isaaclab_experimental.deprecated.envs as envs
 
     cfg = object.__new__(ManagerBasedRLEnvCfg)
     expected_env = object()
@@ -147,20 +147,21 @@ def test_warp_manager_build_constructs_warp_env_with_cfg():
         calls.append((cfg, kwargs))
         return expected_env
 
-    with patch.object(envs, "ManagerBasedRLEnvWarp", fake_env):
+    with patch.object(envs, "ManagerBasedRLEnvWarp", fake_env), pytest.warns(FutureWarning, match="MDP2"):
         env = WarpFrontend.build_env(cfg, "Isaac-Test", render_mode="rgb_array")
 
     assert env is expected_env
     assert calls == [(cfg, {"render_mode": "rgb_array"})]
 
 
-def test_warp_direct_build_selects_warp_scene_from_cfg():
-    cfg = types.SimpleNamespace(scene=types.SimpleNamespace(class_type=None))
+def test_warp_direct_build_constructs_resolved_env_with_cfg():
+    scene_cfg = types.SimpleNamespace(class_type=None)
+    cfg = types.SimpleNamespace(scene=scene_cfg)
     expected_env = object()
+    calls: list[tuple[Any, Any]] = []
 
     def fake_env(*, cfg: Any, **kwargs: Any) -> Any:
-        assert cfg.scene.class_type is fe.InteractiveSceneWarp
-        assert kwargs == {"render_mode": "rgb_array"}
+        calls.append((cfg, kwargs))
         return expected_env
 
     with (
@@ -170,6 +171,9 @@ def test_warp_direct_build_selects_warp_scene_from_cfg():
         env = WarpFrontend._build_direct_env(cfg, "Isaac-Test", render_mode="rgb_array")
 
     assert env is expected_env
+    # the supplied cfg is forwarded unchanged, scene selection included
+    assert calls == [(cfg, {"render_mode": "rgb_array"})]
+    assert cfg.scene is scene_cfg and scene_cfg.class_type is None
 
 
 # ======================================================================
@@ -287,10 +291,12 @@ def test_walk_terms_ignores_nested_class_objects():
 def test_mirror_module_maps_stable_roots():
     assert (
         fe.WarpFrontend._mirror_module("isaaclab_tasks.core.velocity.mdp.rewards")
-        == "isaaclab_tasks_experimental.core.velocity.mdp.rewards"
+        == "isaaclab_tasks_experimental.deprecated.core.velocity.mdp.rewards"
     )
-    assert fe.WarpFrontend._mirror_module("isaaclab.envs.mdp.events") == "isaaclab_experimental.envs.mdp.events"
-    assert fe.WarpFrontend._mirror_module("isaaclab_tasks") == "isaaclab_tasks_experimental"
+    assert (
+        fe.WarpFrontend._mirror_module("isaaclab.envs.mdp.events") == "isaaclab_experimental.deprecated.envs.mdp.events"
+    )
+    assert fe.WarpFrontend._mirror_module("isaaclab_tasks") == "isaaclab_tasks_experimental.deprecated"
     # Unmirrored roots are not resolvable.
     assert fe.WarpFrontend._mirror_module("torch.nn.functional") is None
     assert fe.WarpFrontend._mirror_module("") is None
@@ -299,8 +305,10 @@ def test_mirror_module_maps_stable_roots():
 def test_nearest_mdp_module_walks_up_cfg_paths():
     # A cfg module path walks up to the task family's mdp package.
     assert (
-        fe.WarpFrontend._nearest_mdp_module("isaaclab_tasks_experimental.core.velocity.config.anymal_d.flat_env_cfg")
-        == "isaaclab_tasks_experimental.core.velocity.mdp"
+        fe.WarpFrontend._nearest_mdp_module(
+            "isaaclab_tasks_experimental.deprecated.core.velocity.config.anymal_d.flat_env_cfg"
+        )
+        == "isaaclab_tasks_experimental.deprecated.core.velocity.mdp"
     )
     # Nothing on the path provides an mdp package.
     assert fe.WarpFrontend._nearest_mdp_module("isaaclab_tasks_experimental.nonexistent.task_pkg") is None
@@ -312,7 +320,7 @@ def test_cfg_route_modules_resolves_mirrored_hierarchy():
     fixture_cls = type("FakeVelocityCfg", (), {})
     fixture_cls.__module__ = "isaaclab_tasks.core.velocity.config.anymal_d.flat_env_cfg"
     modules = fe.WarpFrontend._cfg_route_modules(fixture_cls())
-    assert [m.__name__ for m in modules] == ["isaaclab_tasks_experimental.core.velocity.mdp"]
+    assert [m.__name__ for m in modules] == ["isaaclab_tasks_experimental.deprecated.core.velocity.mdp"]
 
     assert fe.WarpFrontend._cfg_route_modules(_CfgFixture()) == []
 
@@ -446,7 +454,7 @@ def test_resolve_warp_twin_rejects_stable_origin():
 
 
 _DIRECT_TEST_TASKS = {
-    "_Frontend-Test-Warp-Direct-v0": ("isaaclab_tasks_experimental.fake:DirectEnv", None),
+    "_Frontend-Test-Warp-Direct-v0": ("isaaclab_tasks_experimental.deprecated.fake:DirectEnv", None),
     "_Frontend-Test-Stable-Direct-v0": ("isaaclab_tasks.fake:DirectEnv", None),
     "_Frontend-Test-Declared-Direct-v0": ("isaaclab_tasks.fake:DirectEnv", "types:SimpleNamespace"),
     "_Frontend-Test-Broken-Direct-v0": ("isaaclab_tasks.fake:DirectEnv", "definitely_not_a_module:Env"),

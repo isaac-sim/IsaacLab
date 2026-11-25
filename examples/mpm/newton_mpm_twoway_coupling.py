@@ -24,10 +24,15 @@ from collections.abc import Callable
 from functools import partial
 from typing import TYPE_CHECKING
 
-from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
+from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.utils import configclass
+from isaaclab.visualizers import VisualizerCfg
+
+from isaaclab_tasks.utils import resolve_presets
+from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
 
 if TYPE_CHECKING:
     from pxr import Usd
@@ -37,7 +42,7 @@ parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this m
 parser.add_argument("--voxel_size", type=float, default=0.08, help="MPM grid voxel size [m].")
 parser.add_argument("--rigid_substeps", type=int, default=4, help="Rigid-solver substeps per coupled step.")
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["newton_gl"])
+parser.set_defaults(visualizer=["newton"])
 args_cli = parser.parse_args()
 
 
@@ -94,27 +99,10 @@ def _spawn_colored_shape(
     return prim
 
 
-def create_visualizer_cfgs():
-    """Create the example-specific Newton visualizer configuration."""
-    requested = args_cli.visualizer or []
-    if not {"newton", "newton_gl", "newton_rtx"}.intersection(requested):
-        return []
-
-    cfgs = []
-    for name in requested:
-        if name not in {"newton", "newton_gl", "newton_rtx"}:
-            continue
-        cfg_type = NewtonRTXVisualizerCfg if name == "newton_rtx" else NewtonGLVisualizerCfg
-        particle_options = {} if name == "newton_rtx" else {"show_particles": True, "particle_color": PARTICLE_COLOR}
-        cfgs.append(cfg_type(eye=CAMERA_EYE, lookat=CAMERA_TARGET, streaming_view=False, **particle_options))
-    return cfgs
-
-
 def create_sim_cfg():
     """Create the proxy-coupled MJWarp and MPM simulation configuration."""
     from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg, NewtonCfg
-
-    from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
+    from isaaclab_newton.physics.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
     solver_cfg = CouplerProxyCfg(
         entries=[
@@ -155,7 +143,9 @@ def create_sim_cfg():
         dt=1.0 / FPS,
         device=args_cli.device,
         gravity=GRAVITY,
-        visualizer_cfgs=create_visualizer_cfgs(),
+        visualizer_cfgs=VisualizerCfg(
+            backend=MultiBackendVisualizerCfg(newton_gl=NewtonGLBackendCfg(particle_color=PARTICLE_COLOR)),
+        ),
         physics=NewtonCfg(solver_cfg=solver_cfg),
     )
 
@@ -169,7 +159,6 @@ def create_scene_cfg():
     from isaaclab.assets import AssetBaseCfg, RigidObjectCfg, RigidObjectCollectionCfg
     from isaaclab.scene import InteractiveSceneCfg
     from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
-    from isaaclab.utils import configclass
 
     def bath_collider(
         prim_path: str,
@@ -318,7 +307,7 @@ def run_simulator(sim, scene) -> None:
 
 def main() -> None:
     """Launch the two-way rigid-MPM coupling example."""
-    sim_cfg = create_sim_cfg()
+    sim_cfg = resolve_presets(create_sim_cfg(), overrides={"visualizer_cfgs.backend": args_cli.visualizer})
     with launch_simulation(sim_cfg, args_cli):
         from isaaclab.scene import InteractiveScene
 

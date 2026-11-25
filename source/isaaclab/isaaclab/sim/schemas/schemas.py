@@ -58,10 +58,10 @@ MESH_APPROXIMATION_TOKENS = {
 # Lazy accessors. These lists were used by the legacy ``usd_api`` / ``physx_api`` instance-
 # field dispatch in ``modify_mesh_collision_properties``. The new metadata-driven writer
 # does not consult them, but they are preserved as a public API so external code that
-# imported them keeps working. The PhysX leaves now live in ``isaaclab_physx``; we resolve
-# them lazily so this module does not import ``isaaclab_physx`` at load time.
+# imported them keeps working. The PhysX leaves now live in ``isaaclab_isaacsim``; we resolve
+# them lazily so this module does not import ``isaaclab_isaacsim`` at load time.
 def _get_physx_mesh_collision_cfgs() -> list:
-    from isaaclab_physx.sim.schemas import schemas_cfg as _physx_cfg
+    from isaaclab_isaacsim.sim.schemas import schemas_cfg as _physx_cfg
 
     return [
         _physx_cfg.PhysxConvexHullPropertiesCfg,
@@ -82,7 +82,7 @@ class _LazyList:
     """Lazy list whose contents are produced on first access.
 
     Used to keep the public ``PHYSX_MESH_COLLISION_CFGS`` / ``USD_MESH_COLLISION_CFGS`` symbols
-    resolvable for callers that imported them, without triggering an ``isaaclab_physx`` import
+    resolvable for callers that imported them, without triggering an ``isaaclab_isaacsim`` import
     at this module's load time.
     """
 
@@ -267,6 +267,16 @@ Articulation root properties.
 """
 
 
+def _warn_fix_root_link_false_unsupported(root_path: str) -> None:
+    """Warn that ``fix_root_link=False`` is not supported for an articulation rooted at its fixed world joint."""
+    logger.warning(
+        "fix_root_link=False is not supported for articulation '%s', which is rooted at the fixed joint that attaches"
+        " it to the world. To make it floating, author the asset without that joint, or convert it with"
+        " fix_base=False.",
+        root_path,
+    )
+
+
 def apply_articulation_root_properties(
     prim_path_expr: str,
     fragments: Iterable[schemas_cfg.ArticulationRootFragment],
@@ -354,10 +364,12 @@ def apply_articulation_root_properties(
     success = not any_skipped
     for root in targets:
         if fix_root_link:
-            root = sim.physics_manager.fix_articulation_root(root, stage)
+            root = sim.backend_manager.fix_articulation_root(root, stage)
         elif fix_root_link is False:
             joint = find_global_fixed_joint_prim(root.GetPath().pathString, stage=stage)
-            if joint is not None:
+            if joint is not None and joint.GetPrim() == root:
+                _warn_fix_root_link_false_unsupported(root.GetPath().pathString)
+            elif joint is not None:
                 joint.GetJointEnabledAttr().Set(False)
 
         root_path = root.GetPath().pathString
@@ -519,7 +531,12 @@ def modify_articulation_root_properties(
     if fix_root_link is not None:
         existing_fixed_joint_prim = find_global_fixed_joint_prim(prim_path, stage=stage)
         # enable/disable an existing world joint, otherwise create one
-        if existing_fixed_joint_prim is not None:
+        root_is_joint = (
+            existing_fixed_joint_prim is not None and existing_fixed_joint_prim.GetPrim() == articulation_prim
+        )
+        if root_is_joint and not fix_root_link:
+            _warn_fix_root_link_false_unsupported(prim_path)
+        elif existing_fixed_joint_prim is not None:
             logger.info(
                 f"Found an existing fixed joint for the articulation: '{prim_path}'. Setting it to: {fix_root_link}."
             )
@@ -808,7 +825,7 @@ def _apply_deformable_body_properties(
             sim_mesh_prim, vis_mesh_prim = _setup_deformable_meshes(
                 prim, deformable_type, sim_mesh_prim_path, stage, tetrahedralization_edge_length_fac
             )
-            sim.physics_manager.setup_deformable_body(prim, deformable_type, sim_mesh_prim, vis_mesh_prim)
+            sim.backend_manager.setup_deformable_body(prim, deformable_type, sim_mesh_prim, vis_mesh_prim)
             targets.append(prim)
     if not targets:
         if not any_skipped:

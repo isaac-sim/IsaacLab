@@ -6,14 +6,15 @@
 Camera
 ======
 
-A :class:`~sensors.Camera` defines what to capture: camera pose, projection, resolution, sampling
-period, and output data types. A renderer defines how those images are produced. Keeping these
-responsibilities separate lets one camera configuration work with different physics and rendering
-backends.
+A :class:`~sensors.Camera` sets the pose, projection, resolution, sampling period,
+and outputs to capture. The renderer produces the images, so one camera
+configuration can work across supported physics and rendering backends.
 
-Camera data is expensive compared with low-dimensional state. Isaac Lab therefore batches the
-camera copies from cloned environments into tiled render passes and exposes the de-tiled result as
-one device-resident buffer per requested output.
+Isaac Lab batches camera views from cloned environments into tiled render passes.
+Each requested output is returned as one GPU buffer with a separate image per view.
+
+For a retina-like image that is dense where a movable gaze points, see the experimental
+:doc:`foveated camera </source/experimental-features/foveated_camera>`.
 
 For silent black or corrupted RTX camera images when scaling the workload, see
 :ref:`known-issues-rtx-buffer-limit`.
@@ -32,7 +33,7 @@ when the renderer must be fixed:
    * - Renderer configuration
      - Requires Isaac Sim
      - Characteristics
-   * - :class:`~isaaclab_physx.renderers.IsaacRtxRendererCfg`
+   * - :class:`~isaaclab_isaacsim.renderers.IsaacRtxRendererCfg`
      - Yes
      - Replicator and RTX rendering through Isaac Sim
    * - :class:`~isaaclab_ov.renderers.OVRTXRendererCfg`
@@ -58,7 +59,7 @@ your setup path. The command below is for the kit-less Newton path; for Isaac Si
 
          uv run isaaclab train --rl_library rsl_rl \
              --task Isaac-Cartpole-Camera-Direct \
-             physics=newton_mjwarp renderer=newton_renderer presets=rgb
+             physics=newton_mjwarp renderer=newton_warp presets=rgb
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -67,7 +68,7 @@ your setup path. The command below is for the kit-less Newton path; for Isaac Si
 
          uv run isaaclab train --rl_library rsl_rl ^
              --task Isaac-Cartpole-Camera-Direct ^
-             physics=newton_mjwarp renderer=newton_renderer presets=rgb
+             physics=newton_mjwarp renderer=newton_warp presets=rgb
 
 Images are not written to disk by default. Set ``env.write_image_to_file=true`` to write
 ``cartpole_<data_type>.png`` in the current working directory.
@@ -81,6 +82,11 @@ configurations match, while each sensor owns a separate tiled render product. Fo
 ``env_0/wrist_camera`` and ``env_1/wrist_camera`` form another. The sensors can use different
 resolutions and output types, and their poses update independently. Define all camera prims
 before initializing the simulation so they are included in the scene exported to OVRTX.
+
+Very large camera sensors can fail to render with OVRTX. In this case, the renderer splits such a
+sensor over several render products automatically. To set the split by hand, use
+:attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.max_envs_per_render_product`. See
+:ref:`renderers-ovrtx-render-product-split`.
 
 .. _camera-configuration:
 
@@ -198,7 +204,7 @@ by its :class:`~isaaclab.renderers.RenderBufferSpec`.
 non-colorized segmentation uses one ``int32`` ID channel. Label and prim-path mappings are stored in
 ``camera_data.info[output_name]``.
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-isaac-rtx.webp
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/renderers/camera_renderer_isaac_rtx.webp
    :align: center
    :figwidth: 100%
    :alt: RGB camera output
@@ -218,9 +224,8 @@ non-colorized segmentation uses one ``int32`` ID channel. Label and prim-path ma
 Renderer support
 ~~~~~~~~~~~~~~~~
 
-The common API does not imply that every renderer produces every output. For same-scene examples
-across these backends, see the :ref:`renderer visual comparison <renderer-visual-comparison>`. The
-current support matrix is:
+Supported outputs vary by renderer. See the table below and the
+:ref:`visual comparison <renderer-visual-comparison>` for examples.
 
 .. list-table::
    :header-rows: 1
@@ -229,7 +234,7 @@ current support matrix is:
    * - Output
      - Isaac RTX
      - OVRTX
-     - Newton Warp
+     - Newton Warp and OptiX
    * - ``rgb``, ``rgba``, ``rgb_hdr``
      - Yes
      - Yes
@@ -305,50 +310,113 @@ background. Set a normalized RGB tuple to use a solid color for pixels that miss
 The setting is per camera. Cameras with renderer-default and solid backgrounds can coexist in one
 scene.
 
-Post-render image signal processing
------------------------------------
+Camera tensor processors
+------------------------
 
-:attr:`~sensors.CameraCfg.isp_cfg` optionally applies an image signal processing (ISP) pass to the
-renderer's scene-linear HDR output. The shipped implementation is PPISP (Physically Plausible Image
-Signal Processing), which applies responsivity, exposure, vignetting, color correction, and a camera
-response function before writing ``rgb`` or ``rgba``.
-
-The field accepts:
-
-* ``None`` to disable post-render ISP.
-* :class:`~isaaclab_ppisp.PpispCfg` for explicit coefficients or coefficients imported from a USD
-  camera.
-* :class:`~sensors.CameraISPMode` to discover ``ppisp:*`` attributes on a camera prim.
+:attr:`~sensors.CameraCfg.tensor_processors` computes camera outputs from the renderer's outputs. Each entry is a
+:class:`~utils.tensor_processors.TensorProcessorCfg` whose ``func`` is a
+:class:`~utils.tensor_processors.TensorProcessor` class with named ``inputs`` and ``outputs``. The camera asks the
+renderer for the inputs no earlier processor produces, constructs each processor at the first capture with
+its configuration and the camera buffers, and runs the processors in list order on every capture.
+Their outputs are added to :attr:`~sensors.CameraData.output`; a processor can also replace a render output it
+reads. Camera resets call each processor's ``reset`` with the reset environments, and camera teardown calls its
+``close``.
 
 .. code-block:: python
 
-   from isaaclab.sensors.camera import CameraCfg, CameraISPMode
+   import torch
+   import warp as wp
+
+   from isaaclab.utils.tensor_processors import TensorProcessor, TensorProcessorCfg
+   from isaaclab.utils.warp import ProxyArray
+
+
+   class ShadeDepth(TensorProcessor):
+       """Shade a depth image into a gray rgb image: near is white, 10 m and farther is black."""
+
+       def __init__(self, cfg, data):
+           super().__init__(cfg)
+           depth = data["distance_to_image_plane"].torch  # (N, H, W, 1)
+           self._rgb = ProxyArray(wp.zeros((*depth.shape[:3], 3), dtype=wp.uint8, device=str(depth.device)))
+
+       def __call__(self, data, env_mask=None):
+           depth = data["distance_to_image_plane"].torch
+           shade = (255 * (1 - depth / 10).clamp(0, 1)).to(torch.uint8)
+           self._rgb.torch.copy_(shade.expand(-1, -1, -1, 3))
+           return {"rgb": self._rgb}
+
+
+   front_camera.tensor_processors = [
+       TensorProcessorCfg(func=ShadeDepth, inputs=["distance_to_image_plane"], outputs=["rgb"]),
+   ]
+
+Here the renderer also renders ``distance_to_image_plane`` for the processor, and ``camera.data.output["rgb"]``
+holds the processor's result instead of a rendered image. The render outputs that processors read, here ``distance_to_image_plane``, are published as
+well. :attr:`~sensors.CameraCfg.data_types` adds render outputs that no processor reads; an entry that a processor
+produces, like ``rgb`` here, is not rendered. A processor returns exactly the names in its ``outputs``; the camera
+raises an error otherwise. Processor outputs appear in :attr:`~sensors.CameraData.output` and
+:attr:`~sensors.CameraData.info` from the first capture on; before it, only the render outputs exist.
+A processor class may define a ``prepare_camera(cfg, stage, camera_prim_paths, renderer_cfg)`` class method. Camera
+construction calls it before the scene is cloned or exported; it returns the configuration to use, or ``None`` to
+remove the processor.
+
+With ``update_period > 0``, environments that reset at different times become due on different steps, but each
+capture renders every environment. The camera calls each processor with ``env_mask``, a boolean mask of the
+environments due for the capture, whose frame and timestamp advance. Stateful processors (frame stacking, temporal
+filters, video generation) use it to advance only those rows.
+
+With asynchronous rendering, images may be delayed or repeated, and processors receive ``env_mask=None``.
+Use synchronous rendering (``async_rendering=False``) for processors that advance frame history.
+
+Post-render image signal processing
+-----------------------------------
+
+:attr:`~sensors.CameraCfg.tensor_processors` optionally computes outputs from the renderer's outputs.
+The shipped processor is PPISP (Physically Plausible Image Signal Processing), which converts the
+scene-linear ``rgb_hdr`` output through responsivity, exposure, vignetting, color correction, and a
+camera response function into ``rgb`` and ``rgba``. The camera requests ``rgb_hdr`` from the renderer.
+PPISP is stateless and supports asynchronous rendering with both ``PpispProcessorCfg`` and deprecated ``isp_cfg``.
+
+:class:`~isaaclab_ppisp.PpispProcessorCfg` accepts :class:`~isaaclab_ppisp.PpispCfg` for explicit
+coefficients or coefficients imported from a USD camera, or :class:`~isaaclab.sensors.camera.CameraISPMode` to
+discover ``ppisp:*`` attributes on a camera prim.
+
+.. code-block:: python
+
+   from isaaclab.sensors.camera import CameraISPMode, ExposureCfg
    from isaaclab.utils import replace
-   from isaaclab_ppisp import PpispCfg
+   from isaaclab_ppisp import PpispCfg, PpispProcessorCfg
 
-   explicit_isp = replace(front_camera, data_types=["rgb"], isp_cfg=PpispCfg(inputs={"exposureOffset": 1.5}))
+   neutral = ExposureCfg(mode="neutral")
+   explicit = PpispProcessorCfg(isp_cfg=PpispCfg(inputs={"exposureOffset": 1.5}))
+   explicit_isp = replace(front_camera, data_types=["rgb"], tensor_processors=[explicit], exposure=neutral)
 
-   discovered_isp = replace(front_camera, data_types=["rgb"], isp_cfg=CameraISPMode.AUTO_CAMERA)
+   discovered = PpispProcessorCfg(isp_cfg=CameraISPMode.AUTO_CAMERA)
+   discovered_isp = replace(front_camera, data_types=["rgb"], tensor_processors=[discovered], exposure=neutral)
 
 ``AUTO_CAMERA`` checks the first matched camera prim. ``AUTO_ANY`` falls back to the first PPISP
-camera anywhere on the stage. Discovery happens once during camera construction.
+camera anywhere on the stage. Discovery happens once during camera construction; if it finds no
+PPISP attributes, the camera logs a warning and runs without PPISP. It then keeps the renderer's
+color output, and ``CameraCfg.exposure`` still applies. ``CameraCfg.isp_cfg`` is deprecated and
+forwards its value to this processor; with Isaac RTX and OVRTX it also sets neutral exposure, and a
+discovery mode that finds no PPISP attributes changes nothing.
 
-PPISP is composed by Isaac RTX, OVRTX, and Newton Warp. It requires ``rgb`` or ``rgba`` output. A
-static configuration is shared by all cloned views in one camera batch; controller weights may
+A static configuration is shared by all cloned views in one camera batch; controller weights may
 predict per-view exposure and color parameters, while the remaining coefficients stay shared. ISP
 configuration and discovered USD attributes are fixed for the camera lifetime.
 
 .. important::
 
-   With Isaac RTX and OVRTX, enabling ``isp_cfg`` makes PPISP the ISP authority. The renderer
-   disables RTX auto-exposure, authors neutral ``exposure:*`` values, and applies the
-   ``OmniRtxCameraAutoExposureAPI_1`` and ``OmniRtxCameraExposureAPI_1`` schemas on every matched
-   camera prim so RTX does not process the image a second time. Do not combine ``isp_cfg`` with
-   separately authored RTX exposure or tonemapping settings. When ``isp_cfg`` is ``None``, the
-   renderer leaves authored camera exposure unchanged.
+   PPISP applies its own exposure, so with Isaac RTX and OVRTX the camera needs
+   ``exposure=ExposureCfg(mode="neutral")``; otherwise camera construction raises an error rather than
+   change the exposure. Neutral exposure disables RTX auto-exposure, authors unit ``exposure:*`` values,
+   and applies the ``OmniRtxCameraAutoExposureAPI_1`` and ``OmniRtxCameraExposureAPI_1`` schemas on every
+   matched camera prim, so RTX does not expose the image a second time. It applies to every color output
+   of the camera. Do not combine PPISP with separately authored RTX tonemapping settings. The Newton Warp
+   and OptiX renderers apply no exposure, so they do not need the setting.
 
 Run the ``ppisp-camera`` example for a complete PPISP workflow. It supports
-``--renderer newton_renderer`` (Newton Warp, the default) and ``--renderer isaac_rtx`` (Isaac RTX).
+``--renderer newton_warp`` (Newton Warp, the default) and ``--renderer isaac_rtx`` (Isaac RTX).
 The example runs 0 warmup steps for Newton Warp and 32 for Isaac RTX before saving images; override
 this with ``--warmup_steps``.
 
@@ -361,11 +429,11 @@ this with ``--warmup_steps``.
       .. code-block:: bash
 
          uv run --extra isaacsim isaaclab example ppisp-camera \
-             --renderer newton_renderer --max_steps 60
+             --renderer newton_warp --max_steps 60
 
          uv run --extra isaacsim isaaclab example ppisp-camera \
              --input_scene /path/to/scene.usd --renderer isaac_rtx \
-             --camera_prim_path /World/Cameras/front_cam --max_steps 60
+             --camera_prim_path /usd/path/to/camera --max_steps 60
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -373,20 +441,22 @@ this with ``--warmup_steps``.
       .. code-block:: batch
 
          uv run --extra isaacsim isaaclab example ppisp-camera ^
-             --renderer newton_renderer --max_steps 60
+             --renderer newton_warp --max_steps 60
 
          uv run --extra isaacsim isaaclab example ppisp-camera ^
              --input_scene C:/path/to/scene.usd --renderer isaac_rtx ^
-             --camera_prim_path /World/Cameras/front_cam --max_steps 60
+             --camera_prim_path /usd/path/to/camera --max_steps 60
 
 ``--input_scene`` accepts a local path or URL to a USD or USDZ scene containing the Gaussian PPISP
 setup. If omitted, the example uses the ``Samples/Scene_ParticleField/valiant_auto.usdz``
 sample from ``ISAAC_NUCLEUS_DIR``.
 
-``--camera_prim_path`` is an optional absolute USD prim path in the input scene. The prim must exist,
+``--camera_prim_path`` is an optional absolute USD prim path in the input scene; in both commands
+above, replace ``/usd/path/to/camera`` with the path of a camera in your scene. The prim must exist,
 have type ``Camera``, and carry ``ppisp:*`` attributes. If omitted, the example selects the first
 camera with PPISP attributes. For both renderers, the input scene must have a ``defaultPrim`` and
-the camera must be a descendant of it (for example, ``/World`` for the camera path above).
+the camera must be a descendant of it (for example, a camera at ``/World/Cameras/front_cam`` requires
+``/World`` as the ``defaultPrim``).
 
 Images are saved to ``output/ppisp_camera`` in the current working directory; use ``--output_dir``
 to change it. ``--max_steps`` sets the number of steps after warmup (default: 120), and

@@ -31,11 +31,11 @@ from pxr import UsdPhysics
 
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
+from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg  # noqa: E402
+from isaaclab_isaacsim.sim.spawners.materials import PhysxRigidBodyMaterialCfg  # noqa: E402
 from isaaclab_ov import tensor_types as TT  # noqa: E402
 from isaaclab_ov.assets import RigidObject, RigidObjectCollection  # noqa: E402
-from isaaclab_ov.physics import OvPhysxCfg, OvPhysxManager  # noqa: E402
-from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg  # noqa: E402
-from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg  # noqa: E402
+from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
 from isaaclab import cloner  # noqa: E402
@@ -46,7 +46,7 @@ from isaaclab.test.utils import DeviceScope, test_devices  # noqa: E402
 from isaaclab.utils import configclass  # noqa: E402
 from isaaclab.utils.math import quat_apply_inverse, quat_mul  # noqa: E402
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.ov]
 
 _NUM_CUBES = 2
 _NUM_ENVS, _NUM_BODIES = 2, 3
@@ -214,7 +214,7 @@ def test_heterogeneous_clone_contacts_and_indexed_state(device, scene_variant, f
         obj.write_root_pose_to_sim(pose, env_ids=selected)
         sim.step()
         scene.update(sim.get_physics_dt())
-        binding = OvPhysxManager.get_physx_instance().create_tensor_binding(
+        binding = sim.backend_manager.get_physx_instance().create_tensor_binding(
             prim_paths=expected_paths, tensor_type=TT.RIGID_BODY_POSE
         )
         try:
@@ -561,7 +561,7 @@ def test_rigid_object_collection_real_ovphysx_seams(scene: _RigidScene) -> None:
         ]
     )
     fused_materials = collection.reshape_data_to_view_3d(wp.from_torch(materials, dtype=wp.float32), 3, device="cpu")
-    collection.root_view.set_attribute(TT.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION, fused_materials)
+    collection.root_view.set_material_properties(fused_materials)
     raw_materials = wp.to_torch(collection.root_view.get_attribute(TT.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION))
     torch.testing.assert_close(raw_materials.reshape(3, 2, 3).transpose(0, 1), materials)
 

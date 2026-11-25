@@ -3,18 +3,14 @@
 Curriculum Utilities
 ====================
 
-.. currentmodule:: isaaclab.managers
+.. currentmodule:: isaaclab.envs.mdp.curriculums
 
-This guide walks through the common curriculum helper functions and terms that can be used to create flexible curricula
-for RL environments in Isaac Lab. These utilities can be passed to a :class:`~isaaclab.managers.CurriculumTermCfg`
-object to enable dynamic modification of reward weights and environment parameters during training.
+Curriculum terms change an environment as training progresses. Pass these helpers
+to :class:`~isaaclab.managers.CurriculumTermCfg`:
 
-.. note::
-
-   We cover three utilities in this guide:
-   - The simple function modifies reward :func:`modify_reward_weight`
-   - The term modify any environment parameters :class:`modify_env_param`
-   - The term modify term_cfg :class:`modify_term_cfg`
+* :class:`modify_reward_weight` changes a reward's weight.
+* :class:`modify_env_param` changes an environment parameter.
+* :class:`modify_term_cfg` changes a manager term's configuration.
 
 .. dropdown:: Full source for curriculum utilities
    :icon: code
@@ -26,7 +22,7 @@ object to enable dynamic modification of reward weights and environment paramete
 Modifying Reward Weights
 ------------------------
 
-The function :func:`modify_reward_weight` updates the weight of a reward term after a specified number of simulation
+The class :class:`modify_reward_weight` updates the weight of a reward term after a specified number of environment
 steps. This can be passed directly as the ``func`` in a ``CurriculumTermCfg``.
 
 .. literalinclude:: ../../../source/isaaclab/isaaclab/envs/mdp/curriculums.py
@@ -38,7 +34,7 @@ steps. This can be passed directly as the ``func`` in a ``CurriculumTermCfg``.
 .. code-block:: python
 
    from isaaclab.managers import CurriculumTermCfg
-   import isaaclab.managers.mdp as mdp
+   import isaaclab.envs.mdp as mdp
 
    # After 100k steps, set the "sparse_reward" term weight to 0.5
    sparse_reward_schedule = CurriculumTermCfg(
@@ -69,7 +65,7 @@ is desired.
 
    import torch
    from isaaclab.managers import CurriculumTermCfg
-   import isaaclab.managers.mdp as mdp
+   import isaaclab.envs.mdp as mdp
 
    def resample_friction(env, env_ids, old_value, low, high, num_steps):
        # After num_steps, sample a new friction coefficient uniformly

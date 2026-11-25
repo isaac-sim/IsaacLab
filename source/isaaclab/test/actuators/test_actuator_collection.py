@@ -22,16 +22,18 @@ from isaaclab.actuators import (
     ActuatorControl,
     DCMotor,
     DCMotorCfg,
+    DelayedImplicitActuatorCfg,
     DelayedPDActuatorCfg,
-    IdealPDActuator,
     IdealPDActuatorCfg,
     ImplicitActuator,
     ImplicitActuatorCfg,
 )
 from isaaclab.actuators.actuator_control import ArticulationActuatorControl
 from isaaclab.actuators.newton import read_group_parameter, write_group_parameter
-from isaaclab.utils import clone
+from isaaclab.test.utils import test_devices
 from isaaclab.utils.warp import ProxyArray
+
+pytestmark = pytest.mark.kitless
 
 
 def _implicit_cfg(**kwargs) -> ImplicitActuatorCfg:
@@ -55,11 +57,6 @@ def _ideal_cfg(joints: list[str], *, stiffness: float, damping: float, effort_li
         actuator_effort_limit=effort_limit,
         actuator_velocity_limit=100.0,
     )
-
-
-def _ideal_pd_cfg(**kwargs) -> IdealPDActuatorCfg:
-    """Create a minimal ideal PD actuator configuration."""
-    return IdealPDActuatorCfg(joint_names_expr=[".*"], stiffness=0.0, damping=0.0, **kwargs)
 
 
 def _dc_cfg(
@@ -283,8 +280,8 @@ class FakeActuatorControl(ActuatorControl):
 class _FakeNewtonActuator:
     """Newton-actuator stand-in; a plain class so the view's mapping cache can hash it."""
 
-    def __init__(self, controller, indices):
-        self.controller = controller
+    def __init__(self, drive, indices):
+        self.drive = drive
         self.delay = None
         self.clamping = []
         self.indices = indices
@@ -297,7 +294,7 @@ class NativeFakeActuatorControl(FakeActuatorControl):
         super().__init__(*args, **kwargs)
         size = self.num_instances * self.num_joints
         self.newton_actuator = _FakeNewtonActuator(
-            controller=SimpleNamespace(),
+            drive=SimpleNamespace(),
             indices=wp.array(list(range(size)), dtype=wp.uint32, device=self.device),
         )
 
@@ -306,7 +303,6 @@ class NativeFakeActuatorControl(FakeActuatorControl):
         return True
 
     def prepare_native_actuators(self, collection, actuator_cfgs) -> set[str]:
-        self.prepared_actuator_cfgs = actuator_cfgs
         return set(actuator_cfgs)
 
     def compute_native_actuators(self, collection: ActuatorCollection, dt: float) -> bool:
@@ -322,77 +318,22 @@ class NativeFakeActuatorControl(FakeActuatorControl):
 
 
 class NativeGainFakeActuatorControl(NativeFakeActuatorControl):
-    """Native control backed by one Newton-shaped actuator with controller-owned storage."""
+    """Native control backed by one Newton-shaped actuator with drive-owned storage."""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         size = self.num_instances * self.num_joints
-        self.newton_actuator.controller = SimpleNamespace(
+        self.newton_actuator.drive = SimpleNamespace(
             kp=wp.zeros(size, dtype=wp.float32, device=self.device),
             kd=wp.zeros(size, dtype=wp.float32, device=self.device),
         )
 
     @property
     def native_gains(self) -> dict[str, torch.Tensor]:
-        """Live torch views over the controller-owned gain storage."""
+        """Live torch views over the drive-owned gain storage."""
         shape = (self.num_instances, self.num_joints)
-        controller = self.newton_actuator.controller
-        return {
-            attr: wp.to_torch(getattr(controller, attr)).view(shape)
-            for attr in ("kp", "kd")
-            if hasattr(controller, attr)
-        }
-
-
-@pytest.mark.parametrize(
-    ("cfg_factory", "with_joint_limit", "expected_joint_limit"),
-    [
-        (_ideal_pd_cfg, True, 34.0),
-        (_implicit_cfg, True, 34.0),
-        (_implicit_cfg, False, 12.0),
-    ],
-)
-def test_deprecated_effort_limit_forwards_by_actuator_type(cfg_factory, with_joint_limit, expected_joint_limit):
-    """``effort_limit`` resolves to the rated ``actuator_effort_limit`` for every actuator type.
-
-    For implicit groups without a separate solver clamp, the rated value also reaches
-    ``joint_effort_limit`` for backward compatibility.
-    """
-    cfg = (
-        cfg_factory(effort_limit=12.0, joint_effort_limit=34.0) if with_joint_limit else cfg_factory(effort_limit=12.0)
-    )
-    # Lab execution keeps the group as an inspectable Lab model instance; the explicit
-    # variant additionally warns about deprecated Lab execution, which pytest.warns tolerates.
-    control = FakeActuatorControl()
-
-    with pytest.warns(DeprecationWarning, match="actuator_effort_limit"):
-        collection = ActuatorCollection({"motor": cfg}, control)
-
-    # Runtime alias-property behavior (group.effort_limit get/set warnings) is covered by
-    # the per-actuator suites in test_implicit_actuator.py and test_ideal_pd_actuator.py.
-    group = collection["motor"]
-    assert group.cfg.actuator_effort_limit == 12.0
-    assert group.cfg.joint_effort_limit == expected_joint_limit
-    torch.testing.assert_close(group.actuator_effort_limit, torch.full((2, 3), 12.0))
-    if isinstance(group, ImplicitActuator):
-        # Lab explicit models hold no solver-limit view; the solver clamp lives on articulation data.
-        torch.testing.assert_close(group.joint_effort_limit, torch.full((2, 3), expected_joint_limit))
-
-
-def test_constructor_resolves_deprecated_velocity_limit_alias():
-    cfg = _ideal_pd_cfg(velocity_limit_sim=34.0)
-
-    with pytest.warns(DeprecationWarning, match="joint_velocity_limit"):
-        actuator = IdealPDActuator(
-            cfg,
-            joint_names=["joint_0", "joint_1", "joint_2"],
-            joint_ids=slice(None),
-            num_envs=2,
-            device="cpu",
-        )
-
-    assert actuator.cfg.joint_velocity_limit == 34.0
-    assert actuator.cfg.velocity_limit_sim is None
+        drive = self.newton_actuator.drive
+        return {attr: wp.to_torch(getattr(drive, attr)).view(shape) for attr in ("kp", "kd") if hasattr(drive, attr)}
 
 
 def test_implicit_actuator_separate_rated_effort_limit_is_honored():
@@ -404,100 +345,6 @@ def test_implicit_actuator_separate_rated_effort_limit_is_honored():
     group = collection["motor"]
     torch.testing.assert_close(group.actuator_effort_limit, torch.full((2, 3), 12.0))
     torch.testing.assert_close(group.joint_effort_limit, torch.full((2, 3), 34.0))
-
-
-@pytest.mark.parametrize(
-    ("cfg", "actuator_type", "canonical_name"),
-    [
-        (_ideal_pd_cfg(), IdealPDActuator, "actuator_effort_limit"),
-        (_implicit_cfg(), ImplicitActuator, "joint_effort_limit"),
-    ],
-)
-def test_constructor_effort_limit_alias_conflicts_with_explicit_infinity(cfg, actuator_type, canonical_name):
-    constructor_kwargs = {
-        "joint_names": ["joint_0", "joint_1", "joint_2"],
-        "joint_ids": slice(None),
-        "num_envs": 2,
-        "device": "cpu",
-        "stiffness": 0.0,
-        "damping": 0.0,
-    }
-
-    with pytest.warns(DeprecationWarning, match=canonical_name):
-        with pytest.raises(ValueError, match=rf"conflicting {canonical_name}.*effort_limit"):
-            actuator_type(
-                cfg,
-                **constructor_kwargs,
-                **{canonical_name: torch.inf, "effort_limit": 12.0},
-            )
-
-    with pytest.warns(DeprecationWarning, match=canonical_name):
-        actuator = actuator_type(
-            clone(cfg), **constructor_kwargs, **{canonical_name: torch.full((2, 3), 12.0), "effort_limit": 12.0}
-        )
-    torch.testing.assert_close(getattr(actuator, canonical_name), torch.full((2, 3), 12.0))
-
-
-def test_equivalent_limit_aliases_prefer_canonical_values():
-    # Rows with a canonical value assert the canonical value wins over an equivalent alias.
-    # Rows with canonical_value=None assert the deprecated *_sim alias forwards onto the
-    # prepared copy when the canonical field is unset, without mutating the user's cfg.
-    scenarios = (
-        ("joint_effort_limit", "effort_limit_sim", 12.0, {"joint_.*": 12.0}, _ideal_pd_cfg, NativeFakeActuatorControl),
-        (
-            "joint_velocity_limit",
-            "velocity_limit_sim",
-            34.0,
-            {"joint_.*": 34.0},
-            _ideal_pd_cfg,
-            NativeFakeActuatorControl,
-        ),
-        ("actuator_effort_limit", "effort_limit", {"joint_.*": 12.0}, 12.0, _ideal_pd_cfg, NativeFakeActuatorControl),
-        ("joint_effort_limit", "effort_limit", {"joint_.*": 12.0}, 12.0, _implicit_cfg, FakeActuatorControl),
-        ("joint_effort_limit", "effort_limit_sim", None, 12.0, _ideal_pd_cfg, NativeFakeActuatorControl),
-        ("joint_velocity_limit", "velocity_limit_sim", None, 34.0, _ideal_pd_cfg, NativeFakeActuatorControl),
-    )
-
-    for canonical_name, alias_name, canonical_value, alias_value, cfg_factory, control_factory in scenarios:
-        cfg_kwargs = {alias_name: alias_value}
-        if canonical_value is not None:
-            cfg_kwargs[canonical_name] = canonical_value
-        cfg = cfg_factory(**cfg_kwargs)
-        control = control_factory()
-        with pytest.warns(DeprecationWarning):
-            collection = ActuatorCollection({"motor": cfg}, control)
-
-        prepared_cfgs = getattr(control, "prepared_actuator_cfgs", None)
-        resolved_cfg = prepared_cfgs["motor"] if prepared_cfgs is not None else collection["motor"].cfg
-        expected_value = canonical_value if canonical_value is not None else alias_value
-        assert getattr(resolved_cfg, canonical_name) == expected_value
-        # the user's cfg is never mutated: the canonical field keeps its original value.
-        assert getattr(cfg, canonical_name) == canonical_value
-        assert getattr(cfg, alias_name) == alias_value
-        if canonical_value is None:
-            assert resolved_cfg is not cfg
-
-
-def test_conflicting_limit_aliases_raise():
-    scenarios = (
-        ("joint_effort_limit", "effort_limit_sim", _ideal_pd_cfg, NativeFakeActuatorControl),
-        ("joint_velocity_limit", "velocity_limit_sim", _ideal_pd_cfg, NativeFakeActuatorControl),
-        ("actuator_effort_limit", "effort_limit", _ideal_pd_cfg, NativeFakeActuatorControl),
-        ("actuator_effort_limit", "effort_limit", _implicit_cfg, FakeActuatorControl),
-    )
-
-    for canonical_name, alias_name, cfg_factory, control_factory in scenarios:
-        cfg = cfg_factory(
-            **{
-                canonical_name: {"joint_0": 12.0, "joint_1": 10.0, "joint_2": 8.0},
-                alias_name: {"joint_0": 12.0, "joint_1": 11.0, "joint_2": 8.0},
-            }
-        )
-        with (
-            pytest.warns(DeprecationWarning),
-            pytest.raises(ValueError, match=rf"motor.*{canonical_name}.*{alias_name}"),
-        ):
-            ActuatorCollection({"motor": cfg}, control_factory())
 
 
 class ProxyFinderActuatorControl(FakeActuatorControl):
@@ -680,7 +527,7 @@ def test_native_explicit_groups_zero_solver_drives_and_build_no_lab_model(monkey
     articulation.data.joint_damping.torch.fill_(3.0)
     control = FakeArticulationActuatorControl(articulation)
     newton_actuator = _FakeNewtonActuator(
-        controller=SimpleNamespace(),
+        drive=SimpleNamespace(),
         indices=wp.array(
             list(range(articulation.num_instances * articulation.num_joints)),
             dtype=wp.uint32,
@@ -730,49 +577,53 @@ def test_native_group_parameters_route_through_the_collection_door(env_ids):
         {"native": _ideal_cfg([".*"], stiffness=11.0, damping=1.1, effort_limit=100.0)}, control
     )
 
-    # Reads are live projections of the controller-owned storage.
-    torch.testing.assert_close(
-        read_group_parameter(collection, "native", "controller", "kp"), control.native_gains["kp"]
-    )
+    # Reads are live projections of the drive-owned storage.
+    torch.testing.assert_close(read_group_parameter(collection, "native", "drive", "kp"), control.native_gains["kp"])
     control.native_gains["kd"][1, 2] = 1.7
-    assert read_group_parameter(collection, "native", "controller", "kd")[1, 2] == 1.7
+    assert read_group_parameter(collection, "native", "drive", "kd")[1, 2] == 1.7
 
     # The group's mapping entry is the owning Newton actuator: no stale Lab mirrors exist,
-    # and direct modification of the controller storage is observed by the door reads.
+    # and direct modification of the drive storage is observed by the door reads.
     group = collection["native"]
     assert group is control.newton_actuator
-    wp.to_torch(group.controller.kp).view(2, 3)[0, 0] = 21.0
-    assert read_group_parameter(collection, "native", "controller", "kp")[0, 0] == 21.0
-    wp.to_torch(group.controller.kp).view(2, 3)[0, 0] = 2.0
+    wp.to_torch(group.drive.kp).view(2, 3)[0, 0] = 21.0
+    assert read_group_parameter(collection, "native", "drive", "kp")[0, 0] == 21.0
+    wp.to_torch(group.drive.kp).view(2, 3)[0, 0] = 2.0
 
-    # The single write path patches the controller storage in place over an env/joint selection.
+    # The single write path patches the drive storage in place over an env/joint selection.
     write_group_parameter(
         collection,
         "native",
-        "controller",
+        "drive",
         "kp",
         values=torch.tensor([[42.0]]),
         env_ids=env_ids,
         joint_ids=torch.tensor([1]),
     )
     torch.testing.assert_close(control.native_gains["kp"], torch.tensor([[2.0, 42.0, 4.0], [5.0, 6.0, 7.0]]))
-    write_group_parameter(collection, "native", "controller", "kd", values=torch.full((2, 3), 0.9))
+    write_group_parameter(collection, "native", "drive", "kd", values=torch.full((2, 3), 0.9))
     torch.testing.assert_close(control.native_gains["kd"], torch.full((2, 3), 0.9))
 
-    with pytest.raises(ValueError, match=r"No Newton actuator exposes parameter \('controller', 'kq'\)"):
-        write_group_parameter(collection, "native", "controller", "kq", values=torch.zeros((2, 3)))
+    with pytest.raises(ValueError, match=r"No Newton actuator exposes parameter \('drive', 'kq'\)"):
+        write_group_parameter(collection, "native", "drive", "kq", values=torch.zeros((2, 3)))
     with pytest.raises(ValueError, match=r"Unknown actuator component 'gains'"):
         read_group_parameter(collection, "native", "gains", "kp")
 
-    # A parameter the controllers do not expose raises instead of falling back to stale values.
+    # The pre-Newton-1.6 "controller" component still resolves to the drive, with a warning at the caller.
+    with pytest.warns(DeprecationWarning, match="'controller' actuator component is deprecated") as record:
+        write_group_parameter(collection, "native", "controller", "kd", values=torch.full((2, 3), 0.8))
+    assert record[0].filename == __file__
+    torch.testing.assert_close(control.native_gains["kd"], torch.full((2, 3), 0.8))
+
+    # A parameter the drives do not expose raises instead of falling back to stale values.
     unsupported_control = NativeGainFakeActuatorControl()
-    del unsupported_control.newton_actuator.controller.kd
+    del unsupported_control.newton_actuator.drive.kd
     unsupported = ActuatorCollection(
         {"native": _ideal_cfg([".*"], stiffness=11.0, damping=1.1, effort_limit=100.0)}, unsupported_control
     )
-    torch.testing.assert_close(read_group_parameter(unsupported, "native", "controller", "kp"), torch.zeros((2, 3)))
-    with pytest.raises(ValueError, match=r"No Newton actuator exposes parameter \('controller', 'kd'\)"):
-        read_group_parameter(unsupported, "native", "controller", "kd")
+    torch.testing.assert_close(read_group_parameter(unsupported, "native", "drive", "kp"), torch.zeros((2, 3)))
+    with pytest.raises(ValueError, match=r"No Newton actuator exposes parameter \('drive', 'kd'\)"):
+        read_group_parameter(unsupported, "native", "drive", "kd")
 
     # Groups that are not Newton-managed keep plain construction gains, and the door rejects them.
     plain = ActuatorCollection(
@@ -780,7 +631,7 @@ def test_native_group_parameters_route_through_the_collection_door(env_ids):
     )
     torch.testing.assert_close(plain["plain"].stiffness, torch.full((2, 3), 11.0))
     with pytest.raises(ValueError, match=r"'plain' is not executed by Newton actuators"):
-        read_group_parameter(plain, "plain", "controller", "kp")
+        read_group_parameter(plain, "plain", "drive", "kp")
 
 
 def test_overlapping_groups_are_rejected():
@@ -822,6 +673,103 @@ def test_custom_singleton_compute_receives_original_selector():
     collection.compute()
 
     assert collection["all"].observed_joint_indices == slice(None)
+
+
+@pytest.mark.parametrize("delay", [0, 2])
+def test_delayed_implicit_commands_and_partial_reset(delay):
+    """Delay all solver targets, use fresh state for telemetry, and isolate reset histories."""
+    control = FakeActuatorControl(joint_names=["joint_0", "joint_1"])
+    collection = ActuatorCollection(
+        {
+            "all": DelayedImplicitActuatorCfg(
+                joint_names_expr=[".*"],
+                stiffness=2.0,
+                damping=3.0,
+                joint_effort_limit=100.0,
+                min_delay=delay,
+                max_delay=delay,
+            )
+        },
+        control,
+    )
+    collection["all"].reset()
+    for step in range(4):
+        collection.target_command.position.torch.fill_(step + 1.0)
+        collection.target_command.velocity.torch.fill_(step + 2.0)
+        collection.target_command.effort.torch.fill_(step + 3.0)
+        control.joint_pos.torch.fill_(step)
+        control.joint_vel.torch.fill_(1.0)
+        collection.compute()
+        delayed_step = max(0, step - delay)
+        for channel, offset in (("position", 1.0), ("velocity", 2.0), ("effort", 3.0)):
+            torch.testing.assert_close(
+                getattr(collection.output_command, channel).torch,
+                torch.full((2, 2), delayed_step + offset),
+            )
+            torch.testing.assert_close(
+                getattr(collection.target_command, channel).torch, torch.full((2, 2), step + offset)
+            )
+        expected_effort = 6.0 * delayed_step + 8.0 - 2.0 * step
+        torch.testing.assert_close(collection.computed_effort.torch, torch.full((2, 2), expected_effort))
+
+    collection.reset(torch.tensor([0]))
+    collection.target_command.position.torch.fill_(10.0)
+    collection.target_command.velocity.torch.fill_(20.0)
+    collection.target_command.effort.torch.fill_(30.0)
+    collection.compute()
+    for channel, fresh, previous in (("position", 10.0, 3.0), ("velocity", 20.0, 4.0), ("effort", 30.0, 5.0)):
+        expected = torch.tensor([[fresh, fresh], [fresh, fresh] if delay == 0 else [previous, previous]])
+        torch.testing.assert_close(getattr(collection.output_command, channel).torch, expected)
+    torch.testing.assert_close(control.joint_stiffness.torch, torch.full((2, 2), 2.0))
+    torch.testing.assert_close(control.joint_damping.torch, torch.full((2, 2), 3.0))
+
+
+def test_delayed_implicit_samples_one_delay_per_environment():
+    """Each environment holds its sampled delay across all joints and command channels."""
+    control = FakeActuatorControl(num_envs=32, joint_names=["joint_0", "joint_1"])
+    collection = ActuatorCollection(
+        {
+            "all": DelayedImplicitActuatorCfg(
+                joint_names_expr=[".*"],
+                stiffness=2.0,
+                damping=0.0,
+                min_delay=1,
+                max_delay=3,
+            )
+        },
+        control,
+    )
+    with torch.random.fork_rng(devices=[]):
+        torch.manual_seed(42)
+        collection.reset()
+    for step in range(6):
+        for channel, offset in (("position", 0.0), ("velocity", 10.0), ("effort", 20.0)):
+            getattr(collection.target_command, channel).torch.fill_(step + offset)
+        collection.compute()
+        if step >= 3:
+            observed_delays = step - collection.output_command.position.torch
+            assert torch.all((observed_delays >= 1) & (observed_delays <= 3))
+            assert torch.unique(observed_delays).numel() > 1
+            torch.testing.assert_close(observed_delays[:, 0], observed_delays[:, 1])
+            torch.testing.assert_close(
+                collection.output_command.velocity.torch, collection.output_command.position.torch + 10.0
+            )
+            torch.testing.assert_close(
+                collection.output_command.effort.torch, collection.output_command.position.torch + 20.0
+            )
+            if step == 3:
+                initial_delays = observed_delays.clone()
+            else:
+                torch.testing.assert_close(observed_delays, initial_delays)
+
+
+@pytest.mark.parametrize("min_delay,max_delay", [(-1, 2), (3, 2)])
+def test_delayed_implicit_rejects_invalid_delay_bounds(min_delay, max_delay):
+    cfg = DelayedImplicitActuatorCfg(
+        joint_names_expr=[".*"], stiffness=2.0, damping=0.0, min_delay=min_delay, max_delay=max_delay
+    )
+    with pytest.raises(ValueError, match="0 <= min_delay <= max_delay"):
+        ActuatorCollection({"all": cfg}, FakeActuatorControl())
 
 
 def test_multi_group_explicit_outputs_match_pd_formula():
@@ -906,7 +854,6 @@ def test_lab_executed_explicit_groups_warn_once():
             damping=1.0,
             actuator_effort_limit=10.0,
             actuator_velocity_limit=10.0,
-            max_delay=0,
         ),
     }
     with warnings.catch_warnings(record=True) as caught_warnings:
@@ -941,29 +888,27 @@ def test_partial_coverage_explicit_group_reads_fresh_commands_each_compute():
 
 def test_native_execution_bypasses_lab_aggregation(monkeypatch):
     control = NativeFakeActuatorControl(joint_names=[f"joint_{index}" for index in range(4)])
+    configs = {
+        "hips": _dc_cfg(
+            ["joint_0", "joint_1"],
+            stiffness=20.0,
+            damping=1.0,
+            effort_limit=40.0,
+            velocity_limit=10.0,
+            saturation_effort=60.0,
+        ),
+        "knees": _dc_cfg(
+            ["joint_2", "joint_3"],
+            stiffness=30.0,
+            damping=2.0,
+            effort_limit=70.0,
+            velocity_limit=20.0,
+            saturation_effort=120.0,
+        ),
+    }
     with warnings.catch_warnings(record=True) as caught_warnings:
         warnings.simplefilter("always")
-        collection = ActuatorCollection(
-            {
-                "hips": _dc_cfg(
-                    ["joint_0", "joint_1"],
-                    stiffness=20.0,
-                    damping=1.0,
-                    effort_limit=40.0,
-                    velocity_limit=10.0,
-                    saturation_effort=60.0,
-                ),
-                "knees": _dc_cfg(
-                    ["joint_2", "joint_3"],
-                    stiffness=30.0,
-                    damping=2.0,
-                    effort_limit=70.0,
-                    velocity_limit=20.0,
-                    saturation_effort=120.0,
-                ),
-            },
-            control,
-        )
+        collection = ActuatorCollection(configs, control)
 
     assert not [warning for warning in caught_warnings if warning.category is DeprecationWarning]
 
@@ -972,6 +917,13 @@ def test_native_execution_bypasses_lab_aggregation(monkeypatch):
 
     monkeypatch.setattr(DCMotor, "compute", fail_compute)
     collection.compute()
+
+    configs["hips"] = DelayedImplicitActuatorCfg(
+        joint_names_expr=["joint_0", "joint_1"], stiffness=20.0, damping=1.0, max_delay=2
+    )
+    monkeypatch.setattr(control, "prepare_native_actuators", lambda collection, actuator_cfgs: {"knees"})
+    with pytest.raises(ValueError, match="use_newton_actuators"):
+        ActuatorCollection(configs, control)
 
 
 def test_collection_accepts_cached_proxy_joint_indices():
@@ -1009,6 +961,19 @@ def test_write_command_index_supports_selectors_and_submission(command_name):
     expected[1, 2] = 4.0
     torch.testing.assert_close(command_buffer.torch.cpu(), expected)
 
+    joint_ids = wp.to_torch(joint_ids)
+    with wp.ScopedCapture(device="cpu") as capture:
+        setter(value=value, env_ids=env_ids, joint_ids=joint_ids)
+
+    value.copy_(torch.tensor([[5.0, 6.0]]))
+    env_ids.fill_(0)
+    joint_ids.copy_(torch.tensor([2, 0]))
+    command_buffer.torch.fill_(-1.0)
+    wp.capture_launch(capture.graph)
+
+    expected = torch.tensor([[6.0, -1.0, 5.0], [-1.0, -1.0, -1.0]])
+    torch.testing.assert_close(command_buffer.torch, expected)
+
     collection.compute()
     collection.submit_commands()
 
@@ -1020,20 +985,65 @@ def test_write_command_index_supports_selectors_and_submission(command_name):
 def test_write_command_mask_uses_full_sized_value(command_name):
     control = FakeActuatorControl()
     collection = ActuatorCollection({"all": _implicit_cfg()}, control)
+    setter = getattr(collection.target_command, f"set_{command_name}_mask")
+    command_buffer = getattr(collection.target_command, command_name)
     value = torch.arange(6, dtype=torch.float32).reshape(2, 3)
     env_mask = wp.array([True, False], dtype=wp.bool, device="cpu")
     joint_mask = wp.array([False, True, True], dtype=wp.bool, device="cpu")
 
-    getattr(collection.target_command, f"set_{command_name}_mask")(
-        value=value, env_mask=env_mask, joint_mask=joint_mask
-    )
+    setter(value=value, env_mask=env_mask, joint_mask=joint_mask)
 
     expected = torch.zeros(2, 3)
     expected[0, 1:] = value[0, 1:]
-    torch.testing.assert_close(getattr(collection.target_command, command_name).torch.cpu(), expected)
+    torch.testing.assert_close(command_buffer.torch.cpu(), expected)
     assert control.staged_commands == [command_name]
 
+    with wp.ScopedCapture(device="cpu") as capture:
+        setter(value=value, env_mask=env_mask, joint_mask=joint_mask)
+
+    value.add_(10.0)
+    wp.to_torch(env_mask).copy_(torch.tensor([False, True]))
+    wp.to_torch(joint_mask).copy_(torch.tensor([True, False, True]))
+    command_buffer.torch.fill_(-1.0)
+    wp.capture_launch(capture.graph)
+
+    expected = torch.tensor([[-1.0, -1.0, -1.0], [13.0, -1.0, 15.0]])
+    torch.testing.assert_close(command_buffer.torch, expected)
+
     with pytest.raises(TypeError, match="wp.bool"):
-        getattr(collection.target_command, f"set_{command_name}_mask")(
-            value=value, env_mask=wp.array([1, 0], dtype=wp.int32, device="cpu"), joint_mask=joint_mask
+        setter(value=value, env_mask=wp.array([1, 0], dtype=wp.int32, device="cpu"), joint_mask=joint_mask)
+
+
+@pytest.mark.parametrize(
+    ("device", "delay"),
+    [(device, 2) for device in test_devices()] + [pytest.param("cpu", None, id="cpu-default-delay")],
+)
+def test_masked_reset_leaves_unselected_envs_untouched(device, delay):
+    """A mask reset redraws the masked environments' delays without a device sync and keeps the others."""
+    control = FakeActuatorControl(num_envs=4, device=device)
+    # The default max_delay of None runs without delay.
+    cfg = DelayedPDActuatorCfg(
+        joint_names_expr=[".*"], stiffness=1.0, damping=0.0, min_delay=delay or 0, max_delay=delay
+    )
+    initial_delay = 1 if delay else 0
+    collection = ActuatorCollection({"delayed": cfg}, control)
+    buffers = collection["delayed"]._delay_buffers
+    for delay_buffer in buffers:
+        delay_buffer.set_time_lag(initial_delay)
+    for _ in range(3):
+        collection.compute()
+    env_mask = torch.tensor([False, True, False, True], device=device)
+
+    if device.startswith("cuda"):
+        torch.cuda.synchronize(device)
+        torch.cuda.set_sync_debug_mode("error")
+    try:
+        collection.reset(env_mask=wp.from_torch(env_mask, dtype=wp.bool))
+    finally:
+        torch.cuda.set_sync_debug_mode("default")
+
+    for delay_buffer in buffers:
+        torch.testing.assert_close(
+            delay_buffer.time_lags, torch.where(env_mask, delay or 0, initial_delay).to(torch.int)
         )
+        torch.testing.assert_close(delay_buffer.num_pushes, torch.where(env_mask, 0, 3))

@@ -7,9 +7,6 @@
 
 Currently, the following categories of devices are supported:
 
-* **Keyboard**: Standard keyboard with WASD and arrow keys.
-* **Spacemouse**: 3D mouse with 6 degrees of freedom.
-* **Gamepad**: Gamepad with 2D two joysticks and buttons. Example: Xbox controller.
 * **OpenXR**: Uses hand tracking of index/thumb tip avg to drive the target pose. Gripping is done with pinching.
 * **Haply**: Haptic device (Inverse3 + VerseGrip) with position, orientation tracking and force feedback.
 
@@ -18,6 +15,9 @@ common interface for all devices. The device interface reads the input data when
 the :meth:`DeviceBase.advance` method is called. It also provides the function :meth:`DeviceBase.add_callback`
 to add user-defined callback functions to be called when a particular input is pressed from
 the peripheral device.
+
+Keyboard, gamepad and SpaceMouse input is implemented by :mod:`isaaclab_teleop` through Isaac Capture.
+Their deprecated configs remain as data-only declarations translated before device creation.
 """
 
 from ..utils.module import lazy_export

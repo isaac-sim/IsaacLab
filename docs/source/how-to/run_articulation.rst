@@ -7,16 +7,10 @@ Interacting with an articulation
 
 .. currentmodule:: isaaclab
 
-This runtime example complements :ref:`asset-authoring`. It uses an existing robot
-configuration; see :ref:`how-to-write-articulation-config` to create one and
-:ref:`asset-config-backends` to adapt its spawn properties to PhysX or Newton.
-
-
-This tutorial shows how to interact with an articulated robot in the simulation. It is a continuation of the
-:ref:`tutorial-interact-rigid-object` tutorial, where we learned how to interact with a rigid object.
-On top of setting the root state, we will see how to set the joint state and apply commands to the articulated
-robot.
-
+Set a robot's root and joint states, then apply joint commands during simulation.
+This example builds on :ref:`tutorial-interact-rigid-object` and uses an existing
+robot configuration. To create a configuration, see :ref:`how-to-write-articulation-config`;
+to adapt its spawn properties to PhysX or Newton, see :ref:`asset-config-backends`.
 
 The Code
 ~~~~~~~~
@@ -29,7 +23,7 @@ directory.
 
    .. literalinclude:: ../../../scripts/tutorials/01_assets/run_articulation.py
       :language: python
-      :emphasize-lines: 53-64, 86-104, 106-112, 117-118
+      :emphasize-lines: 58-69, 91-109, 111-117, 122-123
       :linenos:
 
 
@@ -72,9 +66,12 @@ Similar to a rigid object, an articulation also has a root state. This state cor
 articulation tree. On top of the root state, an articulation also has joint states. These states correspond to the
 joint positions and velocities.
 
-To reset the articulation, we first set the root state by calling the :meth:`Articulation.write_root_pose_to_sim` and :meth:`Articulation.write_root_velocity_to_sim`
-methods. Similarly, we set the joint states by calling the :meth:`Articulation.write_joint_state_to_sim` method.
-Finally, we call the :meth:`Articulation.reset` method to reset any internal buffers and caches.
+To reset the articulation, we first set the root state by calling the
+:meth:`~isaaclab.assets.Articulation.write_root_pose_to_sim_index` and
+:meth:`~isaaclab.assets.Articulation.write_root_velocity_to_sim_index` methods. Similarly, we set the joint states by
+calling the :meth:`~isaaclab.assets.Articulation.write_joint_position_to_sim_index` and
+:meth:`~isaaclab.assets.Articulation.write_joint_velocity_to_sim_index` methods.
+Finally, we call the :meth:`~isaaclab.assets.Articulation.reset` method to reset any internal buffers and caches.
 
 .. literalinclude:: ../../../scripts/tutorials/01_assets/run_articulation.py
    :language: python
@@ -97,7 +94,7 @@ configuration object.
 
 At every step, we randomly sample joint efforts and set them on the articulation's actuator collection
 by calling ``robot.actuators.target_command.set_effort_index``. After setting the commands,
-we call the :meth:`Articulation.write_data_to_sim` method to write the data to the simulation buffers.
+we call the :meth:`~isaaclab.assets.Articulation.write_data_to_sim` method to write the data to the simulation buffers.
 Finally, we step the simulation.
 
 .. literalinclude:: ../../../scripts/tutorials/01_assets/run_articulation.py
@@ -122,8 +119,8 @@ The Code Execution
 ~~~~~~~~~~~~~~~~~~
 
 
-This script uses Isaac Sim PhysX and requires Isaac Sim. The commands below display it with
-the Isaac Sim viewport shown below:
+This script uses OvPhysX and the Newton RTX visualizer without Isaac Sim. Install the ``ov`` extra
+and run the command below:
 
 .. tab-set::
 
@@ -131,7 +128,7 @@ the Isaac Sim viewport shown below:
 
       .. code-block:: bash
 
-         uv run isaaclab -p scripts/tutorials/01_assets/run_articulation.py --viz kit
+         uv run --extra ov isaaclab -p scripts/tutorials/01_assets/run_articulation.py --viz newton_rtx
 
 
 This command should open a stage with a ground plane, lights, and two cart-poles that are moving around randomly.

@@ -7,9 +7,9 @@ from __future__ import annotations
 
 import math
 
+from isaaclab_isaacsim.physics import PhysxCfg
 from isaaclab_newton.physics import KaminoPADMMSolverCfg, MJWarpSolverCfg, NewtonCfg
 from isaaclab_ov.physics import OvPhysxCfg
-from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
@@ -83,12 +83,12 @@ class PendulumMARLEnvCfg(DirectMARLEnvCfg):
     pendulum_dof_name = "pole_to_pendulum"
 
     # scene
-    scene: PendulumSceneCfg = PendulumSceneCfg(num_envs=4096, env_spacing=4.0, replicate_physics=True)
+    scene: PendulumSceneCfg = PendulumSceneCfg(num_envs=4096, env_spacing=4.0)
 
     # reset
     max_cart_pos = 3.0  # the cart is reset if it exceeds that position [m]
-    initial_pole_angle_range = [-0.25, 0.25]  # the range in which the pole angle is sampled from on reset [rad]
-    initial_pendulum_angle_range = [-0.25, 0.25]  # the range in which the pendulum angle is sampled from on reset [rad]
+    initial_pole_angle_range = [-0.25, 0.25]  # the range in which the pole angle is sampled from on reset [pi rad]
+    initial_pendulum_angle_range = [-0.25, 0.25]  # the range in which the pendulum angle is sampled on reset [pi rad]
 
     # success metric
     success_upright_angle = math.pi / 12  # both physical links must remain within this angle [rad]

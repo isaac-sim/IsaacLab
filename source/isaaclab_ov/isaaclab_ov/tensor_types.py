@@ -16,9 +16,7 @@ ovphysx.types is pure Python with zero native dependencies, so this module is
 always safe to import regardless of USD state or native library loading.
 """
 
-from isaaclab_ov._runtime import import_ovphysx
-
-TensorType = import_ovphysx("ovphysx.types").TensorType
+from ovphysx.types import TensorType
 
 _TT = TensorType  # shorter reference for alias block
 
@@ -189,7 +187,7 @@ Shape is ``[N, L, 7]``, dtype ``float32``.
 """
 
 BODY_INERTIA = _TT.ARTICULATION_BODY_INERTIA
-"""Inertia tensor of each body.
+"""Inertia tensor of each body about its COM, expressed in the rigid-body-prim frame.
 
 Shape is ``[N, L, 9]``, dtype ``float32`` [kg·m^2].
 """
@@ -201,7 +199,7 @@ Shape is ``[N, L]``, dtype ``float32``.
 """
 
 BODY_INV_INERTIA = _TT.ARTICULATION_BODY_INV_INERTIA
-"""Inverse inertia tensor of each body.
+"""Inverse inertia tensor of each body about its COM, expressed in the rigid-body-prim frame.
 
 Shape is ``[N, L, 9]``, dtype ``float32``.
 """
@@ -252,7 +250,7 @@ RIGID_BODY_COM_POSE = _TT.RIGID_BODY_COM_POSE
 ``(N, 7)``, components ``(px, py, pz, qx, qy, qz, qw)`` [m, dimensionless]."""
 
 RIGID_BODY_INERTIA = _TT.RIGID_BODY_INERTIA
-"""Rigid actor inertia tensor in COM frame — read/write, CPU. Shape
+"""Rigid actor inertia tensor about the COM, expressed in the rigid-body-prim frame — read/write, CPU. Shape
 ``(N, 9)``, row-major flatten of the 3×3 inertia matrix
 ``(Ixx, Ixy, Ixz, Iyx, Iyy, Iyz, Izx, Izy, Izz)`` [kg·m²]."""
 
@@ -266,53 +264,32 @@ RIGID_BODY_CONTACT_OFFSET = _TT.RIGID_BODY_CONTACT_OFFSET
 RIGID_BODY_REST_OFFSET = _TT.RIGID_BODY_REST_OFFSET
 """Rest offset of each collision shape — read/write, CPU. Shape ``(N, S)`` [m]."""
 
-# These three aliases are pending an upcoming ovphysx wheel update.
-# When the wheel ships them, the corresponding ``hasattr`` checks below
-# in IsaacLab consumers will start returning True and the bindings will
-# become usable; until then, ``isaaclab_ov.tensor_types`` simply
-# does not expose the alias.
-try:
-    RIGID_BODY_ACCELERATION = _TT.RIGID_BODY_ACCELERATION
-    """Rigid actor spatial acceleration — read-only, GPU. Shape ``(N, 6)``,
-    components ``(ax, ay, az, αx, αy, αz)`` [m/s², rad/s²]."""
-except AttributeError:
-    pass
+RIGID_BODY_ACCELERATION = _TT.RIGID_BODY_ACCELERATION
+"""Rigid actor spatial acceleration — read-only, GPU. Shape ``(N, 6)``,
+components ``(ax, ay, az, αx, αy, αz)`` [m/s², rad/s²]."""
 
-try:
-    RIGID_BODY_INV_MASS = _TT.RIGID_BODY_INV_MASS
-    """Rigid actor inverse mass — read-only, CPU. Shape ``(N,)`` [1/kg].
-    Zero indicates an immovable actor."""
-except AttributeError:
-    pass
+RIGID_BODY_INV_MASS = _TT.RIGID_BODY_INV_MASS
+"""Rigid actor inverse mass — read-only, CPU. Shape ``(N,)`` [1/kg].
+Zero indicates an immovable actor."""
 
-try:
-    RIGID_BODY_INV_INERTIA = _TT.RIGID_BODY_INV_INERTIA
-    """Rigid actor inverse inertia tensor in COM frame — read-only, CPU.
-    Shape ``(N, 9)``, row-major flatten of the 3×3 matrix [1/(kg·m²)].
-    Zero rows indicate locked rotational DOFs."""
-except AttributeError:
-    pass
+RIGID_BODY_INV_INERTIA = _TT.RIGID_BODY_INV_INERTIA
+"""Rigid actor inverse inertia tensor about the COM, expressed in the rigid-body-prim frame — read-only, CPU.
+Shape ``(N, 9)``, row-major flatten of the 3×3 matrix [1/(kg·m²)].
+Zero rows indicate locked rotational DOFs."""
 
 """
-Shape material properties (friction / restitution) — new in ovphysx 0.4.13+.
-Guarded so this module stays import-safe against older wheels that lack them.
+Shape material properties (friction / restitution).
 """
 
-try:
-    SHAPE_FRICTION_AND_RESTITUTION = _TT.ARTICULATION_SHAPE_FRICTION_AND_RESTITUTION
-    """Per-collision-shape material of each articulation instance — read/write, CPU.
-    Shape ``(N, S, 3)``: ``[0]`` static friction, ``[1]`` dynamic friction, ``[2]``
-    restitution (all dimensionless)."""
-except AttributeError:
-    pass
+SHAPE_FRICTION_AND_RESTITUTION = _TT.ARTICULATION_SHAPE_FRICTION_AND_RESTITUTION
+"""Per-collision-shape material of each articulation instance — read/write, CPU.
+Shape ``(N, S, 3)``: ``[0]`` static friction, ``[1]`` dynamic friction, ``[2]``
+restitution (all dimensionless)."""
 
-try:
-    RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION = _TT.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION
-    """Per-collision-shape material of each rigid body — read/write, CPU. Shape
-    ``(N, S, 3)``: ``[0]`` static friction, ``[1]`` dynamic friction, ``[2]`` restitution
-    (all dimensionless)."""
-except AttributeError:
-    pass
+RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION = _TT.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION
+"""Per-collision-shape material of each rigid body — read/write, CPU. Shape
+``(N, S, 3)``: ``[0]`` static friction, ``[1]`` dynamic friction, ``[2]`` restitution
+(all dimensionless)."""
 
 """
 Dynamics tensors (GPU)
@@ -359,7 +336,7 @@ Shape is ``[N, D]``, dtype ``float32``.
 """
 
 """
-Fixed tendon properties (CPU)
+Fixed tendon properties (GPU)
 """
 
 FIXED_TENDON_STIFFNESS = _TT.ARTICULATION_FIXED_TENDON_STIFFNESS
@@ -399,7 +376,7 @@ Shape is ``[N, T_fix]``, dtype ``float32``.
 """
 
 """
-Spatial tendon properties (CPU)
+Spatial tendon properties (GPU)
 """
 
 SPATIAL_TENDON_STIFFNESS = _TT.ARTICULATION_SPATIAL_TENDON_STIFFNESS

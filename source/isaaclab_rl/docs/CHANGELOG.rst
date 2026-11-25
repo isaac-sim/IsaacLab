@@ -3,6 +3,125 @@ Changelog
 
 .. towncrier release notes start
 
+5.4.1 (2026-11-19)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_experimental.envs.MDP2RLEnv` to the environment types that the RL wrappers accept.
+
+Changed
+^^^^^^^
+
+* Changed pretrained checkpoint lookup to resolve the ``newton_optix`` renderer like ``newton_warp``.
+
+
+5.4.0 (2026-11-18)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``--export_deployment_usd`` to the training entry points, exporting environment 0 to
+  ``deployment.usda`` in the run's log directory before startup events.
+
+
+5.3.3 (2026-11-17)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added trailing ``KEY=VALUE`` environment config overrides, such as ``physics=newton_mjwarp``, to the RLinf
+  ``train`` and ``play`` commands. They are applied in every RLinf train and eval environment worker.
+
+
+5.3.2 (2026-11-14)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :func:`~isaaclab_rl.sb3.process_sb3_cfg` giving every ``lin_<value>`` schedule the value of the last one
+  parsed. With ``learning_rate: lin_3e-4`` and ``clip_range: lin_0.2``, the learning rate started at 0.2.
+
+
+5.3.1 (2026-11-03)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Required a checkpoint for custom distillation algorithms before creating the training environment.
+* Included student observation groups when exporting distilled policies to LEAPP.
+
+
+5.3.0 (2026-10-28)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``"warp"`` as an ``ml_framework`` option to :func:`~isaaclab_rl.skrl.import_skrl_runner` and to the
+  ``--ml_framework`` argument of the skrl train/play entrypoints, enabling training with skrl's Warp
+  implementation. Install it with the ``skrl`` extra.
+
+Changed
+^^^^^^^
+
+* Changed the minimum supported skrl version to 2.1.1, which is required for the Warp ML framework.
+* Changed the skrl train/play run summary to show the selected ML framework.
+
+Fixed
+^^^^^
+
+* Fixed ``--checkpoint latest`` loading the best-reward checkpoint instead of the newest one for skrl runs and for
+  rl_games runs whose config name sorts after ``last_``, such as ``shadow_hand`` or ``reach_franka``. The selector
+  now picks the newest periodic or ``score_to_win`` checkpoint and falls back to the previous behavior when there
+  are none.
+
+
+5.2.2 (2026-10-19)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Selected recording sources from composed visualizer configs while preserving shared image views
+  and headless, on-demand capture when no window was selected.
+
+Fixed
+^^^^^
+
+* Preserved physics, renderer, and visualizer selector aliases when filtering external task callback arguments.
+
+
+5.2.1 (2026-10-17)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed random-agent playback for direct multi-agent tasks by generating batched actions for each agent.
+
+
+5.2.0 (2026-10-14)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_rl.rsl_rl.RslRlMLPModelCfg.GaussianDistributionCfg.std_range` to clamp the standard
+  deviation of RSL-RL Gaussian output distributions, exposing the existing ``std_range`` argument of RSL-RL.
+
+Fixed
+^^^^^
+
+* Fixed TorchRL wrapper stepping when its output device differs from the simulation device.
+* Updated RLInf configuration loading for compatibility with Hydra 1.4.
+
+
 5.1.0 (2026-10-13)
 ~~~~~~~~~~~~~~~~~~
 

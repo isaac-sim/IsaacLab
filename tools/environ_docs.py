@@ -15,15 +15,25 @@ from __future__ import annotations
 
 import collections
 import contextlib
+import itertools
 import json
+import multiprocessing
+import os
 import re
 from collections.abc import Callable
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field
+from functools import partial
 from typing import TYPE_CHECKING
 
 import gymnasium as gym
 
-from isaaclab_tasks.utils.hydra import _LEGACY_PRESET_ALIASES, PresetTarget, enumerate_task_presets
+from isaaclab_tasks.utils.hydra import (
+    _LEGACY_PRESET_ALIASES,
+    PresetTarget,
+    enumerate_task_presets,
+    is_task_run_launchable,
+)
 
 if TYPE_CHECKING:
     from gymnasium.envs.registration import EnvSpec
@@ -37,7 +47,10 @@ _BACKEND_MIRROR_NAMES = frozenset(
         "isaacsim_rtx",
         "newton_kamino",
         "newton_mjwarp",
+        "newton_mjwarp_nerd",
         "newton_mjwarp_vbd_proxy",
+        "newton_nerd",
+        "newton_steel",
         "ovphysx",
         "ovrtx",
         "physx",
@@ -49,7 +62,14 @@ _BACKEND_MIRROR_NAMES = frozenset(
 
 # RL libraries listed in a stable order across generated docs.
 _RL_LIBRARY_ORDER = ("rl_games", "rsl_rl", "skrl", "sb3", "rlinf", "torchrl")
-_ALGORITHM_LABELS = {"": "PPO", "ppo": "PPO", "amp": "AMP", "ippo": "IPPO", "mappo": "MAPPO"}
+_ALGORITHM_LABELS = {
+    "": "PPO",
+    "ppo": "PPO",
+    "amp": "AMP",
+    "ippo": "IPPO",
+    "mappo": "MAPPO",
+    "supermimic": "SuperMimic",
+}
 
 # Gym IDs excluded from the training list. The ``-Eval`` suffix marks dedicated
 # evaluation variants (e.g. ``IsaacContrib-Assemble-Trocar-G129-Dex3-Eval``, an alias
@@ -95,7 +115,7 @@ _SELECTOR_LABELS = {
 # commands until the corresponding task supports them end to end.
 _NEWTON_MJWARP_EXCLUSIONS = frozenset(
     {
-        "IsaacContrib-Factory-Franka",
+        "IsaacContrib-NIST-Franka",
         "IsaacContrib-Place-Mug-Agibot-Left-Arm-RmpFlow",
         "IsaacContrib-Place-Toy2Box-Agibot-Right-Arm-RmpFlow",
         "IsaacContrib-Stack-Cube-Bin-Franka-IK-Rel-Mimic",
@@ -104,7 +124,10 @@ _NEWTON_MJWARP_EXCLUSIONS = frozenset(
         "IsaacContrib-Stack-Cube-Franka",
         "IsaacContrib-Stack-Cube-Franka-IK-Abs",
         "IsaacContrib-Stack-Cube-Franka-IK-Rel",
+        "IsaacContrib-Stack-Cube-Franka-IK-Rel-Blueprint",
         "IsaacContrib-Stack-Cube-Franka-IK-Rel-Skillgen",
+        "IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor",
+        "IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos",
         "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow",
         "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor",
         "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-Joint-Position",
@@ -134,6 +157,9 @@ class EnvironmentDocRow:
     required_extras: tuple[str, ...] = ()
     # None reuses all domain presets; an empty tuple allows only the default.
     warp_presets: tuple[str, ...] | None = None
+    # Launchable (physics, renderer, presets) combinations of the displayed names, ``None`` leaving an
+    # axis to the config. Empty for tasks with nothing to select.
+    launchable_runs: tuple[tuple[str | None, str | None, str | None], ...] = ()
 
 
 def _supports_warp_frontend(
@@ -143,11 +169,12 @@ def _supports_warp_frontend(
     domain_preset: str | None = None,
 ) -> bool:
     """Return whether a task configuration can run through ``--frontend warp``."""
-    if presets is None or "newton_mjwarp" not in presets.get(PresetTarget.PHYSICS, []):
+    # MDP2 environments compile their own Warp step; the frontend builds manager-based and direct environments.
+    if workflow == "MDP2" or presets is None or "newton_mjwarp" not in presets.get(PresetTarget.PHYSICS, []):
         return False
 
     try:
-        from isaaclab_experimental.envs.frontend import FrontendIncompatibleError, WarpFrontend
+        from isaaclab_experimental.deprecated.envs.frontend import FrontendIncompatibleError, WarpFrontend
 
         from isaaclab_tasks.utils import resolve_task_config
 
@@ -259,7 +286,7 @@ def _infer_implicit_physics_names(task_name: str) -> set[str]:
     alias. The preset CLI excludes ``default`` from help listings, but users
     still select PhysX via ``physics=physx`` (or by falling back to default).
     """
-    from isaaclab_physx.physics import PhysxCfg
+    from isaaclab_isaacsim.physics import PhysxCfg
 
     from isaaclab.physics import PhysicsCfg
 
@@ -353,6 +380,14 @@ def _selector_names_for_docs(
         PresetTarget.RENDERER: _filter_selector_names(PresetTarget.RENDERER, preset_map.get(PresetTarget.RENDERER, [])),
         PresetTarget.DOMAIN: _filter_selector_names(PresetTarget.DOMAIN, _domain_presets_for_docs(preset_map)),
     }
+
+
+def _import_task_packages() -> None:
+    """Register the Isaac Lab tasks in a launch-check worker process."""
+    import isaaclab_tasks  # noqa: F401
+
+    with contextlib.suppress(ImportError):
+        import isaaclab_tasks_experimental  # noqa: F401
 
 
 def format_presets_rst(preset_map: dict[PresetTarget, list[str]] | None) -> str:
@@ -583,10 +618,14 @@ def get_workflow(entry_point: str | Callable[..., object]) -> str:
             env_creator = gym.envs.registration.load_env_creator(entry_point)
 
     if isinstance(env_creator, type):
+        from isaaclab_experimental.envs import MDP2Env
+
         from isaaclab.envs import ManagerBasedRLEnv
 
         if issubclass(env_creator, ManagerBasedRLEnv):
             return "Manager Based"
+        if issubclass(env_creator, MDP2Env):
+            return "MDP2"
     return "Direct"
 
 
@@ -623,16 +662,37 @@ def collect_environment_doc_rows(
         specs = list(gym.registry.values())
 
     rows: list[EnvironmentDocRow] = []
+    # Each launch check resolves a full env config; workers spread them out. Each worker imports Isaac Lab,
+    # so their number is capped, and they are spawned because forking this multi-threaded process can deadlock.
+    pool = ProcessPoolExecutor(
+        max_workers=min(os.cpu_count() or 1, 8),
+        mp_context=multiprocessing.get_context("spawn"),
+        initializer=_import_task_packages,
+    )
 
     for spec in specs:
         if not is_training_task(spec.id) or spec.kwargs.get("deprecated"):
             continue
 
         preset_map = enumerate_task_presets(spec.id)
+        launchable_runs = ()
         if preset_map is not None:
             preset_map = dict(preset_map)
             preset_map[PresetTarget.PHYSICS] = _physics_names_for_docs(spec.id, preset_map)
             preset_map = _apply_preset_exclusions(spec.id, preset_map)
+            targets = (PresetTarget.PHYSICS, PresetTarget.RENDERER, PresetTarget.DOMAIN)
+            selectors = _selector_names_for_docs(preset_map)
+            options = [sorted(selectors[target]) for target in targets]
+            if any(options):
+                combinations = list(itertools.product(*([None, *names] for names in options)))
+                launchable = pool.map(partial(is_task_run_launchable, spec.id), combinations)
+                launchable_runs = tuple(run for run, ok in zip(combinations, launchable) if ok)
+                if not launchable_runs:
+                    raise ValueError(f"{spec.id}: no displayed preset combination can launch.")
+                # A displayed name no launchable combination uses can never produce a working command.
+                for axis, (target, names) in enumerate(zip(targets, options)):
+                    unreachable = {name for name in names if all(run[axis] != name for run in launchable_runs)}
+                    preset_map[target] = [name for name in preset_map[target] if name not in unreachable]
         agents = apply_rl_library_overrides(spec.id, parse_rl_libraries_from_kwargs(spec.kwargs))
         visible_domain_presets = set(_selector_names_for_docs(preset_map)[PresetTarget.DOMAIN])
         default_checkpoint_presets = ()
@@ -669,9 +729,11 @@ def collect_environment_doc_rows(
                 pretrained_checkpoint_preset_compatibility=checkpoint_preset_compatibility,
                 required_extras=TASK_REQUIRED_EXTRAS.get(spec.id, ()),
                 warp_presets=warp_presets,
+                launchable_runs=launchable_runs,
             )
         )
 
+    pool.shutdown()
     rows.sort(key=_task_sort_key)
     return rows
 
@@ -761,8 +823,9 @@ def render_environment_browser_task_rows(
             default_algorithms,
             ",".join(row.required_extras),
             row.warp_presets,
+            ["|".join(name or "" for name in run) for run in row.launchable_runs],
         ]
-        optional_defaults = ["", False, {}, {}, "", None]
+        optional_defaults = ["", False, {}, {}, "", None, []]
         last_value = next(
             (
                 index

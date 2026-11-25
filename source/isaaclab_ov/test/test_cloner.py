@@ -12,13 +12,16 @@ import numpy as np
 import pytest
 from isaaclab_ov.cloner import OvPhysxReplicateContext, ovphysx_replicate
 from isaaclab_ov.cloner.replicate import _serialize_stage
+from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_ov.physics.ovphysx_manager import OvPhysxManager
 
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import make_clone_plan
-from isaaclab.physics import PhysicsManager
+from isaaclab.sim import SimulationContext
+
+pytestmark = pytest.mark.ov
 
 
 def _pose_matrix(position: tuple[float, float, float], quaternion: tuple[float, float, float, float]) -> Gf.Matrix4d:
@@ -31,7 +34,7 @@ def _pose_matrix(position: tuple[float, float, float], quaternion: tuple[float, 
 
 def test_nested_clone_uses_final_target_pose(monkeypatch):
     """Nested clone rows keep their source-local pose under the target environment."""
-    monkeypatch.setattr(OvPhysxManager, "_clone_recipes", [])
+    manager = OvPhysxManager(OvPhysxCfg())
     half_sqrt_two = math.sqrt(0.5)
     source_half_angle_sin = 0.5
     source_half_angle_cos = math.sqrt(0.75)
@@ -50,7 +53,7 @@ def test_nested_clone_uses_final_target_pose(monkeypatch):
     body.AddTranslateOp().Set((1, 0, 0))
     UsdPhysics.RigidBodyAPI.Apply(body.GetPrim())
 
-    monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(physics_manager=OvPhysxManager))
+    monkeypatch.setattr(SimulationContext, "_instance", SimpleNamespace(backend_manager=manager))
     ovphysx_replicate(
         stage,
         sources=["/World/envs/env_0/Robot", "/World/envs/env_9/Inactive", "/World/envs/env_0/Robot"],
@@ -75,8 +78,8 @@ def test_nested_clone_uses_final_target_pose(monkeypatch):
     )
     expected_transform = (10.0 - half_sqrt_two, 20.0 + half_sqrt_two, 32.0, *expected_orientation.tolist())
 
-    assert len(OvPhysxManager._clone_recipes) == 1
-    source, targets, poses, env_ids, source_env_id = OvPhysxManager._clone_recipes[0]
+    assert len(manager._clone_recipes) == 1
+    source, targets, poses, env_ids, source_env_id = manager._clone_recipes[0]
     assert source == "/World/envs/env_0/Robot"
     assert targets == ["/World/envs/env_0/Robot", "/World/envs/env_1/Robot"]
     assert env_ids == [0, 1]
@@ -88,7 +91,7 @@ def test_nested_clone_uses_final_target_pose(monkeypatch):
         orientation = -orientation
     assert orientation.tolist() == pytest.approx(expected_orientation.tolist())
     layer = Sdf.Layer.CreateAnonymous("export.usda")
-    serialized, native = _serialize_stage(stage, OvPhysxManager._clone_recipes, full_stage=True)
+    serialized, native = _serialize_stage(stage, manager._clone_recipes, full_stage=True)
     assert not native
     layer.ImportFromString(serialized)
     exported = Usd.Stage.Open(layer)
@@ -101,14 +104,13 @@ def test_nested_clone_uses_final_target_pose(monkeypatch):
 def test_ovphysx_context_consumes_plan():
     """The registered context publishes the rows routed to it by one clone plan."""
     stage = Usd.Stage.CreateInMemory()
-    UsdGeom.Xform.Define(stage, "/World/envs/env_0").AddTranslateOp().Set((2, 0, 0))
     UsdGeom.Xform.Define(stage, "/World/envs/env_0/Robot").AddTranslateOp().Set((0.25, 0, 0))
     recipes = []
     manager = SimpleNamespace(_clone_recipes=recipes)
     assets = (AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot"),)
     positions = np.array([[2, 0, 0], [5, 2, 3], [8, 0, 0]], dtype=np.float32)
     plan = make_clone_plan(assets, ((0, 0), (0,)), 3, weights=(2, 1), positions=positions)
-    OvPhysxReplicateContext(SimpleNamespace(stage=stage, physics_manager=manager)).replicate(plan, (0,))
+    OvPhysxReplicateContext(SimpleNamespace(stage=stage, backend_manager=manager)).replicate(plan, (0,))
 
     assert len(recipes) == 2
     assert recipes[0][0:2] == ("/World/envs/env_0/Robot", [f"/World/envs/env_{i}/Robot" for i in range(3)])
@@ -117,6 +119,15 @@ def test_ovphysx_context_consumes_plan():
     np.testing.assert_allclose(recipes[1][2], [(2.25, 0, 0, 0, 0, 0, 1), (5.25, 2, 3, 0, 0, 0, 1)])
     assert recipes[0][3] == [0, 1, 2]
     assert recipes[1][3] == [0, 1]
+    before = stage.ExportToString()
+    serialized, _ = _serialize_stage(stage, recipes, full_stage=True, plan=plan)
+    exported = Usd.Stage.CreateInMemory()
+    exported.GetRootLayer().ImportFromString(serialized)
+    for env_id, position in enumerate(positions):
+        root = exported.GetPrimAtPath(f"/World/envs/env_{env_id}/Robot")
+        actual = UsdGeom.XformCache().GetLocalToWorldTransform(root).ExtractTranslation()
+        np.testing.assert_allclose(actual, position + (0.25, 0, 0))
+    assert stage.ExportToString() == before
 
 
 def test_ovphysx_context_preserves_heterogeneous_world_prototypes():
@@ -132,7 +143,7 @@ def test_ovphysx_context_preserves_heterogeneous_world_prototypes():
     manager = SimpleNamespace(_clone_recipes=recipes)
     assets = (AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Object"),) * 2
     plan = make_clone_plan(assets, ((0,), (1,)), 4, clone_strategy=lambda weights, count: np.arange(count) % 2)
-    OvPhysxReplicateContext(SimpleNamespace(stage=stage, physics_manager=manager)).replicate(plan, (0, 1))
+    OvPhysxReplicateContext(SimpleNamespace(stage=stage, backend_manager=manager)).replicate(plan, (0, 1))
 
     assert [(source, targets, env_ids) for source, targets, _, env_ids, _ in recipes] == [
         ("/World/envs/env_0/Object", ["/World/envs/env_0/Object", "/World/envs/env_2/Object"], [0, 2]),
@@ -151,7 +162,7 @@ def test_raw_replicate_preserves_rigid_body_variants_and_env_ids(monkeypatch):
 
     recipes = []
     manager = SimpleNamespace(_clone_recipes=recipes)
-    monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(physics_manager=manager))
+    monkeypatch.setattr(SimulationContext, "_instance", SimpleNamespace(backend_manager=manager))
     ovphysx_replicate(
         stage,
         sources=["/World/envs/env_0/Object", "/World/envs/env_1/Object"],
@@ -179,7 +190,7 @@ def test_raw_replicate_preserves_source_only_geometry_variants(monkeypatch):
 
     recipes = []
     manager = SimpleNamespace(_clone_recipes=recipes)
-    monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(physics_manager=manager))
+    monkeypatch.setattr(SimulationContext, "_instance", SimpleNamespace(backend_manager=manager))
     ovphysx_replicate(
         stage,
         sources=["/World/envs/env_0/Object", "/World/envs/env_1/Object"],
@@ -208,7 +219,7 @@ def test_raw_replicate_preserves_articulation_geometry_variants_and_env_ids(monk
 
     recipes = []
     manager = SimpleNamespace(_clone_recipes=recipes)
-    monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(physics_manager=manager))
+    monkeypatch.setattr(SimulationContext, "_instance", SimpleNamespace(backend_manager=manager))
     ovphysx_replicate(
         stage,
         sources=["/World/envs/env_0/Robot", "/World/envs/env_1/Robot"],
@@ -225,12 +236,12 @@ def test_raw_replicate_preserves_articulation_geometry_variants_and_env_ids(monk
 
 def test_register_clone_preserves_translation_only_compatibility(monkeypatch):
     """World positions become target-root poses with identity rotations."""
-    monkeypatch.setattr(OvPhysxManager, "_clone_recipes", [])
+    manager = OvPhysxManager(OvPhysxCfg())
 
-    OvPhysxManager.register_clone("/World/env_0", ["/World/env_1"], [(1.0, 2.0, 3.0)])
+    manager.register_clone("/World/env_0", ["/World/env_1"], [(1.0, 2.0, 3.0)])
 
     expected_recipes = [("/World/env_0", ["/World/env_1"], [(1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0)], None, 0)]
-    assert OvPhysxManager._clone_recipes == expected_recipes
+    assert manager._clone_recipes == expected_recipes
 
 
 def test_raw_replicate_validates_sources_and_pose_arrays():
@@ -266,7 +277,7 @@ def test_raw_replicate_validates_sources_and_pose_arrays():
 @pytest.mark.parametrize("independent_physics", [False, True])
 @pytest.mark.parametrize("nested", [False, True], ids=["sibling", "nested"])
 def test_clone_export_preserves_sources_and_independent_assets(full_stage, env_template, independent_physics, nested):
-    """Export exact targets, preserve unrelated assets, and replay without consuming the recipes."""
+    """Export exact targets, retain independent assets and physics opinions, and leave inputs reusable."""
     stage = Usd.Stage.CreateInMemory()
     for env_id, variant in enumerate(("cube", "sphere", "target", "target")):
         root = env_template.format(env_id)
@@ -277,7 +288,16 @@ def test_clone_export_preserves_sources_and_independent_assets(full_stage, env_t
     for world in range(4) if nested else (1, 3):
         independent = stage.DefinePrim(env_template.format(world) + independent_path, "Xform")
         if independent_physics:
-            UsdPhysics.RigidBodyAPI.Apply(independent)
+            # Exercise schema, typed, and authored-property physics without adding a matrix axis.
+            if env_template.startswith("/World"):
+                if nested:
+                    UsdPhysics.RigidBodyAPI.Apply(independent)
+                else:
+                    UsdPhysics.FixedJoint.Define(stage, independent.GetPath())
+            elif nested:
+                independent.CreateAttribute("physics:rigidBodyEnabled", Sdf.ValueTypeNames.Bool).Set(False)
+            else:
+                independent.CreateRelationship("physics:body0").SetTargets(["/Shared/Ground"])
     assets = tuple(
         AssetBaseCfg(prim_path=env_template.format("[^/]+") + name)
         for name in ("/Object", "/Object", "/Support", independent_path)
@@ -288,17 +308,28 @@ def test_clone_export_preserves_sources_and_independent_assets(full_stage, env_t
     recipes = [(object_paths[i], [object_paths[i], object_paths[i + 2]], [], [i, i + 2], i) for i in range(2)]
     # A target can also be inside a world which retains a different prototype.
     support = stage.DefinePrim(env_template.format(0) + "/Support", "Xform")
+    UsdPhysics.RigidBodyAPI.Apply(stage.DefinePrim(str(support.GetPath()) + "/Body", "Xform"))
     support.CreateAttribute("test:physics", Sdf.ValueTypeNames.Bool).Set(True)
     support_worlds = [0, 2] if nested else list(range(4))
     targets = [env_template.format(i) + "/Support" for i in support_worlds]
     recipes.append((str(support.GetPath()), targets, [], support_worlds, 0))
     if not nested:
         stage.DefinePrim(targets[1], "Xform")
+    # Reuse two native sibling cases for schema-free opinions on otherwise empty ancestors.
+    preserve_physics_ancestors = not full_stage and independent_physics and not nested
+    if preserve_physics_ancestors:
+        ancestor = stage.GetPrimAtPath(env_template.format(2))
+        if env_template.startswith("/World"):
+            ancestor.CreateAttribute("physics:rigidBodyEnabled", Sdf.ValueTypeNames.Bool).Set(False)
+        else:
+            ancestor.CreateRelationship("physics:body0").SetTargets(["/Shared/Ground"])
     before = stage.GetRootLayer().ExportToString()
 
     for _ in range(2):
         layer = Sdf.Layer.CreateAnonymous("export.usda")
-        serialized, native = _serialize_stage(stage, recipes, full_stage, plan)
+        serialized, native = _serialize_stage(
+            stage, recipes, full_stage, plan, preserve_physics_ancestors=preserve_physics_ancestors
+        )
         assert layer.ImportFromString(serialized)
         exported = Usd.Stage.Open(layer)
         for env_id, variant in enumerate(("cube", "sphere")):
@@ -306,7 +337,14 @@ def test_clone_export_preserves_sources_and_independent_assets(full_stage, env_t
             assert prim.GetAttribute("test:variant").Get() == variant
         assert exported.GetPrimAtPath("/Shared/Ground")
         assert exported.GetPrimAtPath(env_template.format(3) + independent_path)
-        assert bool(exported.GetPrimAtPath(env_template.format(2))) is full_stage
+        ancestor = exported.GetPrimAtPath(env_template.format(2))
+        assert bool(ancestor) is (full_stage or preserve_physics_ancestors)
+        if preserve_physics_ancestors:
+            assert not ancestor.GetAllChildren() and not ancestor.GetAppliedSchemas()
+            if env_template.startswith("/World"):
+                assert ancestor.GetAttribute("physics:rigidBodyEnabled").Get() is False
+            else:
+                assert ancestor.GetRelationship("physics:body0").GetTargets() == [Sdf.Path("/Shared/Ground")]
         for world, target in zip(support_worlds, targets, strict=True):
             prim = exported.GetPrimAtPath(target)
             assert bool(prim) is (full_stage or world < 2 or (independent_physics and world == 3))
@@ -315,6 +353,7 @@ def test_clone_export_preserves_sources_and_independent_assets(full_stage, env_t
         if full_stage:
             assert not native
         else:
+            assert not exported.GetPrimAtPath(object_paths[2])
             assert {
                 (source, target, world) for source, paths, _, ids, _ in native for target, world in zip(paths, ids)
             } == {
@@ -325,6 +364,35 @@ def test_clone_export_preserves_sources_and_independent_assets(full_stage, env_t
             }
         assert stage.GetRootLayer().ExportToString() == before
         assert len(recipes) == 3
+
+
+@pytest.mark.kitless
+def test_clone_export_rechecks_physics_after_source_edits():
+    """Each export sees source edits and finds bodies after non-body physics in the subtree."""
+    stage = Usd.Stage.CreateInMemory()
+    source, target = "/World/env_0/Root", "/World/env_1/Root"
+    UsdGeom.Xform.Define(stage, source)
+    joint = UsdPhysics.FixedJoint.Define(stage, source + "/Joint")
+    recipes = [(source, [source, target], [], [0, 1], 0)]
+    with pytest.raises(ValueError, match="without rigid bodies or colliders"):
+        _serialize_stage(stage, recipes, full_stage=False)
+
+    body_path = source + "/Body"
+    UsdPhysics.RigidBodyAPI.Apply(UsdGeom.Xform.Define(stage, body_path).GetPrim())
+    joint.CreateBody1Rel().SetTargets([body_path])
+    before = stage.GetRootLayer().ExportToString()
+    serialized, native = _serialize_stage(stage, recipes, full_stage=False)
+    exported = Usd.Stage.CreateInMemory()
+    assert exported.GetRootLayer().ImportFromString(serialized)
+    assert exported.GetPrimAtPath(body_path).HasAPI(UsdPhysics.RigidBodyAPI)
+    assert not exported.GetPrimAtPath(target)
+    assert native == [(source, [target], [], [1], 0)]
+    assert stage.GetRootLayer().ExportToString() == before
+
+    joint.GetBody1Rel().ClearTargets(True)
+    stage.RemovePrim(body_path)
+    with pytest.raises(ValueError, match="without rigid bodies or colliders"):
+        _serialize_stage(stage, recipes, full_stage=False)
 
 
 def test_full_stage_export_preserves_nested_authored_opinions():
@@ -361,4 +429,89 @@ def test_native_clone_export_rejects_source_overlap():
     before = stage.GetRootLayer().ExportToString()
     with pytest.raises(ValueError, match="overlaps a clone source"):
         _serialize_stage(stage, [("/World/Source", ["/World"], [], [0], 0)], full_stage=False)
+    assert stage.GetRootLayer().ExportToString() == before
+
+
+def test_export_translates_legacy_joint_properties_without_editing_instances():
+    """Private exports preserve authored legacy values and modern precedence through instance prototypes."""
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.Xform.Define(stage, "/Robot")
+    for name, joint_type in (("Angular", UsdPhysics.RevoluteJoint), ("Linear", UsdPhysics.PrismaticJoint)):
+        prim = joint_type.Define(stage, f"/Robot/{name}").GetPrim()
+        prim.AddAppliedSchema("PhysxJointAPI")
+        prim.CreateAttribute("physxJoint:maxJointVelocity", Sdf.ValueTypeNames.Float).Set(
+            90.0 if name == "Angular" else 2.0
+        )
+        prim.CreateAttribute("physxJoint:armature", Sdf.ValueTypeNames.Float).Set(0.25)
+        prim.CreateAttribute("physxJoint:jointFriction", Sdf.ValueTypeNames.Float).Set(0.035)
+    fixed = UsdPhysics.FixedJoint.Define(stage, "/Robot/Fixed").GetPrim()
+    fixed.CreateAttribute("physxJoint:maxJointVelocity", Sdf.ValueTypeNames.Float).Set(100.0)
+    fixed.CreateAttribute("physxJoint:armature", Sdf.ValueTypeNames.Float).Set(0.25)
+    fixed.CreateAttribute("physxJoint:jointFriction", Sdf.ValueTypeNames.Float).Set(0.5)
+    linear = stage.GetPrimAtPath("/Robot/Linear")
+    linear.AddAppliedSchema("NewtonJointAPI")
+    linear.CreateAttribute("newton:armature", Sdf.ValueTypeNames.Float).Set(0.75)
+    linear.CreateAttribute("newton:friction", Sdf.ValueTypeNames.Float).Set(0.8)
+    angular = stage.GetPrimAtPath("/Robot/Angular")
+    angular.AddAppliedSchema("PhysxJointAxisAPI:angular")
+    angular.CreateAttribute("physxJointAxis:angular:staticFrictionEffort", Sdf.ValueTypeNames.Float).Set(0.3)
+    angular.CreateAttribute("physxJointAxis:angular:maxJointVelocity", Sdf.ValueTypeNames.Float).Set(45.0)
+    instance = stage.DefinePrim("/Instance", "Xform")
+    instance.GetReferences().AddInternalReference("/Robot")
+    instance.SetInstanceable(True)
+    before = stage.GetRootLayer().ExportToString()
+    serialized, _ = _serialize_stage(
+        stage, [], full_stage=True, friction_replacements={"Angular|Linear": (0.2, 0.1, 0.0)}
+    )
+    layer = Sdf.Layer.CreateAnonymous()
+    layer.ImportFromString(serialized)
+    exported = Usd.Stage.Open(layer)
+    for root in ("/Robot", "/Instance"):
+        fixed = exported.GetPrimAtPath(f"{root}/Fixed")
+        assert fixed.GetAttribute("physxJoint:maxJointVelocity").Get() == 100.0
+        assert not fixed.GetAttribute("newton:velocityLimit").HasAuthoredValueOpinion()
+        for name, velocity in (("Angular", 90.0), ("Linear", 2.0)):
+            prim = exported.GetPrimAtPath(f"{root}/{name}")
+            attr = prim.GetAttribute("newton:velocityLimit")
+            assert (attr.Get() if attr and attr.HasAuthoredValueOpinion() else None) == velocity
+            armature = prim.GetAttribute("newton:armature")
+            expected = 0.75 if name == "Linear" else 0.25
+            assert (armature.Get() if armature and armature.HasAuthoredValueOpinion() else None) == expected
+            legacy_friction = prim.GetAttribute("physxJoint:jointFriction")
+            assert not legacy_friction or not legacy_friction.HasAuthoredValueOpinion()
+            if name == "Angular":
+                assert prim.GetAttribute("physxJointAxis:angular:staticFrictionEffort").Get() == pytest.approx(0.3)
+                assert prim.GetAttribute("physxJointAxis:angular:dynamicFrictionEffort").Get() == pytest.approx(0.1)
+            else:
+                assert prim.GetAttribute("newton:friction").Get() == pytest.approx(0.8)
+                per_axis = prim.GetAttribute("physxJointAxis:linear:staticFrictionEffort")
+                assert not per_axis or not per_axis.HasAuthoredValueOpinion()
+        assert (
+            exported.GetPrimAtPath(f"{root}/Angular").GetAttribute("physxJointAxis:angular:maxJointVelocity").Get()
+            == 45.0
+        )
+    assert stage.GetRootLayer().ExportToString() == before
+
+
+@pytest.mark.parametrize(
+    ("property_name", "value", "joint_type", "message", "static_effort"),
+    [
+        ("physxJoint:jointFriction", 0.5, "PhysicsRevoluteJoint", "friction", None),
+        ("physxJoint:jointFriction", 0.5, "PhysicsRevoluteJoint", "static effort", 0.05),
+        ("physxJoint:armature", 0.25, "Xform", "armature", None),
+    ],
+)
+def test_export_rejects_unrepresentable_legacy_joint_properties(
+    property_name, value, joint_type, message, static_effort
+):
+    stage = Usd.Stage.CreateInMemory()
+    prim = stage.DefinePrim("/Robot/Joint", joint_type)
+    prim.CreateAttribute(property_name, Sdf.ValueTypeNames.Float).Set(value)
+    replacements = None
+    if static_effort is not None:
+        prim.CreateAttribute("physxJointAxis:angular:staticFrictionEffort", Sdf.ValueTypeNames.Float).Set(static_effort)
+        replacements = {"Joint": (0.2, 0.1, 0.01)}
+    before = stage.GetRootLayer().ExportToString()
+    with pytest.raises(ValueError, match=f"{message}.*(/Robot/Joint)|(/Robot/Joint).*{message}"):
+        _serialize_stage(stage, [], full_stage=True, friction_replacements=replacements)
     assert stage.GetRootLayer().ExportToString() == before

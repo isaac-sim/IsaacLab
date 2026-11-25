@@ -11,7 +11,7 @@ It uses the `warp` library to run the state machine in parallel on the GPU.
 
 .. code-block:: bash
 
-    uv run python scripts/environments/state_machine/lift_cube_sm.py --num_envs 32 --viz kit
+    uv run --extra ov python scripts/environments/state_machine/lift_cube_sm.py --num_envs 32 --viz newton_rtx
 
 """
 
@@ -175,6 +175,8 @@ class PickAndLiftSm:
             dt: The environment time step.
             num_envs: The number of environments to simulate.
             device: The device to run the state machine on.
+            position_threshold: Distance [m] between the end-effector and its target below which a state is
+                considered reached. Defaults to 0.01.
         """
         # save parameters
         self.dt = float(dt)

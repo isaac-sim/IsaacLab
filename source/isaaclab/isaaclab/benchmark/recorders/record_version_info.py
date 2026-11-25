@@ -107,7 +107,7 @@ class VersionInfoRecorder(MeasurementDataRecorder):
 
         # IsaacLab sub-packages
         self._record("isaaclab_newton", self._get_pkg_version("isaaclab_newton"))
-        self._record("isaaclab_physx", self._get_pkg_version("isaaclab_physx"))
+        self._record("isaaclab_isaacsim", self._get_pkg_version("isaaclab_isaacsim"))
         self._record("isaaclab_ov", self._get_pkg_version("isaaclab_ov"))
         self._record("isaaclab_tasks", self._get_pkg_version("isaaclab_tasks"))
         self._record("isaaclab_rl", self._get_pkg_version("isaaclab_rl"))
@@ -121,7 +121,7 @@ class VersionInfoRecorder(MeasurementDataRecorder):
 
         # RL frameworks
         self._record("rl_games", self._get_pkg_version("rl_games"))
-        self._record("rsl_rl", self._get_pkg_version("rsl-rl-lib"))
+        self._record("rsl_rl", self._get_pkg_version("rsl-rl-lib-extras"))
         self._record("stable_baselines3", self._get_pkg_version("stable_baselines3"))
         self._record("skrl", self._get_pkg_version("skrl"))
 

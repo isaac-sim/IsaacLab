@@ -39,6 +39,19 @@ def cubes_stacked(
     """Whether the cubes are stacked, released, and at rest.
 
     Args:
+        env: The RL environment instance.
+        robot_cfg: Scene entity configuration for the robot whose gripper is checked.
+        cube_1_cfg: Scene entity configuration for the bottom cube.
+        cube_2_cfg: Scene entity configuration for the cube above cube_1.
+        cube_3_cfg: Scene entity configuration for the cube above cube_2. None disables
+            the third-cube checks for a two-cube task.
+        xy_threshold: Maximum horizontal distance [m] between adjacent cube centers.
+        height_threshold: Upper tolerance [m] on the vertical center separation minus height_diff.
+        height_diff: Expected vertical center separation [m] between adjacent cubes.
+        atol: Absolute tolerance for gripper joint positions [m or rad, depending on
+            joint type] when checking the configured open value.
+        rtol: Relative tolerance for gripper joint positions when checking the configured
+            open value. Gripper joint tolerances are unused for surface grippers.
         max_lin_vel: Speed [m/s] below which a cube counts as at rest, so that a cube passing through the
             stacked configuration mid-fall is not scored as success. ``None`` disables the check.
     """

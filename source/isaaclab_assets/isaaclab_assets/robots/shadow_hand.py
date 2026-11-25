@@ -16,8 +16,8 @@ Reference:
 
 """
 
+from isaaclab_isaacsim.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 from isaaclab_newton.sim.schemas import NewtonArticulationCfg
-from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -158,3 +158,11 @@ SHADOW_HAND_PHYSX_CFG.spawn.variants = {"Physics": "physx", "Colliders": "simpli
 SHADOW_HAND_NEWTON_CFG = clone(SHADOW_HAND_CFG)
 SHADOW_HAND_NEWTON_CFG.spawn.variants = {"Physics": "mujoco", "Colliders": "simplified"}
 """Shadow Hand on the asset's MuJoCo variant, with simplified colliders, for the Newton (MJWarp) solver."""
+
+
+SHADOW_HAND_FRICTION_REPLACEMENTS = {
+    pattern: (actuator.friction, 0.0, 0.0)
+    for actuator in SHADOW_HAND_CFG.actuators.values()
+    for pattern in actuator.joint_names_expr
+}
+"""OVPhysX legacy friction replacements matching the robot actuator efforts, in SI units."""

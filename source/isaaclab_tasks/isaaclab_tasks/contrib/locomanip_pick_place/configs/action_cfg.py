@@ -32,7 +32,7 @@ class AgileBasedLowerBodyActionCfg(ActionTermCfg):
     """The path to the policy model."""
 
     policy_output_offset: float = 0.0
-    """Offsets the output of the policy."""
+    """Unused. The action term offsets the policy output by the articulation's default joint positions instead."""
 
     policy_output_scale: float = 1.0
     """Scales the output of the policy."""

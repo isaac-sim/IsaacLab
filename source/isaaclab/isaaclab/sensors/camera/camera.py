@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import sys
+import warnings
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, Literal, cast
 
@@ -20,16 +21,21 @@ from ... import sim as sim_utils
 from ...app.logging_utils import force_log_level
 from ...renderers import BaseRenderer, CameraRenderSpec
 from ...sim.views import FrameView
+from ...utils import replace
 from ...utils.math import (
     convert_camera_frame_orientation_convention,
     create_rotation_matrix_from_view,
     quat_from_matrix,
 )
 from ...utils.warp import ProxyArray
+from ...utils.warp.memory import resolve_1d_indices, resolve_ids
 from ..sensor_base import SensorBase
+from .camera_cfg import ExposureCfg, _render_data_types
 from .camera_data import CameraData, RenderBufferKind
+from .camera_exposure import apply_neutral_exposure
 
 if TYPE_CHECKING:
+    from ...utils.tensor_processors import TensorProcessor
     from .camera_cfg import CameraCfg
 
 logger = logging.getLogger(__name__)
@@ -101,6 +107,24 @@ def _camera_set_intrinsics_kernel(
     output_matrices[index] = wp.mat33f(fx, 0.0, float(width) * 0.5, 0.0, fx, float(height) * 0.5, 0.0, 0.0, 1.0)
 
 
+@wp.kernel(module=f"{__name__}.runtime_intrinsics", enable_backward=False)
+def _camera_commit_intrinsics_kernel(
+    rows: wp.array(dtype=wp.int32),
+    matrices: wp.array(dtype=wp.mat33f),
+    parameters: wp.array2d(dtype=wp.float32),
+    output_matrices: wp.array(dtype=wp.mat33f),
+    output_parameters: wp.array2d(dtype=wp.float32),
+    outdated: wp.array(dtype=wp.bool),
+):
+    index = wp.tid()
+    if rows[index] < 0:
+        return
+    output_matrices[index] = matrices[index]
+    for attribute in range(5):
+        output_parameters[attribute, index] = parameters[attribute, index]
+    outdated[index] = True
+
+
 # Register supported projection precisions together so later calls do not rebuild the module.
 for _dtype in (wp.float32, wp.float64):
     wp.overload(_camera_select_intrinsics_kernel, {"matrices": wp.array3d(dtype=_dtype)})
@@ -168,7 +192,6 @@ class Camera(SensorBase):
     .. note::
         Currently the following sensor types are not supported in a "view" format:
 
-        - ``"instance_segmentation"``: The instance segmentation data. Please use the fast counterparts instead.
         - ``"instance_id_segmentation"``: The instance id segmentation data. Please use the fast counterparts instead.
         - ``"bounding_box_2d_tight"``: The tight 2D bounding box data (only contains non-occluded regions).
         - ``"bounding_box_2d_tight_fast"``: The tight 2D bounding box data (only contains non-occluded regions).
@@ -238,56 +261,63 @@ class Camera(SensorBase):
             if not sim_utils.find_matching_prims(spawn_target):
                 raise RuntimeError(f"Could not find prim with path {spawn_target!r}.")
 
+        if self.cfg.isp_cfg is not None:
+            from isaaclab_ppisp import PpispProcessorCfg, resolve_and_normalize
+
+            msg = (
+                "CameraCfg.isp_cfg is deprecated and will be removed in a future release. Add"
+                " isaaclab_ppisp.PpispProcessorCfg to tensor_processors instead."
+            )
+            warnings.warn(msg, FutureWarning, stacklevel=2)
+            if any(isinstance(cfg, PpispProcessorCfg) for cfg in self.cfg.tensor_processors):
+                raise ValueError(
+                    "CameraCfg.isp_cfg and a PpispProcessorCfg in tensor_processors both configure PPISP, which"
+                    " would run twice. Remove isp_cfg."
+                )
+            # PPISP applies its own exposure, so where it applies, the renderers that apply the camera's exposure
+            # (Isaac RTX and OVRTX) get neutral exposure.
+            first_prim = sim_utils.find_first_matching_prim(self.cfg.prim_path, self.stage)
+            first_path = str(first_prim.GetPath()) if first_prim else None
+            isp_cfg = resolve_and_normalize(self.cfg.isp_cfg, self.stage, first_path)
+            if isp_cfg is not None:
+                self.cfg.tensor_processors = [PpispProcessorCfg(isp_cfg=isp_cfg), *self.cfg.tensor_processors]
+                if self.cfg.renderer_cfg.renderer_type in ("isaac_rtx", "ovrtx"):
+                    self.cfg.exposure = ExposureCfg(mode="neutral")
+            # The processor now owns the value, so a camera built from this cfg does not forward it again.
+            self.cfg.isp_cfg = None
+        # Complete camera authoring before cloning or importing the scene into a native backend.
+        if self.cfg.exposure.mode == "neutral" or self.cfg.tensor_processors:
+            camera_paths = [str(p.GetPath()) for p in sim_utils.find_matching_prims(self.cfg.prim_path, self.stage)]
+        if self.cfg.exposure.mode == "neutral":
+            apply_neutral_exposure(self.stage, camera_paths)
+        if self.cfg.tensor_processors:
+            prepared = [
+                cfg.func.prepare_camera(cfg, self.stage, camera_paths, self.cfg.renderer_cfg)
+                if hasattr(cfg.func, "prepare_camera")
+                else cfg
+                for cfg in self.cfg.tensor_processors
+            ]
+            self.cfg.tensor_processors = [cfg for cfg in prepared if cfg is not None]
+        self._render_data_types = _render_data_types(self.cfg)
+
         # Every renderer backend draws the visual-only geometry, so it must survive cloning even
         # when the run is otherwise headless. This must happen before plan dispatch, which is why
         # it is here rather than in ``_initialize_impl``.
         sim_ctx = sim_utils.SimulationContext.instance()
-        if sim_ctx is not None:
-            sim_ctx.require_visual_shapes()
-
-        # An ISP (any ``isp_cfg`` other than ``None``) requires the HDR AOV;
-        # an explicit ``"rgb_hdr"`` in ``data_types`` also requires the
-        # HDR-routing flag flipped on the RTX-bearing backends.
-        require_hdr_output = "rgb_hdr" in self.cfg.data_types or self.cfg.isp_cfg is not None
-
-        # TODO(follow-up PR): move this flag flip out of Camera. The cleanest path is
-        # an apply_pre_reset_settings() hook on RendererCfg (default no-op) that
-        # IsaacRtxRendererCfg overrides to flip /isaaclab/render/rtx_sensors. The
-        # flag must be set pre-sim.reset() because SimulationContext.is_rendering
-        # and several env classes read it before the renderer's __init__ runs.
-        renderer_type = getattr(self.cfg.renderer_cfg, "renderer_type", None)
-        if renderer_type == "isaac_rtx":
-            from ...app.settings_manager import get_settings_manager
-
-            settings = get_settings_manager()
-            settings.set("/isaaclab/render/rtx_sensors", True)
-            settings.set("/physics/fabricUpdateTransformations", True)
-            if require_hdr_output:
-                settings.set("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
-        elif renderer_type == "ovrtx" and require_hdr_output:
-            from ...app.settings_manager import get_settings_manager
-
-            get_settings_manager().set("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
-            # FIXME: settings.set is a no-op for ovrtx
-            # warning only since it affects only ParticleField3DGaussianSplat scene
-            logger.warning(
-                "OVRTX backend with PPISP/HDR requires /rtx/rtpt/gaussian/skipTonemapping/enabled to be false."
-            )
+        sim_ctx.require_visual_shapes()
 
         # UsdGeom Camera prim for the sensor
         self._sensor_prims: list[UsdGeom.Camera] = []
         # Allocated in :meth:`_create_buffers` once the renderer's output contract is known.
         self._data: CameraData | None = None
-        # The backend's ``__init__`` is its pre-physics phase, so it has to exist before
-        # ``sim.reset()``; sensor initialization only runs on ``PhysicsEvent.PHYSICS_READY``, which is
-        # too late. Backends are shared per renderer config, so this stays cheap for many cameras.
-        self._renderer: BaseRenderer | None = None
-        if sim_ctx is not None:
-            self._renderer = sim_ctx.get_or_create_backend(self.cfg.renderer_cfg)
-            with force_log_level(logging.INFO):
-                logger.info("Using renderer: %s", type(self._renderer).__name__)
-        # Render data — assigned in _initialize_impl.
+        # Register before clone dispatch; sensor initialization runs only after physics is ready.
+        self._renderer: BaseRenderer = sim_ctx.get_or_create_backend(self.cfg.renderer_cfg)
+        with force_log_level(logging.INFO):
+            logger.info("Using renderer: %s", type(self._renderer).__name__)
+        # Render data and outputs — assigned in _initialize_impl; processors — at the first capture.
         self._render_data = None
+        self._render_outputs: dict[str, ProxyArray] = {}
+        self._tensor_processors: list[TensorProcessor] = []
         # Frame view — assigned in _initialize_impl.
         self._view: FrameView | None = None
 
@@ -306,9 +336,12 @@ class Camera(SensorBase):
         if getattr(self, "_view", None) is not None:
             self._view.close()
             self._view = None
-        # cleanup render resources (renderer may be None if never initialized)
-        if getattr(self, "_renderer", None) is not None:
-            self._renderer.cleanup(getattr(self, "_render_data", None))
+        try:
+            self._close_tensor_processors()
+        finally:
+            # cleanup render resources, allowing construction to have failed before renderer creation
+            if getattr(self, "_renderer", None) is not None:
+                self._renderer.cleanup(getattr(self, "_render_data", None))
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
@@ -488,8 +521,12 @@ class Camera(SensorBase):
         self._renderer.update_camera_intrinsics(
             self._render_data, self._intrinsic_pending, self._intrinsic_parameters_pending
         )
-        wp.copy(self._data.intrinsic_matrices.warp, self._intrinsic_pending)
-        wp.copy(self._intrinsic_parameters, self._intrinsic_parameters_pending)
+        wp.launch(
+            _camera_commit_intrinsics_kernel, self._view.count,
+            [self._intrinsic_rows, self._intrinsic_pending, self._intrinsic_parameters_pending,
+             self._data.intrinsic_matrices.warp, self._intrinsic_parameters, self._is_outdated], device=self._device,
+        )  # fmt: skip
+        self._data_dirty = True
 
     """
     Operations - Pose.
@@ -529,8 +566,11 @@ class Camera(SensorBase):
         - :obj:`"ros"`    - forward axis: +Z - up axis -Y - Offset is applied in the ROS convention
         - :obj:`"world"`  - forward axis: +X - up axis +Z - Offset is applied in the World Frame convention
 
-        See :meth:`isaaclab.sensors.camera.utils.convert_camera_frame_orientation_convention` for more details
+        See :func:`isaaclab.utils.math.convert_camera_frame_orientation_convention` for more details
         on the conventions.
+
+        Call this method after simulation initialization, for example after resetting the simulation,
+        so the sensor's physics-ready callback has run.
 
         Args:
             positions: The cartesian coordinates (in meters). Shape is (N, 3).
@@ -539,9 +579,6 @@ class Camera(SensorBase):
                 Defaults to None, in which case the camera orientation in not changed.
             env_ids: A sensor ids to manipulate. Defaults to None, which means all sensor indices.
             convention: The convention in which the poses are fed. Defaults to "ros".
-
-        Raises:
-            RuntimeError: If the camera prim is not set. Need to call :meth:`initialize` method first.
         """
         pos_wp = None
         if positions is not None:
@@ -566,14 +603,16 @@ class Camera(SensorBase):
     ):
         """Set the poses of the camera from the eye position and look-at target position.
 
+        Call this method after simulation initialization, for example after resetting the simulation,
+        so the sensor's physics-ready callback has run.
+
         Args:
             eyes: The positions of the camera's eye. Shape is (N, 3).
             targets: The target locations to look at. Shape is (N, 3).
             env_ids: A sensor ids to manipulate. Defaults to None, which means all sensor indices.
 
         Raises:
-            RuntimeError: If the camera prim is not set. Need to call :meth:`initialize` method first.
-            NotImplementedError: If the stage up-axis is not "Y" or "Z".
+            ValueError: If the stage up-axis is not "Y" or "Z".
             ValueError: If every eye position equals its target (look-at direction undefined for the
                 whole batch). When only some rows are degenerate, those rows are skipped and the
                 remaining poses are still applied; a warning is logged.
@@ -628,17 +667,24 @@ class Camera(SensorBase):
     def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None):
         if not self._is_initialized:
             raise RuntimeError("Camera could not be initialized. Check the renderer and simulation logs for details.")
+        # World cameras have no per-environment rows; any scene reset refreshes the whole camera.
+        if self._is_global:
+            env_ids = env_mask = None
         # The hook takes plain id sequences, so a slice resolves to its range. A mask-only call
         # passes None, which means all environments: the hook permits resetting more than asked.
         if isinstance(env_ids, slice):
             env_ids = range(*env_ids.indices(self._num_envs))
         self._renderer.reset(self._render_data, env_ids)
+        for processor in self._tensor_processors:
+            processor.reset(env_ids=env_ids, env_mask=env_mask)
         # reset the timestamps
-        super().reset(env_ids, env_mask)
+        reset_mask = self._resolve_indices_and_mask(env_ids, env_mask)
+        super().reset(env_mask=reset_mask)
+        self._invalidate_buffers(reset_mask)
         # reset the data
         # note: this recomputation is useful if one performs events such as randomizations on the camera poses.
         if env_mask is not None:
-            self._update_poses(env_mask=env_mask, frame_op=2)
+            self._update_poses(env_mask=reset_mask, frame_op=2)
         elif env_ids is None:
             self._update_poses(frame_op=2)
         else:
@@ -664,36 +710,28 @@ class Camera(SensorBase):
         # Initialize parent class
         super()._initialize_impl()
 
-        sim_ctx = sim_utils.SimulationContext.instance()
-        if sim_ctx is None:
-            raise RuntimeError("SimulationContext is not initialized.")
-        # Normally created in ``__init__``; only missing when the camera was built without a simulation.
-        if self._renderer is None:
-            self._renderer = sim_ctx.get_or_create_backend(self.cfg.renderer_cfg)
+        provider = self._sim.get_scene_data_provider()
+        provider.cameras[self.cfg.prim_path] = self
 
-        # Build the render spec early — both the wrapper ISP (which delegates
-        # any renderer-side per-camera setup) and ``create_render_data`` consume
-        # it, and the prims are already authored at this point.
+        # Runtime paths and instance counts are available after physics initialization.
         cam_paths = tuple(str(p.GetPath()) for p in sim_utils.find_matching_prims(self.cfg.prim_path, self.stage))
+        # The renderer produces processor inputs instead of processor outputs.
+        render_cfg = replace(self.cfg, data_types=self._render_data_types) if self.cfg.tensor_processors else self.cfg
         render_spec = CameraRenderSpec(
-            cfg=self.cfg,
+            cfg=render_cfg,
             device=str(self._device),
             num_instances=self._num_envs,
             camera_prim_paths=cam_paths,
             view_count=self._num_envs,
         )
 
-        # Delegate per-camera USD setup to the renderer — must run **before**
-        # ``ensure_prepare_stage`` so renderers that snapshot the stage
-        # (ovrtx's ``stage.Export``) capture the resulting overrides in their
-        # exported USD.
-        self._renderer.prepare_cameras(self.stage, render_spec)
-
         # Stage preprocessing must happen before creating the view because the view keeps
         # references to prims located in the stage.
-        sim_ctx.render_context.ensure_prepare_stage(self.stage, self._num_envs)
+        self._sim.render_context.ensure_prepare_stage(self.stage, provider.num_envs)
 
-        self._view = FrameView(self.cfg.prim_path, device=self._device, stage=self.stage)
+        self._view = FrameView(
+            self.cfg.prim_path, device=self._device, stage=self.stage, scene_data_backend=provider.backend
+        )
         # Check that sizes are correct
         if self._view.count != self._num_envs:
             raise RuntimeError(
@@ -724,6 +762,7 @@ class Camera(SensorBase):
 
         # Create internal buffers (includes intrinsic matrix and pose init)
         self._create_buffers()
+        self._invalidate_buffers(self._ALL_ENV_MASK)
 
     def _prepare_camera(self, env_mask: wp.array) -> None:
         """Advance capture frames and refresh requested poses before rendering."""
@@ -738,30 +777,15 @@ class Camera(SensorBase):
             return
         self._prepare_camera(env_mask)
 
-        sim_ctx = sim_utils.SimulationContext.instance()
-        renderer = self._renderer
-        assert renderer is not None
-        if sim_ctx is not None:
-            sim_ctx.render_context.render_into_camera(
-                renderer,
-                self._render_data,
-                self._data,
-                sim_ctx.get_physics_step_count(),
-            )
-        else:
-            renderer.render(self._render_data)
-            renderer.read_output(self._render_data, self._data)
+        self._sim.render_context.render_into_camera(
+            self._renderer, self._render_data, self._data, self._sim.get_physics_step_count()
+        )
+        self._apply_tensor_processors(env_mask)
 
     @staticmethod
     def _update_buffers_batch_impl(sensors: Sequence[SensorBase]) -> None:
         """Prepare due cameras and render them together through their shared context."""
         cameras = cast(Sequence[Camera], sensors)
-        sim_ctx = sim_utils.SimulationContext.instance()
-        if sim_ctx is None:
-            for camera in cameras:
-                camera._update_buffers_impl(camera._is_outdated)
-            return
-
         ready = []
         for camera in cameras:
             if not camera._env_mask_has_any(camera._is_outdated):
@@ -771,10 +795,60 @@ class Camera(SensorBase):
         if not ready:
             return
 
-        sim_ctx.render_context.render_into_cameras(
+        sim = ready[0]._sim
+        sim.render_context.render_into_cameras(
             [(camera._renderer, camera._render_data, camera._data) for camera in ready],
-            sim_ctx.get_physics_step_count(),
+            sim.get_physics_step_count(),
         )
+        for camera in ready:
+            camera._apply_tensor_processors(camera._is_outdated)
+
+    def _close_tensor_processors(self) -> None:
+        """Close every processor, then raise their failures, so one failure does not leave the others open."""
+        processors, self._tensor_processors = getattr(self, "_tensor_processors", []), []
+        errors = []
+        for processor in processors:
+            try:
+                processor.close()
+            except Exception as error:  # noqa: BLE001 - reported after every processor is closed
+                logger.error("Error closing camera tensor processor: %s", error)
+                errors.append(error)
+        if len(errors) == 1:
+            raise errors[0]
+        if errors:
+            # TODO: Use ExceptionGroup when ruff target-version is bumped to py311+
+            raise RuntimeError(f"{len(errors)} camera tensor processors failed to close") from errors[0]
+
+    def _apply_tensor_processors(self, env_mask: wp.array) -> None:
+        """Run the processors in order on the capture and publish their outputs."""
+        if not self.cfg.tensor_processors:
+            return
+        # The current mask cannot describe an earlier asynchronous request's image.
+        if getattr(self.cfg.renderer_cfg, "async_rendering", False):
+            env_mask = None
+        buffers = dict(self._render_outputs)
+        for index, processor_cfg in enumerate(self.cfg.tensor_processors):
+            # Construction needs the outputs of earlier processors, which exist after their first call.
+            if index == len(self._tensor_processors):
+                self._tensor_processors.append(processor_cfg.func(processor_cfg, buffers))
+            outputs = self._tensor_processors[index](buffers, env_mask=env_mask)
+            # The renderer is asked for inputs according to the listed outputs, so the two must agree.
+            if outputs.keys() != set(processor_cfg.outputs):
+                raise ValueError(
+                    f"Camera tensor processor {type(self._tensor_processors[index]).__name__} returned"
+                    f" {sorted(outputs)}, but its configuration lists the outputs {sorted(processor_cfg.outputs)}."
+                )
+            buffers.update(outputs)
+        self._data.output.update(buffers)
+        # Processor outputs enter info at their first publication. Renderers fill only existing info keys, so a new
+        # output takes the capture metadata of the render outputs it was computed from; later captures fill it.
+        new_names = buffers.keys() - self._data.info.keys()
+        if new_names:
+            capture = next(
+                (info["capture"] for info in self._data.info.values() if isinstance(info, dict) and "capture" in info),
+                None,
+            )
+            self._data.info.update({name: None if capture is None else {"capture": capture} for name in new_names})
 
     """
     Private Helpers
@@ -788,9 +862,9 @@ class Camera(SensorBase):
                 " Please update your CameraCfg.data_types and any camera.data.output / camera.data.info key"
                 " lookups to use 'instance_segmentation'."
             )
-        # check if there is any intersection in unsupported types
+        # check if there is any intersection in unsupported types requested from the renderer
         # reason: these use np structured data types which are not compatible with the camera buffer contract
-        common_elements = set(cfg.data_types) & Camera.UNSUPPORTED_TYPES
+        common_elements = set(_render_data_types(cfg)) & Camera.UNSUPPORTED_TYPES
         if common_elements:
             # provide alternative fast counterparts
             fast_common_elements = []
@@ -813,7 +887,7 @@ class Camera(SensorBase):
         known: list[str] = []
         unknown: list[str] = []
         unsupported: list[str] = []
-        for name in self.cfg.data_types:
+        for name in self._render_data_types:
             try:
                 if RenderBufferKind(name) in specs:
                     known.append(name)
@@ -845,7 +919,9 @@ class Camera(SensorBase):
         self._data.create_buffers(self._view.count, str(self._device))
         self._initialize_intrinsics()
         self._update_poses()
-        self._renderer.set_outputs(self._render_data, self._data.output)
+        # A processor may publish an output under the name of a render output that it reads.
+        self._render_outputs = dict(self._data.output)
+        self._renderer.set_outputs(self._render_data, self._render_outputs)
 
     def _read_authored_opencv_intrinsics(
         self, prim: Usd.Prim, width: int, height: int, env_id: int
@@ -940,9 +1016,6 @@ class Camera(SensorBase):
 
         This methods uses the ROS convention to resolve the input pose. In this convention,
         we assume that the camera front-axis is +Z-axis and up-axis is -Y-axis.
-
-        Returns:
-            A tuple of the position (in meters) and quaternion (x, y, z, w).
         """
         # check camera prim exists
         if len(self._sensor_prims) == 0:
@@ -1026,31 +1099,11 @@ class Camera(SensorBase):
         """Resolve camera indices to a Warp ``int32`` array."""
         if env_ids is None:
             return None
-        if isinstance(env_ids, wp.array):
-            if env_ids.dtype != wp.int32:
-                raise TypeError(f"Unsupported wp.array dtype for env_ids: {env_ids.dtype}. Expected wp.int32.")
-            if env_ids.ndim != 1:
-                raise ValueError("Warp camera indices must be a one-dimensional array.")
-            if str(env_ids.device) == str(self._device):
-                return env_ids
-            return env_ids.to(self._device)
-        elif isinstance(env_ids, torch.Tensor):
-            env_ids = env_ids.to(device=self._device, dtype=torch.int32).reshape(-1)
-            if not env_ids.is_contiguous():
-                env_ids = env_ids.contiguous()
-            return wp.from_torch(env_ids, dtype=wp.int32)
-        elif isinstance(env_ids, slice) and (env_ids.step or 1) > 0:
-            return wp.from_torch(wp.to_torch(self._ALL_INDICES)[env_ids])
-        elif isinstance(env_ids, slice):
-            # Torch cannot slice with a negative step.
-            env_ids = np.arange(self._view.count, dtype=np.int32)[env_ids]
-        else:
-            env_ids = np.asarray(env_ids, dtype=np.int32).reshape(-1)
-        return wp.array(env_ids, dtype=wp.int32, device=self._device)
+        return resolve_1d_indices(resolve_ids(ids=env_ids, all_ids=self._ALL_INDICES))
 
     def _env_mask_has_any(self, env_mask: wp.array) -> bool:
         """Return whether the mask selects any camera."""
-        # A zero update period marks every camera outdated.
+        # A zero update period makes every positive-time update due.
         return self.cfg.update_period <= 0.0 or bool(np.any(env_mask.numpy()))
 
     """
@@ -1059,13 +1112,15 @@ class Camera(SensorBase):
 
     def _invalidate_initialize_callback(self, event):
         """Invalidates the scene elements."""
-        if self._renderer is not None and self._render_data is not None:
-            self._renderer.cleanup(self._render_data)
-        self._render_data = None
-        self._renderer = None
-        # call parent
-        super()._invalidate_initialize_callback(event)
-        # release backend state deterministically, then invalidate the view
-        if self._view is not None:
-            self._view.close()
-            self._view = None
+        try:
+            self._close_tensor_processors()
+        finally:
+            if self._render_data is not None:
+                self._renderer.cleanup(self._render_data)
+            self._render_data = None
+            # call parent
+            super()._invalidate_initialize_callback(event)
+            # release backend state deterministically, then invalidate the view
+            if self._view is not None:
+                self._view.close()
+                self._view = None

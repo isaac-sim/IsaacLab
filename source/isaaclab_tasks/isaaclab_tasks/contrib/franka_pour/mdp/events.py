@@ -16,5 +16,5 @@ if TYPE_CHECKING:
 
 
 def reset_pour_scene(env: FrankaPourEnv, env_ids: torch.Tensor | slice) -> None:
-    """Reset the arm to home and refill the source cup with media for ``env_ids``."""
+    """Restore the robot and both cups from reset-dataset rows and refill the source cup with media for ``env_ids``."""
     env.reset_pour_scene(env_ids)

@@ -1,19 +1,16 @@
 Tricks and Troubleshooting
 ==========================
 
-.. seealso::
+.. Maintenance notes
 
    This page is the source of truth for the ``isaaclab-setup-troubleshooting`` agent skill
    (`skills/user/setup-troubleshooting/ <../../../skills/user/setup-troubleshooting/SKILL.md>`__).
    When you change this page, update the skill so agent guidance stays in sync. See
    :doc:`/source/developer-tools/agent_skills`.
 
-.. note::
-
-    The following lists some of the common tricks and troubleshooting methods that we use in our common workflows.
-    Please also check the `troubleshooting page on Omniverse
-    <https://docs.omniverse.nvidia.com/kit/docs/kit-manual/latest/guide/linux_troubleshooting.html>`__ for more
-    assistance.
+Find fixes for installation, launch, simulation, and training problems below.
+For Kit-specific issues, see the `Omniverse troubleshooting guide
+<https://docs.omniverse.nvidia.com/kit/docs/kit-manual/latest/guide/linux_troubleshooting.html>`__.
 
 .. contents::
    :local:
@@ -36,17 +33,26 @@ install time. Most packages cannot be deselected at all.
 
    * - Missing module
      - What it means
-   * - ``isaaclab``, ``isaaclab_assets``, ``isaaclab_tasks``, ``isaaclab_physx``,
-       ``isaaclab_ov``, ``isaaclab_newton``, ``isaaclab_rl``, ``isaaclab_visualizers``,
-       ``isaaclab_contrib``, ``isaaclab_experimental``, ``isaaclab_ppisp``,
+   * - ``isaaclab``, ``isaaclab_assets``, ``isaaclab_tasks``, ``isaaclab_isaacsim``,
+       ``isaaclab_ov``, ``isaaclab_newton``, ``isaaclab_neural``, ``isaaclab_rl``,
+       ``isaaclab_visualizers``, ``isaaclab_contrib``, ``isaaclab_experimental``, ``isaaclab_ppisp``,
        ``isaaclab_tasks_experimental``
      - Core packages installed by ``uv sync``. Check that your command uses the
        checkout's uv environment.
    * - ``isaaclab_mimic``, ``isaaclab_teleop``
      - Optional integrations. Select the ``mimic`` or ``teleop`` extra for your workflow.
+   * - ``isaaclab_fovi``, ``fovi``
+     - The optional, experimental foveated camera. Select the ``fovi`` extra, for example
+       ``uv run --extra fovi isaaclab example foveated-camera``. Without it, the
+       ``IsaacContrib-Cartpole-Camera-Fovi`` task is not registered.
    * - ``rsl_rl``, ``rl_games``, ``skrl``, ``stable_baselines3``
      - ``rsl_rl`` is installed by default. Select ``rl-games``, ``skrl``, or ``sb3``
        for the other frameworks, for example ``uv run --extra skrl isaaclab train ...``.
+   * - ``newton_neural``
+     - Optional library of neural robot dynamics models, which the ``newton_nerd`` and
+       ``newton_mjwarp_nerd`` physics presets and the scripts under ``scripts/neural`` run.
+       Select the ``newton-neural`` extra, for example
+       ``uv run --extra newton-neural isaaclab train ...``. See :ref:`newton-neural-robot-dynamics`.
    * - ``isaacsim``
      - Isaac Sim itself, which is never installed implicitly. See
        :ref:`troubleshooting-isaacsim-missing`.
@@ -91,7 +97,7 @@ or run a Newton-based task, which does not need Kit:
 
    uv run isaaclab train --task Isaac-Cartpole physics=newton_mjwarp --visualizer newton_gl
 
-See :doc:`/source/setup/quickstart` for the full list of ``physics=`` and ``renderer=``
+See :doc:`/source/isaaclab/quickstart` for the full list of ``physics=`` and ``renderer=``
 selectors and the extras each one requires.
 
 Dependency version conflicts during installation
@@ -171,13 +177,13 @@ simulation fails with an error such as:
 
 Raise the matching field on the physics configuration for the backend you are running. The
 field is named after the PhysX parameter — for the error above it is
-:attr:`~isaaclab_physx.physics.PhysxCfg.gpu_found_lost_pairs_capacity`:
+:attr:`~isaaclab_isaacsim.physics.PhysxCfg.gpu_found_lost_pairs_capacity`:
 
 .. code:: python
 
     import isaaclab.sim as sim_utils
     from isaaclab.sim import SimulationContext
-    from isaaclab_physx.physics import PhysxCfg
+    from isaaclab_isaacsim.physics import PhysxCfg
 
     sim_cfg = sim_utils.SimulationCfg(physics=PhysxCfg(gpu_found_lost_pairs_capacity=2**22))
     sim = SimulationContext(sim_cfg)
@@ -191,7 +197,7 @@ sync:
     from isaaclab.physics import PhysxAutoCfg
     from isaaclab.utils import configclass
     from isaaclab_ov.physics import OvPhysxCfg
-    from isaaclab_physx.physics import PhysxCfg
+    from isaaclab_isaacsim.physics import PhysxCfg
     from isaaclab_tasks.utils import PresetCfg
 
     @configclass
@@ -255,7 +261,7 @@ mode because Isaac Lab computes their effort directly.
 
 Joints not covered by an Isaac Lab actuator configuration retain their imported
 USD target modes. Thus, zero-gain USD drives no longer require
-:attr:`~isaaclab.sim.spawners.from_files.FileCfg.ensure_drives_exist` solely
+:attr:`~isaaclab.sim.spawners.from_files.UsdFileCfg.ensure_drives_exist` solely
 to make a configured joint actuate in Newton. The option remains available for
 workflows that need to author placeholder drives independently of an Isaac Lab
 actuator configuration. See :ref:`import-new-asset-ensure-drives-exist` for
@@ -293,7 +299,7 @@ The viser visualizer serves a web UI instead of opening a window
 
 ``--visualizer viser`` does not open a native window. Check the terminal for the served
 URL; the default port is ``8080``, configurable through
-:attr:`~isaaclab_visualizers.ViserVisualizerCfg.port`. The ``viser`` package ships in the
+``ViserBackendCfg.port``. The ``viser`` package ships in the
 ``viser`` extra.
 
 
@@ -303,7 +309,7 @@ Livestreaming and WebRTC
 ``NVST_R_BUSY`` / ``NVST_R_INTERNAL_ERROR`` on ``LIVESTREAM=1`` or ``LIVESTREAM=2``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:class:`~isaaclab_physx.app.KitLauncher` pins TCP port ``49100`` for WebRTC signaling whenever
+:class:`~isaaclab_isaacsim.app.KitLauncher` pins TCP port ``49100`` for WebRTC signaling whenever
 ``LIVESTREAM=1`` (public network) or ``LIVESTREAM=2`` (private network) is set. If a
 previous livestream process is still bound to that port, the new session fails to start
 with:

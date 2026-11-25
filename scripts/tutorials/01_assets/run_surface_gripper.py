@@ -25,8 +25,8 @@ from isaaclab.utils import clone
 parser = argparse.ArgumentParser(description="Tutorial on spawning and interacting with a Surface Gripper.")
 # append simulation launcher cli args
 add_launcher_args(parser)
-# tutorials should open Kit visualizer by default
-parser.set_defaults(visualizer=["kit"])
+# tutorials should open the Newton visualizer by default
+parser.set_defaults(visualizer=["newton"])
 # parse the arguments
 args_cli = parser.parse_args()
 
@@ -34,7 +34,7 @@ args_cli = parser.parse_args()
 
 import torch
 import warp as wp
-from isaaclab_physx.assets import SurfaceGripper, SurfaceGripperCfg
+from isaaclab_isaacsim.assets import SurfaceGripper, SurfaceGripperCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation

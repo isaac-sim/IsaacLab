@@ -124,9 +124,9 @@ def add_frontend_args(parser: argparse.ArgumentParser) -> None:
         default="torch",
         help=(
             "Runtime that constructs the environment. 'torch' uses the registered stable environment via"
-            " gym.make. 'warp' (experimental) adapts a manager-based task config onto the Warp runtime, or"
-            " dispatches a direct task to its registered Warp environment; requires isaaclab_experimental"
-            " and `physics=newton_mjwarp`."
+            " gym.make. 'warp' (deprecated: MDP2 replaces it, see the '-MDP2' tasks) adapts a manager-based"
+            " task config onto the Warp runtime, or dispatches a direct task to its registered Warp environment;"
+            " requires isaaclab_experimental and `physics=newton_mjwarp`."
         ),
     )
 
@@ -147,7 +147,7 @@ def add_video_args(parser: argparse.ArgumentParser, *, action: str) -> None:
         metavar="SOURCE",
         help=(
             f"Record videos during {action}. SOURCE defaults to 'viz': the first capture-capable visualizer --viz"
-            " selects, else a headless newton_gl. 'viz:<type>' (kit, newton_gl, newton_rtx) records from that"
+            " selects, else a headless newton. 'viz:<type>' (kit, newton) records from that"
             " visualizer (a bare type is shorthand for 'viz:<type>'), added headless when --viz does not select it;"
             " 'sensor:<name>[:<channel>]' records from a scene camera. Recorders declared in the environment config"
             " take precedence."
@@ -230,6 +230,12 @@ def add_common_train_args(
         action="store_true",
         default=False,
         help="Deprecated: export IO descriptors (removed in Isaac Lab 3.2).",
+    )
+    parser.add_argument(
+        "--export_deployment_usd",
+        action="store_true",
+        default=False,
+        help="Export environment 0 as USD to the run's log directory before startup events (rank 0 only).",
     )
     parser.add_argument(
         "--ray-proc-id",
@@ -450,7 +456,7 @@ def show_run_summary(
         action: Workflow name, either ``"train"`` or ``"play"``.
     """
     renderer = _renderer_name(env_cfg)
-    visualizers = [cfg.visualizer_type for cfg in env_cfg.sim.visualizer_cfgs if cfg.visualizer_type]
+    visualizers = [cfg.backend.visualizer_type for cfg in env_cfg.sim.visualizer_cfgs]
     screen.summary(
         f"Isaac Lab · {action}",
         {
@@ -491,7 +497,7 @@ def _renderer_name(env_cfg: Any) -> str | None:
     Only configs whose class declares ``renderer_cfg`` are read. Probing every attribute with
     :func:`getattr` instead would resolve lazily evaluated config values, notably the
     ``ResolvableString`` class handles, which imports Kit modules before
-    :class:`~isaaclab_physx.app.KitLauncher` starts and breaks the Isaac Sim runtime.
+    :class:`~isaaclab_isaacsim.app.KitLauncher` starts and breaks the Isaac Sim runtime.
     """
     for container in (env_cfg, getattr(env_cfg, "scene", None)):
         for value in vars(container).values() if container is not None else ():
@@ -526,11 +532,19 @@ def create_isaaclab_env(
     Returns:
         The created Gymnasium environment.
     """
+    if getattr(args_cli, "export_deployment_usd", False):
+        if args_cli.frontend != "torch":
+            raise NotImplementedError("Deployment USD export supports the torch task frontend only.")
+        rank_key = "JAX_RANK" if getattr(args_cli, "ml_framework", "torch").startswith("jax") else "RANK"
+        if int(os.environ.get(rank_key, "0")) == 0:
+            if not env_cfg.log_dir:
+                raise ValueError("Deployment USD export requires the training run's log_dir.")
+            env_cfg.scene.export_usd_path = str(Path(env_cfg.log_dir).resolve() / "deployment.usda")
     if args_cli.frontend == "torch":
         env = gym.make(task, cfg=env_cfg)
     else:
         # the warp frontend lives in the optional isaaclab_experimental package
-        from isaaclab_experimental.envs.frontend import WarpFrontend
+        from isaaclab_experimental.deprecated.envs.frontend import WarpFrontend
 
         env = WarpFrontend.build_env(env_cfg, task)
     if convert_marl_to_single_agent and isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):
@@ -659,14 +673,16 @@ def resolve_checkpoint_selector(
     checkpoint_pattern: str,
     other_dirs: list[str] | None = None,
     preferred_checkpoint_pattern: str | None = None,
+    latest_checkpoint_pattern: str | None = None,
     metadata: dict[str, str] | None = None,
     recursive: bool = False,
 ) -> str:
     """Resolve a checkpoint selector using the manifests written by training runs.
 
-    ``latest`` selects the naturally last checkpoint in the newest compatible run. ``best`` prefers
-    the backend's canonical best or final checkpoint and falls back to the same checkpoint used by
-    ``latest``.
+    ``latest`` selects the naturally last checkpoint in the newest compatible run, considering only the files
+    that match ``latest_checkpoint_pattern`` when any do and ordering them by the pattern's first capture group
+    when it has one. ``best`` selects the naturally last file that matches
+    ``preferred_checkpoint_pattern``, or the naturally last checkpoint when none does.
 
     Args:
         log_root_path: Directory containing training run directories.
@@ -676,6 +692,9 @@ def resolve_checkpoint_selector(
         checkpoint_pattern: Regular expression matching checkpoint filenames.
         other_dirs: Intermediate directories below each run directory.
         preferred_checkpoint_pattern: Regular expression for the backend's best or final checkpoint.
+        latest_checkpoint_pattern: Regular expression for the backend's periodic and final checkpoints. When any
+            checkpoint matches, ``latest`` only considers the matching files. If the pattern has a capture group,
+            the captured text orders them instead of the file name.
         metadata: Additional manifest metadata required for compatibility.
         recursive: Whether to search recursively below each matching run directory.
 
@@ -698,10 +717,16 @@ def resolve_checkpoint_selector(
         checkpoints = [path for path in paths if path.is_file() and re.fullmatch(checkpoint_pattern, path.name)]
         if not checkpoints:
             continue
+        sort_names = {path: str(path.relative_to(checkpoint_dir)) for path in checkpoints}
         if selector == "best" and preferred_checkpoint_pattern is not None:
             preferred = [path for path in checkpoints if re.fullmatch(preferred_checkpoint_pattern, path.name)]
             checkpoints = preferred or checkpoints
-        checkpoints.sort(key=lambda path: _natural_sort_key(str(path.relative_to(checkpoint_dir))))
+        if selector == "latest" and latest_checkpoint_pattern is not None:
+            matches = {path: re.fullmatch(latest_checkpoint_pattern, path.name) for path in checkpoints}
+            if any(matches.values()):
+                checkpoints = [path for path, match in matches.items() if match]
+                sort_names.update({path: matches[path].group(1) for path in checkpoints if matches[path].re.groups})
+        checkpoints.sort(key=lambda path: _natural_sort_key(sort_names[path]))
         return str(checkpoints[-1].resolve())
 
     raise ValueError(
@@ -1016,7 +1041,9 @@ Playback.
 """
 
 
-def run_playback(step: Callable[[], None], *, dt: float, args_cli: argparse.Namespace, env_cfg: Any) -> None:
+def run_playback(
+    step: Callable[[], None], *, dt: float, args_cli: argparse.Namespace, env_cfg: Any, max_steps: int | None = None
+) -> None:
     """Step a policy until interrupted, or until the requested video clip is complete.
 
     Args:
@@ -1024,9 +1051,10 @@ def run_playback(step: Callable[[], None], *, dt: float, args_cli: argparse.Name
             :func:`torch.inference_mode`.
         dt: Environment step duration [s], used to pace real-time playback.
         args_cli: Parsed command-line arguments providing ``video``, ``video_length`` and ``real_time``.
-        env_cfg: Environment config whose first video recorder bounds the clip when ``--video_length`` is omitted.
+        env_cfg: Environment config whose video recorders bound a ``--video`` run until each finishes its first clip.
+        max_steps: Optional step limit when not recording a video.
     """
-    max_steps = video_playback_steps(args_cli, env_cfg)
+    max_steps = video_playback_steps(args_cli, env_cfg) or max_steps
     logger.info("Policy playback is running, press Ctrl+C to exit...")
     step_count = 0
     with contextlib.suppress(KeyboardInterrupt):

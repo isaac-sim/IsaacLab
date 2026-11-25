@@ -12,7 +12,8 @@ from pathlib import Path
 import pytest
 import torch
 import warp as wp
-from isaaclab_newton.physics import KaminoPADMMSolverCfg, MJWarpSolverCfg, NewtonCfg, NewtonManager
+from isaaclab_newton.physics import KaminoPADMMSolverCfg, MJWarpSolverCfg, NewtonCfg
+from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
 from pxr import Usd, UsdGeom, UsdPhysics
 
@@ -35,6 +36,14 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
+
+MATERIAL_PARAMS = {
+    "asset_cfg": SceneEntityCfg("robot", body_ids=[0]),
+    "static_friction_range": (0.5, 1.0),
+    "dynamic_friction_range": (0.0, 0.0),
+    "restitution_range": (0.3, 0.9),
+    "num_buckets": 1,
+}
 
 
 @configclass
@@ -74,6 +83,7 @@ def event_env(
         prim_path="{ENV_REGEX_NS}/Robot",
         spawn=sim_utils.UsdFileCfg(usd_path=str(path)),
         actuators={},
+        joint_ordering=("right_elbow", "right_shoulder", "left_elbow", "left_shoulder"),
         body_ordering=list(reversed(body_names)),
     )
     observations = ObservationGroupCfg()
@@ -87,7 +97,8 @@ def event_env(
         decimation=1,
         observations={"policy": observations},
         actions=ActionsCfg(),
-        events={},
+        # Built by the event manager, before the solver exists.
+        events={"material": EventTermCfg(func=randomize_rigid_body_material, mode="reset", params=MATERIAL_PARAMS)},
         seed=7,
     )
     env = ManagerBasedEnv(cfg)
@@ -97,9 +108,10 @@ def event_env(
         env.close()
 
 
+@pytest.mark.parametrize("event_env", [MJWarpSolverCfg(), KaminoPADMMSolverCfg()], indirect=True)
 def test_material_body_selection(event_env: ManagerBasedEnv):
     env = event_env
-    model = env.sim.physics_manager.get_model()
+    model = env.sim.backend_manager.backend.model
     shape_bodies = wp.to_torch(model.shape_body)
     selected = torch.tensor(
         [
@@ -116,6 +128,8 @@ def test_material_body_selection(event_env: ManagerBasedEnv):
         "dynamic_friction_range": (0.2, 0.2),
         "restitution_range": (0.1, 0.1),
         "num_buckets": 1,
+        "contact_stiffness_range": (2500.0, 2500.0),
+        "contact_damping_range": (100.0, 100.0),
     }
     friction = wp.to_torch(model.shape_material_mu)
     restitution = wp.to_torch(model.shape_material_restitution)
@@ -123,15 +137,24 @@ def test_material_body_selection(event_env: ManagerBasedEnv):
     expected_restitution = restitution.clone()
     expected_friction[selected] = 0.4
     expected_restitution[selected] = 0.1
+    stiffness = wp.to_torch(model.shape_material_ke)
+    damping = wp.to_torch(model.shape_material_kd)
+    expected_stiffness = stiffness.clone()
+    expected_damping = damping.clone()
+    expected_stiffness[selected] = 2500.0
+    expected_damping[selected] = 100.0
     term = randomize_rigid_body_material(EventTermCfg(func=randomize_rigid_body_material, params=params), env)
     term(env, torch.tensor([1], device=env.device, dtype=torch.int32), **params)
     torch.testing.assert_close(friction, expected_friction)
     torch.testing.assert_close(restitution, expected_restitution)
 
+    torch.testing.assert_close(stiffness, expected_stiffness)
+    torch.testing.assert_close(damping, expected_damping)
+
 
 def test_collider_offsets_preserve_unselected_environments(event_env: ManagerBasedEnv):
     env = event_env
-    model = env.sim.physics_manager.get_model()
+    model = env.sim.backend_manager.backend.model
     worlds = wp.to_torch(model.shape_world)
     margin = wp.to_torch(model.shape_margin)
     gap = wp.to_torch(model.shape_gap)
@@ -158,7 +181,7 @@ def test_collider_offsets_preserve_unselected_environments(event_env: ManagerBas
 
 def test_gravity_selectors_preserve_global_world(event_env: ManagerBasedEnv):
     env = event_env
-    gravity = wp.to_torch(env.sim.physics_manager.get_model().gravity)
+    gravity = wp.to_torch(env.sim.backend_manager.backend.model.gravity)
     original = gravity.clone()
     params = {"gravity_distribution_params": ((1.0, 2.0, 3.0), (1.0, 2.0, 3.0)), "operation": "abs"}
     term = randomize_physics_scene_gravity(EventTermCfg(func=randomize_physics_scene_gravity, params=params), env)
@@ -192,26 +215,34 @@ def test_gravity_selectors_preserve_global_world(event_env: ManagerBasedEnv):
     gravity.copy_(original)
 
 
-def test_joint_friction_preserves_unselected_environments(event_env: ManagerBasedEnv):
+def test_joint_friction_preserves_unselected_joints_and_environments(event_env: ManagerBasedEnv):
     env = event_env
     robot = env.scene["robot"]
-    model = env.sim.physics_manager.get_model()
+    model = env.sim.backend_manager.backend.model
     friction = wp.to_torch(model.joint_friction)
     damping = wp.to_torch(model.joint_damping)
     expected_friction = friction.clone()
     expected_damping = damping.clone()
     dof_starts = model.joint_qd_start.numpy()
-    params = {"asset_cfg": SceneEntityCfg("robot"), "operation": "abs"}
-    term = randomize_joint_parameters(EventTermCfg(func=randomize_joint_parameters, params=params), env)
-    for selector, row, value in ((torch.tensor([1], device=env.device), 1, 0.5), (slice(2, 3), 2, 0.7)):
+    joint_name = "right_elbow"
+    assert robot.joint_names.index(joint_name) != robot.backend_joint_names.index(joint_name)
+    for selector, row, value, joint_names in (
+        (torch.tensor([1], device=env.device), 1, 0.5, None),
+        (slice(2, 3), 2, 0.7, None),
+        (torch.tensor([1], device=env.device), 1, 0.9, [joint_name]),
+    ):
+        asset_cfg = SceneEntityCfg("robot", joint_names=joint_names)
+        asset_cfg.resolve(env.scene)
+        params = {"asset_cfg": asset_cfg, "operation": "abs"}
+        term = randomize_joint_parameters(EventTermCfg(func=randomize_joint_parameters, params=params), env)
         term(env, selector, friction_distribution_params=(value, value), **params)
         selected = [
             dof
             for joint, label in enumerate(model.joint_label)
-            if f"/env_{row}/" in label and label.rsplit("/", 1)[-1] in robot.joint_names
+            if f"/env_{row}/" in label and label.rsplit("/", 1)[-1] in (joint_names or robot.joint_names)
             for dof in range(dof_starts[joint], dof_starts[joint + 1])
         ]
-        assert len(selected) == robot.num_joints
+        assert len(selected) == (len(joint_names) if joint_names else robot.num_joints)
         expected_friction[selected] = value
         expected_damping[selected] = value
         torch.testing.assert_close(friction, expected_friction)
@@ -223,9 +254,9 @@ def test_visual_colors_select_bodies_and_rebind(
     event_env: ManagerBasedEnv, monkeypatch: pytest.MonkeyPatch, consumer: str
 ):
     env = event_env
-    model = env.sim.physics_manager.get_model()
+    model = env.sim.backend_manager.backend.model
     if consumer == "visualizer":
-        monkeypatch.setattr(env.sim.cfg, "visualizer_cfgs", [VisualizerCfg(visualizer_type="newton_gl")])
+        monkeypatch.setattr(env.sim.cfg, "visualizer_cfgs", [VisualizerCfg(backend=NewtonGLBackendCfg())])
     else:
         monkeypatch.setattr(
             env.sim, "_render_context", RenderContext([(RendererCfg(renderer_type="newton_warp"), None)])
@@ -237,7 +268,7 @@ def test_visual_colors_select_bodies_and_rebind(
     term = randomize_visual_shape(EventTermCfg(func=randomize_visual_shape, params=params), env)
     replacement = copy(model)
     replacement.shape_color = wp.clone(model.shape_color)
-    monkeypatch.setattr(NewtonManager.backend, "model", replacement)
+    monkeypatch.setattr(env.sim.backend_manager.backend, "model", replacement)
     monkeypatch.setattr(env.scene["robot"].root_view, "model", model)
     colors = wp.to_torch(replacement.shape_color)
     before = colors.clone()
@@ -272,9 +303,30 @@ def test_visual_colors_select_bodies_and_rebind(
 
 
 @pytest.mark.parametrize("event_env", [KaminoPADMMSolverCfg()], indirect=True)
+def test_configured_kamino_material_term_samples_per_environment(event_env: ManagerBasedEnv):
+    env = event_env
+    model = env.sim.backend_manager.backend.model
+    friction = wp.to_torch(model.shape_material_mu)
+    selected = torch.tensor(
+        [
+            index
+            for index, body in enumerate(wp.to_torch(model.shape_body).tolist())
+            if model.body_label[body].endswith("/env_1/Robot/right_tip")
+        ],
+        device=env.device,
+    )
+    untouched = torch.ones(len(friction), dtype=torch.bool, device=env.device)
+    untouched[selected] = False
+    original = friction.clone()
+    env.event_manager.apply(mode="reset", env_ids=torch.tensor([1], device=env.device), global_env_step_count=0)
+    torch.testing.assert_close(friction[untouched], original[untouched])
+    assert ((friction[selected] >= 0.5) & (friction[selected] <= 1.0)).all()
+
+
+@pytest.mark.parametrize("event_env", [KaminoPADMMSolverCfg(use_collision_detector=True)], indirect=True)
 def test_kamino_material_groups_persist(event_env: ManagerBasedEnv):
     env = event_env
-    model = env.sim.physics_manager.get_model()
+    model = env.sim.backend_manager.backend.model
     friction = wp.to_torch(model.shape_material_mu)
     restitution = wp.to_torch(model.shape_material_restitution)
     shape_bodies = wp.to_torch(model.shape_body).tolist()

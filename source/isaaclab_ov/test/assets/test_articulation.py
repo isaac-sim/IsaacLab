@@ -43,6 +43,7 @@ from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
+from isaaclab_isaacsim.sim.schemas import PhysxJointCfg  # noqa: E402
 from isaaclab_ov import tensor_types as TT  # noqa: E402
 from isaaclab_ov.assets import Articulation, kernels  # noqa: E402
 from isaaclab_ov.assets.articulation import actuator_control  # noqa: E402
@@ -50,11 +51,15 @@ from isaaclab_ov.assets.articulation.actuator_control import OvPhysxActuatorCont
 from isaaclab_ov.assets.articulation.articulation_data import ArticulationData  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg, OvPhysxManager  # noqa: E402
 from isaaclab_ov.test.fixtures.views import MockOvPhysxBindingSet  # noqa: E402
-from isaaclab_physx.sim.schemas import PhysxJointCfg  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
 import isaaclab.utils.math as math_utils  # noqa: E402
-from isaaclab.actuators import DelayedPDActuatorCfg, IdealPDActuatorCfg, ImplicitActuatorCfg  # noqa: E402
+from isaaclab.actuators import (  # noqa: E402
+    DelayedImplicitActuatorCfg,
+    DelayedPDActuatorCfg,
+    IdealPDActuatorCfg,
+    ImplicitActuatorCfg,
+)
 from isaaclab.assets import ArticulationCfg, get_articulation_name_ordering  # noqa: E402
 from isaaclab.envs.mdp import randomize_actuator_gains, randomize_rigid_body_material  # noqa: E402
 from isaaclab.managers import EventTermCfg, SceneEntityCfg  # noqa: E402
@@ -72,7 +77,7 @@ from isaaclab.utils.warp.launch_cache import _WarpLaunchCache  # noqa: E402
 
 from isaaclab_assets import FRANKA_PANDA_CFG  # noqa: E402
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.ov]
 
 _FIXTURE = Path(__file__).parent / "data" / "articulation_ordering_branching.usda"
 _STIFFNESS, _DAMPING, _MAX_FORCE = 5.0, 0.5, 100.0
@@ -115,11 +120,24 @@ class _IslandCfg:
     devices: DeviceScope = DeviceScope.ALL
 
 
+_DELAYED_DRIVE = _IslandCfg(
+    {
+        "joints": DelayedImplicitActuatorCfg(
+            joint_names_expr=[".*"], stiffness=_STIFFNESS, damping=_DAMPING, min_delay=1, max_delay=1
+        )
+    },
+    num_envs=1,
+    devices=DeviceScope.CUDA,
+)
+
+
 _ISLANDS: dict[str, _IslandCfg] = {
     # Nonidentity MJWarp order through cross-backend discovery; shared by the state, property,
     # material, and FK-refresh tests, which each check deltas against their own starting state.
     "ordered": _IslandCfg(_implicit(), joint_ordering="mjwarp", body_ordering="mjwarp", collision_shapes=True),
     "drive": _IslandCfg(_implicit(), joint_ordering=_ROTATED_JOINT_NAMES, devices=DeviceScope.CUDA),
+    "delayed_drive": _DELAYED_DRIVE,
+    "delayed_drive_ordered": replace(_DELAYED_DRIVE, joint_ordering=_ROTATED_JOINT_NAMES),
     "dynamics": _IslandCfg(
         {},
         joint_ordering="mjwarp",
@@ -458,29 +476,6 @@ def test_static_property_reads_are_not_invalidated_by_simulation_steps():
     torch.testing.assert_close(wp.to_torch(user_buffer.data), torch.tensor([[2.0, 1.0]]))
 
 
-def test_joint_dof_sign_resolution_traverses_instance_proxies():
-    """Resolve reversed joints inside an instanceable articulation."""
-    source_stage = Usd.Stage.CreateInMemory()
-    UsdGeom.Xform.Define(source_stage, "/Robot")
-    UsdGeom.Xform.Define(source_stage, "/Robot/base")
-    UsdGeom.Xform.Define(source_stage, "/Robot/link")
-    joint = UsdPhysics.RevoluteJoint.Define(source_stage, "/Robot/joint")
-    joint.GetBody0Rel().SetTargets(["/Robot/link"])
-    joint.GetBody1Rel().SetTargets(["/Robot/base"])
-    stage = Usd.Stage.CreateInMemory()
-    instance = UsdGeom.Xform.Define(stage, "/World/Robot").GetPrim()
-    instance.GetReferences().AddReference(source_stage.GetRootLayer().identifier, "/Robot")
-    instance.SetInstanceable(True)
-
-    articulation = Mock(
-        cfg=Mock(prim_path="/World/Robot"),
-        _joint_names=["joint"],
-        _body_names=["base", "link"],
-    )
-
-    assert Articulation._resolve_joint_dof_signs(articulation, stage) == (-1,)
-
-
 def _define_tendon_joint(stage: Usd.Stage, path: str, schema_name: str) -> None:
     """Define a revolute joint prim with a tendon schema marker."""
     joint = UsdPhysics.RevoluteJoint.Define(stage, path)
@@ -554,16 +549,24 @@ def _make_articulation_shell() -> Articulation:
     return articulation
 
 
+@pytest.mark.kitless
+def test_zero_dof_articulation_data_has_empty_joint_properties():
+    """Fixed assembly fixtures can initialize without allocating joint friction storage."""
+    bindings = MockOvPhysxBindingSet(num_instances=2, num_joints=0, num_bodies=1)
+    data = ArticulationData(bindings.view, "cpu", backend_manager=OvPhysxManager(OvPhysxCfg()))
+    assert data.default_joint_pos.shape == (2, 0)
+    assert data.joint_friction_coeff.shape == (2, 0)
+    assert data.joint_dynamic_friction_coeff.shape == (2, 0)
+    assert data.joint_viscous_friction_coeff.shape == (2, 0)
+
+
 def test_process_tendons_scopes_to_articulation_root():
     """Tendon discovery should ignore joints that live outside the current articulation subtree."""
     articulation = _make_articulation_shell()
     stage_usda = _make_articulation_root_stage_usda()
-    old_stage_usda = OvPhysxManager._stage_usda
-    OvPhysxManager._stage_usda = stage_usda
-    try:
-        articulation._process_tendons()
-    finally:
-        OvPhysxManager._stage_usda = old_stage_usda
+    articulation._backend_manager = OvPhysxManager(OvPhysxCfg())
+    articulation._backend_manager._stage_usda = stage_usda
+    articulation._process_tendons()
 
     # the tendon is reported by its schema INSTANCE name, matching PhysX; scope leakage would
     # add the identically-named instance from /World/unrelated, giving two entries
@@ -595,21 +598,6 @@ def test_root_worker_accepts_selector_widths(env_dtype: type) -> None:
     np.testing.assert_array_equal(sim_env_ids.numpy(), [1, 0])
 
 
-@pytest.mark.parametrize(("env_dtype", "item_dtype"), [(wp.int32, wp.int32), (wp.int64, wp.int64)])
-def test_item_worker_accepts_selector_widths(env_dtype: type, item_dtype: type) -> None:
-    env_ids = _selector([1, 0], env_dtype)
-    item_ids = _selector([2, 0], item_dtype)
-    data = wp.array([[11.0, 12.0], [21.0, 22.0]], dtype=wp.float32, device="cpu")
-    output = wp.full((2, 3), value=-1.0, dtype=wp.float32, device="cpu")
-    kernel = kernels.write_2d_data_to_buffer_with_indices
-    if env_dtype != wp.int32 or item_dtype != wp.int32:
-        kernel = kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, item_ids)
-
-    wp.launch(kernel, dim=(2, 2), inputs=[data, env_ids, item_ids], outputs=[output], device="cpu")
-
-    np.testing.assert_array_equal(output.numpy(), [[22.0, -1.0, 21.0], [12.0, -1.0, 11.0]])
-
-
 def test_prepare_native_actuators_leaves_implicit_only_articulation_on_standard_path(monkeypatch):
     """Keep implicit-only articulations on the unchanged solver-drive path."""
     runtime_prepare_calls = []
@@ -638,7 +626,7 @@ def test_prepare_native_actuators_leaves_implicit_only_articulation_on_standard_
 @pytest.mark.parametrize(
     "module_name",
     [
-        "isaaclab_physx.assets.articulation.actuator_control",
+        "isaaclab_isaacsim.assets.articulation.actuator_control",
         "isaaclab_ov.assets.articulation.actuator_control",
     ],
 )
@@ -781,7 +769,7 @@ def test_heterogeneous_articulation_clone_indexed_state(device, variant, tmp_pat
         expected[selected] = positions
         torch.testing.assert_close(robot.data.joint_pos.torch, expected, atol=1e-4, rtol=0.0)
         for env_id in range(scene.num_envs):
-            binding = sim.physics_manager.get_physx_instance().create_tensor_binding(
+            binding = sim.backend_manager.get_physx_instance().create_tensor_binding(
                 pattern=f"/World/envs/env_{env_id}/Robot", tensor_type=TT.DOF_POSITION
             )
             try:
@@ -971,7 +959,7 @@ def test_set_material_properties(scene: _ArticulationScene) -> None:
     # The ranges exclude the asset's default material, so values inside them prove the write happened.
     static_range, dynamic_range, restitution_range = (1.5, 2.0), (1.2, 1.4), (0.6, 0.8)
     view = articulation.root_view
-    materials_before = wp.to_torch(view.get_attribute(TT.SHAPE_FRICTION_AND_RESTITUTION)).clone()
+    materials_before = wp.to_torch(view.get_material_properties()).clone()
     assert materials_before.shape[1] > 0
     assert (materials_before[..., 0] < static_range[0]).all(), f"default material overlaps: {materials_before}"
     params = {
@@ -995,6 +983,17 @@ def test_set_material_properties(scene: _ArticulationScene) -> None:
     for component, (lo, hi) in enumerate((static_range, dynamic_range, restitution_range)):
         values = materials[-1, :, component]
         assert ((values >= lo - eps) & (values <= hi + eps)).all(), values
+
+    # The shared view interface also writes a selected row without changing restitution.
+    restitution = materials[..., 2].clone()
+    materials[-1, :, :2] = 0.25
+    view.set_material_properties(
+        wp.from_torch(materials.contiguous()), wp.from_torch(torch.tensor([num_articulations - 1], dtype=torch.int32))
+    )
+    actual = wp.to_torch(view.get_attribute(TT.SHAPE_FRICTION_AND_RESTITUTION))
+    torch.testing.assert_close(actual[..., 2], restitution)
+    torch.testing.assert_close(actual[-1, :, :2], torch.full_like(actual[-1, :, :2], 0.25))
+    torch.testing.assert_close(actual[:-1], materials_before[:-1])
 
 
 @pytest.mark.parametrize("scene", _ALL_DEVICES, indirect=True)
@@ -1053,7 +1052,9 @@ def test_effort_binding_excludes_implicit_pd(scene: _ArticulationScene) -> None:
     feedforward = torch.zeros_like(initial_pos)
     feedforward[:, shoulder_ids] = 1.5
     feedforward[:, elbow_ids] = -0.75
+    velocity_target = torch.full_like(initial_pos, 0.1)
     articulation.actuators.target_command.set_position_index(value=position_target)
+    articulation.actuators.target_command.set_velocity_index(value=velocity_target)
     articulation.actuators.target_command.set_effort_index(value=feedforward)
     articulation.write_data_to_sim()
 
@@ -1076,6 +1077,16 @@ def test_effort_binding_excludes_implicit_pd(scene: _ArticulationScene) -> None:
         expected_stiffness[:, backend_to_user],
     )
     assert articulation._actuator_control.native_actuator_path_active == scene.native_actuators
+    if scene.native_actuators:
+        backend_shoulder_ids = [backend_to_user.index(index) for index in shoulder_ids]
+        torch.testing.assert_close(
+            _read_binding_to_torch(articulation, TT.DOF_POSITION_TARGET, scene.device)[:, backend_shoulder_ids],
+            position_target[:, shoulder_ids],
+        )
+        torch.testing.assert_close(
+            _read_binding_to_torch(articulation, TT.DOF_VELOCITY_TARGET, scene.device)[:, backend_shoulder_ids],
+            velocity_target[:, shoulder_ids],
+        )
 
 
 @pytest.mark.parametrize("scene", _ALL_DEVICES, indirect=True)
@@ -1249,6 +1260,34 @@ def test_implicit_drive_targets_submit_feedforward_effort_and_track(scene: _Arti
 
 
 @pytest.mark.parametrize("scene", _CUDA_SCENES, indirect=True)
+@pytest.mark.parametrize("island", ["delayed_drive", "delayed_drive_ordered"], ids=["identity", "reordered"])
+def test_delayed_implicit_drive_targets_reach_solver_one_step_late(scene: _ArticulationScene, island: str) -> None:
+    articulation = scene.islands[island]
+    articulation.reset()
+    backend_to_user = [articulation.joint_names.index(name) for name in articulation.root_view.dof_names]
+    joint_index = torch.arange(articulation.num_joints, dtype=torch.float32, device=scene.device).unsqueeze(0)
+    initial_pos = 0.05 * (joint_index + 1)
+    initial_vel = -0.1 * (joint_index + 1)
+
+    for step in range(3):
+        articulation.actuators.target_command.set_position_index(value=initial_pos + step * 0.2)
+        articulation.actuators.target_command.set_velocity_index(value=initial_vel - step * 0.3)
+        articulation.write_data_to_sim()
+
+        delayed_step = max(0, step - 1)
+        torch.testing.assert_close(
+            _read_binding_to_torch(articulation, TT.DOF_POSITION_TARGET, scene.device),
+            (initial_pos + delayed_step * 0.2)[:, backend_to_user],
+        )
+        torch.testing.assert_close(
+            _read_binding_to_torch(articulation, TT.DOF_VELOCITY_TARGET, scene.device),
+            (initial_vel - delayed_step * 0.3)[:, backend_to_user],
+        )
+        scene.sim.step()
+        articulation.update(scene.sim.cfg.dt)
+
+
+@pytest.mark.parametrize("scene", _CUDA_SCENES, indirect=True)
 def test_computed_dynamics_follow_public_order_and_model_writes(scene: _ArticulationScene) -> None:
     """Resolve depth-first MJWarp order for ``"mjwarp"`` on OVPhysX and gather computed dynamics into it.
 
@@ -1363,18 +1402,38 @@ def test_computed_dynamics_follow_public_order_and_model_writes(scene: _Articula
     assert data._gravity_compensation_forces.timestamp < data._sim_timestamp
     assert_dynamics_match(jacobian=False)
 
-    # Inertia and armature each affect only the generalized mass matrix.
+    # Inertia affects only the generalized mass matrix.
     inertias = data.body_inertia.torch.clone()
     inertias[:, -1, [0, 4, 8]] *= 1.1
     articulation.set_inertias_index(inertias=inertias)
     assert data._mass_matrix.timestamp < data._sim_timestamp
     assert_dynamics_match(jacobian=False, gravity=False)
 
-    armature = data.joint_armature.torch.clone()
-    armature[:, -1] += 0.01
-    articulation.write_joint_armature_to_sim_index(armature=armature)
-    assert data._mass_matrix.timestamp < data._sim_timestamp
-    assert_dynamics_match(jacobian=False, gravity=False)
+
+@pytest.mark.parametrize("scene", _CUDA_SCENES, indirect=True)
+def test_joint_armature_updates_mass_matrix_without_accumulating(scene: _ArticulationScene) -> None:
+    """Armature adds joint inertia in public order without changing the leading floating-base inertia."""
+    for articulation in (scene.islands["dynamics"], scene.islands["floating"]):
+        data = articulation.data
+        original_armature = data.joint_armature.torch.clone()
+        before = data.mass_matrix.torch.clone()
+        increment = 0.125 * torch.arange(
+            1, original_armature.numel() + 1, device=scene.device, dtype=original_armature.dtype
+        ).reshape_as(original_armature)
+        expected_change = torch.zeros_like(before)
+        joint_dofs = articulation.num_base_dofs + torch.arange(articulation.num_joints, device=scene.device)
+        expected_change[:, joint_dofs, joint_dofs] = increment
+        try:
+            articulation.write_joint_armature_to_sim_index(armature=original_armature + increment)
+            after = data.mass_matrix.torch.clone()
+            torch.testing.assert_close(after - before, expected_change, atol=1e-5, rtol=1e-5)
+            torch.testing.assert_close(data.mass_matrix.torch, after)
+
+            # Advancing the cache timestamp without stepping preserves the pose and must not add armature again.
+            articulation.update(scene.sim.cfg.dt)
+            torch.testing.assert_close(data.mass_matrix.torch, after)
+        finally:
+            articulation.write_joint_armature_to_sim_index(armature=original_armature)
 
 
 @pytest.mark.parametrize("scene", _CUDA_SCENES, indirect=True)
@@ -1666,8 +1725,8 @@ def test_native_actuator_reset_and_gain_event_are_environment_selective(scene: _
     event = randomize_actuator_gains(EventTermCfg(func=randomize_actuator_gains, params=event_params), env)
     event(env, env_ids=torch.tensor([0], device=device), **event_params)
 
-    stiffness = read_group_parameter(articulation.actuators, "joint", "controller", "kp")
-    damping = read_group_parameter(articulation.actuators, "joint", "controller", "kd")
+    stiffness = read_group_parameter(articulation.actuators, "joint", "drive", "kp")
+    damping = read_group_parameter(articulation.actuators, "joint", "drive", "kd")
     torch.testing.assert_close(stiffness, torch.tensor([[101.0], [20.0]], device=device).repeat(1, num_joints))
     torch.testing.assert_close(damping, torch.tensor([[3.0], [1.0]], device=device).repeat(1, num_joints))
 
@@ -1692,13 +1751,13 @@ def test_root_link_vel_w_refreshes_fk_before_body_com_vel_w_read(scene: _Articul
         articulation.write_joint_velocity_to_sim_index(velocity=joint_vel)
         articulation.write_joint_position_to_sim_index(position=articulation.data.joint_pos.torch.clone())
         with monkeypatch.context() as patch:
-            physx = Mock(wraps=OvPhysxManager.backend.physx)
-            patch.setattr(OvPhysxManager.backend, "physx", physx)
+            physx = Mock(wraps=scene.sim.backend_manager.backend.physx)
+            patch.setattr(scene.sim.backend_manager.backend, "physx", physx)
             if render_first:
-                OvPhysxManager.pre_render()
+                scene.sim.backend_manager.pre_render()
             articulation.data.root_link_vel_w
             body_com_vel_w = articulation.data.body_com_vel_w.torch
-            OvPhysxManager.pre_render()
+            scene.sim.backend_manager.pre_render()
             physx.update_articulations_kinematic.assert_called_once()
             assert torch.linalg.norm(body_com_vel_w[:, 1, :]) > 1e-3
 

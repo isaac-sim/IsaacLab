@@ -3,8 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
-from isaaclab_physx.physics import PhysxCfg
+from isaaclab_isaacsim.physics import PhysxCfg
+from isaaclab_newton.physics import (
+    MJWarpSolverCfg,
+    NewtonCfg,
+    NewtonCollisionPipelineCfg,
+    NewtonShapeCfg,
+    SteelSolverCfg,
+)
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
@@ -67,6 +73,7 @@ class KeyboardAssetCfg(PresetCfg):
         articulation_root_prim_path=None,
         spawn=MultiAssetSpawnerCfg(assets_cfg=list(TYPING_KEYBOARD_POOL.spawners_single), random_choice=False),
     )
+    newton_steel = newton_mjwarp  # Both solvers consume the Newton-compatible keyboard assets.
     isaacsim_physx = default
     physx = default
     default = newton_mjwarp
@@ -166,7 +173,7 @@ class CommandsCfg:
             buffer_size=8192,
             normal_weight=0.1,
             pre_solve_reset=EventTerm(
-                func=mdp.reset_root_state_uniform,
+                func=mdp.reset_keyboard_root_state_uniform,
                 mode="reset",
                 params={
                     "pose_range": {
@@ -177,7 +184,6 @@ class CommandsCfg:
                         "roll": [0.0, 0.75],
                     },
                     "velocity_range": {"x": [-0.0, 0.0], "y": [-0.0, 0.0], "z": [-0.0, 0.0]},
-                    "asset_cfg": SceneEntityCfg("keyboard"),
                 },
             ),
         ),
@@ -237,7 +243,7 @@ class EventCfg:
     """Reset-mode events (shared by all physics backends)."""
 
     reset_keyboard = EventTerm(
-        func=mdp.reset_root_state_uniform,
+        func=mdp.reset_keyboard_root_state_uniform,
         mode="reset",
         params={
             "pose_range": {
@@ -248,7 +254,6 @@ class EventCfg:
                 "roll": [0.0, 0.75],
             },
             "velocity_range": {"x": [-0.0, 0.0], "y": [-0.0, 0.0], "z": [-0.0, 0.0]},
-            "asset_cfg": SceneEntityCfg("keyboard"),
         },
     )
 
@@ -309,13 +314,28 @@ class PhysicsCfg(PresetCfg):
         num_substeps=2,
         debug_mode=False,
     )
+    newton_steel = NewtonCfg(
+        solver_cfg=SteelSolverCfg(
+            update_mass_matrix_interval=2,
+            use_parallel_streams=True,
+            enable_joint_limits=True,
+            joint_limit_activation_gap=0.1,
+            articulation_constraint_max=1024,
+            free_body_constraint_max=64,
+            parallel_tree=True,
+        ),
+        # Default 4096 environments, 170 contacts each.
+        collision_cfg=NewtonCollisionPipelineCfg(rigid_contact_max=170 * 4096),
+        default_shape_cfg=NewtonShapeCfg(gap=0.002),
+        num_substeps=2,
+    )
     physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
     default = newton_mjwarp
 
 
 @configclass
 class SO101KeyboardEnvCfg(ManagerBasedRLEnvCfg):
-    scene: SO101SceneCfg = SO101SceneCfg(num_envs=4096, env_spacing=1.0, replicate_physics=True)
+    scene: SO101SceneCfg = SO101SceneCfg(num_envs=4096, env_spacing=1.0)
     observations: SO101ObservationsCfg = SO101ObservationsCfg()
     actions: SO101RelJointPosActionCfg = SO101RelJointPosActionCfg()
     commands: CommandsCfg = CommandsCfg()
@@ -328,9 +348,7 @@ class SO101KeyboardEnvCfg(ManagerBasedRLEnvCfg):
         self.decimation = 4  # 100 Hz sim -> 25 Hz control
         self.episode_length_s = 6.0
         self.sim.render_interval = self.decimation
-        self.sim.default_visualizer_cfg = VisualizerCfg(
-            eye=(0.85, -0.75, 1.0), lookat=(0.25, 0.0, 0.1), focal_length=28.0
-        )
+        self.sim.visualizer_cfgs = VisualizerCfg(eye=(0.85, -0.75, 1.0), lookat=(0.25, 0.0, 0.1), focal_length=28.0)
 
     def play_mode(self):
         """Enable typing markers for every playback environment."""

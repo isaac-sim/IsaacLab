@@ -30,12 +30,11 @@ def raycast_mesh(
 ) -> tuple[torch.Tensor, torch.Tensor | None, torch.Tensor | None, torch.Tensor | None]:
     """Performs ray-casting against a mesh.
 
-    Note that the `ray_starts` and `ray_directions`, and `ray_hits` should have compatible shapes
-    and data types to ensure proper execution. Additionally, they all must be in the same frame.
+    Ray starts and directions must have identical shapes and use the same coordinate frame.
 
     Args:
-        ray_starts: The starting position of the rays. Shape (N, 3).
-        ray_directions: The ray directions for each ray. Shape (N, 3).
+        ray_starts: The starting positions of the rays. Shape (..., 3).
+        ray_directions: Unit-length ray directions. Shape (..., 3), matching ``ray_starts``.
         mesh: The warp mesh to ray-cast against.
         max_dist: The maximum distance to ray-cast. Defaults to 1e6.
         return_distance: Whether to return the distance of the ray until it hits the mesh. Defaults to False.
@@ -43,19 +42,26 @@ def raycast_mesh(
         return_face_id: Whether to return the face id of the mesh face the ray hits. Defaults to False.
 
     Returns:
-        The ray hit position. Shape (N, 3).
+        The ray hit positions, with the same shape as ``ray_starts``.
             The returned tensor contains :obj:`float('inf')` for missed hits.
-        The ray hit distance. Shape (N,).
+        The ray hit distances, with the leading dimensions of ``ray_starts``.
             Will only return if :attr:`return_distance` is True, else returns None.
             The returned tensor contains :obj:`float('inf')` for missed hits.
-        The ray hit normal. Shape (N, 3).
+        The ray hit normals, with the same shape as ``ray_starts``.
             Will only return if :attr:`return_normal` is True else returns None.
             The returned tensor contains :obj:`float('inf')` for missed hits.
-        The ray hit face id. Shape (N,).
+        The ray hit face IDs, with the leading dimensions of ``ray_starts``.
             Will only return if :attr:`return_face_id` is True else returns None.
             The returned tensor contains :obj:`int(-1)` for missed hits.
+
+    Raises:
+        ValueError: If starts and directions do not have identical shapes ending in three coordinates.
     """
     shape = ray_starts.shape
+    if shape != ray_directions.shape or not shape or shape[-1] != 3:
+        raise ValueError(
+            f"Ray starts and directions must have identical shapes (..., 3); got {shape} and {ray_directions.shape}."
+        )
     device = ray_starts.device
     # the kernel runs on the mesh's device
     torch_device = wp.device_to_torch(mesh.device)
@@ -148,7 +154,8 @@ def raycast_single_mesh(
         The ray hit position. Shape (B, N, 3).
             The returned tensor contains :obj:`float('inf')` for missed hits.
         The ray hit distance. Shape (B, N,).
-            Will only return if :attr:`return_distance` is True, else returns None.
+            Always returned, because the kernels resolve the closest hit through it; it is moved to the
+            input device only if :attr:`return_distance` is True.
             The returned tensor contains :obj:`float('inf')` for missed hits.
         The ray hit normal. Shape (B, N, 3).
             Will only return if :attr:`return_normal` is True else returns None.
@@ -210,7 +217,8 @@ def raycast_dynamic_meshes(
         The ray hit position. Shape (B, N, 3).
             The returned tensor contains :obj:`float('inf')` for missed hits.
         The ray hit distance. Shape (B, N,).
-            Will only return if :attr:`return_distance` is True, else returns None.
+            Always returned, because the kernels resolve the closest hit through it; it is moved to the
+            input device only if :attr:`return_distance` is True.
             The returned tensor contains :obj:`float('inf')` for missed hits.
         The ray hit normal. Shape (B, N, 3).
             Will only return if :attr:`return_normal` is True else returns None.

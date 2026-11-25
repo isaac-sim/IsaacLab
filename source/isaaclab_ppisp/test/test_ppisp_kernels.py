@@ -7,6 +7,8 @@ import pytest
 import warp as wp
 from isaaclab_ppisp import (
     PpispCfg,
+    PpispPipeline,
+    PpispProcessorCfg,
     apply_ppisp_to_rgba,
     apply_ppisp_to_rgba_with_controller_params,
     compute_ppisp_controller_params,
@@ -36,6 +38,8 @@ from isaaclab_ppisp.kernels import (
     PPISP_CONTROLLER_OFF_TRUNK2_W,
     PPISP_CONTROLLER_PARAM_COUNT,
 )
+
+from isaaclab.utils.warp import ProxyArray
 
 wp.init()
 
@@ -130,6 +134,22 @@ def test_ppisp_warp_exposure_increases_ldr_output():
     assert (baseline_np[..., 3] == 255).all()
     assert (exposed_np[..., 3] == 255).all()
     assert exposed_np[..., :3].astype(float).mean() > baseline_np[..., :3].astype(float).mean()
+
+
+def test_ppisp_processor_returns_rgb_view_of_persistent_rgba():
+    """The processor applies its coefficients to persistent RGBA storage, viewed as RGB."""
+    hdr = ProxyArray(_hdr(0.25, (2, 3, 4, 3)))
+    cfg = PpispProcessorCfg(isp_cfg=PpispCfg(inputs={"exposureOffset": 1.0}))
+    processor = cfg.func(cfg, {"rgb_hdr": hdr})
+    mask = wp.array([True, False], dtype=wp.bool, device=hdr.warp.device)
+    outputs = processor({"rgb_hdr": hdr}, env_mask=mask)
+
+    expected = _rgba((2, 3, 4, 4))
+    apply_ppisp_to_rgba(hdr.warp, expected, normalize_ppisp_cfg(PpispCfg(inputs={"exposureOffset": 1.0})))
+    assert (outputs["rgba"].warp.numpy() == expected.numpy()).all()
+    assert (outputs["rgb"].warp.numpy() == expected.numpy()[..., :3]).all()
+    assert outputs["rgb"].warp.ptr == outputs["rgba"].warp.ptr
+    assert processor({"rgb_hdr": hdr})["rgba"] is outputs["rgba"]
 
 
 def test_ppisp_warp_responsivity_lifts_dim_input():
@@ -235,6 +255,21 @@ def test_ppisp_controller_network_matches_numpy_reference(num_cameras, image_sha
             rtol=2.0e-4,
             atol=2.0e-5,
         )
+
+        pipeline = PpispPipeline(PpispCfg(
+            controller_weights=tuple(weights_np), controller_prior_exposure=prior_exposure,
+            controller_responsivity=responsivity,
+        ))  # fmt: skip
+        # Reuse one pipeline across resolutions; scratch storage depends only on the camera count.
+        for image in (hdr_np, np.ascontiguousarray(hdr_np[:, : height // 2, : width // 2])):
+            hdr_color = wp.from_numpy(image, dtype=wp.float32)
+            reference_params = wp.from_numpy(
+                _controller_reference_params(image, weights_np, prior_exposure, responsivity), dtype=wp.float32
+            )
+            expected, actual = _rgba((*image.shape[:3], 4)), _rgba((*image.shape[:3], 4))
+            apply_ppisp_to_rgba_with_controller_params(hdr_color, expected, pipeline.cfg, reference_params)
+            pipeline.apply(hdr_color, actual)
+            np.testing.assert_allclose(actual.numpy(), expected.numpy(), rtol=0, atol=1)
 
 
 def test_ppisp_warp_vignetting_uses_detiled_camera_coordinates():

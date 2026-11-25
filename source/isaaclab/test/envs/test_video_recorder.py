@@ -3,14 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Unit tests for VideoRecorder, VideoRecorderCfg, and the ViewerCfg deprecation shim.
+"""Unit tests for VideoRecorder and VideoRecorderCfg.
 
 All tests are pure-Python mocks — no simulation context or Kit app required.
 """
 
 from __future__ import annotations
 
-import logging
+import sys
 import warnings
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -19,10 +19,10 @@ import gymnasium as gym
 import numpy as np
 import pytest
 
-from isaaclab.envs.common import ViewerCfg
 from isaaclab.envs.utils.video_recorder import VideoRecorder
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg, parse_video_source
 from isaaclab.utils import validate
+from isaaclab.visualizers import VisualizerBackendCfg, VisualizerCfg
 
 _FRAME = np.ones((8, 12, 3), dtype=np.uint8) * 128
 
@@ -33,15 +33,14 @@ _FRAME = np.ones((8, 12, 3), dtype=np.uint8) * 128
 
 
 @pytest.fixture(autouse=True)
-def _patch_moviepy():
+def _patch_moviepy(monkeypatch):
     """Stub out ImageSequenceClip so tests run without moviepy installed.
 
-    Missing-dependency coverage blocks the module import in its own context.
+    Missing-dependency coverage blocks the module import in its own test.
     """
-    with patch.dict(
-        "sys.modules", {"moviepy.video.io.ImageSequenceClip": SimpleNamespace(ImageSequenceClip=MagicMock())}
-    ):
-        yield
+    monkeypatch.setitem(
+        sys.modules, "moviepy.video.io.ImageSequenceClip", SimpleNamespace(ImageSequenceClip=MagicMock())
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -56,7 +55,7 @@ def _cfg(**overrides) -> VideoRecorderCfg:
 
 class _FakeViz:
     def __init__(self, viz_type: str, frame: np.ndarray | None = None):
-        self.cfg = SimpleNamespace(visualizer_type=viz_type, streaming_view=False)
+        self.cfg = VisualizerCfg(backend=VisualizerBackendCfg(visualizer_type=viz_type))
         self._frame = frame if frame is not None else _FRAME.copy()
         self.render_calls = 0
 
@@ -93,18 +92,17 @@ def _make_env(visualizers=(), sensors: dict | None = None):
     [
         ("viz", ("viz", "", "")),
         ("kit", ("viz", "kit", "")),
-        ("newton_gl", ("viz", "newton_gl", "")),
-        ("newton_rtx", ("viz", "newton_rtx", "")),
+        ("newton", ("viz", "newton", "")),
+        ("newton_gl", ("viz", "newton", "")),
         ("viser", ("viz", "viser", "")),
         ("rerun", ("viz", "rerun", "")),
-        ("viz:newton_gl:streaming_view", ("viz", "newton_gl", "streaming_view")),
+        ("viz:newton:streaming_view", ("viz", "newton", "streaming_view")),
         ("sensor:tiled_camera", ("sensor", "tiled_camera", "")),
         ("sensor:tiled_camera:depth", ("sensor", "tiled_camera", "depth")),
         # ``visualizer`` is the long form of ``viz``
         ("visualizer:kit", ("viz", "kit", "")),
-        # the deprecated ``newton`` type maps to ``newton_gl``, with a DeprecationWarning
-        ("visualizer:newton:streaming_view", ("viz", "newton_gl", "streaming_view")),
-        ("newton", ("viz", "newton_gl", "")),
+        # ``newton_gl`` is a silent alias of ``newton``
+        ("visualizer:newton_gl:streaming_view", ("viz", "newton", "streaming_view")),
         ("a=b", "Invalid video source"),
         ("viz:foo", "Invalid video source"),
         ("viz:kit:bar", "Invalid video source"),
@@ -119,10 +117,17 @@ def test_parse_video_source(source, expected):
         with pytest.raises(ValueError, match=expected):
             parse_video_source(source)
         return
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")  # aliases resolve without a warning
         assert parse_video_source(source) == expected
-    assert [w.category for w in caught] == [DeprecationWarning] * ("newton" in source.split(":"))
+
+
+@pytest.mark.parametrize("source", ["newton_rtx", "viz:newton_rtx", "visualizer:newton_rtx:streaming_view"])
+def test_parse_video_source_maps_newton_rtx_to_newton_without_a_warning(source):
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        kind, name, _channel = parse_video_source(source)
+    assert (kind, name) == ("viz", "newton")
 
 
 # ---------------------------------------------------------------------------
@@ -130,10 +135,10 @@ def test_parse_video_source(source, expected):
 # ---------------------------------------------------------------------------
 
 
-def test_init_raises_import_error_when_moviepy_missing():
-    with patch.dict("sys.modules", {"moviepy.video.io.ImageSequenceClip": None}):
-        with pytest.raises(ImportError, match="moviepy"):
-            VideoRecorder(_cfg(), _make_env())
+def test_init_raises_import_error_when_moviepy_missing(monkeypatch):
+    monkeypatch.setitem(sys.modules, "moviepy.video.io.ImageSequenceClip", None)
+    with pytest.raises(ImportError, match="moviepy"):
+        VideoRecorder(_cfg(), _make_env())
 
 
 @pytest.mark.parametrize(
@@ -221,32 +226,6 @@ def test_step_schedule_writes_expected_clips(tmp_path, schedule, num_steps, expe
 # ---------------------------------------------------------------------------
 
 
-def test_kit_visualizer_newton_physics_logs_warning(caplog):
-    """source='viz:kit' with Newton physics logs a warning and attempts capture.
-
-    With cubric the capture succeeds; without it frames may be black.  Either way
-    the recorder warns and does not hard-fail.
-
-    The warned-about condition is fixed configuration state, so the message is emitted
-    once per recorder rather than once per captured frame.
-    """
-    kit_viz = _FakeViz("kit")
-    env = _make_env(visualizers=[kit_viz])
-    env.sim.physics_manager.video_capture_backend.return_value = "newton_gl"
-
-    with caplog.at_level(logging.WARNING, logger="isaaclab.envs.utils.video_recorder"):
-        recorder = VideoRecorder(_cfg(source="viz:kit"), env)
-        for _ in range(5):
-            recorder._capture()
-        second_recorder = VideoRecorder(_cfg(source="viz:kit"), env)
-        second_recorder._capture()
-
-    cubric_warnings = [r for r in caplog.records if "source='viz:newton_gl'" in r.message]
-    assert len(cubric_warnings) == 2
-    # Capture is still attempted on every frame rather than short-circuiting.
-    assert kit_viz.render_calls == 6
-
-
 def _rgb_sensor():
     import warp as wp
 
@@ -262,10 +241,10 @@ def _rgb_sensor():
     "source,make_env",
     [
         ("viz", lambda: _make_env(visualizers=[_FakeViz("kit")])),
-        ("viz:newton_gl", lambda: _make_env(visualizers=[_FakeViz("newton_gl")])),
+        ("viz:newton", lambda: _make_env(visualizers=[_FakeViz("newton")])),
         ("sensor:tiled_camera", lambda: _make_env(sensors={"tiled_camera": _rgb_sensor()})),
     ],
-    ids=["auto_visualizer", "newton_gl", "sensor_rgb"],
+    ids=["auto_visualizer", "newton", "sensor_rgb"],
 )
 def test_source_resolves_frame(source, make_env, caplog):
     env = make_env()
@@ -275,7 +254,7 @@ def test_source_resolves_frame(source, make_env, caplog):
     env.sim.visualizers = []
     if source.startswith("sensor:"):
         env.sim._scene_data_provider.get_camera_sensors.return_value = {}
-    if source == "viz:newton_gl":
+    if source == "viz:newton":
         visualizers[0]._frame = None
         assert recorder._capture() is None
         visualizers[0]._frame = _FRAME.copy()
@@ -291,8 +270,8 @@ def test_source_resolves_frame(source, make_env, caplog):
         ("badkind:foo", _make_env, ValueError, "Invalid video source"),
         ("viz", lambda: _make_env(visualizers=[]), RuntimeError, "no recording-capable visualizer"),
         (
-            "viz:newton_gl:streaming_view",
-            lambda: _make_env(visualizers=[_FakeViz("newton_gl")]),
+            "viz:newton:streaming_view",
+            lambda: _make_env(visualizers=[_FakeViz("newton")]),
             RuntimeError,
             "Enable streaming_view",
         ),
@@ -304,55 +283,6 @@ def test_invalid_source_raises(source, make_env, error, message):
     """Invalid sources fail when the recorder is constructed, before training starts."""
     with pytest.raises(error, match=message):
         VideoRecorder(_cfg(source=source), make_env())
-
-
-# ---------------------------------------------------------------------------
-# _apply_deprecated_viewer_cfg bridge
-# ---------------------------------------------------------------------------
-
-
-def _make_env_cfg(eye=(7.5, 7.5, 7.5)):
-    return SimpleNamespace(viewer=ViewerCfg(eye=eye), sim=SimpleNamespace(default_visualizer_cfg=None))
-
-
-@pytest.mark.parametrize(
-    "origin_type,expected_path", [("world", None), ("asset_root", "robot"), ("asset_body", "robot/panda_hand")]
-)
-def test_apply_deprecated_viewer_preserves_pose_and_tracking(origin_type, expected_path):
-    from isaaclab.envs.common import _apply_deprecated_viewer_cfg
-
-    env_cfg = _make_env_cfg(eye=(1.0, 2.0, 3.0))
-    env_cfg.viewer.origin_type = origin_type
-    env_cfg.viewer.asset_name = "robot"
-    env_cfg.viewer.body_name = "panda_hand"
-    _apply_deprecated_viewer_cfg(env_cfg)
-    cfg = env_cfg.sim.default_visualizer_cfg
-    assert cfg is not None
-    assert cfg.eye == (1.0, 2.0, 3.0)
-    assert cfg.origin_type == ("asset" if expected_path else "world")
-    assert cfg.origin_track_path == expected_path
-
-
-def test_apply_deprecated_viewer_noop_when_defaults():
-    from isaaclab.envs.common import _apply_deprecated_viewer_cfg
-
-    env_cfg = _make_env_cfg()
-    _apply_deprecated_viewer_cfg(env_cfg)
-    assert env_cfg.sim.default_visualizer_cfg is None
-
-
-def test_apply_deprecated_viewer_skips_when_default_visualizer_cfg_already_set():
-    """If sim.default_visualizer_cfg is already set, the shim logs and returns without overwriting."""
-    from unittest.mock import MagicMock
-
-    from isaaclab.envs.common import _apply_deprecated_viewer_cfg
-
-    existing_cfg = MagicMock()
-    env_cfg = _make_env_cfg(eye=(1.0, 2.0, 3.0))
-    env_cfg.sim.default_visualizer_cfg = existing_cfg
-    _apply_deprecated_viewer_cfg(env_cfg)
-    # Must not overwrite the existing cfg.
-    assert env_cfg.sim.default_visualizer_cfg is existing_cfg
 
 
 # ---------------------------------------------------------------------------
@@ -376,7 +306,7 @@ def test_clip_files_resume_and_prune_only_matching_indices(tmp_path, existing, e
     for name in existing:
         (tmp_path / name).touch()
     recorder = VideoRecorder(
-        _cfg(output_dir=str(tmp_path), keep_last_n_clips=2, video_length=1), _make_env([_FakeViz("newton_gl")])
+        _cfg(output_dir=str(tmp_path), keep_last_n_clips=2, video_length=1), _make_env([_FakeViz("newton")])
     )
     with patch.object(recorder, "_clip_class") as encoder:
         encoder.return_value.write_videofile.side_effect = lambda path, **kwargs: (tmp_path / path).touch()

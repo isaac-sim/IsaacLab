@@ -19,7 +19,6 @@ def copy_from_newton_kernel(
     newton_force_matrix: wp.array2d(dtype=wp.vec3f),  # (n_envs * n_sensors, n_filter_objects) or None
     newton_force_matrix_friction: wp.array2d(dtype=wp.vec3f),  # (n_envs * n_sensors, n_filter_objects) or None
     newton_position_matrix: wp.array2d(dtype=wp.vec3f),  # (n_envs * n_sensors, n_filter_objects) or None
-    timestamp: wp.array(dtype=wp.float32),
     # outputs
     net_force: wp.array2d(dtype=wp.vec3f),  # (n_envs, n_sensors) total
     net_normal_force: wp.array2d(dtype=wp.vec3f),  # (n_envs, n_sensors)
@@ -40,12 +39,6 @@ def copy_from_newton_kernel(
         if not env_mask[env]:
             return
 
-    # Skip envs that have not been stepped since their last reset: Newton's contact buffer
-    # still holds pre-reset values, so reading it now would inject stale data (#4970).
-    if timestamp[env] == 0.0:
-        return
-
-    # Copy aggregate forces (column 0) - only thread with f_idx == 0 does this.
     src_idx = env * num_sensors + sensor
     if f_idx == 0:
         total = newton_total_force[src_idx]

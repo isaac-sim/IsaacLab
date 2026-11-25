@@ -3,11 +3,9 @@
 Use the benchmark API
 =====================
 
-This guide is for automation authors who need to run supported benchmarks from
-Python, consume typed results, or add a benchmark producer. For day-to-day
-benchmarking, start with the CLI workflows and interpretation guidance in
-:ref:`developer_tools_benchmarking_run`. To isolate one asset method, cached
-property, or sensor update, use :ref:`developer_tools_benchmarking_micro`.
+Use the Python API to run benchmarks, read typed results, or add a custom producer.
+For command-line workflows, see :ref:`developer_tools_benchmarking_run`. For
+individual asset operations and sensor updates, see :ref:`developer_tools_benchmarking_micro`.
 
 Run one workflow
 ----------------
@@ -497,7 +495,7 @@ MJWarp/VBD configuration records ``["newton_mjwarp", "newton_vbd"]`` and
 ``"proxy"``. ``physics_backend`` retains the existing Kamino-before-MJWarp
 precedence for mixed configurations.
 
-The performance smoke gate includes solver and coupling identity in composite
+The performance regression gate includes solver and coupling identity in composite
 workload contracts. Single-solver contracts retain their existing shape, so
 older single-solver baselines remain comparable. Older composite bundles lack
 the additional identity and cannot be pooled with the new composite contracts.

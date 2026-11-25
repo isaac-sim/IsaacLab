@@ -6,6 +6,7 @@
 """Track poses between a robot's base, feet, and end-effector frames."""
 
 import argparse
+from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
 import torch
@@ -13,7 +14,6 @@ import torch
 import isaaclab.sim as sim_utils
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
-from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
@@ -30,13 +30,14 @@ parser.add_argument("--log_interval", type=int, default=100, help="Steps between
 parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
 parser.add_argument(
     "--physics",
-    default="isaacsim_physx",
-    choices=["isaacsim_physx"],
+    default="ovphysx",
+    choices=["isaacsim_physx", "ovphysx"],
     help="Physics backend.",
 )
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["kit"])
 args_cli = parser.parse_args()
+if args_cli.visualizer is None:
+    args_cli.visualizer = ["newton_gl" if args_cli.physics == "isaacsim_physx" else "newton_rtx"]
 if args_cli.log_interval < 1:
     parser.error("--log_interval must be at least 1.")
 if args_cli.max_steps == 0 or args_cli.max_steps < -1:
@@ -130,11 +131,11 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: "InteractiveScene") -
 
 def main() -> None:
     """Run the frame-transformer example."""
-    with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
-        sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device, physics=physics_cfg)
+    sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device)
+    scene_cfg = FrameTransformerSensorSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0)
+    with launch_simulation(SimpleNamespace(sim=sim_cfg, scene=scene_cfg), args_cli):
         sim = sim_utils.SimulationContext(sim_cfg)
         sim.set_camera_view(eye=[3.5, 3.5, 3.5], target=[0.0, 0.0, 0.0])
-        scene_cfg = FrameTransformerSensorSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0)
         scene: InteractiveScene = instantiate(scene_cfg)
         sim.reset()
         print("[INFO]: Setup complete...")

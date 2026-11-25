@@ -22,6 +22,8 @@ from isaaclab.sensors import CameraCfg
 from isaaclab.utils import configclass, replace
 from isaaclab.utils.images import normalize_camera_image
 
+from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
+
 from ... import mdp
 from . import stack_joint_pos_env_cfg
 
@@ -56,6 +58,11 @@ def image(
             This is used only when the data type is "distance_to_camera". Defaults to False.
         normalize: Whether to normalize the images. This depends on the selected data type.
             Defaults to True.
+        save_image_to_file: Whether to write a PNG for every environment on each call.
+            Defaults to False.
+        image_path: Filename prefix, including an optional directory. Each saved filename
+            appends the data type, successful-trial count, environment tile, and step.
+            Defaults to "image".
 
     Returns:
         The images produced at the last time-step
@@ -245,6 +252,7 @@ class FrankaCubeStackBlueprintEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvC
 
         # Set table view camera
         self.scene.table_cam = CameraCfg(
+            renderer_cfg=MultiBackendRendererCfg().rtx,
             prim_path="{ENV_REGEX_NS}/table_cam",
             update_period=0.0333,
             height=704,
@@ -260,6 +268,7 @@ class FrankaCubeStackBlueprintEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvC
 
         # Set table view camera
         self.scene.table_high_cam = CameraCfg(
+            renderer_cfg=MultiBackendRendererCfg().rtx,
             prim_path="{ENV_REGEX_NS}/table_high_cam",
             update_period=0.0333,
             height=704,

@@ -3,19 +3,17 @@ Hydra Configuration System
 
 .. currentmodule:: isaaclab
 
-Isaac Lab supports the `Hydra <https://hydra.cc/docs/intro/>`_ configuration system to modify the task's
-configuration using command line arguments, which can be useful to automate experiments and perform hyperparameter tuning.
+Use `Hydra <https://hydra.cc/docs/intro/>`_ overrides to change task and agent
+settings from the command line, without editing Python.
 
-Any parameter of the environment can be modified by adding one or multiple elements of the form ``env.a.b.param1=value``
-to the command line input, where ``a.b.param1`` reflects the parameter's hierarchy, for example ``env.actions.joint_effort.scale=10.0``.
-Similarly, the agent's parameters can be modified by using the ``agent`` prefix, for example ``agent.seed=2024``.
+Append ``env.<path>=<value>`` for environment settings, such as
+``env.actions.joint_effort.scale=10.0``. Use the ``agent`` prefix for training
+settings, such as ``agent.seed=2024``.
 
-The way these command line arguments are set follow the exact structure of the configuration files. Since the different
-RL frameworks use different conventions, there might be differences in the way the parameters are set. For example,
-with *rl_games* the seed will be set with ``agent.params.seed``, while with *rsl_rl*, *skrl* and *sb3* it will be set with
-``agent.seed``.
+Paths follow the configuration structure of each RL library. For example, RL-Games
+uses ``agent.params.seed``; RSL-RL, skrl, and SB3 use ``agent.seed``.
 
-As a result, training with hydra arguments can be run with the following syntax:
+For example:
 
 .. tab-set::
     :sync-group: rl-train
@@ -80,8 +78,7 @@ Modifying advanced parameters
 Callables
 ^^^^^^^^^
 
-It is possible to modify functions and classes in the configuration files by using the syntax ``module:attribute_name``.
-For example, in the Cartpole environment:
+Use ``module:attribute_name`` to select a function or class. For example, in Cartpole:
 
 .. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_manager_env_cfg.py
     :language: python
@@ -118,9 +115,8 @@ This example shows two noteworthy points:
 Modifying inter-dependent parameters
 ------------------------------------
 
-Particular care should be taken when modifying the parameters using command line arguments. Some of the configurations
-perform intermediate computations based on other parameters. These computations will not be updated when the parameters
-are modified.
+Overrides do not recompute values derived earlier from other settings. Update
+those dependent values too, unless the environment recomputes them at runtime.
 
 For example, for the configuration of the Cartpole camera environment:
 
@@ -172,7 +168,8 @@ preset is paired with a Newton physics configuration:
 **When it runs:**
 
 1. All ``MISSING`` fields are checked first — if any remain, ``TypeError`` is raised.
-2. Only then is ``validate_config()`` called on the **top-level** config object.
+2. Only then is ``validate_config()`` called on every nested configclass and on the top-level config object
+   (nested configs are validated before the configs that own them).
 3. The hook should raise ``ValueError`` with a clear message and migration guidance.
 
 **Common validation patterns:**
@@ -230,7 +227,7 @@ override is given:
     from isaaclab.sim import SimulationCfg
     from isaaclab.utils import configclass
     from isaaclab_newton.physics import NewtonCfg
-    from isaaclab_physx.physics import PhysxCfg
+    from isaaclab_isaacsim.physics import PhysxCfg
     from isaaclab_tasks.utils import PresetCfg
 
     @configclass
@@ -303,13 +300,11 @@ is the solver configuration: ``newton_mjwarp`` uses
 Kamino is therefore a solver preset, not a separate Isaac Lab backend. The same
 Newton assets, sensors, renderers, and visualizers are used after the preset is
 resolved. It is a Proximal Alternating Direction Method of Multipliers (P-ADMM)
-based solver for constrained rigid multi-body dynamics, and its Isaac Lab support
-is currently beta.
+based solver for constrained rigid multi-body dynamics.
 
 .. note::
 
-    Kamino support is experimental and currently depends on the asset being
-    structured in a way that Kamino can consume. Assets that work with the
+    Kamino requires assets with a compatible model structure. Assets that work with the
     MuJoCo-Warp or PhysX presets may still require model-structure updates before
     they work with ``physics=newton_kamino``.
 
@@ -345,8 +340,8 @@ For simple values (scalars, lists) that don't warrant a full subclass, use the
         default=0.0, isaacsim_physx=0.0, newton_mjwarp=0.01, physx=0.0
     )
 
-This is equivalent to defining a ``PresetCfg`` subclass with the same ``float``
-fields, but without the ceremony. The ``default`` keyword is required.
+This creates the same fields as a ``PresetCfg`` subclass. The ``default`` argument
+is required.
 
 ``preset()`` works for any value type -- scalars, lists, or even config
 instances:
@@ -385,7 +380,7 @@ It additionally verifies that the name resolved a physics configuration; the fre
 Typed Preset Selectors
 ^^^^^^^^^^^^^^^^^^^^^^
 
-The preset CLI layer recognizes three ``key=value`` tokens (no leading dashes)
+The preset CLI layer recognizes four ``key=value`` tokens (no leading dashes)
 that can be appended to any training or play script command:
 
 .. list-table::
@@ -398,6 +393,8 @@ that can be appended to any training or play script command:
      - Typed selector for :class:`~isaaclab.physics.PhysicsCfg` variants
    * - ``renderer=NAME``
      - Typed selector for :class:`~isaaclab.renderers.renderer_cfg.RendererCfg` variants
+   * - ``visualizer=NAME[,NAME,...]``
+     - Selects the :class:`~isaaclab.visualizers.VisualizerBackendCfg` backend of each configured viewer (``none`` disables viewers)
    * - ``presets=NAME[,NAME,...]``
      - Broadcast: applied to every matching :class:`~isaaclab_tasks.utils.hydra.PresetCfg` in the config tree
 
@@ -423,7 +420,7 @@ task-specific modes.
    * - ``newton_mjwarp``
      - Newton physics with the MuJoCo-Warp solver
    * - ``newton_kamino``
-     - Newton physics with the Kamino solver (beta; limited tasks — see :ref:`hydra-backend-solver-presets`)
+     - Newton physics with the Kamino solver (selected tasks — see :ref:`hydra-backend-solver-presets`)
    * - ``ovphysx``
      - Concrete OvPhysX configuration for supported kit-less tasks
 
@@ -440,8 +437,10 @@ task-specific modes.
      - Concrete Isaac Sim RTX renderer
    * - ``rtx``
      - Automatic RTX-family selection between configured alternatives
-   * - ``newton_renderer``
+   * - ``newton_warp``
      - Newton Warp renderer
+   * - ``newton_optix``
+     - Newton OptiX renderer for RTX GPUs; requires the ``optix`` extra
    * - ``ovrtx``
      - Concrete OVRTX renderer for supported kit-less tasks
 
@@ -505,12 +504,12 @@ Using Presets
 
     # Switch to Newton renderer for camera environments
     uv run isaaclab train --rl_library rsl_rl \
-        --task Isaac-Cartpole-Camera-Direct renderer=newton_renderer
+        --task Isaac-Cartpole-Camera-Direct renderer=newton_warp
 
     # Combine typed selectors with a task-specific observation preset
     uv run isaaclab train --rl_library rsl_rl \
         --task Isaac-Cartpole-Camera-Direct \
-        physics=newton_mjwarp renderer=newton_renderer presets=rgb
+        physics=newton_mjwarp renderer=newton_warp presets=rgb
 
 **Path presets** -- select a specific preset for one config path:
 
@@ -545,7 +544,7 @@ inputs; the critic continues to use state observations.
 
     uv run isaaclab train --rl_library rsl_rl \
         --task Isaac-Cartpole-Camera \
-        physics=newton_mjwarp renderer=newton_renderer presets=rgb \
+        physics=newton_mjwarp renderer=newton_warp presets=rgb \
         env.sim.dt=0.002
 
 
@@ -564,19 +563,17 @@ so the ambiguity is caught early:
 Real-World Example
 ^^^^^^^^^^^^^^^^^^
 
-The ANYmal-C locomotion environment shows both ``PresetCfg`` and ``preset()``
-working together:
+The ANYmal-C locomotion environment inherits its physics presets from the base
+velocity configuration:
 
-.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/anymal_c/rough_env_cfg.py
+.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/velocity/velocity_env_cfg.py
     :language: python
-    :start-at: class AnymalCRoughEnvCfg
+    :start-at: class RoughPhysicsCfg(PresetCfg):
+    :end-at: default = newton_mjwarp
 
-The base velocity configuration also defines ``newton_mjwarp`` alternatives for
-physics and a center-of-mass randomization event that MJWarp disables. An explicit
-``physics=newton_mjwarp`` resolves the physics config and every active dependent
-alternative with that name: the event is disabled and the ANYmal-C actuator
-armature becomes ``0.01``. The typed selector also verifies that a physics preset
-was actually selected.
+An explicit ``physics=newton_mjwarp`` resolves the physics config and every active
+dependent alternative with that name. The typed selector also verifies that a
+physics preset was actually selected.
 
 .. code-block:: bash
 
@@ -610,8 +607,8 @@ Summary
      - ``physics=newton_mjwarp``
      - Select a physics variant, update matching dependent presets, and require a typed match
    * - Typed renderer selector
-     - ``renderer=newton_renderer``
+     - ``renderer=newton_warp``
      - Select a renderer variant and require a typed match
    * - Combined
-     - ``physics=newton_mjwarp renderer=newton_renderer presets=rgb env.sim.dt=0.001``
+     - ``physics=newton_mjwarp renderer=newton_warp presets=rgb env.sim.dt=0.001``
      - Typed selectors + domain preset + scalar override

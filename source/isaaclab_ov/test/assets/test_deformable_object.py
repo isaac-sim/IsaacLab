@@ -19,6 +19,8 @@ import pytest
 import torch
 import warp as wp
 from flaky import flaky
+from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg  # noqa: E402
+from isaaclab_isaacsim.sim.spawners.materials import PhysxDeformableBodyMaterialCfg  # noqa: E402
 from isaaclab_ov import tensor_types as TT  # noqa: E402
 from isaaclab_ov.assets import DeformableObject as OvPhysxDeformableObject  # noqa: E402
 from isaaclab_ov.assets.deformable_object.deformable_object_data import DeformableObjectData  # noqa: E402
@@ -26,8 +28,6 @@ from isaaclab_ov.assets.deformable_object.kernels import vec6f  # noqa: E402
 from isaaclab_ov.assets.deformable_object.views import OvPhysxDeformableBodyView  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg, OvPhysxManager  # noqa: E402
 from isaaclab_ov.physics.ovphysx_manager import OvPhysxSceneDataBackend  # noqa: E402
-from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg  # noqa: E402
-from isaaclab_physx.sim.spawners.materials import PhysxDeformableBodyMaterialCfg  # noqa: E402
 
 from pxr import Gf, Sdf, Usd, UsdGeom  # noqa: E402
 
@@ -43,6 +43,8 @@ from ..deformable_utils import (  # noqa: E402
     pre_tetrahedralized_deformable_spawn_cfg,
     pretriangulated_surface_deformable_spawn_cfg,
 )
+
+pytestmark = pytest.mark.ov
 
 wp.init()
 
@@ -139,9 +141,8 @@ def _assert_rest_positions_match_authored(
 
 
 @pytest.fixture
-def host_shell(monkeypatch):
-    """Run an asset shell on CPU with a scene-data backend, without a simulation."""
-    monkeypatch.setattr(OvPhysxManager, "_scene_data_backend", OvPhysxSceneDataBackend())
+def host_shell():
+    """Run an asset shell on CPU without a simulation."""
     with wp.ScopedDevice("cpu"):
         yield
 
@@ -228,6 +229,8 @@ def _make_asset_shell(
     num_vertices: int = 4,
 ) -> OvPhysxDeformableObject:
     asset = object.__new__(OvPhysxDeformableObject)
+    asset._backend_manager = OvPhysxManager(OvPhysxCfg())
+    asset._backend_manager._scene_data_backend = OvPhysxSceneDataBackend(asset._backend_manager)
     asset._device = "cpu"
     asset._check_shapes = True
     asset._DTYPE_TO_TORCH_TRAILING_DIMS = {**asset._DTYPE_TO_TORCH_TRAILING_DIMS, vec6f: (6,)}
@@ -383,6 +386,33 @@ def test_indexed_partial_write_preserves_retained_aliased_slice(
     expected[env_ids].fill_(command_value)
     assert getattr(asset.data, property_name) is retained
     torch.testing.assert_close(retained.torch, expected)
+
+
+@pytest.mark.usefixtures("host_shell")
+def test_mask_writes_update_only_masked_rows():
+    """The mask writers take full-size data and write only the environments the mask selects."""
+    asset = _make_asset_shell(deformable_type="volume", num_instances=3, num_vertices=2)
+    zeros = torch.zeros((3, 2, 3), device=asset.device)
+    asset.root_view.positions = wp.from_torch(zeros.clone(), dtype=wp.float32)
+    asset.root_view.velocities = wp.from_torch(zeros.clone(), dtype=wp.float32)
+    asset.update(0.1)
+    env_mask = wp.array([False, True, False], dtype=wp.bool, device=asset.device)
+
+    state = torch.cat((torch.full((3, 2, 3), 5.0), torch.full((3, 2, 3), -5.0)), dim=-1).to(asset.device)
+    asset.write_nodal_state_to_sim_mask(state, env_mask=env_mask)
+    expected = torch.zeros((3, 2, 6), device=asset.device)
+    expected[1] = state[1]
+    torch.testing.assert_close(asset.data.nodal_state_w.torch, expected)
+    view = asset.root_view
+    assert view.last_indices.numpy().tolist() == [1]
+    assert (view.position_write_count, view.velocity_write_count) == (1, 1)
+
+    positions = torch.full((3, 2, 3), 9.0, device=asset.device)
+    asset.write_nodal_pos_to_sim_mask(positions, env_mask=env_mask)
+    expected[1, :, :3] = 9.0
+    torch.testing.assert_close(asset.data.nodal_pos_w.torch, expected[..., :3])
+    assert view.last_indices.numpy().tolist() == [1]
+    assert (view.position_write_count, view.velocity_write_count) == (2, 1)
 
 
 @pytest.mark.usefixtures("host_shell")
@@ -554,7 +584,7 @@ def test_initialization_with_shared_material():
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
 def test_mesh_spawner_deformable_fragment_slots(deformable_type: str):
     """The mesh spawner's deformable fragment slots author a deformable that OVPhysX simulates."""
-    from isaaclab_physx.sim.spawners.materials import PhysxSurfaceDeformableBodyMaterialCfg
+    from isaaclab_isaacsim.sim.spawners.materials import PhysxSurfaceDeformableBodyMaterialCfg
 
     from isaaclab.sim.schemas import OmniPhysicsDeformableBodyCfg
 
@@ -785,7 +815,7 @@ def test_volume_deformable_reads_writes_targets_materials_and_steps():
         # A forced re-warm replaces the attached stage, so the deformable bindings are rebuilt.
         original_view = deformable.root_view
         original_binding = original_view.binding_for(TT.DEFORMABLE_SIM_NODAL_POSITION)
-        OvPhysxManager._warmup_done = False
+        sim.backend_manager._warmup_done = False
         sim.reset()
 
         assert deformable.is_initialized
@@ -947,9 +977,9 @@ def test_heterogeneous_mixed_deformable_rigid_scene_materializes_missing_targets
         runtime_paths = shape.root_view.prim_paths
         assert set(runtime_paths) == expected_paths
         assert len(runtime_paths) == len(set(runtime_paths)) == num_envs
-        assert OvPhysxManager._stage_usda is not None
+        assert sim.backend_manager._stage_usda is not None
         layer = Sdf.Layer.CreateAnonymous("materialized.usda")
-        assert layer.ImportFromString(OvPhysxManager._stage_usda)
+        assert layer.ImportFromString(sim.backend_manager._stage_usda)
         materialized_stage = Usd.Stage.Open(layer)
         assert materialized_stage.GetPrimAtPath(camera_path).IsValid()
         assert all(materialized_stage.GetPrimAtPath(path).IsValid() for path in authored_deformable_paths)

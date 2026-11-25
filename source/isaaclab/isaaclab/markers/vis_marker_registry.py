@@ -18,6 +18,28 @@ class VisMarkerRegistry:
     def __init__(self):
         self._callbacks: dict[str, Callable[[Any], None]] = {}
         self._groups: dict[str, Any] = {}
+        self._consumers: set[object] = set()
+        self.revision = 0
+
+    @property
+    def has_consumers(self) -> bool:
+        """Whether a renderer outside the ordinary visualizers consumes registry-backed markers."""
+        return bool(self._consumers)
+
+    def register_consumer(self) -> object:
+        """Request registry-backed marker state and return this consumer's retirement token.
+
+        Renderers consuming :meth:`get_groups` use this to enable the existing native marker
+        backend without creating an ordinary visualizer. Each owner must unregister its token
+        after it stops consuming the groups; other consumers remain enabled independently.
+        """
+        token = object()
+        self._consumers.add(token)
+        return token
+
+    def unregister_consumer(self, token: object) -> None:
+        """Retire one consumer, leaving any other consumers registered."""
+        self._consumers.discard(token)
 
     def add_callback(self, name: str, callback: Callable[[Any], None]) -> str:
         """Register a callback invoked before marker-capable visualizers step each render tick."""
@@ -64,10 +86,12 @@ class VisMarkerRegistry:
     def set_group(self, group_id: str, state: Any) -> None:
         """Set or replace one visualization marker group state."""
         self._groups[group_id] = state
+        self.revision += 1
 
     def remove_group(self, group_id: str) -> None:
         """Remove one visualization marker group state if present."""
         self._groups.pop(group_id, None)
+        self.revision += 1
 
     def get_groups(self) -> dict[str, Any]:
         """Return all active visualization marker groups."""

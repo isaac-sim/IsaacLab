@@ -22,6 +22,8 @@ from isaaclab.utils.math import (
     quat_mul,
 )
 
+from isaaclab_tasks.contrib.factory import factory_utils
+
 from . import automate_algo_utils as automate_algo
 from . import automate_log_utils as automate_log
 from . import factory_control as fc
@@ -105,17 +107,9 @@ class AssemblyEnv(DirectRLEnv):
         )
 
         # Set masses and frictions.
-        self._set_friction(self._held_asset, self.cfg_task.held_asset_cfg.friction)
-        self._set_friction(self._fixed_asset, self.cfg_task.fixed_asset_cfg.friction)
-        self._set_friction(self._robot, self.cfg_task.robot_cfg.friction)
-
-    def _set_friction(self, asset, value):
-        """Update material properties for a given asset."""
-        materials = wp.to_torch(asset.root_view.get_material_properties())
-        materials[..., 0] = value  # Static friction.
-        materials[..., 1] = value  # Dynamic friction.
-        env_ids = torch.arange(self.scene.num_envs, device="cpu", dtype=torch.int32)
-        asset.root_view.set_material_properties(wp.from_torch(materials), wp.from_torch(env_ids))
+        factory_utils.set_friction(self._held_asset, self.cfg_task.held_asset_cfg.friction, self.scene.num_envs)
+        factory_utils.set_friction(self._fixed_asset, self.cfg_task.fixed_asset_cfg.friction, self.scene.num_envs)
+        factory_utils.set_friction(self._robot, self.cfg_task.robot_cfg.friction, self.scene.num_envs)
 
     def _init_tensors(self):
         """Initialize tensors once."""
@@ -818,7 +812,7 @@ class AssemblyEnv(DirectRLEnv):
     def randomize_initial_state(self, env_ids):
         """Randomize initial state and perform any episode-level randomization."""
         # Disable gravity.
-        self.sim.physics_manager.set_gravity((0.0, 0.0, 0.0))
+        self.sim.backend_manager.set_gravity((0.0, 0.0, 0.0))
 
         self.randomize_fixed_initial_state(env_ids)
 
@@ -873,4 +867,4 @@ class AssemblyEnv(DirectRLEnv):
         # Set initial gains for the episode.
         self._set_gains(self.default_gains)
 
-        self.sim.physics_manager.set_gravity(tuple(self.cfg.sim.gravity))
+        self.sim.backend_manager.set_gravity(tuple(self.cfg.sim.gravity))

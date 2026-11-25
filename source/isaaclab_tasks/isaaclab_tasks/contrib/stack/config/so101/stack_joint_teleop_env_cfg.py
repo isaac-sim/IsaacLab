@@ -5,20 +5,13 @@
 
 from dataclasses import MISSING
 
-from isaaclab_teleop import IsaacTeleopCfg
-
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.utils import configclass
 
+from isaaclab_tasks.contrib import ISAACLAB_TELEOP_AVAILABLE
 from isaaclab_tasks.contrib.stack import mdp
 
 from . import stack_joint_pos_env_cfg
-
-# ``isaaclab_teleop`` imports cleanly without the optional ``isaacteleop`` package (the heavy
-# import is deferred to session start), so no import guard is needed here. This lightweight
-# marker lets the env test suite categorize this as a teleop env (see
-# ``isaaclab_tasks/test/env_test_utils.py::_is_teleop_env``).
-_TELEOP_AVAILABLE = True
 
 # Canonical SO-101 DOF names, in the order the leader arm streams them (matches
 # ``so101_new_calib.urdf`` and the ``so101_leader`` device schema). The first five are the arm;
@@ -153,14 +146,18 @@ class SO101CubeStackEnvCfg(stack_joint_pos_env_cfg.SO101CubeStackEnvCfg):
         # Isaac Capture joint-space pipeline. Unlike the IK env this needs no ``target_frame_prim_path``
         # (there is no pose to rebase into the base frame) and does not read the XR anchor -- the
         # leader plugin streams joint state over the OpenXR tensor transport, which the session still
-        # provides. ``xr_cfg`` is forwarded only to satisfy the session's XR bootstrap. Launch the
-        # ``so101_leader`` device (collection id ``so101_leader``) alongside the sim; it is not
-        # spawned here as a plugin so operators can point at real or synthetic hardware.
-        self.isaac_teleop = IsaacTeleopCfg(
-            pipeline_builder=_build_so101_joint_teleop_pipeline,
-            sim_device=self.sim.device,
-            xr_cfg=self.xr,
-        )
+        # provides. When the environment has no explicit XR config, ``IsaacTeleopCfg`` supplies its
+        # default session config. Launch the ``so101_leader`` device (collection id ``so101_leader``)
+        # alongside the sim; it is not spawned here as a plugin so operators can point at real or
+        # synthetic hardware.
+        if ISAACLAB_TELEOP_AVAILABLE:
+            from isaaclab_teleop import IsaacTeleopCfg
+
+            self.isaac_teleop = IsaacTeleopCfg(
+                pipeline_builder=_build_so101_joint_teleop_pipeline,
+                sim_device=self.sim.device,
+                **({"xr_cfg": self.xr} if self.xr is not None else {}),
+            )
 
         # Widen the gripper-open check in the success termination. In joint teleop the follower jaw
         # mirrors the leader's raw encoder 1:1 and is capped by its own joint limit (1.7453 rad), so

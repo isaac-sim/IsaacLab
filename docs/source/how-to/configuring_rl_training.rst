@@ -7,19 +7,12 @@ Configuring an RL Agent
 
 .. currentmodule:: isaaclab
 
-In the previous tutorial, we saw how to train an RL agent to solve the cartpole balancing task
-using the `Stable-Baselines3`_ library. In this tutorial, we will see how to configure the
-training process to use different RL libraries and different training algorithms.
+Each task registers an agent configuration for every supported RL library. The
+configuration selects the algorithm, network, and training settings.
 
-In the directory ``scripts/reinforcement_learning``, you will find the scripts for
-different RL libraries. These are organized into subdirectories named after the library name.
-Each subdirectory contains the training and playing scripts for the library.
-
-To configure a learning library with a specific task, you need to create a configuration file
-for the learning agent. This configuration file is used to create an instance of the learning agent
-and is used to configure the training process. Similar to the environment registration shown in
-the :ref:`tutorial-register-rl-env-gym` tutorial, you can register the learning agent with the
-``gymnasium.register`` method.
+This tutorial creates an agent configuration and registers it with the task using
+``gymnasium.register``, building on :ref:`tutorial-register-rl-env-gym`.
+For library choices and training commands, see :ref:`reinforcement-learning`.
 
 The Code
 --------
@@ -30,7 +23,7 @@ in the ``isaaclab_tasks`` package. This is the same task that we used in the
 
 .. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/__init__.py
    :language: python
-   :lines: 50-64
+   :lines: 54-70
 
 The Code Explained
 ------------------
@@ -98,7 +91,7 @@ reads the configuration instance:
     .. literalinclude:: ../../../source/isaaclab_rl/isaaclab_rl/entrypoints/backends/train_sb3.py
       :language: python
       :linenos:
-      :emphasize-lines: 56-60, 97-98
+      :emphasize-lines: 71-76, 112
 
 The argument ``--rl_library`` selects the reinforcement learning library. The ``--agent``
 argument selects the library-specific configuration entry point from the ``kwargs``
@@ -107,7 +100,7 @@ dictionary, so you can manually specify alternate configuration instances.
 The Code Execution
 ------------------
 
-Since for the cartpole balancing task, RSL-RL library offers two configuration instances,
+Since the cartpole balancing task offers several RSL-RL configuration instances,
 we can use the ``--agent`` argument to specify the configuration instance to use.
 
 * Training with the standard PPO configuration:
@@ -154,7 +147,32 @@ omit it when initializing a new student from a PPO teacher checkpoint.
 
 Installed downstream tasks are discovered through the ``isaaclab.tasks`` entry-point group.
 Custom launchers can call ``isaaclab.cli.load_external_tasks()`` before looking up task IDs,
-as the built-in CLI and direct RL workers do.
+as the built-in CLI and direct RL workers do. A package that fails to import is reported with a
+warning instead of stopping discovery.
+
+Training with SAC
+~~~~~~~~~~~~~~~~~
+
+Several tasks provide a SAC agent entry point next to their PPO agent: ``Isaac-Cartpole``, ``Isaac-Ant``,
+``Isaac-Humanoid``, ``Isaac-Open-Drawer-Franka``, ``Isaac-Reorient-Cube-Allegro``, and the flat and rough
+ANYmal-D and G1 velocity tasks. Their configurations use the FlashSAC recipe of RSL-RL, including residual BatchNorm
+networks, categorical critics, held exploration and return scaling, with settings tuned per task. The environment's
+rewards, commands and events are shared with its PPO agent. The G1 agents add left/right symmetry augmentation,
+which they share with the G1 PPO teacher.
+
+.. code-block:: bash
+
+   uv run isaaclab train --rl_library rsl_rl \
+      --task Isaac-Velocity-Flat-G1 --agent rsl_rl_sac_cfg_entry_point \
+      physics=newton_mjwarp visualizer=none
+
+The rough ANYmal-D and G1 agents were tuned with ``--num_envs 1024``.
+
+The actor's ``action_range`` specifies bounds in the raw coordinates accepted by the
+environment. ``clip_actions=None`` preserves that range.
+
+Use the same agent entry point with the playback and export commands. Published
+``pretrained`` checkpoints are PPO policies and cannot be loaded by ``OffPolicyRunner`` agents.
 
 .. _Stable-Baselines3: https://stable-baselines3.readthedocs.io/en/master/
 .. _RL-Games: https://github.com/Denys88/rl_games

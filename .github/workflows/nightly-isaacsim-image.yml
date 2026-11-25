@@ -4,11 +4,11 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 # Resolve the moving Isaac Sim ``latest-release-6-3`` tag to its immutable
-# manifest digest and open (or refresh) a draft PR against ``develop``.
+# manifest digest and open (or refresh) a draft PR against the default branch.
 #
 # Scheduled workflows register only from the default branch, so this file
-# must remain on ``develop`` while it is the repository default. The job also
-# checks out ``develop`` because that is where the CI image pin is maintained.
+# must remain there. The job also checks out the default branch because that is
+# where the CI image pin is maintained.
 #
 # The isaaclab-bot GitHub App token is used instead of GITHUB_TOKEN so the
 # branch push and PR events trigger the normal CI workflows. The App must have
@@ -41,7 +41,7 @@ env:
   CONFIG_PATH: .github/workflows/config.yaml
   SOURCE_IMAGE: nvcr.io/0947644777160149/internal/isaac-sim
   SOURCE_TAG: latest-release-6-3
-  TARGET_BRANCH: develop
+  TARGET_BRANCH: ${{ github.event.repository.default_branch }}
   UPDATE_BRANCH: ci/nightly-isaacsim-image-update
 
 jobs:
@@ -154,20 +154,27 @@ jobs:
         run: |
           set -euo pipefail
 
+          remote_ref="refs/heads/$UPDATE_BRANCH"
+          remote_sha=""
+          if git ls-remote --exit-code origin "$remote_ref" >/dev/null 2>&1; then
+            git fetch origin "+$remote_ref:refs/remotes/origin/$UPDATE_BRANCH"
+            remote_sha=$(git rev-parse "refs/remotes/origin/$UPDATE_BRANCH")
+            branch_base=$(git merge-base HEAD "$remote_sha")
+            # Review fixes on the rolling PR must land in main before the bot reconstructs its branch.
+            if ! git diff --quiet "$branch_base" "$remote_sha" -- . ":(exclude)$CONFIG_PATH"; then
+              echo "::error::$UPDATE_BRANCH contains changes beyond the image pin. Merge or preserve those changes before refreshing it."
+              exit 1
+            fi
+          fi
+
           git config user.name "isaaclab-bot[bot]"
           git config user.email "282401363+isaaclab-bot[bot]@users.noreply.github.com"
           git switch -C "$UPDATE_BRANCH"
           git add "$CONFIG_PATH"
           git commit -m "Bump Isaac Sim CI image digest"
 
-          remote_ref="refs/heads/$UPDATE_BRANCH"
-          if git ls-remote --exit-code origin "$remote_ref" >/dev/null 2>&1; then
-            git fetch origin "+$remote_ref:refs/remotes/origin/$UPDATE_BRANCH"
-            remote_sha=$(git rev-parse "refs/remotes/origin/$UPDATE_BRANCH")
-            git push --force-with-lease="$remote_ref:$remote_sha" origin "HEAD:$remote_ref"
-          else
-            git push --force-with-lease="$remote_ref:" origin "HEAD:$remote_ref"
-          fi
+          # Lease the exact revision inspected above, including when the branch did not exist.
+          git push --force-with-lease="$remote_ref:$remote_sha" origin "HEAD:$remote_ref"
 
       - name: Open or refresh the draft PR
         if: ${{ steps.pin.outputs.changed == 'true' && !inputs.dry_run }}
@@ -205,10 +212,6 @@ jobs:
             echo "## Type of change"
             echo
             echo "- Infrastructure update"
-            echo
-            echo "## Release backport"
-            echo
-            echo '- [ ] <!-- backport-active-release --> Backport this pull request to the active release branch after it merges into `develop`'
             echo
             echo "## Screenshots"
             echo

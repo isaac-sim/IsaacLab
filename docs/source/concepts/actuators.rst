@@ -32,6 +32,94 @@ articulation setters; see :ref:`actuators-migrating-setters`.
     :depth: 1
 
 
+Choosing a model
+-----------------
+
+All models use :class:`~isaaclab.actuators.ActuatorBaseCfg`. PD models differ in clipping and
+state. Neural models replace the analytical PD law with a learned torque predictor. Choose the
+simplest model that meets your requirements.
+
+.. list-table::
+    :header-rows: 1
+    :widths: 22 34 24 20
+
+    * - Model (config)
+      - Torque / clipping
+      - Where limits clip
+      - Extra config fields
+    * - :class:`~isaaclab.actuators.ImplicitActuator`
+        (:class:`~isaaclab.actuators.ImplicitActuatorCfg`)
+      - Solver runs the PD law from the written gains.
+      - ``joint_effort_limit`` clips in the solver.
+      - --
+    * - :class:`~isaaclab.actuators.DelayedImplicitActuator`
+        (:class:`~isaaclab.actuators.DelayedImplicitActuatorCfg`)
+      - Solver runs PD on delayed position, velocity, and effort targets.
+      - ``joint_effort_limit`` clips in the solver.
+      - ``min_delay``, ``max_delay``
+    * - :class:`~isaaclab.actuators.IdealPDActuator`
+        (:class:`~isaaclab.actuators.IdealPDActuatorCfg`)
+      - :math:`\tau = k_p (q_{des}-q) + k_d(\dot{q}_{des}-\dot{q}) + \tau_{ff}`
+      - Model clips directly to :math:`\pm\,\tau_{max}` (``actuator_effort_limit``).
+      - --
+    * - :class:`~isaaclab.actuators.DCMotor`
+        (:class:`~isaaclab.actuators.DCMotorCfg`)
+      - Same PD torque, clipped to a four-quadrant torque-speed envelope.
+      - Model clips against a velocity-dependent limit.
+      - ``saturation_effort``, ``actuator_velocity_limit``
+    * - :class:`~isaaclab.actuators.DelayedPDActuator`
+        (:class:`~isaaclab.actuators.DelayedPDActuatorCfg`)
+      - Ideal PD applied to commands delayed by a circular buffer.
+      - Same as ideal PD (``actuator_effort_limit``).
+      - ``min_delay``, ``max_delay``
+    * - :class:`~isaaclab.actuators.RemotizedPDActuator`
+        (:class:`~isaaclab.actuators.RemotizedPDActuatorCfg`)
+      - Delayed PD with an angle-dependent torque ceiling.
+      - Torque clipped by a joint-angle lookup table.
+      - ``joint_parameter_lookup``
+    * - :class:`~isaaclab.actuators.ActuatorNetMLP` /
+        :class:`~isaaclab.actuators.ActuatorNetLSTM`
+      - A trained network predicts the torque from the joint history.
+      - Network output clipped by the DC-motor envelope.
+      - ``network_file`` (+ input scaling)
+    * - :class:`~isaaclab.actuators.BamActuatorCfg`
+        (Newton only)
+      - Identified voltage-domain servo: firmware P law, PWM duty, DC motor, load-dependent
+        gearbox friction.
+      - Duty clipped by the current limiter, torque by ``actuator_effort_limit``.
+      - ``motor``, ``kp_fw``, ``vin``
+
+**ImplicitActuator.** The default model. The solver applies the gains and limits. Isaac Lab
+estimates effort telemetry from the current state when the backend does not expose it.
+
+**DelayedImplicitActuator.** Delays position, velocity, and feed-forward effort targets before
+passing them to the solver. Gains and joint-state feedback remain current. Delay is sampled per
+environment from ``[min_delay, max_delay]`` at reset, as with ``DelayedPDActuator``.
+
+**IdealPDActuator.** An explicit PD controller with feed-forward effort and a symmetric model-side
+torque limit at :math:`\pm\,\tau_{max}`.
+
+**DCMotor.** Adds a linear four-quadrant torque-speed curve. ``saturation_effort`` is the stall
+torque, and ``actuator_velocity_limit`` is the no-load speed. Both accept a joint-name-pattern
+dictionary, so joints behind different gear reductions can share one group and still get their own
+curve — for example a quadruped whose knee sits behind an extra reduction relative to its hip.
+
+**DelayedPDActuator.** An ideal PD controller with delayed position, velocity, and effort commands.
+The delay is sampled uniformly from ``[min_delay, max_delay]`` at reset.
+
+**RemotizedPDActuator.** A delayed PD controller with an angle-dependent torque limit. The
+``joint_parameter_lookup`` table stores joint angle, transmission ratio, and maximum torque. Use it
+for linkages whose effective lever arm changes through their range of motion.
+
+**ActuatorNetMLP / ActuatorNetLSTM.** Learned torque models that use joint-position error and
+velocity history and clip output with the DC-motor envelope. ``network_file`` is a TorchScript
+checkpoint. See the :mod:`isaaclab.actuators` API reference for configuration details.
+
+**BamActuatorCfg.** A parameter-identified model of a small voltage-controlled servo, described in
+:ref:`actuators-bam`. Unlike the PD models it takes no stiffness or damping: its position loop is
+the servo firmware's, and its damping is the motor's back-EMF.
+
+
 Quick usage
 -----------
 
@@ -73,428 +161,6 @@ host adapter run during this call. Newton-native controllers finish processing i
 The following sections describe this pipeline, the available models, and their parameters.
 
 
-.. _actuators-pipeline:
-
-The actuator pipeline
----------------------
-
-Setting an actuator command does not write directly to the solver. Commands first enter the
-collection. Each group then follows one of three execution paths:
-
-#. **Command view** -- ``actuators.target_command.set_*_index`` and ``_mask`` write desired position,
-   velocity, and effort into joint-indexed buffers.
-#. **ActuatorCollection** -- routes groups and stages full-articulation commands, processed joint
-   commands, and telemetry. Actuator models retain their own gains and temporary state.
-#. **Execution path** -- an Isaac Lab explicit model computes and clips effort, an implicit drive
-   applies targets with solver-side PD gains, or a native actuator runs through Newton or the shared
-   host adapter.
-
-For Isaac Lab-managed models, ``actuators.output_command`` contains the processed position,
-velocity, and effort submitted to the backend. Native paths bypass this view, so it is not
-submitted-command telemetry for them. PhysX and OVPhysX process commands during
-``write_data_to_sim()``, while Newton-native controllers process them inside the solver. See
-:ref:`actuators-native` for supported native models and limitations.
-
-.. figure:: ../_static/actuators/pipeline-light.png
-    :class: only-light
-    :align: center
-    :width: 90%
-    :alt: Three actuator paths: Lab-managed models execute before submission, implicit drives
-        execute in the solver, and native models execute in the Newton/MJWarp solver or in the
-        shared PhysX/OVPhysX host adapter before submission.
-
-.. figure:: ../_static/actuators/pipeline-dark.png
-    :class: only-dark
-    :align: center
-    :width: 90%
-    :alt: Three actuator paths: Lab-managed models execute before submission, implicit drives
-        execute in the solver, and native models execute in the Newton/MJWarp solver or in the
-        shared PhysX/OVPhysX host adapter before submission.
-
-Implicit and explicit groups store gains differently:
-
-* For an **implicit** group, :attr:`~isaaclab.actuators.ActuatorBaseCfg.stiffness` and
-  :attr:`~isaaclab.actuators.ActuatorBaseCfg.damping` are written to the solver, which
-  runs the PD law. ``compute()`` passes the desired targets through unchanged while recording an
-  approximate torque for telemetry.
-* For an **explicit** group, the same gains are consumed by the model to compute a torque, and the
-  solver's own PD gains for those joints are set to zero. Reading ``data.joint_stiffness`` or
-  ``data.joint_damping`` on an explicit joint therefore returns **zero** -- the gains live in the
-  actuator model, not the solver.
-
-Gains configured for an actuator group are separate from
-:attr:`~isaaclab.assets.ArticulationData.joint_stiffness` and
-:attr:`~isaaclab.assets.ArticulationData.joint_damping`. Those data fields report solver drive
-gains. They match implicit gains after initialization and are zero for explicit actuator joints.
-They do not mirror actuator-model gains.
-
-
-.. _actuators-joint-property-ownership:
-
-Joint and actuator property ownership
---------------------------------------
-
-An actuator configuration selects joints and can override their properties during construction.
-Isaac Lab resolves ``joint_effort_limit``, ``joint_velocity_limit``, armature, friction, and
-implicit drive gains when it builds the articulation.
-:class:`~isaaclab.assets.ArticulationData` holds the live values, including
-``joint_effort_limits``, ``joint_vel_limits``, ``joint_armature``, and supported friction
-properties. Use articulation data and joint writers to read or change them.
-:class:`~isaaclab.actuators.ActuatorCollection` has no joint-property API.
-
-The runtime group properties ``effort_limit_sim``, ``velocity_limit_sim``, ``armature``,
-``friction``, ``dynamic_friction``, and ``viscous_friction`` were removed. Read their live values
-from articulation data and use the corresponding joint writers. The deprecated
-``effort_limit_sim`` and ``velocity_limit_sim`` configuration aliases remain available through 3.x.
-See :ref:`actuators-solver-limit-migration` for replacement data views and writers.
-
-Explicit actuators store model state such as ``actuator_effort_limit``, rated ``actuator_velocity_limit``, gains,
-delay, and motor curves. They do not store separate solver-limit or friction values. Because the
-backend runs their drives, implicit actuators read stiffness, damping, and effort projection from
-live articulation properties; assigning to these properties is ignored with a warning — use the
-articulation joint writers or the ``randomize_actuator_gains`` event instead.
-
-Newton-executed groups have no Isaac Lab model at all: the collection mapping entry is the owning
-Newton ``Actuator`` object, whose controller keeps its parameters separate from solver gains.
-Read or modify its components (``controller``, ``delay``, ``clamping``) directly for raw access,
-or use :func:`~isaaclab.actuators.newton.read_group_parameter` and
-:func:`~isaaclab.actuators.newton.write_group_parameter` for group-scoped access in
-public joint order with environment selection.
-
-``actuator_effort_limit`` and ``actuator_velocity_limit`` apply to the actuator model.
-``joint_effort_limit`` and ``joint_velocity_limit`` apply to the joint or solver and can have
-different values. Explicit models clip output to ``actuator_effort_limit``;
-``joint_effort_limit`` limits the solver.
-``actuator_velocity_limit`` is the model's rated joint-side speed, or a soft-limit snapshot for
-implicit actuators. ``joint_velocity_limit`` requests a solver constraint. Because backends
-enforce it differently, solver velocity limits are not portable clamps. ``effort_limit`` and
-``velocity_limit`` are deprecated configuration and runtime group aliases. ``velocity_limit``
-resolves to ``actuator_velocity_limit``; ``effort_limit`` resolves to ``actuator_effort_limit``.
-An implicit group may configure ``actuator_effort_limit`` separately from ``joint_effort_limit``
-to keep a rated model-facing limit distinct from the solver clamp; when unset, it tracks the
-live solver limit.
-
-Choosing a model
------------------
-
-All models use :class:`~isaaclab.actuators.ActuatorBaseCfg`. PD models differ in clipping and
-state. Neural models replace the analytical PD law with a learned torque predictor. Choose the
-simplest model that meets your requirements.
-
-.. list-table::
-    :header-rows: 1
-    :widths: 22 34 24 20
-
-    * - Model (config)
-      - Torque / clipping
-      - Where limits clip
-      - Extra config fields
-    * - :class:`~isaaclab.actuators.ImplicitActuator`
-        (:class:`~isaaclab.actuators.ImplicitActuatorCfg`)
-      - Solver runs the PD law from the written gains.
-      - ``joint_effort_limit`` clips in the solver.
-      - --
-    * - :class:`~isaaclab.actuators.IdealPDActuator`
-        (:class:`~isaaclab.actuators.IdealPDActuatorCfg`)
-      - :math:`\tau = k_p (q_{des}-q) + k_d(\dot{q}_{des}-\dot{q}) + \tau_{ff}`
-      - Model clips directly to :math:`\pm\,\tau_{max}` (``actuator_effort_limit``).
-      - --
-    * - :class:`~isaaclab.actuators.DCMotor`
-        (:class:`~isaaclab.actuators.DCMotorCfg`)
-      - Same PD torque, clipped to a four-quadrant torque-speed envelope.
-      - Model clips against a velocity-dependent limit.
-      - ``saturation_effort``, ``actuator_velocity_limit``
-    * - :class:`~isaaclab.actuators.DelayedPDActuator`
-        (:class:`~isaaclab.actuators.DelayedPDActuatorCfg`)
-      - Ideal PD applied to commands delayed by a circular buffer.
-      - Same as ideal PD (``actuator_effort_limit``).
-      - ``min_delay``, ``max_delay``
-    * - :class:`~isaaclab.actuators.RemotizedPDActuator`
-        (:class:`~isaaclab.actuators.RemotizedPDActuatorCfg`)
-      - Delayed PD with an angle-dependent torque ceiling.
-      - Torque clipped by a joint-angle lookup table.
-      - ``joint_parameter_lookup``
-    * - :class:`~isaaclab.actuators.ActuatorNetMLP` /
-        :class:`~isaaclab.actuators.ActuatorNetLSTM`
-      - A trained network predicts the torque from the joint history.
-      - Network output clipped by the DC-motor envelope.
-      - ``network_file`` (+ input scaling)
-
-**ImplicitActuator.** The default model. The solver applies the gains and limits. Isaac Lab
-estimates effort telemetry from the current state when the backend does not expose it.
-
-**IdealPDActuator.** An explicit PD controller with feed-forward effort and a symmetric model-side
-torque limit at :math:`\pm\,\tau_{max}`.
-
-**DCMotor.** Adds a linear four-quadrant torque-speed curve. ``saturation_effort`` is the stall
-torque, and ``actuator_velocity_limit`` is the no-load speed. Both accept a joint-name-pattern
-dictionary, so joints behind different gear reductions can share one group and still get their own
-curve — for example a quadruped whose knee sits behind an extra reduction relative to its hip.
-
-**DelayedPDActuator.** An ideal PD controller with delayed position, velocity, and effort commands.
-The delay is sampled uniformly from ``[min_delay, max_delay]`` at reset.
-
-**RemotizedPDActuator.** A delayed PD controller with an angle-dependent torque limit. The
-``joint_parameter_lookup`` table stores joint angle, transmission ratio, and maximum torque. Use it
-for linkages whose effective lever arm changes through their range of motion.
-
-**ActuatorNetMLP / ActuatorNetLSTM.** Learned torque models that use joint-position error and
-velocity history and clip output with the DC-motor envelope. They require a TorchScript checkpoint.
-See the :mod:`isaaclab.actuators` API reference for configuration details.
-
-
-.. _actuators-parameter-reference:
-
-Parameter reference
--------------------
-
-Each subsection compares five actuators while varying one parameter. All clips use a single-joint
-pendulum stepped at :math:`dt = 1/360\text{ s}`, with commands issued at 60 Hz. The stiffness,
-damping, and armature sweeps use the *implicit* path.
-
-.. important::
-
-    **Explicit groups keep the solver effort limit.** The solver retains the authored
-    :attr:`~isaaclab.actuators.ActuatorBaseCfg.joint_effort_limit` for explicit groups, so effort
-    submitted by an explicit model is clipped a second time by the solver. Configure
-    ``joint_effort_limit`` at least as large as ``actuator_effort_limit`` when the model should be
-    the only clip. See :ref:`actuators-joint-property-ownership` for model-limit, joint-limit, and
-    implicit-alias semantics.
-
-
-Stiffness
-^^^^^^^^^
-
-Stiffness (:math:`k_p`, the proportional gain) controls how strongly the joint moves toward its
-position target. Higher stiffness improves tracking but can increase overshoot and oscillation.
-Too little stiffness leaves steady-state error under load. Tune stiffness together with damping.
-Units are [N·m/rad] for revolute joints and [N/m] for prismatic joints.
-
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/stiffness-clip.webp
-    :align: center
-    :width: 100%
-    :alt: Five pendulums with increasing stiffness stepping to the same target.
-
-.. figure:: ../_static/actuators/stiffness-curve-light.png
-    :class: only-light
-    :align: center
-    :width: 80%
-    :alt: Position step response for a stiffness sweep.
-
-.. figure:: ../_static/actuators/stiffness-curve-dark.png
-    :class: only-dark
-    :align: center
-    :width: 80%
-    :alt: Position step response for a stiffness sweep.
-
-
-Damping
-^^^^^^^
-
-Damping (:math:`k_d`, the derivative gain) resists joint velocity. Too little damping allows a
-stiff joint to oscillate. More damping reduces overshoot until the joint becomes critically damped;
-beyond that point, the response becomes sluggish. Damping also sets the tracking gain for velocity
-targets. Units are [N·m·s/rad] for revolute joints and [N·s/m] for prismatic joints.
-
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/damping-clip.webp
-    :align: center
-    :width: 100%
-    :alt: Five pendulums from underdamped to overdamped stepping to the same target.
-
-.. figure:: ../_static/actuators/damping-curve-light.png
-    :class: only-light
-    :align: center
-    :width: 80%
-    :alt: Position step response for a damping sweep.
-
-.. figure:: ../_static/actuators/damping-curve-dark.png
-    :class: only-dark
-    :align: center
-    :width: 80%
-    :alt: Position step response for a damping sweep.
-
-
-Try the :ref:`interactive PD tuning demo <interactive-demo-joint-pd>` to adjust
-stiffness and damping on a suspended arm with step and sine commands. Its live
-plot compares target and measured angles. Tune a real robot using its own mass,
-actuator model, effort limits, and timestep.
-
-
-Armature
-^^^^^^^^
-
-Armature [kg or kg·m², depending on joint type] represents the reflected inertia of the motor and
-gearbox. It is added to the joint-space inertia, so it changes the physical model. In this
-single-joint comparison, more armature slows the response and increases the stability margin for
-the selected gains. It can also improve numerical conditioning for low-inertia joints.
-
-Explicit and implicit actuators may require different stability settings because explicit models
-submit effort while implicit models use solver drives. If an explicit simulation diverges, check
-mass and inertia, target scaling and update rate, effort limits, gains, time step, and solver
-convergence. Choose armature from the motor and transmission model. See the `OmniPhysics articulation stability guide
-<https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/dev_guide/guides/articulation_stability_guide.html>`_
-for more information.
-
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/armature-clip.webp
-    :align: center
-    :width: 100%
-    :alt: Five pendulums with increasing armature responding to the same command.
-
-.. figure:: ../_static/actuators/armature-curve-light.png
-    :class: only-light
-    :align: center
-    :width: 80%
-    :alt: Position step response for an armature sweep.
-
-.. figure:: ../_static/actuators/armature-curve-dark.png
-    :class: only-dark
-    :align: center
-    :width: 80%
-    :alt: Position step response for an armature sweep.
-
-
-Friction
-^^^^^^^^
-
-Joint friction acts independently of the PD command. On a freely spinning joint, higher friction
-removes velocity faster. Isaac Lab supports static
-(:attr:`~isaaclab.actuators.ActuatorBaseCfg.friction`), dynamic
-(:attr:`~isaaclab.actuators.ActuatorBaseCfg.dynamic_friction`), and viscous
-(:attr:`~isaaclab.actuators.ActuatorBaseCfg.viscous_friction`) friction. Use it to model gearbox
-stiction and drag, not to stabilize a controller.
-
-.. note::
-
-    Friction conventions depend on the backend. PhysX uses dimensionless static and dynamic
-    coefficients in Isaac Sim 4.5, and effort values [N or N·m, depending on joint type] in 5.0
-    and later. OVPhysX uses dimensionless static and dynamic coefficients. Newton uses a dry-friction
-    effort and has no separate dynamic-friction value. All three use viscous damping
-    [N·s/m or N·m·s/rad, depending on joint type].
-
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/friction-clip.webp
-    :align: center
-    :width: 100%
-    :alt: Five free-spinning pendulums with increasing joint friction decaying at different rates.
-
-.. figure:: ../_static/actuators/friction-curve-light.png
-    :class: only-light
-    :align: center
-    :width: 80%
-    :alt: Joint-velocity decay for a friction sweep.
-
-.. figure:: ../_static/actuators/friction-curve-dark.png
-    :class: only-dark
-    :align: center
-    :width: 80%
-    :alt: Joint-velocity decay for a friction sweep.
-
-
-Effort limit
-^^^^^^^^^^^^
-
-The effort limit is the torque ceiling the motor can produce [N·m or N]. The clip below drives an
-:class:`~isaaclab.actuators.IdealPDActuator` swing-up from hanging to horizontal against a
-~2.94 N·m gravity-hold torque, with the model's ``actuator_effort_limit`` swept over
-:math:`[1, 2, 3, 4, 6]` N·m.
-
-The limit shapes the transient response, while gravity determines the steady state. Limits above
-the approximately 2.94 N·m hold torque reach the horizontal target. Lower limits leave the joint
-below it, where gravity torque (:math:`\approx 2.94 \sin\theta`) matches the limit. When the PD
-demand exceeds the limit, the applied torque and damping term are both clipped. The joint can
-therefore oscillate until the demand returns within the limit. An effort limit below the load's
-static demand prevents the controller from damping the joint effectively.
-
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/effort-limit-clip.webp
-    :align: center
-    :width: 100%
-    :alt: Five pendulums with increasing effort limit holding or failing against gravity.
-
-.. figure:: ../_static/actuators/effort-limit-curve-light.png
-    :class: only-light
-    :align: center
-    :width: 80%
-    :alt: Applied joint torque for an effort-limit sweep.
-
-.. figure:: ../_static/actuators/effort-limit-curve-dark.png
-    :class: only-dark
-    :align: center
-    :width: 80%
-    :alt: Applied joint torque for an effort-limit sweep.
-
-
-Velocity limit
-^^^^^^^^^^^^^^
-
-For a :class:`~isaaclab.actuators.DCMotor`, ``actuator_velocity_limit`` is the no-load speed [rad/s or m/s].
-Torque decreases as the joint approaches this speed, forming the four-quadrant torque-speed
-envelope. Lower limits reduce the usable speed range and cause earlier clipping. For an implicit
-group, the value is exposed through the soft velocity-limit view. ``joint_velocity_limit`` instead
-requests a solver constraint. Enforcement depends on the backend; see
-:ref:`newton-velocity-limits`.
-
-.. figure:: ../_static/actuators/velocity-limit-curve-light.png
-    :class: only-light
-    :align: center
-    :width: 80%
-    :alt: Torque-speed envelope for a velocity-limit sweep.
-
-.. figure:: ../_static/actuators/velocity-limit-curve-dark.png
-    :class: only-dark
-    :align: center
-    :width: 80%
-    :alt: Torque-speed envelope for a velocity-limit sweep.
-
-
-Command delay
-^^^^^^^^^^^^^
-
-A :class:`~isaaclab.actuators.DelayedPDActuator` delays every command by a fixed number of physics
-steps sampled from ``[min_delay, max_delay]`` at reset. The clip compares delays of
-:math:`[0, 6, 12, 24, 48]` steps (0--133 ms at :math:`dt = 1/360\text{ s}`) for a square-wave
-position command. Longer delays make the pendulum trail the reference. Randomizing delay between
-resets can model transport delay during sim-to-real training.
-
-.. figure:: ../_static/actuators/delay-clip.webp
-    :align: center
-    :width: 100%
-    :alt: Five pendulums with increasing command delay trailing the same square-wave command.
-
-.. figure:: ../_static/actuators/delay-curve-light.png
-    :class: only-light
-    :align: center
-    :width: 80%
-    :alt: Command-versus-response timeline for a delay sweep.
-
-.. figure:: ../_static/actuators/delay-curve-dark.png
-    :class: only-dark
-    :align: center
-    :width: 80%
-    :alt: Command-versus-response timeline for a delay sweep.
-
-
-Implicit vs. explicit
-^^^^^^^^^^^^^^^^^^^^^
-
-In this single-joint demo at :math:`dt = 1/360\text{ s}`, implicit and ideal-PD explicit actuators
-with identical gains produce nearly the same response. Outside this example, their response and
-stability can differ. The solver applies the implicit drive, whereas the explicit model evaluates
-PD once per step. Policies trained with implicit actuators may therefore need adjustment for
-explicit actuators. For explicit joints, ``data.joint_stiffness`` and ``data.joint_damping`` are
-zero because the gains belong to the actuator model.
-
-.. figure:: ../_static/actuators/implicit-vs-explicit-curve-light.png
-    :class: only-light
-    :align: center
-    :width: 80%
-    :alt: Overlaid implicit and explicit PD step responses at identical gains.
-
-.. figure:: ../_static/actuators/implicit-vs-explicit-curve-dark.png
-    :class: only-dark
-    :align: center
-    :width: 80%
-    :alt: Overlaid implicit and explicit PD step responses at identical gains.
-
-
 .. _actuators-runtime-api:
 
 Runtime API: ``articulation.actuators``
@@ -508,7 +174,7 @@ Group access
 whoever owns the group. Isaac Lab-executed groups map to their
 :class:`~isaaclab.actuators.ActuatorBase` model instances. Newton-executed groups map to the
 Newton ``Actuator`` objects that drive their joints — no Isaac Lab model exists for them, so
-their controller parameters are read and modified on the owning object (see
+their drive parameters are read and modified on the owning object (see
 :ref:`actuators-native`). Membership is fixed after construction, so you can look up and iterate
 groups but not add, replace, or delete them:
 
@@ -584,7 +250,7 @@ implicit actuators, these are approximate efforts recorded for rewards and telem
 
 **Randomizing gains.** Gain updates depend on the actuator implementation. Managed environments
 should use the ``randomize_actuator_gains`` event. It updates actuator-owned gains, implicit solver
-drives, or native-controller parameters as appropriate. There is no generic collection-level
+drives, or native drive parameters as appropriate. There is no generic collection-level
 stiffness or damping writer.
 
 **Lifecycle.** Do not call ``compute()`` or ``submit_commands()`` directly. The articulation resets
@@ -616,7 +282,7 @@ collection API.
 The data accessors also moved: ``articulation.data.joint_pos_target`` becomes
 ``robot.actuators.target_command.position``, and ``data.computed_torque`` / ``data.applied_torque`` become
 ``robot.actuators.computed_effort`` / ``robot.actuators.applied_effort``. See the
-:doc:`Isaac Lab 3.0 migration guide <../migration/migrating_to_isaaclab_3-0>` for the full table.
+:doc:`Isaac Lab 3.0 migration guide <../isaaclab/migrating>` for the full table.
 
 
 Value resolution: USD vs. ActuatorCfg
@@ -626,11 +292,412 @@ Gains and limits can come from the USD joint-drive prim or the actuator config. 
 ``None``, Isaac Lab uses the USD value. A value set in the config overrides the USD value. The robot
 schema supplies joint and body ordering, not actuator parameters.
 
+For an explicit group with :ref:`native actuators <actuators-native>`, the USD value of a gain,
+actuator limit, or delay is the one on the joint's ``NewtonActuator`` prim. A joint without one, or
+with ones the config cannot keep, gets a new actuator with zero gains, no delay, and, except for
+remotized PD and BAM, the joint's USD drive limit. See
+:ref:`Existing USD actuators <actuators-usd-override>`. The log described below reports joint
+properties only, not a USD actuator's values.
+
 Set :attr:`~isaaclab.assets.ArticulationCfg.actuator_value_resolution_debug_print` to ``True`` to
 log the USD, configuration, and applied values for every joint when the sources differ or the
 configuration leaves a value unspecified. Unspecified values appear as ``Not Specified``. See
 :ref:`how-to-write-articulation-config` for examples and the limit table.
 
+
+.. _actuators-parameter-reference:
+
+Parameter reference
+-------------------
+
+Each subsection compares five actuators while varying one parameter. All clips use a single-joint
+pendulum stepped at :math:`dt = 1/360\text{ s}`, with commands issued at 60 Hz. The stiffness,
+damping, and armature sweeps use the *implicit* path.
+
+.. important::
+
+    **Explicit groups keep the solver effort limit.** The solver retains the authored
+    :attr:`~isaaclab.actuators.ActuatorBaseCfg.joint_effort_limit` for explicit groups, so effort
+    submitted by an explicit model is clipped a second time by the solver. Configure
+    ``joint_effort_limit`` at least as large as ``actuator_effort_limit`` when the model should be
+    the only clip. See :ref:`actuators-joint-property-ownership` for model-limit, joint-limit, and
+    implicit-alias semantics.
+
+
+Stiffness
+^^^^^^^^^
+
+Stiffness (:math:`k_p`, the proportional gain) controls how strongly the joint moves toward its
+position target. Higher stiffness improves tracking but can increase overshoot and oscillation.
+Too little stiffness leaves steady-state error under load. Tune stiffness together with damping.
+Units are [N·m/rad] for revolute joints and [N/m] for prismatic joints.
+
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/actuators/stiffness_clip.webp
+    :align: center
+    :width: 100%
+    :alt: Five pendulums with increasing stiffness stepping to the same target.
+
+.. figure:: ../_static/actuators/stiffness-curve-light.png
+    :class: only-light
+    :align: center
+    :width: 80%
+    :alt: Position step response for a stiffness sweep.
+
+.. figure:: ../_static/actuators/stiffness-curve-dark.png
+    :class: only-dark
+    :align: center
+    :width: 80%
+    :alt: Position step response for a stiffness sweep.
+
+
+Damping
+^^^^^^^
+
+Damping (:math:`k_d`, the derivative gain) resists joint velocity. Too little damping allows a
+stiff joint to oscillate. More damping reduces overshoot until the joint becomes critically damped;
+beyond that point, the response becomes sluggish. Damping also sets the tracking gain for velocity
+targets. Units are [N·m·s/rad] for revolute joints and [N·s/m] for prismatic joints.
+
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/actuators/damping_clip.webp
+    :align: center
+    :width: 100%
+    :alt: Five pendulums from underdamped to overdamped stepping to the same target.
+
+.. figure:: ../_static/actuators/damping-curve-light.png
+    :class: only-light
+    :align: center
+    :width: 80%
+    :alt: Position step response for a damping sweep.
+
+.. figure:: ../_static/actuators/damping-curve-dark.png
+    :class: only-dark
+    :align: center
+    :width: 80%
+    :alt: Position step response for a damping sweep.
+
+
+Adjust stiffness and damping on a suspended arm with step and sine commands.
+The live plot compares target and measured angles. Tune a real robot using its
+own mass, actuator model, effort limits, and timestep.
+
+.. isaaclab-demos:: joint_pd
+   :title: Explore PD gains
+   :physics: rigid
+   :activity: tuning
+
+
+Armature
+^^^^^^^^
+
+Armature [kg or kg·m², depending on joint type] represents the reflected inertia of the motor and
+gearbox. It is added to the joint-space inertia, so it changes the physical model. In this
+single-joint comparison, more armature slows the response and increases the stability margin for
+the selected gains. It can also improve numerical conditioning for low-inertia joints.
+
+Explicit and implicit actuators may require different stability settings because explicit models
+submit effort while implicit models use solver drives. If an explicit simulation diverges, check
+mass and inertia, target scaling and update rate, effort limits, gains, time step, and solver
+convergence. Choose armature from the motor and transmission model. See the `OmniPhysics articulation stability guide
+<https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/dev_guide/guides/articulation_stability_guide.html>`_
+for more information.
+
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/actuators/armature_clip.webp
+    :align: center
+    :width: 100%
+    :alt: Five pendulums with increasing armature responding to the same command.
+
+.. figure:: ../_static/actuators/armature-curve-light.png
+    :class: only-light
+    :align: center
+    :width: 80%
+    :alt: Position step response for an armature sweep.
+
+.. figure:: ../_static/actuators/armature-curve-dark.png
+    :class: only-dark
+    :align: center
+    :width: 80%
+    :alt: Position step response for an armature sweep.
+
+
+Friction
+^^^^^^^^
+
+Joint friction acts independently of the PD command. On a freely spinning joint, higher friction
+removes velocity faster. Isaac Lab supports static
+(:attr:`~isaaclab.actuators.ActuatorBaseCfg.friction`), dynamic
+(:attr:`~isaaclab.actuators.ActuatorBaseCfg.dynamic_friction`), and viscous
+(:attr:`~isaaclab.actuators.ActuatorBaseCfg.viscous_friction`) friction. Use it to model gearbox
+stiction and drag, not to stabilize a controller.
+
+.. note::
+
+    Friction conventions depend on the backend. PhysX uses dimensionless static and dynamic
+    coefficients in Isaac Sim 4.5, and effort values [N or N·m, depending on joint type] in 5.0
+    and later. OVPhysX uses static and dynamic effort values [N or N·m, depending on joint type]. Newton uses a dry-friction
+    effort and has no separate dynamic-friction value. All three use viscous damping
+    [N·s/m or N·m·s/rad, depending on joint type].
+
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/actuators/friction_clip.webp
+    :align: center
+    :width: 100%
+    :alt: Five free-spinning pendulums with increasing joint friction decaying at different rates.
+
+.. figure:: ../_static/actuators/friction-curve-light.png
+    :class: only-light
+    :align: center
+    :width: 80%
+    :alt: Joint-velocity decay for a friction sweep.
+
+.. figure:: ../_static/actuators/friction-curve-dark.png
+    :class: only-dark
+    :align: center
+    :width: 80%
+    :alt: Joint-velocity decay for a friction sweep.
+
+
+Effort limit
+^^^^^^^^^^^^
+
+The effort limit is the torque ceiling the motor can produce [N·m or N]. The clip below drives an
+:class:`~isaaclab.actuators.IdealPDActuator` swing-up from hanging to horizontal against a
+~2.94 N·m gravity-hold torque, with the model's ``actuator_effort_limit`` swept over
+:math:`[1, 2, 3, 4, 6]` N·m.
+
+The limit shapes the transient response, while gravity determines the steady state. Limits above
+the approximately 2.94 N·m hold torque reach the horizontal target. Lower limits leave the joint
+below it, where gravity torque (:math:`\approx 2.94 \sin\theta`) matches the limit. When the PD
+demand exceeds the limit, the applied torque and damping term are both clipped. The joint can
+therefore oscillate until the demand returns within the limit. An effort limit below the load's
+static demand prevents the controller from damping the joint effectively.
+
+.. figure:: https://huggingface.co/datasets/nvidia/isaaclab-docs-assets/resolve/main/actuators/effort_limit_clip.webp
+    :align: center
+    :width: 100%
+    :alt: Five pendulums with increasing effort limit holding or failing against gravity.
+
+.. figure:: ../_static/actuators/effort-limit-curve-light.png
+    :class: only-light
+    :align: center
+    :width: 80%
+    :alt: Applied joint torque for an effort-limit sweep.
+
+.. figure:: ../_static/actuators/effort-limit-curve-dark.png
+    :class: only-dark
+    :align: center
+    :width: 80%
+    :alt: Applied joint torque for an effort-limit sweep.
+
+
+Velocity limit
+^^^^^^^^^^^^^^
+
+For a :class:`~isaaclab.actuators.DCMotor`, ``actuator_velocity_limit`` is the no-load speed [rad/s or m/s].
+Torque decreases as the joint approaches this speed, forming the four-quadrant torque-speed
+envelope. Lower limits reduce the usable speed range and cause earlier clipping. For an implicit
+group, the value is exposed through the soft velocity-limit view. ``joint_velocity_limit`` instead
+requests a solver constraint. Enforcement depends on the backend; see
+:ref:`newton-velocity-limits`.
+
+.. figure:: ../_static/actuators/velocity-limit-curve-light.png
+    :class: only-light
+    :align: center
+    :width: 80%
+    :alt: Torque-speed envelope for a velocity-limit sweep.
+
+.. figure:: ../_static/actuators/velocity-limit-curve-dark.png
+    :class: only-dark
+    :align: center
+    :width: 80%
+    :alt: Torque-speed envelope for a velocity-limit sweep.
+
+
+.. _actuators-command-delay:
+
+Command delay
+^^^^^^^^^^^^^
+
+On the Isaac Lab execution path, both :class:`~isaaclab.actuators.DelayedImplicitActuator` and
+:class:`~isaaclab.actuators.DelayedPDActuator` delay every command by a fixed number of physics
+steps sampled from ``[min_delay, max_delay]`` at reset. The clip compares delays of
+:math:`[0, 6, 12, 24, 48]` steps (0--133 ms at :math:`dt = 1/360\text{ s}`) for a square-wave
+position command. Longer delays make the pendulum trail the reference. Randomizing delay between
+resets can model transport delay during sim-to-real training.
+
+For implicit PD control, configure the delay directly on the actuator group:
+
+.. code-block:: python
+
+    from isaaclab.actuators import DelayedImplicitActuatorCfg
+
+    actuator_cfg = DelayedImplicitActuatorCfg(
+        joint_names_expr=[".*"],
+        stiffness=40.0,
+        damping=5.0,
+        min_delay=2,
+        max_delay=4,
+    )
+
+The bounds must satisfy ``0 <= min_delay <= max_delay``. Delays count physics steps, including
+steps within policy decimation. Each environment samples one delay shared by all joints and all
+three command channels in the group and holds it until reset. Reset clears history only for the
+selected environments. Until enough history exists,
+the oldest command since reset is used; ``min_delay=max_delay=0`` passes commands through.
+
+Delayed implicit actuators run through Lab command processing on PhysX, OVPhysX, and Newton,
+including when ``SimulationCfg.use_newton_actuators`` is ``True``. Their solver-side PD gains remain
+active; only the position, velocity, and feed-forward effort commands are delayed. Requested commands
+remain available in ``actuators.target_command``; ``actuators.output_command`` contains the delayed
+commands submitted to the backend. Its effort channel is feed-forward effort, separate from the
+approximate PD torque reported in ``computed_effort`` and ``applied_effort``.
+
+When combining delayed implicit and explicit actuator groups in the same articulation, set
+``SimulationCfg(use_newton_actuators=False)``. Native explicit actuator execution bypasses that
+articulation's Lab command processing and this combination raises an error. Separate articulations
+may mix delayed implicit and native explicit actuators; Newton then keeps command updates in the
+environment's physics loop so delays still count physics steps.
+
+.. figure:: ../_static/actuators/delay-clip.webp
+    :align: center
+    :width: 100%
+    :alt: Five pendulums with increasing command delay trailing the same square-wave command.
+
+.. figure:: ../_static/actuators/delay-curve-light.png
+    :class: only-light
+    :align: center
+    :width: 80%
+    :alt: Command-versus-response timeline for a delay sweep.
+
+.. figure:: ../_static/actuators/delay-curve-dark.png
+    :class: only-dark
+    :align: center
+    :width: 80%
+    :alt: Command-versus-response timeline for a delay sweep.
+
+
+Implicit vs. explicit
+^^^^^^^^^^^^^^^^^^^^^
+
+In this single-joint demo at :math:`dt = 1/360\text{ s}`, implicit and ideal-PD explicit actuators
+with identical gains produce nearly the same response. Outside this example, their response and
+stability can differ. The solver applies the implicit drive, whereas the explicit model evaluates
+PD once per step. Policies trained with implicit actuators may therefore need adjustment for
+explicit actuators. For explicit joints, ``data.joint_stiffness`` and ``data.joint_damping`` are
+zero because the gains belong to the actuator model.
+
+.. figure:: ../_static/actuators/implicit-vs-explicit-curve-light.png
+    :class: only-light
+    :align: center
+    :width: 80%
+    :alt: Overlaid implicit and explicit PD step responses at identical gains.
+
+.. figure:: ../_static/actuators/implicit-vs-explicit-curve-dark.png
+    :class: only-dark
+    :align: center
+    :width: 80%
+    :alt: Overlaid implicit and explicit PD step responses at identical gains.
+
+
+.. _actuators-pipeline:
+
+The actuator pipeline
+---------------------
+
+Setting an actuator command does not write directly to the solver. Commands first enter the
+collection. Each group then follows one of three execution paths:
+
+#. **Command view** -- ``actuators.target_command.set_*_index`` and ``_mask`` write desired position,
+   velocity, and effort into joint-indexed buffers.
+#. **ActuatorCollection** -- routes groups and stages full-articulation commands, processed joint
+   commands, and telemetry. Actuator models retain their own gains and temporary state.
+#. **Execution path** -- an Isaac Lab explicit model computes and clips effort, an implicit drive
+   applies targets with solver-side PD gains, or a native actuator runs through Newton or the shared
+   host adapter.
+
+For Isaac Lab-managed models, ``actuators.output_command`` contains the processed position,
+velocity, and effort submitted to the backend. Native paths bypass this view, so it is not
+submitted-command telemetry for them. PhysX and OVPhysX process commands during
+``write_data_to_sim()``, while Newton-native controllers process them inside the physics step,
+before the solver advances. See
+:ref:`actuators-native` for supported native models and limitations.
+
+.. figure:: ../_static/actuators/pipeline-light.png
+    :class: only-light
+    :align: center
+    :width: 90%
+    :alt: Three actuator paths: Lab-managed models execute before submission, implicit drives
+        execute in the solver, and native models execute in the Newton/MJWarp solver or in the
+        shared PhysX/OVPhysX host adapter before submission.
+
+.. figure:: ../_static/actuators/pipeline-dark.png
+    :class: only-dark
+    :align: center
+    :width: 90%
+    :alt: Three actuator paths: Lab-managed models execute before submission, implicit drives
+        execute in the solver, and native models execute in the Newton/MJWarp solver or in the
+        shared PhysX/OVPhysX host adapter before submission.
+
+Implicit and explicit groups store gains differently:
+
+* For an **implicit** group, :attr:`~isaaclab.actuators.ActuatorBaseCfg.stiffness` and
+  :attr:`~isaaclab.actuators.ActuatorBaseCfg.damping` are written to the solver, which
+  runs the PD law. Plain :class:`~isaaclab.actuators.ImplicitActuator` passes the desired targets
+  through unchanged, while :class:`~isaaclab.actuators.DelayedImplicitActuator` delays them first.
+  Both record an approximate torque for telemetry.
+* For an **explicit** group, the same gains are consumed by the model to compute a torque, and the
+  solver's own PD gains for those joints are set to zero. Reading ``data.joint_stiffness`` or
+  ``data.joint_damping`` on an explicit joint therefore returns **zero** -- the gains live in the
+  actuator model, not the solver.
+
+Gains configured for an actuator group are separate from
+:attr:`~isaaclab.assets.ArticulationData.joint_stiffness` and
+:attr:`~isaaclab.assets.ArticulationData.joint_damping`. Those data fields report solver drive
+gains. They match implicit gains after initialization and are zero for explicit actuator joints.
+They do not mirror actuator-model gains.
+
+
+.. _actuators-joint-property-ownership:
+
+Joint and actuator property ownership
+--------------------------------------
+
+An actuator configuration selects joints and can override their properties during construction.
+Isaac Lab resolves ``joint_effort_limit``, ``joint_velocity_limit``, armature, friction, and
+implicit drive gains when it builds the articulation.
+:class:`~isaaclab.assets.ArticulationData` holds the live values, including
+``joint_effort_limits``, ``joint_vel_limits``, ``joint_armature``, and supported friction
+properties. Use articulation data and joint writers to read or change them.
+:class:`~isaaclab.actuators.ActuatorCollection` has no joint-property API.
+
+The runtime group properties ``effort_limit_sim``, ``velocity_limit_sim``, ``armature``,
+``friction``, ``dynamic_friction``, and ``viscous_friction`` were removed. Read their live values
+from articulation data and use the corresponding joint writers. The ``effort_limit_sim`` and
+``velocity_limit_sim`` configuration aliases were removed in 3.1; use ``joint_effort_limit`` and
+``joint_velocity_limit`` instead.
+See :ref:`actuators-solver-limit-migration` for replacement data views and writers.
+
+Explicit actuators store model state such as ``actuator_effort_limit``, rated ``actuator_velocity_limit``, gains,
+delay, and motor curves. They do not store separate solver-limit or friction values. Because the
+backend runs their drives, implicit actuators read stiffness, damping, and effort projection from
+live articulation properties; assigning to these properties is ignored with a warning — use the
+articulation joint writers or the ``randomize_actuator_gains`` event instead.
+
+Newton-executed groups have no Isaac Lab model at all: the collection mapping entry is the owning
+Newton ``Actuator`` object, whose drive keeps its parameters separate from solver gains.
+Read or modify its components (``drive``, ``delay``, ``clamping``) directly for raw access,
+or use :func:`~isaaclab.actuators.newton.read_group_parameter` and
+:func:`~isaaclab.actuators.newton.write_group_parameter` for group-scoped access in
+public joint order with environment selection.
+
+``actuator_effort_limit`` and ``actuator_velocity_limit`` apply to the actuator model.
+``joint_effort_limit`` and ``joint_velocity_limit`` apply to the joint or solver and can have
+different values. Explicit models clip output to ``actuator_effort_limit``;
+``joint_effort_limit`` limits the solver.
+``actuator_velocity_limit`` is the model's rated joint-side speed, or a soft-limit snapshot for
+implicit actuators. ``joint_velocity_limit`` requests a solver constraint. Because backends
+enforce it differently, solver velocity limits are not portable clamps.
+An implicit group may configure ``actuator_effort_limit`` separately from ``joint_effort_limit``
+to keep a rated model-facing limit distinct from the solver clamp; when unset, it tracks the
+live solver limit.
 
 .. _actuators-native:
 
@@ -638,7 +705,8 @@ Native actuators
 ----------------
 
 By default, Isaac Lab uses the native path for supported explicit actuator models. Each explicit
-model runs either inside the solver or through a shared host adapter. To restore the deprecated
+model runs either inside the physics step before the solver or through a shared host adapter.
+To restore the deprecated
 Isaac Lab execution path, set :attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators` to ``False``:
 
 .. code-block:: python
@@ -648,20 +716,22 @@ Isaac Lab execution path, set :attr:`~isaaclab.sim.SimulationCfg.use_newton_actu
     sim_cfg = SimulationCfg(use_newton_actuators=False)
 
 With the default native path enabled, each supported explicit actuator config becomes a
-``NewtonActuator`` USD prim. Newton executes it in the solver. PhysX and OVPhysX execute the same
+``NewtonActuator`` USD prim. Newton executes it before the solver advances. PhysX and OVPhysX execute the same
 model through the shared host adapter during
 :meth:`~isaaclab.assets.Articulation.write_data_to_sim`.
 
-On Newton, native actuators run in the CUDA-graph-captured region. Implicit actuators are unchanged:
-the solver still applies their PD gains. On CUDA, the host adapter captures actuator staging, model
+When CUDA graph capture is enabled, Newton runs supported native actuators in the captured region.
+Implicit groups keep solver-owned PD gains. :class:`~isaaclab.actuators.DelayedImplicitActuator` remains Lab-managed;
+its command delay is applied before the solver drive, as described in :ref:`actuators-command-delay`.
+On CUDA, the host adapter captures actuator staging, model
 execution, and telemetry publication when possible; otherwise it uses eager execution. Stateful
 native actuators cannot run in a caller-owned CUDA graph, so the host adapter manages them.
 
-Newton executes native actuators in its controller, and the collection exposes that ownership
+Newton executes native actuators through drives, and the collection exposes that ownership
 directly: ``robot.actuators[name]`` returns the Newton ``Actuator`` object driving the group's
 joints instead of an Isaac Lab model. Newton merges structurally identical joints into one
 actuator, so several groups can share an object (a group spanning several returns them as a
-tuple). Raw component access reads and writes the controller storage in Newton's layout; for
+tuple). Raw component access through ``actuator.drive`` reads and writes drive storage in Newton's layout; for
 group-scoped access in public joint order, use
 :func:`~isaaclab.actuators.newton.read_group_parameter` and
 :func:`~isaaclab.actuators.newton.write_group_parameter`:
@@ -670,13 +740,13 @@ group-scoped access in public joint order, use
 
     # raw ownership: the Newton actuator object itself
     legs = robot.actuators["legs"]
-    print(type(legs.controller).__name__)
+    print(type(legs.drive).__name__)
 
     # group-scoped, user-ordered parameter access
     from isaaclab.actuators.newton import read_group_parameter, write_group_parameter
 
-    kp = read_group_parameter(robot.actuators, "legs", "controller", "kp")
-    write_group_parameter(robot.actuators, "legs", "controller", "kp", values=kp * 2.0)
+    kp = read_group_parameter(robot.actuators, "legs", "drive", "kp")
+    write_group_parameter(robot.actuators, "legs", "drive", "kp", values=kp * 2.0)
 
 Isaac Lab retains named groups for configuration, joint bookkeeping, and command and telemetry
 staging.
@@ -696,15 +766,52 @@ staging.
     * - :class:`~isaaclab.actuators.DelayedPDActuatorCfg`
       - ideal PD + ``NewtonActuatorDelayAPI``
     * - :class:`~isaaclab.actuators.RemotizedPDActuatorCfg`
-      - delayed PD + ``NewtonPositionBasedClampingAPI``
+      - ``NewtonPDControlAPI`` + ``NewtonPositionBasedClampingAPI`` + ``NewtonActuatorDelayAPI``
     * - :class:`~isaaclab.actuators.ActuatorNetMLPCfg` /
         :class:`~isaaclab.actuators.ActuatorNetLSTMCfg`
-      - ``NewtonNeuralControlAPI`` (+ ``NewtonDCMotorClampingAPI``)
+      - ``NewtonNeuralControlAPI`` + ``NewtonDCMotorClampingAPI``
+    * - :class:`~isaaclab.actuators.BamActuatorCfg`
+      - ``NewtonBamDriveAPI`` (Newton only; see :ref:`actuators-bam-paths`)
 
-**Existing USD actuators.** For joints covered by an explicit Lab actuator config, the config
-replaces any existing ``NewtonActuator`` prim. Joints not covered by a Lab config keep their
-USD-authored actuators. USD-authored and Lab-configured actuators can therefore coexist on different
-joints.
+.. _actuators-usd-override:
+
+**Existing USD actuators.** An asset can ship its actuators as ``NewtonActuator`` prims, for example
+an identified servo fit. Joints not covered by an explicit Lab actuator config keep them unchanged.
+A prim drives only the first joint of its ``newton:targets`` and is ignored for joints listed later:
+a config treats such a joint as one without that prim, and changes the prim only when it covers the
+first joint. For a covered joint whose actuator prim has the config's drive schema
+(``NewtonPDControlAPI`` for the PD models, ``NewtonNeuralControlAPI`` for neural models,
+``NewtonBamDriveAPI`` for BAM), the config is authored onto that prim:
+
+* Only the values the config sets are written, in the stage's edit target. A value left as ``None``,
+  or a joint that a regex mapping does not match, keeps the asset's value through USD composition.
+  Every pattern of a mapping must still match a joint of the group, and no joint may match two.
+* The config type decides the actuator's components. Clamping and delay schemas that the type does
+  not model are removed together with their values, and a warning is logged. A type that authors
+  another clamp swaps it, and a PD config's ``max_delay=0`` removes a delay. Without a configured
+  ``actuator_effort_limit`` for the joint, a max-effort or DC motor clamp the config adds takes the
+  joint's USD drive limit, or no limit if the joint has none. Unless the config sets
+  ``actuator_velocity_limit``, an added DC motor clamp has no velocity limit, so its torque limit
+  does not decrease with speed.
+* A remotized PD config can leave ``joint_parameter_lookup=None`` to keep the asset's lookup table.
+  Neural configs can leave ``network_file=None`` to keep the asset's checkpoint and its preprocessing
+  metadata. To replace an MLP checkpoint, supply ``network_file`` together with ``input_order``,
+  ``input_idx``, ``pos_scale``, ``vel_scale`` and ``torque_scale``; metadata changes require a checkpoint.
+* A component the config adds needs its required values, such as a DC motor's ``saturation_effort``,
+  lookup tables, or neural checkpoints, from the config. Otherwise authoring raises before it changes
+  that joint's actuators. Newton validates the values of the components the asset's prim keeps.
+
+.. code-block:: python
+
+    # The asset ships delayed PD actuators on the legs: retune the gains, keep its limits and delay.
+    "legs": DelayedPDActuatorCfg(joint_names_expr=[".*_leg_.*"], stiffness=40.0, damping=None)
+
+When the joint has no actuator prim, several, one with another drive, or one with an unrecognized
+API schema, the existing prims are deactivated and a new prim is defined from the config, with
+defaults such as zero gains for unset values. On a new prim, a joint that an
+``actuator_effort_limit`` mapping skips gets a limit of 0, not the joint's USD drive limit, so it
+produces no torque. A warning names the replaced joints. The
+:ref:`migration guide <actuators-usd-override-migration>` lists what changed since 3.0.0.
 
 .. warning::
 
@@ -714,9 +821,245 @@ joints.
 
 .. note::
 
-    Under native execution, delay is fixed. The schema stores only ``max_delay``, so ``min_delay``
-    is ignored. A :class:`~isaaclab.actuators.DelayedPDActuator` does not randomize delay between
-    resets as it does on the Isaac Lab path.
+    Native :class:`~isaaclab.actuators.DelayedPDActuator` and
+    :class:`~isaaclab.actuators.RemotizedPDActuator` use a fixed delay from ``max_delay``;
+    ``min_delay`` is ignored. They do not randomize delay between resets as they do on the Isaac Lab path.
+    :class:`~isaaclab.actuators.DelayedImplicitActuator` always uses Lab command processing and
+    retains its per-environment reset sampling even when native execution is enabled for other groups.
+    :class:`~isaaclab.actuators.BamActuatorCfg` is the exception: its drive owns its own
+    delay, honors both bounds and resamples one lag per environment, shared by the group's joints.
+
+.. note::
+
+    Stateful native actuators, including the BAM drive, support CUDA graph capture at any
+    positive decimation. For an odd decimation, Newton copies the final actuator state into the
+    starting buffer so its history advances across graph replays.
+
+
+.. _actuators-bam:
+
+BAM servo model
+---------------
+
+:class:`~isaaclab.actuators.BamActuatorCfg` models a small smart servo in the *voltage* domain. It
+ports `BAM (Better Actuator Models) <https://github.com/Rhoban/bam>`_, whose parameters are
+identified from bench measurements. Use it when the servo's own dynamics matter for transfer: it
+cannot hold its target under load, its gearbox sticks, and its supply sags.
+
+BAM requires Newton with ``MJWarpSolverCfg`` and
+:attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators` set to ``True``; other backends and solvers
+raise an error. Its drive, :class:`~isaaclab_newton.actuators.DriveBam`, runs as Warp kernels on
+every physics step:
+
+* the position command is delayed by a randomly resampled lag;
+* the supply sags with the summed torque of the drive's joints in that environment,
+  ``vin_eff = max(vin - sag_gain * sum_j |tau_j|, vin_min, 0)``;
+* the firmware law ``duty = (q_des - q) * kp_fw * error_gain`` is clipped by the current limiter
+  and the PWM range;
+* the DC motor gives ``tau = kt * vin_eff * duty / R - kt^2 * dq / R``, so damping is back-EMF;
+* the gearbox friction budget (Coulomb, Stribeck, and load-dependent terms selected by
+  ``m1``, ``m2``, ``m5``, or ``m6``) is applied by MJWarp as a friction constraint.
+
+.. code-block:: python
+
+    import math
+
+    from isaaclab.actuators import BamActuatorCfg, BamMotorCfg
+
+    # Illustrative coefficients; use your servo's identified fit.
+    motor = BamMotorCfg(
+        model="m1",
+        kt=0.36,                                   # torque constant [N.m/A]
+        resistance=2.8,                            # winding resistance [Ohm]
+        error_gain=(4096 / (2 * math.pi)) / (256 * 885),
+        max_current=1.75,                          # firmware current limit [A]
+        friction_base=0.005,                       # Coulomb friction [N.m]
+        friction_viscous=0.006,                    # viscous friction [N.m.s/rad]
+    )
+
+    robot_cfg = ArticulationCfg(
+        spawn=...,
+        actuators={
+            "servos": BamActuatorCfg(
+                joint_names_expr=[".*"],
+                motor=motor,
+                armature=0.00181,                  # reflected rotor inertia [kg.m^2]
+                kp_fw=200.0,                       # firmware proportional gain
+                vin=7.4,                           # nominal voltage [V]
+                vin_range=(7.0, 8.0),              # per-robot battery voltage [V]
+                vin_drop_gain_range=(0.0, 3.0),    # per-robot supply sag [V/(N*m)]
+                vin_min=6.0,                       # supply floor under sag [V]
+                max_delay=2,                       # command lag [physics steps]
+            ),
+        },
+    )
+
+When the USD models gearbox play as a passive revolute hinge in series with each servo, set
+``backlash_joint_template`` to the hinge name pattern, e.g. ``"passive_{}_backlash"``. The firmware
+then reads servo angle plus play angle; missing or non-revolute pairs raise before stepping. Leaving
+the template unset keeps the asset's backlash flag, which only the asset can clear: if its BAM
+actuators model backlash, start-up raises until the template is set.
+
+``stiffness`` and ``damping`` are unused; the firmware gain is ``kp_fw``. The ``motor`` values a
+group sets apply to every joint in it. Set the reflected rotor inertia through ``armature`` or on
+the joint.
+
+Like other explicit actuators, BAM is authored onto the joints' existing BAM actuator prims (see
+:ref:`Existing USD actuators <actuators-usd-override>`). A field left as ``None``, here or in
+``motor``, keeps the asset's value, so a task can change one setting of a fitted servo asset:
+
+.. code-block:: python
+
+    "servos": BamActuatorCfg(joint_names_expr=[".*"], kp_fw=150.0, motor=BamMotorCfg(friction_base=0.006))
+
+A joint without a BAM actuator gets a new one, which needs the motor fit (``model``, ``kt``,
+``resistance``, ``error_gain``, ``max_current``, and ``friction_base``), ``kp_fw``, and ``vin``.
+Only a new actuator gets the defaults in the table below. On an existing one, a value that neither
+the asset nor the config sets is left to the Newton drive: a missing ``model`` means ``m1`` friction,
+a missing ``max_current`` no current limit, and the drive raises if any other value it requires is
+missing. Without a ``vin_min`` or delay setting from the asset or the config, the supply has only
+its 0 V floor and commands are not delayed.
+
+.. list-table:: BAM motor coefficients (rotational servo)
+   :header-rows: 1
+   :widths: 38 62
+
+   * - Name
+     - Meaning and units
+   * - ``model``
+     - ``m1`` (Coulomb), ``m2`` (adds Stribeck), ``m5`` (adds directional load dependence), or
+       ``m6`` (adds quadratic load coupling).
+   * - ``kt``, ``resistance``
+     - Torque/back-EMF constant [N.m/A or V.s/rad] and winding resistance [Ohm]. Required for a new
+       actuator.
+   * - ``error_gain``
+     - Position-error-to-duty-cycle factor per unit of firmware gain [1/rad]. Required for a new
+       actuator.
+   * - ``max_pwm``, ``max_current``
+     - Maximum duty cycle [-], default 1, and current limit [A], required for a new actuator; 0
+       disables it.
+   * - ``friction_base``, ``friction_viscous``
+     - Coulomb friction [N.m], required for a new actuator, and viscous coefficient [N.m.s/rad]. None
+       keeps the joint's viscous friction.
+   * - ``friction_stribeck``, ``dtheta_stribeck``, ``alpha``
+     - Near-rest friction [N.m], decay velocity [rad/s], and exponent [-]. Defaults: 0, 1, and 1.
+   * - ``load_friction_motor``, ``load_friction_external``
+     - Friction per transmitted motor/external torque [-]. Defaults: 0.
+   * - ``load_friction_motor_stribeck``, ``load_friction_external_stribeck``
+     - Near-rest load-dependent coefficients [-]. Defaults: 0.
+   * - ``load_friction_motor_quad``, ``load_friction_external_quad``
+     - Quadratic load-coupling coefficients [1/(N.m)]. Defaults: 0.
+
+Without an explicit ``actuator_effort_limit``, motor torque is capped at the stall torque
+``max(vin_range) * motor.kt / motor.resistance``, using ``vin`` when ``vin_range`` is unset. If the
+config leaves ``motor.kt``, ``motor.resistance``, or the voltage unset, the asset's authored cap
+applies, or the drive's ``vin * kt / resistance`` default when it has none, which ignores
+``vin_range``. Setting only some of the three logs a warning; set ``actuator_effort_limit`` to choose
+the cap. ``joint_effort_limit`` is unchanged; keep it at least as large as the actuator cap.
+
+.. _actuators-bam-paths:
+
+MJWarp coupling
+^^^^^^^^^^^^^^^
+
+Each physics step the drive writes its friction budget into MuJoCo's ``dof_frictionloss``, so the
+solver resolves static friction with the other constraints. The external load is the previous
+solve's bias and constraint forces without the drive's own friction; applied body wrenches are not
+included. The viscous coefficient is applied once as passive joint damping and is visible through
+``data.joint_viscous_friction_coeff``. ``stiff_frictionloss=True`` uses a stiff friction-constraint
+reference to reduce creep, since MJWarp has no noslip solver.
+
+:attr:`~isaaclab.actuators.ActuatorCollection.applied_effort` reports motor torque only, and
+``data.joint_friction`` reports the authored seed. Read the live budget with
+``robot.actuators["servos"].drive.friction_budget``.
+
+The drive draws one command lag per environment, shared by its joints, honoring ``min_delay``,
+``max_delay``, ``delay_hold_prob`` and ``delay_update_period``. Reset redraws the lag only for the
+selected environments, including during CUDA graph replay. The draws are seeded by the USD
+actuator's ``newton:delaySeed``, which has no config field and is 0 on a new actuator. To turn off an
+asset's lag, set ``min_delay=0`` together with ``max_delay=0``: the drive rejects a ``max_delay``
+below ``min_delay``.
+
+Randomization hooks
+^^^^^^^^^^^^^^^^^^^
+
+The drive exposes these fields through :func:`~isaaclab.actuators.newton.read_group_parameter`
+and :func:`~isaaclab.actuators.newton.write_group_parameter`:
+
+.. list-table::
+    :header-rows: 1
+    :widths: 20 50 30
+
+    * - Drive field
+      - Meaning
+      - Start-up range
+    * - ``vin``
+      - Supply voltage [V]
+      - ``vin_range``
+    * - ``sag_gain``
+      - Supply sag under load [V/(N·m)]
+      - ``vin_drop_gain_range``
+    * - ``friction_scale``
+      - Multiplier of the dry-friction budget [-]
+      - -- (defaults to 1)
+    * - ``kp_scale``
+      - Firmware gain multiplier [-]
+      - -- (defaults to 1)
+    * - ``kd_scale``
+      - Multiplier of the velocity the motor sees [-]
+      - -- (defaults to 1)
+
+Start-up ranges are sampled once per environment and kept across resets. A field without a range
+starts from the value authored on the joint's USD BAM actuator, or from its default on a new
+actuator. To resample friction every episode, add a reset event:
+
+.. code-block:: python
+
+    import torch
+
+    from isaaclab.actuators.newton import write_group_parameter
+    from isaaclab.envs import ManagerBasedEnv
+    from isaaclab.managers import EventTermCfg
+    from isaaclab.utils import configclass
+
+    def randomize_bam_friction(env: ManagerBasedEnv, env_ids: torch.Tensor | slice | None) -> None:
+        rows = torch.arange(env.num_envs, device=env.device)
+        if env_ids is not None:
+            rows = rows[env_ids]
+        scales = torch.empty((len(rows), 1), device=env.device).uniform_(0.8, 1.2)
+        write_group_parameter(
+            env.scene["robot"].actuators, "servos", "drive", "friction_scale",
+            values=scales, env_ids=rows,
+        )
+
+    @configclass
+    class EventsCfg:
+        bam_friction = EventTermCfg(func=randomize_bam_friction, mode="reset")
+
+Known constraints
+^^^^^^^^^^^^^^^^^
+
+* **Supply and delay are per drive, not per robot.** Newton builds one drive per set of BAM joints
+  with the same friction ``model``, backlash on or off, ``vin_min``, delay settings, and delay seed;
+  the other coefficients are per joint. Separate drives sag and delay independently even on one
+  robot. Groups and robots that merge into one drive share its supply and delay within an
+  environment, and must use the same start-up ranges, ``stiff_frictionloss``, and
+  ``backlash_joint_template``.
+* **Friction feedback ignores extra clipping.** If a tighter solver joint limit clips the drive
+  output, the load-dependent friction does not see it.
+
+.. _actuators-bam-microduck:
+
+Example: MicroDuck walking
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+``IsaacContrib-Velocity-Flat-MicroDuck`` and ``IsaacContrib-Velocity-Rough-MicroDuck`` train the
+MicroDuck biped to walk on flat ground and on rough terrain, with its 14 servos modeled by BAM on
+Newton MJWarp. Add ``presets=backlash`` to either task to train the robot variant with a passive play
+hinge in series with each servo, bound through ``backlash_joint_template``.
+
+See :doc:`/source/how-to/train_microduck` for the walking recipe, terrain curriculum, and distributed
+training options.
 
 
 Backend submission
@@ -733,22 +1076,29 @@ Submission differs by backend, but the collection interface is the same:
     * - PhysX
       - The Isaac Lab-managed path pushes processed position, velocity, and effort staging buffers
         through the PhysX Tensor API. The shared host adapter processes native commands during
-        ``write_data_to_sim()`` and submits raw position and velocity targets plus raw effort.
+        ``write_data_to_sim()`` and submits raw position and velocity targets plus the adapter's
+        effort output, including feed-forward effort.
         ``applied_effort`` remains telemetry. A fused reorder gather runs first when a non-identity
         joint ordering is active.
     * - OVPhysX
-      - The native path uses the shared host adapter during ``write_data_to_sim()``. It writes raw
-        position and velocity targets plus raw effort through ``set_attribute`` tensor bindings.
+      - The Isaac Lab-managed path submits processed position, velocity, and effort buffers,
+        including delayed implicit commands, through ``set_attribute`` tensor bindings. The native
+        path uses the shared host adapter during ``write_data_to_sim()`` and submits raw position
+        and velocity targets plus the adapter's effort output, including feed-forward effort.
         ``applied_effort`` remains telemetry. Raw setter writes are mirrored into the binding
-        immediately. A fused reorder gather runs first when joint ordering is non-identity.
+        immediately. On the Lab-managed path, ``write_data_to_sim()`` publishes the processed
+        commands before stepping.
+        A fused reorder gather runs first when joint ordering is non-identity.
     * - Newton / MJWarp
-      - Newton writes targets to solver-bound control arrays. Effort is feed-forward, and native
-        actuators also use ``joint_act``. The built-in drive applies PD to implicit joints.
+      - Lab-managed groups submit processed targets to solver-bound control arrays. Native
+        actuators read raw position and velocity targets, take feed-forward effort from ``joint_act``,
+        and compute effort before the solver advances. The built-in drive applies PD to implicit joints.
 
 For explicit actuators, solver stiffness and damping are zero on every backend because the actuator
 model owns the gains.
 
-This page does **not** cover:
+Where to go next
+----------------
 
 * Motion generators or low-level control modes -- see
   :doc:`/source/concepts/motion_generators`.

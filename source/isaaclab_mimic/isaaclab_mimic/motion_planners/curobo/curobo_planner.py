@@ -22,9 +22,12 @@ from curobo.util.logger import setup_curobo_logger
 from curobo.util.usd_helper import UsdHelper
 from curobo.util_file import load_yaml
 from curobo.wrap.reacher.motion_gen import MotionGen, MotionGenConfig, MotionGenPlanConfig
+from pxr import Gf, Usd, UsdGeom
 
 import isaaclab.utils.math as PoseUtils
+from isaaclab import cloner
 from isaaclab.assets import Articulation
+from isaaclab.cloner.usd import usd_replicate
 from isaaclab.envs.manager_based_env import ManagerBasedEnv
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sim.spawners.materials import PreviewSurfaceCfg
@@ -161,12 +164,12 @@ class CuroboPlanner(MotionPlannerBase):
             env: The Isaac Lab environment instance containing the robot and scene
             robot: Robot articulation to plan motions for
             config: Configuration object containing planner parameters and settings
-            task_name: Task name for auto-configuration
+            task_name: Unused.
             env_id: Environment ID for multi-environment setups (0 to num_envs-1)
-            collision_checker: Type of collision checker
-            num_trajopt_seeds: Number of seeds for trajectory optimization
-            num_graph_seeds: Number of seeds for graph search
-            interpolation_dt: Time step for interpolating waypoints
+            collision_checker: Unused; ``config.collision_checker_type`` is used instead.
+            num_trajopt_seeds: Unused; ``config.num_trajopt_seeds`` is used instead.
+            num_graph_seeds: Unused; ``config.num_graph_seeds`` is used instead.
+            interpolation_dt: Unused; ``config.interpolation_dt`` is used instead.
 
         Raises:
             ValueError: If ``robot_config_file`` is not provided
@@ -340,14 +343,48 @@ class CuroboPlanner(MotionPlannerBase):
     # =====================================================================================
 
     def _initialize_static_world(self) -> None:
-        """Initialize static world geometry from USD stage.
+        """Import the selected environment's clone-plan sources into cuRobo once.
 
-        Reads static environment geometry once during planner initialization to establish
-        the base collision world. This includes walls, tables, bins, and other fixed obstacles
-        that don't change during the simulation. Dynamic objects are synchronized separately
-        in update_world() to maintain performance.
+        A temporary USD projection supplies geometry even when native copies have no USD prims.
+        Dynamic object poses are subsequently synchronized from asset data in :meth:`update_world`.
         """
-        env_prim_path = f"/World/envs/env_{self.env_id}"
+        plan = self.env.scene.clone_plan
+        env_prim_path = plan.env_template.format(self.env_id)
+        sources = cloner.path.get_asset_prototype_paths(plan)
+        templates, starts = cloner.path.get_world_prototype_asset_templates(plan)
+        group = plan.topology.world_prototype_layout[self.env_id] + 1
+        members = range(*starts[group : group + 2])
+        source_paths = [sources[plan.topology.world_prototypes[index]] for index in members]
+        destinations = [templates[index] for index in members]
+
+        # cuRobo imports USD, but native clones need not have USD copies. Materialize only
+        # this world's sources for the importer; the simulation stage remains untouched.
+        source_stage = Usd.Stage.OpenMasked(
+            self.env.scene.stage.GetRootLayer(),
+            self.env.scene.stage.GetSessionLayer(),
+            Usd.StagePopulationMask(source_paths),
+        )
+        world_stage = Usd.Stage.Open(source_stage.Flatten())
+        usd_replicate(world_stage, source_paths, destinations, np.array([self.env_id]))
+        source_xforms = UsdGeom.XformCache()
+        env_transform = Gf.Matrix4d().SetTranslate(Gf.Vec3d(*self.env.scene.env_origins[self.env_id].cpu().tolist()))
+        for source, destination in zip(source_paths, destinations, strict=True):
+            source_prim = self.env.scene.stage.GetPrimAtPath(source)
+            if not UsdGeom.Xformable(source_prim):
+                continue
+            source_env = cloner.path.match(source, plan.env_template)
+            anchor = (
+                self.env.scene.stage.GetPrimAtPath(plan.env_template.format(source_env.instance))
+                if source_env is not None
+                else self.env.scene.stage.GetPseudoRoot()
+            )
+            transform = source_xforms.GetLocalToWorldTransform(source_prim)
+            transform *= source_xforms.GetLocalToWorldTransform(anchor).GetInverse() * env_transform
+            target = UsdGeom.Xformable(world_stage.GetPrimAtPath(destination.format(self.env_id)))
+            target.MakeMatrixXform().Set(transform)
+            target.SetResetXformStack(True)
+        usd = UsdHelper()
+        usd.load_stage(world_stage)
         robot_prim_path = self.config.robot_prim_path or f"{env_prim_path}/Robot"
 
         ignore_list = self.config.world_ignore_substrings or [
@@ -362,16 +399,13 @@ class CuroboPlanner(MotionPlannerBase):
         # --device cpu this mismatch segfaults, so pin the default device to cuRobo's GPU
         # while parsing the stage.
         with wp.ScopedDevice(f"cuda:{self.config.cuda_device}"):
-            self._static_world_config = self.usd_helper.get_obstacles_from_stage(
-                only_paths=[env_prim_path],
+            world = usd.get_obstacles_from_stage(
+                only_paths=[env_prim_path + "/"],
                 ignore_paths=[robot_prim_path],
                 reference_prim_path=robot_prim_path,
                 ignore_substring=ignore_list,
             )
-        self._static_world_config = self._static_world_config.get_collision_check_world()
-
-        # Initialize cuRobo world with static geometry
-        self.motion_gen.update_world(self._static_world_config)
+        self.motion_gen.update_world(world.get_collision_check_world())
 
     # =====================================================================================
     # PROPERTIES AND BASIC GETTERS
@@ -681,7 +715,7 @@ class CuroboPlanner(MotionPlannerBase):
             Dictionary mapping Isaac Lab object names to their corresponding USD paths
         """
         mappings = {}
-        env_prefix = f"/World/envs/env_{self.env_id}/"
+        env_prefix = self.env.scene.clone_plan.env_template.format(self.env_id) + "/"
         world_object_paths = []
 
         # Collect all primitive objects from cuRobo world model
@@ -1128,8 +1162,6 @@ class CuroboPlanner(MotionPlannerBase):
             start_state: Starting joint configuration for planning
             goal_pose: Target pose to reach in cuRobo coordinate frame
             contact: True to disable hand/attached object collisions for contact planning
-            retime_plan: Whether to apply linear retiming to the resulting trajectory
-            step_size: Step size for retiming if retime_plan is True
 
         Returns:
             True if planning succeeded, False if no valid trajectory found

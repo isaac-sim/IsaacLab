@@ -7,7 +7,7 @@
 
 import math
 
-from isaaclab_physx.physics import PhysxCfg
+from isaaclab_ov.physics import OvPhysxCfg
 
 import isaaclab.envs.mdp as base_mdp
 from isaaclab.assets import AssetBaseCfg
@@ -24,6 +24,10 @@ from isaaclab.scene import add as add_scene
 from isaaclab.utils import clone, configclass, replace
 from isaaclab.visualizers import VisualizerCfg
 
+from isaaclab_tasks.contrib.cabinet.config.openarm.joint_pos_env_cfg import (
+    CABINET_ISAACSIM_BODY_ORDER,
+    CABINET_ISAACSIM_JOINT_ORDER,
+)
 from isaaclab_tasks.contrib.lift.config.openarm.joint_pos_env_cfg import OpenArmCubeLiftEnvCfg
 from isaaclab_tasks.core.cabinet.cabinet_env_cfg import LIGHT_CFG, PLANE_CFG
 from isaaclab_tasks.core.cabinet.config.franka.joint_pos_env_cfg import FrankaCabinetEnvCfg
@@ -108,13 +112,15 @@ def _make_scene_cfg() -> InteractiveSceneCfg:
     """Compose three task layouts from their homogeneous source scenes."""
     scene = OpenArmCubeLiftEnvCfg().scene
     scene.table = None
-    add_scene(scene, FrankaCabinetEnvCfg().scene, asset_skip=_skip_global_asset)
+    cabinet_scene = FrankaCabinetEnvCfg().scene
+    cabinet_scene.cabinet.joint_ordering = CABINET_ISAACSIM_JOINT_ORDER
+    cabinet_scene.cabinet.body_ordering = CABINET_ISAACSIM_BODY_ORDER
+    add_scene(scene, cabinet_scene, asset_skip=_skip_global_asset)
     reach_scene = UR10ReachEnvCfg().scene
     reach_scene.table = None
     add_scene(scene, reach_scene, asset_skip=_skip_global_asset)
     scene.num_envs = 4096
     scene.env_spacing = 2.0
-    scene.replicate_physics = True
     scene.plane = clone(PLANE_CFG)
     scene.light = clone(LIGHT_CFG)
     return scene
@@ -483,13 +489,14 @@ class MultitaskManipulationEnvCfg(ManagerBasedRLEnvCfg):
         self.episode_length_s = 12.0
         self.sim.dt = 1.0 / 120.0
         self.sim.render_interval = self.decimation
-        self.sim.physics = PhysxCfg(
+        self.sim.physics = OvPhysxCfg(
+            friction_offset_threshold=0.04,
             bounce_threshold_velocity=0.01,
             friction_correlation_distance=0.00625,
             gpu_max_rigid_patch_count=4 * 5 * 2**15,
             gpu_found_lost_pairs_capacity=2**26,
         )
-        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(-3.0, 3.0, 2.5), lookat=(0.0, 0.0, 0.5))
+        self.sim.visualizer_cfgs = VisualizerCfg(eye=(-3.0, 3.0, 2.5), lookat=(0.0, 0.0, 0.5))
 
     def validate_config(self) -> None:
         """Validate the minimum batch size required to instantiate all task views."""

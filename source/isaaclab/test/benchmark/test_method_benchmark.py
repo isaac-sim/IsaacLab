@@ -5,7 +5,9 @@
 
 """Tests for method-level micro-benchmark sampling."""
 
+import gc
 import json
+from contextlib import nullcontext
 from unittest.mock import patch
 
 import pytest
@@ -128,6 +130,29 @@ def test_method_benchmark_collects_exact_requested_samples() -> None:
     assert result is not None
     assert result["n"] == 3
     assert call_count == 6
+
+
+@pytest.mark.parametrize(("gc_enabled", "fail"), ((True, False), (True, True), (False, False)))
+def test_method_benchmark_excludes_gc_and_restores_state(gc_enabled: bool, fail: bool) -> None:
+    """Sampling should exclude automatic cyclic GC and preserve its caller's state, even on failure."""
+    previous_state = gc.isenabled()
+    states: list[bool] = []
+
+    def operation() -> None:
+        states.append(gc.isenabled())
+        if fail and len(states) == 2:
+            raise RuntimeError("boom")
+
+    try:
+        (gc.enable if gc_enabled else gc.disable)()
+        expected = pytest.raises(RuntimeError, match="timed iteration 0") if fail else nullcontext()
+        with expected:
+            _runner(num_iterations=1)._benchmark_method(operation, "example", lambda _config: {})
+
+        assert states == [gc_enabled, False]
+        assert gc.isenabled() == gc_enabled
+    finally:
+        (gc.enable if previous_state else gc.disable)()
 
 
 def test_method_benchmark_prepares_target_outside_timed_operation() -> None:

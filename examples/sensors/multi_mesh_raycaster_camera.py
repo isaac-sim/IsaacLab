@@ -48,14 +48,14 @@ parser.add_argument(
     help="Physics backend.",
 )
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["kit"])
+parser.set_defaults(visualizer=["newton"])
 args_cli = parser.parse_args()
 if args_cli.log_interval < 1:
     parser.error("--log_interval must be at least 1.")
 if args_cli.max_steps == 0 or args_cli.max_steps < -1:
     parser.error("--max_steps must be positive or -1.")
 
-from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
+from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, AssetBaseCfg, RigidObjectCfg
@@ -280,7 +280,7 @@ def main() -> None:
         # Set main camera
         sim.set_camera_view(eye=[3.5, 3.5, 3.5], target=[0.0, 0.0, 0.0])
         # design scene
-        scene_cfg = RaycasterSensorSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0, replicate_physics=True)
+        scene_cfg = RaycasterSensorSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0)
         scene = instantiate(scene_cfg)
 
         if args_cli.asset_type == "objects":

@@ -13,19 +13,34 @@ The following classes are part of the public :mod:`isaaclab_experimental.envs` A
 .. autosummary::
    :nosignatures:
 
-   DirectRLEnvWarp
-   InteractiveSceneWarp
-   ManagerBasedEnvWarp
-   ManagerBasedRLEnvWarp
+   InteractiveSceneData
+   MDP2Env
+   MDP2EnvCfg
+   MDP2RLEnv
+   MDP2RLEnvCfg
+   ResetStep
+   Stage
+   Step
 
-.. autoclass:: DirectRLEnvWarp
+.. autoclass:: InteractiveSceneData
+   :members:
+
+.. autoclass:: MDP2Env
    :show-inheritance:
 
-.. autoclass:: InteractiveSceneWarp
+.. autoclass:: MDP2EnvCfg
    :show-inheritance:
 
-.. autoclass:: ManagerBasedEnvWarp
+.. autoclass:: MDP2RLEnv
    :show-inheritance:
 
-.. autoclass:: ManagerBasedRLEnvWarp
+.. autoclass:: MDP2RLEnvCfg
    :show-inheritance:
+
+.. autoclass:: ResetStep
+   :members:
+
+.. autoclass:: Stage
+
+.. autoclass:: Step
+   :members:

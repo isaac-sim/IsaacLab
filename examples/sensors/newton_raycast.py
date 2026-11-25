@@ -30,7 +30,7 @@ parser.add_argument(
 )
 parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["newton_gl"])
+parser.set_defaults(visualizer=["newton"])
 args_cli = parser.parse_args()
 
 if args_cli.max_steps == 0 or args_cli.max_steps < -1:
@@ -261,8 +261,10 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene, sce
 
 def main() -> None:
     """Launch the selected Newton ray-cast scene."""
-    with launch_simulation(cfg=NewtonCfg(solver_cfg=MJWarpSolverCfg()), launcher_args=args_cli) as physics_cfg:
-        sim_cfg = sim_utils.SimulationCfg(dt=1 / 100, device=args_cli.device, physics=physics_cfg)
+    sim_cfg = sim_utils.SimulationCfg(
+        dt=1 / 100, device=args_cli.device, physics=NewtonCfg(solver_cfg=MJWarpSolverCfg())
+    )
+    with launch_simulation(sim_cfg, args_cli):
         sim = sim_utils.SimulationContext(sim_cfg)
         if args_cli.scene == "heightfield":
             scene_cfg = HeightfieldSceneCfg(num_envs=1, env_spacing=1.0)

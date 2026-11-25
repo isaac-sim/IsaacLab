@@ -23,10 +23,10 @@ class XrAnchorRotationMode(enum.Enum):
     """Fixed rotation mode: sets rotation once and doesn't change it."""
 
     FOLLOW_PRIM = "follow_prim"
-    """Follow prim rotation mode: rotation follows prim's rotation."""
+    """Follow the prim's yaw change relative to its initial orientation, composed with :attr:`XrCfg.anchor_rot`."""
 
     FOLLOW_PRIM_SMOOTHED = "follow_prim_smoothed"
-    """Follow prim rotation mode with smooth interpolation: rotation smoothly follows prim's rotation using slerp."""
+    """Smoothly follow the prim's relative yaw change, composed with :attr:`XrCfg.anchor_rot`, using slerp."""
 
     CUSTOM = "custom_rotation"
     """Custom rotation mode: user provided function to calculate the rotation."""
@@ -48,7 +48,7 @@ class XrCfg:
     Specifically: this rotation will determine how the simulation is rotated with respect to the
     origin of the XR device's local coordinate frame.
 
-    This quantity is only effective if :attr:`xr_anchor_pos` is set.
+    This rotation also applies when no :attr:`anchor_prim_path` is set.
     """
 
     anchor_prim_path: str | None = None
@@ -57,6 +57,12 @@ class XrCfg:
     When set, the XR anchor will be attached to the specified prim (e.g., robot root prim),
     allowing the XR camera to move with the prim. This is particularly useful for locomotion
     robot teleoperation where the robot moves and the XR camera should follow it.
+    :func:`~isaaclab_teleop.create_isaac_teleop_device` expands ``{ENV_REGEX_NS}`` when
+    given an ``env_prim_path``; direct device construction requires a concrete path.
+
+    Kit sessions use XRCore to follow the reference. Application-owned OVXR presentation
+    uses committed physics references for the same rotation and height policies. Input cannot
+    consume an unseeded or failed publication epoch; no static pose is substituted.
 
     If None, the anchor will use the static :attr:`anchor_pos` and :attr:`anchor_rot` values.
     """
@@ -65,19 +71,25 @@ class XrCfg:
     """Specifies how the XR anchor rotation should behave when attached to a prim.
 
     The available modes are:
+
     - :attr:`XrAnchorRotationMode.FIXED`: Sets rotation once to anchor_rot value
-    - :attr:`XrAnchorRotationMode.FOLLOW_PRIM`: Rotation follows prim's rotation
-    - :attr:`XrAnchorRotationMode.FOLLOW_PRIM_SMOOTHED`: Rotation smoothly follows prim's rotation using slerp
+    - :attr:`XrAnchorRotationMode.FOLLOW_PRIM`: Follows the prim's yaw change relative
+      to its initial orientation, composed with :attr:`anchor_rot`; roll and pitch are ignored
+    - :attr:`XrAnchorRotationMode.FOLLOW_PRIM_SMOOTHED`: Smoothly follows the same
+      relative yaw target using slerp
     - :attr:`XrAnchorRotationMode.CUSTOM`: user provided function to calculate the rotation
     """
 
     anchor_rotation_smoothing_time: float = 1.0
-    """Wall-clock time constant (seconds) for rotation smoothing in FOLLOW_PRIM_SMOOTHED mode.
+    """Time constant [s] for rotation smoothing in FOLLOW_PRIM_SMOOTHED mode.
 
-    This time constant is applied using wall-clock delta time between frames (not physics dt).
+    Kit smoothing uses :meth:`isaaclab.sim.SimulationContext.get_rendering_dt`, which returns
+    the configured rendering timestep or a visualizer override. OVXR uses elapsed XR-frame time.
+    The interpolation factor is
+    clamped to [0.05, 1.0] per update.
     Smaller values (e.g., 0.1) result in faster/snappier response but less smoothing.
     Larger values (e.g., 0.75–2.0) result in slower/smoother response but more lag.
-    Typical useful range: 0.3 – 1.5 seconds depending on runtime frame-rate and comfort.
+    Typical useful range: 0.3 – 1.5 seconds depending on rendering timestep and comfort.
     """
 
     anchor_rotation_custom_func: Callable[[np.ndarray, np.ndarray], np.ndarray] = lambda headpose, primpose: np.array(
@@ -86,11 +98,13 @@ class XrCfg:
     """Specifies the function to calculate the rotation of the XR anchor when anchor_rotation_mode is CUSTOM.
 
     Args:
-        headpose: Previous head pose as numpy array [x, y, z, w, x, y, z] (position + quaternion)
-        pose: Anchor prim pose as numpy array [x, y, z, w, x, y, z] (position + quaternion)
+        headpose: Previous head pose as a NumPy array [x, y, z, qx, qy, qz, qw]
+            (position [m] and xyzw quaternion).
+        primpose: Anchor prim pose as a NumPy array [x, y, z, qx, qy, qz, qw]
+            (position [m] and xyzw quaternion).
 
     Returns:
-        np.ndarray: Quaternion as numpy array [w, x, y, z]
+        Quaternion as a NumPy array [qx, qy, qz, qw] (xyzw).
     """
 
     near_plane: float = 0.15
@@ -105,11 +119,19 @@ class XrCfg:
     If True, the anchor height will be fixed to the initial height of the anchor prim.
     """
 
+    excluded_visual_meshes: list[str] = []
+    """Mesh-path regexes hidden from the OVXR render, including the eye cameras and camera panels.
+
+    Only matching visual meshes in the single-environment render export become
+    invisible; the source scene is unchanged. Collisions and link/camera
+    transforms must not be matched.
+    """
+
 
 from typing import Any
 
 
-def remove_camera_configs(env_cfg: Any) -> Any:
+def remove_camera_configs(env_cfg: Any, *, keep: tuple[str, ...] = ()) -> Any:
     """Removes cameras from environments when using XR devices.
 
     Having additional cameras cause operation performance issues. This function scans the environment
@@ -118,6 +140,9 @@ def remove_camera_configs(env_cfg: Any) -> Any:
 
     Args:
         env_cfg: The environment configuration to modify.
+        keep: Camera attribute names to retain for the OVXR renderer.
+            Observation terms are removed for retained cameras as well, so the
+            application loop never requests a second camera render.
 
     Returns:
         The modified environment configuration with cameras removed.
@@ -134,8 +159,9 @@ def remove_camera_configs(env_cfg: Any) -> Any:
     for attr_name in dir(env_cfg.scene):
         attr = getattr(env_cfg.scene, attr_name)
         if isinstance(attr, CameraCfg):
-            delattr(env_cfg.scene, attr_name)
-            logger.info(f"Removed camera config: {attr_name}")
+            if attr_name not in keep:
+                delattr(env_cfg.scene, attr_name)
+                logger.info(f"Removed camera config: {attr_name}")
 
             # Remove any ObsTerms for the camera
             if hasattr(env_cfg.observations, "policy"):

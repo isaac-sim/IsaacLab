@@ -10,8 +10,8 @@ The robot must keep its pelvis upright at a target height.
 
 import math
 
+from isaaclab_isaacsim.physics import PhysxCfg
 from isaaclab_newton.physics import KaminoPADMMCfg, KaminoPADMMSolverCfg, NewtonCfg, NewtonShapeCfg
-from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
@@ -328,4 +328,4 @@ class DrLegsHoldPoseEnvCfg(ManagerBasedRLEnvCfg):
     def __post_init__(self) -> None:
         self.decimation = 3
         self.episode_length_s = 10.0
-        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(1.5, 0.5, 0.5), lookat=(0.0, 0.0, 0.265))
+        self.sim.visualizer_cfgs = VisualizerCfg(eye=(1.5, 0.5, 0.5), lookat=(0.0, 0.0, 0.265))

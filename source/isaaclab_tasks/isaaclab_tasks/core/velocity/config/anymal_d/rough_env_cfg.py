@@ -19,9 +19,11 @@ class AnymalDRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
     def __post_init__(self):
         super().__post_init__()
 
+        self.sim.physics.newton_steel.solver_cfg.iterations = 16
         # scene
         self.scene.robot = replace(
             ANYMAL_D_CFG,
             prim_path="{ENV_REGEX_NS}/Robot",
+            spawn=replace(ANYMAL_D_CFG.spawn, variants={"Colliders": "minimal"}),
             init_state=replace(ANYMAL_D_CFG.init_state, pos=(0.0, 0.0, 0.65)),
         )

@@ -20,6 +20,7 @@ Shared camera-image operations:
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
+from math import isfinite
 from typing import Any
 
 import torch
@@ -493,15 +494,33 @@ Display helpers.
 """
 
 
-def normalize_camera_output_for_display(tensor: torch.Tensor, data_type: str) -> torch.Tensor:
-    """Convert camera output tensor to [0, 1] float32 for conversion to image."""
-    normalized = tensor.float()
+def normalize_camera_output_for_display(
+    tensor: torch.Tensor, data_type: str, *, value_range: tuple[float, float] | None = None
+) -> torch.Tensor:
+    """Convert camera channels for display and optionally apply reference normalization bounds.
 
-    if data_type in ["depth", "distance_to_camera", "distance_to_image_plane"]:
-        normalized = torch.nan_to_num(normalized, nan=0.0, posinf=0.0, neginf=0.0)
-        max_val = normalized.max()
-        if max_val > 0:
-            normalized = normalized / max_val
+    Args:
+        tensor: Camera output tensor.
+        data_type: Camera output type, such as ``rgb``, ``depth`` or ``normals``.
+        value_range: Bounds applied after channel conversion. Defaults to None, which scales
+            depth by its maximum and divides HDR by 255. Valid explicit bounds retain HDR
+            values before scaling. Nonfinite, reversed, or equal bounds use the default
+            display behavior. Callers providing explicit bounds must supply finite pixels;
+            default depth display replaces nonfinite pixels with zero.
+
+    Returns:
+        The converted float32 tensor. Values outside explicit bounds are not clamped.
+    """
+    if value_range is not None:
+        range_min, range_max = value_range
+        if not (isfinite(range_min) and isfinite(range_max) and range_min < range_max):
+            value_range = None
+    normalized = tensor.float()
+    depth_output = data_type in ("depth", "distance_to_camera", "distance_to_image_plane")
+
+    if depth_output or (value_range is not None and (is_depth_like(data_type) or data_type == "rgb_hdr")):
+        if value_range is None:
+            normalized = torch.nan_to_num(normalized, nan=0.0, posinf=0.0, neginf=0.0)
     elif data_type == "albedo":
         normalized = normalized[..., :3] / 255.0
     elif data_type == "normals":
@@ -516,6 +535,14 @@ def normalize_camera_output_for_display(tensor: torch.Tensor, data_type: str) ->
     else:
         normalized = normalized / 255.0
 
+    if value_range is not None:
+        if value_range != (0.0, 1.0):
+            range_min, range_max = value_range
+            normalized = (normalized - range_min) / (range_max - range_min)
+    elif depth_output:
+        max_val = normalized.max()
+        if max_val > 0:
+            normalized = normalized / max_val
     return normalized
 
 
@@ -527,9 +554,16 @@ def make_camera_output_grid(images: torch.Tensor) -> torch.Tensor:
 
 
 _CAMERA_CHANNEL_KEYS = {
-    "rgb": ("rgb", "rgba"),
+    "rgb": (
+        "rgb",
+        "rgba",
+        "simple_shading_full_mdl",
+        "albedo",
+        "simple_shading_diffuse_mdl",
+        "simple_shading_constant_diffuse",
+    ),
     "depth": ("depth", "distance_to_image_plane"),
-    "segmentation": ("semantic_segmentation",),
+    "segmentation": ("semantic_segmentation", "instance_segmentation"),
     "normals": ("normals",),
 }
 
@@ -562,6 +596,37 @@ def sensor_key_for_gt_type(
     if not required:
         return None
     raise KeyError(f"No sensor output found for GT type {gt_type!r}. Tried {keys}; available: {sorted(available_keys)}")
+
+
+DISPLAY_CHANNELS = ("rgb", "depth", "normals", "segmentation")
+"""Display channels in the order a viewer lists them; each has a colorizing kernel in :func:`compose_image`."""
+
+
+def display_channels(available_keys) -> tuple[str, ...]:
+    """Return the display channels a sensor can show, in :data:`DISPLAY_CHANNELS` order.
+
+    Args:
+        available_keys: Output names of the sensor, such as its ``data_types``.
+
+    Returns:
+        The channels among rgb, depth, normals, and segmentation that the sensor provides.
+    """
+    keys = frozenset(available_keys)
+    return tuple(c for c in DISPLAY_CHANNELS if sensor_key_for_gt_type(c, keys, required=False) is not None)
+
+
+def resolve_display_channels(requested, available_keys) -> tuple[str, ...]:
+    """Choose the channels to show for a sensor: the requested ones it provides, else its first channel.
+
+    Args:
+        requested: Channels asked for, in display order.
+        available_keys: Output names of the sensor, such as its ``data_types``.
+
+    Returns:
+        The channels to show, or an empty tuple when the sensor provides nothing a viewer can display.
+    """
+    provided = display_channels(available_keys)
+    return tuple(c for c in requested if c in provided) or provided[:1]
 
 
 def compose_image(

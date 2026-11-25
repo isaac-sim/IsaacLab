@@ -13,6 +13,7 @@ import pytest
 import torch
 
 import isaaclab.sim as sim_utils
+from isaaclab.app import validate_launch
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.envs.mdp.actions.actions_cfg import OperationalSpaceControllerActionCfg
 from isaaclab.envs.utils.spaces import sample_space
@@ -236,7 +237,6 @@ def _run_environments(
     num_steps=20,
     multi_agent=False,
     create_stage_in_memory=False,
-    disable_clone_in_fabric=False,
     physics_preset_name: str | None = None,
 ):
     """Run all environments and check environments return valid signals.
@@ -248,7 +248,6 @@ def _run_environments(
         num_steps: Number of simulation steps.
         multi_agent: Whether the environment is multi-agent.
         create_stage_in_memory: Whether to create stage in memory.
-        disable_clone_in_fabric: Whether to disable fabric cloning.
         physics_preset_name: Name of the physics preset to apply (e.g., 'newton_mjwarp').
             If None, uses the environment's default physics.
     """
@@ -277,7 +276,6 @@ def _run_environments(
         num_steps=num_steps,
         multi_agent=multi_agent,
         create_stage_in_memory=create_stage_in_memory,
-        disable_clone_in_fabric=disable_clone_in_fabric,
         physics_preset_name=physics_preset_name,
     )
 
@@ -289,7 +287,6 @@ def _check_random_actions(
     num_steps: int = 20,
     multi_agent: bool = False,
     create_stage_in_memory: bool = False,
-    disable_clone_in_fabric: bool = False,
     physics_preset_name: str | None = None,
 ):
     """Run random actions and check environments return valid signals.
@@ -301,7 +298,6 @@ def _check_random_actions(
         num_steps: Number of simulation steps.
         multi_agent: Whether the environment is multi-agent.
         create_stage_in_memory: Whether to create stage in memory.
-        disable_clone_in_fabric: Whether to disable fabric cloning.
         physics_preset_name: Name of the physics preset to apply (e.g., 'newton_mjwarp').
             If None, uses the environment's default physics.
     """
@@ -325,11 +321,17 @@ def _check_random_actions(
             env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
         reset_event = getattr(env_cfg.events, "reset_strategies", None)
         if reset_event is not None and "state_table_size" in reset_event.params:
-            reset_event.params["state_table_size"] = min(32, reset_event.params["state_table_size"])
+            table_size = min(32, reset_event.params["state_table_size"])
+            if "variant_context" in reset_event.params:
+                variants = getattr(env_cfg.events, reset_event.params["variant_context"]).params["variant_names"]
+                choice = reset_event.params["reset_term"].params["terms"][reset_event.params["state_tag_term"]]
+                table_size = max(table_size, len(variants) * len(choice.params["terms"]))
+            reset_event.params["state_table_size"] = table_size
+            if task_name == "IsaacContrib-NIST-Franka":
+                # Exercise every label/variant reset path; small runs have too few settled poses to screen them all.
+                reset_event.params["acceptance_conditions"] = {}
         # set config args
         env_cfg.sim.create_stage_in_memory = create_stage_in_memory
-        if disable_clone_in_fabric:
-            env_cfg.scene.clone_in_fabric = False
 
         # filter based off multi agents mode and create env
         if multi_agent:
@@ -346,6 +348,8 @@ def _check_random_actions(
         # ValueError. Consider filtering invalid combinations in setup_environment() rather than
         # forgiving them at runtime. See PR #5097 commit fb2c74a3862 for a workaround that caught
         # the error and called pytest.skip().
+        # Direct construction needs the same runtime resolution as the normal launcher before scene cloning.
+        validate_launch(env_cfg, {"visualizer": []})
         env = gym.make(task_name, cfg=env_cfg)
 
         # disable control on stop

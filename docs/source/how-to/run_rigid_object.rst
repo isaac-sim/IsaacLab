@@ -12,9 +12,16 @@ This is the first runtime example in :ref:`asset-authoring`: spawn a rigid body,
 state, step the simulation, and read the updated state. Use the authoring guides for
 configuration details and :ref:`tutorial-interact-articulation` for bodies connected by joints.
 
-In the previous tutorials, we learned the essential workings of the standalone script and how to
-spawn different objects (or *prims*) into the simulation. This tutorial shows how to create and interact
-with a rigid object. For this, we will use the :class:`assets.RigidObject` class provided in Isaac Lab.
+Use :class:`assets.RigidObject` to read and write the spawned object's state.
+
+Explore rigid-body contacts by toppling a compact domino scene. Change friction
+and reset to replay the cascade, then follow the tutorial below to spawn and
+control your own rigid objects.
+
+.. isaaclab-demos:: dominoes
+   :title: Explore rigid-body contacts
+   :physics: rigid
+   :activity: tuning
 
 The Code
 ~~~~~~~~
@@ -26,7 +33,7 @@ The tutorial corresponds to the ``run_rigid_object.py`` script in the ``scripts/
 
    .. literalinclude:: ../../../scripts/tutorials/01_assets/run_rigid_object.py
       :language: python
-      :emphasize-lines: 49-68, 70-72, 92-104, 107-108, 114-115, 131-133, 138-139
+      :emphasize-lines: 55-74, 76-78, 98-110, 113-114, 120-121, 142-144, 150-151
       :linenos:
 
 
@@ -99,10 +106,12 @@ is defined in the **simulation world frame**, and not of their parent Xform prim
 engine only understands the world frame and not the parent Xform prim's frame. Thus, we need to transform
 desired state of the rigid object prim into the world frame before setting it.
 
-We use the :attr:`assets.RigidObject.data.default_root_state` attribute to get the default root state of the
-spawned rigid object prims. This default state can be configured from the :attr:`assets.RigidObjectCfg.init_state`
-attribute, which we left as identity in this tutorial. We then randomize the translation of the root state and
-set the desired state of the rigid object prim using the :meth:`assets.RigidObject.write_root_pose_to_sim` and :meth:`assets.RigidObject.write_root_velocity_to_sim` methods.
+We use the :attr:`~isaaclab_isaacsim.assets.RigidObjectData.default_root_pose` and
+:attr:`~isaaclab_isaacsim.assets.RigidObjectData.default_root_vel` attributes of the rigid object's data
+(``RigidObject.data``) to get the default root state of the spawned rigid object prims. This default state
+can be configured from the :attr:`assets.RigidObjectCfg.init_state` attribute, which we left as identity in this
+tutorial. We then randomize the translation of the root state and
+set the desired state of the rigid object prim using the :meth:`assets.RigidObject.write_root_pose_to_sim_index` and :meth:`assets.RigidObject.write_root_velocity_to_sim_index` methods.
 As the name suggests, this method writes the root state of the rigid object prim into the simulation buffer.
 
 .. literalinclude:: ../../../scripts/tutorials/01_assets/run_rigid_object.py
@@ -137,8 +146,8 @@ inside the :class:`assets.RigidObject.data` attribute. This is done using the :m
 The Code Execution
 ~~~~~~~~~~~~~~~~~~
 
-This script uses Isaac Sim PhysX and requires Isaac Sim. The commands below display it with
-the Isaac Sim viewport shown below:
+This script uses OvPhysX and the Newton RTX visualizer without Isaac Sim. Install the ``ov`` extra
+and run the command below:
 
 .. tab-set::
 
@@ -146,7 +155,7 @@ the Isaac Sim viewport shown below:
 
       .. code-block:: bash
 
-         uv run isaaclab -p scripts/tutorials/01_assets/run_rigid_object.py --viz kit
+         uv run --extra ov isaaclab -p scripts/tutorials/01_assets/run_rigid_object.py --viz newton_rtx
 
 
 This should open a stage with a ground plane, lights, and several green cones. The cones must be dropping from

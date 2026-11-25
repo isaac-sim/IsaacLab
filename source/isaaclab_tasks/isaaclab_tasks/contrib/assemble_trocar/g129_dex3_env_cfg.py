@@ -3,8 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_physx.physics import PhysxCfg
-from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxRigidBodyCfg
+from isaaclab_isaacsim.physics import PhysxCfg
+from isaaclab_isaacsim.sim.schemas import PhysxCollisionCfg, PhysxRigidBodyCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
+from isaaclab_newton.sim.schemas import MujocoCollisionCfg
+from isaaclab_ov.physics import OvPhysxCfg
 
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
@@ -15,6 +18,7 @@ from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import TerminationTermCfg as DoneTerm
+from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 from isaaclab.utils import configclass
@@ -26,6 +30,10 @@ from isaaclab_tasks.contrib.assemble_trocar.config import (  # isort: skip
     CameraPresets,
     G1RobotPresets,
 )
+from isaaclab_tasks.contrib.assemble_trocar.config.assemble_trocar_assets import (
+    spawn_usd_with_newton_compatible_colliders,
+)
+from isaaclab_tasks.utils import PresetCfg, preset
 from isaaclab_tasks.utils.presets import set_isaac_rtx_global_settings
 
 joint_names = [
@@ -90,6 +98,67 @@ class AssembleTrocarSceneCfg(InteractiveSceneCfg):
     robot: ArticulationCfg = G1RobotPresets.g1_29dof_dex3_base_fix(
         init_pos=(-1.84919, 1.94, 0.81168), init_rot=(0.0, 0.0, 0.0, 1.0)
     )
+    robot.body_ordering = preset(
+        default=(
+            "pelvis",
+            "imu_in_pelvis",
+            "left_hip_pitch_link",
+            "pelvis_contour_link",
+            "right_hip_pitch_link",
+            "waist_yaw_link",
+            "left_hip_roll_link",
+            "right_hip_roll_link",
+            "waist_roll_link",
+            "left_hip_yaw_link",
+            "right_hip_yaw_link",
+            "torso_link",
+            "left_knee_link",
+            "right_knee_link",
+            "d435_link",
+            "head_link",
+            "imu_in_torso",
+            "left_shoulder_pitch_link",
+            "logo_link",
+            "mid360_link",
+            "right_shoulder_pitch_link",
+            "left_ankle_pitch_link",
+            "right_ankle_pitch_link",
+            "left_shoulder_roll_link",
+            "right_shoulder_roll_link",
+            "left_ankle_roll_link",
+            "right_ankle_roll_link",
+            "left_shoulder_yaw_link",
+            "right_shoulder_yaw_link",
+            "left_elbow_link",
+            "right_elbow_link",
+            "left_wrist_roll_link",
+            "right_wrist_roll_link",
+            "left_wrist_pitch_link",
+            "right_wrist_pitch_link",
+            "left_wrist_yaw_link",
+            "right_wrist_yaw_link",
+            "left_hand_camera_base_link",
+            "left_hand_palm_link",
+            "right_hand_camera_base_link",
+            "right_hand_palm_link",
+            "left_hand_index_0_link",
+            "left_hand_middle_0_link",
+            "left_hand_thumb_0_link",
+            "right_hand_index_0_link",
+            "right_hand_middle_0_link",
+            "right_hand_thumb_0_link",
+            "left_hand_index_1_link",
+            "left_hand_middle_1_link",
+            "left_hand_thumb_1_link",
+            "right_hand_index_1_link",
+            "right_hand_middle_1_link",
+            "right_hand_thumb_1_link",
+            "left_hand_thumb_2_link",
+            "right_hand_thumb_2_link",
+        ),
+        newton_mjwarp=None,
+    )
+    robot.spawn.func = spawn_usd_with_newton_compatible_colliders
     # add camera configuration
     front_camera = CameraPresets.g1_front_camera()
     left_wrist_camera = CameraPresets.left_dex3_wrist_camera()
@@ -106,10 +175,17 @@ class AssembleTrocarSceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/trocar_1",
         spawn=UsdFileCfg(
             usd_path=f"{USD_ROOT}/Assets/Trocar002/Trocar002-xform-wo.usd",
-            collision_props=[
-                sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
-                PhysxCollisionCfg(contact_offset=0.001, rest_offset=-0.001),
-            ],
+            collision_props={
+                "/.*": [
+                    sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
+                    PhysxCollisionCfg(contact_offset=0.001, rest_offset=-0.001),
+                ],
+                # Stiffen only the inner bore on Newton. The high-friction grip colliders retain
+                # their imported contact parameters, so hand-object contact is unaffected.
+                r"/Trocar002/Collisions/(?:Xform/.*|Trocar002_Collider(?:1|1[3-9]|2[0-7]))": [
+                    MujocoCollisionCfg(priority=1, solref=(0.002, 1.0))
+                ],
+            },
         ),
         init_state=RigidObjectCfg.InitialStateCfg(
             pos=[-1.60202, 1.91362, 0.87183],
@@ -135,9 +211,21 @@ class AssembleTrocarSceneCfg(InteractiveSceneCfg):
         ),
     )
     tray = ArticulationCfg(
+        body_ordering=preset(
+            default=(
+                "Box001",
+                "Box001_Handle001",
+                "Box001_Handle002",
+                "Box001_Prop003",
+                "Box001_Prop002",
+                "Box001_Prop001",
+            ),
+            newton_mjwarp=None,
+        ),
         prim_path="{ENV_REGEX_NS}/surgical_tray",
         spawn=UsdFileCfg(
             usd_path=f"{USD_ROOT}/Assets/SurgicalTray001/SurgicalTray001.usd",
+            func=spawn_usd_with_newton_compatible_colliders,
         ),
         init_state=ArticulationCfg.InitialStateCfg(pos=[-1.54919, 2.03365, 0.84554], rot=[0.0, 0.0, -0.70711, 0.70711]),
         actuators={},  # Empty dict for passive articulation (no motors)
@@ -253,14 +341,16 @@ class RewardsCfg:
     Each stage gives 1.0 reward on completion -> Total reward for full task = 4.0
     This ensures clear reward signal for each stage transition.
 
-    ``update_stage`` runs first (weight=0) to advance the task stage before any
-    reward term reads it, removing implicit ordering dependencies.
+    ``update_stage`` runs first to advance the task stage before any reward term
+    reads it, removing implicit ordering dependencies. It always returns zeros, so
+    its weight does not change the reward.
     """
 
-    # Stage machine — weight=0, runs before all reward terms to update task stage
+    # Stage machine — runs before all reward terms to update task stage. The weight must be
+    # non-zero: the reward manager skips weight-0 terms, which would freeze the stage at 0.
     update_stage = RewTerm(
         func=mdp.update_task_stage,
-        weight=0.0,
+        weight=1.0,
         params={
             "asset_cfg1": SceneEntityCfg("trocar_1"),
             "asset_cfg2": SceneEntityCfg("trocar_2"),
@@ -346,6 +436,23 @@ class EventCfg:
     # Reset task stage tracker when environment resets
     reset_task_stage = EventTermCfg(func=mdp.reset_task_stage, mode="reset")
 
+    # The trocar_1 bore (mu 1.2) against the obturator needle (mu 0.1) averages to 0.65 on PhysX
+    newton_bore_friction = EventTermCfg(
+        func=mdp.remap_newton_shape_friction,
+        mode="startup",
+        params={"asset_cfg": SceneEntityCfg("trocar_1"), "source_mu": 1.2, "target_mu": 0.65},
+    )
+    # Newton only: stiffen the hand-trocar_2 contact so the closed left fingers do not hook trocar_2 and block
+    # its release in the placement stage. Both sides use the same solref, so their mixed pair value is unchanged.
+    newton_hand_contact = EventTermCfg(
+        func=mdp.set_newton_shape_solref,
+        mode="startup",
+        params={
+            "shape_label_pattern": r"env_\d+/(Robot/(left|right)_hand_\w+_link/collisions|trocar_2/.*/Collisions)/",
+            "solref": (0.01, 1.0),
+        },
+    )
+
     # Random rotation for tray and trocars
     reset_tray_random_rotation = EventTermCfg(
         func=mdp.reset_tray_with_random_rotation,
@@ -360,6 +467,29 @@ class EventCfg:
 
 
 @configclass
+class PhysicsCfg(PresetCfg):
+    """Physics backend presets for the assemble_trocar task."""
+
+    isaacsim_physx = PhysxCfg(bounce_threshold_velocity=0.01)
+    ovphysx = OvPhysxCfg(
+        friction_correlation_distance=0.025, friction_offset_threshold=0.04, bounce_threshold_velocity=0.01
+    )
+    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
+    newton_mjwarp = NewtonCfg(
+        solver_cfg=MJWarpSolverCfg(
+            integrator="implicitfast",
+            cone="elliptic",
+            impratio=10.0,
+            njmax=8192,
+            nconmax=2048,
+            use_mujoco_contacts=False,
+        ),
+        collision_cfg=NewtonCollisionPipelineCfg(),
+    )
+    default = ovphysx
+
+
+@configclass
 class G1AssembleTrocarEnvCfg(ManagerBasedRLEnvCfg):
     """Unitree G1 robot assemble trocar environment configuration class
     inherits from ManagerBasedRLEnvCfg, defines all configuration parameters for the entire environment
@@ -369,7 +499,6 @@ class G1AssembleTrocarEnvCfg(ManagerBasedRLEnvCfg):
     scene: AssembleTrocarSceneCfg = AssembleTrocarSceneCfg(
         num_envs=1,
         env_spacing=6.0,
-        replicate_physics=True,
     )
     # basic settings
     observations: ObservationsCfg = ObservationsCfg()
@@ -391,8 +520,8 @@ class G1AssembleTrocarEnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.sim.dt = 1 / 200
         self.sim.render_interval = self.decimation
-        self.sim.physics = PhysxCfg(bounce_threshold_velocity=0.01)
-        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(-0.5, 2.4, 1.6), lookat=(-5.4, 0.2, -1.2))
+        self.sim.physics = PhysicsCfg()
+        self.sim.visualizer_cfgs = VisualizerCfg(eye=(-0.5, 2.4, 1.6), lookat=(-5.4, 0.2, -1.2))
         for camera_cfg in (
             self.scene.front_camera,
             self.scene.left_wrist_camera,
@@ -438,8 +567,8 @@ class EventCfgFixTrayRotation(EventCfg):
 class G1AssembleTrocarEvalEnvCfg(G1AssembleTrocarEnvCfg):
     """Eval-friendly env cfg.
 
-    This is currently an alias of `G1AssembleTrocarEnvCfg`, but registered under a
-    separate Gym id for compatibility with RLinf configs.
+    This is `G1AssembleTrocarEnvCfg` with a deterministic per-env tray yaw on reset,
+    registered under a separate Gym id for compatibility with RLinf configs.
     """
 
     # Override events to enforce deterministic per-env tray yaw on every reset.

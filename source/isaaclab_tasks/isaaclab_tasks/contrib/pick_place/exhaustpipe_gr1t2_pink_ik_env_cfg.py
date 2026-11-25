@@ -3,12 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg, XrCameraFeedCfg
-
 from isaaclab.controllers.pink_ik import DampingTaskCfg, FrameTaskCfg, NullSpacePostureTaskCfg, PinkIKControllerCfg
 from isaaclab.envs.mdp.actions.pink_actions_cfg import PinkInverseKinematicsActionCfg
 from isaaclab.utils import configclass
 
+from isaaclab_tasks.contrib import ISAACLAB_TELEOP_AVAILABLE
 from isaaclab_tasks.contrib.pick_place.exhaustpipe_gr1t2_base_env_cfg import (
     ExhaustPipeGR1T2BaseEnvCfg,
 )
@@ -127,17 +126,20 @@ class ExhaustPipeGR1T2PinkIKEnvCfg(ExhaustPipeGR1T2BaseEnvCfg):
         self.actions.gr1_action.controller.usd_path = self.scene.robot.spawn.usd_path
         self.actions.gr1_action.controller.urdf_output_dir = self.temp_urdf_dir
 
-        # Isaac Capture-based teleoperation pipeline.
-        self.isaac_teleop = IsaacTeleopCfg(
-            pipeline_builder=lambda: build_gr1t2_pickplace_pipeline()[0],
-            sim_device=self.sim.device,
-            xr_cfg=self.xr,
-            xr_camera_feeds=[
-                XrCameraFeedCfg(
-                    camera_name="robot_pov_cam",
-                    # Keep the 0.30 m-tall panel below the eye-level controls.
-                    offset_m=(0.0, -0.15),
-                    max_update_hz=0.0,
-                )
-            ],
-        )
+        if ISAACLAB_TELEOP_AVAILABLE:
+            from isaaclab_teleop import IsaacTeleopCfg, XrCameraFeedCfg
+
+            # Isaac Capture-based teleoperation pipeline.
+            self.isaac_teleop = IsaacTeleopCfg(
+                pipeline_builder=lambda: build_gr1t2_pickplace_pipeline()[0],
+                sim_device=self.sim.device,
+                xr_cfg=self.xr,
+                xr_camera_feeds=[
+                    XrCameraFeedCfg(
+                        camera_name="robot_pov_cam",
+                        # Keep the 0.30 m-tall panel below the eye-level controls.
+                        offset_m=(0.0, -0.15),
+                        max_update_hz=0.0,
+                    )
+                ],
+            )

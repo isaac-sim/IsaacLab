@@ -3,7 +3,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from isaaclab_physx.renderers import IsaacRtxRendererCfg, IsaacRtxRendererGlobalSettingsCfg
+from isaaclab_isaacsim.physics import PhysxCfg
+from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg, IsaacRtxRendererGlobalSettingsCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
@@ -84,7 +85,7 @@ class G1LocomanipulationSDGSceneCfg(LocomanipulationG1SceneCfg):
     def add_forklifts(self, num_forklifts: int):
         for i in range(num_forklifts):
             forklift = AssetBaseCfg(
-                prim_path=f"/World/envs/env_[^/]+/Forklift{i}",
+                prim_path=f"{{ENV_REGEX_NS}}/Forklift{i}",
                 init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[0.0, 0.0, 0.0, 1.0]),
                 spawn=UsdFileCfg(
                     usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Forklift/forklift.usd",
@@ -96,7 +97,7 @@ class G1LocomanipulationSDGSceneCfg(LocomanipulationG1SceneCfg):
     def add_boxes(self, num_boxes: int):
         for i in range(num_boxes):
             box = AssetBaseCfg(
-                prim_path=f"/World/envs/env_[^/]+/Box{i}",
+                prim_path=f"{{ENV_REGEX_NS}}/Box{i}",
                 init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[0.0, 0.0, 0.0, 1.0]),
                 spawn=UsdFileCfg(
                     usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
@@ -125,10 +126,13 @@ class G1LocomanipulationSDGObservationsCfg(ObservationsCfg):
 class G1LocomanipulationSDGEnvCfg(LocomanipulationG1EnvCfg, LocomanipulationSDGEnvCfg):
     """Configuration for the G1 29DoF environment."""
 
+    class_type: type | str = "{DIR}.g1_locomanipulation_sdg_env:G1LocomanipulationSDGEnv"
+    sim: sim_utils.SimulationCfg = sim_utils.SimulationCfg(physics=PhysxCfg())
+    """Isaac Sim PhysX only: the SDG environment does not run the teleoperation task's standalone
+    backend preparation, so the inherited ``ovphysx``/``newton_mjwarp`` selectors are not offered."""
+
     # Scene settings
-    scene: G1LocomanipulationSDGSceneCfg = G1LocomanipulationSDGSceneCfg(
-        num_envs=1, env_spacing=2.5, replicate_physics=False
-    )
+    scene: G1LocomanipulationSDGSceneCfg = G1LocomanipulationSDGSceneCfg(num_envs=1, env_spacing=2.5)
     recorders: LocomanipulationSDGRecorderManagerCfg = LocomanipulationSDGRecorderManagerCfg()
     observations: G1LocomanipulationSDGObservationsCfg = G1LocomanipulationSDGObservationsCfg()
 
@@ -148,7 +152,7 @@ class G1LocomanipulationSDGEnvCfg(LocomanipulationG1EnvCfg, LocomanipulationSDGE
         # simulation settings
         self.sim.dt = 1 / 200  # 200Hz
         self.sim.render_interval = 6
-        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(0.0, 3.0, 1.25), lookat=(0.0, 0.0, 0.5))
+        self.sim.visualizer_cfgs = VisualizerCfg(eye=(0.0, 3.0, 1.25), lookat=(0.0, 0.0, 0.5))
 
         # The IK controller retrieves the URDF when it initializes.
         self.actions.upper_body_ik.controller.urdf_path = (

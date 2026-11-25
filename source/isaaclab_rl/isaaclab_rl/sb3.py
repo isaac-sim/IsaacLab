@@ -35,7 +35,7 @@ if TYPE_CHECKING:
     from isaaclab.envs import DirectRLEnv, ManagerBasedRLEnv
 
     with contextlib.suppress(ImportError):
-        from isaaclab_experimental.envs import DirectRLEnvWarp, ManagerBasedRLEnvWarp
+        from isaaclab_experimental.deprecated.envs import DirectRLEnvWarp, ManagerBasedRLEnvWarp
 
 # remove SB3 warnings because PPO with bigger net actually benefits from GPU
 warnings.filterwarnings("ignore", message="You are trying to run PPO on the GPU")
@@ -71,7 +71,9 @@ def process_sb3_cfg(cfg: dict, num_envs: int) -> dict:
                     if isinstance(value, str):
                         _, initial_value = value.split("_")
                         initial_value = float(initial_value)
-                        hyperparams[key] = lambda progress_remaining: progress_remaining * initial_value
+                        hyperparams[key] = lambda progress_remaining, initial_value=initial_value: (
+                            progress_remaining * initial_value
+                        )
                     elif isinstance(value, (float, int)):
                         # negative value: ignore (ex: for clipping)
                         if value < 0:

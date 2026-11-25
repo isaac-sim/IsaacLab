@@ -77,13 +77,35 @@ _RESET_CALLBACK_NAME = "isaaclab.programs"
 """Name of the simulation reset callback installed while a program runs."""
 
 _ISAACSIM = {"extras": ("isaacsim",), "required_modules": ("isaacsim",)}
+_OV = {"extras": ("ov",)}
 _TETRAHEDRALIZATION = {"extras": ("tetrahedralization",), "required_modules": ("pytetwild",)}
 _TELEOP = {"extras": ("teleop",), "required_modules": ("isaaclab_teleop", "websockets")}
 
 
 DEMOS = (
     ProgramSpec("zoo", "examples/demos/zoo.py", "Explore Isaac Lab robots and simulation features."),
+    ProgramSpec(
+        "microduck-warehouse",
+        "examples/demos/microduck_warehouse.py",
+        "View the static MicroDuck Warehouse with renderer and camera presets.",
+        extras=("ovrtx",),
+        newton_gl_args=None,
+    ),
     ProgramSpec("h1-locomotion", "examples/demos/h1_locomotion.py", "Control a trained H1 locomotion policy."),
+    ProgramSpec(
+        "sonic",
+        "examples/demos/sonic.py",
+        "Run SONIC walking over gravel and sand with Newton MPM or PhysX PBD.",
+        extras=("isaacsim",),
+        required_modules=("huggingface_hub", "onnxruntime"),
+        newton_gl_args=None,
+    ),
+    ProgramSpec(
+        "nist",
+        "examples/demos/nist.py",
+        "Assemble ten randomized NIST parts with a pretrained policy.",
+        extras=("ovrtx",),
+    ),
     ProgramSpec(
         "pick-and-place",
         "examples/demos/pick_and_place.py",
@@ -102,6 +124,11 @@ DEMOS = (
         "Smash rigid crates with MPM snowballs.",
     ),
     ProgramSpec("teapot-fill", "examples/demos/teapot_fill.py", "Fill and pour a teapot with MPM fluid."),
+    ProgramSpec(
+        "rizon-sharpa-coffee",
+        "examples/demos/rizon_sharpa_coffee.py",
+        "Scoop, dissolve and stir coffee using IK (external Rizon/Sharpa robot assets required).",
+    ),
 )
 
 
@@ -110,9 +137,14 @@ EXAMPLES = (
         "bin-packing",
         "examples/bin_packing.py",
         "Clone heterogeneous randomized bin layouts.",
-        **_ISAACSIM,
+        **_OV,
     ),
     ProgramSpec("cables", "examples/cables.py", "Simulate colliding cables with Newton VBD."),
+    ProgramSpec(
+        "sharpa-rj45",
+        "examples/sharpa_rj45.py",
+        "Insert and extract an RJ45 connector with a SHARPA hand and hydroelastic contact.",
+    ),
     ProgramSpec(
         "deformables",
         "examples/deformables.py",
@@ -124,21 +156,33 @@ EXAMPLES = (
         "heterogeneous-scene",
         "examples/heterogeneous_scene.py",
         "Compose heterogeneous task scenes.",
-        **_ISAACSIM,
+        **_OV,
     ),
-    ProgramSpec("markers", "examples/markers.py", "Render reusable visualization markers.", **_ISAACSIM),
+    ProgramSpec(
+        "g1-terrain",
+        "examples/g1_terrain.py",
+        "Run a pretrained G1 depth policy over platforms or ramps.",
+        newton_gl_args=("--task", "platforms"),
+    ),
+    ProgramSpec("markers", "examples/markers.py", "Render reusable visualization markers.", **_OV),
     ProgramSpec("multi-asset", "examples/multi_asset.py", "Spawn different assets across cloned environments."),
     ProgramSpec("newton-dominoes", "examples/newton_viewer_dominoes.py", "Interact with Newton XPBD dominoes."),
+    ProgramSpec(
+        "rizon-sharpa-teapot",
+        "examples/rizon_sharpa_teapot.py",
+        "Explore physical Rizon--Sharpa grasping with one-way MPM fluid coupling.",
+        required_modules=("isaaclab_contrib",),
+    ),
     ProgramSpec(
         "procedural-terrain",
         "examples/procedural_terrain.py",
         "Generate procedural terrain meshes.",
-        **_ISAACSIM,
+        **_OV,
     ),
     ProgramSpec(
         "tablecloth",
         "examples/tablecloth.py",
-        "Compare five contact-driven humanoid tablecloth pulls using GPU Newton IK and VBD.",
+        "Compare contact-driven humanoid tablecloth pulls using GPU Newton IK and VBD.",
     ),
     ProgramSpec(
         "visual-color-randomization",
@@ -166,7 +210,7 @@ EXAMPLES = (
         "camera",
         "examples/sensors/cameras.py",
         "Capture data from several camera configurations.",
-        **_ISAACSIM,
+        **_OV,
     ),
     ProgramSpec(
         "contact-sensor",
@@ -177,13 +221,13 @@ EXAMPLES = (
         "frame-transformer",
         "examples/sensors/frame_transformer_sensor.py",
         "Track transforms between robot frames.",
-        **_ISAACSIM,
+        **_OV,
     ),
     ProgramSpec(
         "imu",
         "examples/sensors/imu_sensor.py",
         "Inspect inertial measurements.",
-        **_ISAACSIM,
+        **_OV,
     ),
     ProgramSpec(
         "multi-mesh-ray-caster",
@@ -205,13 +249,13 @@ EXAMPLES = (
         "pva",
         "examples/sensors/pva_sensor.py",
         "Inspect pose, velocity, and acceleration data.",
-        **_ISAACSIM,
+        **_OV,
     ),
     ProgramSpec(
         "ray-caster",
         "examples/sensors/raycaster_sensor.py",
         "Inspect a lidar-style ray caster.",
-        **_ISAACSIM,
+        **_OV,
     ),
     ProgramSpec(
         "arl-robot-1",
@@ -238,6 +282,13 @@ EXAMPLES = (
         "examples/sensors/tacsl_sensor.py",
         "Inspect camera and force-field tactile data.",
         **_ISAACSIM,
+    ),
+    ProgramSpec(
+        "foveated-camera",
+        "examples/sensors/foveated_camera.py",
+        "Explore a cluttered scene through an experimental foveated camera.",
+        extras=("fovi",),
+        required_modules=("isaaclab_fovi", "fovi"),
     ),
 )
 
@@ -318,7 +369,7 @@ def run_program(command: str, program: ProgramSpec, args: list[str] | None = Non
                 next_program.name,
                 *(next_program.newton_gl_args or ()),
                 "--viz",
-                "newton_gl",
+                "newton",
             ],
         )
 

@@ -4,7 +4,7 @@ Campaign mode prunes one package's or subsystem's whole test surface in one PR, 
 
 ## 1. Baseline
 
-Record the area's test line counts and every test file's pass/fail state and wall time at a pinned `develop` SHA, one process per file as CI runs them. Run once with a warm and once with a cold Warp kernel cache (`WARP_CACHE_PATH` pointing at an empty directory) so kernel compilation is not mistaken for test cost. Keep baseline failures in their own list; they may be real product bugs, not stale tests.
+Record the area's test line counts and every test file's pass/fail state and wall time at a pinned `main` SHA, one process per file as CI runs them. Run once with a warm and once with a cold Warp kernel cache (`WARP_CACHE_PATH` pointing at an empty directory) so kernel compilation is not mistaken for test cost. Keep baseline failures in their own list; they may be real product bugs, not stale tests.
 
 Done when every in-scope test file has a recorded baseline result.
 
@@ -55,7 +55,7 @@ Done when each repaired defect has a failing control and a passing candidate on 
 
 ## 8. Reconcile and hand off
 
-Campaigns outlive many `develop` commits. Merge `develop` rather than rebasing a long campaign. When `develop` modified a test the campaign deleted, keep the deletion and port the new contract into the keeper. Rerun the whole area on the merged head.
+Campaigns outlive many `main` commits. Merge `main` rather than rebasing a long campaign. When `main` modified a test the campaign deleted, keep the deletion and port the new contract into the keeper. Rerun the whole area on the merged head.
 
 Hand off with the [SKILL.md](SKILL.md) report, plus:
 

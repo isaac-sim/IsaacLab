@@ -3,15 +3,18 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING
+from __future__ import annotations
 
+from dataclasses import MISSING
+from typing import TYPE_CHECKING
+
+from isaaclab_isaacsim.physics import PhysxCfg
+from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
-from isaaclab_physx.physics import PhysxCfg
-from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
+from isaaclab_ov.physics import OvPhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
-from isaaclab.devices.openxr import XrCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
@@ -28,8 +31,12 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_tasks.utils import PresetCfg
 
+from .. import ISAACLAB_TELEOP_AVAILABLE
 from . import mdp
 from .mdp import stack_events
+
+if TYPE_CHECKING:
+    from isaaclab_teleop import XrCfg
 
 # Shared rigid-body properties for the three stacking cubes (robot-neutral).
 _CUBE_PROPERTIES = [
@@ -42,6 +49,19 @@ _CUBE_PROPERTIES = [
         disable_gravity=False,
     )
 ]
+
+
+def _make_default_xr_cfg() -> XrCfg | None:
+    """Create the default stack XR configuration when Isaac Lab Teleop is installed."""
+    if not ISAACLAB_TELEOP_AVAILABLE:
+        return None
+
+    from isaaclab_teleop import XrCfg
+
+    return XrCfg(
+        anchor_pos=(-0.1, -0.5, -1.05),
+        anchor_rot=(0, 0, -0.5, 0.866),
+    )
 
 
 def make_ee_frame_cfg(
@@ -76,7 +96,7 @@ def make_ee_frame_cfg(
     )
 
 
-def apply_default_semantics(scene: "ObjectTableSceneCfg") -> None:
+def apply_default_semantics(scene: ObjectTableSceneCfg) -> None:
     """Tag the table, ground, and robot with their semantic classes.
 
     Call this from a robot env cfg's ``__post_init__`` after the robot has been set (the robot is
@@ -301,6 +321,15 @@ class PhysicsCfg(PresetCfg):
         # Let object contacts stall position-driven grippers before they tunnel through a grasp.
         solve_articulation_contact_last=True,
     )
+    ovphysx = OvPhysxCfg(
+        friction_offset_threshold=0.04,
+        bounce_threshold_velocity=0.01,
+        gpu_found_lost_aggregate_pairs_capacity=1024 * 1024 * 4,
+        gpu_total_aggregate_pairs_capacity=2**21,
+        friction_correlation_distance=0.00625,
+        # Let object contacts stall position-driven grippers before they tunnel through a grasp.
+        solve_articulation_contact_last=True,
+    )
     newton_mjwarp = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             solver="newton",
@@ -321,14 +350,14 @@ class PhysicsCfg(PresetCfg):
         num_substeps=2,
         debug_mode=False,
     )
-    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
-    default = isaacsim_physx
+    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
+    default = ovphysx
 
 
 def raise_if_surface_gripper_on_newton(env_cfg) -> None:
     """Reject Newton physics for scenes that configure a surface gripper.
 
-    Surface grippers are a PhysX/Isaac Sim feature (:class:`~isaaclab_physx.assets.SurfaceGripperCfg`)
+    Surface grippers are a PhysX/Isaac Sim feature (:class:`~isaaclab_isaacsim.assets.SurfaceGripperCfg`)
     with no Newton equivalent. This raises an actionable error at config-validation time
     instead of failing later during scene creation with an opaque ``isaacsim.core`` import error.
 
@@ -363,7 +392,7 @@ class StackEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the stacking environment."""
 
     # Scene settings
-    scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=1, env_spacing=2.5, replicate_physics=False)
+    scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=1, env_spacing=2.5)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
@@ -376,10 +405,7 @@ class StackEnvCfg(ManagerBasedRLEnvCfg):
     events = None
     curriculum = None
 
-    xr: XrCfg = XrCfg(
-        anchor_pos=(-0.1, -0.5, -1.05),
-        anchor_rot=(0, 0, -0.5, 0.866),
-    )
+    xr: XrCfg | None = _make_default_xr_cfg()
 
     def __post_init__(self):
         """Post initialization."""

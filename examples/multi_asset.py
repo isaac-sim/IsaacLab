@@ -27,17 +27,16 @@ parser.add_argument(
 )
 parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["newton_gl"])
+parser.set_defaults(visualizer=["newton"])
 args_cli = parser.parse_args()
 if args_cli.max_steps == 0 or args_cli.max_steps < -1:
     parser.error("--max_steps must be positive or -1.")
 
+from isaaclab_isaacsim.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 from isaaclab_newton.sim.schemas import NewtonArticulationCfg
-from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg, RigidObjectCollectionCfg
-from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
 
 from isaaclab_assets.robots.anymal import ANYDRIVE_3_LSTM_ACTUATOR_CFG  # isort: skip
@@ -227,14 +226,14 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
 
 def main():
     """Main function."""
-    with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
-        sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device, physics=physics_cfg)
+    sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device)
+    with launch_simulation(sim_cfg, args_cli):
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
         sim.set_camera_view([2.5, 0.0, 4.0], [0.0, 0.0, 2.0])
 
         # Design scene
-        scene_cfg = MultiObjectSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0, replicate_physics=True)
+        scene_cfg = MultiObjectSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0)
         if args_cli.physics == "newton_mjwarp":
             # Newton views currently require a uniform body layout across worlds.
             scene_cfg.object.spawn.assets_cfg = scene_cfg.object.spawn.assets_cfg[1:2]

@@ -60,5 +60,5 @@ Keep this skill synchronized with `docs/source/concepts/backends_and_presets.rst
 - [Evaluations](evaluations.md)
 - [Backends and presets](../../../docs/source/concepts/backends_and_presets.rst)
 - [Preset utility source](../../../source/isaaclab_tasks/isaaclab_tasks/utils/hydra.py)
-- [Environment browser](../../../docs/source/setup/environments.rst)
-- [Quickstart](../../../docs/source/setup/quickstart.rst)
+- [Environment browser](../../../docs/source/isaaclab/environments.rst)
+- [Quickstart](../../../docs/source/isaaclab/quickstart.rst)

@@ -19,7 +19,7 @@ Override categories (applied in order):
        global preset, but must resolve against a config of that type or it errors
     3. Path presets: ``env.backend=newton_mjwarp`` -- REPLACE specific section
     4. Preset-path scalars: ``env.backend.dt=0.001`` -- handled by us
-    5. Global scalars: ``env.decimation=10`` -- handled by Hydra
+    5. Global scalars: ``env.decimation=10`` -- handled by us; other keys are passed to Hydra
 
 Example usage::
 
@@ -31,14 +31,16 @@ import ast
 import enum
 import sys
 import warnings
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import is_dataclass
 from types import SimpleNamespace
+from typing import ClassVar
 
 import hydra
 from hydra.core.config_store import ConfigStore
 from omegaconf import OmegaConf
 
+from isaaclab.app import validate_launch
 from isaaclab.envs.utils.spaces import replace_env_cfg_spaces_with_strings, replace_strings_with_env_cfg_spaces
 from isaaclab.physics import PhysicsCfg
 from isaaclab.renderers.renderer_cfg import RendererCfg
@@ -49,7 +51,11 @@ from isaaclab.utils import (
     replace_strings_with_slices,
     to_dict,
     update_from_dict,
+    validate,
 )
+from isaaclab.utils.backend_utils import warn_kit_selector
+from isaaclab.visualizers import VisualizerBackendCfg, VisualizerCfg
+from isaaclab.visualizers.visualizer_cfg import migrate_visualizer_cfgs
 
 _LITERAL_MAP = {"true": True, "false": False, "none": None, "null": None}
 
@@ -59,6 +65,7 @@ _LEGACY_PRESET_ALIASES = {
     "kamino": "newton_kamino",
     "ovrtx_renderer": "ovrtx",
     "isaacsim_rtx_renderer": "isaacsim_rtx",
+    "newton_renderer": "newton_warp",
 }
 
 
@@ -67,6 +74,7 @@ class PresetTarget(enum.Enum):
 
     PHYSICS = ("physics", (PhysicsCfg,))
     RENDERER = ("renderer", (RendererCfg,))
+    VISUALIZER = ("visualizer", (VisualizerBackendCfg,))
     DOMAIN = ("presets", ())
 
     def __new__(cls, label: str, base_classes: tuple[type, ...]):
@@ -114,7 +122,13 @@ def user_stacklevel() -> int:
     return level
 
 
-def _normalize_preset_name(name: str, known_names: set[str]) -> str:
+def _normalize_preset_name(
+    name: str,
+    known_names: set[str],
+    aliases: Mapping[str, str] | None = None,
+    quiet: Collection[str] = (),
+    messages: Mapping[str, str] | None = None,
+) -> str:
     """Map a deprecated preset name to its replacement and emit a warning.
 
     Returns ``name`` unchanged when:
@@ -123,16 +137,39 @@ def _normalize_preset_name(name: str, known_names: set[str]) -> str:
           value can flow into the unknown-preset error), or
         * ``name`` is itself a real field in ``known_names`` (a user-defined preset
           legitimately reusing the deprecated spelling shadows the alias).
+
+    No warning is emitted for names in ``quiet``, which are alternative spellings rather than deprecated ones.
+    ``messages`` replaces the default warning text of the names it lists.
     """
-    replacement = _LEGACY_PRESET_ALIASES.get(name)
+    replacement = (aliases or {}).get(name, _LEGACY_PRESET_ALIASES.get(name))
     if replacement is None or replacement not in known_names or name in known_names:
         return name
-    warnings.warn(
-        f"Preset '{name}' is deprecated. Use '{replacement}' instead.",
-        FutureWarning,
-        stacklevel=user_stacklevel(),
-    )
+    if name not in quiet:
+        warnings.warn(
+            (messages or {}).get(name) or f"Preset '{name}' is deprecated. Use '{replacement}' instead.",
+            FutureWarning,
+            stacklevel=user_stacklevel(),
+        )
     return replacement
+
+
+def _kit_selectors_in_use(env_cfg) -> set[str]:
+    """Names of the Kit selectors whose backend the resolved *env_cfg* uses.
+
+    A preset named like a Kit selector can change an unrelated field, so the warning follows the resolved backend.
+    """
+    from isaaclab_isaacsim.physics import PhysxCfg
+    from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
+
+    from isaaclab.app.sim_launcher import _walk_runtime_configs
+
+    nodes = _walk_runtime_configs(env_cfg)
+    in_use = set()
+    if any(isinstance(node, PhysxCfg) for node in nodes):
+        in_use.add("isaacsim_physx")
+    if any(isinstance(node, IsaacRtxRendererCfg) for node in nodes):
+        in_use.add("isaacsim_rtx")
+    return in_use
 
 
 @configclass
@@ -171,6 +208,20 @@ class PresetCfg:
             default = rgb
     """
 
+    _aliases: ClassVar[dict[str, str]] = {}
+
+    _quiet_aliases: ClassVar[frozenset[str]] = frozenset()
+    _explicit_aliases: ClassVar[dict[str, str]] = {}
+    """Names that select a field only when chosen explicitly, e.g. ``visualizer=NAME``, never by a global preset such
+    as ``physics=NAME`` or ``presets=NAME``."""
+    """Names in :attr:`_aliases` that are alternative spellings, so selecting them does not warn."""
+
+    _alias_messages: ClassVar[dict[str, str]] = {}
+    """Warning texts that replace the default one for deprecated names in :attr:`_aliases`."""
+
+    _removed: ClassVar[dict[str, str]] = {}
+    """Names that were removed from this preset, each with a message that says what to use instead."""
+
     def __getattr__(self, name: str):
         """Alias a deprecated preset name to its replacement field.
 
@@ -180,14 +231,15 @@ class PresetCfg:
         real field on the subclass, so a user redefining the deprecated name
         shadows the alias.
         """
-        replacement = _LEGACY_PRESET_ALIASES.get(name)
+        replacement = self._aliases.get(name, _LEGACY_PRESET_ALIASES.get(name))
         fields = self.__dataclass_fields__
         if replacement is not None and replacement in fields and name not in fields:
-            warnings.warn(
-                f"Preset '{name}' is deprecated. Use '{replacement}' instead.",
-                FutureWarning,
-                stacklevel=user_stacklevel(),
-            )
+            if name not in self._quiet_aliases:
+                warnings.warn(
+                    self._alias_messages.get(name) or f"Preset '{name}' is deprecated. Use '{replacement}' instead.",
+                    FutureWarning,
+                    stacklevel=user_stacklevel(),
+                )
             return getattr(self, replacement)
         raise AttributeError(f"{type(self).__name__!s} object has no attribute {name!r}")
 
@@ -258,6 +310,13 @@ def _iter_cfg_items(cfg):
     return ()
 
 
+def _has_interpolations(cfg: object) -> bool:
+    """Check whether the active configuration contains OmegaConf interpolations."""
+    if isinstance(cfg, str):
+        return "${" in cfg
+    return any(_has_interpolations(value) for _, value in _iter_cfg_items(cfg))
+
+
 def collect_presets(cfg, path: str = "") -> dict:
     """Discover preset alternatives, including those inside inactive branches.
 
@@ -288,7 +347,7 @@ def _pick_alternative(
     preset_obj: PresetCfg,
     selected,
     path: str = "",
-    explicit_name: str | None = None,
+    explicit_name: str | Sequence[str] | None = None,
     consumed_selected: set[str] | None = None,
     on_selected: Callable[[str, object], None] | None = None,
 ):
@@ -300,12 +359,28 @@ def _pick_alternative(
     Raises:
         ValueError: If no matching name and no ``default`` field exists.
     """
+    if explicit_name is not None and not isinstance(explicit_name, str):
+        choices = [
+            _pick_alternative(preset_obj, selected, path, name, consumed_selected, on_selected)
+            for name in explicit_name
+        ]
+        if len(choices) > 1 and any(choice is None or (isinstance(choice, list) and not choice) for choice in choices):
+            raise ValueError("An empty preset choice cannot be combined with other choices.")
+        return choices[0] if len(choices) == 1 else choices
     fields = _preset_fields(preset_obj)
     field_names = set(fields)
     if explicit_name is not None:
-        explicit_name = _normalize_preset_name(explicit_name, field_names)
+        explicit_name = _normalize_preset_name(
+            explicit_name,
+            field_names,
+            {**preset_obj._aliases, **preset_obj._explicit_aliases},
+            preset_obj._quiet_aliases | preset_obj._explicit_aliases.keys(),
+            preset_obj._alias_messages,
+        )
         if explicit_name in fields:
             return fields[explicit_name]
+        if explicit_name in preset_obj._removed:
+            raise ValueError(f"Unknown preset '{explicit_name}' for {path}. {preset_obj._removed[explicit_name]}")
         avail = list(fields)
         hint = ""
         if explicit_name in _LEGACY_PRESET_ALIASES:
@@ -319,7 +394,9 @@ def _pick_alternative(
     match_value = None
     for name in selected:
         raw_name = name
-        name = _normalize_preset_name(raw_name, field_names)
+        name = _normalize_preset_name(
+            raw_name, field_names, preset_obj._aliases, preset_obj._quiet_aliases, preset_obj._alias_messages
+        )
         if name not in fields or name == match_name:
             continue
         val = fields[name]
@@ -349,12 +426,14 @@ def _pick_alternative(
 def _resolve_active_presets(
     cfg,
     selected=(),
-    explicit: dict[str, str] | None = None,
+    explicit: dict[str, str | Sequence[str]] | None = None,
     *,
     strict_explicit: bool = True,
     consumed_selected: set[str] | None = None,
     on_selected: Callable[[str, object], None] | None = None,
     consumed_explicit: set[str] | None = None,
+    selectors: Mapping[Callable[[object], bool], str | Sequence[str]] | None = None,
+    consumed_selectors: set[Callable] | None = None,
 ):
     """Resolve presets by walking only the currently active tree.
 
@@ -362,6 +441,7 @@ def _resolve_active_presets(
     """
     explicit = explicit or {}
     consumed_explicit = consumed_explicit if consumed_explicit is not None else set()
+    consumed_selectors = consumed_selectors if consumed_selectors is not None else set()
 
     def resolve(value, path):
         seen = set()
@@ -374,9 +454,16 @@ def _resolve_active_presets(
             choice = explicit.get(path)
             if choice is not None:
                 consumed_explicit.add(path)
+            for matches, names in (selectors or {}).items():
+                if any(matches(alternative) for alternative in _preset_fields(value).values()):
+                    if choice is None:
+                        choice = names
+                    consumed_selectors.add(matches)
             value = _pick_alternative(value, selected, path or "<root>", choice, consumed_selected, on_selected)
         if isinstance(value, tuple):
-            return tuple(resolve(child, f"{path}.{key}" if path else str(key)) for key, child in enumerate(value))
+            children = tuple(resolve(child, f"{path}.{key}" if path else str(key)) for key, child in enumerate(value))
+            # Keep the tuple when nothing in it changed, so that frozen parents are not reassigned.
+            return value if all(new is old for new, old in zip(children, value)) else children
         for key, child in _iter_cfg_items(value):
             resolved = resolve(child, f"{path}.{key}" if path else str(key))
             if resolved is child:
@@ -394,7 +481,12 @@ def _resolve_active_presets(
     return cfg
 
 
-def resolve_presets(cfg, selected=()):
+def resolve_presets(
+    cfg,
+    selected=(),
+    *,
+    overrides: dict[str, str | Sequence[str]] | None = None,
+):
     """Replace every :class:`PresetCfg` in the tree with the best alternative.
 
     For each ``PresetCfg`` found in the active configuration tree:
@@ -408,12 +500,13 @@ def resolve_presets(cfg, selected=()):
         cfg: A configclass, dict, or PresetCfg to resolve in-place.
         selected: Set of preset names chosen by the user (e.g. from CLI
             ``presets=peg_insert_4mm,eval``).
+        overrides: Path-specific choices. A list of names selects a list of configurations.
 
     Returns:
         The resolved ``cfg`` (possibly a different object if the root itself
         was a PresetCfg).
     """
-    return _resolve_active_presets(cfg, selected)
+    return _resolve_active_presets(cfg, selected, explicit=overrides)
 
 
 # ============================================================================
@@ -426,8 +519,9 @@ def resolve_task_config(
     agent_cfg_entry_point: str | None,
     play_mode: bool = False,
     overrides: Sequence[str] | None = None,
+    env_cfg_entry_point: str = "env_cfg_entry_point",
 ):
-    """Resolve env and agent configs with Hydra overrides, presets, and scalars fully applied.
+    """Resolve env and agent configs with Hydra overrides, presets, scalars, and interpolations applied.
 
     Safe to call before Kit is launched -- callable config values are stored as
     :class:`~isaaclab.utils.string.ResolvableString` and resolved lazily on
@@ -441,13 +535,14 @@ def resolve_task_config(
         overrides: Optional Hydra arguments to use instead of reading them from
             :data:`sys.argv`. This keeps programmatic task composition on the same
             path as command-line composition. Defaults to None.
+        env_cfg_entry_point: Registered environment configuration for this workflow.
 
     Returns:
         Tuple of (env_cfg, agent_cfg) fully resolved.
     """
     task = task_name.split(":")[-1]
     env_cfg, agent_cfg, hydra_args = register_task(
-        task, agent_cfg_entry_point, play_mode=play_mode, overrides=overrides
+        task, agent_cfg_entry_point, play_mode=play_mode, overrides=overrides, env_cfg_entry_point=env_cfg_entry_point
     )
     if not hydra_args:
         return replace_strings_with_env_cfg_spaces(env_cfg), agent_cfg
@@ -455,14 +550,9 @@ def resolve_task_config(
     resolved = {}
     original_argv, sys.argv = sys.argv, [sys.argv[0]] + hydra_args
 
-    @hydra.main(config_path=None, config_name=task, version_base="1.3")
+    @hydra.main(config_path=None, config_name=task)
     def hydra_main(hydra_cfg, env_cfg=env_cfg, agent_cfg=agent_cfg):
-        hydra_cfg = replace_strings_with_slices(OmegaConf.to_container(hydra_cfg, resolve=True))
-        update_from_dict(env_cfg, hydra_cfg["env"])
-        if isinstance(agent_cfg, dict) or agent_cfg is None:
-            agent_cfg = hydra_cfg["agent"]
-        else:
-            agent_cfg.from_dict(hydra_cfg["agent"])
+        env_cfg, agent_cfg = _apply_resolved_config(env_cfg, agent_cfg, hydra_cfg)
         resolved.update(env_cfg=replace_strings_with_env_cfg_spaces(env_cfg), agent_cfg=agent_cfg)
 
     try:
@@ -477,6 +567,7 @@ def register_task(
     agent_entry: str | None,
     play_mode: bool = False,
     overrides: Sequence[str] | None = None,
+    env_cfg_entry_point: str = "env_cfg_entry_point",
 ) -> tuple:
     """Load configs, collect presets recursively, register base config to Hydra.
 
@@ -490,6 +581,7 @@ def register_task(
             configuration's ``play_mode`` method after loading. Defaults to False.
         overrides: Optional Hydra arguments to compose instead of :data:`sys.argv`.
             Non-string literals replace resolved preset values; strings at preset paths select alternatives.
+        env_cfg_entry_point: Registered environment configuration for this workflow.
 
     Returns:
         Tuple of ``(env_cfg, agent_cfg, hydra_args)`` where presets have been
@@ -498,7 +590,7 @@ def register_task(
     """
     from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
-    env_cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
+    env_cfg = load_cfg_from_registry(task_name, env_cfg_entry_point)
     agent_cfg = load_cfg_from_registry(task_name, agent_entry) if agent_entry else None
 
     # CLI preset tokens: ``presets=NAME[,...]`` broadcasts (no typing claim),
@@ -507,6 +599,8 @@ def register_task(
     typed_labels = {target.value: target for target in PresetTarget if target.base_classes}
     global_presets: list[str] = []
     requested_targets: dict[PresetTarget, set[str]] = {}
+    selectors = {}
+    consumed_selectors = set()
     override_items: list[tuple[str, str, str]] = []
     hydra_args: list[str] = []
     for arg in sys.argv[1:] if overrides is None else overrides:
@@ -517,6 +611,11 @@ def register_task(
         token = key.lstrip("-")
         if token == PresetTarget.DOMAIN.value:
             global_presets.extend(v.strip() for v in val.split(",") if v.strip())
+        elif token == PresetTarget.VISUALIZER.value:
+            names = [name.strip() for name in val.split(",") if name.strip()]
+            if not names:
+                raise ValueError("visualizer= requires a preset name; use visualizer=none to disable viewers.")
+            selectors[PresetTarget.VISUALIZER.matches] = names if len(names) > 1 else names[0]
         elif token in typed_labels:
             for name in (v.strip() for v in val.split(",") if v.strip()):
                 global_presets.append(name)
@@ -543,6 +642,8 @@ def register_task(
         consumed_selected=consumed_presets,
         on_selected=record_selection,
         consumed_explicit=consumed_explicit,
+        selectors=selectors,
+        consumed_selectors=consumed_selectors,
     )
     env_cfg, agent_cfg = cfgs["env"], cfgs["agent"]
 
@@ -561,7 +662,21 @@ def register_task(
             for path, fields in presets.items()
         }
         known_names = {name for fields in available.values() for name in fields}
-        unknown = {_normalize_preset_name(name, known_names) for name in unknown_presets} - known_names
+        normalized_names = {name: _normalize_preset_name(name, known_names) for name in unknown_presets}
+        unknown = set(normalized_names.values()) - known_names
+        unavailable_typed_names = {
+            normalized_names[name]
+            for target, names in requested_targets.items()
+            if not any(
+                target.matches(value)
+                for fields in available.values()
+                for preset_name, value in fields.items()
+                if preset_name != "default"
+            )
+            for name in names
+            if name in normalized_names
+        }
+        unknown -= unavailable_typed_names
         if unknown:
             lines = [f"Unknown preset(s): {', '.join(sorted(unknown))}"]
             for name in sorted(unknown & _LEGACY_PRESET_ALIASES.keys()):
@@ -581,8 +696,34 @@ def register_task(
     ]
     if missing:
         raise ValueError(
-            f"Typed preset selector(s) {', '.join(missing)} did not match any preset of that type for this task."
+            f"Typed preset selector(s) {', '.join(missing)} did not match a selectable preset of that type for task "
+            f"'{task_name}'. Choose a declared preset, or remove the selector(s) to use its registered default "
+            "configuration."
         )
+    if PresetTarget.VISUALIZER.matches in selectors.keys() - consumed_selectors:
+        from .presets import VISUALIZER_PRESET_FIELDS, MultiBackendVisualizerCfg
+
+        env_cfg.sim.visualizer_cfgs = migrate_visualizer_cfgs(
+            env_cfg.sim.visualizer_cfgs, env_cfg.sim.default_visualizer_cfg
+        )
+        env_cfg.sim.default_visualizer_cfg = None
+        viewers = env_cfg.sim.visualizer_cfgs
+        if not viewers:
+            viewers = [VisualizerCfg()]
+        for viewer in viewers:
+            choices = MultiBackendVisualizerCfg()
+            backends = viewer.backend if isinstance(viewer.backend, list) else [viewer.backend]
+            for backend in backends:
+                vars(choices)[VISUALIZER_PRESET_FIELDS.get(backend.visualizer_type, backend.visualizer_type)] = backend
+            viewer.backend = resolve_presets(choices, overrides={"": selectors[PresetTarget.VISUALIZER.matches]})
+        env_cfg.sim.visualizer_cfgs = viewers
+
+    # A deprecated Kit backend warns once its selection resolved, so a rejected choice reports only its own error.
+    kit_selectors = _kit_selectors_in_use(env_cfg)
+    for name in dict.fromkeys(global_presets):
+        if name in consumed_presets and name in kit_selectors:
+            warn_kit_selector(name, stacklevel=user_stacklevel() - 1)
+
     # apply play-mode overrides after preset resolution so they act on the resolved
     # config, and before scalar overrides so explicit user values still win
     if play_mode and hasattr(env_cfg, "play_mode"):
@@ -598,7 +739,7 @@ def register_task(
         else:
             hydra_args.append(arg)
 
-    if not hydra_args:
+    if not hydra_args and not _has_interpolations(cfgs):
         return env_cfg, agent_cfg, hydra_args
 
     # Convert to dict for Hydra (handle gym spaces and slices)
@@ -606,10 +747,26 @@ def register_task(
     agent_dict = agent_cfg.to_dict() if agent_cfg is not None and hasattr(agent_cfg, "to_dict") else agent_cfg
     env_dict = to_dict(env_cfg)  # type: ignore[union-attr]
     cfg_dict = replace_slices_with_strings({"env": env_dict, "agent": agent_dict})
+    hydra_cfg = OmegaConf.create(cfg_dict)
+
+    if not hydra_args:
+        env_cfg, agent_cfg = _apply_resolved_config(env_cfg, agent_cfg, hydra_cfg)
+        return env_cfg, agent_cfg, hydra_args
 
     # Register plain config (no groups) - Hydra only handles global scalars
-    ConfigStore.instance().store(name=task_name, node=OmegaConf.create(cfg_dict))
+    ConfigStore.instance().store(name=task_name, node=hydra_cfg, replace=True)
     return env_cfg, agent_cfg, hydra_args
+
+
+def _apply_resolved_config(env_cfg, agent_cfg, hydra_cfg) -> tuple:
+    """Apply resolved values while preserving environment and agent configclass instances."""
+    cfg_dict = replace_strings_with_slices(OmegaConf.to_container(hydra_cfg, resolve=True))
+    update_from_dict(env_cfg, cfg_dict["env"])
+    if isinstance(agent_cfg, dict) or agent_cfg is None:
+        agent_cfg = cfg_dict["agent"]
+    else:
+        update_from_dict(agent_cfg, cfg_dict["agent"])
+    return env_cfg, agent_cfg
 
 
 def _setattr(obj, path: str, val):
@@ -617,6 +774,13 @@ def _setattr(obj, path: str, val):
     *parts, leaf = path.split(".")
     for p in parts:
         obj = obj[p] if isinstance(obj, Mapping) else getattr(obj, p)
+    if not isinstance(obj, dict) and not hasattr(obj, leaf):
+        # A misspelled field is added beside the intended one, which keeps its value.
+        warnings.warn(
+            f"Override {path!r}: {type(obj).__name__} has no field {leaf!r}; it is added as a new attribute.",
+            UserWarning,
+            stacklevel=user_stacklevel(),
+        )
     if isinstance(obj, dict):
         obj[leaf] = val
     else:
@@ -642,34 +806,26 @@ def setup_preset_cli(
     registered on ``parser`` -- otherwise those unknown tokens land in
     ``parse_known_args``'s remainder.
 
-    The returned remainder contains the user-typed ``physics=`` / ``renderer=``
-    / ``presets=`` tokens verbatim, alongside any Hydra path overrides and any
-    unknown argparse flags, ready to assign to ``sys.argv`` for hydra to parse.
+    The remainder contains canonical preset selectors, Hydra path overrides,
+    and unknown flags. Launcher arguments, including ``--kit_args``, are parsed
+    first so their values are never interpreted as task selectors.
 
     Does not mutate ``sys.argv``; the caller assigns
     ``sys.argv = [sys.argv[0]] + remaining`` when ready, so any argv-aware logic
     that re-reads ``sys.argv`` (e.g. an external callback) runs against the
     user's original command line first.
 
-    A Hydra override is never the value of an option whose value is optional
-    (``nargs="?"``): ``--video presets=newton_mjwarp`` records video with the
-    option's default source and passes the override on. Overrides always
-    contain ``=``, so such an option followed by a token with ``=`` takes its
-    ``const`` instead.
-
     Args:
         parser: Caller's argument parser. An ``argument_group`` is attached
             for help-time variant discovery. No preset selector arguments are
             added, so the Namespace gains no preset attributes.
         argv: Arguments to parse, including help-time task selection. Defaults to ``sys.argv[1:]``.
-
     Returns:
-        ``(args, remaining)`` where ``remaining`` is the verbatim output of
-        ``parser.parse_known_args(argv)``, ready to hand to Hydra via
-        ``sys.argv``.
+        Parsed launcher arguments and normalized task overrides, ready to hand
+        to Hydra via ``sys.argv`` or :func:`~isaaclab_tasks.utils.hydra.resolve_task_config`.
 
     Raises:
-        SystemExit: If ``argv`` requests help, after printing it.
+        SystemExit: If help is requested or selector arguments are missing or conflicting.
     """
     args_to_parse = sys.argv[1:] if argv is None else argv
     help_requested = "-h" in args_to_parse or "--help" in args_to_parse
@@ -686,7 +842,7 @@ def setup_preset_cli(
     description = ["Select named PresetCfg alternatives via Hydra-style overrides (key=value, no leading dashes):"]
     for target in PresetTarget:
         syntax = f"{target.value}=NAME"
-        if target is PresetTarget.DOMAIN:
+        if target in (PresetTarget.VISUALIZER, PresetTarget.DOMAIN):
             syntax += "[,NAME,...]"
         meaning = (
             f"(typed) selects a {target.value} backend"
@@ -700,7 +856,10 @@ def setup_preset_cli(
                 description.append("                              (none)")
     if variants is None:
         description.append("\nPass `--task=X` along with `--help` to see preset variants available for that task.")
-    description.append("\nHydra also accepts path-targeted overrides like env.sim.physics=NAME.")
+    description.append(
+        "\nAliases: --physics NAME, --renderer NAME, --visualizer NAME (--viz).\n"
+        "Hydra also accepts path-targeted overrides like env.sim.physics=NAME."
+    )
     parser.add_argument_group("preset selection", description="\n".join(description))
     if help_requested:
         parser.print_help()
@@ -716,7 +875,31 @@ def setup_preset_cli(
         f"{token}={optional_value_consts[token]}" if token in optional_value_consts and "=" in next_token else token
         for token, next_token in zip(args_to_parse, [*args_to_parse[1:], ""])
     ]
-    return parser.parse_known_args(args_to_parse)
+    args, remaining = parser.parse_known_args(args_to_parse)
+    overrides = []
+    tokens = iter(remaining)
+    for token in tokens:
+        key, separator, value = token.partition("=")
+        if key in ("--physics", "--renderer", "--visualizer", "--viz"):
+            value = value if separator else next(tokens, "")
+            if not value or value.startswith("-") or "=" in value:
+                parser.error(f"{key} requires a preset name.")
+            key = "visualizer" if key == "--viz" else key[2:]
+            token = f"{key}={value}"
+        overrides.append(token)
+
+    for key in ("physics", "renderer", "visualizer"):
+        selected = {token[len(key) + 1 :] for token in overrides if token.startswith(f"{key}=")}
+        value = vars(args).pop(key, None)
+        explicit = vars(args).pop(f"{key}_explicit", False)
+        if value is not None or explicit:
+            value = (",".join(value) if isinstance(value, list) else value) or "none"
+            if (explicit or not selected) and value not in selected:
+                overrides.append(f"{key}={value}")
+                selected.add(value)
+        if len(selected) > 1:
+            parser.error(f"Conflicting {key} selections: {', '.join(sorted(selected))}.")
+    return args, overrides
 
 
 def enumerate_task_presets(task_name: str) -> dict[PresetTarget, list[str]] | None:
@@ -726,7 +909,7 @@ def enumerate_task_presets(task_name: str) -> dict[PresetTarget, list[str]] | No
     using the same logic that the CLI help-text renderer uses, so the returned
     view matches what ``--task=<name> --help`` shows at the command line.
 
-    This function is safe to call after :class:`~isaaclab_physx.app.KitLauncher` has
+    This function is safe to call after :class:`~isaaclab_isaacsim.app.KitLauncher` has
     booted (i.e. inside a running Isaac Sim session).
 
     Args:
@@ -759,9 +942,100 @@ def _enumerate_variants(task_name: str) -> dict[PresetTarget, list[str]]:
     typed_targets = [t for t in PresetTarget if t.base_classes]
     result: dict[PresetTarget, set[str]] = {target: set() for target in PresetTarget}
     for path_dict in collect_presets(env_cfg).values():
+        families = {target for target in typed_targets if any(target.matches(cfg) for cfg in path_dict.values())}
         for name, cfg in path_dict.items():
             if name == "default":
                 continue
             matched = next((target for target in typed_targets if target.matches(cfg)), PresetTarget.DOMAIN)
+            if (cfg is None or (isinstance(cfg, list) and not cfg)) and len(families) == 1:
+                matched = next(iter(families))
             result[matched].add(name)
+    if not result[PresetTarget.VISUALIZER]:
+        from .presets import VISUALIZER_PRESET_FIELDS, MultiBackendVisualizerCfg
+
+        spelling = {field: name for name, field in VISUALIZER_PRESET_FIELDS.items()}
+        result[PresetTarget.VISUALIZER].update(
+            spelling.get(name, name) for name in collect_presets(MultiBackendVisualizerCfg())[""] if name != "default"
+        )
     return {target: sorted(names) for target, names in result.items()}
+
+
+_SELECTORS = ("physics", "renderer", "presets")
+
+
+def task_run_overrides(run: tuple[str | None, str | None, str | None]) -> list[str]:
+    """Return the command-line tokens of a ``(physics, renderer, presets)`` run, e.g. ``["physics=ovphysx"]``."""
+    return [f"{selector}={name}" for selector, name in zip(_SELECTORS, run) if name is not None]
+
+
+def _launchable_env_cfg(task_name: str, run: tuple[str | None, str | None, str | None]):
+    """Return the resolved and launch-scanned env config of *run*, or ``None`` if it is rejected."""
+    try:
+        with warnings.catch_warnings():
+            # Enumerating every backend is not a user selecting the deprecated ones.
+            warnings.filterwarnings("ignore", message="Selecting '.*' runs on Isaac Sim")
+            env_cfg, _ = resolve_task_config(task_name, None, overrides=task_run_overrides(run))
+        validate(env_cfg)
+        validate_launch(env_cfg, {"livestream": 0})
+    except ValueError:
+        return None
+    return env_cfg
+
+
+def is_task_run_launchable(task_name: str, run: tuple[str | None, str | None, str | None]) -> bool:
+    """Return whether a ``(physics, renderer, presets)`` run of *task_name* resolves, passes the env config's
+    checks, and can launch headless.
+
+    A rejected combination is one whose resolution or validation raises :class:`ValueError`; any other
+    error propagates.
+    """
+    return _launchable_env_cfg(task_name, run) is not None
+
+
+def resolve_task_runs(task_name: str) -> list[tuple[str | None, str | None, str | None]] | None:
+    """Return the preset combinations of *task_name* that can launch, one per distinct config.
+
+    Each physics and renderer preset, or leaving that axis to the config, is crossed with each domain
+    preset in turn. Every combination is resolved, validated with the env config's own checks, and
+    checked with :func:`~isaaclab.app.validate_launch` for a headless launch without livestreaming. Combinations
+    that resolve to the same config, such as ``physics=physx`` and the backend it selects, are
+    reported once, by their most explicit spelling.
+
+    Only one domain preset is applied per run, so a task with several independent domain
+    presets supports more combinations than are listed. A rejected combination is one whose
+    resolution or validation raises :class:`ValueError`; any other error propagates.
+
+    Args:
+        task_name: Gymnasium task ID (e.g. ``"Isaac-Cartpole-Camera-Direct"``).
+
+    Returns:
+        ``(physics, renderer, presets)`` names per run, ``None`` on an axis left to the config. The
+        first run is the one the task uses when no names are passed, unless that run cannot launch.
+        ``None`` if the task's env config cannot be loaded.
+    """
+    preset_map = enumerate_task_presets(task_name)
+    if preset_map is None:
+        return None
+    typed = {*preset_map[PresetTarget.PHYSICS], *preset_map[PresetTarget.RENDERER]}
+    domains = [name for name in preset_map[PresetTarget.DOMAIN] if name not in typed]
+    candidates = [
+        (physics, renderer, domain)
+        for physics in [None, *preset_map[PresetTarget.PHYSICS]]
+        for renderer in [None, *preset_map[PresetTarget.RENDERER]]
+        for domain in [None, *domains]
+    ]
+
+    runs: dict[str, tuple[str | None, str | None, str | None]] = {}
+    default_key = None
+    for run in candidates:
+        env_cfg = _launchable_env_cfg(task_name, run)
+        if env_cfg is None:
+            continue
+        # Fingerprint after launch validation resolves automatic selectors to concrete configs.
+        key = repr(to_dict(env_cfg))
+        if run == (None, None, None):
+            default_key = key
+        if key not in runs or len(task_run_overrides(run)) > len(task_run_overrides(runs[key])):
+            runs[key] = run
+    default = [runs.pop(default_key)] if default_key is not None else []
+    return default + list(runs.values())

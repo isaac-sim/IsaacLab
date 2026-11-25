@@ -10,6 +10,8 @@ import warnings
 from typing import TYPE_CHECKING
 
 import torch
+from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
+from isaaclab_neural.physics import NeRDSolverCfg
 from isaaclab_newton.controllers.ik.newton_ik_objectives_cfg import (
     NewtonIKJointLimitObjectiveCfg,
     NewtonIKPoseObjectiveCfg,
@@ -18,7 +20,6 @@ from isaaclab_newton.controllers.ik.newton_ik_solver_cfg import NewtonIKSolverCf
 from isaaclab_newton.envs.mdp.actions.newton_ik_actions_cfg import NewtonInverseKinematicsActionCfg
 from isaaclab_newton.physics import NewtonCfg
 from isaaclab_newton.sim.schemas import MujocoRigidBodyCfg
-from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.envs.mdp as mdp
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
@@ -28,6 +29,7 @@ from isaaclab.devices.keyboard import Se3KeyboardCfg
 from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
 from isaaclab.managers import ObservationTermCfg, RewardTermCfg, SceneEntityCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass, replace
 from isaaclab.utils import math as math_utils
 
@@ -38,7 +40,7 @@ from isaaclab_tasks.utils import PresetCfg, preset
 ##
 from isaaclab_assets import FRANKA_MINIMAL_CFG, FRANKA_PANDA_CFG  # isort: skip
 
-from ...reach_env_cfg import ReachEnvCfg, RewardsCfg
+from ...reach_env_cfg import REACH_SIM_CFG, ReachEnvCfg, RewardsCfg
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -46,6 +48,10 @@ if TYPE_CHECKING:
 ##
 # Environment configuration
 ##
+
+
+FRANKA_REACH_ROBOT_CFG = replace(FRANKA_PANDA_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+"""Robot configuration shared by the scene and articulation-specific physics declarations."""
 
 
 @configclass
@@ -135,6 +141,19 @@ class FrankaReachEnvCfg(ReachEnvCfg):
     and increases command-change penalties. These profiles modify only the task config.
     """
 
+    sim: SimulationCfg = replace(
+        REACH_SIM_CFG,
+        physics=replace(
+            REACH_SIM_CFG.physics,
+            newton_nerd=replace(
+                REACH_SIM_CFG.physics.newton_nerd,
+                solver_cfg=NeRDSolverCfg(
+                    checkpoint="logs/neural/reach_franka/flashnerd.pt", articulation=FRANKA_REACH_ROBOT_CFG.prim_path
+                ),
+            ),
+        ),
+    )
+
     def validate_config(self) -> None:
         """Validate the selected controller and physics backend."""
         if self.observations.policy.ee_target_error is not None and not isinstance(
@@ -145,11 +164,16 @@ class FrankaReachEnvCfg(ReachEnvCfg):
             self.sim.physics, NewtonCfg
         ):
             raise ValueError("The 'newton_ik' action preset requires a Newton physics preset.")
+        if isinstance(self.sim.physics, NewtonCfg) and isinstance(self.sim.physics.solver_cfg, NeRDSolverCfg):
+            if not isinstance(self.actions.arm_action, mdp.JointPositionActionCfg):
+                raise ValueError("The 'newton_nerd' physics preset requires the Franka joint-position action.")
+            if self.observations.policy.ee_target_error is not None:
+                raise ValueError("The 'newton_nerd' physics preset does not support the 'hold' preset.")
 
     def __post_init__(self):
         super().__post_init__()
 
-        self.scene.robot = replace(FRANKA_PANDA_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace(FRANKA_REACH_ROBOT_CFG)
         # Joint inertia varies substantially along the arm; damp each drive accordingly.
         self.scene.robot.actuators["panda_arm"].damping = {
             "panda_joint1": 40.0,
@@ -160,8 +184,13 @@ class FrankaReachEnvCfg(ReachEnvCfg):
             "panda_joint7": 12.0,
         }
         self.scene.robot.spawn.variants["Physics"] = preset(
-            default="mujoco", isaacsim_physx="physx", physx="physx", ovphysx="physx"
+            default="mujoco", isaacsim_physx="physx", physx="physx", ovphysx="physx", newton_steel="physx"
         )
+        steel_solver = self.sim.physics.newton_steel.solver_cfg
+        steel_solver.iterations = 4
+        steel_solver.update_mass_matrix_interval = 4
+        steel_solver.articulation_constraint_max = 16
+        steel_solver.enable_joint_velocity_limits = False
         self.scene.robot.spawn.variants["Colliders"] = preset(
             default=FRANKA_PANDA_CFG.spawn.variants["Colliders"],
             minimal=FRANKA_MINIMAL_CFG.spawn.variants["Colliders"],
@@ -203,18 +232,27 @@ class FrankaReachEnvCfg(ReachEnvCfg):
 
         # override actions
         self.actions.arm_action = FrankaArmActionCfg()
-        # Native SE(3) devices match the 6D relative differential and Newton IK actions.
-        relative_ik_teleop_devices = DevicesCfg(
-            devices={
-                "keyboard": Se3KeyboardCfg(gripper_term=False, sim_device=self.sim.device),
-                "gamepad": Se3GamepadCfg(gripper_term=False, sim_device=self.sim.device),
-                "spacemouse": Se3SpaceMouseCfg(gripper_term=False, sim_device=self.sim.device),
-            }
-        )
+
+        # Native SE(3) devices match the 6D relative differential and Newton IK actions. Sensitivities
+        # offset each action's scale so full device input commands 0.025 m and 0.025 rad per step.
+        def relative_ik_teleop_devices(rot_sensitivity: float) -> DevicesCfg:
+            device_cfgs = {"keyboard": Se3KeyboardCfg, "gamepad": Se3GamepadCfg, "spacemouse": Se3SpaceMouseCfg}
+            return DevicesCfg(
+                devices={
+                    name: device_cfg(
+                        gripper_term=False,
+                        pos_sensitivity=0.5,
+                        rot_sensitivity=rot_sensitivity,
+                        sim_device=self.sim.device,
+                    )
+                    for name, device_cfg in device_cfgs.items()
+                }
+            )
+
         self.teleop_devices = preset(
             default=DevicesCfg(),
-            diffik=relative_ik_teleop_devices,
-            newton_ik=relative_ik_teleop_devices,
+            diffik=relative_ik_teleop_devices(rot_sensitivity=0.05),
+            newton_ik=relative_ik_teleop_devices(rot_sensitivity=0.1),
         )
         # override command generator body
         # end-effector is along z-direction

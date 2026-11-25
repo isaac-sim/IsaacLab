@@ -231,6 +231,15 @@ html[data-theme="dark"] .environment-browser {
     color: var(--pst-color-info);
 }
 
+.environment-optix-note {
+    border-left-color: var(--pst-color-warning);
+    background: color-mix(in srgb, var(--pst-color-warning) 8%, transparent);
+}
+
+.environment-optix-note i {
+    color: var(--pst-color-warning);
+}
+
 .environment-command-output {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
@@ -460,7 +469,8 @@ html[data-theme="dark"] .environment-browser {
     text-align: left;
 }
 
-.environment-task-card-select > img {
+.environment-task-card-select > img,
+.environment-task-card-select > video {
     display: block;
     width: 100%;
     aspect-ratio: 16 / 10;

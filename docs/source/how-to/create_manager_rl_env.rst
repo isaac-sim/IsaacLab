@@ -8,25 +8,14 @@ Creating a Manager-Based RL Environment
 
 .. currentmodule:: isaaclab
 
-Having learnt how to create a base environment in :ref:`tutorial-create-manager-base-env`, we will now look at how to create a manager-based
-task environment for reinforcement learning.
+Extend the Cartpole environment from :ref:`tutorial-create-manager-base-env`
+into an RL task using :class:`envs.ManagerBasedRLEnvCfg`. Add rewards and termination
+conditions to define what the agent should learn and when each episode ends.
+The configuration can also include commands and a curriculum.
 
-The base environment is designed as an sense-act environment where the agent can send commands to the environment
-and receive observations from the environment. This minimal interface is sufficient for many applications such as
-traditional motion planning and controls. However, many applications require a task-specification which often
-serves as the learning objective for the agent. For instance, in a navigation task, the agent may be required to
-reach a goal location. To this end, we use the :class:`envs.ManagerBasedRLEnv` class which extends the base environment
-to include a task specification.
-
-Similar to other components in Isaac Lab, instead of directly modifying the base class :class:`envs.ManagerBasedRLEnv`, we
-encourage users to simply implement a configuration :class:`envs.ManagerBasedRLEnvCfg` for their task environment.
-This practice allows us to separate the task specification from the environment implementation, making it easier
-to reuse components of the same environment for different tasks.
-
-In this tutorial, we will configure the cartpole environment using the :class:`envs.ManagerBasedRLEnvCfg` to create a manager-based task
-for balancing the pole upright. We will learn how to specify the task using reward terms, termination criteria,
-curriculum and commands.
-
+The environment class executes these terms, so you can change the task through
+configuration. See :ref:`feature-workflows` for how manager-based environments
+organize task logic.
 
 The Code
 ~~~~~~~~
@@ -43,7 +32,7 @@ For this tutorial, we use the cartpole environment defined in ``isaaclab_tasks.c
 
 The script for running the environment ``run_cartpole_rl_env.py`` is present in the
 ``isaaclab/scripts/tutorials/03_envs`` directory. The script is similar to the
-``cartpole_base_env.py`` script in the previous tutorial, except that it uses the
+``create_cartpole_base_env.py`` script in the previous tutorial, except that it uses the
 :class:`envs.ManagerBasedRLEnv` instead of the :class:`envs.ManagerBasedEnv`.
 
 .. dropdown:: Code for run_cartpole_rl_env.py
@@ -98,14 +87,15 @@ or unsafe state, we want to terminate the episode. On the other hand, if the age
 for a long time, we want to terminate the episode and start a new one so that the agent can learn to balance the
 pole from a different starting configuration.
 
-The :class:`managers.TerminationsCfg` configures what constitutes for an episode to terminate. In this example,
-we want the task to terminate when either of the following conditions is met:
+The example's ``TerminationsCfg`` groups the :class:`managers.TerminationTermCfg` terms that determine when an
+episode ends. In this example, we want the task to terminate when either of the following conditions is met:
 
 * **Episode Length** The episode length is greater than the defined max_episode_length
 * **Cart out of bounds** The cart goes outside of the bounds [-3, 3]
 
-The flag :attr:`managers.TerminationsCfg.time_out` specifies whether the term is a time-out (truncation) term
-or terminated term. These are used to indicate the two types of terminations as described in `Gymnasium's documentation
+The Boolean flag :attr:`~isaaclab.managers.TerminationTermCfg.time_out` specifies whether a term represents a
+time limit (truncation) rather than a terminal condition. The example sets this flag to ``True`` on the term
+named ``time_out``. These distinguish the two types of episode endings described in `Gymnasium's documentation
 <https://gymnasium.farama.org/tutorials/gymnasium_basics/handling_time_limits/>`_.
 
 .. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_manager_env_cfg.py
@@ -165,7 +155,7 @@ Similar to the previous tutorial, we can run the environment by executing the ``
 
 .. code-block:: bash
 
-   python scripts/tutorials/03_envs/run_cartpole_rl_env.py --num_envs 32 --viz kit
+   uv run --extra ov python scripts/tutorials/03_envs/run_cartpole_rl_env.py --num_envs 32 --viz newton_rtx
 
 
 This should open a similar simulation as in the previous tutorial. However, this time, the environment

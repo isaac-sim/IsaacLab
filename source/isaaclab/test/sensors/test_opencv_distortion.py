@@ -191,6 +191,7 @@ def _camera_for_prims(prims, width=640, height=480, device="cpu"):
     fake._frame = ProxyArray(wp.zeros(len(prims), dtype=wp.int64, device=device))
     fake._ALL_INDICES = wp.array(np.arange(len(prims)), dtype=wp.int32, device=device)
     fake._ALL_ENV_MASK = wp.ones(len(prims), dtype=wp.bool, device=device)
+    fake._is_outdated = wp.zeros(len(prims), dtype=wp.bool, device=device)
     # attributes touched by ``__del__``/``_clear_callbacks`` when the fake object is garbage collected
     fake._initialize_handle = None
     fake._invalidate_initialize_handle = None
@@ -335,6 +336,7 @@ def test_set_intrinsic_matrices_skips_only_distortion_cameras_in_batch(device):
     # the plain camera reflects the requested focal length (updated, not over-skipped)
     assert k[1, 0, 0] == pytest.approx(500.0, abs=1e-2)
     assert any("skipped" in message.lower() for message in messages)
+    np.testing.assert_array_equal(fake._is_outdated.numpy(), [False, True])
 
 
 @pytest.fixture(params=_CUDA_DEVICES)
@@ -461,6 +463,9 @@ def test_intrinsic_camera_selections(intrinsic_camera, selection):
     for row, env_id in enumerate(ids):
         expected[env_id] = [[200 + row * 100, 0, 320], [0, 200 + row * 100, 240], [0, 0, 1]]
     np.testing.assert_allclose(camera._data.intrinsic_matrices.warp.numpy(), expected)
+    expected_outdated = np.zeros(camera._view.count, dtype=bool)
+    expected_outdated[ids] = True
+    np.testing.assert_array_equal(camera._is_outdated.numpy(), expected_outdated)
     assert stage.ExportToString() == usd_before
 
 

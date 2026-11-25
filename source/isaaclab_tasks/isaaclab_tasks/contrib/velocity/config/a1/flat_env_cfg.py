@@ -17,7 +17,7 @@ class UnitreeA1FlatEnvCfg(UnitreeA1RoughEnvCfg):
         newton_mjwarp = self.sim.physics.newton_mjwarp
         newton_mjwarp.solver_cfg.njmax = 60
         newton_mjwarp.solver_cfg.nconmax = 30
-        self.sim.physics.default = self.sim.physics.isaacsim_physx
+        self.sim.physics.default = self.sim.physics.ovphysx
         # scene
         self.scene.terrain.terrain_type = "plane"
         self.scene.terrain.terrain_generator = None

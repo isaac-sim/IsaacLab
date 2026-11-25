@@ -375,9 +375,9 @@ def _system_prompt() -> str:
         },
         "additionalProperties": False,
     }
-    return f"""You resolve a conflicted Git cherry-pick of one merged develop pull request onto an Isaac Lab release
-branch. The release branch lags develop, so code that other develop pull requests added or restructured may not exist
-on release.
+    return f"""You resolve a conflicted Git cherry-pick of one merged default-branch pull request onto an Isaac Lab
+release branch. The release branch lags the default branch, so code that other default-branch pull requests added or
+restructured may not exist on release.
 
 Goal: the release branch gets the behavior the source pull request intended, written against the release branch's own
 code.

@@ -12,7 +12,6 @@ from typing import TYPE_CHECKING, Literal
 import torch
 import warp as wp
 from newton import ModelFlags
-from newton.solvers import SolverKamino
 
 from isaaclab.envs.mdp.events import _GravityRandomization, _randomize_prop_by_op
 from isaaclab.envs.mdp.visual_events import _compile_distribution
@@ -20,11 +19,10 @@ from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from isaaclab.utils import math as math_utils
 
 from ... import assets
-from ...physics.newton_manager import NewtonManager
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject
-    from isaaclab.envs import ManagerBasedEnv
+    from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
 
 
 class randomize_rigid_body_material(ManagerTermBase):
@@ -33,8 +31,10 @@ class randomize_rigid_body_material(ManagerTermBase):
     Newton uses one friction coefficient, so ``dynamic_friction_range``, ``num_buckets``,
     and ``make_consistent`` are ignored.
 
-    Kamino shares materials across environments. It samples one value per original
-    ``(mu, restitution)`` group and applies it to every environment, ignoring ``env_ids``.
+    With its own collision detector, Kamino shares materials across environments. It then samples
+    one value per original ``(mu, restitution)`` group and applies it to every environment, ignoring
+    ``env_ids``. With Newton's collision pipeline, Kamino reads each shape's values per contact, so
+    sampling is per environment and shape as for the other solvers.
     """
 
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv) -> None:
@@ -50,7 +50,7 @@ class randomize_rigid_body_material(ManagerTermBase):
 
         self.asset = asset
         self.asset_cfg = asset_cfg
-        self._newton_manager = env.sim.physics_manager
+        self._newton_manager = env.sim.backend_manager
         # Capture material groups on the first call, before any randomized writes.
         self._kamino_group_inverse: torch.Tensor | None = None
         self._kamino_num_groups = 0
@@ -58,9 +58,19 @@ class randomize_rigid_body_material(ManagerTermBase):
         self._static_friction_range = cfg.params["static_friction_range"]
         self._restitution_range = cfg.params["restitution_range"]
 
-        model = self._newton_manager.get_model()
+        model = self._newton_manager.backend.model
         self._friction_binding = asset._root_view.get_attribute("shape_material_mu", model)[:, 0]  # type: ignore
         self._restitution_binding = asset._root_view.get_attribute("shape_material_restitution", model)[:, 0]  # type: ignore
+
+        self._contact_bindings = []
+        for parameter, attribute in (
+            ("contact_stiffness_range", "shape_material_ke"),
+            ("contact_damping_range", "shape_material_kd"),
+        ):
+            value_range = cfg.params.get(parameter)
+            if value_range is not None:
+                binding = asset._root_view.get_attribute(attribute, model)[:, 0]
+                self._contact_bindings.append((binding, value_range))
 
         if isinstance(asset, assets.Articulation) and asset_cfg.body_ids != slice(None):
             # The view's shape axis follows the model's shape order, which is not grouped by body,
@@ -110,8 +120,8 @@ class randomize_rigid_body_material(ManagerTermBase):
         restitution_view = wp.to_torch(self._restitution_binding)
 
         num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
-        if isinstance(self._newton_manager._solver, SolverKamino):
-            # Kamino shares each material group across all environments.
+        if self._newton_manager.shares_materials:
+            # Kamino's collision detector shares each material group across all environments.
             if self._kamino_group_inverse is None:
                 build_keys = torch.stack((friction_view[0, shape_idx], restitution_view[0, shape_idx]), dim=-1)
                 _, inverse = torch.unique(build_keys, dim=0, return_inverse=True)
@@ -135,6 +145,10 @@ class randomize_rigid_body_material(ManagerTermBase):
             )
             friction_view[env_rows, shape_idx] = friction_samples
             restitution_view[env_rows, shape_idx] = restitution_samples
+
+        for binding, value_range in self._contact_bindings:
+            values = wp.to_torch(binding)
+            values[env_rows, shape_idx] = math_utils.sample_uniform(*value_range, (num_envs, num_shapes), device=device)
 
         self._newton_manager.add_model_change(ModelFlags.SHAPE_PROPERTIES)
 
@@ -164,9 +178,9 @@ class randomize_rigid_body_collider_offsets(ManagerTermBase):
         asset: RigidObject | Articulation = env.scene[asset_cfg.name]
 
         self.asset = asset
-        self._newton_manager = env.sim.physics_manager
+        self._newton_manager = env.sim.backend_manager
 
-        model = self._newton_manager.get_model()
+        model = self._newton_manager.backend.model
         self._sim_bind_shape_margin = asset._root_view.get_attribute("shape_margin", model)[:, 0]  # type: ignore
         self._sim_bind_shape_gap = asset._root_view.get_attribute("shape_gap", model)[:, 0]  # type: ignore
 
@@ -243,7 +257,7 @@ class randomize_physics_scene_gravity(_GravityRandomization):
             env: Environment owning this term.
         """
         super().__init__(cfg, env, device=env.device)
-        self._manager = env.sim.physics_manager
+        self._manager = env.sim.backend_manager
 
     def __call__(
         self,
@@ -262,7 +276,7 @@ class randomize_physics_scene_gravity(_GravityRandomization):
             operation: Apply absolute values, add to current gravity, or scale current gravity.
             distribution: Sampling distribution; gravity terms cache this at construction.
         """
-        model = self._manager.get_model()
+        model = self._manager.backend.model
         if model is None or model.gravity is None:
             raise RuntimeError("Newton model is not initialized. Cannot randomize gravity.")
         # The trailing global-world row is not an environment.
@@ -291,7 +305,7 @@ class randomize_visual_shape(ManagerTermBase):
         else:
             ids = asset_cfg.body_ids
         body_names = tuple(asset.body_names[index] for index in ids)
-        self._writer = NewtonManager.create_visual_shape_color_writer(asset, body_names)
+        self._writer = env.sim.backend_manager.create_visual_shape_color_writer(asset, body_names)
         self._sample = _compile_distribution(channels["color"], env.device)
         self._all_env_ids = torch.arange(env.num_envs, dtype=torch.int32, device=self._writer.device)
 
@@ -306,7 +320,23 @@ class randomize_visual_shape(ManagerTermBase):
         if env_ids is None:
             env_ids = slice(None)
         selected = self._all_env_ids[env_ids] if isinstance(env_ids, slice) else env_ids.to(dtype=torch.int32)
-        model = NewtonManager.get_model()
+        model = env.sim.backend_manager.backend.model
         if self._writer.model is not model:
             self._writer.rebind(model)
         self._writer(self._sample((len(selected), self._writer.body_count)), selected)
+
+
+def zero_final_obs_on_solver_fault(env: ManagerBasedRLEnv, env_ids: torch.Tensor | slice) -> None:
+    """Zero complete terminal observation rows for solver-faulted worlds, including history.
+
+    Configure as the first reset event, before any event rewrites physics state and refreshes the
+    lazy fault query. Acts on all flagged rows in ``extras["final_obs"]`` when final observations are
+    enabled. Normal environment reset clears the affected observation histories.
+    """
+    final_obs = env.extras.get("final_obs")
+    if final_obs is None:
+        return
+    faults = wp.to_torch(env.sim.backend_manager.get_non_finite_worlds())
+    for group in final_obs.values():
+        for data in group.values() if isinstance(group, dict) else (group,):
+            data.masked_fill_(faults.reshape((-1,) + (1,) * (data.ndim - 1)), 0.0)

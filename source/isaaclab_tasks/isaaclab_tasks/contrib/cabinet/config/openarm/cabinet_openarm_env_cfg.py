@@ -10,7 +10,7 @@ as well as certain object properties, to better suit the smaller robot.
 
 from dataclasses import MISSING
 
-from isaaclab_physx.physics import PhysxCfg
+from isaaclab_ov.physics import OvPhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -279,11 +279,12 @@ class CabinetEnvCfg(ManagerBasedRLEnvCfg):
         # general settings
         self.decimation = 1
         self.episode_length_s = 8.0
-        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(-2.0, 2.0, 2.0), lookat=(0.8, 0.0, 0.5))
+        self.sim.visualizer_cfgs = VisualizerCfg(eye=(-2.0, 2.0, 2.0), lookat=(0.8, 0.0, 0.5))
         # simulation settings
         self.sim.dt = 1 / 60  # 60Hz
         self.sim.render_interval = self.decimation
-        self.sim.physics = PhysxCfg(
+        self.sim.physics = OvPhysxCfg(
+            friction_offset_threshold=0.04,
             bounce_threshold_velocity=0.01,
             friction_correlation_distance=0.00625,
         )

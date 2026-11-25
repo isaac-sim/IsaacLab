@@ -18,6 +18,7 @@ For colorized outputs the keys are raw ``(r, g, b, a)`` tuples, matching Replica
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import TypeAlias
 
 import numpy as np
@@ -27,6 +28,8 @@ from isaaclab.renderers.segmentation_colors import BACKGROUND_ID, UNLABELLED_ID,
 
 from .ovrtx_renderer_kernels import generate_random_colors_from_ids_kernel
 
+# A host segmentation map supplied as named tensors.
+IdentifierMap: TypeAlias = Mapping[str, np.ndarray]
 # A 128-bit identifier as four ``uint32`` words, low word first: the stable ID key of the StableIdMap /
 # StableIdSemanticIdMap, and the raw ``id`` field of every IdentifierMap entry.
 StableId: TypeAlias = tuple[int, int, int, int]
@@ -79,71 +82,52 @@ def _parse_semantic_label(raw_label: str) -> dict[str, str]:
     return labels
 
 
-def _decode_identifier_map(id_map: np.ndarray, map_name: str) -> list[StableIdLabelPair]:
-    """Decode an OVRTX ``IdentifierMap``-layout render var buffer into ``(id, raw_label)`` pairs.
-
-    Shared layout for the ``SemanticIdMap`` and ``StableIdMap`` render vars: the buffer packs, in order,
-    an array of ``IdentifierMap`` entries, the label string blob, and a trailing ``uint32`` entry count.
-    Each entry is ``{uint32 id[4]; uint32 labelLength; uint32 labelOffset}``; the label bytes live at
-    ``[labelOffset, labelOffset + labelLength)`` measured from the buffer base. Mirrors the reference decode
-    shipped with the ovrtx runtime.
+def _decode_identifier_map(id_map: Mapping[str, np.ndarray], map_name: str) -> list[StableIdLabelPair]:
+    """Decode OVRTX 0.7 identifier tensors into ``(id, raw_label)`` pairs.
 
     Args:
-        id_map: Raw map buffer mapped to host memory (any dtype; viewed as bytes).
-        map_name: Buffer name used in corruption error messages (e.g. ``"SemanticIdMap"``).
+        id_map: Named ``id`` arrays of shape ``(N, 4)``, ``label_offsets`` with ``N + 1`` boundaries,
+            and UTF-8 ``label_data`` bytes.
+        map_name: Render var name used in corruption errors.
 
     Returns:
-        One ``(id, raw_label)`` pair per entry in buffer order. ``id`` is the four ``uint32`` identifier
-        words; ``raw_label`` is the decoded, right-stripped UTF-8 label string.
+        Identifier words and decoded, right-stripped labels in tensor order.
 
     Raises:
-        ValueError: If the entry count or any label range exceeds the buffer bounds.
+        ValueError: If identifier shapes or offset counts disagree, or offsets are nonmonotonic
+            or extend beyond the label buffer.
     """
-    data = np.ascontiguousarray(id_map).view(np.uint8).reshape(-1)
-    if data.size < 4:
-        return []
-
-    # ``<u4`` (little-endian): matches the ovannotators reference decoder. kit writes native ``uint32_t``
-    # struct fields with no byte-swap, so this is correct on the (little-endian) platforms it targets.
-    entry_dtype = np.dtype([("id", "<u4", (4,)), ("label_length", "<u4"), ("label_offset", "<u4")])
-    num_entries = int.from_bytes(data[-4:].tobytes(), byteorder="little")
-    entries_size = num_entries * entry_dtype.itemsize
-    if entries_size > data.size - 4:
-        raise ValueError(
-            f"Corrupt {map_name}: {num_entries} entries ({entries_size} bytes) exceed buffer size {data.size}."
+    ids = id_map["id"]
+    offsets = id_map["label_offsets"].reshape(-1)
+    labels = id_map["label_data"].view(np.uint8).reshape(-1)
+    if ids.ndim != 2 or ids.shape[1] != 4 or len(offsets) != len(ids) + 1:
+        raise ValueError(f"Corrupt {map_name}: identifier and label offset counts do not match.")
+    if np.any(offsets[1:] < offsets[:-1]) or np.any(offsets > labels.size):
+        raise ValueError(f"Corrupt {map_name}: label offsets exceed the label buffer or are not monotonic.")
+    return [
+        (
+            tuple(int(word) for word in identifier),
+            labels[int(start) : int(end)].tobytes().decode("utf-8").rstrip("\x00").rstrip(),
         )
-
-    # Labels live between the entries and the trailing 4-byte entry count, so a valid label must end at or
-    # before ``data.size - 4`` (never spilling into the count field), consistent with the check above.
-    labels_end = data.size - 4
-    entries = data[:entries_size].view(entry_dtype).reshape(num_entries)
-    decoded: list[StableIdLabelPair] = []
-    for entry in entries:
-        id_words = tuple(int(word) for word in entry["id"])
-        label_offset = int(entry["label_offset"])
-        label_end = label_offset + int(entry["label_length"])
-        if label_end > labels_end:
-            raise ValueError(
-                f"Corrupt {map_name}: label for id {id_words} spans [{label_offset}, {label_end}) beyond"
-                f" the label region end {labels_end} (buffer size {data.size}, minus the 4-byte entry count)."
-            )
-        raw_label = data[label_offset:label_end].tobytes().decode("utf-8").rstrip("\x00").rstrip()
-        decoded.append((id_words, raw_label))
-    return decoded
+        for identifier, start, end in zip(ids, offsets[:-1], offsets[1:], strict=True)
+    ]
 
 
-def decode_semantic_id_map(id_map: np.ndarray) -> dict[int, dict[str, str]]:
+def decode_semantic_id_map(id_map: IdentifierMap) -> dict[int, dict[str, str]]:
     """Decode the OVRTX ``SemanticIdMap`` render var buffer into ``{semantic_id: {type: label}}``.
 
     The ``id[0]`` field of each :func:`_decode_identifier_map` entry is the semantic ID, and the label is
     parsed with :func:`_parse_semantic_label`.
 
     Args:
-        id_map: Raw SemanticIdMap buffer mapped to host memory (any dtype; viewed as bytes).
+        id_map: Named SemanticIdMap identifier, offset, and label arrays.
 
     Returns:
         Mapping from semantic ID (>= 2) to its parsed ``{type: label}`` dict. Reserved IDs (0/1) are not
         included; callers add BACKGROUND/UNLABELLED separately (see :data:`_RESERVED_SEMANTIC_LABELS`).
+
+    Raises:
+        ValueError: If identifier shapes, offset counts, or label boundaries are invalid.
     """
     return {
         id_words[0]: _parse_semantic_label(raw_label)
@@ -151,44 +135,48 @@ def decode_semantic_id_map(id_map: np.ndarray) -> dict[int, dict[str, str]]:
     }
 
 
-def decode_stable_id_map(id_map: np.ndarray) -> dict[StableId, RawLabel]:
+def decode_stable_id_map(id_map: IdentifierMap) -> dict[StableId, RawLabel]:
     """Decode the OVRTX ``StableIdMap`` render var buffer into ``{stable_id: prim_path}``.
 
     Same :func:`_decode_identifier_map` layout as the SemanticIdMap, but the four ``id`` words form the
     128-bit stable ID key and the label is a USD prim-path string (not a semantic label, so it is not parsed).
 
     Args:
-        id_map: Raw StableIdMap buffer mapped to host memory (any dtype; viewed as bytes).
+        id_map: Named StableIdMap identifier, offset, and label arrays.
 
     Returns:
         Mapping from the four-word stable ID to its USD prim-path string.
+
+    Raises:
+        ValueError: If identifier shapes, offset counts, or label boundaries are invalid.
     """
     return {id_words: raw_label for id_words, raw_label in _decode_identifier_map(id_map, "StableIdMap")}
 
 
-def decode_stable_id_semantic_id_map(id_map: np.ndarray) -> list[tuple[StableId, int]]:
+def decode_stable_id_semantic_id_map(id_map: IdentifierMap) -> list[tuple[StableId, int]]:
     """Decode the OVRTX ``StableIdSemanticIdMap`` render var buffer into per-instance ``(stable_id, semantic_id)``.
 
-    Unlike the identifier maps, this buffer is a pure fixed-size array of ``StableIdSemanticIdMapValues``
-    entries ``{uint32 stableId[4]; uint32 semanticId[4]}`` (32 bytes each) with no label blob and no trailing
-    count; the entry count is ``buffer_bytes // 32``. Array position ``i`` corresponds to the instance-segmentation
-    pixel ID ``i + _NUM_RESERVED_IDS`` (IDs 0 and 1 are the reserved BACKGROUND/UNLABELLED values).
+    Array position ``i`` corresponds to the instance-segmentation pixel ID
+    ``i + _NUM_RESERVED_IDS`` (IDs 0 and 1 are reserved for BACKGROUND/UNLABELLED).
 
     Args:
-        id_map: Raw StableIdSemanticIdMap buffer mapped to host memory (any dtype; viewed as bytes).
+        id_map: Named ``stable_id`` and ``semantic_id`` arrays of shape ``(N, 4)``.
 
     Returns:
         One ``(stable_id, semantic_id)`` per entry, indexed by ``pixel_id - _NUM_RESERVED_IDS``. ``stable_id``
         is the four ``uint32`` stable-ID words (the :func:`decode_stable_id_map` key); ``semantic_id`` is
         ``semanticId[0]``.
+
+    Raises:
+        ValueError: If named stable and semantic identifier arrays do not have matching ``(N, 4)`` shapes.
     """
-    data = np.ascontiguousarray(id_map).view(np.uint8).reshape(-1)
-    entry_dtype = np.dtype([("stable_id", "<u4", (4,)), ("semantic_id", "<u4", (4,))])
-    num_entries = data.size // entry_dtype.itemsize
-    if num_entries == 0:
-        return []
-    entries = data[: num_entries * entry_dtype.itemsize].view(entry_dtype).reshape(num_entries)
-    return [(tuple(int(word) for word in entry["stable_id"]), int(entry["semantic_id"][0])) for entry in entries]
+    stable_ids, semantic_ids = id_map["stable_id"], id_map["semantic_id"]
+    if stable_ids.ndim != 2 or stable_ids.shape[1] != 4 or semantic_ids.shape != stable_ids.shape:
+        raise ValueError("Corrupt StableIdSemanticIdMap: stable and semantic identifiers must have shape (N, 4).")
+    return [
+        (tuple(int(word) for word in stable), int(semantic[0]))
+        for stable, semantic in zip(stable_ids, semantic_ids, strict=True)
+    ]
 
 
 def _color_keys_for_ids(ids: list[int], device: str) -> list[RgbaColor]:

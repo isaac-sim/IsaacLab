@@ -86,23 +86,26 @@ class ManusViveIntegration:
         """Get all tracked device data in scene coordinates.
 
         Returns:
-            Manus glove joint data and Vive tracker data.
-            {
-                'manus_gloves': {
-                    '{left/right}_{joint_index}': {
-                        'position': [x, y, z],
-                        'orientation': [x, y, z, w]
+            Manus glove joint data and Vive tracker data in the following format:
+
+            .. code-block:: python
+
+                {
+                    'manus_gloves': {
+                        '{left/right}_{joint_index}': {
+                            'position': [x, y, z],
+                            'orientation': [x, y, z, w]
+                        },
+                        ...
                     },
-                    ...
-                },
-                'vive_trackers': {
-                    '{vive_tracker_id}': {
-                        'position': [x, y, z],
-                        'orientation': [x, y, z, w]
-                    },
-                    ...
+                    'vive_trackers': {
+                        '{vive_tracker_id}': {
+                            'position': [x, y, z],
+                            'orientation': [x, y, z, w]
+                        },
+                        ...
+                    }
                 }
-            }
         """
         self.update_manus()
         self.update_vive()
@@ -121,13 +124,17 @@ class ManusViveIntegration:
         """Get connection and data freshness status for Manus gloves and Vive trackers.
 
         Returns:
-            Dictionary containing connection flags and last-data timestamps.
-        Format: {
-            'manus_gloves': {'connected': bool, 'last_data_time': float},
-            'vive_trackers': {'connected': bool, 'last_data_time': float},
-            'left_hand_connected': bool,
-            'right_hand_connected': bool
-        }
+            Dictionary containing connection flags and last-data timestamps in the
+            following format:
+
+            .. code-block:: python
+
+                {
+                    "manus_gloves": {"connected": bool, "last_data_time": float},
+                    "vive_trackers": {"connected": bool, "last_data_time": float},
+                    "left_hand_connected": bool,
+                    "right_hand_connected": bool,
+                }
         """
         return self.device_status
 

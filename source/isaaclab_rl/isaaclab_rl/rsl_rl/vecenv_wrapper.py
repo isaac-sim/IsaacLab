@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     )
 
     with contextlib.suppress(ImportError):
-        from isaaclab_experimental.envs import DirectRLEnvWarp, ManagerBasedRLEnvWarp
+        from isaaclab_experimental.deprecated.envs import DirectRLEnvWarp, ManagerBasedRLEnvWarp
 
 
 class RslRlVecEnvWrapper(VecEnv):
@@ -158,12 +158,15 @@ class RslRlVecEnvWrapper(VecEnv):
             actions = torch.clamp(actions, -self.clip_actions, self.clip_actions)
         # record step information
         obs_dict, rew, terminated, truncated, extras = self.env.step(actions)
+        extras = dict(extras)
+        if "final_obs" in extras:
+            extras["final_obs"] = TensorDict(extras["final_obs"], batch_size=[self.num_envs])
         # compute dones for compatibility with RSL-RL
         dones = (terminated | truncated).to(dtype=torch.long)
         # move time out information to the extras dict
         # this is only needed for infinite horizon tasks
         if not self.unwrapped.cfg.is_finite_horizon:
-            extras["time_outs"] = truncated
+            extras["time_outs"] = truncated & ~terminated
         # return the step information
         return TensorDict(obs_dict, batch_size=[self.num_envs]), rew, dones, extras
 
@@ -188,3 +191,35 @@ class RslRlVecEnvWrapper(VecEnv):
         self.env.unwrapped.action_space = gym.vector.utils.batch_space(
             self.env.unwrapped.single_action_space, self.num_envs
         )
+
+
+class RslRlShacVecEnvWrapper(RslRlVecEnvWrapper):
+    """Expose the current policy frame and preceding frames from Isaac Lab's observation history."""
+
+    def __init__(self, env, clip_actions: float | None = None, *, use_reference_action: bool = False):
+        super().__init__(env, clip_actions)
+        self.use_reference_action = use_reference_action
+
+    @staticmethod
+    def _policy_inputs(obs: TensorDict) -> TensorDict:
+        frames = obs["policy"]
+        if frames.ndim == 3:
+            obs["policy"] = frames[:, -1]
+            obs["history"] = frames[:, :-1].flatten(1)
+        return obs
+
+    def get_observations(self) -> TensorDict:
+        """Return the same policy inputs used during training, playback, and export."""
+        return self._policy_inputs(super().get_observations())
+
+    def reset(self) -> tuple[TensorDict, dict]:
+        """Return the observation manager's reset-padded history."""
+        obs, extras = super().reset()
+        return self._policy_inputs(obs), extras
+
+    def step(self, actions: torch.Tensor) -> tuple[TensorDict, torch.Tensor, torch.Tensor, dict]:
+        """Apply the current reference before stepping the simulator and return the next policy inputs."""
+        if self.use_reference_action:
+            actions = actions + self.unwrapped.obs_buf["reference_action"]
+        obs, rewards, dones, extras = super().step(actions)
+        return self._policy_inputs(obs), rewards, dones, extras

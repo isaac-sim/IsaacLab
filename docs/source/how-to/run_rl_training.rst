@@ -7,31 +7,20 @@ Training with an RL Agent
 
 .. currentmodule:: isaaclab
 
-In the previous tutorials, we covered how to define an RL task environment, register
-it into the ``gym`` registry, and interact with it using a random agent. We now move
-on to the next step: training an RL agent to solve the task.
+Train a Stable-Baselines3 policy to balance Cartpole using the task from
+:ref:`tutorial-register-rl-env-gym`.
 
-Although the :class:`envs.ManagerBasedRLEnv` conforms to the :class:`gymnasium.Env` interface,
-it is not exactly a ``gym`` environment. The input and outputs of the environment are
-not numpy arrays, but rather based on torch tensors with the first dimension being the
-number of environment instances.
-
-Additionally, most RL libraries expect their own variation of an environment interface.
-For example, `Stable-Baselines3`_ expects the environment to conform to its
-`VecEnv API`_ which expects a list of numpy arrays instead of a single tensor. Similarly,
-`RSL-RL`_, `RL-Games`_ and `SKRL`_ expect a different interface. Since there is no one-size-fits-all
-solution, we do not base the :class:`envs.ManagerBasedRLEnv` on any particular learning library.
-Instead, we implement wrappers to convert the environment into the expected interface.
-These are specified in the :mod:`isaaclab_rl` module.
-
-In this tutorial, we will use `Stable-Baselines3`_ to train an RL agent to solve the
-cartpole balancing task.
+Isaac Lab environments return batched PyTorch tensors, while each RL library expects
+its own environment interface. The wrappers in :mod:`isaaclab_rl` adapt observations,
+actions, and episode information to that interface. This tutorial uses the
+Stable-Baselines3 ``VecEnv`` wrapper; see :ref:`how-to-env-wrappers` for the other
+wrappers and :ref:`reinforcement-learning` for the training command reference.
 
 .. caution::
 
-  Wrapping the environment with the respective learning framework's wrapper should happen in the end,
-  i.e. after all other wrappers have been applied. This is because the learning framework's wrapper
-  modifies the interpretation of environment's APIs which may no longer be compatible with :class:`gymnasium.Env`.
+   Apply Gymnasium wrappers before the Isaac Lab wrapper for your RL library.
+   The RL wrapper changes the environment interface and may no longer support
+   Gymnasium wrappers.
 
 The Code
 --------
@@ -50,25 +39,21 @@ For this tutorial, we use the training implementation from `Stable-Baselines3`_ 
 The Code Explained
 ------------------
 
-.. currentmodule:: isaaclab_rl.utils
+.. currentmodule:: isaaclab_rl.sb3
 
 Most of the code above is boilerplate code to create logging directories, saving the parsed configurations,
 and setting up different Stable-Baselines3 components. For this tutorial, the important part is creating
 the environment and wrapping it with the Stable-Baselines3 wrapper.
 
-There are three wrappers used in the code above:
+Video recording is configured with :class:`~isaaclab.envs.VideoRecorderCfg` before the environment is
+created. The shared ``pre_launch_video_config`` helper adds a recorder for the ``--video`` source when the
+environment config declares none, and ``apply_video_recording`` sets the output directory and clip schedule;
+this workflow does not use Gymnasium's ``RecordVideo`` wrapper.
 
-1. :class:`gymnasium.wrappers.RecordVideo`: This wrapper records a video of the environment
-   and saves it to the specified directory. This is useful for visualizing the agent's behavior
-   during training.
-2. :class:`wrappers.sb3.Sb3VecEnvWrapper`: This wrapper converts the environment
-   into a Stable-Baselines3 compatible environment.
-3. `stable_baselines3.common.vec_env.VecNormalize`_: This wrapper normalizes the
-   environment's observations and rewards.
-
-Each of these wrappers wrap around the previous wrapper by following ``env = wrapper(env, *args, **kwargs)``
-repeatedly. The final environment is then used to train the agent. For more information on how these
-wrappers work, please refer to the :ref:`how-to-env-wrappers` documentation.
+:class:`~isaaclab_rl.sb3.Sb3VecEnvWrapper` then adapts the environment to Stable-Baselines3. When normalization
+is enabled, `stable_baselines3.common.vec_env.VecNormalize`_ wraps that adapter to normalize observations
+and rewards. The resulting environment is passed to the training algorithm. For details of the adapter,
+see :ref:`how-to-env-wrappers`.
 
 The Code Execution
 ------------------
@@ -78,8 +63,8 @@ We train a PPO agent from Stable-Baselines3 to solve the cartpole balancing task
 Training the agent
 ~~~~~~~~~~~~~~~~~~
 
-There are three main ways to train the agent. Each of them has their own advantages and disadvantages.
-It is up to you to decide which one you prefer based on your use case.
+Train without a visualizer, watch the simulation live, or record a video using the
+options below.
 
 Headless execution
 """"""""""""""""""
@@ -101,7 +86,7 @@ Headless execution with off-screen render
 """""""""""""""""""""""""""""""""""""""""
 
 To inspect behavior from a training run without an interactive window, pass ``--video``.
-By default, it records the scene from a headless Newton GL visualizer. See
+By default, it records the scene from a headless Newton visualizer. See
 :doc:`/source/how-to/record_video` to choose a different visualizer or a camera-sensor output.
 
 .. tab-set::
@@ -136,11 +121,8 @@ training command as follows:
 
         uv run --extra sb3 isaaclab train --rl_library sb3 --task Isaac-Cartpole --num_envs 64 --viz kit
 
-This will open the Kit visualizer window and you can see the agent training in the environment. However, this
-can slow down the training process because interactive visual feedback is enabled. As a workaround, you
-can switch between different render modes in the ``"Isaac Lab"`` window that is docked on the bottom-right
-corner of the screen. To learn more about these render modes, please check the
-:class:`sim.SimulationContext.RenderMode` class.
+This opens the Kit visualizer window so you can watch the agent train. Interactive visualization adds work
+to each rendered frame. To train without an interactive window, omit ``--viz kit`` from the command.
 
 Viewing the logs
 ~~~~~~~~~~~~~~~~

@@ -8,23 +8,14 @@ Interacting with a deformable object
 
 .. currentmodule:: isaaclab
 
-While deformable objects sometimes refer to a broader class of objects, such as cloths, fluids and soft bodies,
-Isaac Lab represents deformable objects as either surface or volume deformables. Unlike rigid objects, soft bodies can
-deform under external forces and collisions. In this tutorial, we focus on volume deformable bodies. For an example of
-surface deformables (cloth), run the ``deformables`` example.
+Spawn soft cubes, set their nodal positions and velocities, and use kinematic
+commands to move selected nodes. This tutorial works with volume deformables;
+for cloth, run the ``deformables`` example.
 
-The deformable object API and schema define/modify functions are shared across backends, while deformable
-property and material configuration classes are backend-specific. PhysX simulates soft bodies using the Finite
-Element Method (FEM); the Newton experimental backend uses the core VBD solver from
-:mod:`isaaclab_newton.physics` with the deformable object integration from
-:mod:`isaaclab_newton.assets`.
-The volume deformable comprises of two tetrahedral meshes -- a simulation mesh and a collision mesh. The simulation
-mesh is used to simulate the deformations of the soft body, while the collision mesh is used to detect collisions
-with other objects in the scene. For PhysX-specific details, please check the `PhysX documentation`_.
-
-This tutorial shows how to interact with a deformable object in the simulation. We will spawn a
-set of soft cubes and see how to set their nodal positions and velocities, along with apply kinematic
-commands to the mesh nodes to move the soft body.
+The asset API is shared across backends. PhysX uses finite elements, while Newton
+uses VBD. See :ref:`deformables` for supported body types and
+:ref:`schema-fragments-deformable` for configuration. For PhysX simulation and
+collision mesh details, see the `PhysX documentation`_.
 
 .. note::
 
@@ -52,7 +43,7 @@ The tutorial corresponds to the ``run_deformable_object.py`` script in the ``scr
 
    .. literalinclude:: ../../../scripts/tutorials/01_assets/run_deformable_object.py
       :language: python
-      :emphasize-lines: 85-109, 132-148, 153-161, 170-175, 188-189
+      :emphasize-lines: 85-109, 132-148, 153-161, 170-175, 189
       :linenos:
 
 
@@ -119,10 +110,10 @@ We apply transformations to the nodal positions to randomize the initial state o
    :start-at: # reset the nodal state of the object
    :end-at: nodal_state[..., :3] = cube_object.transform_nodal_pos(nodal_state[..., :3], pos_w, quat_w)
 
-To reset the deformable object, we first set the nodal state by calling the :meth:`assets.DeformableObject.write_nodal_state_to_sim`
+To reset the deformable object, we first set the nodal state by calling the :meth:`assets.DeformableObject.write_nodal_state_to_sim_index`
 method. This method writes the nodal state of the deformable object prim into the simulation buffer.
 Additionally, we free all the kinematic targets set for the nodes in the previous simulation step by calling
-the :meth:`assets.DeformableObject.write_nodal_kinematic_target_to_sim` method. We explain the
+the :meth:`assets.DeformableObject.write_nodal_kinematic_target_to_sim_index` method. We explain the
 kinematic targets in the next section.
 
 Finally, we call the :meth:`assets.DeformableObject.reset` method to reset any internal buffers and caches.
@@ -144,7 +135,7 @@ targets for the node at index 0 (bottom-left corner) to move the cube along the 
 
 At every step, we increment the kinematic position target for the node by a small value. Additionally,
 we set the flag to indicate that the target is a kinematic target for that node in the simulation buffer.
-These are set into the simulation buffer by calling the :meth:`assets.DeformableObject.write_nodal_kinematic_target_to_sim`
+These are set into the simulation buffer by calling the :meth:`assets.DeformableObject.write_nodal_kinematic_target_to_sim_index`
 method.
 
 .. literalinclude:: ../../../scripts/tutorials/01_assets/run_deformable_object.py

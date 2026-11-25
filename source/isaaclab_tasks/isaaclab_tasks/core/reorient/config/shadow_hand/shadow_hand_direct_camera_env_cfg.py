@@ -10,7 +10,7 @@ from __future__ import annotations
 import isaaclab.sim as sim_utils
 from isaaclab.renderers import RendererCfg
 from isaaclab.sensors import CameraCfg, JointWrenchSensorCfg
-from isaaclab.utils import clone, configclass
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 from isaaclab_tasks.utils import PresetCfg, preset
@@ -77,7 +77,6 @@ class _ShadowHandBaseTiledCameraCfg(CameraCfg):
     )
     data_types: list[str] = []
     spawn: sim_utils.PinholeCameraCfg = sim_utils.PinholeCameraCfg(
-        spawn_path="/World/envs/env_0/Camera",
         focal_length=24.0,
         focus_distance=400.0,
         horizontal_aperture=20.955,
@@ -92,8 +91,9 @@ class _ShadowHandBaseTiledCameraCfg(CameraCfg):
 class ShadowHandTiledCameraCfg(PresetCfg):
     """Camera data-type presets for the shadow hand vision environment.
 
-    Each preset selects which image modalities are captured. The selected data types must
-    match :attr:`FeatureExtractorCfg.data_types` so the CNN receives the expected channels.
+    Each preset selects which image modalities are captured. The
+    :class:`~isaaclab_tasks.core.reorient.config.shadow_hand.feature_extractor.FeatureExtractor`
+    derives the CNN input channels from the selected data types.
 
     Select a data-type preset via the ``presets`` CLI argument, e.g.::
 
@@ -103,7 +103,7 @@ class ShadowHandTiledCameraCfg(PresetCfg):
 
     Renderer and data-type presets can be combined::
 
-        presets = newton_renderer, rgb
+        presets = newton_warp, rgb
     """
 
     default: _ShadowHandBaseTiledCameraCfg = _ShadowHandBaseTiledCameraCfg(
@@ -198,7 +198,11 @@ class ShadowHandCameraEnvCfg(ShadowHandEnvCfg):
 
         # scene
         self.scene.num_envs = 64
-        self.sim.default_visualizer_cfg = clone(CAMERA_VISUALIZER_CFG)
+        viewers = self.sim.visualizer_cfgs
+        for viewer in viewers if isinstance(viewers, list) else [viewers]:
+            viewer.eye = CAMERA_VISUALIZER_CFG.eye
+            viewer.lookat = CAMERA_VISUALIZER_CFG.lookat
+            viewer.focal_length = CAMERA_VISUALIZER_CFG.focal_length
         # inference for CNN
         self.feature_extractor.train = False
         self.feature_extractor.load_checkpoint = True

@@ -41,7 +41,8 @@ def test_gallery_capture_defaults_to_published_scene():
     args = parser.parse_args(["--renderer-backend", "newton"])
 
     assert args.scene == (
-        "omniverse://isaac-dev.ov.nvidia.com/Isaac/IsaacLab/Docs/Renderers/renderer_gallery_scene.usda"
+        "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.2/Isaac/IsaacLab/Docs/"
+        "Renderers/renderer_gallery_scene.usda"
     )
 
 

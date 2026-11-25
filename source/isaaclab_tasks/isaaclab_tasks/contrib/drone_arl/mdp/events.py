@@ -65,9 +65,9 @@ def reset_obstacles_with_individual_ranges(
             Defaults to 0.1 meters.
 
     Note:
-        This function expects the environment to have `_obstacle_difficulty_levels` and
-        `_max_obstacle_difficulty` attributes when `use_curriculum=True`. These are
-        typically set by :func:`obstacle_density_curriculum`.
+        When `use_curriculum=True`, difficulty levels are read from the
+        :class:`ObstacleDensityCurriculum` term (see :func:`get_obstacle_curriculum_term`).
+        If no such term is active, `max_num_obstacles` are spawned in every environment.
     """
     obstacles: RigidObjectCollection = env.scene[asset_cfg.name]
 

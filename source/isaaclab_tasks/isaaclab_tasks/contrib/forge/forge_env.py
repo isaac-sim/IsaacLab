@@ -4,7 +4,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 import numpy as np
 import torch
-import warp as wp
 
 from isaaclab.utils import index_fill_
 from isaaclab.utils.math import (
@@ -39,10 +38,7 @@ class ForgeEnv(FactoryEnv):
         # Flip quaternions.
         self.flip_quats = torch.ones((self.num_envs,), dtype=torch.float32, device=self.device)
 
-        # Force sensor information. The index is resolved in backend view order because
-        # it is used to index `root_view.get_link_incoming_joint_force()`, which is a
-        # raw solver-view array (see `_compute_intermediate_values`).
-        self.force_sensor_body_idx = self._robot.backend_body_names.index("force_sensor")
+        self.force_sensor_body_idx = self._robot.body_names.index("force_sensor")
         self.force_sensor_smooth = torch.zeros((self.num_envs, 6), device=self.device)
         self.force_sensor_world_smooth = torch.zeros((self.num_envs, 6), device=self.device)
 
@@ -99,9 +95,7 @@ class ForgeEnv(FactoryEnv):
         self.prev_fingertip_quat = self.noisy_fingertip_quat.clone()
 
         # Update and smooth force values.
-        self.force_sensor_world = wp.to_torch(self._robot.root_view.get_link_incoming_joint_force())[
-            :, self.force_sensor_body_idx
-        ]
+        self.force_sensor_world = self._robot.data.body_joint_wrench.torch[:, self.force_sensor_body_idx]
 
         alpha = self.cfg.ft_smoothing_factor
         self.force_sensor_world_smooth = alpha * self.force_sensor_world + (1 - alpha) * self.force_sensor_world_smooth
@@ -201,9 +195,11 @@ class ForgeEnv(FactoryEnv):
         # clipping yaw will effectively cause slow motions. When we clip, we also need to make
         # sure we avoid the joint limit.
 
-        # (2.b.i) Get current and desired Euler angles.
-        curr_roll, curr_pitch, curr_yaw = euler_xyz_from_quat(self.fingertip_midpoint_quat)
-        desired_roll, desired_pitch, desired_yaw = euler_xyz_from_quat(ctrl_target_fingertip_preclipped_quat)
+        # (2.b.i) Get current and desired Euler angles in the positive range expected by roll and yaw clipping.
+        curr_roll, curr_pitch, curr_yaw = euler_xyz_from_quat(self.fingertip_midpoint_quat, wrap_to_2pi=True)
+        desired_roll, desired_pitch, desired_yaw = euler_xyz_from_quat(
+            ctrl_target_fingertip_preclipped_quat, wrap_to_2pi=True
+        )
         desired_xyz = torch.stack([desired_roll, desired_pitch, desired_yaw], dim=1)
 
         # (2.b.ii) Correct the direction of motion to avoid joint limit.
