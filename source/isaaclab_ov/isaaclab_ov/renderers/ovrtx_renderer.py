@@ -1589,7 +1589,7 @@ class OVRTXRenderer(BaseRenderer):
             paragraphs.append(
                 'The automatic search (OVRTXRendererCfg.max_envs_per_render_product="auto")'
                 f" tried {num_smaller_layouts} smaller group size(s), and the first frame failed with each of them."
-                f" {stop} If the GPU is out of memory, smaller groups do not help."
+                f" {stop}"
                 f" The OVRTX log file {self.cfg.log_file_path} can show the cause."
             )
         if cameras:
