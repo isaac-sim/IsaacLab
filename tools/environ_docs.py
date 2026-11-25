@@ -165,7 +165,7 @@ def _supports_warp_frontend(
         return False
 
     try:
-        from isaaclab_experimental.envs.frontend import FrontendIncompatibleError, WarpFrontend
+        from isaaclab_experimental.deprecated.envs.frontend import FrontendIncompatibleError, WarpFrontend
 
         from isaaclab_tasks.utils import resolve_task_config
 

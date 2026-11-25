@@ -17,6 +17,7 @@ import numpy as np
 
 from .. import sim as sim_utils
 from ..sensors.camera.camera_cfg import CameraCfg
+from ..sensors.lidar.lidar_cfg import LidarCfg
 from ..sensors.sensor_base_cfg import SensorBaseCfg
 from ..utils.string import string_to_callable
 from ..utils.version import has_kit
@@ -190,7 +191,7 @@ def _prepare_cloning(
     # Expand spawner variants into asset prototypes; per-asset choices form the default world compositions.
     asset_prototypes, groups, shared, declarations = [], [], [], []
     for cfg in cfgs:
-        if isinstance(cfg, CameraCfg):
+        if isinstance(cfg, (CameraCfg, LidarCfg)):
             sim.get_or_create_backend(cfg.renderer_cfg)
         spawn = getattr(cfg, "spawn", None)
         if spawn is not None:
