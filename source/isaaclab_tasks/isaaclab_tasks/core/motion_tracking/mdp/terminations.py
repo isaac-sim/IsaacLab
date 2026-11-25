@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 def motion_end(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:
     """End the episode after tracking the last reference frame, without recording a tracking failure."""
     command: MotionCommand = env.command_manager.get_term(command_name)
-    return command.time_steps >= command.motion.time_step_total - 1
+    return command.time_steps >= command.motion.clip_end(command.time_steps) - 1
 
 
 def bad_anchor_pos_z_only(env: ManagerBasedRLEnv, command_name: str, threshold: float) -> torch.Tensor:

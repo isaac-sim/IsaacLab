@@ -48,8 +48,25 @@ class MotionCommand(CommandTerm):
         self.body_indices = torch.tensor(
             self.robot.find_bodies(self.cfg.body_names, preserve_order=True)[0], dtype=torch.long, device=self.device
         )
+        kinematics = None
+
+        def body_state(state):
+            from ..supermimic import ArticulationKinematics
+
+            nonlocal kinematics
+            if kinematics is None:
+                kinematics = ArticulationKinematics(env, cfg.asset_name, self.device)
+            return tuple(value[:, self.body_indices] for value in kinematics.forward(state))
+
         self.motion = MotionLoader(
-            self.cfg.motion_file, body_names=self.cfg.body_names, joint_names=self.robot.joint_names, device=self.device
+            self.cfg.motion_file,
+            body_names=self.cfg.body_names,
+            joint_names=self.robot.joint_names,
+            device=self.device,
+            forward_kinematics=body_state,
+            source_fps=cfg.source_fps,
+            target_fps=1 / env.step_dt,
+            csv=cfg.csv,
         )
         if not math.isclose(self.motion.fps * env.step_dt, 1.0, rel_tol=1e-5):
             raise ValueError("Motion FPS must match the policy rate; resample the reference before training.")
@@ -221,7 +238,13 @@ class MotionCommand(CommandTerm):
         num_envs = len(range(self.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
         if num_envs == 0:
             return
-        self._adaptive_sampling(env_ids)
+        if self.cfg.sampling_mode == "start":
+            ids = torch.arange(self.num_envs, device=self.device)[env_ids]
+            self.time_steps[env_ids] = self.motion.motion_starts[ids % len(self.motion.names)]
+        elif self.cfg.sampling_mode == "adaptive":
+            self._adaptive_sampling(env_ids)
+        else:
+            raise ValueError(f"Unknown motion sampling mode: {self.cfg.sampling_mode}.")
         frames = self.time_steps[env_ids]
         root_pos = self.motion.body_pos_w[frames, 0] + self._env.scene.env_origins[env_ids]
         root_ori = self.motion.body_quat_w[frames, 0]
@@ -253,8 +276,8 @@ class MotionCommand(CommandTerm):
 
     def _update_command(self) -> None:
         # The termination manager resets completed clips; keep disabled expiry safe for playback.
-        self.time_steps += 1
-        self.time_steps.clamp_(max=self.motion.time_step_total - 1)
+        last = self.motion.clip_end(self.time_steps) - 1
+        self.time_steps.copy_(torch.minimum(self.time_steps + 1, last))
         self.bin_failed_count.lerp_(self._current_bin_failed, self.cfg.adaptive_alpha)
         self._current_bin_failed.zero_()
 

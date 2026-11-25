@@ -5,6 +5,8 @@
 
 import math
 
+from isaaclab_ov.physics import OvPhysxCfg
+
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
@@ -17,8 +19,10 @@ from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 import isaaclab_tasks.contrib.navigation.mdp as mdp
 from isaaclab_tasks.contrib.velocity.config.anymal_c.flat_env_cfg import AnymalCFlatEnvCfg
+from isaaclab_tasks.utils import resolve_presets
 
-LOW_LEVEL_ENV_CFG = AnymalCFlatEnvCfg()
+# The low-level task is taken with its default presets. Its other presets are not choices of this task.
+LOW_LEVEL_ENV_CFG = resolve_presets(AnymalCFlatEnvCfg())
 
 
 @configclass
@@ -135,6 +139,9 @@ class NavigationEnvCfg(ManagerBasedRLEnvCfg):
 
     def __post_init__(self):
         """Post initialization."""
+        self.sim.physics = OvPhysxCfg(
+            bounce_threshold_velocity=0.5, friction_correlation_distance=0.025, friction_offset_threshold=0.04
+        )
 
         self.sim.dt = LOW_LEVEL_ENV_CFG.sim.dt
         self.sim.render_interval = LOW_LEVEL_ENV_CFG.decimation

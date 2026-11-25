@@ -186,6 +186,13 @@ class TerminationsCfg:
 ##
 
 
+REORIENT_SIM_CFG = SimulationCfg(
+    dt=1 / 120,
+    physics_material=RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0),
+)
+"""Shared simulation defaults for manager-based reorientation tasks."""
+
+
 @configclass
 class ReorientManagerEnvBaseCfg(ManagerBasedRLEnvCfg):
     """Manager-based reorientation with Direct-compatible semantics.
@@ -214,10 +221,7 @@ class ReorientManagerEnvBaseCfg(ManagerBasedRLEnvCfg):
     # general settings
     episode_length_s = 10.0
     # simulation settings
-    sim: SimulationCfg = SimulationCfg(
-        dt=1 / 120,
-        physics_material=RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0),
-    )
+    sim: SimulationCfg = REORIENT_SIM_CFG
 
     def __post_init__(self):
         """Post initialization."""

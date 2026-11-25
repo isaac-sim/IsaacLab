@@ -10,7 +10,9 @@ launch_test_simulation()
 import gymnasium as gym
 import pytest
 import torch
+from isaaclab_isaacsim.physics import PhysxCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_ov.physics import OvPhysxCfg
 
 import isaaclab.sim as sim_utils
 
@@ -31,7 +33,7 @@ def setup_environment():
 @pytest.mark.parametrize("device", ["cuda", "cpu"])
 def test_manipulation_env_determinism(device):
     """Check deterministic Isaac Sim PhysX environment creation for manipulation."""
-    _test_environment_determinism("IsaacContrib-Lift-Cube-Franka", device)
+    _test_environment_determinism("IsaacContrib-Lift-Cube-Franka", device, physics_preset_name="isaacsim_physx")
 
 
 # Rough terrain is a superset of the flat plane (same robot and MDP plus terrain generator and height scanner).
@@ -129,6 +131,15 @@ def _obtain_transition_tuples(
             env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
         else:
             env_cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
+            # Contrib lift has a direct OvPhysX config; retain its tuning in this Kit determinism fixture.
+            if physics_preset_name == "isaacsim_physx" and isinstance(env_cfg.sim.physics, OvPhysxCfg):
+                env_cfg.sim.physics = PhysxCfg(
+                    **{
+                        name: value
+                        for name, value in vars(env_cfg.sim.physics).items()
+                        if name != "class_type" and name in PhysxCfg.__dataclass_fields__ and value is not None
+                    }
+                )
             env_cfg = resolve_presets(env_cfg, selected=(physics_preset_name,))
             env_cfg.sim.device = device
             env_cfg.scene.num_envs = num_envs

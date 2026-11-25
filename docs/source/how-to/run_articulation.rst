@@ -23,7 +23,7 @@ directory.
 
    .. literalinclude:: ../../../scripts/tutorials/01_assets/run_articulation.py
       :language: python
-      :emphasize-lines: 53-64, 86-104, 106-112, 117-118
+      :emphasize-lines: 58-69, 91-109, 111-117, 122-123
       :linenos:
 
 
@@ -119,8 +119,8 @@ The Code Execution
 ~~~~~~~~~~~~~~~~~~
 
 
-This script uses Isaac Sim PhysX and requires Isaac Sim. The commands below display it with
-the Isaac Sim viewport shown below:
+This script uses OvPhysX and the Newton RTX visualizer without Isaac Sim. Install the ``ov`` extra
+and run the command below:
 
 .. tab-set::
 
@@ -128,7 +128,7 @@ the Isaac Sim viewport shown below:
 
       .. code-block:: bash
 
-         uv run isaaclab -p scripts/tutorials/01_assets/run_articulation.py --viz kit
+         uv run --extra ov isaaclab -p scripts/tutorials/01_assets/run_articulation.py --viz newton_rtx
 
 
 This command should open a stage with a ground plane, lights, and two cart-poles that are moving around randomly.

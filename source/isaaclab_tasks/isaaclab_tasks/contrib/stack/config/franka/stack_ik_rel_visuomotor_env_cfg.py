@@ -23,7 +23,7 @@ from isaaclab_tasks.contrib.stack import mdp
 from isaaclab_tasks.contrib.stack.mdp import franka_stack_events
 from isaaclab_tasks.contrib.stack.stack_env_cfg import StackEnvCfg
 from isaaclab_tasks.utils import preset
-from isaaclab_tasks.utils.presets import set_isaac_rtx_global_settings
+from isaaclab_tasks.utils.presets import MultiBackendRendererCfg, set_isaac_rtx_global_settings
 
 ##
 # Pre-defined configs
@@ -337,6 +337,7 @@ class FrankaCubeStackVisuomotorEnvCfg(StackEnvCfg):
         # Set cameras
         # Set wrist camera
         self.scene.wrist_cam = CameraCfg(
+            renderer_cfg=MultiBackendRendererCfg().rtx,
             prim_path="{ENV_REGEX_NS}/Robot/(Geometry/.*/)?panda_hand/wrist_cam",
             update_period=0.0,
             height=200,
@@ -352,6 +353,7 @@ class FrankaCubeStackVisuomotorEnvCfg(StackEnvCfg):
 
         # Set table view camera
         self.scene.table_cam = CameraCfg(
+            renderer_cfg=MultiBackendRendererCfg().rtx,
             prim_path="{ENV_REGEX_NS}/table_cam",
             update_period=0.0,
             height=200,

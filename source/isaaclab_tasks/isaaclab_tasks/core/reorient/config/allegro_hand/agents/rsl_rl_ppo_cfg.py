@@ -7,13 +7,15 @@ from isaaclab.utils import configclass
 
 from isaaclab_rl.rsl_rl import RslRlMLPModelCfg, RslRlOnPolicyRunnerCfg, RslRlPpoAlgorithmCfg
 
+from isaaclab_tasks.utils import preset
+
 
 @configclass
 class AllegroHandManagerPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 24
     max_iterations = 5000
     save_interval = 50
-    experiment_name = "allegro_hand"
+    experiment_name = preset(default="allegro_hand", newton_mjwarp_nerd="allegro_hand_mjwarp_nerd")
     actor = RslRlMLPModelCfg(
         hidden_dims=[512, 256, 128],
         activation="elu",
