@@ -289,7 +289,6 @@ class ViserVisualizer(BaseVisualizer):
         self.backend = None
         self._pending_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self._warned_marker_render_failure = False
-        self._show_lidar_hits = self.cfg.backend.show_lidar_hits
         self._logged_lidar_names: list[str] = []
         self._paused_rendering = False
         self._paused_simulation = False
@@ -328,6 +327,7 @@ class ViserVisualizer(BaseVisualizer):
         self._viewer.set_model(self.backend.model)
         self._geometry_change_version = self.backend.geometry_change_version
         self._viewer.show_particles = self.cfg.backend.show_particles
+        self._viewer.show_lidar_hits = self.cfg.backend.show_lidar_hits
         # set_model() clears model-dependent GUI elements; build the sidebar afterwards.
         self._setup_isaaclab_sidebar(self._viewer._server)
         self._viewer.set_visible_worlds(self._env_ids)
@@ -423,7 +423,7 @@ class ViserVisualizer(BaseVisualizer):
         if self._viewer is None:
             return
         self._logged_lidar_names = sync_lidar_hits(
-            self._sim, self._env_ids, self._viewer, self._show_lidar_hits, self._logged_lidar_names
+            self._sim, self._env_ids, self._viewer, self._viewer.show_lidar_hits, self._logged_lidar_names
         )
 
     def _render_markers(self, num_envs: int) -> None:
@@ -566,6 +566,7 @@ class ViserVisualizer(BaseVisualizer):
                 ("Springs", "show_springs"),
                 ("Cloth", "show_triangles"),
                 ("Inertia Boxes", "show_inertia_boxes"),
+                ("Lidar Hits", "show_lidar_hits"),
             ]
             with vis_folder:
                 for label, attr in _VIZ_FLAGS:
@@ -576,12 +577,6 @@ class ViserVisualizer(BaseVisualizer):
                     @cb.on_update
                     def _(event, _attr=attr):
                         setattr(viewer, _attr, event.target.value)
-
-                lidar_cb = server.gui.add_checkbox("Lidar Hits", initial_value=self._show_lidar_hits)
-
-                @lidar_cb.on_update
-                def _(event):
-                    self._show_lidar_hits = event.target.value
 
     def set_camera_view(
         self, eye: tuple[float, float, float] | list[float], target: tuple[float, float, float] | list[float]
