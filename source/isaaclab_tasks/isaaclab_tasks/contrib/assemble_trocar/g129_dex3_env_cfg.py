@@ -165,12 +165,6 @@ class AssembleTrocarSceneCfg(InteractiveSceneCfg):
         ),
     )
 
-    work_light = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/WorkLight",
-        spawn=sim_utils.CylinderLightCfg(color=(1.0, 1.0, 1.0), intensity=0.0, length=2.5, radius=0.03),
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(-1.012, 2.067, 2.87), rot=(0.0, 0.0, 0.70711, 0.70711)),
-    )
-
 
 ##
 # MDP settings
@@ -457,7 +451,6 @@ class G1AssembleTrocarEnvCfg(ManagerBasedRLEnvCfg):
             self.scene.trocar_1,
             self.scene.trocar_2,
             self.scene.tray,
-            self.scene.work_light,
         ):
             asset.cloning_contexts = preset(default=("isaaclab.cloner:UsdReplicateContext",), newton_mjwarp=None)
         self.sim.visualizer_cfgs = VisualizerCfg(eye=(-0.5, 2.4, 1.6), lookat=(-5.4, 0.2, -1.2))

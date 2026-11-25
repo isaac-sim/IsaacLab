@@ -46,6 +46,46 @@ Prerequisites
    ``nvidia/Assemble_Trocar`` model is an older checkpoint and does not supply these weights.
    The updated recipe requires the 100k checkpoint to be provided locally until it is released.
 
+Trocar task assets and policy compatibility
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The updated ``assemble_trocar`` task also requires the matching asset pack. Set
+``ASSET_LOCAL`` before starting Isaac Lab to the extracted asset root, which must contain:
+
+.. code-block:: text
+
+   <asset-root>/
+   ├── Robots/
+   │   └── g1_29dof_with_dex3_base_fix02.usd
+   └── Props/
+       └── LightWheel/
+           ├── scene03cell.usd
+           └── Assets/
+
+Keep the complete extracted directory tree, including referenced USD files, meshes and textures.
+For example, if the pack is extracted into ``/data/trocar-assets``:
+
+.. code-block:: bash
+
+   export ASSET_LOCAL=/data/trocar-assets
+
+The default root is ``/workspace/assets``. An HTTPS asset root with the same layout is also
+accepted. The asset pack is not bundled with Isaac Lab, and a public download location has
+not yet been provided. The task requires access to this pack; installing Isaac Lab and
+downloading the older published checkpoint alone is insufficient.
+
+The existing task IDs and recipe now use the revised assets, robot reset poses and camera
+presets with 320-by-240 RGB observations, 30 Hz control, 25-second episodes and absolute
+joint-position actions. These settings are intended for the matching 100k SFT checkpoint;
+previously trained policies are not guaranteed to work with the updated task. To reproduce
+an older policy, retain the earlier Isaac Lab revision together with its assets and recipe.
+Both training and evaluation use ``install trocar from tray``.
+
+The lift stage requires the first trocar's world-space center-of-mass height and the second
+trocar's world-space root height to exceed the table height by 0.08 m. This differs from the
+previous root-height check with a 0.05 m threshold; an explicit threshold alone does not
+restore the previous reference point.
+
 Installation
 ------------
 

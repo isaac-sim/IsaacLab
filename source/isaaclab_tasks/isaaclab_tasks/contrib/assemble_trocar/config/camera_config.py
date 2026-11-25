@@ -10,7 +10,7 @@ include the basic configuration for different types of cameras, support scene-sp
 
 from collections.abc import Sequence
 
-from isaaclab_physx.renderers import IsaacRtxRendererCfg
+from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.sensors import CameraCfg

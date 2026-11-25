@@ -131,6 +131,11 @@ def update_task_stage(
     Once a stage is completed, it never goes back.
     Returns a zero-valued tensor (num_envs,). Note that the reward manager skips
     terms with weight 0.0, so it does not run when registered as a weight=0 reward term.
+
+    The lift check compares the first trocar's world-space center-of-mass height and
+    the second trocar's world-space root height against ``table_height + lift_threshold``.
+    The lift threshold defaults to 0.08 m. Tip alignment, insertion and placement
+    continue to use root poses and the derived tip positions.
     """
     state = get_assemble_trocar_state(env)
     stage = state.task_stage
@@ -236,9 +241,11 @@ def lift_trocars_reward(
         env: Environment instance.
         table_height: Table height in world Z [m]. Defaults to 0.85483.
         lift_threshold: Height [m] above table_height required for both trocars to count
-            as lifted. Defaults to 0.05.
-        asset_cfg1: Scene entity configuration for the first trocar.
-        asset_cfg2: Scene entity configuration for the second trocar.
+            as lifted. Defaults to 0.08.
+        asset_cfg1: Scene entity configuration for the first trocar. Its world-space
+            center-of-mass height is used for the lift check.
+        asset_cfg2: Scene entity configuration for the second trocar. Its world-space
+            root height is used for the lift check.
         use_sparse_reward: If True, only give reward (1.0) when stage transitions from 0->1.
                           If False, give continuous reward based on current state.
         print_log: If True, log debug information.
