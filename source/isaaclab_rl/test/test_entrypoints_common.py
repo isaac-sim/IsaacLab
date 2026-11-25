@@ -225,7 +225,7 @@ def test_create_isaaclab_env_uses_registered_torch_env_by_default(monkeypatch: p
 
 def test_create_isaaclab_env_uses_selected_warp_frontend(monkeypatch: pytest.MonkeyPatch) -> None:
     """The shared factory delegates Warp selection to the experimental frontend."""
-    import isaaclab_experimental.envs.frontend as frontend_module
+    import isaaclab_experimental.deprecated.envs.frontend as frontend_module
 
     expected_env = object()
     env_cfg = object()

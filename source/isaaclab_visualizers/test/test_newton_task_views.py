@@ -113,6 +113,25 @@ def test_a_perspective_that_was_never_left_has_no_pose_to_restore():
     assert not viz._restore_perspective_pose()
 
 
+def test_sensor_ui_callbacks_draw_in_the_camera_sensor_section_with_the_selected_sensor():
+    camera = object()
+    sensor = _View("/World/envs/env_[^/]+/Camera", camera=camera)
+    viz = _visualizer([_view(PerspectiveCameraCfg()), sensor])
+    drawn = []
+    imgui = SimpleNamespace(separator_text=lambda label: drawn.append(label))
+    viz._draw_sensor_channels = lambda imgui, view: drawn.append("channels")
+    viz._draw_sensor_envs = lambda imgui, view: drawn.append("environments")
+    viz.register_sensor_ui_callback(lambda imgui, shown: drawn.append(("first", shown)))
+    viz.register_sensor_ui_callback(lambda imgui, shown: drawn.append(("second", shown)))
+
+    viz._draw_sensor_controls(imgui, sensor)
+
+    # Each callback draws after the section's own controls, in registration order, with the sensor shown.
+    assert drawn == ["Camera Sensor", "channels", "environments", ("first", camera), ("second", camera)]
+    # Callbacks belong to the window that registered them.
+    assert _visualizer([sensor])._sensor_ui_callbacks == ()
+
+
 def _rtx_view():
     camera = SimpleNamespace(cfg=SimpleNamespace(prim_path="/World/viewer_camera_0", renderer_cfg="ovrtx"))
     return _View("/World/viewer_camera_0", camera=camera)

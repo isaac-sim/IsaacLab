@@ -566,6 +566,15 @@ isaaclab_doc_redirects.update(
     {route: f"{_isaaclab_v2_3_2_docs_root}/{route}.html" for route in _isaaclab_v2_3_2_only_docs}
 )
 
+# API pages of the Warp environments, which moved under isaaclab_experimental.deprecated.
+_lab_experimental_api = "source/api/lab_experimental/isaaclab_experimental"
+isaaclab_doc_redirects.update(
+    {
+        f"{_lab_experimental_api}.{module}": f"{_lab_experimental_api}.deprecated.{module}"
+        for module in ("managers", "utils", "envs.mdp.actions")
+    }
+)
+
 _streaming_how_to = "source/how-to/visualizer_streaming_camera_view"
 
 # Sections of moved or consolidated pages and where they live now.

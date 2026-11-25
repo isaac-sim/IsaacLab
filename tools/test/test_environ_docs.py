@@ -83,6 +83,8 @@ def test_get_workflow_detects_custom_manager_based_subclass():
 
 
 def test_mdp2_tasks_use_the_mdp2_workflow_without_the_warp_frontend():
+    import isaaclab_tasks_experimental  # noqa: F401
+
     spec = gym.spec("Isaac-Cartpole-MDP2")
     workflow = get_workflow(spec.entry_point)
 
