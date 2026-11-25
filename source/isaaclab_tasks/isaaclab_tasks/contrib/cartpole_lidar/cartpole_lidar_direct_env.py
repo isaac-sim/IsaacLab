@@ -37,7 +37,7 @@ class CartpoleLidarEnv(CartpoleEnv):
         cfg.frame_stack = max(1, cfg.frame_stack)
         if isinstance(cfg.observation_space, list):
             cfg.observation_space = [
-                int(cfg.observation_space[0]) * cfg.frame_stack,
+                cfg.frame_stack,
                 CARTPOLE_LIDAR_ELEVATION_COUNT,
                 CARTPOLE_LIDAR_AZIMUTH_COUNT,
             ]

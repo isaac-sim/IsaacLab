@@ -27,13 +27,14 @@ from isaaclab.test.utils import DeviceScope, test_devices
 pytestmark = [pytest.mark.kitless, pytest.mark.ov]
 
 
-def _sensor(points: torch.Tensor, valid: torch.Tensor, frame: str, position=None, rotation=None):
+def _sensor(points: torch.Tensor, valid: torch.Tensor, frame: str, position=None, rotation=None, *, is_global=False):
     """Build the lidar attributes ``lidar_world_points`` reads."""
     return SimpleNamespace(
         data=SimpleNamespace(points=SimpleNamespace(torch=points), valid=SimpleNamespace(torch=valid)),
         cfg=SimpleNamespace(output_frame_of_reference=frame),
         _pos_w=None if position is None else SimpleNamespace(torch=position),
         _quat_w=None if rotation is None else SimpleNamespace(torch=rotation),
+        _is_global=is_global,
     )
 
 
@@ -73,6 +74,7 @@ def _world_lidar(points: torch.Tensor, valid: torch.Tensor):
             self.cfg = SimpleNamespace(output_frame_of_reference="WORLD")
             self._pos_w = None
             self._quat_w = None
+            self._is_global = False
 
         @property
         def data(self):

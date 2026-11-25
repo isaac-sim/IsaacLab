@@ -54,7 +54,8 @@ def lidar_world_points(sensor: OVRTXLidar, env_ids: list[int] | None) -> np.ndar
 
     Args:
         sensor: Lidar whose latest buffers are read.
-        env_ids: Environments to include. None includes every environment.
+        env_ids: Environments to include. None includes every environment. A global lidar
+            has one buffer row and is not filtered by these IDs.
 
     Returns:
         Hit positions with shape ``(num_hits, 3)``. An empty cloud has shape ``(0, 3)``.
@@ -72,17 +73,22 @@ def lidar_env_hits(sensor: OVRTXLidar, env_ids: list[int] | None) -> list[tuple[
 
     The transform matches :func:`lidar_world_points`. Environments are listed in ``env_ids`` order,
     or in scene order when ``env_ids`` is None. An environment with no finite hits is omitted.
+    A global lidar has one buffer row, so visualized environment IDs do not index the scan.
 
     Args:
         sensor: Lidar whose latest buffers are read.
-        env_ids: Environments to include. None includes every environment.
+        env_ids: Environments to include. None includes every environment. A global lidar
+            returns its single scan regardless of these IDs.
 
     Returns:
         ``(env_index, points)`` pairs. ``points`` has shape ``(num_hits, 3)``.
     """
     points = sensor.data.points.torch
     valid = sensor.data.valid.torch
-    if env_ids is None:
+
+    # A global lidar has one buffer row. Scene environment IDs therefore do not index that row.
+    is_global = getattr(sensor, "_is_global", False)
+    if is_global or env_ids is None:
         ids = list(range(points.shape[0]))
     else:
         ids = [int(env_id) for env_id in env_ids]
@@ -91,18 +97,23 @@ def lidar_env_hits(sensor: OVRTXLidar, env_ids: list[int] | None) -> list[tuple[
         index = torch.as_tensor(ids, device=points.device, dtype=torch.long)
         points = points.index_select(0, index)
         valid = valid.index_select(0, index)
+
     if sensor.cfg.output_frame_of_reference == "SENSOR":
         position = sensor._pos_w
         rotation = sensor._quat_w
         if position is None or rotation is None:
             return []
+
         position = position.torch
         rotation = rotation.torch
-        if env_ids is not None:
+
+        if env_ids is not None and not is_global:
             index = torch.as_tensor(ids, device=position.device, dtype=torch.long)
             position = position.index_select(0, index)
             rotation = rotation.index_select(0, index)
+
         points = quat_apply(rotation.unsqueeze(1), _iso8855_to_prim(points)) + position.unsqueeze(1)
+
     finite = valid & torch.isfinite(points).all(dim=-1)
     packed = points[finite].detach().to(dtype=torch.float32, device="cpu").numpy()
     counts = finite.sum(dim=-1).detach().to(device="cpu").numpy()
