@@ -1,9 +1,9 @@
 # Isaac Lab 3.1 QA with internal Isaac Sim 6.3
 
-This temporary QA patch uses internal Isaac Sim 6.3 with the latest standalone
-`isaacsim-asset` package, including 7.0 builds. Run the commands from your Isaac
-Lab checkout on the NVIDIA network or VPN, with uv installed. The patch
-configures the internal registry.
+This temporary QA patch uses internal Isaac Sim 6.3 with the public standalone
+`isaacsim-asset-isolated==6.2.0.1` importer. Run the commands from your Isaac Lab
+checkout on the NVIDIA network or VPN, with uv installed. The patch configures
+the internal registry for Isaac Sim.
 
 ## Apply the QA patch
 
@@ -14,8 +14,8 @@ git fetch https://github.com/kellyguo11/IsaacLab-public.git kellyg/release-3.1.0
 git switch -c qa/3.1-internal-isaacsim FETCH_HEAD
 ```
 
-For cherry-picking only the QA changes onto another base, use the commits listed
-in [the draft PR](https://github.com/isaac-sim/IsaacLab/pull/9137). The PR targets
+To apply only the QA changes to another base, use the patch commands listed in
+[the draft PR](https://github.com/isaac-sim/IsaacLab/pull/9137). The PR targets
 `main` until `release/3.1.0` exists. The QA changes affect only root dependency
 configuration and this README. The committed `uv.lock` stays at the base
 branch's versions; refresh it locally before installing or running QA.
@@ -26,21 +26,19 @@ Run this same one-line command on Linux, Windows PowerShell, or Windows Command
 Prompt at the start of each QA pass:
 
 ```bash
-uv sync --extra isaacsim --extra importers -P isaacsim -P isaacsim-asset -P urdf-usd-converter -P mujoco-usd-converter -P usd-optimize
+uv sync --extra isaacsim --extra importers -P isaacsim
 ```
 
-`-P` refreshes package metadata and ignores the corresponding versions in the
-existing local lock. Isaac Sim uses `>=6.3.0rc3,<6.4`, including new release
-candidates. The asset requirement and UV override use `>=6.3.0.dev0,<8`, allowing
-both 6.3 and 7.x builds. The override replaces Isaac Sim's exact 6.3 asset
-requirement; widening the ordinary requirement alone would still conflict with
-that pin. With `-P isaacsim-asset`, UV selects the newest available asset build
-in the range, currently 7.0, independently of the runtime's asset pin.
+`-P isaacsim` refreshes Isaac Sim and its version-matched runtime packages,
+ignoring the previous runtime version in the local lock. The QA override uses
+`>=6.3.0rc3,<6.4`, allowing new 6.3 release candidates without editing build
+numbers. Keep `-P isaacsim` in the nightly refresh command; the range alone does
+not upgrade an existing lock.
 
-The range alone does not upgrade an existing local lock: keep `-P` in the nightly
-refresh command. `isaacsim-asset-isolated` is no longer requested. The selected
-asset package supplies its matched converter, common, schema, and optimizer
-dependencies.
+The standalone importer remains pinned to public `6.2.0.1`. The converter and
+USD compatibility overrides match the base branch. Isaac Sim retains its own
+matching `isaacsim-asset==6.3...` Kit bundle. There is no standalone asset 7.0
+override and no internal standalone importer dependency.
 
 For importer-only QA, omit `--extra isaacsim`. To test OV integrations alongside
 Isaac Sim, add `--extra ov`; those packages retain the base branch's public pins.
@@ -65,42 +63,42 @@ uv sync --frozen --extra isaacsim --extra importers
 ## Use the documented uv commands
 
 After refreshing once, the normal documented `uv run --extra isaacsim ...`
-commands use the locally locked 6.3 runtime and 7.0 asset packages. Ordinary
-`uv run` checks whether the lock matches the project; it does not automatically
-seek a newer nightly every run. Add `--frozen` to preserve a recorded lock, and
-include the same extras as the installation when you want both integrations
-present.
+commands use the locally locked 6.3 runtime and public 6.2 standalone importer.
+Ordinary `uv run` checks whether the lock matches the project; it does not
+automatically seek a newer nightly every run. Add `--frozen` to preserve a
+recorded lock, and include the same extras as the installation when you want
+both integrations present.
 
-When Kit is running, Isaac Lab enables and imports the Kit URDF/MJCF extensions.
-Without Kit, it imports the standalone asset wheel. The pip override selects the
-installed asset distribution; it does not override Kit's extension selection.
-In the combined smoke test, Kit downloaded its importer extensions from NVIDIA's
-extension registry on first use. Allow access to that registry as well as the
-internal pip registry when testing Kit conversions.
+When Kit is running, Isaac Lab enables and imports the URDF/MJCF extensions from
+Isaac Sim's asset bundle. Without Kit, it imports the public standalone importer.
+The public importer does not select or replace the Kit extensions.
 
 Print installed versions without importing or launching Isaac Sim:
 
 ```bash
-uv run --frozen --extra isaacsim --extra importers python -c "from importlib.metadata import version; packages = ('isaacsim', 'isaacsim-asset', 'isaacsim-common', 'isaacsim-robot-schema', 'urdf-usd-converter', 'mujoco-usd-converter', 'usd-optimize'); print({p: version(p) for p in packages})"
+uv run --frozen --extra isaacsim --extra importers python -c "from importlib.metadata import version; packages = ('isaacsim', 'isaacsim-asset', 'isaacsim-asset-isolated', 'isaacsim-robot-schema', 'urdf-usd-converter', 'mujoco-usd-converter', 'usd-optimize'); print({p: version(p) for p in packages})"
 ```
 
 ## Verified package set
 
-The combined Linux x86_64 installation on November 24, 2026, resolved 449
+The combined Linux x86_64 installation on November 25, 2026, resolved 451
 packages. URDF and MJCF conversions passed both with Kit running and without
 Kit. The dependency-configuration tests passed (13 tests), as did the repository
 formatting and lint checks. The installed versions included:
 
 | Package | Version |
 | --- | --- |
-| Isaac Sim | `6.3.0rc4+release.59505.a720a5f8.gl` |
-| Asset, common, and robot schema | `7.0.0a2.dev58610+gl.698c657` |
-| URDF USD converter | `0.4.0` |
-| MuJoCo USD converter | `0.9.0` |
+| Isaac Sim and Kit asset bundle | `6.3.0rc4+release.59505.a720a5f8.gl` |
+| Public standalone importer | `6.2.0.1` |
+| Robot schema | `6.2.0.0` |
+| URDF USD converter | `0.3.4` |
+| MuJoCo USD converter | `0.7.0` |
 | USD Optimize | `1.3.1` |
 
-Later nightly builds may specify different converter versions. Record the
-installed-version output and the generated lock with every QA result.
+The nightly install dry-run also resolved Isaac Sim
+`6.3.0rc5+release.59636.188cdb4a.gl` with the same public importer. Runtime smoke
+tests used the cached RC4 build shown above. Record the installed-version output
+and the generated lock with every QA result.
 
 To discard only the locally generated lock after recording the result:
 
