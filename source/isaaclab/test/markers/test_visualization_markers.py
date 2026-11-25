@@ -408,6 +408,7 @@ def test_visualizer_step_renders_markers_and_closes_frame(monkeypatch, caplog, m
 
     class Viewer:
         show_contacts = False
+        show_lidar_hits = False
         _server = SimpleNamespace(get_clients=lambda: {0: object()})
 
         def is_paused(self):
