@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import builtins
+import logging
 import os
 import random
 import re
@@ -610,7 +611,8 @@ class LoadingScreen:
         self._spool = tempfile.TemporaryFile(mode="w+", errors="replace")  # noqa: SIM115
         self._saved_streams = (sys.stdout, sys.stderr)
         sys.stdout = self._spool
-        sys.stderr = self._spool
+        # a distinct object lets _restore tell handlers bound to stderr from those bound to stdout
+        sys.stderr = _StreamAlias(self._spool)
 
     def _restore(self) -> str:
         """Restore redirected output and return the spooled text."""
@@ -626,7 +628,10 @@ class LoadingScreen:
         elif self._saved_streams is not None:
             sys.stdout.flush()
             sys.stderr.flush()
+            spooled_streams = (sys.stdout, sys.stderr)
             sys.stdout, sys.stderr = self._saved_streams
+            # log handlers created during startup captured the spool, which is about to close
+            _rebind_log_handlers(dict(zip(spooled_streams, self._saved_streams)))
             self._saved_streams = None
         else:
             raise RuntimeError("Loading screen output was not redirected.")
@@ -635,6 +640,25 @@ class LoadingScreen:
         self._spool.close()
         self._spool = None
         return spooled
+
+
+class _StreamAlias:
+    """Forward every attribute to *target* while being a distinct object from it."""
+
+    def __init__(self, target: IO[str]):
+        self._target = target
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._target, name)
+
+
+def _rebind_log_handlers(replacements: dict[Any, IO[str]]) -> None:
+    """Point every logging stream handler writing to a key of *replacements* at the mapped stream."""
+    loggers = [logging.getLogger(), *logging.Logger.manager.loggerDict.values()]
+    for logger in loggers:
+        for handler in getattr(logger, "handlers", ()):
+            if isinstance(handler, logging.StreamHandler) and handler.stream in replacements:
+                handler.setStream(replacements[handler.stream])
 
 
 def _console_is_interactive() -> bool:
