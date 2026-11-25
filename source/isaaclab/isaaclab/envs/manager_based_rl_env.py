@@ -207,7 +207,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         """
         # terminal observations belong to the step that captured them
         self.extras.pop("final_obs", None)
-        self.extras.pop("final_obs_every_step", None)
         self.action_manager.process_action(action.to(self.device))
         if self._physics_handles_actions is None:
             self._handle_physics_actions()
@@ -246,11 +245,10 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
 
         # -- reset envs that terminated/timed-out and log the episode information
         reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1).int()
-        if self.cfg.final_obs_every_step or (self.cfg.compute_final_obs and len(reset_env_ids) > 0):
-            self.extras["final_obs"] = self.observation_manager.compute()
-            if self.cfg.final_obs_every_step:
-                self.extras["final_obs_every_step"] = True
         if len(reset_env_ids) > 0:
+            # capture the terminal observation before reset and expose it for Same-Step autoreset.
+            if self.cfg.compute_final_obs:
+                self.extras["final_obs"] = self.observation_manager.compute()
             self.recorder_manager.record_pre_reset(reset_env_ids)
 
             self._reset_idx(reset_env_ids)
@@ -269,6 +267,8 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             index_fill_(not_yet_reset, reset_env_ids, False)
             manual_reset_ids = not_yet_reset.nonzero(as_tuple=False).squeeze(-1).int()
             if len(manual_reset_ids) > 0:
+                if self.cfg.compute_final_obs and len(reset_env_ids) == 0:
+                    self.extras["final_obs"] = self.observation_manager.compute()
                 # mark as terminated so RL wrappers observe the episode boundary
                 index_fill_(self.reset_terminated, manual_reset_ids, True)
                 # mirror the recorder lifecycle used for normal resets
