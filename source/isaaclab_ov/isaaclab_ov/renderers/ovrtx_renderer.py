@@ -30,7 +30,6 @@ import math
 import os
 import sys
 import tempfile
-import warnings
 import weakref
 from builtins import ExceptionGroup
 from collections import deque
@@ -487,42 +486,6 @@ class OVRTXCameraRenderData:
         """Paths of every render product of this sensor, in environment order."""
         return tuple(product.path for product in self.products)
 
-    @property
-    def render_product_path(self) -> str:
-        """Path of the render product of a camera sensor with one render product.
-
-        .. deprecated:: 9.3.0
-            Use :attr:`OVRTXRenderProduct.path` of each entry of :attr:`products`.
-
-        Raises:
-            RuntimeError: If the camera sensor has several render products.
-        """
-        return self._single_product("render_product_path").path
-
-    @property
-    def num_cols(self) -> int:
-        """Number of tile columns in the tiled image of a camera sensor with one render product.
-
-        .. deprecated:: 9.3.0
-            Use :attr:`OVRTXRenderProduct.num_cols` of each entry of :attr:`products`.
-
-        Raises:
-            RuntimeError: If the camera sensor has several render products.
-        """
-        return self._single_product("num_cols").num_cols
-
-    @property
-    def num_rows(self) -> int:
-        """Number of tile rows in the tiled image of a camera sensor with one render product.
-
-        .. deprecated:: 9.3.0
-            Use :attr:`OVRTXRenderProduct.num_rows` of each entry of :attr:`products`.
-
-        Raises:
-            RuntimeError: If the camera sensor has several render products.
-        """
-        return self._single_product("num_rows").num_rows
-
     def cleanup(self) -> None:
         """Release this camera's native resources and buffers. Safe to call repeatedly.
 
@@ -578,23 +541,6 @@ class OVRTXCameraRenderData:
                     num_rows=math.ceil(envs / cols),
                 )
             )
-
-    def _single_product(self, name: str) -> OVRTXRenderProduct:
-        """Return the only render product for the deprecated property ``name``.
-
-        A split camera sensor raises, because the property would describe only a part of its environments.
-        """
-        warnings.warn(
-            f"OVRTXCameraRenderData.{name} is deprecated. Use OVRTXCameraRenderData.products instead.",
-            DeprecationWarning,
-            stacklevel=3,
-        )
-        if len(self.products) > 1:
-            raise RuntimeError(
-                f"OVRTXCameraRenderData.{name} needs a camera sensor with one render product, but this sensor has"
-                f" {len(self.products)}. Use OVRTXCameraRenderData.products instead."
-            )
-        return self.products[0]
 
 
 class OVRTXLidarRenderData:
