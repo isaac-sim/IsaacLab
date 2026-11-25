@@ -13,7 +13,9 @@ from __future__ import annotations
 import re
 import sys
 from types import SimpleNamespace
+from unittest.mock import patch
 
+import numpy as np
 import ovphysx.types  # noqa: F401
 import pytest
 import torch
@@ -45,6 +47,9 @@ from ..deformable_utils import (  # noqa: E402
 )
 
 pytestmark = pytest.mark.ov
+
+_REPLAY_ONLY = "read_into did not replay its captured session read"
+"""Failure of a binding read or a new capture where only the captured plan may serve the read."""
 
 wp.init()
 
@@ -85,10 +90,11 @@ def _generate_deformable_scene(
     num_objects: int = 2,
     height: float = 1.0,
     initial_rot: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0),
+    scale: tuple[float, float, float] | None = None,
 ) -> DeformableObject:
-    """Create independently authored deformables beneath matching parent prims."""
+    """Create independently authored deformables beneath matching parent prims, scaled by ``scale``."""
     for index in range(num_objects):
-        sim_utils.create_prim(f"/World/Table_{index}", "Xform", translation=(index * 1.0, 0.0, height))
+        sim_utils.create_prim(f"/World/Table_{index}", "Xform", translation=(index * 1.0, 0.0, height), scale=scale)
     cfg = DeformableObjectCfg(
         prim_path="/World/Table_[^/]*/Object",
         spawn=spawn,
@@ -988,3 +994,113 @@ def test_heterogeneous_mixed_deformable_rigid_scene_materializes_missing_targets
         scene.update(sim.cfg.dt)
         _assert_finite_deformable_state(deformable)
         assert torch.isfinite(shape.data.root_pos_w.torch).all()
+
+        # Session reads of the cloned bodies match the binding, plan placements included.
+        view = deformable.root_view
+        for tensor_type in (deformable._sim_nodal_position_type, deformable._sim_nodal_velocity_type):
+            binding = view.binding_for(tensor_type)
+            expected = wp.zeros(tuple(binding.shape), dtype=wp.float32, device="cuda:0")
+            binding.read(view._read_view(expected, binding))
+            values = wp.zeros_like(expected)
+            view.read_into(tensor_type, values)
+            torch.testing.assert_close(wp.to_torch(values), wp.to_torch(expected), atol=1e-5, rtol=0.0)
+
+
+_SESSION_DEFORMABLE_CASES = {
+    "volume": (
+        pre_tetrahedralized_deformable_spawn_cfg,
+        (
+            TT.DEFORMABLE_SIM_NODAL_POSITION,
+            TT.DEFORMABLE_SIM_NODAL_VELOCITY,
+        ),
+    ),
+    "surface": (
+        pretriangulated_surface_deformable_spawn_cfg,
+        (
+            TT.SURFACE_DEFORMABLE_SIM_POSITION,
+            TT.SURFACE_DEFORMABLE_SIM_VELOCITY,
+        ),
+    ),
+}
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
+@pytest.mark.parametrize("kind", list(_SESSION_DEFORMABLE_CASES))
+def test_session_deformable_reads_match_bindings(kind: str) -> None:
+    """Session reads of rotated, scaled, falling deformables match the binding: points taken from the sim-mesh frame
+    to world.
+
+    The parents scale each axis differently and one node per body leaves the authored plane, so the out-of-plane axis
+    of the flat surface mesh is read too. Each plan is built before the write and the steps, so the comparison is of a
+    later replay.
+    """
+    from isaaclab_ov.sim.views.ovphysx_session_reads import OvPhysxSessionReads
+
+    spawn, tensor_types = _SESSION_DEFORMABLE_CASES[kind]
+    with _ovphysx_sim_context(device="cuda:0", gravity_enabled=True) as sim:
+        deformable = _generate_deformable_scene(
+            spawn(), num_objects=2, initial_rot=(0.0, 0.0, 0.3826834, 0.9238795), scale=(1.2, 0.8, 2.0)
+        )
+        sim.reset()
+        view = deformable.root_view
+        reads = OvPhysxSessionReads.for_physx(view._physx)
+        replayed = {}
+        for tensor_type in tensor_types:
+            binding = view.binding_for(tensor_type)
+            native = view._native_device(view._resolve(tensor_type))
+            replayed[tensor_type] = wp.zeros(tuple(binding.shape), dtype=wp.float32, device=native)
+            view.read_into(tensor_type, replayed[tensor_type])
+        lifted = deformable.data.nodal_pos_w.torch.clone()
+        lifted[:, 1, 2] += 0.05  # the authored plane is the parent's xy plane
+        deformable.write_nodal_pos_to_sim_index(lifted)
+        for _ in range(5):
+            sim.step()
+            deformable.update(sim.cfg.dt)
+        expected = {}
+        for tensor_type, values in replayed.items():
+            binding = view.binding_for(tensor_type)
+            expected[tensor_type] = wp.zeros_like(values)
+            binding.read(view._read_view(expected[tensor_type], binding))
+            # Only the captured plan serves the read: no binding read, no new capture.
+            with (
+                patch.object(type(binding), "read", side_effect=AssertionError(_REPLAY_ONLY)),
+                patch.object(OvPhysxSessionReads, "_capture", side_effect=AssertionError(_REPLAY_ONLY)),
+                patch.object(wp, "capture_launch", wraps=wp.capture_launch) as launch,
+            ):
+                view.read_into(tensor_type, values)
+            assert launch.call_count == 1, _REPLAY_ONLY
+        # Before the equivalence, so a frame change in ovphysx reports itself.
+        _assert_session_points_in_sim_mesh_frame(view, reads, tensor_types[0])
+        for tensor_type, values in replayed.items():
+            # Points pass through the sim-mesh prim's world transform, in float32; velocities are copied.
+            atol = 1e-6 if tensor_type in (TT.DEFORMABLE_SIM_NODAL_POSITION, TT.SURFACE_DEFORMABLE_SIM_POSITION) else 0
+            torch.testing.assert_close(wp.to_torch(values), wp.to_torch(expected[tensor_type]), atol=atol, rtol=0.0)
+        del replayed, values, expected
+
+
+def _assert_session_points_in_sim_mesh_frame(view, reads, position_type) -> None:
+    """Canary, after the last replay: ovphysx reports points in the sim-mesh frame, which the frames take to world."""
+    from isaaclab_ov.sim.views.ovphysx_session_reads import READS, _read_groups, _row_paths
+
+    # 1. The binding's world points, and each body's sim-mesh frame.
+    binding = view.binding_for(position_type)
+    world = wp.zeros(tuple(binding.shape), dtype=wp.float32, device="cuda:0")
+    binding.read(view._read_view(world, binding))
+    world = world.numpy().reshape(binding.shape[0], -1, 3)
+    object_type = READS[position_type][0]
+    prims = reads._deformable_prims(object_type, "points", list(binding.prim_paths))
+    frames = reads.world_transforms(prims)
+    # 2. The raw session points, read outside the plans.
+    with view._physx.read_sync(object_type, ["points"]) as result:
+        groups = _read_groups(result)
+        local = {row: t.numpy().reshape(-1, 3).copy() for row, t in zip(_row_paths(result, groups), groups[0].tensors)}
+        del groups  # PhysX cannot be destroyed while a read's arrays are alive
+    # 3. They are not world points, and the frame takes them there.
+    for body, prim in enumerate(prims):
+        nodes = len(local[prim])
+        assert not np.allclose(local[prim], world[body, :nodes], atol=1e-3), (
+            "ovphysx now reports deformable points in world: drop OvPhysxManager._loaded_world_transforms and the"
+            " frame transform in OvPhysxSessionReads._node_sources"
+        )
+        rotation, translation = frames[body][:3, :3], frames[body][:3, 3]
+        np.testing.assert_allclose(local[prim] @ rotation.T + translation, world[body, :nodes], atol=1e-6)

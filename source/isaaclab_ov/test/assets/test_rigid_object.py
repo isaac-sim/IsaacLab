@@ -22,6 +22,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from dataclasses import dataclass
+from unittest.mock import patch
 
 import pytest
 import torch
@@ -36,6 +37,7 @@ from isaaclab_isaacsim.sim.spawners.materials import PhysxRigidBodyMaterialCfg  
 from isaaclab_ov import tensor_types as TT  # noqa: E402
 from isaaclab_ov.assets import RigidObject, RigidObjectCollection  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
+from isaaclab_ov.sim.views.ovphysx_session_reads import OvPhysxSessionReads  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
 from isaaclab import cloner  # noqa: E402
@@ -48,6 +50,8 @@ from isaaclab.utils.math import quat_apply_inverse, quat_mul  # noqa: E402
 
 pytestmark = [pytest.mark.integration, pytest.mark.ov]
 
+_REPLAY_ONLY = "read_into did not replay its captured session read"
+"""Failure of a binding read or a new capture where only the captured plan may serve the read."""
 _NUM_CUBES = 2
 _NUM_ENVS, _NUM_BODIES = 2, 3
 
@@ -420,6 +424,84 @@ def test_initialization_with_kinematic_enabled(scene: _RigidScene) -> None:
         cube_object.update(sim.cfg.dt)
         torch.testing.assert_close(cube_object.data.root_link_pose_w.torch, default_root_pose)
         torch.testing.assert_close(cube_object.data.root_com_vel_w.torch, default_root_vel)
+
+
+@pytest.mark.parametrize("scene", _CUDA_SCENES, indirect=True)
+@pytest.mark.parametrize(
+    "tensor_type",
+    [
+        TT.RIGID_BODY_POSE,
+        TT.RIGID_BODY_VELOCITY,
+        TT.RIGID_BODY_ACCELERATION,
+        TT.LINK_POSE,
+        TT.LINK_VELOCITY,
+    ],
+)
+def test_session_reads_match_bindings(scene: _RigidScene, tensor_type: int) -> None:
+    """A session read fills ``read_into`` with the binding's values in the binding's row order."""
+    for _ in range(3):
+        scene.sim.step()
+    # A collection reads LINK_* through its RIGID_BODY_* binding; the cuboid pairs read the rigid-body types.
+    served = {TT.LINK_POSE: TT.RIGID_BODY_POSE, TT.LINK_VELOCITY: TT.RIGID_BODY_VELOCITY}.get(tensor_type)
+    owners = (scene.fused, scene.stepped) if served else (scene.dynamic, scene.kinematic, scene.spinning)
+    for owner in owners:
+        view = owner.root_view
+        binding = view.binding_for(tensor_type)
+        # The binding's own read is the reference; get_attribute would run (and register) a session read.
+        native = view._native_device(view._resolve(tensor_type))
+        expected = wp.zeros(tuple(binding.shape), dtype=wp.float32, device=native)
+        binding.read(view._read_view(expected, binding))
+        replayed = wp.zeros_like(expected)
+        view.read_into(tensor_type, replayed)  # captures the plan
+        replayed.fill_(-1.0)
+        # Only the captured plan serves the second read: no binding read, no new capture.
+        with (
+            patch.object(type(binding), "read", side_effect=AssertionError(_REPLAY_ONLY)),
+            patch.object(OvPhysxSessionReads, "_capture", side_effect=AssertionError(_REPLAY_ONLY)),
+            patch.object(wp, "capture_launch", wraps=wp.capture_launch) as launch,
+        ):
+            view.read_into(tensor_type, replayed)
+        assert launch.call_count == 1, _REPLAY_ONLY
+        torch.testing.assert_close(wp.to_torch(replayed), wp.to_torch(expected), atol=0.0, rtol=0.0)
+
+
+@pytest.mark.parametrize("scene", _CUDA_SCENES, indirect=True)
+@pytest.mark.parametrize("null_stream", [False, True], ids=["stream", "null_stream"])
+def test_session_read_replays_on_the_callers_stream(scene: _RigidScene, null_stream: bool) -> None:
+    """A replay runs on the caller's current Warp stream, so work queued there after the read sees the values."""
+    view = scene.dynamic.root_view
+    binding = view.binding_for(TT.RIGID_BODY_POSE)
+    device = view._native_device(view._resolve(TT.RIGID_BODY_POSE))
+    expected = wp.zeros(tuple(binding.shape), dtype=wp.float32, device=device)
+    binding.read(view._read_view(expected, binding))
+    replayed = wp.zeros_like(expected)
+    view.read_into(TT.RIGID_BODY_POSE, replayed)  # captures the plan
+    replayed.fill_(-1.0)
+    wp.synchronize_device(device)
+    stream = wp.get_device(device).null_stream if null_stream else wp.Stream(device)
+    with wp.ScopedStream(stream), patch.object(wp, "capture_launch", wraps=wp.capture_launch) as launch:
+        view.read_into(TT.RIGID_BODY_POSE, replayed)
+    assert launch.call_args.kwargs["stream"] is stream
+    wp.synchronize_device(device)
+    torch.testing.assert_close(wp.to_torch(replayed), wp.to_torch(expected), atol=0.0, rtol=0.0)
+
+
+@pytest.mark.parametrize("scene", _CUDA_SCENES, indirect=True)
+def test_invalidated_session_reads_capture_again(scene: _RigidScene) -> None:
+    """``invalidate_session_reads`` releases every captured plan; the next read captures again and still matches."""
+    view = scene.dynamic.root_view
+    binding = view.binding_for(TT.RIGID_BODY_POSE)
+    device = view._native_device(view._resolve(TT.RIGID_BODY_POSE))
+    replayed = wp.zeros(tuple(binding.shape), dtype=wp.float32, device=device)
+    view.read_into(TT.RIGID_BODY_POSE, replayed)
+    reads = OvPhysxSessionReads.for_physx(scene.dynamic._ovphysx)
+    scene.sim.backend_manager.invalidate_session_reads()
+    assert not reads._plans
+    view.read_into(TT.RIGID_BODY_POSE, replayed)
+    assert any(key[:2] == (id(view), TT.RIGID_BODY_POSE) for key in reads._plans)
+    expected = wp.zeros_like(replayed)
+    binding.read(view._read_view(expected, binding))
+    torch.testing.assert_close(wp.to_torch(replayed), wp.to_torch(expected), atol=0.0, rtol=0.0)
 
 
 @pytest.mark.parametrize("scene", _CUDA_SCENES, indirect=True)

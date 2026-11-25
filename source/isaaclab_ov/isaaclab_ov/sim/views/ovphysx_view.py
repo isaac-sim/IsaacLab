@@ -57,6 +57,8 @@ from isaaclab import cloner
 from isaaclab_ov._clone import ordered_clone_paths
 from isaaclab_ov.tensor_types import _CPU_ONLY_TYPES
 
+from .ovphysx_session_reads import READS, OvPhysxSessionReads
+
 logger = logging.getLogger(__name__)
 
 
@@ -385,6 +387,12 @@ class OvPhysxView:
             return
         self._closed = True
 
+        reads = OvPhysxSessionReads.for_physx(self._physx)
+        if reads is not None:
+            try:
+                reads.release(self)
+            except Exception:
+                logger.warning("Failed to release OVPhysX session reads during shutdown.", exc_info=True)
         for binding in self._bindings.values():
             try:
                 binding.destroy()
@@ -430,7 +438,7 @@ class OvPhysxView:
         device = self._native_device(tt)
         if out is not None:
             self._check_device(out, device, tensor_type_name(tt), "destination")
-            binding.read(self._read_view(out, binding))
+            self.read_into(tt, out)
             return out
         alloc_shape, dtype = self._attribute_dtype(tt, binding)
         buf = wp.zeros(alloc_shape, dtype=dtype, device=device)
@@ -452,6 +460,14 @@ class OvPhysxView:
         object-identity read cache stays warm -- callers can pass the structured buffer
         directly each step without maintaining their own reinterpret cache.
 
+        On a CUDA simulation, the simulation state in
+        :data:`~isaaclab_ov.sim.views.ovphysx_session_reads.READS` replays a captured ovphysx session read into ``dst``
+        on the caller's current Warp stream and returns without waiting for the GPU; work queued after the call on
+        that stream sees the values, and work on another non-blocking stream must first wait for that stream, as
+        for any asynchronous Warp launch. Each destination captures its own graph on its first read, so pass a buffer
+        kept across calls; for a one-off read, call :meth:`get_attribute` without ``out``. Every other read, and every
+        read of a CPU simulation, reads the binding.
+
         Args:
             name: Lowercased ``TensorType`` name or the member itself.
             dst: Caller-owned buffer on the binding's native device whose element count
@@ -466,7 +482,15 @@ class OvPhysxView:
         tt = self._resolve(name)
         binding = self._binding(tt)
         self._check_device(dst, self._native_device(tt), tensor_type_name(tt), "destination")
-        binding.read(self._read_view(dst, binding))
+        view = self._read_view(dst, binding)
+        # A collection key reads the type its binding was created as, in that binding's layout. Every other type
+        # reads its binding with no further lookup, as before the session reads.
+        key = self._key_aliases.get(tt, tt)
+        if key in READS:
+            reads = OvPhysxSessionReads.for_physx(self._physx)
+            if reads is not None and reads.read_into(self, key, binding, view):
+                return
+        binding.read(view)
 
     def set_attribute(
         self,

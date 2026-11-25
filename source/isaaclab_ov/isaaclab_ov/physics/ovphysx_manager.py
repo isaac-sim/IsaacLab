@@ -27,9 +27,9 @@ import numpy as np
 import ovphysx
 import ovstage
 import warp as wp
-from ovphysx.types import CompiledStageCacheMode, GlobalConfigKey
+from ovphysx.types import CompiledStageCacheMode, GlobalConfigKey, TensorType
 
-from pxr import Plug, Sdf, Usd, UsdPhysics
+from pxr import Plug, Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
@@ -46,6 +46,7 @@ from isaaclab.utils.buffers import TimestampedBuffer
 from isaaclab_ov._clone import CloneRecipe, clone_transforms_from_positions
 from isaaclab_ov.cloner import OvPhysxReplicateContext
 from isaaclab_ov.cloner.replicate import _serialize_stage
+from isaaclab_ov.sim.views.ovphysx_session_reads import OvPhysxSessionReads
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
 from isaaclab_ov.stage import OvstageBackend, OvstageBackendCfg
 
@@ -178,7 +179,14 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
                     for group in bodies.groups:
                         body_paths.extend(bodies.dictionary.get_path_strings(group.prim_list))
             if body_paths:
-                backend.rigid_body_view = backend.physx.create_tensor_binding(prim_paths=body_paths)
+                # The poses publish through the view's session reads; the binding gives the rows and their order.
+                backend.rigid_body_view = OvPhysxView(
+                    backend.physx,
+                    prim_paths=body_paths,
+                    device=device,
+                    tensor_types=[TensorType.RIGID_BODY_POSE],
+                    eager=True,
+                )
             self.setup(backend, device, entries)
             self._pending_setup = None
 
@@ -301,12 +309,16 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
 
     @property
     def transforms(self) -> SceneDataFormat.Transform:
-        """Publish native rigid-body poses [m, xyzw]."""
+        """Publish native rigid-body poses [m, xyzw].
+
+        On CUDA the poses are filled on the stream of the call that refreshed them this frame; a reader on another
+        non-blocking stream waits for that stream first.
+        """
         self._ensure_setup()
         if self._transforms.timestamp != self.transforms_timestamp:
             self._manager.pre_render()
             if self._transforms.data.transforms is not None:
-                self.backend.rigid_body_view.read(self._transforms.data.transforms)
+                self.backend.rigid_body_view.read_into(TensorType.RIGID_BODY_POSE, self._transforms.data.transforms)
             self._transforms.timestamp = self.transforms_timestamp
         return self._transforms.data
 
@@ -341,6 +353,9 @@ class OvPhysxBackend:
         self.owns_scene = scene is None
         self.stage: Any = None
         self.rigid_body_view: Any = None
+        self.session_reads: OvPhysxSessionReads | None = None
+        """Session reads behind :meth:`OvPhysxView.read_into`; ``None`` before a stage attaches or on a CPU scene."""
+        self._device = cfg.device
 
     def load(self, stage_usda: str, *, disable_compiled_stage_cache: bool = False) -> None:
         """Replace the attached scene after draining its native bindings.
@@ -351,9 +366,10 @@ class OvPhysxBackend:
         """
         if self.stage is not None:
             if self.rigid_body_view is not None:
-                self.rigid_body_view.destroy()
+                self.rigid_body_view.close()
                 self.rigid_body_view = None
             OvPhysxView._close_all_for(self.physx)
+            self._close_session_reads()
             self.physx.wait_task(self.physx.detach_ovstage())
             self.scene.reset()
             self.stage = None
@@ -372,6 +388,8 @@ class OvPhysxBackend:
                 self.scene.close()
                 self.scene = None
             raise
+        if wp.get_device(self._device).is_cuda:  # a CPU scene reads its bindings
+            self.session_reads = OvPhysxSessionReads(self.physx, self.stage, self._device)
 
     def close(self) -> None:
         """Release bindings, the runtime, and its stage in native teardown order."""
@@ -387,9 +405,10 @@ class OvPhysxBackend:
         try:
             try:
                 if self.rigid_body_view is not None:
-                    self.rigid_body_view.destroy()
+                    self.rigid_body_view.close()
                     self.rigid_body_view = None
                 OvPhysxView._close_all_for(physx)
+                self._close_session_reads()
             finally:
                 try:
                     physx.wait_task(physx.detach_ovstage())
@@ -413,6 +432,14 @@ class OvPhysxBackend:
                 if self.owns_scene and self.scene is not None:
                     self.scene.close()
                 self.stage = None
+
+    def _close_session_reads(self) -> None:
+        """Release the captured reads after their views and before the stage detaches."""
+        if self.session_reads is not None:
+            try:
+                self.session_reads.close()
+            finally:
+                self.session_reads = None
 
 
 class _OvPhysxEvent(Enum):
@@ -441,6 +468,8 @@ class OvPhysxManager(PhysicsManager):
         self.backend: OvPhysxBackend | None = None
         """Native resource borrowed from the context registry after warmup."""
         self._stage_usda: str | None = None
+        self._loaded_stage: Usd.Stage | None = None
+        """:attr:`_stage_usda` parsed, on demand, for :meth:`_loaded_world_transforms`."""
         self._warmup_done: bool = False
         self._requires_full_stage: bool = False
         self._clone_recipes: list[CloneRecipe] = []
@@ -563,6 +592,7 @@ class OvPhysxManager(PhysicsManager):
         self._warmup_done = False
         self._requires_full_stage = False
         self._stage_usda = None
+        self._loaded_stage = None
         self._clone_recipes = []
         # SimulationContext retains this backend; native bindings remain deferred until the first SDP read.
         self._scene_data_backend = OvPhysxSceneDataBackend(self)
@@ -609,14 +639,32 @@ class OvPhysxManager(PhysicsManager):
         if not self.kinematics_dirty:
             return
         if self.backend is not None and self.backend.physx is not None:
-            self.backend.physx.update_articulations_kinematic()
+            reads = self.backend.session_reads
+            if reads is None:
+                self.backend.physx.update_articulations_kinematic()
+            else:
+                # Link-pose replays read the refreshed poses on this stream (ovphysx device guide).
+                self.backend.physx.update_articulations_kinematic(cuda_stream=int(reads.stream.cuda_stream or 0))
             self.kinematics_dirty = False
+
+    def invalidate_session_reads(self) -> None:
+        """Wait for every OvPhysX session read in flight and capture each again on its next call.
+
+        Call it before a structural edit made through the native ``PhysX`` handle, such as a rigid body enabled or
+        disabled or prims added or removed, and read again only after the edit: OvPhysX does not report such an edit,
+        and a replay in flight, or one captured before the edit, may read wrong rows or freed memory. Close and
+        recreate a view whose prims the edit disables, removes or replaces: its bindings no longer apply.
+        """
+        if self.backend is not None and self.backend.session_reads is not None:
+            self.backend.session_reads.invalidate()
 
     def step(self) -> None:
         """Step the simulation by one physics timestep."""
         if self.backend is None or self.backend.physx is None:
             return
         dt = self.get_physics_dt()
+        if self.backend.session_reads is not None:
+            self.backend.session_reads.wait()  # ovphysx forbids stepping while a captured read replays
         self.backend.physx.step_sync(dt=dt)
         self.kinematics_dirty = True
         self.update_kinematics()
@@ -648,6 +696,7 @@ class OvPhysxManager(PhysicsManager):
                         self._atexit_registered = False
             finally:
                 self._stage_usda = None
+                self._loaded_stage = None
                 self._gravity_stage = None
                 self._warmup_done = False
                 self._requires_full_stage = False
@@ -786,6 +835,7 @@ class OvPhysxManager(PhysicsManager):
             preserve_physics_ancestors=shared_scene is not None,
         )
         self._stage_usda = stage_usda
+        self._loaded_stage = None
 
         self.backend = sim.get_or_create_backend(
             OvPhysxBackendCfg(
@@ -798,6 +848,11 @@ class OvPhysxManager(PhysicsManager):
             atexit.register(self._close_at_exit)
             self._atexit_registered = True
         self.backend.load(stage_usda, disable_compiled_stage_cache=self._cfg.disable_compiled_stage_cache)
+        if self.backend.session_reads is not None:
+            # Session reads of Jacobians and mass matrices do not refresh kinematics themselves, as binding reads did.
+            self.backend.session_reads.refresh_kinematics = self.update_kinematics
+            # Session reads report deformable points in the sim-mesh frame; the stage just loaded holds those frames.
+            self.backend.session_reads.world_transforms = self._loaded_world_transforms
         logger.info("OvPhysxManager: attached OVStage to ovphysx (device=%s)", ovphysx_device)
 
         for source, targets, transforms, env_ids, _ in native_clones:
@@ -821,6 +876,29 @@ class OvPhysxManager(PhysicsManager):
             self._scene_data_backend._ensure_setup()
             shared_scene.complete_render_copies()
         self._warmup_done = True
+
+    def _loaded_world_transforms(self, paths: list[str]) -> np.ndarray:
+        """World transform of each prim on the stage ovphysx loaded, as column-vector float32 4x4 matrices [m].
+
+        The serialized stage is parsed on the first call and kept until the next load.
+
+        Raises:
+            ValueError: If a prim is not on the loaded stage.
+        """
+        # 1. Parse the stage ovphysx loaded, once per load.
+        if self._loaded_stage is None:
+            layer = Sdf.Layer.CreateAnonymous(".usda")
+            layer.ImportFromString(self._stage_usda)
+            self._loaded_stage = Usd.Stage.Open(layer)
+        # 2. Each prim's local-to-world, as column vectors.
+        cache = UsdGeom.XformCache()
+        frames = np.empty((len(paths), 4, 4), dtype=np.float32)
+        for row, path in enumerate(paths):
+            prim = self._loaded_stage.GetPrimAtPath(path)
+            if not prim.IsValid():
+                raise ValueError(f"{path} is not on the stage ovphysx loaded.")
+            frames[row] = np.array(cache.GetLocalToWorldTransform(prim)).T  # USD matrices act on row vectors
+        return frames
 
     def _close_at_exit(self) -> None:
         """Release a live OVPhysX runtime without leaking an atexit exception."""
