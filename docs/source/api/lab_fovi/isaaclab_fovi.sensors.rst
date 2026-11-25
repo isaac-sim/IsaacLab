@@ -11,6 +11,7 @@ isaaclab_fovi.sensors
     FoveatedCameraCfg
     FoveatedNewtonCamera
     FoveatedRTXCamera
+    ViewerGazeControls
 
 
 Foveated Camera
@@ -39,3 +40,12 @@ Constructing :class:`FoveatedCamera` returns one of the following implementation
 .. autoclass:: FoveatedRTXCamera
     :members:
     :show-inheritance:
+
+Viewer Controls
+---------------
+
+Each foveated camera adds these controls to every Newton viewer window, below the Camera Source selector while it
+is the window's camera source.
+
+.. autoclass:: ViewerGazeControls
+    :members: cmf_a_values

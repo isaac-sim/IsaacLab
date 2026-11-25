@@ -15,6 +15,7 @@ import math
 import subprocess
 import sys
 import threading
+import time
 from contextlib import contextmanager
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
@@ -790,6 +791,7 @@ def test_session_delegates_lifecycle_to_isaacteleop_owner(xr_module, monkeypatch
     class FakeOwner:
         shutdown_requested = False
         retirement_complete = False
+        render_worker_bootstrap_ready = True
 
         def __init__(self, host, config, **kwargs):
             calls.append(("init", host, config, kwargs))
@@ -1591,9 +1593,12 @@ def test_close_waits_for_a_render_worker_that_is_still_attaching(xr_module, monk
     # Run Capture's real session owner and worker; only its native frame pump is replaced.
     monkeypatch.setattr(external, "OvxrFramePump", lambda *_args, **_kwargs: Pump())
     monkeypatch.setattr(external, "_WORKER_SHUTDOWN_TIMEOUT_SECONDS", 0.05)
+    monkeypatch.setattr(xr_module, "_STARTUP_STATUS_INTERVAL_S", 0.002)
+    monkeypatch.setattr(xr_module, "_STARTUP_STATUS_POLL_S", 0.001)
     session = xr_module.OvLibrariesXrSession(_FakeBootstrap(), xr_module.OvLibrariesXrCfg(create_render_products=False))
-    with pytest.raises(TimeoutError, match="did not become ready"):
-        session.start_render_worker(SimpleNamespace(), timeout_s=0.05)
+    with caplog.at_level(logging.INFO, logger=xr_module.logger.name):
+        with pytest.raises(TimeoutError, match="did not become ready"):
+            session.start_render_worker(SimpleNamespace(), timeout_s=0.05)
     # The attachment ends only after several of Capture's joins have expired.
     release = threading.Timer(0.3, attach_may_finish.set)
     release.start()
@@ -1610,6 +1615,96 @@ def test_close_waits_for_a_render_worker_that_is_still_attaching(xr_module, monk
         "The OVXR render worker is still attaching the scene, which cannot be interrupted;"
         " waiting for it to finish before the simulation closes."
     ) == 1
+    # The wait logged progress, never readiness, and left no reporter thread behind.
+    progress = _startup_status_lines(caplog)
+    assert progress
+    assert all(line.startswith("Still preparing the OVXR renderer") for line in progress)
+    assert not _startup_status_thread_alive()
+
+
+def _wait_until(condition, timeout_s: float = 5.0) -> None:
+    deadline_s = time.monotonic() + timeout_s
+    while not condition():
+        assert time.monotonic() < deadline_s, "condition not met in time"
+        time.sleep(0.005)
+
+
+def _startup_status_lines(caplog) -> list[str]:
+    return [record.getMessage() for record in caplog.records if record.levelno == logging.INFO]
+
+
+def _startup_status_thread_alive() -> bool:
+    return any(thread.name == "ovxr-startup-status" for thread in threading.enumerate())
+
+
+def _start_with_owner(xr_module, monkeypatch, start, *, poll_s: float = 0.001):
+    """Run ``start_render_worker`` against an Isaac Capture owner whose ``start`` is ``start(owner)``."""
+    external = importlib.import_module("isaaccapture.ovxr_session_manager.ovxr_session")
+    owner = SimpleNamespace(render_worker_bootstrap_ready=False)
+    owner.start = lambda timeout_s: start(owner)
+    monkeypatch.setattr(external, "OvxrSession", lambda *_args, **_kwargs: owner)
+    monkeypatch.setattr(xr_module, "_STARTUP_STATUS_INTERVAL_S", 0.005)
+    monkeypatch.setattr(xr_module, "_STARTUP_STATUS_POLL_S", poll_s)
+    session = xr_module.OvLibrariesXrSession(_FakeBootstrap(), xr_module.OvLibrariesXrCfg(create_render_products=False))
+    return session.start_render_worker(SimpleNamespace(), timeout_s=1.0)
+
+
+def test_start_render_worker_logs_progress_then_one_ready_line(xr_module, monkeypatch, caplog) -> None:
+    """Progress repeats while the worker attaches; once it is ready, one ready line follows and nothing else."""
+
+    def start(owner) -> bool:
+        _wait_until(lambda: len(_startup_status_lines(caplog)) >= 2)
+        owner.render_worker_bootstrap_ready = True
+        # Capture keeps the caller waiting after attachment, for example while CloudXR starts.
+        _wait_until(lambda: any(line.startswith("OVXR renderer ready") for line in _startup_status_lines(caplog)))
+        lines_at_ready = len(_startup_status_lines(caplog))
+        time.sleep(0.05)
+        assert len(_startup_status_lines(caplog)) == lines_at_ready
+        return True
+
+    with caplog.at_level(logging.INFO, logger=xr_module.logger.name):
+        assert _start_with_owner(xr_module, monkeypatch, start)
+    lines = _startup_status_lines(caplog)
+    assert len(lines) >= 3
+    assert all(line.startswith("Still preparing the OVXR renderer") for line in lines[:-1])
+    assert lines[-1].startswith("OVXR renderer ready after ")
+    assert not _startup_status_thread_alive()
+
+
+def test_start_render_worker_logs_readiness_when_start_returns_between_polls(xr_module, monkeypatch, caplog) -> None:
+    """A start that completes before the next poll still reports readiness, once."""
+
+    def start(owner) -> bool:
+        owner.render_worker_bootstrap_ready = True
+        return True
+
+    with caplog.at_level(logging.INFO, logger=xr_module.logger.name):
+        assert _start_with_owner(xr_module, monkeypatch, start, poll_s=60.0)
+    lines = _startup_status_lines(caplog)
+    assert len(lines) == 1
+    assert lines[0].startswith("OVXR renderer ready after ")
+    assert not _startup_status_thread_alive()
+
+
+@pytest.mark.parametrize("outcome", ["fails", "shuts_down"])
+def test_start_render_worker_reports_no_readiness_when_the_wait_ends_unready(
+    xr_module, monkeypatch, caplog, outcome
+) -> None:
+    """A failed start or a shutdown during start-up reports no readiness and leaves no reporter thread."""
+
+    def start(_owner) -> bool:
+        if outcome == "fails":
+            raise RuntimeError("worker failed")
+        return False
+
+    with caplog.at_level(logging.INFO, logger=xr_module.logger.name):
+        if outcome == "fails":
+            with pytest.raises(RuntimeError, match="worker failed"):
+                _start_with_owner(xr_module, monkeypatch, start)
+        else:
+            assert _start_with_owner(xr_module, monkeypatch, start) is False
+    assert not any(line.startswith("OVXR renderer ready") for line in _startup_status_lines(caplog))
+    assert not _startup_status_thread_alive()
 
 
 @pytest.mark.parametrize("bootstrap_ready", [True, False])
