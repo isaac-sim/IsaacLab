@@ -5,11 +5,23 @@
 
 """Evaluate pi0.5 DROID joint-position actions on sampled tabletop pick/place tasks.
 
-Start a pi05_droid_jointpos server supporting RoboLab's ``robolab_batch`` extension to openpi's
-WebSocket protocol, then run::
+With Isaac Lab installed, run (Linux with an NVIDIA GPU, git and uv)::
 
     uv run --with msgpack python scripts/large_models/pi05_evaluate.py \\
-        --policy localhost:18013 --num_envs 8 --trials 32 --output logs/pi05/tabletop --viz none
+        --num_envs 8 --trials 32 --output logs/pi05/tabletop --viz none
+
+The first run fetches a pinned OpenPI checkout, prepares its Python 3.11 environment and
+downloads the 12.4 GB checkpoint ``gs://openpi-assets-simeval/pi05_droid_jointpos`` anonymously.
+Later runs reuse the caches. No OpenPI installation, Google login or separate server command is
+needed. Setup and model loading can take several minutes. OpenPI runs in a child process and is
+stopped on exit. By default it uses the first visible GPU without JAX preallocation.
+``--policy-device 1`` selects another GPU using CUDA's device identifiers. Model inference and rendering
+must both fit in GPU memory.
+
+``--checkpoint /path/to/pi05_droid_jointpos`` reuses an existing checkpoint. ``--policy HOST:PORT``
+connects to an existing standard OpenPI joint-position server instead and skips all local setup.
+OpenPI source/environment live under ``~/.cache/isaaclab/pi05`` (``--policy-cache``); weights and the
+tokenizer use OpenPI's ``~/.cache/openpi`` cache (``OPENPI_DATA_HOME`` overrides it).
 
 ``--trials`` counts trials per task family across the whole run. Any idle world takes the next trial,
 requests its global family ID and resets to a fresh category composition, object count and table.
@@ -18,17 +30,22 @@ families; otherwise both registered families are evaluated. Ordinary task overri
 flags, for example ``env.episode_length_s=10``. The policy must output absolute arm joint positions
 and gripper closure in [0, 1]; the standard velocity-action DROID checkpoint is incompatible.
 
-All active worlds share one policy query per action chunk. A world that ends mid-chunk discards its
-remaining actions and holds its reset pose until the next query. Every success or timeout is counted,
-including one-step episodes. ``episodes.jsonl`` is flushed per trial and ``result.json`` is saved
-periodically and on exit. Policy inference is external; this script downloads no model weights.
+Each active world gets one standard OpenPI request per action chunk (serial inference). A world
+that ends mid-chunk discards its remaining actions and holds its reset pose until the next query.
+Every success or timeout is counted, including one-step episodes. ``episodes.jsonl`` is flushed per
+trial and ``result.json`` is saved periodically and on exit.
 """
 
 import argparse
 import json
+import os
+import signal
+import socket as socket_module
+import subprocess
 import time
 from collections import Counter, deque
-from contextlib import closing
+from contextlib import closing, contextmanager
+from datetime import datetime
 from pathlib import Path
 
 import warp as wp
@@ -37,11 +54,16 @@ wp.config.enable_backward = False
 
 from isaaclab.app import add_launcher_args, launch_simulation  # noqa: E402
 
-parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
 parser.add_argument("--task", default="IsaacContrib-TableTop-PickPlace-Franka")
 parser.add_argument("--num_envs", type=int, default=8)
-parser.add_argument("--policy", required=True, metavar="HOST:PORT", help="Batched pi05_droid_jointpos policy server.")
-parser.add_argument("--output", required=True, type=Path, help="New directory for reports.")
+parser.add_argument("--policy", metavar="HOST:PORT", help="Existing standard OpenPI server; default: start locally.")
+parser.add_argument("--checkpoint", default="gs://openpi-assets-simeval/pi05_droid_jointpos", help="Checkpoint.")
+parser.add_argument("--policy-cache", type=Path, default=Path.home() / ".cache/isaaclab/pi05")
+parser.add_argument("--policy-device", help="Inference GPU(s); default: inherit CUDA_VISIBLE_DEVICES.")
+parser.add_argument(
+    "--output", type=Path, default=Path("logs/pi05") / datetime.now().strftime("%Y%m%d_%H%M%S"), help="Reports."
+)
 parser.add_argument("--tasks", nargs="+", metavar="FAMILY", help="Task families; default: all declared families.")
 parser.add_argument("--trials", type=int, default=32, help="Trials per family across all environments.")
 parser.add_argument("--horizon", type=int, default=15, help="Control steps executed per policy query.")
@@ -66,6 +88,71 @@ from isaaclab_tasks.utils import parse_env_cfg  # noqa: E402
 
 CAMERAS = ("over_shoulder_left_camera", "wrist_cam")
 POLICY_IMAGE_SIZE = 224
+OPENPI_REVISION = "215abfb217dbac7d5f1273282331b9b1866c0479"
+
+
+@contextmanager
+def policy_connection():
+    """Own local OpenPI setup and process lifetime, or borrow an external server."""
+    if args.policy:
+        with connect(f"ws://{args.policy}", compression=None, max_size=None, open_timeout=60) as connection:
+            yield connection
+        return
+
+    # OpenPI's JAX/Python requirements belong to its own environment, never Isaac Lab's.
+    environment = os.environ.copy()
+    for name in ("UV_PROJECT_ENVIRONMENT", "VIRTUAL_ENV", "PYTHONPATH", "PYTHONHOME", "GIT_DIR", "GIT_WORK_TREE"):
+        environment.pop(name, None)
+    environment["GIT_LFS_SKIP_SMUDGE"] = "1"
+    environment["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
+    if args.policy_device is not None:
+        environment["CUDA_VISIBLE_DEVICES"] = args.policy_device
+    checkout = args.policy_cache.expanduser().resolve() / f"openpi-{OPENPI_REVISION}"
+    checkout.mkdir(parents=True, exist_ok=True)
+    if not (checkout / ".git").exists():
+        subprocess.run(["git", "init", str(checkout)], env=environment, check=True)
+    git = ["git", "-C", str(checkout)]
+    revision = subprocess.run(git + ["rev-parse", "HEAD"], env=environment, capture_output=True, text=True)
+    if revision.returncode or revision.stdout.strip() != OPENPI_REVISION:
+        print(f"Fetching OpenPI {OPENPI_REVISION} into {checkout}", flush=True)
+        subprocess.run(
+            git + ["fetch", "--depth=1", "https://github.com/Physical-Intelligence/openpi.git", OPENPI_REVISION],
+            env=environment,
+            check=True,
+        )
+        subprocess.run(git + ["checkout", "--detach", OPENPI_REVISION], env=environment, check=True)
+
+    with socket_module.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        port = listener.getsockname()[1]
+    command = ["uv", "run", "--frozen", "--no-dev", "--python", "3.11", "--project", str(checkout)]
+    command += ["python", str(Path(__file__).with_name("pi05_serve.py").resolve()), "--port", str(port)]
+    command += ["--checkpoint", args.checkpoint]
+    print("Preparing OpenPI and loading pi0.5; the first run downloads dependencies and weights.", flush=True)
+    process = subprocess.Popen(command, env=environment, start_new_session=True)
+    try:
+        deadline = time.monotonic() + 3600
+        while True:
+            if process.poll() is not None:
+                raise RuntimeError(f"OpenPI exited with status {process.returncode}; see its output above.")
+            try:
+                connection = connect(f"ws://127.0.0.1:{port}", compression=None, max_size=None, open_timeout=5)
+                break
+            except OSError:
+                if time.monotonic() >= deadline:
+                    raise TimeoutError("Local OpenPI setup did not finish within one hour.") from None
+                time.sleep(1)
+        with connection:
+            yield connection
+    finally:
+        # Include uv's Python child so interrupted setup/inference cannot leave a GPU process behind.
+        if process.poll() is None:
+            os.killpg(process.pid, signal.SIGTERM)
+            try:
+                process.wait(timeout=15)
+            except subprocess.TimeoutExpired:
+                os.killpg(process.pid, signal.SIGKILL)
+                process.wait()
 
 
 def resize_with_pad(image: np.ndarray) -> np.ndarray:
@@ -102,39 +189,30 @@ def query_policy(socket, observation: dict, trials: dict[int, dict], device: str
     images = [observation[name][slots].cpu().numpy() for name in CAMERAS]
     arm = observation["arm_joint_pos"][slots].cpu().numpy().astype(np.float32)
     gripper = observation["gripper_pos"][slots].cpu().numpy().astype(np.float32)
-    requests = []
+    chunks = []
     for row, trial in enumerate(trials.values()):
-        requests.append(
-            {
-                "observation/exterior_image_1_left": resize_with_pad(images[0][row]),
-                "observation/wrist_image_left": resize_with_pad(images[1][row]),
-                "observation/joint_position": arm[row],
-                "observation/gripper_position": gripper[row],
-                "prompt": trial["instruction"],
-                "benchmark_key": {
-                    "run_seed": args.seed,
-                    "task_name": trial["family"],
-                    "episode_idx": trial["trial"],
-                    "chunk_idx": trial["queries"],
-                },
-                "benchmark_group": "validate",
-            }
-        )
+        request = {
+            "observation/exterior_image_1_left": resize_with_pad(images[0][row]),
+            "observation/wrist_image_left": resize_with_pad(images[1][row]),
+            "observation/joint_position": arm[row],
+            "observation/gripper_position": gripper[row],
+            "prompt": trial["instruction"],
+        }
         trial["queries"] += 1
-    socket.send(msgpack.packb({"robolab_batch": requests}, default=pack_array))
-    response = socket.recv(timeout=600)
-    if isinstance(response, str):
-        raise RuntimeError(f"Policy server: {response}")
-    actions = np.asarray(msgpack.unpackb(response, object_hook=unpack_array)["actions"], dtype=np.float32)
-    if (
-        actions.ndim != 3
-        or actions.shape[0] != len(slots)
-        or actions.shape[1] < args.horizon
-        or actions.shape[2] != 8
-        or not np.isfinite(actions).all()
-    ):
-        raise ValueError(f"Expected finite ({len(slots)}, >= {args.horizon}, 8) policy actions, got {actions.shape}.")
-    return torch.tensor(actions[:, : args.horizon], device=device)
+        socket.send(msgpack.packb(request, default=pack_array))
+        response = socket.recv(timeout=600)
+        if isinstance(response, str):
+            raise RuntimeError(f"Policy server: {response}")
+        actions = np.asarray(msgpack.unpackb(response, object_hook=unpack_array)["actions"], dtype=np.float32)
+        if (
+            actions.ndim != 2
+            or actions.shape[0] < args.horizon
+            or actions.shape[1] != 8
+            or not np.isfinite(actions).all()
+        ):
+            raise ValueError(f"Expected finite (>= {args.horizon}, 8) policy actions, got {actions.shape}.")
+        chunks.append(actions[: args.horizon])
+    return torch.tensor(np.stack(chunks), device=device)
 
 
 def evaluate(env, socket, report: dict, save) -> None:
@@ -172,7 +250,7 @@ def evaluate(env, socket, report: dict, save) -> None:
             before_query = time.perf_counter()
             chunks = query_policy(socket, observation["policy"], active, env.device)
             report["policy_seconds"] += time.perf_counter() - before_query
-            report["policy_queries"] += 1
+            report["policy_queries"] += len(active)
             rows = {slot: row for row, slot in enumerate(slots)}
             for offset in range(args.horizon):
                 if not active:
@@ -230,7 +308,7 @@ def evaluate(env, socket, report: dict, save) -> None:
 
 
 def main() -> None:
-    """Resolve the registered scene, connect the external policy, then evaluate and save results."""
+    """Resolve the registered scene, prepare inference, then evaluate and save results."""
     cfg = parse_env_cfg(args.task, device=args.device, num_envs=args.num_envs, overrides=overrides)
     cfg.seed = args.seed
     if unknown := set(args.tasks or ()) - set(cfg.tasks):
@@ -239,6 +317,7 @@ def main() -> None:
     cfg.scene.over_shoulder_left_camera = cfg.scene.over_shoulder_left_camera.replace(update_period=camera_period)
     cfg.scene.wrist_cam = cfg.scene.wrist_cam.replace(update_period=camera_period)
     args.output.mkdir(parents=True, exist_ok=False)
+    print(f"Saving evaluation reports to {args.output.resolve()}", flush=True)
     started = time.perf_counter()
     report = {
         "phase": "initializing",
@@ -263,7 +342,7 @@ def main() -> None:
         temporary.replace(args.output / "result.json")
 
     try:
-        with connect(f"ws://{args.policy}", compression=None, max_size=None, open_timeout=60) as socket:
+        with policy_connection() as socket:
             metadata = msgpack.unpackb(socket.recv(timeout=180), object_hook=unpack_array)
             if metadata.get("action_space") not in (None, "absolute_joint_position"):
                 raise ValueError(f"The policy must return absolute joint positions; server reports {metadata}.")
