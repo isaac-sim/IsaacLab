@@ -11,7 +11,7 @@ import csv
 import hashlib
 import json
 import os
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 
 import numpy as np
@@ -201,8 +201,49 @@ class MotionLoader:
     ``sha256``. Loaded quaternions use Isaac Lab's XYZW convention.
     """
 
-    def __init__(self, motion_file: str, body_names: Sequence[str], joint_names: Sequence[str], device: str):
-        path = Path(retrieve_file_path(motion_file))
+    def __init__(
+        self,
+        motion_file: str,
+        body_names: Sequence[str],
+        joint_names: Sequence[str],
+        device: str,
+        *,
+        forward_kinematics: Callable | None = None,
+        source_fps: float = 30.0,
+        target_fps: float = 50.0,
+        csv: CsvMotionCfg | None = None,
+    ):
+        path = Path(motion_file)
+        if not path.is_dir():
+            path = Path(retrieve_file_path(motion_file))
+        pose_only = path.is_dir() or path.suffix != ".npz"
+        if not pose_only:
+            with np.load(path, allow_pickle=False) as data:
+                pose_only = "body_pos_w" not in data
+        if pose_only:
+            if forward_kinematics is None:
+                raise ValueError("Root/joint reference inputs require a forward_kinematics callback.")
+            motion = MotionLibrary(
+                str(path), joint_names, source_fps=source_fps, target_fps=target_fps, csv=csv, device=device
+            )
+            self.__dict__.update(vars(motion))
+            self.fps = target_fps
+            state = (
+                motion.root_pos_w,
+                motion.root_quat_w,
+                motion.root_lin_vel_w,
+                motion.root_ang_vel_w,
+                motion.joint_pos,
+                motion.joint_vel,
+            )
+            with torch.no_grad():
+                chunks = [
+                    forward_kinematics(tuple(value[i : i + 4096] for value in state))
+                    for i in range(0, motion.time_step_total, 4096)
+                ]
+            for name, values in zip(("body_pos_w", "body_quat_w", "body_lin_vel_w", "body_ang_vel_w"), zip(*chunks)):
+                setattr(self, name, torch.cat(values))
+            return
         with np.load(path, allow_pickle=False) as data:
             if "body_names" in data and "joint_names" in data:
                 names = {key: data[key].tolist() for key in ("body_names", "joint_names")}
@@ -244,6 +285,17 @@ class MotionLoader:
             self.body_quat_w: torch.Tensor = arrays["body_quat_w"]
             self.body_lin_vel_w: torch.Tensor = arrays["body_lin_vel_w"]
             self.body_ang_vel_w: torch.Tensor = arrays["body_ang_vel_w"]
+            self.motion_starts = torch.zeros(1, dtype=torch.long, device=device)
+            self.motion_ends = torch.tensor([self.time_step_total], device=device)
+            self.names = [path.stem]
+            self.root_pos_w = self.body_pos_w[:, 0]
+            self.root_quat_w = self.body_quat_w[:, 0]
+            self.root_lin_vel_w = self.body_lin_vel_w[:, 0]
+            self.root_ang_vel_w = self.body_ang_vel_w[:, 0]
+
+    def clip_end(self, frames: torch.Tensor) -> torch.Tensor:
+        """Exclusive clip end for each frame, without crossing concatenated clip boundaries."""
+        return self.motion_ends[torch.searchsorted(self.motion_ends, frames.contiguous(), right=True)]
 
 
 def _load_pose_motion(

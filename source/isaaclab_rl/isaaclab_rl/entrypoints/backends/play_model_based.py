@@ -6,6 +6,7 @@
 """Play a model-based actor checkpoint in the saved physical task."""
 
 import argparse
+import copy
 import time
 from pathlib import Path
 
@@ -13,9 +14,12 @@ import torch
 from rsl_rl.models import SuperMimicActor
 
 from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.managers import EventTermCfg, ObservationGroupCfg, ObservationTermCfg, SceneEntityCfg
 from isaaclab.utils import update_from_dict
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
+from isaaclab.utils.math import matrix_from_quat, quat_apply_inverse, quat_inv, quat_mul
 
+from isaaclab_tasks.core.motion_tracking.mdp.commands import MotionCommand
 from isaaclab_tasks.utils import resolve_task_config, setup_preset_cli
 
 from ..common import (
@@ -28,7 +32,7 @@ from ..common import (
     resolve_published_checkpoint,
     video_playback_steps,
 )
-from .runner_rsl_rl import configure_rsl_rl_env_cfg, wrap_rsl_rl_env
+from .runner_rsl_rl import wrap_rsl_rl_env
 
 REFERENCE_REVISION = "5efbf114e11f725c31d83e217be987c13c0e4ce2"
 
@@ -54,7 +58,7 @@ def run(argv: list[str]) -> None:
     if args.checkpoint == "pretrained":
         if args.task is None:
             parser.error("--task is required with --checkpoint pretrained.")
-        cfg, _ = resolve_task_config(args.task, args.agent, overrides=[])
+        cfg, _ = resolve_task_config("Isaac-Motion-Tracking-G1", "rsl_rl_cfg_entry_point", overrides=[])
         checkpoint_path = resolve_published_checkpoint("model_based", args.task, cfg)
         if checkpoint_path is None:
             return
@@ -66,28 +70,26 @@ def run(argv: list[str]) -> None:
     task = checkpoint["task"]
     if args.task is not None and args.task != task:
         parser.error("The task must match the saved checkpoint.")
-    cfg, _ = resolve_task_config(task, "rsl_rl_cfg_entry_point", overrides=[])
+    cfg, _ = resolve_task_config("Isaac-Motion-Tracking-G1", "rsl_rl_cfg_entry_point", overrides=[])
     agent = legacy_agent_cfg(checkpoint)
     _restore_environment(cfg, checkpoint["env_cfg"])
 
     apply_env_overrides(args, cfg)
-    cfg.commands.motion.evaluation = True
-    cfg.commands.motion.reset_noise = False
     cfg.episode_length_s = 1.0e9
     if args.motion_dir:
-        cfg.commands.motion.motion_dir = args.motion_dir
+        cfg.commands.motion.motion_file = args.motion_dir
     if args.asset_path:
         cfg.scene.robot.spawn.usd_path = args.asset_path
-    motion_path = cfg.commands.motion.motion_dir
+    motion_path = cfg.commands.motion.motion_file
     if not Path(motion_path).is_dir():
-        cfg.commands.motion.motion_dir = retrieve_file_path(motion_path)
-    configure_rsl_rl_env_cfg(cfg, agent)
+        cfg.commands.motion.motion_file = retrieve_file_path(motion_path)
+    configure_legacy_observations(cfg, agent)
     output = str(Path(checkpoint_path).parent)
     enable_cameras_for_video(args)
     pre_launch_video_config(cfg, args)
     with launch_simulation(cfg, args):
         apply_video_recording(cfg, output, args, subdir="play", checkpoint_path=checkpoint_path)
-        env = create_isaaclab_env(task, cfg, args, convert_marl_to_single_agent=False)
+        env = create_isaaclab_env("Isaac-Motion-Tracking-G1", cfg, args, convert_marl_to_single_agent=False)
         try:
             env = wrap_rsl_rl_env(env, agent)
             obs, _ = env.reset()
@@ -105,26 +107,50 @@ def run(argv: list[str]) -> None:
 def _restore_environment(cfg, saved: dict) -> None:
     """Restore physical settings, including checkpoints from the pre-core task layout."""
     from isaaclab.actuators import ImplicitActuatorCfg
+    from isaaclab.assets import AssetBaseCfg
+    from isaaclab.envs import mdp
+    from isaaclab.sim import GroundPlaneCfg
 
-    old_prefix = "isaaclab_tasks.contrib.motion_tracking."
-    new_prefix = "isaaclab_tasks.core.motion_tracking.mdp.model_based."
-
-    def relocate(value):
-        if isinstance(value, dict):
-            return {key: relocate(item) for key, item in value.items()}
-        if isinstance(value, list):
-            return [relocate(item) for item in value]
-        if isinstance(value, str) and value.startswith(old_prefix):
-            value = new_prefix + value[len(old_prefix) :]
-        if isinstance(value, str):
-            value = value.replace("mdp.model_based.sim_context:", "mdp.model_based.commands:")
-        return value
-
-    saved = relocate(saved)
-    # Observation layout belongs to the active learner; restore the physical task only.
-    saved.pop("observations", None)
-    # The original controller used one actuator group. Restore its serialized gains
-    # rather than merging it into the shared G1 configuration's five groups.
+    original_action_scale = saved["actions"]["joint_pos"]["scale"]
+    saved = copy.deepcopy(saved)
+    command = saved["commands"]["motion"]
+    # Playback keeps the published controller and reference layout on the shared physical task.
+    cfg.commands.motion.class_type = _PublishedMotionCommand
+    cfg.commands.motion.joint_names = command["joint_names"]
+    cfg.commands.motion.motion_file = command["motion_dir"]
+    cfg.commands.motion.source_fps = command["source_fps"]
+    update_from_dict(cfg.commands.motion.csv, command["csv"])
+    cfg.commands.motion.anchor_body_name = "pelvis"
+    cfg.commands.motion.body_names = command["tracked_bodies"] or cfg.commands.motion.body_names
+    cfg.commands.motion.sampling_mode = "start"
+    cfg.commands.motion.pose_range = {}
+    cfg.commands.motion.velocity_range = {}
+    cfg.commands.motion.joint_position_range = (0.0, 0.0)
+    cfg.scene.terrain = None
+    cfg.scene.self_collision = None
+    cfg.scene.ground = AssetBaseCfg(prim_path="/World/ground", spawn=GroundPlaneCfg())
+    for name in vars(cfg.events):
+        if not name.startswith("_"):
+            setattr(cfg.events, name, None)
+    cfg.events.material = EventTermCfg(
+        func=mdp.randomize_rigid_body_material,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names=command["friction_bodies"]),
+            "static_friction_range": (1.0, 1.0),
+            "dynamic_friction_range": (1.0, 1.0),
+            "restitution_range": (0.0, 0.0),
+            "num_buckets": 1,
+        },
+    )
+    for name in vars(cfg.rewards):
+        if not name.startswith("_"):
+            setattr(cfg.rewards, name, None)
+    cfg.terminations.ee_body_pos = None
+    cfg.terminations.anchor_pos.params["threshold"] = saved["terminations"]["anchor_pos"]["params"]["threshold"]
+    cfg.terminations.anchor_ori.params["threshold"] = saved["terminations"]["anchor_ori"]["params"]["threshold"]
+    for name in ("observations", "commands", "events", "rewards", "terminations", "actions"):
+        saved.pop(name, None)
     actuators = saved["scene"]["robot"]["actuators"]
     for values in actuators.values():
         for old, new in (
@@ -142,12 +168,7 @@ def _restore_environment(cfg, saved: dict) -> None:
         cfg.scene.robot.actuators["joints"].joint_velocity_limit = dict(actuators["joints"]["joint_velocity_limit"])
         for key in ("stiffness", "damping", "armature"):
             setattr(cfg.scene.robot.actuators["joints"], key, dict(actuators["joints"][key]))
-    cfg.actions.joint_pos.scale = saved["actions"]["joint_pos"]["scale"]
-    command = saved["commands"]["motion"]
-    command.pop("kinematics_path", None)  # Older checkpoints stored a separate MJCF input.
-    for key in ("joint_names", "tracked_bodies"):
-        if command[key] is None:
-            command[key] = getattr(cfg.commands.motion, key)
+    cfg.actions.joint_pos.scale = original_action_scale
     if saved.get("recorders", {}).get("transition", False) is None:
         saved["recorders"].pop("transition")
     spawn = saved["scene"]["robot"]["spawn"]
@@ -159,15 +180,109 @@ def _restore_environment(cfg, saved: dict) -> None:
     update_from_dict(cfg, saved)
 
 
+NUM_GOAL_FRAMES = 10
+GOAL_FRAME_STRIDE = 5
+
+
+def goal_window_indices(motion, frames):
+    """Published actor's future window, clamped to the current clip."""
+    offsets = torch.arange(NUM_GOAL_FRAMES, device=frames.device) * GOAL_FRAME_STRIDE
+    return torch.minimum(frames[:, None] + offsets, (motion.clip_end(frames) - 1)[:, None])
+
+
+def _policy_frame(env):
+    data = env.scene["robot"].data
+    quat = data.root_link_quat_w.torch
+    gravity = quat.new_tensor((0.0, 0.0, -1.0)).expand(env.num_envs, 3)
+    return torch.cat(
+        (
+            quat_apply_inverse(quat, gravity),
+            quat_apply_inverse(quat, data.root_link_ang_vel_w.torch),
+            data.joint_pos.torch - data.default_joint_pos.torch,
+            data.joint_vel.torch,
+            env.action_manager.action,
+        ),
+        -1,
+    )
+
+
+def _actor_goal(env):
+    command = env.command_manager.get_term("motion")
+    motion = command.motion
+    idx = goal_window_indices(motion, command.time_steps)
+    root = command.robot.data.root_link_quat_w.torch[:, None].expand(-1, NUM_GOAL_FRAMES, -1)
+    relative = quat_mul(quat_inv(root), motion.root_quat_w[idx])
+    return torch.cat(
+        (
+            torch.cat((motion.joint_pos[idx], motion.joint_vel[idx]), -1).flatten(1),
+            matrix_from_quat(relative)[..., :2].flatten(1),
+        ),
+        -1,
+    )
+
+
+def configure_legacy_observations(cfg, agent):
+    """Keep published sensor/history and future-goal layouts out of the training task."""
+    for name in vars(cfg.observations):
+        if not name.startswith("_"):
+            setattr(cfg.observations, name, None)
+    cfg.observations.policy = ObservationGroupCfg(
+        enable_corruption=False,
+        concatenate_terms=True,
+        history_length=agent.algorithm.history_length,
+        flatten_history_dim=False,
+    )
+    cfg.observations.policy.sensor = ObservationTermCfg(func=_policy_frame)
+    cfg.observations.actor_goal = ObservationGroupCfg(enable_corruption=False, concatenate_terms=True)
+    cfg.observations.actor_goal.goal = ObservationTermCfg(func=_actor_goal)
+
+
+class _PublishedMotionCommand(MotionCommand):
+    """Restore the published controller's deterministic reference resets."""
+
+    def __init__(self, cfg, env):
+        if cfg.joint_names is not None and env.scene[cfg.asset_name].joint_names != cfg.joint_names:
+            raise ValueError("The published reference joint order must match the articulation.")
+        super().__init__(cfg, env)
+
+    def _update_command(self):
+        last = self.motion.clip_end(self.time_steps) - 1
+        self.time_steps.copy_(torch.minimum(self.time_steps + (self._env.episode_length_buf > 0).long(), last))
+
+    def _resample_command(self, env_ids):
+        ids = torch.arange(self.num_envs, device=self.device)[env_ids]
+        frames = self.motion.motion_starts[ids % len(self.motion.names)]
+        motion = self.motion
+        joints = motion.joint_pos[frames].clone()
+        limits = self.robot.data.soft_joint_pos_limits.torch[ids]
+        joints = joints.clamp(limits[..., 0], limits[..., 1])
+        self.robot.write_root_link_pose_to_sim_index(
+            root_pose=torch.cat(
+                (motion.root_pos_w[frames] + self._env.scene.env_origins[ids], motion.root_quat_w[frames]), -1
+            ),
+            env_ids=ids,
+        )
+        self.robot.write_root_link_velocity_to_sim_index(
+            root_velocity=torch.cat((motion.root_lin_vel_w[frames], motion.root_ang_vel_w[frames]), -1), env_ids=ids
+        )
+        self.robot.write_joint_state_to_sim_index(position=joints, velocity=motion.joint_vel[frames], env_ids=ids)
+        self.robot.actuators.target_command.set_position_index(value=joints, env_ids=ids)
+        self.time_steps[ids] = frames
+
+
 def legacy_agent_cfg(checkpoint):
     """Map the published standalone actor settings to the RSL-RL policy interface."""
-    from isaaclab_tasks.core.motion_tracking.config.g1.agents.rsl_rl_supermimic_cfg import PaperTrackingModelBasedCfg
+    from isaaclab_rl.rsl_rl import RslRlSuperMimicActorCfg, RslRlSuperMimicAlgorithmCfg, RslRlSuperMimicRunnerCfg
 
     saved = checkpoint["agent_cfg"]
     if [name for name, weight in saved["slot_mix"].items() if weight > 0] != ["motion"]:
         raise ValueError("Published checkpoint playback supports the motion encoder only.")
-    cfg = PaperTrackingModelBasedCfg()
-    cfg.algorithm.task_cfg.actor_obs = saved["actor_obs"]
+    if saved["actor_obs"] != "proprio":
+        raise ValueError("Published playback requires a proprioceptive actor.")
+    cfg = RslRlSuperMimicRunnerCfg()
+    cfg.algorithm = RslRlSuperMimicAlgorithmCfg()
+    cfg.obs_groups = {"actor": ["policy", "history", "actor_goal"]}
+    cfg.actor = RslRlSuperMimicActorCfg(activation="gelu", norm="layer", output_gain=1.0)
     cfg.algorithm.history_length = saved["history_length"]
     cfg.actor.latent_dim = saved["latent_dim"]
     cfg.actor.encoder_hidden_dims = tuple(saved["actor_hidden_dims"])

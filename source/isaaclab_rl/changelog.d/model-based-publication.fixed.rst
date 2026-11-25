@@ -1,2 +1,2 @@
-* Resolved the published model-based checkpoint from its server location and selected the shared G1 asset's no-hand variants.
-* Matched imagined joint bias and reset-history noise to physical observations, rejected unsupported training resume and export slot allocations.
+* Preserved the published dance checkpoint sensor, history and motion-window interfaces on the shared physical task for playback and LEAPP export.
+* Exported newly trained SuperMimic actors with explicit reference inputs and the shared task observation functions.

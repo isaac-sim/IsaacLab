@@ -5,7 +5,7 @@
 
 """RSL-RL SuperMimic configurations for G1 motion tracking."""
 
-import os
+from copy import deepcopy
 
 from isaaclab.utils import configclass
 
@@ -22,19 +22,12 @@ from isaaclab_rl.rsl_rl.supermimic_cfg import (
 
 @configclass
 class MotionTrackingTaskCfg(RslRlSuperMimicTaskCfg):
-    class_name = "isaaclab_tasks.core.motion_tracking.mdp.model_based.representations:MotionTrackingTask"
-    actor_obs: str = "rep_state"
-    termination_softness: float = 0.05
+    class_name = "isaaclab_tasks.core.motion_tracking.supermimic:MotionTrackingTask"
 
     def configure_env(self, env_cfg, runner_cfg, *, inference: bool = False):
-        command = env_cfg.commands.motion
-        command.actor_obs = self.actor_obs
-        if inference:
-            command.evaluation = True
-            command.reset_noise = False
-            env_cfg.episode_length_s = 1.0e9
-        command.motion_shard_index = int(os.getenv("RANK", "0"))
-        command.motion_shard_count = int(os.getenv("WORLD_SIZE", "1"))
+        if env_cfg.observations.state is None:
+            raise ValueError("SuperMimic requires presets=state_obs.")
+        env_cfg.observations.labels.self_collisions.params = deepcopy(env_cfg.rewards.self_collisions.params)
         wm = runner_cfg.algorithm.world_model_cfg
         wm.replay_buffer_capacity = 1000 * env_cfg.scene.num_envs
         runner_cfg.algorithm.updates_per_step = (
@@ -43,20 +36,21 @@ class MotionTrackingTaskCfg(RslRlSuperMimicTaskCfg):
 
 
 @configclass
-class TrackingModelBasedCfg(RslRlSuperMimicRunnerCfg):
+class G1MotionSuperMimicRunnerCfg(RslRlSuperMimicRunnerCfg):
     class_name = "OffPolicyRunner"
     experiment_name = "g1_motion_tracking"
     num_steps_per_env = 1
     init_at_random_ep_len = False
     max_iterations = 1_000_000
     save_interval = 1000
+    separate_goal_terms = ("command",)
     replay_ratio: int = 16
     obs_groups = {
         "actor": ["policy", "actor_goal"],
-        "state": ["full_state"],
-        "goal": ["phase"],
+        "state": ["state"],
+        "goal": ["goal"],
         "context": ["context"],
-        "prev_action": ["previous_action"],
+        "labels": ["labels"],
     }
     actor = RslRlSuperMimicActorCfg(activation="gelu", norm="layer", output_gain=1.0)
     critic = RslRlResidualMLPModelCfg(hidden_dims=[256, 128], activation="gelu", obs_normalization=False)
@@ -92,36 +86,3 @@ class TrackingModelBasedCfg(RslRlSuperMimicRunnerCfg):
             "activation": "gelu",
             "norm": "layer",
         }
-
-
-@configclass
-class MaxCoordModelBasedCfg(TrackingModelBasedCfg):
-    """Maximal-coordinate dynamics use the same learner and task objectives."""
-
-
-@configclass
-class PaperTrackingModelBasedCfg(TrackingModelBasedCfg):
-    max_iterations = 320000
-    save_interval = 4000
-    replay_ratio = 18
-
-    def __post_init__(self):
-        super().__post_init__()
-        self.obs_groups["actor"] = ["policy", "history", "actor_goal"]
-        self.algorithm.task_cfg.actor_obs = "proprio"
-        self.algorithm.history_length = 10
-        self.algorithm.muon_models = ()
-        self.algorithm.final_learning_rate_ratio = 0.03
-        self.algorithm.learning_rate_schedule_unit = "env_steps"
-        self.algorithm.num_schedule_updates = 250000
-        self.algorithm.world_model_cfg.window_length = 8
-        self.algorithm.world_model_cfg.num_warmup_steps = 9
-
-
-@configclass
-class PaperNoCriticModelBasedCfg(PaperTrackingModelBasedCfg):
-    """Finite-horizon policy optimization with no terminal value."""
-
-    def __post_init__(self):
-        super().__post_init__()
-        self.critic.class_name = "isaaclab_tasks.core.motion_tracking.mdp.model_based.representations:ZeroValue"

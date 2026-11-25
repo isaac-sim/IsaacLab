@@ -40,9 +40,10 @@ For LAFAN1 motions sampled at 30 Hz:
 .. code-block:: bash
 
    uv run --frozen isaaclab train --rl_library rsl_rl \
-       --task Isaac-Motion-Tracking-GenCoord-G1 \
+       --task Isaac-Motion-Tracking-G1 \
+       --agent rsl_rl_supermimic_cfg_entry_point presets=state_obs \
        --num_envs 4096 --max_iterations 40000 \
-       env.commands.motion.motion_dir=/data/lafan1_download/g1 \
+       env.commands.motion.motion_file=/data/lafan1_download/g1 \
        env.scene.robot.spawn.usd_path=/data/robots/g1/g1.usda \
        env.commands.motion.source_fps=30
 
@@ -57,10 +58,11 @@ Play a checkpoint using the same task, agent preset and motion inputs as trainin
 .. code-block:: bash
 
    uv run --frozen isaaclab play --rl_library rsl_rl \
-       --task Isaac-Motion-Tracking-GenCoord-G1 \
+       --task Isaac-Motion-Tracking-G1 \
+       --agent rsl_rl_supermimic_cfg_entry_point presets=state_obs \
        --checkpoint /path/to/run/model_39999.pt \
        --num_envs 1 --visualizer newton_gl --real-time \
-       env.commands.motion.motion_dir=/data/lafan1_download/g1 \
+       env.commands.motion.motion_file=/data/lafan1_download/g1 \
        env.scene.robot.spawn.usd_path=/data/robots/g1/g1.usda \
        env.commands.motion.source_fps=30
 
@@ -71,7 +73,7 @@ same ``--agent`` and model overrides when playing its checkpoint.
 Pretrained dance sample
 -----------------------
 
-The GenCoord dance sample uses the BONES-SEED
+The pretrained dance sample uses the BONES-SEED
 ``dance_hiphop_box_step_R_fast_001__A318_M`` motion. Given the sample checkpoint,
 reference file, and matching USD asset, run:
 
@@ -84,7 +86,7 @@ reference file, and matching USD asset, run:
        --num_envs 1 --visualizer newton_gl --real-time
 
 The reference lasts 7.5 seconds and restarts at clip boundaries. The sample
-checkpoint is for GenCoord playback. The ``--checkpoint pretrained`` shortcut
+checkpoint uses the published motion encoder and its ten-frame reference window. The ``--checkpoint pretrained`` shortcut
 requires the sample assets
 to be available on the Isaac Lab asset server.
 
@@ -107,14 +109,20 @@ order. The loader resamples CSV and NPY clips to the task's 50 Hz control rate.
   An optional ``fps`` field must be 50. Directories containing NPZ files select
   those files; otherwise CSV and NPY files are loaded.
 
+Full-body NPZ files are also accepted: provide ``fps``, ``joint_names``,
+``body_names``, joint positions/velocities and ``body_pos_w``, ``body_quat_w``
+(WXYZ), ``body_lin_vel_w``, ``body_ang_vel_w``. Named channels are reordered to
+the robot and tracked-body order.
+
 For BONES-SEED CSV clips:
 
 .. code-block:: bash
 
    uv run --frozen isaaclab train --rl_library rsl_rl \
-       --task Isaac-Motion-Tracking-GenCoord-G1 \
+       --task Isaac-Motion-Tracking-G1 \
+       --agent rsl_rl_supermimic_cfg_entry_point presets=state_obs \
        --num_envs 4096 --max_iterations 40000 \
-       env.commands.motion.motion_dir=/data/bones-seed/g1 \
+       env.commands.motion.motion_file=/data/bones-seed/g1 \
        env.scene.robot.spawn.usd_path=/data/robots/g1/g1.usda \
        env.commands.motion.source_fps=120 \
        env.commands.motion.csv.header=true \
@@ -149,7 +157,18 @@ For G1 hardware deployment, see the
 G1 LEAPP deployment adapter
 ------------------------------
 
-Export a checkpoint and one reference clip to a LEAPP bundle:
+Export a trained policy using its task, agent and motion settings:
+
+.. code-block:: bash
+
+   uv run --extra leapp isaaclab leapp export --rl_library rsl_rl \
+       --task Isaac-Motion-Tracking-G1 \
+       --agent rsl_rl_supermimic_cfg_entry_point presets=state_obs \
+       --checkpoint /path/to/run/model_39999.pt \
+       env.commands.motion.motion_file=/path/to/motion.npz \
+       --export_save_path exported
+
+Export the pretrained dance checkpoint and one reference clip to a LEAPP bundle:
 
 .. code-block:: bash
 

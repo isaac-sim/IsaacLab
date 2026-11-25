@@ -32,9 +32,7 @@
             ["Isaac-Lift-KukaAllegro-MDP2", "rsl_rl", "newton_mjwarp", "", "", "environment-previews/kuka_allegro_lift.jpg", false, {}, {}, "", null, ["||", "newton_mjwarp||"]],
             ["Isaac-Lift-Soft-Franka", "rsl_rl", "isaacsim_physx,newton_mjwarp_vbd_proxy", "", "ik,joint", "environment-previews/franka_lift_soft.jpg", false, {"*": ["joint"]}, {}, "tetrahedralization", null, ["||", "||ik", "||joint", "isaacsim_physx||", "isaacsim_physx||ik", "isaacsim_physx||joint", "newton_mjwarp_vbd_proxy||", "newton_mjwarp_vbd_proxy||ik", "newton_mjwarp_vbd_proxy||joint"]],
             ["Isaac-Lift-Soft-Franka-Camera", "rsl_rl", "isaacsim_physx,newton_mjwarp_vbd_proxy", "isaacsim_rtx,newton_warp,ovrtx", "ik,joint", "environment-previews/franka_lift_soft.jpg", false, {"*": ["joint"]}, {}, "tetrahedralization", null, ["||", "||ik", "||joint", "|isaacsim_rtx|", "|isaacsim_rtx|ik", "|isaacsim_rtx|joint", "|newton_warp|", "|newton_warp|ik", "|newton_warp|joint", "|ovrtx|", "|ovrtx|ik", "|ovrtx|joint", "isaacsim_physx||", "isaacsim_physx||ik", "isaacsim_physx||joint", "isaacsim_physx|isaacsim_rtx|", "isaacsim_physx|isaacsim_rtx|ik", "isaacsim_physx|isaacsim_rtx|joint", "isaacsim_physx|newton_warp|", "isaacsim_physx|newton_warp|ik", "isaacsim_physx|newton_warp|joint", "newton_mjwarp_vbd_proxy||", "newton_mjwarp_vbd_proxy||ik", "newton_mjwarp_vbd_proxy||joint", "newton_mjwarp_vbd_proxy|isaacsim_rtx|", "newton_mjwarp_vbd_proxy|isaacsim_rtx|ik", "newton_mjwarp_vbd_proxy|isaacsim_rtx|joint", "newton_mjwarp_vbd_proxy|newton_warp|", "newton_mjwarp_vbd_proxy|newton_warp|ik", "newton_mjwarp_vbd_proxy|newton_warp|joint", "newton_mjwarp_vbd_proxy|ovrtx|", "newton_mjwarp_vbd_proxy|ovrtx|ik", "newton_mjwarp_vbd_proxy|ovrtx|joint"]],
-            ["Isaac-Motion-Tracking-G1", "rsl_rl", "", "", ""],
-            ["Isaac-Motion-Tracking-GenCoord-G1", "rsl_rl", "newton_mjwarp", "", "", "", false, {}, {}, "", null, ["||", "newton_mjwarp||"]],
-            ["Isaac-Motion-Tracking-MaxCoord-G1", "rsl_rl", "newton_mjwarp", "", "", "", false, {}, {}, "", null, ["||", "newton_mjwarp||"]],
+            ["Isaac-Motion-Tracking-G1", "rsl_rl", "", "", "state_obs", "", false, {}, {}, "", null, ["||", "||state_obs"]],
             ["Isaac-Open-Drawer-Franka-Direct", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_mjwarp,newton_steel,ovphysx", "", "", "environment-previews/franka_open_drawer.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||", "newton_mjwarp||", "newton_steel||", "ovphysx||"]],
             ["Isaac-Open-Drawer-Franka", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_mjwarp,newton_steel,ovphysx", "", "", "environment-previews/franka_open_drawer.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||", "newton_mjwarp||", "newton_steel||", "ovphysx||"]],
             ["Isaac-Pendulum-MARL-Direct", "rl_games,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", "environment-previews/cart_double_pendulum.jpg", false, {}, {"skrl": "MAPPO"}, "", null, ["||", "isaacsim_physx||", "newton_kamino||", "newton_mjwarp||", "ovphysx||"]],
@@ -102,8 +100,6 @@
             ["IsaacContrib-Lift-Cube-Franka-IK-Abs", "", "", "", "", "environment-previews/franka_lift.jpg"],
             ["IsaacContrib-Lift-Cube-Franka-IK-Rel", "", "", "", "", "environment-previews/franka_lift.jpg"],
             ["IsaacContrib-Lift-Cube-OpenArm", "rl_games,rsl_rl", "", "", "", "environment-previews/openarm_uni_lift.jpg"],
-            ["IsaacContrib-Motion-Tracking-GenCoord-G1", "rsl_rl", "newton_mjwarp", "", "", "", false, {}, {}, "", null, ["||", "newton_mjwarp||"]],
-            ["IsaacContrib-Motion-Tracking-MaxCoord-G1", "rsl_rl", "newton_mjwarp", "", "", "", false, {}, {}, "", null, ["||", "newton_mjwarp||"]],
             ["IsaacContrib-Multitask-Manipulation", "rsl_rl", "", "", "", "environment-previews/multitask_manipulation.jpg"],
             ["IsaacContrib-NIST-Franka", "rsl_rl", "", "", "", "environment-previews/nist_franka.jpg"],
             ["IsaacContrib-Navigation-3DObstacles-ARL-Robot-1", "rl_games,rsl_rl,skrl", "", "", "", "environments/previews/drone_arl/arl_robot_1_navigation.jpg"],
@@ -196,7 +192,7 @@
         requiredExtras: splitValues(requiredExtras),
         warpPresets,
         launchableRuns: launchableRuns && new Set(launchableRuns),
-    })).filter(({ task }) => !/^Isaac(?:Contrib)?-Motion-Tracking-MaxCoord-G1$/.test(task));
+    }));
 
     const builder = document.querySelector("[data-environment-browser]");
     const preview = document.querySelector("[data-environment-preview]");
@@ -354,7 +350,6 @@
         }
         const taskName = task.task;
         const imageRules = [
-            [/^Isaac(?:Contrib)?-Motion-Tracking-GenCoord-G1$/, "environments/previews/motion_tracking/g1_supermimic_dance.jpg"],
             [/Fourbar/, "environments/previews/classic/fourbar_pole.jpg"],
             [/Cartpole/, "environments/previews/classic/cartpole.jpg"],
             [/Pendulum/, "environments/previews/classic/cart_double_pendulum.jpg"],

@@ -1,1 +1,1 @@
-* Added GenCoord and MaxCoord G1 motion-tracking tasks for RSL-RL SuperMimic, with differentiable task objectives, USD articulation kinematics, return-based reset sampling, and read-only motion loading.
+* Added an RSL-RL SuperMimic agent and opt-in state observations to the shared G1 motion-tracking task, with differentiable manager-derived objectives and joint-space velocity integration.

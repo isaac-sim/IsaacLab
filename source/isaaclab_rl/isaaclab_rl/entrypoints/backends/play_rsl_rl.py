@@ -21,7 +21,7 @@ from isaaclab.utils.string import list_intersection
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import get_checkpoint_path, resolve_task_config, setup_preset_cli
 
-from ...rsl_rl import RslRlBaseRunnerCfg, RslRlSacRunnerCfg, RslRlSuperMimicRunnerCfg
+from ...rsl_rl import RslRlBaseRunnerCfg, RslRlSacRunnerCfg
 from ...utils.wandb import is_wandb_checkpoint, resolve_wandb_checkpoint
 from ..common import (
     CHECKPOINT_SELECTORS,
@@ -103,14 +103,13 @@ def _resolve_checkpoint(
 def run(argv: list[str]) -> None:
     """Play a checkpoint of an RSL-RL agent."""
     args_cli = _parse_args(argv)
+    if args_cli.task in ("Isaac-Motion-Tracking-GenCoord-G1", "IsaacContrib-Motion-Tracking-GenCoord-G1"):
+        from .play_model_based import run as play_published_motion
+
+        play_published_motion(argv)
+        return
     with startup_screen(args_cli, num_stages=3) as screen:
         env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent, play_mode=not args_cli.train_env_cfg)
-        if args_cli.checkpoint == "pretrained" and isinstance(agent_cfg, RslRlSuperMimicRunnerCfg):
-            # The published dance checkpoint stores the original task and actor format.
-            from .play_model_based import run as play_published_motion
-
-            play_published_motion(argv)
-            return
         pre_launch_video_config(env_cfg, args_cli)
         screen.stage("Launching simulation")
         with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:

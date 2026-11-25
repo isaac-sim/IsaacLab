@@ -171,10 +171,11 @@ def export_rsl_rl_agent(args_cli: argparse.Namespace, env_cfg: Any, agent_cfg: R
 
             destination = Path(resolve_export_save_path(args_cli, "rsl_rl", log_dir))
             destination.mkdir(parents=True, exist_ok=True)
-            export_policy(env, policy, args_cli, env_cfg, destination)
+            task = type(runner.alg.task)(env=env, device="cpu")
+            export_policy(env, policy, args_cli, env_cfg, destination, task=task)
             return True
         if not isinstance(policy, MLPModel):
-            raise TypeError("LEAPP export requires an MLPModel policy, including its CNN and RNN variants.")
+            raise TypeError("LEAPP export requires an MLPModel or SuperMimicActor policy.")
         obs_set = "student" if isinstance(agent_cfg, RslRlDistillationRunnerCfg) else "actor"
         required_obs_groups = set(runner.cfg["obs_groups"][obs_set])
         policy_node_name = prepare_export_env(env, args_cli, required_obs_groups=required_obs_groups)

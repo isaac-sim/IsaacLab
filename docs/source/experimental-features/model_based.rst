@@ -32,11 +32,12 @@ Tracking rewards and termination are computed from predicted states and the refe
      - Inputs
      - Output
    * - World model
-     - Robot state, joint command, and simulation context (friction, body
-       center of mass, and joint encoder bias).
-     - Predicted next robot state.
+     - Root height, projected gravity, root-frame velocities, joint state,
+       actions, and body masses.
+     - Root and joint velocity increments and self-collision events;
+       poses follow by integration.
    * - Policy (actor)
-     - Robot observations or observation history, and future reference-motion frames.
+     - Robot observations or observation history, and the reference joint command.
      - 29 normalized joint-position commands, scaled to joint targets.
    * - Critic
      - Full robot state, reference-motion goal, and simulation context.
@@ -48,34 +49,20 @@ history. Playback uses only the policy; the world model and critic are needed fo
 Tasks and configuration
 -----------------------
 
-Two G1 tasks are available:
+SuperMimic uses ``Isaac-Motion-Tracking-G1``, the same environment as PPO.
+Select ``--agent rsl_rl_supermimic_cfg_entry_point presets=state_obs`` to enable
+model-based learning. The default agent remains PPO.
 
-* ``Isaac-Motion-Tracking-GenCoord-G1``: predicts root and joint motion.
-* ``Isaac-Motion-Tracking-MaxCoord-G1``: predicts body motion and recovers joint
-  motion with inverse kinematics.
+The environment supplies commands, reset sampling, events, observations, rewards
+and termination thresholds. The differentiable task reads the resolved manager
+configurations and evaluates their supported terms on predicted states.
+For 29 joints, the world model consumes 68 state features and predicts 35 velocity
+increments. Root and joint poses use semi-implicit integration at the task's
+50 Hz control rate, with four physics steps per control step.
 
-Both take a matching 29-joint G1 USD asset and reference clips. The control rate
-is 50 Hz, with four physics steps per control step. Use a checkpoint trained for
-the selected task.
+The agent uses Muon/Adam optimizers, one observation frame and 32-step policy
+rollouts. Override individual options on the command line, for example:
 
-Select the training preset with ``--agent``:
-
-.. list-table::
-   :header-rows: 1
-   :widths: 45 55
-
-   * - Preset
-     - Configuration
-   * - ``rsl_rl_cfg_entry_point`` (default)
-     - Muon/Adam optimizers, one observation frame, 32-step policy rollouts.
-   * - ``paper_model_based_cfg_entry_point`` (GenCoord)
-     - Adam, ten proprioception frames, cosine learning-rate decay, 320k steps.
-   * - ``paper_no_critic_cfg_entry_point`` (GenCoord)
-     - The paper preset without terminal critic bootstrapping.
-
-Override individual options on the command line, for example:
-
-* ``--agent paper_model_based_cfg_entry_point`` for the ten-frame proprioception preset.
 * ``agent.algorithm.horizon=16`` for 16-step predicted policy rollouts.
 * ``--logger wandb --log_project_name PROJECT`` for W&B logging.
 
@@ -101,14 +88,14 @@ Use ``train_multigpu`` with environment and learner batch sizes specified
 .. code-block:: bash
 
    uv run --frozen isaaclab train_multigpu --rl_library rsl_rl --num_gpus 2 -- \
-       --task Isaac-Motion-Tracking-GenCoord-G1 \
-       --agent paper_model_based_cfg_entry_point --num_envs 2048 \
-       env.commands.motion.motion_dir=/path/to/motions \
+       --task Isaac-Motion-Tracking-G1 \
+       --agent rsl_rl_supermimic_cfg_entry_point presets=state_obs --num_envs 2048 \
+       env.commands.motion.motion_file=/path/to/motions \
        env.scene.robot.spawn.usd_path=/path/to/g1.usd \
        agent.algorithm.world_model_cfg.batch_size=1024 agent.algorithm.policy_batch_size=2048
 
-Reference clips are split across GPUs; provide at least one clip per GPU.
-Rank zero saves checkpoints and training metrics. The learning
+Each GPU samples the reference set in its own environments and stores local replay data.
+Model updates are synchronized across GPUs; rank zero saves checkpoints and training metrics. The learning
 rate is unchanged unless you override it. Playback uses the full reference set.
 
 Sim-to-real
@@ -129,10 +116,11 @@ Sources and licenses
   commit ``b2de4e7c4702a1f5417c22e00ec71b9e4ba887cb``. Inherited SuperMimic code
   retains the ETH Zurich / Chong Zhang MIT license in
   ``docs/licenses/dependencies/supermimic-license.txt``.
-* **Quaternion helpers:**
-  `mjlab, revision 8ee51fbc
-  <https://github.com/mujocolab/mjlab/blob/8ee51fbcf806a7419189f706d9e394cbeb7790fa/src/mjlab/utils/lab_api/math.py>`_
-  (BSD-3-Clause), together with Isaac Lab math utilities.
+* **Shared task and agent integration:**
+  `Lionel Gulich's motion-tracking integration
+  <https://github.com/isaac-sim/IsaacLab/pull/9151>`_,
+  commit ``a0d94e7b7605a912cc6b9dc7c81f2e0ff252ebda`` (BSD-3-Clause).
+* **Coordinate transforms:** Isaac Lab math utilities.
 * **Learning, replay and neural networks:** ``rsl-rl-lib-extras`` (imported as ``rsl_rl``);
   license: ``docs/licenses/dependencies/rsl_rl-license.txt``.
 
