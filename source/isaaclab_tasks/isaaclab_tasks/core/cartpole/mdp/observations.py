@@ -17,8 +17,6 @@ from typing_extensions import deprecated
 from isaaclab.managers import ManagerTermBase, ObservationTermCfg, SceneEntityCfg
 from isaaclab.utils.images import CameraFrameStack, normalize_camera_image
 
-from ..cartpole_common import cartpole_lidar_range_image
-
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
     from isaaclab.sensors import Camera
@@ -50,18 +48,3 @@ class CameraImageStack(ManagerTermBase):
         if data_type == "albedo":
             images = images[..., :3]
         return self._frames(images, functools.partial(normalize_camera_image, data_type=data_type))
-
-
-class _LidarRangeImage(ManagerTermBase):
-    """Stack normalized lidar range images for the cartpole policy, oldest scan first."""
-
-    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
-        super().__init__(cfg, env)
-        self._frames = CameraFrameStack(env.num_envs, env.device, frame_stack=2, channel_first=True)
-
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
-        self._frames.reset(env_ids)
-
-    def __call__(self, env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
-        points = env.scene[sensor_cfg.name].data.points.torch
-        return self._frames(cartpole_lidar_range_image(points).unsqueeze(-1))

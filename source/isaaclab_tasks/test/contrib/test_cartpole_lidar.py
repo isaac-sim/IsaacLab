@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""The cartpole lidar preset returns one tiled scan per environment."""
+"""The Cartpole lidar tasks return one tiled scan per environment."""
 
 import pytest
 import torch
@@ -38,18 +38,20 @@ import gymnasium as gym
 import isaaclab.sim as sim_utils
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.core.cartpole.cartpole_common import CARTPOLE_LIDAR_AZIMUTH_COUNT, CARTPOLE_LIDAR_ELEVATION_COUNT
+from isaaclab_tasks.contrib.cartpole_lidar.cartpole_lidar_common import (
+    CARTPOLE_LIDAR_AZIMUTH_COUNT,
+    CARTPOLE_LIDAR_ELEVATION_COUNT,
+)
 from isaaclab_tasks.utils.hydra import resolve_presets
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering, pytest.mark.ov]
 
 
-@pytest.mark.parametrize("task", ("Isaac-Cartpole-Camera", "Isaac-Cartpole-Camera-Direct"))
+@pytest.mark.parametrize("task", ("IsaacContrib-Cartpole-Lidar", "IsaacContrib-Cartpole-Lidar-Direct"))
 def test_tiled_lidar_returns_are_local_to_each_environment(task):
     """Sensor-frame scans agree across environments, and the policy is a stacked range image."""
-    env_cfg = load_cfg_from_registry(task, "env_cfg_entry_point")
-    env_cfg = resolve_presets(env_cfg, {"lidar"})
+    env_cfg = resolve_presets(load_cfg_from_registry(task, "env_cfg_entry_point"))
     env_cfg.scene.num_envs = 4
     env_cfg.sim.device = _DEVICE
     env_cfg.seed = 0

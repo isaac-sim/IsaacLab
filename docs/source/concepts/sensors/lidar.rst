@@ -85,8 +85,8 @@ environment zero and preserves the other environments' returns.
 Run the Cartpole lidar example
 ------------------------------
 
-The manager-based and direct Cartpole camera tasks accept the ``lidar`` preset. Each environment
-has a side-mounted OvRTX lidar aimed at the cart and pole. The policy receives two consecutive
+The experimental ``IsaacContrib-Cartpole-Lidar`` and ``IsaacContrib-Cartpole-Lidar-Direct`` tasks
+place a side-mounted OvRTX lidar aimed at the cart and pole. The policy receives two consecutive
 range images of shape ``(49, 161)``. Each pixel holds the sensor-frame hit distance divided by
 12 meters, with zero for a miss or an unsampled ray. The critic receives the four joint-state values.
 
@@ -94,6 +94,6 @@ Run the manager-based task for 32 steps on a CUDA device:
 
 .. code-block:: bash
 
-   uv run --extra ovrtx isaaclab random_agent --task Isaac-Cartpole-Camera presets=lidar --num_envs 4 --max_steps 32
+   uv run --extra ovrtx isaaclab random_agent --task IsaacContrib-Cartpole-Lidar --num_envs 4 --max_steps 32
 
-Use ``--task Isaac-Cartpole-Camera-Direct`` to run the direct workflow with the same lidar preset.
+Use ``--task IsaacContrib-Cartpole-Lidar-Direct`` to run the direct workflow.
