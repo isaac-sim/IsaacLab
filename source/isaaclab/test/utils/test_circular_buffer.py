@@ -127,6 +127,32 @@ def test_invalid_batch_size(circular_buffer):
         circular_buffer[torch.tensor([0, 0], device=circular_buffer.device)]
 
 
+@pytest.mark.parametrize(
+    ("max_len", "stack_dim", "bad_width"),
+    [(2, None, 1), (2, None, 3), (3, None, 1), (2, -1, 1)],
+    ids=["broadcastable", "incompatible", "staged-shift", "stacked"],
+)
+def test_append_rejects_changed_frame_shape_without_mutating_history(max_len, stack_dim, bad_width):
+    """A frame must match the shape established by the first append."""
+    buf = CircularBuffer(max_len=max_len, batch_size=2, device="cpu", stack_dim=stack_dim)
+    first = torch.tensor([[1.0, 2.0], [3.0, 4.0]])
+    second = first + 10.0
+    third = first + 20.0
+    buf.append(first)
+    buf.append(second)
+    previous = buf.buffer.clone()
+    lengths = buf.current_length.clone()
+
+    with pytest.raises(ValueError, match="Expected data shape"):
+        buf.append(torch.zeros((2, bad_width)))
+
+    torch.testing.assert_close(buf.buffer, previous)
+    torch.testing.assert_close(buf.current_length, lengths)
+    buf.append(third)
+    expected = [second, third] if max_len == 2 else [first, second, third]
+    torch.testing.assert_close(buf.buffer, torch.stack(expected, dim=1))
+
+
 def test_key_greater_than_pushes(circular_buffer):
     """Test retrieving data with a key greater than the number of pushes.
 

@@ -168,7 +168,7 @@ class CircularBuffer:
                 Shape is (batch_size, ...).
 
         Raises:
-            ValueError: If the input data has a different batch size than the buffer.
+            ValueError: If the input data has a different batch size or frame shape than the buffer.
             IndexError: On the first call, if the configured ``stack_dim`` is invalid for the
                 appended data's rank.
         """
@@ -183,6 +183,9 @@ class CircularBuffer:
 
         # Drop the oldest slot and write the newest at the last K slot.
         k_pos = 0 if self._stack_dim_internal is None else self._stack_dim_internal
+        expected_shape = self._buffer.shape[:k_pos] + self._buffer.shape[k_pos + 1 :]
+        if data.shape != expected_shape:
+            raise ValueError(f"Expected data shape {expected_shape}, received {data.shape}.")
         k = self._max_len_int
         if k > 2 and data.numel() * data.element_size() <= _STAGED_SHIFT_MAX_FRAME_BYTES:
             # small frames are launch bound: stage the overlapping shift in two kernels regardless of K
