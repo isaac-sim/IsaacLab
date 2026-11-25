@@ -1929,6 +1929,7 @@ class OVRTXRenderer(BaseRenderer):
             ) from failed.first_frame_error
         if self.backend.renderer is None or not self._camera_render_data:
             return
+        # TODO: Remove the split search once OVRTX renders a tiled image of any size.
         # Each pass renders once. After a failed first frame, the plan moves the sensors without a rendered frame to
         # new render products, which the next pass renders. Each plan halves at most one sensor. After
         # _MAX_SMALLER_LAYOUTS smaller layouts in this render batch, the plan halves none, so the loop ends with a

@@ -78,6 +78,7 @@ class OVRTXRendererCfg(RendererCfg):
     The ovstage path does not support pipelining and renders synchronously.
     """
 
+    # TODO: Remove the render product split once OVRTX renders a tiled image of any size.
     max_envs_per_render_product: int | Literal["auto", "all"] = "auto"
     """Maximum number of environments in one render product of a camera sensor. Defaults to ``"auto"``.
 
