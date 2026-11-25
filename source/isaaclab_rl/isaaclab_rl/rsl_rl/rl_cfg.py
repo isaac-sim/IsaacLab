@@ -270,6 +270,9 @@ class RslRlBaseRunnerCfg:
     compute_final_obs: bool = False
     """Whether the environment must capture pre-reset observations."""
 
+    final_obs_every_step: bool = False
+    """Whether the environment must capture physical observations before interval events on every step."""
+
     torch_compile_mode: Literal["default", "max-autotune-no-cudagraphs"] | None = None
     """The :func:`torch.compile` mode for actor and critic. Defaults to None (disabled)."""
 
@@ -344,7 +347,7 @@ class RslRlBaseRunnerCfg:
     resume: bool = False
     """Whether to resume a previous training. Defaults to False.
 
-    This flag will be ignored for distillation.
+    For distillation, resume restores a student checkpoint; a fresh student requires an explicit teacher checkpoint.
     """
 
     load_run: str = ".*"

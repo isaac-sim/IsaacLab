@@ -195,6 +195,87 @@ Every step, their ``ang_vel_z`` steers the root's yaw towards it with gain ``hea
 """
 
 
+@wp.func
+def _heading_velocity_command_steered_on_resample(
+    world: int,
+    command: wp.array2d(dtype=float),
+    heading_target: wp.array(dtype=float),
+    root_link_pose_w: wp.array(dtype=wp.transformf),
+    lin_vel_x: wp.vec2f,
+    lin_vel_y: wp.vec2f,
+    ang_vel_z: wp.vec2f,
+    heading: wp.vec2f,
+    rel_standing_envs: float,
+    rel_heading_envs: float,
+    heading_control_stiffness: float,
+    rng: wp.int32,
+):
+    _heading_velocity_command(
+        world,
+        command,
+        heading_target,
+        lin_vel_x,
+        lin_vel_y,
+        ang_vel_z,
+        heading,
+        rel_standing_envs,
+        rel_heading_envs,
+        rng,
+    )
+    _steer_to_heading(world, command, heading_target, root_link_pose_w, ang_vel_z, heading_control_stiffness)
+
+
+def _heading_velocity_command_steered_on_resample_torch(
+    mask: torch.Tensor,
+    command: torch.Tensor,
+    heading_target: torch.Tensor,
+    root_link_pose_w: torch.Tensor,
+    rng: torch.Tensor,
+    *,
+    lin_vel_x: tuple[float, float],
+    lin_vel_y: tuple[float, float],
+    ang_vel_z: tuple[float, float],
+    heading: tuple[float, float],
+    rel_standing_envs: float,
+    rel_heading_envs: float,
+    heading_control_stiffness: float,
+) -> None:
+    _heading_velocity_command_torch(
+        mask,
+        command,
+        heading_target,
+        rng,
+        lin_vel_x=lin_vel_x,
+        lin_vel_y=lin_vel_y,
+        ang_vel_z=ang_vel_z,
+        heading=heading,
+        rel_standing_envs=rel_standing_envs,
+        rel_heading_envs=rel_heading_envs,
+    )
+    _steer_to_heading_torch(
+        command,
+        heading_target,
+        root_link_pose_w,
+        mask,
+        ang_vel_z=ang_vel_z,
+        heading_control_stiffness=heading_control_stiffness,
+    )
+
+
+heading_velocity_command_steered_on_resample = Term(
+    torch=Implementation(compute=_heading_velocity_command_steered_on_resample_torch, update=_steer_to_heading_torch),
+    warp=Implementation(compute=_heading_velocity_command_steered_on_resample, update=_steer_to_heading),
+    shape=("worlds", 3),
+    state={"heading_target": State(initial=float("nan"))},
+    random=True,
+)
+"""Like :data:`heading_velocity_command`, but a resample also steers the yaw rate to the new target at once.
+
+The first observation after a reset then carries the steered yaw rate of the reset pose, as MDP1's command manager
+updates the commands after a reset, instead of the drawn ``ang_vel_z``. Bind ``root_link_pose_w`` to the robot.
+"""
+
+
 # Pose.
 
 

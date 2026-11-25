@@ -14,6 +14,7 @@ from isaaclab_assets import G1_MINIMAL_CFG
 
 from ... import mdp
 from ...velocity_env_cfg import (
+    VELOCITY_SIM_CFG,
     CurriculumCfg,
     LocomotionVelocityRoughEnvCfg,
     MySceneCfg,
@@ -125,7 +126,7 @@ class G1Rewards(RewardsCfg):
 class G1FlatEnvCfg(LocomotionVelocityRoughEnvCfg):
     """Configuration for the Unitree G1 velocity-tracking environment on flat terrain."""
 
-    sim: SimulationCfg = SimulationCfg(physics=RoughPhysicsCfg())
+    sim: SimulationCfg = replace(VELOCITY_SIM_CFG, physics=RoughPhysicsCfg())
     sim.physics.newton_mjwarp.solver_cfg.njmax = 95
     sim.physics.newton_mjwarp.solver_cfg.nconmax = 10
     sim.physics.default = sim.physics.newton_mjwarp

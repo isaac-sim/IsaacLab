@@ -814,7 +814,8 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
         super().play_mode()
         self.scene.num_envs = 1
         self.sim.visualizer_cfgs.eye = (0.9, 0.65, 0.5)
-        self.sim.visualizer_cfgs.cameras[0].eye = (0.9, 0.65, 0.5)
+        if self.sim.visualizer_cfgs.cameras:
+            self.sim.visualizer_cfgs.cameras[0].eye = (0.9, 0.65, 0.5)
         self.curriculum_freeze = True
 
 

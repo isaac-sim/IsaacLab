@@ -19,11 +19,24 @@ from isaaclab.visualizers import VisualizerCfg
 pytestmark = [pytest.mark.unit]
 
 
-def test_close_does_not_destroy_shared_gl_context() -> None:
-    """GL teardown must not prevent another viewer from starting in the same process."""
+@pytest.mark.parametrize(("platform", "window_open"), [("linux", True), ("win32", True), ("win32", False)])
+def test_close_does_not_destroy_shared_gl_context(
+    monkeypatch: pytest.MonkeyPatch, platform: str, window_open: bool
+) -> None:
+    """Closing a live Windows window releases focus before dropping the viewer."""
+    monkeypatch.setattr(newton_visualizer.sys, "platform", platform)
     visualizer = NewtonGLVisualizer(VisualizerCfg(backend=NewtonGLBackendCfg()))
     viewer = visualizer._viewer = Mock()
+    window = viewer.renderer.window
+    if not window_open:
+        window.context = None
+
     visualizer.close()
+
+    if platform == "win32" and window_open:
+        window.set_visible.assert_called_once_with(False)
+    else:
+        window.set_visible.assert_not_called()
     viewer.close.assert_not_called()
     assert visualizer._viewer is None
 

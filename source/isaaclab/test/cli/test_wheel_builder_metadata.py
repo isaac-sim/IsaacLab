@@ -103,7 +103,7 @@ def test_wheel_console_uses_compatibility_dispatcher(generated_wheel_project: di
 def test_wheel_builder_omits_integrations_without_published_wheels(
     source_checkout_root: Path, generated_wheel_project: dict
 ):
-    """Git-only RL-Games and Robomimic requirements must stay out of published metadata."""
+    """Git-only RL-Games, Robomimic, and newton-neural requirements must stay out of published metadata."""
     with (source_checkout_root / "pyproject.toml").open("rb") as f:
         source_project = tomllib.load(f)["project"]
     generated_project = generated_wheel_project
@@ -111,14 +111,19 @@ def test_wheel_builder_omits_integrations_without_published_wheels(
     # Source checkouts retain the integrations through their Git requirements.
     assert any(dep.startswith("rl-games @ git+") for dep in source_project["optional-dependencies"]["rl-games"])
     assert any(dep.startswith("robomimic @ git+") for dep in source_project["optional-dependencies"]["mimic"])
+    assert any(
+        dep.startswith("newton-neural @ git+") for dep in source_project["optional-dependencies"]["newton-neural"]
+    )
 
-    # The published wheel cannot expose the RL-Games extra or reference either Git-only distribution.
+    # The published wheel cannot expose the Git-only extras or reference a Git-only distribution.
     assert "rl-games" not in generated_project["optional-dependencies"]
+    assert "newton-neural" not in generated_project["optional-dependencies"]
     generated_requirements = generated_project["dependencies"] + [
         dep for requirements in generated_project["optional-dependencies"].values() for dep in requirements
     ]
     assert not any(dep.startswith("rl-games") for dep in generated_requirements)
     assert not any(dep.startswith("robomimic") for dep in generated_requirements)
+    assert not any(dep.startswith("newton-neural") for dep in generated_requirements)
 
 
 def test_wheel_builder_keeps_explicit_extras_opt_in(source_checkout_root: Path, generated_wheel_project: dict):
@@ -160,7 +165,7 @@ def test_wheel_builder_core_pins_match_root_pyproject(source_checkout_root: Path
     """The bundled wheel must preserve the source checkout's physics and training dependencies."""
     with (source_checkout_root / "pyproject.toml").open("rb") as f:
         source_dependencies = tomllib.load(f)["project"]["dependencies"]
-    for package in ("newton", "rsl-rl-lib"):
+    for package in ("newton", "rsl-rl-lib-extras"):
         expected = [dep for dep in source_dependencies if _requirement_name(dep) == package]
         actual = [dep for dep in generated_wheel_project["dependencies"] if _requirement_name(dep) == package]
         assert len(expected) == 1
@@ -168,7 +173,7 @@ def test_wheel_builder_core_pins_match_root_pyproject(source_checkout_root: Path
 
     # RSL-RL is also exposed through its own ``rsl-rl`` extra.
     assert generated_wheel_project["optional-dependencies"]["rsl-rl"] == [
-        dep for dep in source_dependencies if _requirement_name(dep) == "rsl-rl-lib"
+        dep for dep in source_dependencies if _requirement_name(dep) == "rsl-rl-lib-extras"
     ]
 
 
