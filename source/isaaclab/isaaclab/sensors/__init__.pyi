@@ -9,6 +9,7 @@ __all__ = [
     "Camera",
     "CameraCfg",
     "CameraData",
+    "ExposureCfg",
     "RenderBufferKind",
     "RenderBufferSpec",
     "TiledCamera",
@@ -28,6 +29,8 @@ __all__ = [
     "FrameTransformerCfg",
     "OffsetCfg",
     "FrameTransformerData",
+    "LidarCfg",
+    "LidarData",
     "BaseImu",
     "BaseImuData",
     "Imu",
@@ -57,12 +60,14 @@ __all__ = [
     "patterns",
 ]
 
+from .lidar import LidarCfg, LidarData
 from .sensor_base import SensorBase
 from .sensor_base_cfg import SensorBaseCfg
 from .camera import (
     Camera,
     CameraCfg,
     CameraData,
+    ExposureCfg,
     RenderBufferKind,
     RenderBufferSpec,
     TiledCamera,

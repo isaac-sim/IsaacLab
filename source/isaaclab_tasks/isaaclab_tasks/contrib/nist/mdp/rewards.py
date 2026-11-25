@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Factory reward terms."""
+"""NIST reward terms."""
 
 from __future__ import annotations
 

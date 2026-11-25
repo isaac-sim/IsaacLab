@@ -255,6 +255,8 @@ def test_record_demos_starts_headless_xr(tmp_path):
         "scripts/tools/record_demos.py",
         "--task",
         _ISAAC_TELEOP_TASK,
+        "--physics",
+        "isaacsim_physx",
         "--dataset_file",
         str(tmp_path / "dataset.hdf5"),
         "--xr",

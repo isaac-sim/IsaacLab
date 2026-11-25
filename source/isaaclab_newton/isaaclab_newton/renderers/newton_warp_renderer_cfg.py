@@ -68,7 +68,7 @@ class NewtonWarpRendererCfg(RendererCfg):
     """
 
     create_default_light: bool = True
-    """Create a default directional light source in the scene."""
+    """Create a fallback directional light when the scene has no authored lights."""
 
     semantic_filter: str | list[str] = "*:*"
     """A string or list specifying a semantic filter predicate for :attr:`semantic_segmentation` and

@@ -17,7 +17,7 @@ while tracking a pose along the unconstrained directions. See
 
 2. Robot Dynamics Lecture Notes by Marco Hutter (ETH Zurich). URL https://ethz.ch/content/dam/ethz/special-interest/mavt/robotics-n-intelligent-systems/rsl-dam/documents/RobotDynamics2017/RD_HS2017script.pdf
 
-This tutorial uses Isaac Sim PhysX and requires an Isaac Sim installation.
+This tutorial uses OvPhysX and the Newton RTX visualizer. Install the ``ov`` extra; Isaac Sim is not required.
 The target quaternions use ``(x, y, z, w)`` order and orient the end-effector toward the tilted wall.
 For controller selection and the control-loop walkthrough, see
 :doc:`../concepts/motion_generators`.
@@ -178,11 +178,11 @@ You can now run the script and see the result:
 
 .. tab-set::
 
-   .. tab-item:: Isaac Sim PhysX (uv)
+   .. tab-item:: OvPhysX (uv)
 
       .. code-block:: bash
 
-         uv run isaaclab -p scripts/tutorials/05_controllers/run_osc.py --num_envs 128 --viz kit
+         uv run --extra ov isaaclab -p scripts/tutorials/05_controllers/run_osc.py --num_envs 128 --viz newton_rtx
 
 The script will start a simulation with 128 robots. The robots will be controlled using the OSC.
 The current and desired end-effector poses should be displayed using frame markers in addition to the red tilted wall.

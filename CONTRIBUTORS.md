@@ -35,6 +35,7 @@ Guidelines for modifications:
 * Matthew Trepte
 * Maximilian Krause
 * Mayank Mittal
+* Mehdi Ataei
 * Mike Yan Michelis
 * Mikhail Yurasov
 * Mustafa Haiderbhai
@@ -89,6 +90,7 @@ Guidelines for modifications:
 * David Yang
 * Daniel Florea
 * Daniela Hasenbring
+* Danyi Chen
 * Dhananjay Shendre
 * Dhyan Thakkar
 * Diego Ferigo
@@ -96,9 +98,11 @@ Guidelines for modifications:
 * Dongxuan Fan
 * Dorsa Rohani
 * Ege Sekkin
+* Elle Miller
 * Emily Sturman
 * Emmanuel Ferdman
 * Fabian Jenelten
+* Fanxing Li
 * Fatima Anes
 * Felipe Mohr
 * Felix Yu

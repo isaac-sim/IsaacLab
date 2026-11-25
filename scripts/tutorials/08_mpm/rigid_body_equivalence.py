@@ -13,8 +13,8 @@ total mass.
 
 .. code-block:: bash
 
-    uv run --extra isaacsim python scripts/tutorials/08_mpm/rigid_body_equivalence.py \
-      --visualizer kit
+    uv run --extra ovrtx python scripts/tutorials/08_mpm/rigid_body_equivalence.py \
+      --visualizer newton_rtx
 """
 
 from __future__ import annotations
@@ -114,7 +114,7 @@ parser.add_argument("--mpm_substeps", type=int, default=8, help="Implicit MPM su
 parser.add_argument("--rigid_substeps", type=int, default=4, help="MJWarp substeps per simulation step.")
 parser.add_argument("--disable_cuda_graph", action="store_true", help="Disable Newton CUDA graphs for debugging.")
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["kit"])
+parser.set_defaults(visualizer=["newton_rtx"])
 args_cli = parser.parse_args()
 
 if not np.isfinite(args_cli.voxel_size) or args_cli.voxel_size <= 0.0:

@@ -31,7 +31,7 @@ import ast
 import enum
 import sys
 import warnings
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import is_dataclass
 from types import SimpleNamespace
 from typing import ClassVar
@@ -122,7 +122,13 @@ def user_stacklevel() -> int:
     return level
 
 
-def _normalize_preset_name(name: str, known_names: set[str], aliases: Mapping[str, str] | None = None) -> str:
+def _normalize_preset_name(
+    name: str,
+    known_names: set[str],
+    aliases: Mapping[str, str] | None = None,
+    quiet: Collection[str] = (),
+    messages: Mapping[str, str] | None = None,
+) -> str:
     """Map a deprecated preset name to its replacement and emit a warning.
 
     Returns ``name`` unchanged when:
@@ -131,15 +137,19 @@ def _normalize_preset_name(name: str, known_names: set[str], aliases: Mapping[st
           value can flow into the unknown-preset error), or
         * ``name`` is itself a real field in ``known_names`` (a user-defined preset
           legitimately reusing the deprecated spelling shadows the alias).
+
+    No warning is emitted for names in ``quiet``, which are alternative spellings rather than deprecated ones.
+    ``messages`` replaces the default warning text of the names it lists.
     """
     replacement = (aliases or {}).get(name, _LEGACY_PRESET_ALIASES.get(name))
     if replacement is None or replacement not in known_names or name in known_names:
         return name
-    warnings.warn(
-        f"Preset '{name}' is deprecated. Use '{replacement}' instead.",
-        FutureWarning,
-        stacklevel=user_stacklevel(),
-    )
+    if name not in quiet:
+        warnings.warn(
+            (messages or {}).get(name) or f"Preset '{name}' is deprecated. Use '{replacement}' instead.",
+            FutureWarning,
+            stacklevel=user_stacklevel(),
+        )
     return replacement
 
 
@@ -200,6 +210,18 @@ class PresetCfg:
 
     _aliases: ClassVar[dict[str, str]] = {}
 
+    _quiet_aliases: ClassVar[frozenset[str]] = frozenset()
+    _explicit_aliases: ClassVar[dict[str, str]] = {}
+    """Names that select a field only when chosen explicitly, e.g. ``visualizer=NAME``, never by a global preset such
+    as ``physics=NAME`` or ``presets=NAME``."""
+    """Names in :attr:`_aliases` that are alternative spellings, so selecting them does not warn."""
+
+    _alias_messages: ClassVar[dict[str, str]] = {}
+    """Warning texts that replace the default one for deprecated names in :attr:`_aliases`."""
+
+    _removed: ClassVar[dict[str, str]] = {}
+    """Names that were removed from this preset, each with a message that says what to use instead."""
+
     def __getattr__(self, name: str):
         """Alias a deprecated preset name to its replacement field.
 
@@ -212,11 +234,12 @@ class PresetCfg:
         replacement = self._aliases.get(name, _LEGACY_PRESET_ALIASES.get(name))
         fields = self.__dataclass_fields__
         if replacement is not None and replacement in fields and name not in fields:
-            warnings.warn(
-                f"Preset '{name}' is deprecated. Use '{replacement}' instead.",
-                FutureWarning,
-                stacklevel=user_stacklevel(),
-            )
+            if name not in self._quiet_aliases:
+                warnings.warn(
+                    self._alias_messages.get(name) or f"Preset '{name}' is deprecated. Use '{replacement}' instead.",
+                    FutureWarning,
+                    stacklevel=user_stacklevel(),
+                )
             return getattr(self, replacement)
         raise AttributeError(f"{type(self).__name__!s} object has no attribute {name!r}")
 
@@ -347,9 +370,17 @@ def _pick_alternative(
     fields = _preset_fields(preset_obj)
     field_names = set(fields)
     if explicit_name is not None:
-        explicit_name = _normalize_preset_name(explicit_name, field_names, preset_obj._aliases)
+        explicit_name = _normalize_preset_name(
+            explicit_name,
+            field_names,
+            {**preset_obj._aliases, **preset_obj._explicit_aliases},
+            preset_obj._quiet_aliases | preset_obj._explicit_aliases.keys(),
+            preset_obj._alias_messages,
+        )
         if explicit_name in fields:
             return fields[explicit_name]
+        if explicit_name in preset_obj._removed:
+            raise ValueError(f"Unknown preset '{explicit_name}' for {path}. {preset_obj._removed[explicit_name]}")
         avail = list(fields)
         hint = ""
         if explicit_name in _LEGACY_PRESET_ALIASES:
@@ -363,7 +394,9 @@ def _pick_alternative(
     match_value = None
     for name in selected:
         raw_name = name
-        name = _normalize_preset_name(raw_name, field_names)
+        name = _normalize_preset_name(
+            raw_name, field_names, preset_obj._aliases, preset_obj._quiet_aliases, preset_obj._alias_messages
+        )
         if name not in fields or name == match_name:
             continue
         val = fields[name]
@@ -486,6 +519,7 @@ def resolve_task_config(
     agent_cfg_entry_point: str | None,
     play_mode: bool = False,
     overrides: Sequence[str] | None = None,
+    env_cfg_entry_point: str = "env_cfg_entry_point",
 ):
     """Resolve env and agent configs with Hydra overrides, presets, scalars, and interpolations applied.
 
@@ -501,13 +535,14 @@ def resolve_task_config(
         overrides: Optional Hydra arguments to use instead of reading them from
             :data:`sys.argv`. This keeps programmatic task composition on the same
             path as command-line composition. Defaults to None.
+        env_cfg_entry_point: Registered environment configuration for this workflow.
 
     Returns:
         Tuple of (env_cfg, agent_cfg) fully resolved.
     """
     task = task_name.split(":")[-1]
     env_cfg, agent_cfg, hydra_args = register_task(
-        task, agent_cfg_entry_point, play_mode=play_mode, overrides=overrides
+        task, agent_cfg_entry_point, play_mode=play_mode, overrides=overrides, env_cfg_entry_point=env_cfg_entry_point
     )
     if not hydra_args:
         return replace_strings_with_env_cfg_spaces(env_cfg), agent_cfg
@@ -532,6 +567,7 @@ def register_task(
     agent_entry: str | None,
     play_mode: bool = False,
     overrides: Sequence[str] | None = None,
+    env_cfg_entry_point: str = "env_cfg_entry_point",
 ) -> tuple:
     """Load configs, collect presets recursively, register base config to Hydra.
 
@@ -545,6 +581,7 @@ def register_task(
             configuration's ``play_mode`` method after loading. Defaults to False.
         overrides: Optional Hydra arguments to compose instead of :data:`sys.argv`.
             Non-string literals replace resolved preset values; strings at preset paths select alternatives.
+        env_cfg_entry_point: Registered environment configuration for this workflow.
 
     Returns:
         Tuple of ``(env_cfg, agent_cfg, hydra_args)`` where presets have been
@@ -553,7 +590,7 @@ def register_task(
     """
     from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
-    env_cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
+    env_cfg = load_cfg_from_registry(task_name, env_cfg_entry_point)
     agent_cfg = load_cfg_from_registry(task_name, agent_entry) if agent_entry else None
 
     # CLI preset tokens: ``presets=NAME[,...]`` broadcasts (no typing claim),
@@ -664,7 +701,7 @@ def register_task(
             "configuration."
         )
     if PresetTarget.VISUALIZER.matches in selectors.keys() - consumed_selectors:
-        from .presets import MultiBackendVisualizerCfg
+        from .presets import VISUALIZER_PRESET_FIELDS, MultiBackendVisualizerCfg
 
         env_cfg.sim.visualizer_cfgs = migrate_visualizer_cfgs(
             env_cfg.sim.visualizer_cfgs, env_cfg.sim.default_visualizer_cfg
@@ -677,7 +714,7 @@ def register_task(
             choices = MultiBackendVisualizerCfg()
             backends = viewer.backend if isinstance(viewer.backend, list) else [viewer.backend]
             for backend in backends:
-                vars(choices)[backend.visualizer_type] = backend
+                vars(choices)[VISUALIZER_PRESET_FIELDS.get(backend.visualizer_type, backend.visualizer_type)] = backend
             viewer.backend = resolve_presets(choices, overrides={"": selectors[PresetTarget.VISUALIZER.matches]})
         env_cfg.sim.visualizer_cfgs = viewers
 
@@ -914,10 +951,11 @@ def _enumerate_variants(task_name: str) -> dict[PresetTarget, list[str]]:
                 matched = next(iter(families))
             result[matched].add(name)
     if not result[PresetTarget.VISUALIZER]:
-        from .presets import MultiBackendVisualizerCfg
+        from .presets import VISUALIZER_PRESET_FIELDS, MultiBackendVisualizerCfg
 
+        spelling = {field: name for name, field in VISUALIZER_PRESET_FIELDS.items()}
         result[PresetTarget.VISUALIZER].update(
-            name for name in collect_presets(MultiBackendVisualizerCfg())[""] if name != "default"
+            spelling.get(name, name) for name in collect_presets(MultiBackendVisualizerCfg())[""] if name != "default"
         )
     return {target: sorted(names) for target, names in result.items()}
 

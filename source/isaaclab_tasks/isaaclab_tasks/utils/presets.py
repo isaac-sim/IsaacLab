@@ -5,17 +5,19 @@
 
 from typing import Any, ClassVar
 
-from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
+from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg, IsaacRtxRendererGlobalSettingsCfg
 from isaaclab_newton.renderers import NewtonOptixRendererCfg, NewtonWarpRendererCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_visualizers.kit import KitBackendCfg
-from isaaclab_visualizers.newton import NewtonGLBackendCfg, NewtonRTXBackendCfg
+from isaaclab_visualizers.newton import NewtonGLBackendCfg
 from isaaclab_visualizers.rerun import RerunBackendCfg
 from isaaclab_visualizers.viser import ViserBackendCfg
 
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.utils import configclass
-from isaaclab.visualizers.visualizer_cfg import VISUALIZER_ALIASES, VisualizerBackendCfg
+from isaaclab.visualizers.visualizer_cfg import (
+    VisualizerBackendCfg,
+)
 
 from .hydra import PresetCfg
 
@@ -23,6 +25,7 @@ from .hydra import PresetCfg
 @configclass
 class _AutoRtxRendererCfg(RendererCfg):
     renderer_type: str = "auto_rtx"
+    global_settings: IsaacRtxRendererGlobalSettingsCfg = IsaacRtxRendererGlobalSettingsCfg()
 
 
 @configclass
@@ -43,7 +46,7 @@ def set_isaac_rtx_global_settings(renderer_cfg: Any, **settings: Any) -> None:
         if cfg is None or id(cfg) in visited:
             return
         visited.add(id(cfg))
-        if getattr(cfg, "renderer_type", None) == "isaac_rtx" and hasattr(cfg, "global_settings"):
+        if getattr(cfg, "renderer_type", None) in ("isaac_rtx", "auto_rtx") and hasattr(cfg, "global_settings"):
             for key, value in settings.items():
                 setattr(cfg.global_settings, key, value)
         for attr_name in ("default", "isaacsim_rtx"):
@@ -52,16 +55,22 @@ def set_isaac_rtx_global_settings(renderer_cfg: Any, **settings: Any) -> None:
     _visit(renderer_cfg)
 
 
+VISUALIZER_PRESET_FIELDS = {"newton": "newton_gl"}
+"""Visualizer names whose :class:`MultiBackendVisualizerCfg` field is spelled differently."""
+
+
 @configclass
 class MultiBackendVisualizerCfg(PresetCfg):
     """Built-in visualizers selected with ``visualizer=NAME``; no viewer opens by default."""
 
     kit: KitBackendCfg = KitBackendCfg()
     newton_gl: NewtonGLBackendCfg = NewtonGLBackendCfg()
-    newton_rtx: NewtonRTXBackendCfg = NewtonRTXBackendCfg()
+    newton_rtx: NewtonGLBackendCfg = NewtonGLBackendCfg(initial_renderer="rtx")
     rerun: RerunBackendCfg = RerunBackendCfg()
     viser: ViserBackendCfg = ViserBackendCfg()
     none: list[VisualizerBackendCfg] = []
     default: list[VisualizerBackendCfg] = []
 
-    _aliases: ClassVar[dict[str, str]] = VISUALIZER_ALIASES
+    # ``newton`` selects ``newton_gl`` only when chosen explicitly (``--viz`` or ``visualizer=``), not as an alias
+    # here: a global ``physics=newton`` / ``presets=newton`` would otherwise match this field as well.
+    _explicit_aliases: ClassVar[dict[str, str]] = VISUALIZER_PRESET_FIELDS

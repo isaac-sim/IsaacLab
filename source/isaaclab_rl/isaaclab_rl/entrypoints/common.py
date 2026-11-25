@@ -124,9 +124,9 @@ def add_frontend_args(parser: argparse.ArgumentParser) -> None:
         default="torch",
         help=(
             "Runtime that constructs the environment. 'torch' uses the registered stable environment via"
-            " gym.make. 'warp' (experimental) adapts a manager-based task config onto the Warp runtime, or"
-            " dispatches a direct task to its registered Warp environment; requires isaaclab_experimental"
-            " and `physics=newton_mjwarp`."
+            " gym.make. 'warp' (deprecated: MDP2 replaces it, see the '-MDP2' tasks) adapts a manager-based"
+            " task config onto the Warp runtime, or dispatches a direct task to its registered Warp environment;"
+            " requires isaaclab_experimental and `physics=newton_mjwarp`."
         ),
     )
 
@@ -147,7 +147,7 @@ def add_video_args(parser: argparse.ArgumentParser, *, action: str) -> None:
         metavar="SOURCE",
         help=(
             f"Record videos during {action}. SOURCE defaults to 'viz': the first capture-capable visualizer --viz"
-            " selects, else a headless newton_gl. 'viz:<type>' (kit, newton_gl, newton_rtx) records from that"
+            " selects, else a headless newton. 'viz:<type>' (kit, newton) records from that"
             " visualizer (a bare type is shorthand for 'viz:<type>'), added headless when --viz does not select it;"
             " 'sensor:<name>[:<channel>]' records from a scene camera. Recorders declared in the environment config"
             " take precedence."
@@ -544,7 +544,7 @@ def create_isaaclab_env(
         env = gym.make(task, cfg=env_cfg)
     else:
         # the warp frontend lives in the optional isaaclab_experimental package
-        from isaaclab_experimental.envs.frontend import WarpFrontend
+        from isaaclab_experimental.deprecated.envs.frontend import WarpFrontend
 
         env = WarpFrontend.build_env(env_cfg, task)
     if convert_marl_to_single_agent and isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):
@@ -1041,7 +1041,9 @@ Playback.
 """
 
 
-def run_playback(step: Callable[[], None], *, dt: float, args_cli: argparse.Namespace, env_cfg: Any) -> None:
+def run_playback(
+    step: Callable[[], None], *, dt: float, args_cli: argparse.Namespace, env_cfg: Any, max_steps: int | None = None
+) -> None:
     """Step a policy until interrupted, or until the requested video clip is complete.
 
     Args:
@@ -1050,8 +1052,9 @@ def run_playback(step: Callable[[], None], *, dt: float, args_cli: argparse.Name
         dt: Environment step duration [s], used to pace real-time playback.
         args_cli: Parsed command-line arguments providing ``video``, ``video_length`` and ``real_time``.
         env_cfg: Environment config whose video recorders bound a ``--video`` run until each finishes its first clip.
+        max_steps: Optional step limit when not recording a video.
     """
-    max_steps = video_playback_steps(args_cli, env_cfg)
+    max_steps = video_playback_steps(args_cli, env_cfg) or max_steps
     logger.info("Policy playback is running, press Ctrl+C to exit...")
     step_count = 0
     with contextlib.suppress(KeyboardInterrupt):

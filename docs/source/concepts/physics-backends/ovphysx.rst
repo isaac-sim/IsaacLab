@@ -15,6 +15,14 @@ OvPhysX
 OvPhysX runs PhysX without Omniverse Kit. It reads scene-level solver settings
 from the USD ``PhysicsScene`` prim. :class:`~isaaclab_ov.physics.OvPhysxCfg` holds
 GPU buffer settings that USD does not represent.
+It can also author selected contact settings onto that prim:
+``bounce_threshold_velocity``, ``friction_correlation_distance`` and
+``solve_articulation_contact_last``. Optional ``solver_type`` (0 for PGS, 1 for TGS),
+``min_position_iteration_count``, ``max_position_iteration_count``,
+``min_velocity_iteration_count``, ``max_velocity_iteration_count``,
+``friction_offset_threshold``, and ``gpu_max_num_partitions`` preserve task-specific
+solver tuning when migrating from Isaac Sim PhysX. Settings left at ``None`` keep
+the stage value. GPU partition settings apply only to GPU scenes.
 
 OvPhysX is selected through :class:`~isaaclab_ov.physics.OvPhysxCfg`:
 
@@ -31,6 +39,33 @@ Why use OvPhysX?
 * **No Kit runtime.** Run headless simulations without Isaac Sim.
 * **USD configuration.** Scene-authoring tools can set solver parameters directly
   on the ``PhysicsScene`` prim.
+
+Migrating existing commands
+---------------------------
+
+Supported contributed tasks and examples now default to OvPhysX and OVRTX.
+Install the ``ov`` extra for these defaults, and use ``--viz newton_rtx`` for
+Newton RTX visualization. Tasks with renderer presets keep an explicit Isaac RTX
+alternative for their retained Isaac Sim physics path:
+
+.. code-block:: bash
+
+   uv run python scripts/environments/random_agent.py --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor \
+      physics=ovphysx renderer=ovrtx --viz newton_rtx
+
+   uv run --extra isaacsim python scripts/environments/random_agent.py \
+      --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor \
+      physics=isaacsim_physx renderer=isaacsim_rtx --viz newton_gl
+
+Use only presets listed by the task's ``--help``. Migrated examples that already
+accepted ``--physics isaacsim_physx`` retain that explicit option and choose Newton
+OpenGL for its default viewer. The launcher warns when an Isaac Sim backend is
+selected: the Kit path is deprecated in 3.1 and scheduled for removal in 3.2.
+OVRTX and Newton RTX cannot share a process with Kit.
+
+The deprecated Franka absolute-IK alias follows the migrated OvPhysX default.
+Prefer its canonical command, ``--task Isaac-Reach-Franka physics=ovphysx presets=diffik_abs``;
+the canonical task also exposes ``physics=isaacsim_physx`` during the transition.
 
 What works today
 ----------------
@@ -237,6 +272,20 @@ in OvPhysX 0.6.3, so it imports all declared USD copies and uses collision group
 Large overlapping original layouts can still exhaust broadphase pair capacity;
 use spatially separated environments.
 
+Compiled-stage cache
+--------------------
+
+OvPhysX 0.8 can store compiled physics stages in the cooked-collider cache
+directory. Large deformable scenes can attach faster with compiled-stage
+caching disabled. Set ``OvPhysxCfg(disable_compiled_stage_cache=True)`` to opt
+out for a scene. The Franka cloth and soft-beam lift tasks set this option
+in their ``physics=ovphysx`` presets. The default inherits the runtime mode.
+
+The opt-out does not affect cooked-collider caching. Isaac Lab restores the
+process-wide compiled-stage cache setting after submitting the attach task.
+Code using the native OvPhysX API in the same process should avoid attaching
+a separate stage concurrently with an Isaac Lab attach.
+
 Deformable limitations
 ----------------------
 
@@ -246,10 +295,10 @@ nodes. Initialization raises an error for mixed node counts instead of exposing
 padded state that would produce incorrect reductions.
 
 Deformable scenes also require full-stage materialization. Startup cost therefore
-grows with the number of authored environments. Use this path for small validation
-scenes; training-scale workloads with thousands of environments are not currently
-supported. Deformable bodies are not supported by the heterogeneous fast-path
-cloner.
+grows with the number of authored environments. For large scenes, see
+`Compiled-stage cache`_ for the cache opt-out used by the Franka cloth and
+soft-beam lift presets. Deformable bodies are not supported by the heterogeneous
+fast-path cloner.
 
 .. _ovphysx-native-access:
 

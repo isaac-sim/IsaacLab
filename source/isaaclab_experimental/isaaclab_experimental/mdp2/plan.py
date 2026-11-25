@@ -45,10 +45,11 @@ class ActionOp:
     name: str
     target: FieldSelector
     columns: slice  # Columns of the action: the first of its slot, as many as it writes
-    scale: float
+    scale: float | tuple[float, ...]
     offset: float | FieldSelector  # A field gives an offset per element
     worlds: tuple[int, ...] | None = None  # Worlds where the op is active, None for every world
     subset: SubsetSelector | None = None  # Elements of the target it writes, None for all of them
+    clip: tuple[tuple[float, float], ...] | None = None
     slot: str = ""  # Name of its columns of the action, which the actions of the same name share
     stage: str | None = None  # The task of a sequence that the op belongs to: it writes only while that task runs
     rate: ActionRate = ActionRate.PHYSICS

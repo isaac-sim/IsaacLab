@@ -114,6 +114,12 @@ class MDP2Env:
         sim.backend_manager.set_decimation(cfg.decimation)
         # Newton-native actuators step all substeps in one call.
         self._substeps = cfg.decimation if sim.backend_manager.handles_decimation() else 1
+        # Newton actuators that it cannot capture, such as networks loaded from Torch checkpoints, run on the host:
+        # the physics, which steps them, and the scene reset, which resets them, then run between the graphs.
+        actuators = sim.backend_manager.backend.actuators
+        self._physics_capturable = sim.backend_manager.supports_step_capture() and (
+            actuators is None or actuators.is_all_graphable
+        )
 
         self.scene_data = InteractiveSceneData(self.scene, sim, self.step_dt)
         self._all_envs = ProxyArray(wp.ones(self.num_envs, dtype=wp.bool, device=self.device))
@@ -253,9 +259,10 @@ class MDP2Env:
 
     def close(self) -> None:
         if not self._is_closed:
-            self.sim.stop()
-            # The captured graphs, the MDP state, and the scene data all reference the scene's buffers.
+            # The captured steps reference scene buffers and solver hooks.
             self._runs = None
+            self.sim.stop()
+            self.scene.close()
             del self.state, self.transition, self.scene_data, self.scene
             self.sim.clear_instance()
             self._is_closed = True
@@ -275,7 +282,7 @@ class MDP2Env:
             for run in self._runs:
                 run()
             # The graphs replayed the physics steps, but not their host work, such as counting them.
-            if not captured and self.sim.backend_manager.supports_step_capture():
+            if not captured and self._physics_capturable:
                 self.sim.after_replay(self.cfg.decimation // self._substeps)
         else:
             for _, work in self._work:
@@ -300,7 +307,7 @@ class MDP2Env:
         for item in self.cfg.step:
             if item is Step.PHYSICS:
                 # A physics backend that cannot capture its step steps between the graphs of the MDP.
-                work.append((self.sim.backend_manager.supports_step_capture(), self._simulate))
+                work.append((self._physics_capturable, self._simulate))
             elif item is Step.RENDER:
                 work += [(self._render_capturable, self._render)] if self._cameras else []
             elif item is Step.EVALUATE:
@@ -328,7 +335,7 @@ class MDP2Env:
             if item is ResetStep.OBSERVE and render:
                 work += rendering
             if item is ResetStep.EVENTS:
-                work.append((True, functools.partial(self._reset_scene, mask)))
+                work.append((self._physics_capturable, functools.partial(self._reset_scene, mask)))
                 work += [(launch.capturable, functools.partial(launch, reset)) for launch in launches.reset]
             elif item is ResetStep.COMMIT:
                 work.append((True, functools.partial(self._commit, mask)))
@@ -436,7 +443,11 @@ class MDP2Env:
 
     def _reset_scene(self, mask: ProxyArray) -> None:
         """Reset the assets and sensors of the masked worlds, before the MDP's reset events."""
-        assets = [*self.scene.articulations.values(), *self.scene.rigid_objects.values()]
+        assets = [
+            *self.scene.articulations.values(),
+            *self.scene.rigid_objects.values(),
+            *self.scene.surface_grippers.values(),
+        ]
         for asset in assets:
             asset.reset(env_mask=mask.warp)
         # Clear sensor histories, so that a new episode does not see the contacts that ended the last one.

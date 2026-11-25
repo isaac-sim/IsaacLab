@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import importlib
 import sys
 from typing import TYPE_CHECKING
@@ -22,12 +23,14 @@ if TYPE_CHECKING:
 
 _BACKEND_MODULES = {
     "export": {
+        "model_based": "isaaclab_rl.entrypoints.backends.export_rsl_rl",
         "rl_games": "isaaclab_rl.entrypoints.backends.export_rl_games",
         "rsl_rl": "isaaclab_rl.entrypoints.backends.export_rsl_rl",
         "sb3": "isaaclab_rl.entrypoints.backends.export_sb3",
         "skrl": "isaaclab_rl.entrypoints.backends.export_skrl",
     },
     "train": {
+        "model_based": "isaaclab_rl.entrypoints.backends.train_rsl_rl",
         "rl_games": "isaaclab_rl.entrypoints.backends.train_rl_games",
         "rlinf": "isaaclab_rl.entrypoints.backends.train_rlinf",
         "rsl_rl": "isaaclab_rl.entrypoints.backends.train_rsl_rl",
@@ -36,6 +39,7 @@ _BACKEND_MODULES = {
         "torchrl": "isaaclab_rl.entrypoints.backends.train_torchrl",
     },
     "play": {
+        "model_based": "isaaclab_rl.entrypoints.backends.play_rsl_rl",
         "rl_games": "isaaclab_rl.entrypoints.backends.play_rl_games",
         "rlinf": "isaaclab_rl.entrypoints.backends.play_rlinf",
         "rsl_rl": "isaaclab_rl.entrypoints.backends.play_rsl_rl",
@@ -155,6 +159,9 @@ def _resolve_default_library(argv: list[str], backends: dict[str, str]) -> str |
 
     # task registration is deferred until a task name asks for it
     import isaaclab_tasks  # noqa: F401
+
+    with contextlib.suppress(ImportError):
+        import isaaclab_tasks_experimental  # noqa: F401
 
     try:
         default_library = gym.spec(args.task.split(":")[-1]).kwargs.get("default_agent")

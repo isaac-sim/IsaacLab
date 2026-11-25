@@ -3,11 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Configuration classes for Newton GL and RTX visualizer backends."""
+"""Configuration classes for the Newton visualizer backend."""
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar, Literal
 
 from isaaclab_ov.renderers import OVRTXRendererCfg
 
@@ -15,15 +15,15 @@ from isaaclab.utils import configclass
 from isaaclab.visualizers.visualizer_cfg import VisualizerBackendCfg, VisualizerCfg
 
 if TYPE_CHECKING:
-    from .newton_visualizer import NewtonGLVisualizer, NewtonRTXVisualizer
+    from .newton_visualizer import NewtonGLVisualizer
 
 
 @configclass
 class NewtonGLBackendCfg(VisualizerBackendCfg):
-    """Newton OpenGL rendering and model display options."""
+    """Newton visualizer options: OpenGL rendering and model display, and the optional OVRTX view."""
 
     class_type: type[NewtonGLVisualizer] | str = "{DIR}.newton_visualizer:NewtonGLVisualizer"
-    visualizer_type: str = "newton_gl"
+    visualizer_type: str = "newton"
     cloning_contexts: ClassVar[tuple[type | str, ...]] = ("isaaclab_newton.cloner:NewtonReplicateContext",)
 
     world_spacing: tuple[float, float, float] = (0.0, 0.0, 0.0)
@@ -52,6 +52,9 @@ class NewtonGLBackendCfg(VisualizerBackendCfg):
 
     show_particles: bool = True
     """Show simulation particles. Set to False to hide them, for example in a surface-only view."""
+
+    show_lidar_hits: bool = False
+    """Show lidar hit visualization. Set to True to copy and draw hits; a dense scan is expensive to upload."""
 
     particle_color: tuple[float, float, float] | None = None
     """Optional particle color RGB [0, 1]. Uses Newton viewer defaults when ``None``."""
@@ -82,40 +85,34 @@ class NewtonGLBackendCfg(VisualizerBackendCfg):
     light_color: tuple[float, float, float] = (1.0, 1.0, 1.0)
     """Light color RGB [0, 1]."""
 
+    rtx_camera: bool | None = None
+    """Declare an OVRTX viewer camera so the HUD can switch the main view between Newton GL and OVRTX.
 
-@configclass
-class NewtonRTXBackendCfg(VisualizerBackendCfg):
-    """Simulation-owned OVRTX rendering displayed in a Newton GL window.
-
-    Launch preparation expands perspective sources into ordinary scene CameraCfg entries.
-    All views borrow camera output. Scripts without a SceneCfg declare cameras through ReplicateSession,
-    construct them with instantiate(camera_cfg), and select them with SceneCameraCfg.
-    Window resizing scales the displayed image without changing either source's resolution.
-    Scene USD owns lighting, materials, and environment placement. Newton-model overlays,
-    rigid-body dragging, and viewer-only lighting or world offsets are not supported.
-    Environment selection controls tiled sensor views; the perspective camera sees the full scene.
+    The camera is added to the scene at launch because scene sensors cannot be added later, and it adds startup
+    time and some frame time even while OpenGL is shown, so it is off by default. It renders only while the OVRTX
+    view is selected. Enabling it needs the ``ovrtx`` package and a physics backend other than Kit-based PhysX.
+    ``None`` leaves it off unless ``initial_renderer="rtx"`` asks for it (``--viz newton_rtx`` does); ``True`` adds it;
+    ``False`` forbids it.
     """
 
-    class_type: type[NewtonRTXVisualizer] | str = "{DIR}.newton_visualizer:NewtonRTXVisualizer"
-    """Visualizer implementation class."""
+    rtx_camera_path: str | None = None
+    """Prim path of the OVRTX viewer camera that launch declared for this window; launch sets it, not users.
 
-    launcher_type: ClassVar[str] = "isaaclab_ov.app:OvrtxLauncher"
-
-    visualizer_type: str = "newton_rtx"
-    """Visualizer selector identifier. Do not change."""
-
-    render_settings: dict[str, Any] = dict()
-    """RTX attributes to author on the OVRTX render product, as ``{name: (usd_type_name, value)}``.
-
-    ``usd_type_name`` names an ``Sdf.ValueTypeNames`` member, as a string so the config stays
-    copyable. For example, ``{"omni:rtx:quality": ("Int", 100)}`` re-enables the path tracer's
-    quality convergence loop, disabled by default to keep interactive latency down."""
-
-    renderer_cfg: OVRTXRendererCfg = OVRTXRendererCfg()
-    """Shared scene renderer. Use the same configuration as scene cameras to share their instance.
-
-    Used when declaring perspective CameraCfg entries. SceneCameraCfg retains its sensor's renderer.
+    None means the window shows the first scene camera whose prim path starts with ``/World/viewer_camera_``.
     """
+
+    initial_renderer: Literal["opengl", "rtx"] = "opengl"
+    """Renderer the window opens with: the Newton OpenGL view or the OVRTX viewer camera.
+
+    ``"rtx"`` requires the OVRTX camera (see :attr:`rtx_camera`) and a kitless runtime, and starts in the RTX view
+    that the HUD's Renderer selector otherwise switches to.
+    """
+
+    rtx_renderer_cfg: OVRTXRendererCfg = OVRTXRendererCfg()
+    """Renderer of the OVRTX viewer camera."""
+
+    rtx_render_settings: dict[str, Any] = dict()
+    """Additional RTX render settings of the OVRTX viewer camera."""
 
 
 @configclass
@@ -126,17 +123,6 @@ class NewtonGLVisualizerCfg(NewtonGLBackendCfg, VisualizerCfg):
     """
 
     backend: NewtonGLBackendCfg = NewtonGLBackendCfg()
-    streaming_view: bool = True
-
-
-@configclass
-class NewtonRTXVisualizerCfg(NewtonRTXBackendCfg, VisualizerCfg):
-    """Deprecated combined configuration; use ``VisualizerCfg(backend=NewtonRTXBackendCfg())``.
-
-    Simulation launch translates this declaration before constructing visualizers.
-    """
-
-    backend: NewtonRTXBackendCfg = NewtonRTXBackendCfg()
     streaming_view: bool = True
 
 

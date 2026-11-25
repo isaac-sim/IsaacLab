@@ -8,6 +8,8 @@
 from __future__ import annotations
 
 import math
+import os
+import sys
 import warnings
 from copy import deepcopy
 from dataclasses import MISSING, fields
@@ -20,11 +22,17 @@ if TYPE_CHECKING:
     from .base_visualizer import BaseVisualizer
 
 
-VISUALIZER_TYPES = ("kit", "newton_gl", "newton_rtx", "rerun", "viser")
+VISUALIZER_TYPES = ("kit", "newton", "rerun", "viser")
 """Built-in visualizer identifiers accepted by legacy recording sources."""
 
-VISUALIZER_ALIASES = {"newton": "newton_gl"}
-"""Deprecated ``--visualizer`` names and their replacements."""
+VISUALIZER_ALIASES = {"newton_gl": "newton", "newton_rtx": "newton"}
+"""Alternative ``--visualizer`` names and the identifiers they select."""
+
+VISUALIZER_ALIAS_OPTIONS = {
+    "newton_gl": {"initial_renderer": "opengl"},
+    "newton_rtx": {"initial_renderer": "rtx"},
+}
+"""Backend options an alias in :data:`VISUALIZER_ALIASES` sets on the visualizer it selects."""
 
 
 @configclass
@@ -123,6 +131,26 @@ class WindowCfg:
         if not math.isfinite(self.fps) or self.fps <= 0:
             raise ValueError("WindowCfg.fps must be finite and positive.")
 
+    def fit_to_display(self, margin: float = 0.92) -> tuple[int, int]:
+        """Shrink :attr:`size`, keeping its aspect ratio, so the window fits the display with room for decorations.
+
+        Args:
+            margin: Fraction of the display the window may occupy.
+
+        Returns:
+            :attr:`size`, or a proportionally smaller size; unchanged when the display size is unknown.
+        """
+        if sys.platform not in ("win32", "darwin") and not os.environ.get("DISPLAY"):
+            return self.size
+        try:
+            import pyglet  # noqa: PLC0415
+
+            screen = pyglet.display.get_display().get_default_screen()
+            scale = min(1.0, margin * screen.width / self.size[0], margin * screen.height / self.size[1])
+        except Exception:
+            return self.size
+        return (max(1, int(self.size[0] * scale)), max(1, int(self.size[1] * scale)))
+
 
 @configclass
 class VisualizerBackendCfg:
@@ -164,8 +192,8 @@ class VisualizerCfg:
     cameras: list[PerspectiveCameraCfg | SceneCameraCfg] | None = None
     """Camera sources available to the visualizer.
 
-    PerspectiveCameraCfg configures the interactive view; SceneCameraCfg refers to an existing scene
-    sensor. Newton GL and RTX display the first source and offer a dropdown for switching sources.
+    PerspectiveCameraCfg configures the interactive view and may appear at most once; SceneCameraCfg refers
+    to an existing scene sensor. Newton GL and RTX display the first source and offer a dropdown for switching sources.
     Kit, Rerun, and Viser display the first scene source in their camera panel.
     None uses eye/lookat/focal_length and the streaming settings below.
     Every explicit scene source must provide all requested streaming_gt_types channels.
@@ -265,8 +293,8 @@ class VisualizerCfg:
         if self.view is not None:
             backends = self.backend if isinstance(self.backend, list) else [self.backend]
             for backend in backends:
-                if backend.visualizer_type not in ("newton_gl", "newton_rtx"):
-                    raise ValueError("VisualizerCfg.view requires a Newton GL or RTX visualizer.")
+                if backend.visualizer_type != "newton":
+                    raise ValueError("VisualizerCfg.view requires the Newton visualizer.")
             if self.cameras is not None or self.streaming_sensor_prim_path is not None:
                 raise ValueError("Choose view or legacy cameras/streaming_sensor_prim_path, not both.")
 
@@ -279,6 +307,10 @@ class VisualizerCfg:
         if self.cameras is not None:
             if not self.cameras:
                 raise ValueError("cameras must contain at least one display source.")
+            if sum(isinstance(camera, PerspectiveCameraCfg) for camera in self.cameras) > 1:
+                raise ValueError(
+                    "cameras may contain at most one PerspectiveCameraCfg, the viewer's interactive camera."
+                )
             self.streaming_view = any(isinstance(camera, SceneCameraCfg) for camera in self.cameras)
             if isinstance(camera := self.cameras[0], PerspectiveCameraCfg):
                 self.eye, self.lookat, self.focal_length = camera.eye, camera.lookat, camera.focal_length

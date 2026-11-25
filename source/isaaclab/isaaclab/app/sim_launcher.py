@@ -26,7 +26,7 @@ from isaaclab_newton.physics import NewtonCfg, VBDSolverCfg
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_visualizers.kit import KitBackendCfg
-from isaaclab_visualizers.newton import NewtonGLBackendCfg, NewtonRTXBackendCfg
+from isaaclab_visualizers.newton import NewtonGLBackendCfg
 from isaaclab_visualizers.rerun import RerunBackendCfg
 from isaaclab_visualizers.viser import ViserBackendCfg
 
@@ -39,11 +39,14 @@ from ..sim.simulation_cfg import SimulationCfg
 from ..sim.spawners.sensors.sensors_cfg import PinholeCameraCfg
 from ..utils.backend_utils import warn_kit_selector
 from ..utils.device import set_cuda_device
-from ..utils.images import sensor_key_for_gt_type
 from ..utils.math import create_rotation_matrix_from_view, quat_from_matrix
 from ..utils.string import string_to_callable
-from ..visualizers import ImageViewCfg, PerspectiveCameraCfg, SceneCameraCfg, VisualizerBackendCfg, VisualizerCfg
-from ..visualizers.visualizer_cfg import VISUALIZER_ALIASES, migrate_visualizer_cfgs
+from ..visualizers import ImageViewCfg, VisualizerBackendCfg, VisualizerCfg
+from ..visualizers.visualizer_cfg import (
+    VISUALIZER_ALIAS_OPTIONS,
+    VISUALIZER_ALIASES,
+    migrate_visualizer_cfgs,
+)
 from .logging_utils import apply_python_logging_level, ensure_console_handlers, resolve_python_logging_level
 from .settings_manager import get_settings_manager
 
@@ -158,6 +161,54 @@ def _walk_runtime_configs(cfg: Any, replacements: dict[int, Any] | None = None) 
     return tuple(configs)
 
 
+def _wants_rtx_viewer_camera(visualizer: VisualizerCfg) -> bool:
+    """Return whether a Newton GL window should get an OVRTX viewer camera in its scene."""
+    backend = visualizer.backend
+    if not isinstance(backend, NewtonGLBackendCfg):
+        return False
+    if backend.initial_renderer == "rtx":
+        if backend.rtx_camera is False:
+            raise ValueError("NewtonGLBackendCfg.initial_renderer='rtx' requires rtx_camera to be enabled.")
+        return True  # Starting in RTX needs the camera for a recording-only window or one with a view as well.
+    if visualizer.headless or visualizer.view is not None:
+        return False
+    # opt-in: the camera costs startup time and frame rate even while OpenGL is shown
+    return bool(backend.rtx_camera)
+
+
+def _declare_viewer_camera(
+    scene_cfg: InteractiveSceneCfg, viewer_index: int, visualizer: VisualizerCfg
+) -> tuple[str, VisualizerCfg, tuple[int, int], bool]:
+    """Add the OVRTX camera a Newton GL window shows in its RTX view to the scene.
+
+    Returns:
+        The camera name, the visualizer, and the window size and ``streaming_view`` it declared, which a Kit run
+        restores when it drops the camera.
+    """
+    name = f"viewer_camera_{viewer_index}_rtx"
+    declared = (visualizer.window.size, visualizer.streaming_view)
+    # The window must open at the camera's aspect ratio; an oversized window is clamped by the window manager.
+    visualizer.window.size = visualizer.window.fit_to_display()
+    width, height = visualizer.window.size
+    rotation = quat_from_matrix(create_rotation_matrix_from_view(
+        torch.tensor([visualizer.eye]), torch.tensor([visualizer.lookat]), "Z", device="cpu"
+    ))[0].tolist()  # fmt: skip
+    vars(scene_cfg)[name] = CameraCfg(
+        prim_path=f"/World/{name}", width=width, height=height, data_types=["rgba"],
+        spawn=PinholeCameraCfg(
+            focal_length=visualizer.focal_length, vertical_aperture=15.2908,
+            horizontal_aperture=15.2908 * width / height,
+        ),
+        offset=CameraCfg.OffsetCfg(pos=visualizer.eye, rot=tuple(rotation), convention="opengl"),
+        renderer_cfg=visualizer.backend.rtx_renderer_cfg, background_color=visualizer.background_color,
+        render_on_demand=True,
+        render_settings={"omni:rtx:quality": ("Int", 0), **visualizer.backend.rtx_render_settings},
+    )  # fmt: skip
+    visualizer.streaming_view = True  # The window lists scene cameras, including this one, as view sources.
+    visualizer.backend.rtx_camera_path = f"/World/{name}"
+    return name, visualizer, *declared
+
+
 def validate_launch(  # noqa: C901
     cfg, launcher_args: argparse.Namespace | dict | None = None
 ) -> tuple[tuple[Any, ...], tuple[str, ...]]:
@@ -199,8 +250,7 @@ def validate_launch(  # noqa: C901
         physics = physics_options[launcher_args["physics"]]()
     visualizer_types = {
         "kit": KitBackendCfg,
-        "newton_gl": NewtonGLBackendCfg,
-        "newton_rtx": NewtonRTXBackendCfg,
+        "newton": NewtonGLBackendCfg,
         "rerun": RerunBackendCfg,
         "viser": ViserBackendCfg,
     }
@@ -208,13 +258,9 @@ def validate_launch(  # noqa: C901
     if isinstance(selection, str):
         selection = selection.split(",")
     if selection is not None:
+        alias_options = {}
         for name in selection:
-            if name in VISUALIZER_ALIASES:
-                warnings.warn(
-                    f"Visualizer '{name}' is deprecated. Use '{VISUALIZER_ALIASES[name]}' instead.",
-                    FutureWarning,
-                    stacklevel=3,
-                )
+            alias_options.update(VISUALIZER_ALIAS_OPTIONS.get(name, {}))
         selection = list(dict.fromkeys(VISUALIZER_ALIASES.get(name, name) for name in selection))
         if selection == ["none"]:
             selection = []
@@ -257,6 +303,11 @@ def validate_launch(  # noqa: C901
                     or [viewer.replace(backend=visualizer_types[name]()) for viewer in declarations]
                 )
             node.visualizer_cfgs = viewers
+            if alias_options:  # a name that also chose how the window starts, such as newton_rtx
+                for viewer in node.visualizer_cfgs:
+                    if isinstance(viewer.backend, NewtonGLBackendCfg):
+                        for option, value in alias_options.items():
+                            setattr(viewer.backend, option, value)
         if livestream or launcher_args.get("xr", False):
             if not any(isinstance(viewer.backend, KitBackendCfg) for viewer in node.visualizer_cfgs):
                 node.visualizer_cfgs.append(
@@ -281,12 +332,12 @@ def validate_launch(  # noqa: C901
                 continue
             name = name or next(
                 (v.backend.visualizer_type for v in viewers if v.backend.visualizer_type in CAPTURE_VISUALIZER_TYPES),
-                "newton_gl",
+                "newton",
             )
             if name not in CAPTURE_VISUALIZER_TYPES:
                 raise ValueError(
                     f"Cannot record video source {recorder.source!r}: the {name!r} visualizer streams to a viewer and"
-                    " has no frame capture. Use 'viz:kit', 'viz:newton_gl', 'viz:newton_rtx', or 'sensor:<name>'."
+                    " has no frame capture. Use 'viz:kit', 'viz:newton', or 'sensor:<name>'."
                 )
             recorder.source = f"viz:{name}:{channel}" if channel else f"viz:{name}"
             producer = next(
@@ -311,43 +362,11 @@ def validate_launch(  # noqa: C901
 
     # Declare RTX perspective cameras before scene construction; runtime viewers only borrow their output.
     scene_cfg = next((node for node in configs if isinstance(node, InteractiveSceneCfg)), None)
+    # A Newton window can switch its main view to an OVRTX camera, which must already exist in the scene.
+    implicit_viewer_cameras: list[tuple[str, VisualizerCfg, tuple[int, int], bool]] = []
     for viewer_index, visualizer in enumerate(viewers):
-        if not isinstance(visualizer.backend, NewtonRTXBackendCfg) or scene_cfg is None:
-            continue
-        sources = (
-            [visualizer.view.source] if visualizer.view is not None else list(visualizer.cameras or [
-                PerspectiveCameraCfg(eye=visualizer.eye, lookat=visualizer.lookat, focal_length=visualizer.focal_length)
-            ])
-        )  # fmt: skip
-        for camera_index, source in enumerate(sources):
-            if not isinstance(source, PerspectiveCameraCfg):
-                continue
-            name = f"viewer_camera_{viewer_index}_{camera_index}"
-            width, height = visualizer.window.size
-            channels = visualizer.view.channels if visualizer.view is not None else visualizer.streaming_gt_types
-            rotation = quat_from_matrix(create_rotation_matrix_from_view(
-                torch.tensor([source.eye]), torch.tensor([source.lookat]), "Z", device="cpu"
-            ))[0].tolist()  # fmt: skip
-            camera = CameraCfg(
-                prim_path=f"/World/{name}", width=width, height=height,
-                data_types=["rgba" if channel == "rgb" else sensor_key_for_gt_type(channel) for channel in channels],
-                spawn=PinholeCameraCfg(
-                    focal_length=source.focal_length, vertical_aperture=15.2908,
-                    horizontal_aperture=15.2908 * width / height,
-                ),
-                offset=CameraCfg.OffsetCfg(pos=source.eye, rot=tuple(rotation), convention="opengl"),
-                renderer_cfg=visualizer.backend.renderer_cfg, background_color=visualizer.background_color,
-                render_settings={"omni:rtx:quality": ("Int", 0), **visualizer.backend.render_settings},
-            )  # fmt: skip
-            vars(scene_cfg)[name] = camera
-            if visualizer.view is not None:
-                visualizer.view.source = name
-            else:
-                sources[camera_index] = SceneCameraCfg(prim_path=camera.prim_path)
-        if visualizer.view is None:
-            visualizer.cameras = sources
-            visualizer.streaming_view = True
-
+        if scene_cfg is not None and _wants_rtx_viewer_camera(visualizer):
+            implicit_viewer_cameras.append(_declare_viewer_camera(scene_cfg, viewer_index, visualizer))
     configs = _walk_runtime_configs(cfg)
     replacements = {id(node): physics for node in configs if isinstance(node, PhysicsCfg) and physics is not None}
     configs = tuple(replacements.get(id(node), node) for node in configs)
@@ -377,21 +396,40 @@ def validate_launch(  # noqa: C901
         if enabled:
             kit_sources.append(source)
     kit_sources = tuple(dict.fromkeys(kit_sources))
+    auto_rtx_cameras = tuple(
+        node
+        for node in configs
+        if isinstance(node, CameraCfg) and getattr(node.renderer_cfg, "renderer_type", None) == "auto_rtx"
+    )
     for node in configs:
         if isinstance(node, PhysxAutoCfg):
             replacements[id(node)] = _resolve_physx_auto_cfg(node, bool(kit_sources))
         elif isinstance(node, RendererCfg) and node.renderer_type == "auto_rtx":
-            replacements[id(node)] = IsaacRtxRendererCfg() if kit_sources else OVRTXRendererCfg()
+            renderer = IsaacRtxRendererCfg() if kit_sources else OVRTXRendererCfg()
+            if kit_sources and hasattr(node, "global_settings"):
+                renderer.global_settings = node.global_settings
+            replacements[id(node)] = renderer
         elif isinstance(node, VisualizerCfg) and max_visible is not None:
             node.max_visible_envs = max_visible
 
     configs = _walk_runtime_configs(cfg, replacements)
+    for camera in auto_rtx_cameras:
+        camera._forward_deprecated_renderer_fields()
+    if kit_sources and implicit_viewer_cameras:
+        # The OVRTX runtime cannot share a process with Kit, so a Kit run keeps the OpenGL view only.
+        for name, visualizer, window_size, streaming_view in implicit_viewer_cameras:
+            vars(scene_cfg).pop(name, None)
+            visualizer.window.size, visualizer.streaming_view = window_size, streaming_view
+            visualizer.backend.rtx_camera_path = None
+        configs = _walk_runtime_configs(cfg, replacements)
     if kit_sources:
         for node in configs:
             if isinstance(node, OvPhysxCfg):
                 conflict = "OvPhysX physics (OvPhysxCfg)"
-            elif isinstance(node, (OVRTXRendererCfg, NewtonRTXBackendCfg)):
-                conflict = "the OVRTX runtime (OVRTXRendererCfg or the newton_rtx visualizer)"
+            elif isinstance(node, OVRTXRendererCfg) or (
+                isinstance(node, NewtonGLBackendCfg) and node.initial_renderer == "rtx"
+            ):
+                conflict = "the OVRTX runtime (OVRTXRendererCfg or the newton visualizer's initial_renderer='rtx')"
             else:
                 continue
             raise ValueError(

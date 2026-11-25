@@ -62,16 +62,6 @@ How-to Guides
 
             :guide-tag:`PhysX` :guide-tag:`Isaac Sim`
 
-      .. container:: guide-entry
-
-         :doc:`Deep-dive into launching the simulation </source/how-to/launch_app>`
-
-         Configure and launch simulation applications from Python and the command line.
-
-         .. container:: guide-metadata
-
-            :guide-tag:`PhysX` :guide-tag:`Isaac Sim`
-
    .. container:: guide-group
 
       .. _asset-authoring:
@@ -112,11 +102,21 @@ How-to Guides
 
          :doc:`Interacting with a surface gripper </source/how-to/run_surface_gripper>`
 
-         Attach and release rigid objects with a surface gripper.
+         Configure a scene-owned Newton suction tool or operate an authored PhysX gripper.
 
          .. container:: guide-metadata
 
-            :guide-tag:`PhysX` :guide-tag:`Isaac Sim`
+            :guide-tag-newton:`Newton` :guide-tag:`PhysX` :guide-tag:`Isaac Sim`
+
+      .. container:: guide-entry
+
+         :doc:`Controlling conveyors </source/how-to/conveyors>`
+
+         Configure batched conveyor speeds and directions with the Isaac Lab controller.
+
+         .. container:: guide-metadata
+
+            :guide-tag-newton:`Newton`
 
       .. container:: guide-entry
 
@@ -266,6 +266,16 @@ How-to Guides
 
       .. container:: guide-entry
 
+         :doc:`Training a G1 motion-tracking policy </source/how-to/train_g1_motion_tracking>`
+
+         Select a reference motion, train the G1 with Newton, and play or record a checkpoint.
+
+         .. container:: guide-metadata
+
+            :guide-tag-newton:`Newton`
+
+      .. container:: guide-entry
+
          :doc:`Training MicroDuck </source/how-to/train_microduck>`
 
          Train flat or rough walking and scale its recipe for distributed training.
@@ -341,6 +351,16 @@ How-to Guides
          .. container:: guide-metadata
 
             :guide-tag:`PhysX` :guide-tag-newton:`Newton`
+
+      .. container:: guide-entry
+
+         :doc:`Training on neural robot dynamics </source/how-to/neural_robot_dynamics>`
+
+         Record robot trajectories from a task, train a neural dynamics model, and train RL policies on it.
+
+         .. container:: guide-metadata
+
+            :guide-tag-newton:`Newton`
 
    .. container:: guide-group
 
@@ -532,6 +552,12 @@ How-to Guides
 
       .. container:: guide-entry
 
+         :doc:`Kitless XR with Isaac Capture </source/how-to/kitless_xr>`
+
+         Install Isaac Capture and OVXR packages for live teleoperation and MCAP replay.
+
+      .. container:: guide-entry
+
          :doc:`Setting up Haply teleoperation </source/how-to/haply_teleoperation>`
 
          Use Haply devices for robot control with directional force feedback.
@@ -548,11 +574,11 @@ How-to Guides
 
          :doc:`Recording animations of simulations </source/how-to/record_animation>`
 
-         Capture simulation state and export an animation.
+         Record Newton RTX video or use deprecated Kit USD animation workflows.
 
          .. container:: guide-metadata
 
-            :guide-tag:`PhysX` :guide-tag:`Isaac Sim`
+            :guide-tag-newton:`Newton` :guide-tag:`OvPhysX` :guide-tag:`RTX`
 
       .. container:: guide-entry
 
@@ -570,9 +596,25 @@ How-to Guides
 
          Capture and inspect runtime traces with NVIDIA Nsight Systems.
 
+   .. container:: guide-group
+
+      .. rubric:: Model-based learning
+
+      .. container:: guide-entry
+
+         :doc:`SuperMimic-style Motion Tracking </source/experimental-features/model_based>`
+
+         Download reference data and train or play a G1 policy with RSL-RL SuperMimic.
+
 .. container:: guide-browser-note
 
    .. note::
 
       This collection is a work in progress. If a question is not answered here, open an issue on the
       `Isaac Lab GitHub repository <https://github.com/isaac-sim/IsaacLab>`_.
+
+.. toctree::
+   :hidden:
+
+   kitless_xr
+   kitless_xr_source

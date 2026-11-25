@@ -91,7 +91,7 @@ Choose a selector
      - ``renderer=newton_warp``
      - Selects a renderer configuration for tasks that produce camera data.
    * - ``visualizer=NAME[,NAME,...]``
-     - ``visualizer=newton_gl``
+     - ``visualizer=newton``
      - Selects interactive viewers; ``visualizer=none`` disables them.
    * - ``presets=NAME[,NAME,...]``
      - ``presets=rgb``
@@ -345,7 +345,7 @@ configurations and applies launch options. Scene construction and updates follow
    state write does not require a new physics step. Matching native formats are borrowed;
    consumers reuse conversions for an unchanged publication.
 
-Camera-backed views and recordings borrow a camera's output; the camera owns its render product
+Camera-backed views and recordings borrow a camera's output; the camera owns its render products
 and buffers, while the simulation owns the renderer. Closing a window leaves its borrowed camera
 alive. Native GL perspective views instead render published scene state directly. Teleop and XR
 retain bound host Fabric matrices for pose reads; they do not copy poses through GPU buffers.

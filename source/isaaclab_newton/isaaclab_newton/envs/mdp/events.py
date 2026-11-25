@@ -22,7 +22,7 @@ from ... import assets
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject
-    from isaaclab.envs import ManagerBasedEnv
+    from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
 
 
 class randomize_rigid_body_material(ManagerTermBase):
@@ -324,3 +324,19 @@ class randomize_visual_shape(ManagerTermBase):
         if self._writer.model is not model:
             self._writer.rebind(model)
         self._writer(self._sample((len(selected), self._writer.body_count)), selected)
+
+
+def zero_final_obs_on_solver_fault(env: ManagerBasedRLEnv, env_ids: torch.Tensor | slice) -> None:
+    """Zero complete terminal observation rows for solver-faulted worlds, including history.
+
+    Configure as the first reset event, before any event rewrites physics state and refreshes the
+    lazy fault query. Acts on all flagged rows in ``extras["final_obs"]`` when final observations are
+    enabled. Normal environment reset clears the affected observation histories.
+    """
+    final_obs = env.extras.get("final_obs")
+    if final_obs is None:
+        return
+    faults = wp.to_torch(env.sim.backend_manager.get_non_finite_worlds())
+    for group in final_obs.values():
+        for data in group.values() if isinstance(group, dict) else (group,):
+            data.masked_fill_(faults.reshape((-1,) + (1,) * (data.ndim - 1)), 0.0)

@@ -9,16 +9,16 @@ Convert robot descriptions and meshes to USD before using them as Isaac Lab asse
 The available importers cover:
 
 * **URDF** and **MJCF** robot descriptions.
-* **Meshes** in formats including OBJ, FBX, STL, and glTF.
+* **Meshes** in formats including OBJ, FBX, STL, and glTF through the deprecated Kit converter.
 
-Isaac Sim includes these importers and provides GUI tools for editing the converted
-assets. URDF and MJCF conversion also works without Isaac Sim.
+Use the standalone URDF and MJCF importers for the command-line workflows below. Conversion
+and previews in the Newton or Viser visualizer do not require Isaac Sim.
 
-Isaac Lab's URDF and MJCF converter utilities first use the importer APIs from
-Isaac Sim when the full runtime is installed. In kit-less environments they fall back
-to the standalone importers described in
-:ref:`installation-standalone-importers` below.
-The Kit visualizer and GUI import dialogs still require an Omniverse Kit runtime.
+.. deprecated:: 3.1
+
+   Isaac Lab's Kit-backed import and GUI paths will be removed in 3.2. Legacy GUI references and
+   the Kit mesh-converter workflow are retained below for existing projects. Use the standalone
+   commands for new URDF and MJCF conversions.
 
 
 For repeated assets, use `instanceable`_ USD files so instances can share geometry
@@ -32,7 +32,7 @@ Standalone URDF/MJCF importers
 The URDF and MJCF converter scripts run without Isaac Sim. The standalone
 importers are optional; install them with the ``isaaclab[importers]`` command in
 :ref:`installation-importers-extra` before running these scripts.
-Optionally pass ``--viz newton_gl`` (or ``viser``) to preview the converted asset in a
+Optionally pass ``--viz newton`` (or ``viser``) to preview the converted asset in a
 kit-less Isaac Lab visualizer:
 
 .. code-block:: bash
@@ -43,9 +43,9 @@ kit-less Isaac Lab visualizer:
    uv run --extra importers isaaclab -p scripts/tools/convert_mjcf.py \
      path/to/model.xml path/to/output.usd --merge_mesh
 
-If Isaac Sim is installed in the same environment, Isaac Lab uses the Isaac Sim importer
-extensions first. The standalone wheel is used only when the full Isaac Sim runtime is not
-available.
+Run these commands in an environment with the ``importers`` extra and without the full
+``isaacsim`` runtime. The full runtime shadows the standalone importer's Python namespace;
+use separate uv environments when maintaining a legacy Kit installation.
 
 
 .. _import-new-asset-multi-backend:
@@ -87,8 +87,9 @@ Use :ref:`asset-config-backends` to choose configuration overrides for the selec
 Using URDF Importer
 -------------------
 
-For using the URDF importer in the GUI, please check the documentation at `URDF importer`_. For using the URDF importer from Python scripts, we include a utility tool called ``convert_urdf.py``. This script creates an instance of :class:`~sim.converters.UrdfConverterCfg` which
-is then passed to the :class:`~sim.converters.UrdfConverter` class.
+Use ``convert_urdf.py`` to convert a URDF from the command line. It creates a
+:class:`~sim.converters.UrdfConverterCfg` and passes it to :class:`~sim.converters.UrdfConverter`.
+The `URDF importer`_ GUI instructions describe the deprecated Kit workflow.
 
 .. note::
    The URDF importer was upgraded to version 3.0 in Isaac Sim 6, replacing the previous C++
@@ -217,7 +218,7 @@ The following shows the steps to clone the repository and run the converter:
            --joint_stiffness 0.0 \
            --joint_damping 0.0 \
            --joint_target_type none \
-           --viz kit
+           --viz newton
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -238,7 +239,7 @@ The following shows the steps to clone the repository and run the converter:
            --joint_stiffness 0.0 ^
            --joint_damping 0.0 ^
            --joint_target_type none ^
-           --viz kit
+           --viz newton
 
 Executing the above script will create a USD file inside the
 ``source/isaaclab_assets/data/Robots/ANYbotics/anymal/`` directory (the subdirectory name
@@ -257,9 +258,9 @@ is derived automatically from the robot name in the URDF):
 
 .. _import-new-asset-preview:
 
-The examples pass ``--viz kit`` to open the converted asset in the Isaac Sim viewport, which
-requires a full Isaac Sim installation. Use ``--viz newton_gl`` or ``--viz viser``
-for a kit-less preview instead. Omit ``--viz`` to exit as soon as the conversion completes.
+The examples pass ``--viz newton`` to open the converted asset in the standalone Newton
+visualizer. Use ``--viz viser`` for a browser-based preview, or omit ``--viz`` to exit as soon
+as conversion completes. The deprecated ``--viz kit`` preview requires the full Isaac Sim runtime.
 
 Inspect the converted geometry and articulation in the viewer, then validate dynamics in the
 intended simulation backend. Check self-collisions, masses, inertias, and actuator gains if
@@ -271,13 +272,15 @@ the asset is unstable.
     :figwidth: 100%
     :alt: result of convert_urdf.py
 
+    Legacy Isaac Sim GUI preview (deprecated). The commands above use the standalone Newton viewer.
+
 
 
 Using MJCF Importer
 -------------------
 
-Similar to the URDF Importer, the MJCF Importer also has a GUI interface. Please check the documentation at
-`MJCF importer`_ for more details. For using the MJCF importer from Python scripts, we include a utility tool
+Use the standalone MJCF importer through the command-line utility below.
+The `MJCF importer`_ GUI instructions describe the deprecated Kit workflow. We include a utility tool
 called ``convert_mjcf.py``. This script creates an instance of :class:`~sim.converters.MjcfConverterCfg`
 which is then passed to the :class:`~sim.converters.MjcfConverter` class.
 
@@ -376,7 +379,7 @@ The following shows the steps to clone the repository and run the converter:
            ../mujoco_menagerie/unitree_h1/h1.xml \
            source/isaaclab_assets/data/Robots/Unitree/h1.usd \
            --merge_mesh \
-           --viz kit
+           --viz newton
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -393,7 +396,7 @@ The following shows the steps to clone the repository and run the converter:
            ..\mujoco_menagerie\unitree_h1\h1.xml ^
            source\isaaclab_assets\data\Robots\Unitree\h1.usd ^
            --merge_mesh ^
-           --viz kit
+           --viz newton
 
 Executing the above script will create the USD file inside the
 ``source/isaaclab_assets/data/Robots/Unitree/`` directory:
@@ -415,6 +418,8 @@ See :ref:`Previewing converted assets <import-new-asset-preview>` for the ``--vi
     :align: center
     :figwidth: 100%
     :alt: result of convert_mjcf.py
+
+    Legacy Isaac Sim GUI preview (deprecated). The commands above use the standalone Newton viewer.
 
 
 .. _import-new-asset-ensure-drives-exist:
@@ -452,8 +457,14 @@ When enabled, it assigns a minimal placeholder stiffness (``1e-3``) to zero-gain
 drives before simulation startup so that every drive exists in the imported
 model.
 
-Using Mesh Importer
--------------------
+Legacy Kit Mesh Importer (deprecated)
+--------------------------------------
+
+.. deprecated:: 3.1
+
+   This converter still requires the Kit asset-converter extension and will be removed with
+   Isaac Lab's Kit path in 3.2. It is retained for existing mesh-conversion workflows; it is
+   not part of the standalone URDF/MJCF path above.
 
 Omniverse Kit includes the mesh converter tool that uses the ASSIMP library to import assets
 from various mesh formats (e.g. OBJ, FBX, STL, glTF, etc.). The asset converter tool is available
@@ -490,7 +501,7 @@ the steps to clone the repository and run the converter:
          # go to top of the Isaac Lab repository
          cd IsaacLab
          # run the converter
-         uv run isaaclab -p scripts/tools/convert_mesh.py \
+         uv run --extra isaacsim isaaclab -p scripts/tools/convert_mesh.py \
            ../IsaacGymEnvs/assets/trifinger/objects/meshes/cube_multicolor.obj \
            source/isaaclab_assets/data/Props/CubeMultiColor/cube_multicolor.usd \
            --make-instanceable \
@@ -509,7 +520,7 @@ the steps to clone the repository and run the converter:
          :: go to top of the Isaac Lab repository
          cd IsaacLab
          :: run the converter
-         uv run isaaclab -p scripts\tools\convert_mesh.py ^
+         uv run --extra isaacsim isaaclab -p scripts\tools\convert_mesh.py ^
            ..\IsaacGymEnvs\assets\trifinger\objects\meshes\cube_multicolor.obj ^
            source\isaaclab_assets\data\Props\CubeMultiColor\cube_multicolor.usd ^
            --make-instanceable ^
@@ -532,6 +543,8 @@ Omit ``--viz kit`` to convert without opening a preview.
     :align: center
     :figwidth: 100%
     :alt: result of convert_mesh.py
+
+    Legacy Kit mesh-converter preview (deprecated).
 
 
 .. _instanceable: https://openusd.org/dev/api/_usd__page__scenegraph_instancing.html

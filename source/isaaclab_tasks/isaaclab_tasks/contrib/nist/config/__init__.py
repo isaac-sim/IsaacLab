@@ -3,12 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Factory task registration.
+"""NIST task registration.
 
-The assembly and physics backend are selected through presets, for example::
+The assembly variant is selected at reset, for example::
 
-    uv run isaaclab train --task IsaacContrib-Factory-Franka \
-        presets=peg_insert_4mm physics=newton_mjwarp
+    uv run isaaclab train --task IsaacContrib-NIST-Franka
 
 """
 
@@ -17,11 +16,11 @@ import gymnasium as gym
 from isaaclab_tasks.contrib.nist.config import agents
 
 gym.register(
-    id="IsaacContrib-Factory-Franka",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    id="IsaacContrib-NIST-Franka",
+    entry_point="isaaclab_tasks.contrib.nist.nist_env:NISTEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": "isaaclab_tasks.contrib.nist.factory_env_cfg:FactoryEnvCfg",
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:FactoryPPORunnerCfg",
+        "env_cfg_entry_point": "isaaclab_tasks.contrib.nist.nist_env_cfg:NISTEnvCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:NISTPPORunnerCfg",
     },
 )

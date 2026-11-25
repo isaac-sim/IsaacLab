@@ -38,7 +38,9 @@ Choosing a renderer backend
       ``renderer=newton_warp``
 
       On RTX GPUs, ``renderer=newton_optix`` traces the same scenes in hardware with OptiX. Install it
-      with ``uv sync --inexact --extra optix``. It does not support particles or deformable surfaces.
+      with ``uv sync --inexact --extra optix``. It requires Python 3.12 on Linux x86-64 or Windows x64;
+      ARM64 systems, including NVIDIA DGX Spark, are not supported. It does not support particles or
+      deformable surfaces.
 
    .. grid-item-card:: OVRTX :bdg-success:`Recommended`
 
@@ -101,6 +103,11 @@ use case.
    - **Runtime and physics:** The Newton renderer ray traced in hardware with OptiX on RTX GPUs.
      Install it with ``uv sync --inexact --extra optix`` (Linux x86-64 and Windows x64) and select it
      with ``renderer=newton_optix``. Pairs with the same physics backends as Newton Warp.
+   - **Platform limitations:** Requires Python 3.12. The ``warp-optix`` dependency does not provide
+     ARM64 wheels, so Newton excludes it on ARM64 systems, including NVIDIA DGX Spark. On these
+     systems, selecting the ``optix`` extra skips this dependency, and camera initialization fails
+     with ``RuntimeError: The OptiX camera backend requires the newton[optix] extra``. Use
+     ``renderer=newton_warp`` on ARM64.
    - **Output coverage:** Same outputs and settings as Newton Warp. It does not render particles,
      deformable surfaces, or Gaussian splats, and it ignores ``use_cuda_graph``.
    - **Configuration:** :class:`~isaaclab_newton.renderers.NewtonOptixRendererCfg`
@@ -315,8 +322,8 @@ motion vectors, while Newton Warp does not. The :ref:`renderer visual comparison
 .. note::
 
    Visualization markers are debug overlays provided by visualizers, not camera outputs. Their
-   support is independent of the camera renderer: the Kit, Newton GL, Rerun, and Viser visualizers
-   support markers, while the experimental Newton RTX visualizer does not. See
+   support is independent of the camera renderer: the Kit, Newton, Rerun, and Viser visualizers
+   support markers, in both OpenGL and RTX rendering for Newton. See
    :doc:`/source/concepts/visualization` for the visualizer support matrix.
 
 .. note::
@@ -436,6 +443,48 @@ Capture metadata remains unchanged on later captures. Direct renderer callers us
 SDP fills renderer-owned transform and geometry buffers, including deformable meshes, particles,
 and cables. Two buffers alternate per write and are reused only after OVRTX consumes them.
 Physics can therefore update its live arrays while the previous capture renders.
+
+.. _renderers-ovrtx-render-product-split:
+
+OVRTX render product splits
+---------------------------
+
+The OVRTX renderer draws the images of all environments of a camera sensor into one tiled image,
+described by one render product. For a very large sensor, a renderer buffer of this tiled image can
+exceed the limit of 4 GiB, and the frame fails. With the default ``"auto"`` of
+:attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.max_envs_per_render_product`, the renderer then
+halves the environments per render product of one sensor and renders the frame again. When a split
+renders, a warning gives the number of environments per render product.
+
+Each extra render product adds a fixed cost to every frame. The search also renders the first
+frame again for each smaller split. The failed render products stay in the scene until the cleanup
+of the sensor, so the search can need more GPU memory. Path tracing and DLSS depend on the pixel
+position in the tiled image, so another split can change the color outputs a little.
+
+Set the number from the warning as the value to skip the search and to keep the same split on every
+GPU and driver. The value applies to every camera sensor of the renderer configuration. If several
+camera sensors get a warning, set the smallest number. Set the same value on every OVRTX renderer
+configuration of the task, including ``NewtonGLBackendCfg.rtx_renderer_cfg`` of the Newton
+visualizer. Without a :ref:`shared OVStage <ov-clone-routing>`, each configuration with another
+value gets its own OVRTX renderer with its own copy of the scene, which needs more GPU memory.
+
+.. code-block:: python
+
+   from isaaclab_ov.renderers import OVRTXRendererCfg
+
+   renderer_cfg = OVRTXRendererCfg(max_envs_per_render_product=1280)
+
+On the command line, select the OVRTX renderer with ``renderer=ovrtx`` and set the value for each
+camera of the task:
+
+.. code-block:: bash
+
+   uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Camera \
+      physics=newton_mjwarp renderer=ovrtx \
+      env.scene.tiled_camera.renderer_cfg.max_envs_per_render_product=1280
+
+``renderer=rtx`` replaces the renderer configuration at launch with a default one, so it drops this
+value. If ``renderer=rtx`` selects the OVRTX renderer, the renderer uses ``"auto"``.
 
 Architecture Overview
 ---------------------

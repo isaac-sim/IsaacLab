@@ -19,7 +19,7 @@ tactile sensing with the GelSight finger setup.
         --num_envs 16 \
         --contact_object_type nut \
         --save_viz \
-        --viz kit
+        --viz newton
 
 """
 
@@ -70,6 +70,7 @@ parser.add_argument(
 )
 
 add_launcher_args(parser)
+parser.set_defaults(visualizer=["newton"])
 args_cli = parser.parse_args()
 if args_cli.num_envs < 1:
     parser.error("--num_envs must be at least 1.")

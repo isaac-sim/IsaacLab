@@ -34,6 +34,8 @@ sys.path.insert(0, os.path.abspath("../source/isaaclab_isaacsim"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_isaacsim/isaaclab_isaacsim"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_newton"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_newton/isaaclab_newton"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_neural"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_neural/isaaclab_neural"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_experimental"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_experimental/isaaclab_experimental"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_rl"))
@@ -48,6 +50,8 @@ sys.path.insert(0, os.path.abspath("../source/isaaclab_ov"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_ov/isaaclab_ov"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_visualizers"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_visualizers/isaaclab_visualizers"))
+# Only the package root: the package's ``rsl_rl`` subpackage would shadow RSL-RL as a top-level module.
+sys.path.insert(0, os.path.abspath("../source/isaaclab_fovi"))
 
 # -- Project information -----------------------------------------------------
 
@@ -293,12 +297,15 @@ autodoc_mock_imports = [
     "ipywidgets",
     "mpl_toolkits",
     "isaacteleop",
+    "isaaccapture",
     "scipy",
     "hydra",
     "hydra.core",
     "hydra.core.config_store",
     "omegaconf",
     "newton",
+    "newton_neural",
+    "fovi",
 ]
 
 # List of zero or more Sphinx-specific warning categories to be squelched (i.e.,
@@ -348,11 +355,13 @@ html_css_files = [
     "css/environment-browser.css",
     "css/demo-browser.css",
     "css/guide-browser.css",
+    "css/foveation-viewer.css",
 ]
 html_js_files = [
     "css/environment-browser.js",
     "css/demo-browser.js",
     "css/guide-browser.js",
+    "css/foveation-viewer.js",
 ]
 
 html_theme_options = {
@@ -404,11 +413,11 @@ templates_path = [
 # Whitelist pattern for remotes
 smv_remote_whitelist = r"^.*$"
 # Whitelist pattern for branches (set to None to ignore all branches)
-smv_branch_whitelist = os.getenv("SMV_BRANCH_WHITELIST", r"^(main|develop)$")
+smv_branch_whitelist = os.getenv("SMV_BRANCH_WHITELIST", r"^(main|develop|release/3\.1\.0)$")
 # Whitelist pattern for tags (set to None to ignore all tags).
 # Matches vMAJOR.MINOR.PATCH with an optional pre-release suffix like -beta or -rc1,
-# so tags like v3.0.0-beta show up in the version selector.
-smv_tag_whitelist = os.getenv("SMV_TAG_WHITELIST", r"^v[1-9]\d*\.\d+\.\d+(-[A-Za-z0-9.]+)?$")
+# excluding the superseded v3.0.0 pre-releases.
+smv_tag_whitelist = os.getenv("SMV_TAG_WHITELIST", r"^(?!v3\.0\.0-)v[1-9]\d*\.\d+\.\d+(-[A-Za-z0-9.]+)?$")
 html_sidebars = {
     "**": ["navbar-logo.html", "versioning.html", "icon-links.html", "search-field.html", "sbt-sidebar-nav.html"]
 }
@@ -416,6 +425,7 @@ html_sidebars = {
 
 # Keep published links working after guide consolidation.
 isaaclab_doc_redirects = {
+    "source/how-to/train_model_based": "source/experimental-features/model_based",
     "source/concepts/schema_fragments": "source/concepts/schema_cfgs",
     "source/migration/migrating_to_isaaclab_3-0": "source/isaaclab/migrating",
     "source/setup/ecosystem": "source/isaaclab/ecosystem",
@@ -453,7 +463,8 @@ isaaclab_doc_redirects = {
     "source/features/visualizer_tiled_camera": "source/how-to/visualizer_streaming_camera_view",
     "source/how-to/robots": "source/how-to/write_articulation_cfg",
     "source/tutorials/00_sim/create_empty": "source/how-to/create_empty",
-    "source/tutorials/00_sim/launch_app": "source/how-to/launch_app",
+    "source/tutorials/00_sim/launch_app": "source/how-to/create_empty",
+    "source/how-to/launch_app": "source/how-to/create_empty",
     "source/tutorials/00_sim/spawn_prims": "source/how-to/spawn_prims",
     "source/tutorials/01_assets/add_new_robot": "source/how-to/write_articulation_cfg",
     "source/tutorials/01_assets/run_articulation": "source/how-to/run_articulation",
@@ -557,6 +568,15 @@ _isaaclab_v2_3_2_only_docs = (
 )
 isaaclab_doc_redirects.update(
     {route: f"{_isaaclab_v2_3_2_docs_root}/{route}.html" for route in _isaaclab_v2_3_2_only_docs}
+)
+
+# API pages of the Warp environments, which moved under isaaclab_experimental.deprecated.
+_lab_experimental_api = "source/api/lab_experimental/isaaclab_experimental"
+isaaclab_doc_redirects.update(
+    {
+        f"{_lab_experimental_api}.{module}": f"{_lab_experimental_api}.deprecated.{module}"
+        for module in ("managers", "utils", "envs.mdp.actions")
+    }
 )
 
 _streaming_how_to = "source/how-to/visualizer_streaming_camera_view"

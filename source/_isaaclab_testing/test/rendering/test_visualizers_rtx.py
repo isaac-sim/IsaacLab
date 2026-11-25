@@ -21,7 +21,7 @@ from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab.test.utils import launch_test_simulation
 from isaaclab.visualizers import VisualizerCfg
 
-launch_test_simulation(NewtonCfg(solver_cfg=MJWarpSolverCfg()), visualizer=["newton_rtx"])
+launch_test_simulation(NewtonCfg(solver_cfg=MJWarpSolverCfg()), visualizer=["newton"])
 # This process exercises both physics backends; register schemas before the first native USD population.
 OvPhysxManager._prepare_stage_creation()
 
@@ -30,7 +30,7 @@ import numpy as np  # noqa: E402
 import pytest  # noqa: E402
 import torch  # noqa: E402
 import warp as wp  # noqa: E402
-from isaaclab_visualizers.newton import NewtonRTXBackendCfg  # noqa: E402
+from isaaclab_visualizers.newton import NewtonGLBackendCfg  # noqa: E402
 from rendering_runtime import build_rendering_scene
 from rendering_scene_cfgs import CartpoleRenderingSceneCfg
 from visualizer_checks import changed_pixels, check_motion_and_pause
@@ -87,12 +87,14 @@ def test_newton_rtx_mpm_points_follow_world_state():
                 headless=True,
                 window=WindowCfg(size=(256, 256)),
                 cameras=[PerspectiveCameraCfg(eye=(0.0, -1.0, 1.1), lookat=(0.0, 0.0, 1.1))],
-                backend=NewtonRTXBackendCfg(render_settings={"omni:rtx:quality": ("Int", 0)}),
+                backend=NewtonGLBackendCfg(
+                    initial_renderer="rtx", rtx_render_settings={"omni:rtx:quality": ("Int", 0)}
+                ),
             )
         ],
     )
     scene_cfg = ParticleSceneCfg(num_envs=1, env_spacing=0.0)
-    with launch_simulation(SimpleNamespace(sim=cfg, scene=scene_cfg), {"visualizer": ["newton_rtx"]}):
+    with launch_simulation(SimpleNamespace(sim=cfg, scene=scene_cfg), {"visualizer": ["newton"]}):
         sim = SimulationContext(cfg)
         scene = instantiate(scene_cfg)
         sim.reset()
@@ -138,12 +140,12 @@ def test_directly_spawned_camera_drives_rtx_window():
         physics=OvPhysxCfg(),
         visualizer_cfgs=[VisualizerCfg(
             headless=True, cameras=[SceneCameraCfg(prim_path=camera_cfg.prim_path)], window=WindowCfg(size=(96, 64)),
-            backend=NewtonRTXBackendCfg(),
+            backend=NewtonGLBackendCfg(),
         )],
     )  # fmt: skip
     target_cfg = AssetBaseCfg(prim_path="/World/Target", spawn=sim_utils.CuboidCfg(size=(1.0, 1.0, 1.0)))
     light_cfg = AssetBaseCfg(prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=1000.0))
-    with launch_simulation(sim_cfg, {"visualizer": ["newton_rtx"], "device": "cuda:0"}):
+    with launch_simulation(sim_cfg, {"visualizer": ["newton"], "device": "cuda:0"}):
         sim = sim_utils.SimulationContext(sim_cfg)
         with ReplicateSession((target_cfg, light_cfg, camera_cfg), num_clones=3, env_spacing=0.0):
             instantiate(target_cfg)
@@ -188,9 +190,9 @@ def test_newton_rtx_motion_pause_and_markers(caplog: pytest.LogCaptureFixture, m
         eye=(2.25, 0.0, 3.5),
         lookat=(0.0, 0.0, 2.25),
         streaming_view=False,
-        backend=NewtonRTXBackendCfg(renderer_cfg=OVRTXRendererCfg(enable_shadows=True)),
+        backend=NewtonGLBackendCfg(initial_renderer="rtx"),
     )
-    cfg.camera.renderer_cfg = OVRTXRendererCfg(enable_shadows=True)
+    cfg.camera.renderer_cfg = OVRTXRendererCfg()  # the viewer camera shares this renderer
     with build_rendering_scene(cfg, "newton", data_types=("rgb",), visualizer_cfgs=[viewer_cfg]) as runtime:
         robot = runtime.scene["robot"]
         robot.write_joint_position_to_sim_index(position=robot.data.default_joint_pos.torch)
@@ -353,10 +355,10 @@ def test_newton_rtx_scene_sky_and_background_override(tmp_path, monkeypatch, lig
                 PerspectiveCameraCfg(eye=(0.0, -6.0, 2.0), lookat=(0.0, -2.0, 2.0), focal_length=24.0),
                 SceneCameraCfg(prim_path="{ENV_REGEX_NS}/Camera"),
             ],
-            backend=NewtonRTXBackendCfg(),
+            backend=NewtonGLBackendCfg(initial_renderer="rtx"),
         )
     ]
-    with launch_simulation(cfg, {"visualizer": ["newton_rtx"], "device": "cuda:0"}):
+    with launch_simulation(cfg, {"visualizer": ["newton"], "device": "cuda:0"}):
         sim = SimulationContext(cfg.sim)
         scene = instantiate(cfg.scene)
         sim.reset()
@@ -411,10 +413,18 @@ def test_newton_rtx_scene_sky_and_background_override(tmp_path, monkeypatch, lig
 
         visualizer._select_camera(1)
         image = visualizer.render_tiled_rgba_array()
-        np.testing.assert_array_equal(image.numpy(), camera.data.output["rgba"].warp.numpy()[0])
+        # The sensor view shows every environment side by side; the first tile is environment 0.
+        np.testing.assert_array_equal(image.numpy()[:, :128], camera.data.output["rgba"].warp.numpy()[0])
         assert image.device.is_cuda
         with monkeypatch.context() as gpu_display:
-            gpu_display.setattr(wp.array, "numpy", Mock(side_effect=AssertionError("Display downloaded pixels")))
+            numpy = wp.array.numpy
+
+            def numpy_unless_pixels(array):
+                # The viewer copies its packed transforms to the host; only an image download is a failure.
+                assert array.ndim < 3, "Display downloaded pixels"
+                return numpy(array)
+
+            gpu_display.setattr(wp.array, "numpy", numpy_unless_pixels)
             visualizer._select_camera(0)
             visualizer._render_frame()
             visualizer._select_camera(1)
@@ -424,6 +434,7 @@ def test_newton_rtx_scene_sky_and_background_override(tmp_path, monkeypatch, lig
             visualizer._select_camera(0)
             assert visualizer.render_rgb_array().shape == (128, 128, 3)
         visualizer.close()
+        viewer.close()  # The GL visualizer leaves its window open; a later window must not draw into this context.
         assert renderer.backend.renderer is native_renderer
         camera.update(cfg.sim.dt)
         assert np.ptp(camera.data.output["rgba"].warp.numpy()) > 0

@@ -5,8 +5,8 @@ MDP2: Compiled MDPs
 
 .. note::
 
-   MDP2 lives in ``isaaclab_experimental.mdp2``, and its tasks in ``isaaclab_tasks.mdp2``. It is an experimental
-   feature: expect its API to change.
+   MDP2 lives in ``isaaclab_experimental.mdp2``, and its tasks in ``isaaclab_tasks_experimental.mdp2``. It is an
+   experimental feature: expect its API to change.
 
 MDP2 describes a task's MDP (actions, observations, rewards, terminations, commands, events, and quantities) as
 configuration, and compiles it into a few kernels per step. With the Warp backend, a whole environment step, physics
@@ -60,7 +60,7 @@ task. Inputs are named explicitly; nothing is gathered behind the term's back.
 The built-in terms are in :mod:`isaaclab_experimental.mdp2.mdp` and keep the names of their counterparts in
 :mod:`isaaclab.envs.mdp`. A :class:`~isaaclab_experimental.mdp2.TaskCfg` groups the uses by role, and
 :class:`~isaaclab_experimental.envs.MDP2RLEnvCfg` holds the task with its scene and simulation. See
-``isaaclab_tasks/mdp2/cartpole`` for a complete task.
+``isaaclab_tasks_experimental/mdp2/cartpole`` for a complete task.
 
 - **State.** A term can keep :class:`~isaaclab_experimental.mdp2.State` across steps, reset with its world's
   episode unless it is persistent. Other terms read it with :func:`~isaaclab_experimental.mdp2.term_state`.

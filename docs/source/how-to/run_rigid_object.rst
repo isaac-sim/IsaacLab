@@ -33,7 +33,7 @@ The tutorial corresponds to the ``run_rigid_object.py`` script in the ``scripts/
 
    .. literalinclude:: ../../../scripts/tutorials/01_assets/run_rigid_object.py
       :language: python
-      :emphasize-lines: 49-68, 70-72, 92-104, 107-108, 114-115, 131-133, 138-139
+      :emphasize-lines: 55-74, 76-78, 98-110, 113-114, 120-121, 142-144, 150-151
       :linenos:
 
 
@@ -146,8 +146,8 @@ inside the :class:`assets.RigidObject.data` attribute. This is done using the :m
 The Code Execution
 ~~~~~~~~~~~~~~~~~~
 
-This script uses Isaac Sim PhysX and requires Isaac Sim. The commands below display it with
-the Isaac Sim viewport shown below:
+This script uses OvPhysX and the Newton RTX visualizer without Isaac Sim. Install the ``ov`` extra
+and run the command below:
 
 .. tab-set::
 
@@ -155,7 +155,7 @@ the Isaac Sim viewport shown below:
 
       .. code-block:: bash
 
-         uv run isaaclab -p scripts/tutorials/01_assets/run_rigid_object.py --viz kit
+         uv run --extra ov isaaclab -p scripts/tutorials/01_assets/run_rigid_object.py --viz newton_rtx
 
 
 This should open a stage with a ground plane, lights, and several green cones. The cones must be dropping from

@@ -9,7 +9,7 @@ This script demonstrates how to create a rigid object and interact with it.
 .. code-block:: bash
 
     # Usage
-    uv run python scripts/tutorials/01_assets/run_rigid_object.py
+    uv run --extra ov python scripts/tutorials/01_assets/run_rigid_object.py
 
 """
 
@@ -17,13 +17,19 @@ This script demonstrates how to create a rigid object and interact with it.
 
 
 import argparse
+from types import SimpleNamespace
+
+from isaaclab_ov.physics import OvPhysxCfg
 
 from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.utils import instantiate
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Tutorial on spawning and interacting with a rigid object.")
 # append simulation launcher cli args
 add_launcher_args(parser)
+parser.set_defaults(visualizer=["newton_rtx"])
 # parse the arguments
 args_cli = parser.parse_args()
 
@@ -33,7 +39,7 @@ import torch
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
-from isaaclab.assets import RigidObject, RigidObjectCfg
+from isaaclab.assets import AssetBaseCfg, RigidObject, RigidObjectCfg
 from isaaclab.sim import SimulationContext
 
 
@@ -121,9 +127,14 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, RigidObj
 def main():
     """Main function."""
     # Configure the simulation
-    sim_cfg = sim_utils.SimulationCfg(device=args_cli.device)
+    sim_cfg = sim_utils.SimulationCfg(
+        physics=OvPhysxCfg(),
+        device=args_cli.device,
+    )
     # Launch the simulator runtime that the configuration needs
-    with launch_simulation(sim_cfg, args_cli):
+    scene_cfg = InteractiveSceneCfg(num_envs=1, env_spacing=0.0)
+    scene_cfg.world = AssetBaseCfg(prim_path="/World")
+    with launch_simulation(SimpleNamespace(sim=sim_cfg, scene=scene_cfg), args_cli):
         # Initialize the simulation context
         sim = SimulationContext(sim_cfg)
         # Set main camera
@@ -131,6 +142,7 @@ def main():
         # Design scene
         scene_entities, scene_origins = design_scene()
         scene_origins = torch.tensor(scene_origins, device=sim.device)
+        _scene = instantiate(scene_cfg)
         # Play the simulator
         sim.reset()
         # Now we are ready!

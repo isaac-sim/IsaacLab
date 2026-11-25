@@ -190,9 +190,11 @@ def leapp_capture(args_cli: argparse.Namespace, *, save_path: str, env_cfg: Any)
     # the LEAPP runtime loads simulation modules, so import it only after the launch
     import leapp
 
+    from isaaclab.utils.leapp.export_annotator import export_function_patches
+
     graph_name = args_cli.export_task_name or args_cli.task.split(":")[-1]
     num_steps = max(args_cli.validation_steps, 2)
-    leapp.start(graph_name, save_path=save_path, max_cached_io=num_steps)
+    leapp.start(graph_name, save_path=save_path, max_cached_io=num_steps, patching=export_function_patches())
     try:
         yield num_steps
     except BaseException:
@@ -203,6 +205,7 @@ def leapp_capture(args_cli: argparse.Namespace, *, save_path: str, env_cfg: Any)
     leapp.compile_graph(
         visualize=not args_cli.disable_graph_visualization,
         validate=args_cli.validation_steps > 0,
+        strict=True,
         graph_configs=create_graph_configs(env_cfg),
     )
 

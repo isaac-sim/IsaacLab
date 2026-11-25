@@ -173,7 +173,7 @@ Install ``uv``, clone Isaac Lab, and start a workflow:
             --task Isaac-Cartpole-Direct physics=isaacsim_physx
 
          # Play a policy
-         uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct --viz newton_gl
+         uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct --viz newton
 
    .. tab-item:: :icon:`fa-brands fa-linux` Linux aarch64 (DGX Spark)
       :sync: linux-aarch64
@@ -199,7 +199,7 @@ Install ``uv``, clone Isaac Lab, and start a workflow:
             --task Isaac-Cartpole-Direct physics=isaacsim_physx
 
          # Play a policy
-         uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct --viz newton_gl
+         uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct --viz newton
 
       .. note::
 
@@ -238,7 +238,7 @@ Install ``uv``, clone Isaac Lab, and start a workflow:
             --task Isaac-Cartpole-Direct physics=isaacsim_physx
 
          :: Play a policy
-         uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct --viz newton_gl
+         uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct --viz newton
 
 ``uv run`` installs the core dependencies automatically. The ``--extra <name>``
 option includes the selected optional integration in the command's environment. Place it
@@ -277,10 +277,10 @@ To prepare the checkout without launching a workflow, run:
 
 .. code-block:: bash
 
-   uv sync --extra isaacsim
-   uv run --extra isaacsim python scripts/tutorials/00_sim/create_empty.py --viz kit
+   uv sync --extra ov
+   uv run --extra ov python scripts/tutorials/00_sim/create_empty.py --viz newton_rtx
 
-Omit ``--extra isaacsim`` for the default Newton environment. uv downloads the required
+Use ``uv sync`` without extras for a Newton-only environment. uv downloads the required
 Python version and manages ``.venv``. To choose another directory, set
 ``UV_PROJECT_ENVIRONMENT`` before both ``uv sync`` and ``uv run``. Keep the same extras
 on subsequent commands so uv preserves the integrations you selected.
@@ -433,7 +433,9 @@ have dedicated commands below.
    * - ``ovphysx`` / ``ovrtx``
      - OV PhysX only / OV RTX only.
    * - ``optix``
-     - The Newton OptiX renderer runtime for RTX GPUs.
+     - The Newton OptiX renderer runtime for RTX GPUs, available with Python 3.12 on
+       Linux x86-64 and Windows x64 only. ARM64 systems, including NVIDIA DGX Spark,
+       are not supported.
    * - ``sb3`` / ``skrl`` / ``rsl-rl`` / ``rlinf`` / ``torchrl``
      - The corresponding RL framework.
    * - ``skrl-jax``
@@ -442,6 +444,9 @@ have dedicated commands below.
      - The corresponding visualizer.
    * - ``mimic`` / ``teleop``
      - Isaac Lab Mimic / XR teleoperation. The wheel's ``mimic`` extra does not include Robomimic.
+   * - ``fovi``
+     - The experimental :doc:`foveated camera </source/experimental-features/foveated_camera>`
+       (``isaaclab_fovi``), with the `fovi <https://pypi.org/project/fovi/>`__ sampling library.
    * - ``tetrahedralization`` / ``video``
      - Mesh tetrahedralization / video recording.
    * - ``leapp``
@@ -455,15 +460,15 @@ have dedicated commands below.
      - Developer test tooling.
 
 Use ``all`` for the curated list above. Isaac Sim, standalone importers, specialized extras
-(``optix``, ``skrl-jax``, ``rlinf``, ``mimic``, ``teleop``, ``tetrahedralization``, ``video``,
-``leapp``), and the developer ``test`` tooling remain opt-in.
+(``optix``, ``skrl-jax``, ``rlinf``, ``mimic``, ``teleop``, ``fovi``, ``tetrahedralization``,
+``video``, ``leapp``), and the developer ``test`` tooling remain opt-in.
 
 .. note::
 
-   RL-Games and Robomimic are not included in the published wheel metadata because the versions
-   used by Isaac Lab are installed from Git and do not provide package-index wheels. To use either
-   integration, install Isaac Lab from a source checkout and select the ``rl-games`` or ``mimic``
-   extra there.
+   RL-Games, Robomimic, and ``newton-neural`` are not included in the published wheel metadata because
+   the versions used by Isaac Lab are installed from Git and do not provide package-index wheels. To use
+   one of these integrations, install Isaac Lab from a source checkout and select the ``rl-games``,
+   ``mimic``, or ``newton-neural`` extra there.
 
 .. note::
 
@@ -976,13 +981,14 @@ Kit-less image
 
 The kit-less image drops Isaac Sim entirely and builds on Ubuntu 24.04 with Python 3.12. It carries
 Newton physics, OVPhysX physics, OVRTX rendering, and the four core RL frameworks: RL Games, RSL-RL,
-Stable-Baselines3, and SKRL. The ``newton_gl``, ``newton_rtx``, ``viser``, and ``rerun`` visualizers are
-included. Use ``--viz newton_gl`` for local visualization with a display available in the container.
-``--viz newton_gl`` selects the OpenGL rasterizer; ``--viz newton_rtx`` selects the OVRTX
-path tracer. Both can render offscreen without Isaac Sim. To open their windows from a direct
+Stable-Baselines3, and SKRL. The ``newton``, ``viser``, and ``rerun`` visualizers are
+included. Use ``--viz newton`` for local visualization with a display available in the container.
+``--viz newton`` opens the OpenGL rasterizer, and its Renderer selector switches the view to the OVRTX
+path tracer. Both can render offscreen without Isaac Sim. To open its window from a direct
 ``docker run``, run ``xhost +local:`` on the host and add ``-e DISPLAY`` and
-``-v /tmp/.X11-unix:/tmp/.X11-unix:rw`` to the command below. The deprecated ``--viz newton`` alias
-selects GL; it does not choose between GL and RTX automatically.
+``-v /tmp/.X11-unix:/tmp/.X11-unix:rw`` to the command below. ``--viz newton_gl`` is an alias of
+``--viz newton``; ``--viz newton_rtx`` opens the same window in RTX, with the Renderer
+selector available to switch back to OpenGL.
 
 Rendering needs NVIDIA graphics driver capabilities in addition to compute. For direct
 ``docker run`` commands, pass ``--gpus all -e NVIDIA_DRIVER_CAPABILITIES=all``. The NVIDIA
@@ -1080,8 +1086,8 @@ otherwise every start recompiles shaders:
      -v ~/docker/isaac-sim/documents:/root/Documents:rw \
      nvcr.io/nvidia/isaac-lab:3.0.0
 
-The command above opens no windows: without a display, ``--viz kit``, ``--viz newton_gl``, and
-``--viz newton_rtx`` run headless. The ``viser`` and ``rerun`` visualizers serve a web page instead
+The command above opens no windows: without a display, ``--viz kit`` and ``--viz newton`` run
+headless. The ``viser`` and ``rerun`` visualizers serve a web page instead
 and need no display. To enable rendering through X11 forwarding, let local clients use the host X
 server and pass the display into the container:
 

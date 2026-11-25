@@ -15,7 +15,7 @@ import torch
 
 from . import rng
 from .compiled import MDP, MDPState
-from .config import FieldSelector, Phase, TaskMode, progress_field, term_state, terminated
+from .config import FieldSelector, Phase, TaskMode, progress_field, term_state, terminated, time_out
 from .plan import Call, Launch, Launches, ObservationSlot, Step, StepKind, TaskTree, TermOp, TunedValue
 from .terms import hook_arguments
 
@@ -65,7 +65,11 @@ def _apply_actions(mdp: MDP, call: Call, steps: tuple[Step, ...], store: bool) -
         offset = op.offset
         if isinstance(offset, FieldSelector):
             offset = call.state.arrays[offset].torch.view(mdp.num_worlds, -1)[:, ids]
-        value = actions[:, op.columns] * op.scale + offset
+        scale = call.state.arrays["action_scale", op.name].torch if isinstance(op.scale, tuple) else op.scale
+        value = actions[:, op.columns] * scale + offset
+        if op.clip is not None:
+            clip = call.state.arrays["action_clip", op.name].torch
+            value = value.clamp(min=clip[:, 0], max=clip[:, 1])
 
         active = _active(op, call.state)
         if active is not None:
@@ -94,9 +98,11 @@ def _begin_evaluate(mdp: MDP, call: Call) -> None:
     state.episode_length.torch.add_(1)
 
     transition.terminated.torch.zero_()
-    transition.truncated.torch.zero_()
+    timed_out = state.arrays[time_out].torch
+    timed_out.zero_()
     if mdp.max_episode_length is not None:
-        transition.truncated.torch.copy_(state.episode_length.torch >= mdp.max_episode_length)
+        timed_out.copy_(state.episode_length.torch >= mdp.max_episode_length)
+    transition.truncated.torch.copy_(timed_out)
     transition.done.torch.copy_(transition.truncated.torch)
     state.arrays[terminated].torch.zero_()
     transition.rewards.torch.zero_()
@@ -212,6 +218,7 @@ def _compute(mdp: MDP, op: TermOp, call: Call, mask: torch.Tensor | None, steppi
         # A world that terminates is not truncated, so that learners do not bootstrap its value.
         if op.time_out:
             transition.truncated.torch.logical_or_(value & ~transition.terminated.torch)
+            state.arrays[time_out].torch.logical_or_(value)
         else:
             transition.terminated.torch.logical_or_(value)
             transition.truncated.torch.logical_and_(~value)

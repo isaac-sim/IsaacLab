@@ -47,7 +47,9 @@ _BACKEND_MIRROR_NAMES = frozenset(
         "isaacsim_rtx",
         "newton_kamino",
         "newton_mjwarp",
+        "newton_mjwarp_nerd",
         "newton_mjwarp_vbd_proxy",
+        "newton_nerd",
         "newton_steel",
         "ovphysx",
         "ovrtx",
@@ -60,7 +62,14 @@ _BACKEND_MIRROR_NAMES = frozenset(
 
 # RL libraries listed in a stable order across generated docs.
 _RL_LIBRARY_ORDER = ("rl_games", "rsl_rl", "skrl", "sb3", "rlinf", "torchrl")
-_ALGORITHM_LABELS = {"": "PPO", "ppo": "PPO", "amp": "AMP", "ippo": "IPPO", "mappo": "MAPPO"}
+_ALGORITHM_LABELS = {
+    "": "PPO",
+    "ppo": "PPO",
+    "amp": "AMP",
+    "ippo": "IPPO",
+    "mappo": "MAPPO",
+    "supermimic": "SuperMimic",
+}
 
 # Gym IDs excluded from the training list. The ``-Eval`` suffix marks dedicated
 # evaluation variants (e.g. ``IsaacContrib-Assemble-Trocar-G129-Dex3-Eval``, an alias
@@ -106,7 +115,7 @@ _SELECTOR_LABELS = {
 # commands until the corresponding task supports them end to end.
 _NEWTON_MJWARP_EXCLUSIONS = frozenset(
     {
-        "IsaacContrib-Factory-Franka",
+        "IsaacContrib-NIST-Franka",
         "IsaacContrib-Place-Mug-Agibot-Left-Arm-RmpFlow",
         "IsaacContrib-Place-Toy2Box-Agibot-Right-Arm-RmpFlow",
         "IsaacContrib-Stack-Cube-Bin-Franka-IK-Rel-Mimic",
@@ -165,7 +174,7 @@ def _supports_warp_frontend(
         return False
 
     try:
-        from isaaclab_experimental.envs.frontend import FrontendIncompatibleError, WarpFrontend
+        from isaaclab_experimental.deprecated.envs.frontend import FrontendIncompatibleError, WarpFrontend
 
         from isaaclab_tasks.utils import resolve_task_config
 

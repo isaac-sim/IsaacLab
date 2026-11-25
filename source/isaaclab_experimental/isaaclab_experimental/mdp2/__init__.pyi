@@ -75,6 +75,7 @@ __all__ = [
     "step_dt",
     "term_state",
     "terminated",
+    "time_out",
     "tunable",
     "tune",
     "uniform",
@@ -124,6 +125,7 @@ from .config import (
     step_dt,
     term_state,
     terminated,
+    time_out,
     tunable,
 )
 from .eager import TermContext

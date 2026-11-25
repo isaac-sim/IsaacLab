@@ -54,7 +54,12 @@ from isaaclab_ov.test.fixtures.views import MockOvPhysxBindingSet  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
 import isaaclab.utils.math as math_utils  # noqa: E402
-from isaaclab.actuators import DelayedPDActuatorCfg, IdealPDActuatorCfg, ImplicitActuatorCfg  # noqa: E402
+from isaaclab.actuators import (  # noqa: E402
+    DelayedImplicitActuatorCfg,
+    DelayedPDActuatorCfg,
+    IdealPDActuatorCfg,
+    ImplicitActuatorCfg,
+)
 from isaaclab.assets import ArticulationCfg, get_articulation_name_ordering  # noqa: E402
 from isaaclab.envs.mdp import randomize_actuator_gains, randomize_rigid_body_material  # noqa: E402
 from isaaclab.managers import EventTermCfg, SceneEntityCfg  # noqa: E402
@@ -115,11 +120,24 @@ class _IslandCfg:
     devices: DeviceScope = DeviceScope.ALL
 
 
+_DELAYED_DRIVE = _IslandCfg(
+    {
+        "joints": DelayedImplicitActuatorCfg(
+            joint_names_expr=[".*"], stiffness=_STIFFNESS, damping=_DAMPING, min_delay=1, max_delay=1
+        )
+    },
+    num_envs=1,
+    devices=DeviceScope.CUDA,
+)
+
+
 _ISLANDS: dict[str, _IslandCfg] = {
     # Nonidentity MJWarp order through cross-backend discovery; shared by the state, property,
     # material, and FK-refresh tests, which each check deltas against their own starting state.
     "ordered": _IslandCfg(_implicit(), joint_ordering="mjwarp", body_ordering="mjwarp", collision_shapes=True),
     "drive": _IslandCfg(_implicit(), joint_ordering=_ROTATED_JOINT_NAMES, devices=DeviceScope.CUDA),
+    "delayed_drive": _DELAYED_DRIVE,
+    "delayed_drive_ordered": replace(_DELAYED_DRIVE, joint_ordering=_ROTATED_JOINT_NAMES),
     "dynamics": _IslandCfg(
         {},
         joint_ordering="mjwarp",
@@ -531,6 +549,17 @@ def _make_articulation_shell() -> Articulation:
     return articulation
 
 
+@pytest.mark.kitless
+def test_zero_dof_articulation_data_has_empty_joint_properties():
+    """Fixed assembly fixtures can initialize without allocating joint friction storage."""
+    bindings = MockOvPhysxBindingSet(num_instances=2, num_joints=0, num_bodies=1)
+    data = ArticulationData(bindings.view, "cpu", backend_manager=OvPhysxManager(OvPhysxCfg()))
+    assert data.default_joint_pos.shape == (2, 0)
+    assert data.joint_friction_coeff.shape == (2, 0)
+    assert data.joint_dynamic_friction_coeff.shape == (2, 0)
+    assert data.joint_viscous_friction_coeff.shape == (2, 0)
+
+
 def test_process_tendons_scopes_to_articulation_root():
     """Tendon discovery should ignore joints that live outside the current articulation subtree."""
     articulation = _make_articulation_shell()
@@ -930,7 +959,7 @@ def test_set_material_properties(scene: _ArticulationScene) -> None:
     # The ranges exclude the asset's default material, so values inside them prove the write happened.
     static_range, dynamic_range, restitution_range = (1.5, 2.0), (1.2, 1.4), (0.6, 0.8)
     view = articulation.root_view
-    materials_before = wp.to_torch(view.get_attribute(TT.SHAPE_FRICTION_AND_RESTITUTION)).clone()
+    materials_before = wp.to_torch(view.get_material_properties()).clone()
     assert materials_before.shape[1] > 0
     assert (materials_before[..., 0] < static_range[0]).all(), f"default material overlaps: {materials_before}"
     params = {
@@ -954,6 +983,17 @@ def test_set_material_properties(scene: _ArticulationScene) -> None:
     for component, (lo, hi) in enumerate((static_range, dynamic_range, restitution_range)):
         values = materials[-1, :, component]
         assert ((values >= lo - eps) & (values <= hi + eps)).all(), values
+
+    # The shared view interface also writes a selected row without changing restitution.
+    restitution = materials[..., 2].clone()
+    materials[-1, :, :2] = 0.25
+    view.set_material_properties(
+        wp.from_torch(materials.contiguous()), wp.from_torch(torch.tensor([num_articulations - 1], dtype=torch.int32))
+    )
+    actual = wp.to_torch(view.get_attribute(TT.SHAPE_FRICTION_AND_RESTITUTION))
+    torch.testing.assert_close(actual[..., 2], restitution)
+    torch.testing.assert_close(actual[-1, :, :2], torch.full_like(actual[-1, :, :2], 0.25))
+    torch.testing.assert_close(actual[:-1], materials_before[:-1])
 
 
 @pytest.mark.parametrize("scene", _ALL_DEVICES, indirect=True)
@@ -1012,7 +1052,9 @@ def test_effort_binding_excludes_implicit_pd(scene: _ArticulationScene) -> None:
     feedforward = torch.zeros_like(initial_pos)
     feedforward[:, shoulder_ids] = 1.5
     feedforward[:, elbow_ids] = -0.75
+    velocity_target = torch.full_like(initial_pos, 0.1)
     articulation.actuators.target_command.set_position_index(value=position_target)
+    articulation.actuators.target_command.set_velocity_index(value=velocity_target)
     articulation.actuators.target_command.set_effort_index(value=feedforward)
     articulation.write_data_to_sim()
 
@@ -1035,6 +1077,16 @@ def test_effort_binding_excludes_implicit_pd(scene: _ArticulationScene) -> None:
         expected_stiffness[:, backend_to_user],
     )
     assert articulation._actuator_control.native_actuator_path_active == scene.native_actuators
+    if scene.native_actuators:
+        backend_shoulder_ids = [backend_to_user.index(index) for index in shoulder_ids]
+        torch.testing.assert_close(
+            _read_binding_to_torch(articulation, TT.DOF_POSITION_TARGET, scene.device)[:, backend_shoulder_ids],
+            position_target[:, shoulder_ids],
+        )
+        torch.testing.assert_close(
+            _read_binding_to_torch(articulation, TT.DOF_VELOCITY_TARGET, scene.device)[:, backend_shoulder_ids],
+            velocity_target[:, shoulder_ids],
+        )
 
 
 @pytest.mark.parametrize("scene", _ALL_DEVICES, indirect=True)
@@ -1205,6 +1257,34 @@ def test_implicit_drive_targets_submit_feedforward_effort_and_track(scene: _Arti
     expected_position[1, 0] = drive_target[0, 0]
     scene.step(articulation, count=100)
     torch.testing.assert_close(articulation.data.joint_pos.torch, expected_position, atol=0.1, rtol=0.0)
+
+
+@pytest.mark.parametrize("scene", _CUDA_SCENES, indirect=True)
+@pytest.mark.parametrize("island", ["delayed_drive", "delayed_drive_ordered"], ids=["identity", "reordered"])
+def test_delayed_implicit_drive_targets_reach_solver_one_step_late(scene: _ArticulationScene, island: str) -> None:
+    articulation = scene.islands[island]
+    articulation.reset()
+    backend_to_user = [articulation.joint_names.index(name) for name in articulation.root_view.dof_names]
+    joint_index = torch.arange(articulation.num_joints, dtype=torch.float32, device=scene.device).unsqueeze(0)
+    initial_pos = 0.05 * (joint_index + 1)
+    initial_vel = -0.1 * (joint_index + 1)
+
+    for step in range(3):
+        articulation.actuators.target_command.set_position_index(value=initial_pos + step * 0.2)
+        articulation.actuators.target_command.set_velocity_index(value=initial_vel - step * 0.3)
+        articulation.write_data_to_sim()
+
+        delayed_step = max(0, step - 1)
+        torch.testing.assert_close(
+            _read_binding_to_torch(articulation, TT.DOF_POSITION_TARGET, scene.device),
+            (initial_pos + delayed_step * 0.2)[:, backend_to_user],
+        )
+        torch.testing.assert_close(
+            _read_binding_to_torch(articulation, TT.DOF_VELOCITY_TARGET, scene.device),
+            (initial_vel - delayed_step * 0.3)[:, backend_to_user],
+        )
+        scene.sim.step()
+        articulation.update(scene.sim.cfg.dt)
 
 
 @pytest.mark.parametrize("scene", _CUDA_SCENES, indirect=True)

@@ -15,17 +15,13 @@ other optical channels to RTX renderers.
 
 .. code-block:: bash
 
-    # PhysX physics and Kit visualizer.
-    uvx --from 'isaaclab[isaacsim]' isaaclab example visual-color-randomization \
-        --physics isaacsim_physx --visualizer kit
+    # Newton physics and RTX rendering in the Newton visualizer.
+    uvx --from 'isaaclab[ov]' isaaclab example visual-color-randomization \
+        --physics newton_mjwarp --visualizer newton_rtx
 
     # Newton physics and Newton GL visualizer.
     uvx isaaclab example visual-color-randomization \
-        --physics newton_mjwarp --visualizer newton_gl
-
-    # Newton physics and scene-camera RTX rendering.
-    uv run --extra ov isaaclab example visual-color-randomization \
-        --physics newton_mjwarp --visualizer newton_rtx
+        --physics newton_mjwarp --visualizer newton
 
 """
 
@@ -42,9 +38,8 @@ parser.add_argument(
 )
 parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
 add_launcher_args(parser)
-# a Newton viewer cannot build its model from this PhysX scene, so PhysX defaults to the Kit viewer
 physics_args, _ = parser.parse_known_args()
-parser.set_defaults(visualizer=["kit"] if physics_args.physics == "isaacsim_physx" else ["newton_gl"])
+parser.set_defaults(visualizer=["newton" if physics_args.physics == "isaacsim_physx" else "newton_rtx"])
 args_cli = parser.parse_args()
 if args_cli.max_steps == 0 or args_cli.max_steps < -1:
     parser.error("--max_steps must be positive or -1.")
@@ -63,6 +58,7 @@ from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass, replace
 from isaaclab.utils.timer import Timer
+from isaaclab.visualizers.visualizer_cfg import VISUALIZER_ALIASES
 
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # isort: skip
 
@@ -250,26 +246,31 @@ def main() -> None:
     """Launch the selected backends and run the randomization scene."""
     env_cfg = VisualMaterialEnvCfg()
     env_cfg.scene.num_envs = args_cli.num_envs
-    if "newton_gl" in args_cli.visualizer:
-        for material in (
-            env_cfg.scene.surface_body,
-            env_cfg.scene.surface_leg,
-            env_cfg.scene.surface_foot,
-            env_cfg.scene.glass_body,
-            env_cfg.scene.glass_leg,
-            env_cfg.scene.glass_foot,
-        ):
-            material.channels = ("color",)
-        env_cfg.events.randomize_surface_style.params["channels"] = {
-            "color": {"r": (0.05, 1.0), "g": (0.05, 1.0), "b": (0.05, 1.0)}
-        }
-        env_cfg.events.randomize_glass_style.params["channels"] = {
-            "color": {"r": (0.05, 1.0), "g": (0.05, 1.0), "b": (0.05, 1.0)}
-        }
-    if args_cli.visualizer != ["newton_gl"]:
+    visualizers = [VISUALIZER_ALIASES.get(name, name) for name in args_cli.visualizer]  # newton_gl is the same viewer
+    if args_cli.physics != "newton_mjwarp" or visualizers != ["newton"]:
         env_cfg.events.randomize_parts_per_env = None
 
     with launch_simulation(env_cfg, args_cli):
+        if any(
+            viewer.backend.visualizer_type == "newton" and viewer.backend.initial_renderer == "opengl"
+            for viewer in env_cfg.sim.visualizer_cfgs
+        ):
+            for material in (
+                env_cfg.scene.surface_body,
+                env_cfg.scene.surface_leg,
+                env_cfg.scene.surface_foot,
+                env_cfg.scene.glass_body,
+                env_cfg.scene.glass_leg,
+                env_cfg.scene.glass_foot,
+            ):
+                material.channels = ("color",)
+            env_cfg.events.randomize_surface_style.params["channels"] = {
+                "color": {"r": (0.05, 1.0), "g": (0.05, 1.0), "b": (0.05, 1.0)}
+            }
+            env_cfg.events.randomize_glass_style.params["channels"] = {
+                "color": {"r": (0.05, 1.0), "g": (0.05, 1.0), "b": (0.05, 1.0)}
+            }
+
         from isaaclab.envs import ManagerBasedEnv  # noqa: PLC0415
 
         env = ManagerBasedEnv(cfg=env_cfg)

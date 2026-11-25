@@ -20,6 +20,8 @@ from types import MappingProxyType
 
 import warp as wp
 
+from isaaclab.utils.string import resolve_matching_names_values
+
 from . import torch_backend, warp_backend
 from .compiled import MDP, Backend, WorldConfig
 from .config import (
@@ -52,6 +54,7 @@ from .config import (
     step_dt,
     term_state,
     terminated,
+    time_out,
     tunable,
 )
 from .plan import (
@@ -160,6 +163,7 @@ class CompileContext:
             last_action: ArrayLayout(wp.float32, 2, {"actions": 0}, (0,)),
             episode_length: ArrayLayout(wp.int32, 1, {}),
             terminated: ArrayLayout(wp.bool, 1, {}),
+            time_out: ArrayLayout(wp.bool, 1, {}),
         }
     )
     subsets: dict[SubsetSelector, tuple[int, ...]] = field(default_factory=dict)
@@ -702,7 +706,8 @@ class MDPBuilder:
         if target.dtype is not wp.float32:
             context.errors.append(f"{entry}: the target '{cfg.target}' must be a float32 field.")
 
-        elements = set(range(math.prod(target.sizes.values())))
+        # The target's elements that the action writes, in the order of its columns: all of them, or the subset's.
+        indices = tuple(range(math.prod(target.sizes.values())))
         if cfg.subset is not None:
             dims = list(target.sizes)
             if cfg.subset.entity != cfg.target.entity or dims != [cfg.subset.dim]:
@@ -710,7 +715,8 @@ class MDPBuilder:
                 return
             if self._resolve(entry, "subset", cfg.subset, context) is None:
                 return
-            elements = set(context.subsets[cfg.subset])
+            indices = context.subsets[cfg.subset]
+        elements = set(indices)
         # Its columns of the action are given with those of every world config, by name.
         columns, slot = slice(0, len(elements)), entry.name or entry.path[-1]
         action = ActionOp(str(entry), cfg.target, columns, cfg.scale, cfg.offset, subset=cfg.subset, slot=slot)
@@ -726,6 +732,27 @@ class MDPBuilder:
             written = set(context.subsets[op.subset]) if op.subset is not None else elements
             if op.target == cfg.target and (op.subset is None or elements & written):
                 context.errors.append(f"{entry}: '{cfg.target}' is already written by '{op.name}'.")
+
+        scale, clip = cfg.scale, cfg.clip
+        if isinstance(scale, dict) or isinstance(clip, dict):
+            if len(target.sizes) != 1:
+                context.errors.append(f"{entry}: named scales and clip ranges need a one-dimensional field.")
+                return
+            dim = next(iter(target.sizes))
+            names = self.schema.entities[cfg.target.entity].names[dim]
+            selected = [names[index] for index in indices]
+            try:
+                if isinstance(scale, dict):
+                    scale = _resolve_action_values(scale, selected, 1.0)
+                if isinstance(clip, dict):
+                    clip = _resolve_action_values(clip, selected, (-math.inf, math.inf))
+            except ValueError as exc:
+                context.errors.append(f"{entry}: {exc}")
+                return
+        if cfg.clip is not None and not isinstance(cfg.clip, dict):
+            clip = (cfg.clip,) * len(indices)
+
+        action = replace(action, scale=scale, clip=clip)
         context.ops[Phase.ACTIONS].append(action)
 
     def _compile_term(self, entry: ScheduleEntry, context: CompileContext) -> None:
@@ -1000,6 +1027,19 @@ class MDPBuilder:
             if any(re.fullmatch(pattern, name) for pattern in selector.patterns)
         )
         return ArrayLayout(wp.int32, 1, {arg: len(context.subsets[selector])})
+
+
+_ActionValue = typing.TypeVar("_ActionValue")
+
+
+def _resolve_action_values(
+    values: dict[str, _ActionValue], names: list[str], default: _ActionValue
+) -> tuple[_ActionValue, ...]:
+    resolved = [default] * len(names)
+    indices, _, matches = resolve_matching_names_values(values, names)
+    for index, value in zip(indices, matches, strict=True):
+        resolved[index] = value
+    return tuple(resolved)
 
 
 def _implementation(entry: ScheduleEntry, backend: Backend, errors: list[str]) -> Implementation | None:

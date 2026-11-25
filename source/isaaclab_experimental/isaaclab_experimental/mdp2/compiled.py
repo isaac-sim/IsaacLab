@@ -32,6 +32,7 @@ from .config import (
     progress_field,
     term_state,
     terminated,
+    time_out,
 )
 from .plan import (
     ActionOp,
@@ -345,6 +346,8 @@ class MDP:
                 if isinstance(op, ActionOp):
                     details = [f"columns {op.columns.start}:{op.columns.stop} -> {op.target}"]
                     details += [f"scale {op.scale}", f"offset {op.offset}"]
+                    if op.clip is not None:
+                        details.append(f"clip {op.clip}")
                 else:
                     details = [f"{arg}={selector}" for arg, selector in op.inputs.items()]
                     details += [f"{name}={value!r}" for name, value in op.params.items()]
@@ -389,6 +392,7 @@ class MDP:
             last_action: self._zeros(self.num_worlds, self.action_dim),
             episode_length: self._zeros(self.num_worlds, dtype=wp.int32),
             terminated: self._zeros(self.num_worlds, dtype=wp.bool),
+            time_out: self._zeros(self.num_worlds, dtype=wp.bool),
         }
         arrays |= self._progress_arrays()
         for op in self.ops[Phase.COMMANDS] + self.ops[Phase.QUANTITIES]:
@@ -408,6 +412,7 @@ class MDP:
                 arrays["entered", op.name] = self._zeros(self.num_worlds, dtype=wp.bool)
         for subset, indices in self.subsets.items():
             arrays[subset] = ProxyArray(wp.array(indices, dtype=wp.int32, device=self.device))
+        arrays |= self._direct_action_arrays()
         # State belongs to the use: the ops that other world configs define differently share it.
         for op in self.term_ops:
             for name, spec in op.state.items():
@@ -494,6 +499,18 @@ class MDP:
             }
 
         return MDPState(arrays=arrays, arguments=arguments, scene_data=scene_data, caches=caches)
+
+    def _direct_action_arrays(self) -> dict[Hashable, ProxyArray]:
+        """Allocate the per-element scales and clip ranges of the direct actions that have them."""
+        arrays = {}
+        for op in self.ops[Phase.ACTIONS]:
+            if not isinstance(op, ActionOp):
+                continue  # Action terms write their outputs themselves
+            if isinstance(op.scale, tuple):
+                arrays["action_scale", op.name] = ProxyArray(wp.array(op.scale, dtype=wp.float32, device=self.device))
+            if op.clip is not None:
+                arrays["action_clip", op.name] = ProxyArray(wp.array(op.clip, dtype=wp.vec2f, device=self.device))
+        return arrays
 
     def _progress_arrays(self) -> dict[Hashable, ProxyArray]:
         """Allocate the progress of every task, as at the start of an episode: only the tasks that run first are

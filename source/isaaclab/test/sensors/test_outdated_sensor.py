@@ -48,7 +48,7 @@ def test_observations_after_reset_are_not_outdated(temp_dir, task_name, device, 
     sim_utils.create_new_stage()
 
     # parse configuration
-    env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
+    env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs, overrides=["physics=isaacsim_physx"])
     env_cfg.wait_for_textures = False
 
     # create environment

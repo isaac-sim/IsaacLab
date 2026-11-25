@@ -18,7 +18,8 @@ import logging
 import math
 import os
 import stat
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
@@ -26,6 +27,7 @@ import numpy as np
 import ovphysx
 import ovstage
 import warp as wp
+from ovphysx.types import CompiledStageCacheMode, GlobalConfigKey
 
 from pxr import Plug, Sdf, Usd, UsdPhysics
 
@@ -56,6 +58,22 @@ if TYPE_CHECKING:
     from .ovphysx_manager_cfg import OvPhysxCfg
 
 __all__ = ["OvPhysxManager", "OvPhysxSceneDataBackend"]
+
+
+@contextmanager
+def _compiled_stage_cache_for_attach(disable: bool) -> Iterator[None]:
+    """Scope the runtime's process-wide cache mode to attach submission."""
+    if not disable:
+        yield
+        return
+    # OvPhysX captures the cache mode at submission during the synchronous simulation reset.
+    key = GlobalConfigKey.COMPILED_STAGE_CACHE
+    previous = CompiledStageCacheMode(ovphysx.get_global_config(key))
+    ovphysx.set_global_config(key, CompiledStageCacheMode.DISABLED)
+    try:
+        yield
+    finally:
+        ovphysx.set_global_config(key, previous)
 
 
 def _prepare_default_cache_dir(cache_dir: str) -> str:
@@ -324,11 +342,12 @@ class OvPhysxBackend:
         self.stage: Any = None
         self.rigid_body_view: Any = None
 
-    def load(self, stage_usda: str) -> None:
+    def load(self, stage_usda: str, *, disable_compiled_stage_cache: bool = False) -> None:
         """Replace the attached scene after draining its native bindings.
 
         Args:
             stage_usda: Exported USD scene to populate before physics attaches.
+            disable_compiled_stage_cache: Bypass the compiled-stage cache for this attachment.
         """
         if self.stage is not None:
             if self.rigid_body_view is not None:
@@ -343,15 +362,16 @@ class OvPhysxBackend:
             self.scene = instantiate(OvstageBackendCfg(populate_physics=True))
         try:
             self.scene.populate(stage_usda)
-            operation = self.physx.attach_ovstage(self.scene.stage, read_ordinal=self.scene.ordinal - 1)
+            with _compiled_stage_cache_for_attach(disable_compiled_stage_cache):
+                operation = self.physx.attach_ovstage(self.scene.stage, read_ordinal=self.scene.ordinal - 1)
+                # Accepted attach failures can retain native ownership. Keep the stage for cleanup.
+                self.stage = self.scene.stage
+            self.physx.wait_task(operation)
         except Exception:
-            if self.owns_scene:
+            if self.owns_scene and self.stage is None:
                 self.scene.close()
                 self.scene = None
             raise
-        self.stage = self.scene.stage
-        # Accepted attach failures can retain native ownership. Keep the stage for cleanup.
-        self.physx.wait_task(operation)
 
     def close(self) -> None:
         """Release bindings, the runtime, and its stage in native teardown order."""
@@ -777,14 +797,16 @@ class OvPhysxManager(PhysicsManager):
         if not self._atexit_registered:
             atexit.register(self._close_at_exit)
             self._atexit_registered = True
-        self.backend.load(stage_usda)
+        self.backend.load(stage_usda, disable_compiled_stage_cache=self._cfg.disable_compiled_stage_cache)
         logger.info("OvPhysxManager: attached OVStage to ovphysx (device=%s)", ovphysx_device)
 
         for source, targets, transforms, env_ids, _ in native_clones:
             self.backend.physx.wait_task(self.backend.physx.clone(source, targets, transforms or None, env_ids=env_ids))
 
-        # Native metadata and bindings must see the newly attached bodies, including on CPU.
-        self.backend.physx.warmup()
+        # Pinned runtimes need explicit warmup before metadata and binding access, including on CPU.
+        # Newer runtimes finish construction and DirectGPU upload in the attach/clone tasks above.
+        if hasattr(self.backend.physx, "warmup"):
+            self.backend.physx.warmup()
 
         # The central SceneDataProvider can request these bindings later. Headless
         # training never consumes them, so avoid binding every rigid link here.
@@ -835,8 +857,8 @@ class OvPhysxManager(PhysicsManager):
         """Apply the OVPhysX scene configuration to the simulation's physics scene prim.
 
         The schema, dynamics device and broadphase (see :func:`_set_scene_dynamics_device`),
-        scene-query-support, and solver-determinism/accuracy attributes are applied regardless of
-        device. The GPU buffer-capacity attributes are applied only to GPU scenes.
+        scene-query-support, solver-determinism/accuracy and selected contact attributes are applied
+        regardless of device. The GPU buffer-capacity attributes are applied only to GPU scenes.
 
         Args:
             scene_prim: The /World/PhysicsScene prim to configure.
@@ -862,6 +884,23 @@ class OvPhysxManager(PhysicsManager):
             scene_prim.CreateAttribute("physxScene:enableExternalForcesEveryIteration", Sdf.ValueTypeNames.Bool).Set(
                 cfg.enable_external_forces_every_iteration
             )
+            for attr, value_type, value in (
+                (
+                    "solverType",
+                    Sdf.ValueTypeNames.Token,
+                    None if cfg.solver_type is None else ("PGS", "TGS")[cfg.solver_type],
+                ),
+                ("minPositionIterationCount", Sdf.ValueTypeNames.UInt, cfg.min_position_iteration_count),
+                ("maxPositionIterationCount", Sdf.ValueTypeNames.UInt, cfg.max_position_iteration_count),
+                ("minVelocityIterationCount", Sdf.ValueTypeNames.UInt, cfg.min_velocity_iteration_count),
+                ("maxVelocityIterationCount", Sdf.ValueTypeNames.UInt, cfg.max_velocity_iteration_count),
+                ("bounceThreshold", Sdf.ValueTypeNames.Float, cfg.bounce_threshold_velocity),
+                ("frictionOffsetThreshold", Sdf.ValueTypeNames.Float, cfg.friction_offset_threshold),
+                ("frictionCorrelationDistance", Sdf.ValueTypeNames.Float, cfg.friction_correlation_distance),
+                ("solveArticulationContactLast", Sdf.ValueTypeNames.Bool, cfg.solve_articulation_contact_last),
+            ):
+                if value is not None:
+                    scene_prim.CreateAttribute(f"physxScene:{attr}", value_type).Set(value)
 
         if device == "gpu" and cfg is not None:
             for attr, val in [
@@ -873,3 +912,7 @@ class OvPhysxManager(PhysicsManager):
                 ("gpuCollisionStackSize", cfg.gpu_collision_stack_size),
             ]:
                 scene_prim.CreateAttribute(f"physxScene:{attr}", Sdf.ValueTypeNames.UInt).Set(val)
+            if cfg.gpu_max_num_partitions is not None:
+                scene_prim.CreateAttribute("physxScene:gpuMaxNumPartitions", Sdf.ValueTypeNames.UInt).Set(
+                    cfg.gpu_max_num_partitions
+                )

@@ -14,6 +14,27 @@ from isaaclab.renderers.segmentation_colors import random_color_from_id_wp
 
 
 @wp.kernel(enable_backward=False)
+def remap_semantic_colors_kernel(
+    image: wp.array(dtype=wp.uint8, ndim=4),
+    source_colors: wp.array(dtype=wp.uint32),
+    target_colors: wp.array(dtype=wp.uint8, ndim=2),
+):
+    """Apply a class palette to colorized pixels without cascading color replacements."""
+    env, y, x = wp.tid()
+    color = (
+        wp.uint32(image[env, y, x, 0])
+        + wp.uint32(image[env, y, x, 1]) * wp.uint32(256)
+        + wp.uint32(image[env, y, x, 2]) * wp.uint32(65536)
+        + wp.uint32(image[env, y, x, 3]) * wp.uint32(16777216)
+    )
+    for entry in range(source_colors.shape[0]):
+        if color == source_colors[entry]:
+            for channel in range(4):
+                image[env, y, x, channel] = target_colors[entry, channel]
+            break
+
+
+@wp.kernel(enable_backward=False)
 def create_marker_transforms_kernel(
     positions: wp.array(dtype=wp.vec3),
     orientations: wp.array(dtype=wp.quat),
@@ -32,6 +53,22 @@ def create_marker_transforms_kernel(
     )
     s = wp.vec3d(wp.float64(scale[0]), wp.float64(scale[1]), wp.float64(scale[2]))
     transforms[i] = local_transforms[i] * wp.transpose(wp.transform_compose(p, q, s))
+
+
+@wp.kernel(enable_backward=False)
+def hide_environment_bodies_kernel(
+    transforms: wp.array(dtype=wp.mat44d),
+    body_envs: wp.array(dtype=wp.int32),
+    hidden_envs: wp.array(dtype=wp.uint8),
+    drop: wp.float64,
+    out: wp.array(dtype=wp.mat44d),
+):
+    """Copy row-vector body poses, moving the bodies of hidden environments down by ``drop`` [m]."""
+    i = wp.tid()
+    pose = transforms[i]
+    if hidden_envs[body_envs[i]] != wp.uint8(0):
+        pose[3, 2] = pose[3, 2] - drop
+    out[i] = pose
 
 
 @wp.kernel
@@ -161,3 +198,41 @@ def accumulate_mesh_normals(
 def normalize_mesh_normals(normals: wp.array(dtype=wp.vec3)):
     i = wp.tid()
     normals[i] = wp.normalize(normals[i])
+
+
+@wp.kernel(enable_backward=False)
+def copy_dense_lidar_points_kernel(
+    coordinates: wp.array2d(dtype=wp.float32),
+    intensity: wp.array(dtype=wp.float32),
+    flags: wp.array(dtype=wp.int32),
+    points: wp.array(dtype=wp.vec3f),
+    intensity_out: wp.array(dtype=wp.float32),
+    valid: wp.array(dtype=wp.bool),
+    spherical: bool,
+):
+    """Copy one dense lidar cloud. Bit 6 of ``flags`` marks a hit; misses become non-finite."""
+    i = wp.tid()
+    hit = (flags[i] & wp.int32(0x40)) != wp.int32(0)
+    if hit:
+        point = wp.vec3f(coordinates[i, 0], coordinates[i, 1], coordinates[i, 2])
+        if spherical:
+            azimuth = wp.radians(point[0])
+            elevation = wp.radians(point[1])
+            horizontal = point[2] * wp.cos(elevation)
+            point = wp.vec3f(horizontal * wp.cos(azimuth), horizontal * wp.sin(azimuth), point[2] * wp.sin(elevation))
+        points[i] = point
+        intensity_out[i] = intensity[i]
+    else:
+        points[i] = wp.vec3f(wp.inf, wp.inf, wp.inf)
+        intensity_out[i] = 0.0
+    valid[i] = hit
+
+
+@wp.kernel
+def create_lidar_transforms_kernel(
+    positions: wp.array(dtype=wp.vec3),
+    orientations: wp.array(dtype=wp.quatf),
+    transforms: wp.array(dtype=wp.mat44d),
+):
+    i = wp.tid()
+    transforms[i] = wp.mat44d(wp.transpose(wp.transform_to_matrix(wp.transformf(positions[i], orientations[i]))))

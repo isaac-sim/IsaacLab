@@ -10,7 +10,7 @@ from typing import Any
 
 import numpy as np
 import warp as wp
-from newton import JointType, ModelBuilder, ShapeFlags
+from newton import JointType, Mesh, ModelBuilder, ShapeFlags
 
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
@@ -106,6 +106,7 @@ def build_source_builders(
     load_visual_shapes: bool = True,
     skip_mesh_approximation: bool = False,
     import_results_out: dict[str, dict[str, Any]] | None = None,
+    sdf_mesh_reduction: float | None = None,
 ) -> dict[str, ModelBuilder]:
     """Build one Newton builder for each clone source prim path.
 
@@ -123,10 +124,13 @@ def build_source_builders(
             USD parse time and memory that only pays off when the shapes are rendered
             or ray cast.
         skip_mesh_approximation: Whether to skip collision mesh approximation during import.
+        sdf_mesh_reduction: Optional target fraction of triangles removed from SDF collision meshes.
+            Visual geometry and body inertia are retained; reduction precedes replication and SDF cooking.
         import_results_out: Optional caller-owned output mapping populated in place with each
             source's USD import result.
     """
     builders = {}
+    collision_meshes = {}
     sources = tuple(dict.fromkeys(sources))
     for source in sources:
         builder = create_builder()
@@ -141,6 +145,24 @@ def build_source_builders(
             return_deformable_results=True,
             allow_unsafe_torch_checkpoints=True,
         )
+        if sdf_mesh_reduction is not None and not skip_mesh_approximation:
+            sdf_shapes = [
+                i
+                for i, flags in enumerate(builder.shape_flags)
+                if flags & ShapeFlags.COLLIDE_SHAPES
+                and (
+                    builder.shape_sdf_max_resolution[i] is not None
+                    or builder.shape_sdf_target_voxel_size[i] is not None
+                )
+            ]
+            if sdf_shapes:
+                builder.approximate_meshes(
+                    method="quadratic",
+                    shape_indices=sdf_shapes,
+                    target_reduction=sdf_mesh_reduction,
+                    keep_visual_shapes=load_visual_shapes,
+                    raise_on_failure=True,
+                )
         replace_newton_builder_shape_colors(builder, stage)
         if load_visual_shapes:
             # Newton groups all static shapes under body -1. Use imported visual paths to
@@ -172,6 +194,22 @@ def build_source_builders(
                 if visible and imageable.ComputePurpose() in (UsdGeom.Tokens.default_, UsdGeom.Tokens.proxy):
                     builder.shape_flags[index] |= ShapeFlags.VISIBLE
             import_builder_visual_material_paths(builder, stage)
+        # Native deferred SDF caching keys by Mesh identity. Reuse identical collision-only sources
+        # across slots so their textures are cooked once; visual meshes and prebuilt SDFs stay independent.
+        for index, mesh in enumerate(builder.shape_source):
+            if (
+                isinstance(mesh, Mesh)
+                and mesh.sdf is None
+                and not mesh.enable_surface_velocity
+                and builder.shape_flags[index] & ShapeFlags.COLLIDE_SHAPES
+                and not builder.shape_flags[index] & ShapeFlags.VISIBLE
+                and (
+                    builder.shape_sdf_max_resolution[index] is not None
+                    or builder.shape_sdf_target_voxel_size[index] is not None
+                )
+            ):
+                key = (hash(mesh), mesh.maxhullvert)
+                builder.shape_source[index] = collision_meshes.setdefault(key, mesh)
         _name_root_joints_after_their_body(builder)
         builders[source] = builder
         if import_results_out is not None:

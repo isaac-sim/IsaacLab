@@ -64,6 +64,8 @@ The following wrappers are available in the ``isaaclab_rl`` extension:
 isaaclab_mimic extension
 ------------------------
 
+.. include:: /source/features/imitation-learning/_mimic_deprecation.include
+
 The following modules are available in the ``isaaclab_mimic`` extension:
 
 .. currentmodule:: isaaclab_mimic
@@ -89,6 +91,19 @@ The following modules are available in the ``isaaclab_contrib`` extension:
    controllers
    mdp
    rl
+   sensors
+
+isaaclab_fovi extension
+-----------------------
+
+The following modules are available in the ``isaaclab_fovi`` extension:
+
+.. currentmodule:: isaaclab_fovi
+
+.. autosummary::
+   :toctree: lab_fovi
+
+   mdp
    sensors
 
 isaaclab_tasks extension
@@ -167,6 +182,18 @@ The following modules are available in the ``isaaclab_newton`` extension:
    lab_newton/isaaclab_newton.sim.spawners
    lab_newton/isaaclab_newton.sim.usd_export
 
+isaaclab_neural extension
+-------------------------
+
+The ``isaaclab_neural`` extension runs tasks on learned neural robot dynamics models.
+See :ref:`newton-neural-robot-dynamics` for the full workflow.
+
+.. toctree::
+   :maxdepth: 1
+
+   lab_neural/isaaclab_neural
+   lab_neural/isaaclab_neural.physics
+
 isaaclab_ov extension
 ---------------------
 
@@ -223,9 +250,10 @@ The following modules are available in the ``isaaclab_experimental`` extension:
    :toctree: lab_experimental
 
    envs
-   managers
    mdp2
-   utils
+   deprecated.envs
+   deprecated.managers
+   deprecated.utils
 
 
 isaaclab_tasks_experimental extension
@@ -250,7 +278,7 @@ The following public modules provide additional specialized APIs:
    lab/isaaclab.ui.widgets
    lab/isaaclab.ui.xr_widgets
    lab/isaaclab.utils.leapp
-   lab_experimental/isaaclab_experimental.envs.mdp.actions
+   lab_experimental/isaaclab_experimental.deprecated.envs.mdp.actions
    lab_experimental/isaaclab_experimental.mdp2.mdp
    lab_newton/isaaclab_newton.envs.mdp
    lab_newton/isaaclab_newton.sim.views

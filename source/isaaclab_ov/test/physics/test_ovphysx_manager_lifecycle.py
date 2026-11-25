@@ -508,15 +508,28 @@ def test_retained_binding_preserves_uncaught_failure_exit_status():
     _assert_no_atexit_errors(output)
 
 
-@pytest.mark.parametrize(("device", "rate"), [("cpu", 60), ("gpu", 120)])
-@pytest.mark.parametrize(("override", "expected"), [(None, True), (False, False), (True, True)])
+@pytest.mark.kitless
+@pytest.mark.parametrize(
+    ("device", "rate", "override", "expected"),
+    [("cpu", 60, None, True), ("gpu", 120, None, True), ("gpu", 120, False, False), ("cpu", 60, True, True)],
+)
 def test_scene_settings(monkeypatch, manager, device, rate, override, expected):
     """The simulation timestep, scene queries, and TGS force settings reach the native scene."""
     from isaaclab_ov.physics.ovphysx_manager_cfg import OvPhysxCfg
 
     from pxr import Usd
 
-    cfg = OvPhysxCfg() if override is None else OvPhysxCfg(enable_external_forces_every_iteration=override)
+    cfg = OvPhysxCfg(
+        solver_type=0 if device == "cpu" else 1,
+        min_position_iteration_count=2,
+        max_position_iteration_count=192,
+        min_velocity_iteration_count=1,
+        max_velocity_iteration_count=8,
+        friction_offset_threshold=0.01,
+        gpu_max_num_partitions=1,
+    )
+    if override is not None:
+        cfg.enable_external_forces_every_iteration = override
     assert cfg.enable_external_forces_every_iteration is expected
     sim_cfg = SimpleNamespace(dt=1.0 / rate, enable_scene_query_support=device == "gpu")
     monkeypatch.setattr(manager, "_sim", SimpleNamespace(cfg=sim_cfg))
@@ -526,6 +539,54 @@ def test_scene_settings(monkeypatch, manager, device, rate, override, expected):
     assert prim.GetAttribute("physxScene:enableExternalForcesEveryIteration").Get() is expected
     assert prim.GetAttribute("physxScene:timeStepsPerSecond").Get() == rate
     assert prim.GetAttribute("physxScene:enableSceneQuerySupport").Get() is sim_cfg.enable_scene_query_support
+    if override is None:
+        assert prim.GetAttribute("physxScene:solverType").Get() == ("PGS" if device == "cpu" else "TGS")
+        assert prim.GetAttribute("physxScene:minPositionIterationCount").Get() == 2
+        assert prim.GetAttribute("physxScene:maxPositionIterationCount").Get() == 192
+        assert prim.GetAttribute("physxScene:minVelocityIterationCount").Get() == 1
+        assert prim.GetAttribute("physxScene:maxVelocityIterationCount").Get() == 8
+        assert prim.GetAttribute("physxScene:frictionOffsetThreshold").Get() == pytest.approx(0.01)
+        if device == "gpu":
+            assert prim.GetAttribute("physxScene:gpuMaxNumPartitions").Get() == 1
+        else:
+            assert not prim.GetAttribute("physxScene:gpuMaxNumPartitions").HasAuthoredValue()
+
+
+@pytest.mark.kitless
+def test_scene_contact_settings_are_authored_only_when_selected(monkeypatch, manager):
+    """Optional contact tuning reaches the scene prim; unset fields keep the stage value."""
+    from isaaclab_ov.physics.ovphysx_manager_cfg import OvPhysxCfg
+
+    from pxr import Usd
+
+    monkeypatch.setattr(
+        manager, "_sim", SimpleNamespace(cfg=SimpleNamespace(dt=1.0 / 60.0, enable_scene_query_support=False))
+    )
+    stage = Usd.Stage.CreateInMemory()
+    default_prim = stage.DefinePrim("/World/DefaultScene", "PhysicsScene")
+    # Contact settings are authored the same way on every device, so one device covers them.
+    manager._configure_physx_scene_prim(default_prim, OvPhysxCfg(), "cpu")
+    for attr in (
+        "bounceThreshold",
+        "frictionCorrelationDistance",
+        "solveArticulationContactLast",
+        "solverType",
+        "minPositionIterationCount",
+        "maxPositionIterationCount",
+        "minVelocityIterationCount",
+        "maxVelocityIterationCount",
+        "frictionOffsetThreshold",
+        "gpuMaxNumPartitions",
+    ):
+        assert not default_prim.GetAttribute(f"physxScene:{attr}").HasAuthoredValue()
+    prim = stage.DefinePrim("/World/PhysicsScene", "PhysicsScene")
+    cfg = OvPhysxCfg(
+        bounce_threshold_velocity=0.01, friction_correlation_distance=0.00625, solve_articulation_contact_last=True
+    )
+    manager._configure_physx_scene_prim(prim, cfg, "cpu")
+    assert prim.GetAttribute("physxScene:bounceThreshold").Get() == pytest.approx(0.01)
+    assert prim.GetAttribute("physxScene:frictionCorrelationDistance").Get() == pytest.approx(0.00625)
+    assert prim.GetAttribute("physxScene:solveArticulationContactLast").Get() is True
 
 
 @pytest.mark.parametrize(("device", "gpu_dynamics", "broadphase"), [("cpu", False, "MBP"), ("gpu", True, "GPU")])
@@ -778,9 +839,14 @@ def test_binding_readiness_preserves_priorities_across_resets(monkeypatch, share
         assert events == []
 
 
-@pytest.mark.parametrize("clone_fails", [False, True])
-def test_warmup_collects_clone_receipt_before_model_init(monkeypatch, manager_module, manager, clone_fails):
-    """Accepted clone failures prevent warmup and model-ready publication."""
+@pytest.mark.parametrize(
+    ("explicit_warmup", "clone_fails"),
+    [(True, False), (False, False), (False, True)],
+)
+def test_warmup_collects_clone_receipt_before_model_init(
+    monkeypatch, manager_module, manager, explicit_warmup, clone_fails
+):
+    """Both runtime APIs complete cloning before publishing model readiness; clone failures prevent it."""
     from pxr import Usd, UsdPhysics
 
     from isaaclab.physics import PhysicsEvent
@@ -793,9 +859,6 @@ def test_warmup_collects_clone_receipt_before_model_init(monkeypatch, manager_mo
     clones = [("/World/env_0", targets, transforms, env_ids, 0)]
 
     class FakePhysX:
-        def warmup(self):
-            events.append("warmup")
-
         def clone(self, source, destinations, poses, *, env_ids):
             events.append(("clone", source, destinations, poses, env_ids))
             return task
@@ -806,7 +869,17 @@ def test_warmup_collects_clone_receipt_before_model_init(monkeypatch, manager_mo
             if clone_fails:
                 raise RuntimeError("clone task failed")
 
-    backend = SimpleNamespace(physx=FakePhysX(), stage=None, owns_scene=True, load=lambda usda: None)
+    if explicit_warmup:
+
+        class LegacyPhysX(FakePhysX):
+            def warmup(self):
+                events.append("warmup")
+
+        physx = LegacyPhysX()
+    else:
+        physx = FakePhysX()
+
+    backend = SimpleNamespace(physx=physx, stage=None, owns_scene=True, load=lambda usda, **kwargs: None)
     stage = Usd.Stage.CreateInMemory()
     UsdPhysics.Scene.Define(stage, "/World/PhysicsScene")
     sim = manager._sim
@@ -829,6 +902,47 @@ def test_warmup_collects_clone_receipt_before_model_init(monkeypatch, manager_mo
     with pytest.raises(RuntimeError, match="clone task failed") if clone_fails else nullcontext():
         manager._warmup_and_load()
     assert events == [("clone", "/World/env_0", targets, transforms, env_ids), "wait"] + (
-        [] if clone_fails else ["warmup", "defer_bindings", PhysicsEvent.MODEL_INIT]
+        [] if clone_fails else (["warmup"] if explicit_warmup else []) + ["defer_bindings", PhysicsEvent.MODEL_INIT]
     )
     assert manager._warmup_done is (not clone_fails)
+
+
+@pytest.mark.parametrize("fail", [False, True], ids=["success", "attach-failure"])
+def test_load_scopes_compiled_stage_cache_opt_out(monkeypatch, manager_module, manager, fail):
+    """A subsequent attachment must inherit the original cache setting even after a failed attach."""
+    from ovphysx.types import CompiledStageCacheMode, GlobalConfigKey
+
+    key = GlobalConfigKey.COMPILED_STAGE_CACHE
+    mode = CompiledStageCacheMode.READ_ONLY
+
+    def get_mode(setting):
+        assert setting == key
+        return mode
+
+    def set_mode(setting, value):
+        assert setting == key
+        nonlocal mode
+        mode = value
+
+    monkeypatch.setattr(manager_module.ovphysx, "get_global_config", get_mode)
+    monkeypatch.setattr(manager_module.ovphysx, "set_global_config", set_mode)
+    receipt = object()
+
+    def attach(stage, *, read_ordinal):
+        assert mode == CompiledStageCacheMode.DISABLED
+        return receipt
+
+    def wait(task):
+        assert task is receipt
+        assert mode == CompiledStageCacheMode.READ_ONLY
+        if fail:
+            raise RuntimeError("attach failed")
+
+    backend = manager.backend
+    backend.scene = SimpleNamespace(stage=object(), ordinal=2, populate=lambda usda: None)
+    backend.physx = SimpleNamespace(attach_ovstage=attach, wait_task=wait)
+    with pytest.raises(RuntimeError, match="attach failed") if fail else nullcontext():
+        backend.load("#usda 1.0", disable_compiled_stage_cache=True)
+
+    assert mode == CompiledStageCacheMode.READ_ONLY
+    assert backend.stage is backend.scene.stage
