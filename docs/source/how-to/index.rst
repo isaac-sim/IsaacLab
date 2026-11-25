@@ -554,7 +554,13 @@ How-to Guides
 
          :doc:`Kitless XR with Isaac Capture </source/how-to/kitless_xr>`
 
-         Install Isaac Capture and OVXR packages for live teleoperation and MCAP replay.
+         Use Isaac Capture and OVXR for live teleoperation and MCAP replay without Isaac Sim.
+
+      .. container:: guide-entry
+
+         :doc:`Installing kitless XR </source/how-to/kitless_xr_source>`
+
+         Install and verify the Isaac Capture and OVXR packages for kitless XR workflows.
 
       .. container:: guide-entry
 
