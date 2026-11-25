@@ -289,8 +289,11 @@ jobs:
           set -e
 
           if [ "$pre_commit_status" -ne 0 ]; then
+            # Re-stage only allowed paths that pre-commit rewrote; a path kept absent on release is not in the index.
             while IFS= read -r -d '' path; do
-              git add --all -- "$path"
+              if ! git diff --quiet -- "$path"; then
+                git add --all -- "$path"
+              fi
             done < <(
               git diff --no-renames --name-only -z "$SOURCE_PARENT" "$SOURCE_SHA" --
               jq -j '.extra_paths[] | . + "\u0000"' "$RUNNER_TEMP/backport-resolution.json"
