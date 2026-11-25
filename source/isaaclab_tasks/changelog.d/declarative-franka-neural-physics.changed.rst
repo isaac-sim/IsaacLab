@@ -1,1 +1,0 @@
-* Declared neural physics alongside numerical solvers in the shared Reach physics configuration, with model-frame timing selected through configuration fields. Franka supplies its checkpoint without a separate physics subclass; other Reach variants require an explicitly configured compatible checkpoint. Shared Reach initialization preserves declared simulation settings.

@@ -12,7 +12,7 @@ recorded robot in the dataset. Training builds the model definition on that desc
 checkpoint during normal Newton solver construction and checks it against the live robot.
 The backend owns state, contacts, graph capture and queued model changes.
 
-The scripts in `scripts/neural` are thin launchers for the package-owned recording and fitting
-entrypoints. Dataset and checkpoint paths are explicit. Policy training, playback and evaluation use
+The scripts in `scripts/neural` compose a task with these pieces to record and fit a model; the
+package itself imports no task registry. Dataset and checkpoint paths are explicit. Policy training, playback and evaluation use
 the existing RL entrypoints: `isaaclab play --rl_library rsl_rl --evaluate` scores one checkpoint on
 the physics that `physics=` selects.
