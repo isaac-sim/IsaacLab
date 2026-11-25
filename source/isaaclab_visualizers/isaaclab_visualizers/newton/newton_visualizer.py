@@ -782,6 +782,9 @@ class NewtonVisualizerBase(BaseVisualizer):
     rtx_view_index: int | None = None
     rtx_rendering: bool = False
     sensor_view_selected: bool = False
+    _sensor_ui_callbacks: tuple[Callable[[Any, Camera], None], ...] = ()
+    """Callbacks that draw a scene sensor's own controls in the Camera Sensor section; see
+    :meth:`register_sensor_ui_callback`."""
 
     def __init__(self, cfg):
         super().__init__(cfg)
@@ -1191,11 +1194,25 @@ class NewtonVisualizerBase(BaseVisualizer):
         """Order the Camera Source list: the free Perspective, then scene sensors."""
         return 0 if view.camera is None else 1
 
+    def register_sensor_ui_callback(self, callback: Callable[[Any, Camera], None]) -> None:
+        """Draw a scene sensor's own controls in the Camera Sensor section, below the Camera Source selector.
+
+        While a scene sensor is the camera source, ``callback`` is invoked every UI frame with the ``imgui`` module and
+        that sensor, after the section's channel and environment controls. It draws only for the sensors it handles.
+        """
+        self._sensor_ui_callbacks = (*self._sensor_ui_callbacks, callback)
+
     def _draw_sensor_controls(self, imgui, view) -> None:
-        """Choose which channel of a sensor is shown, and which environment, or tile several environments."""
-        camera = view.camera
+        """Choose which channel of a sensor is shown and which environments, then draw the sensor's own controls."""
         imgui.separator_text("Camera Sensor")
         self._draw_sensor_channels(imgui, view)
+        self._draw_sensor_envs(imgui, view)
+        for callback in self._sensor_ui_callbacks:
+            callback(imgui, view.camera)
+
+    def _draw_sensor_envs(self, imgui, view) -> None:
+        """Choose which environment of a sensor is shown, or tile several environments."""
+        camera = view.camera
         offered = self._sensor_tiles.get(view)
         if offered is None:  # A single-instance sensor has no environment to choose.
             return
