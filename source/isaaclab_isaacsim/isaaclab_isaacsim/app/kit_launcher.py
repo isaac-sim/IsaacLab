@@ -24,6 +24,8 @@ import signal
 import sys
 from typing import Literal
 
+from ._stdio import flush_stdio
+
 try:
     import isaacsim  # noqa: F401
 except ModuleNotFoundError:
@@ -744,6 +746,10 @@ class KitLauncher(SimulationLauncher):
         try:
             report_activity("Starting Isaac Sim")
             self._app = SimulationApp(self._sim_app_config, experience=self._sim_experience_file)
+            # Isaac Sim 6.3 flushes every C FILE at shutdown, which can block on a background
+            # thread's unrelated stream lock. Retain output flushing without that global lock walk.
+            if hasattr(self._app, "_flush_stdio"):
+                self._app._flush_stdio = flush_stdio
             report_activity(None)
         finally:
             sys.stdout = stdout
