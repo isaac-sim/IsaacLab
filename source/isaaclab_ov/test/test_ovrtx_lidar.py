@@ -17,6 +17,7 @@ import warp as wp
 from isaaclab_ov.renderers import OVRTXLidarCfg
 from isaaclab_ov.renderers.ovrtx_lidar_sensor import OVRTXLidar
 
+from isaaclab.utils import validate
 from isaaclab.utils.warp import ProxyArray
 
 
@@ -35,6 +36,12 @@ def _lidar_cfg(**overrides) -> OVRTXLidarCfg:
     }
     values.update(overrides)
     return OVRTXLidarCfg(**values)
+
+
+def test_lidar_cfg_rejects_dropped_misses():
+    """Compacted returns cannot be placed in their original ray slots."""
+    with pytest.raises(ValueError, match="include_invalid_points=True"):
+        validate(_lidar_cfg(include_invalid_points=False))
 
 
 def test_lidar_cfg_rejects_a_non_positive_azimuth_step():

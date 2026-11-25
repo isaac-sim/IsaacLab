@@ -70,8 +70,8 @@ the measurement. Reading ``data`` captures the scan when it is due. The default
 
 Points are Cartesian XYZ coordinates in meters, including when OvRTX supplies spherical
 returns (``elements_coords_type="SPHERICAL"``). The default frame is the sensor frame. Set
-``output_frame_of_reference="WORLD"`` for world coordinates. Keep the default
-``include_invalid_points=True`` for the dense output layout. A missed return keeps its slot,
+``output_frame_of_reference="WORLD"`` for world coordinates. Tiled capture requires
+``include_invalid_points=True`` (the default). A missed return keeps its slot,
 has non-finite coordinates and zero intensity, and has ``valid=False``. The buffers live on
 the simulation device. Use ``.warp`` for a Warp view, or clone the Torch view to retain a scan
 across subsequent updates.

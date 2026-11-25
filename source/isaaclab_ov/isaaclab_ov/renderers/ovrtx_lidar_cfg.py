@@ -90,9 +90,9 @@ class OVRTXLidarCfg(LidarCfg):
     """Whether one render step publishes a complete scan. Defaults to True."""
 
     include_invalid_points: bool = True
-    """Whether missed rays keep a slot in the point cloud. Defaults to True.
+    """Keep missed rays in their original slots. Tiled OvRTX lidar requires True.
 
-    ``False`` drops misses. ``True`` keeps one slot per ray, with misses non-finite in
+    Missed rays have non-finite coordinates in
     :attr:`~isaaclab.sensors.lidar.LidarData.points`.
     """
 
@@ -133,6 +133,11 @@ class OVRTXLidarCfg(LidarCfg):
 
         if any(time < 0 for time in self.fire_time_ns):
             raise ValueError("Lidar fire_time_ns values cannot be negative.")
+
+    def validate_config(self) -> None:
+        """Require the dense return layout used by the tiled point-cloud reader."""
+        if not self.include_invalid_points:
+            raise ValueError("Tiled OvRTX lidar requires include_invalid_points=True to preserve missed-ray slots.")
 
     def num_rays(self) -> int:
         """Return the number of point slots in one full scan.
