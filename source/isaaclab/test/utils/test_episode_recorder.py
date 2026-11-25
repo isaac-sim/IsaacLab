@@ -168,9 +168,9 @@ def test_recorder_storage_boundary(source_checkout_root):
     assert "simulate" not in vars(ManagerBasedEnv)
     assert not {"compute_transition", "reset_done", "finish_step"} & vars(ManagerBasedRLEnv).keys()
     assert not {"RecorderManager", "RecorderManagerBaseCfg", "RecorderTerm", "RecorderTermCfg"} & set(managers.__all__)
-    for package in ("isaaclab", "isaaclab_experimental"):
-        env_dir = source_checkout_root / "source" / package / package / "envs"
-        for path in env_dir.glob("manager_based*env*.py"):
+    for package in ("isaaclab", "isaaclab_experimental", "isaaclab_tasks"):
+        package_dir = source_checkout_root / "source" / package / package
+        for path in package_dir.rglob("*env*.py"):
             tree = ast.parse(path.read_text())
             assert not any(
                 isinstance(node, ast.Attribute) and node.attr == "recorder_manager" for node in ast.walk(tree)
