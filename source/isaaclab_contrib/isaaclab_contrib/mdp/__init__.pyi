@@ -8,6 +8,15 @@ __all__ = [
     "NavigationAction",
     "ThrustActionCfg",
     "NavigationActionCfg",
+    "Ik7dAction",
+    "Ik7dActionCfg",
 ]
 
-from .actions import NavigationAction, NavigationActionCfg, ThrustAction, ThrustActionCfg
+from .actions import (
+    Ik7dAction,
+    Ik7dActionCfg,
+    NavigationAction,
+    NavigationActionCfg,
+    ThrustAction,
+    ThrustActionCfg,
+)
