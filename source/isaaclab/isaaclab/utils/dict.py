@@ -246,6 +246,8 @@ def convert_dict_to_backend(
     # Define the conversion functions for each backend.
     tensor_type_conversions = TENSOR_TYPE_CONVERSIONS[backend]
 
+    # Materialize one-shot iterables before recursively processing nested dictionaries.
+    array_types = tuple(array_types)
     # Parse the array types and convert them to the corresponding types: "numpy" -> np.ndarray, etc.
     parsed_types = []
     for t in array_types:

@@ -171,14 +171,24 @@ def test_update_class_from_dict_restores_enums_from_values():
     assert all(isinstance(el, _Flavors) for el in cfg.cone)
 
 
-def test_nested_conversion_preserves_requested_backend():
-    """Nested conversions should preserve the backend selected by the caller."""
-    data = {"outer": {"values": np.array([1.0, 2.0, 3.0], dtype=np.float32)}}
+@pytest.mark.parametrize("type_selection", [tuple, iter], ids=["tuple", "iterator"])
+def test_nested_conversion_preserves_requested_backend(type_selection):
+    """Every branch must use the caller's original conversion selection."""
+    data = {
+        "values": np.array([1.0], dtype=np.float32),
+        "outer": {"values": np.array([2.0], dtype=np.float32)},
+        "sibling": {"inner": {"values": np.array([3.0], dtype=np.float32)}},
+    }
 
-    converted = dict_utils.convert_dict_to_backend(data, backend="torch", array_types=("numpy",))
+    converted = dict_utils.convert_dict_to_backend(data, backend="torch", array_types=type_selection(("numpy",)))
 
-    assert isinstance(converted["outer"]["values"], torch.Tensor)
-    torch.testing.assert_close(converted["outer"]["values"], torch.tensor([1.0, 2.0, 3.0]))
+    for value, expected in (
+        (converted["values"], 1.0),
+        (converted["outer"]["values"], 2.0),
+        (converted["sibling"]["inner"]["values"], 3.0),
+    ):
+        assert isinstance(value, torch.Tensor)
+        torch.testing.assert_close(value, torch.tensor([expected]))
 
 
 def test_slice_round_trip_preserves_tuple_containers():
