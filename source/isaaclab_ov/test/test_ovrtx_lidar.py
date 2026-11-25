@@ -134,7 +134,7 @@ def test_lidar_world_pose_composes_a_rotated_parent():
 
 
 def test_cpu_mapped_spherical_cloud_preserves_returns():
-    """Decode a CPU fallback map containing an oblique hit and a missed slot."""
+    """Decode a CPU fallback map with an oblique hit and a missed slot. A tile that is not due keeps its returns."""
     from isaaclab_ov.renderers.ovrtx_lidar import copy_tiled_point_cloud
 
     from isaaclab.sensors import LidarData
@@ -143,16 +143,20 @@ def test_cpu_mapped_spherical_cloud_preserves_returns():
         params = {"coordsType": np.array([1]), "tileStridePoints": np.array([2])}
 
     cloud = MappedCloud(
-        Coordinates=np.array([[90.0, -30.0, 2.0], [10.0, 20.0, 3.0]], dtype=np.float32),
-        Flags=np.array([0x40, 0], dtype=np.int32),
-        Intensity=np.array([0.75, 1.0], dtype=np.float32),
+        Coordinates=np.array(
+            [[90.0, -30.0, 2.0], [10.0, 20.0, 3.0], [0.0, 0.0, 1.0], [0.0, 0.0, 1.0]], dtype=np.float32
+        ),
+        Flags=np.array([0x40, 0, 0x40, 0x40], dtype=np.int32),
+        Intensity=np.array([0.75, 1.0, 1.0, 1.0], dtype=np.float32),
     )
-    data = LidarData(1, 2, "cpu")
-    copy_tiled_point_cloud(cloud, data.points.torch, data.intensity.torch, data.valid.torch)
+    data = LidarData(2, 2, "cpu")
+    env_mask = wp.array([True, False], dtype=wp.bool, device="cpu")
+    copy_tiled_point_cloud(cloud, data.points.torch, data.intensity.torch, data.valid.torch, env_mask=env_mask)
     torch.testing.assert_close(data.points.torch[0, 0], torch.tensor([0.0, math.sqrt(3.0), -1.0]))
     assert torch.isinf(data.points.torch[0, 1]).all()
-    torch.testing.assert_close(data.valid.torch, torch.tensor([[True, False]]))
-    torch.testing.assert_close(data.intensity.torch, torch.tensor([[0.75, 0.0]]))
+    assert torch.isinf(data.points.torch[1]).all()
+    torch.testing.assert_close(data.valid.torch, torch.tensor([[True, False], [False, False]]))
+    torch.testing.assert_close(data.intensity.torch, torch.tensor([[0.75, 0.0], [0.0, 0.0]]))
 
 
 @pytest.mark.integration
@@ -192,6 +196,7 @@ def test_tiled_lidar_returns_are_local_to_each_environment():
         spherical = replace(lidar, prim_path="{ENV_REGEX_NS}/Spherical", elements_coords_type="SPHERICAL")
         world = replace(lidar, prim_path="{ENV_REGEX_NS}/WorldLidar", output_frame_of_reference="WORLD")
         world_spherical = replace(world, prim_path="{ENV_REGEX_NS}/WorldSpherical", elements_coords_type="SPHERICAL")
+        periodic = replace(lidar, prim_path="{ENV_REGEX_NS}/Periodic", update_period=10.0)
 
     with sim_utils.build_simulation_context(sim_cfg=sim_utils.SimulationCfg(physics=OvPhysxCfg())) as sim:
         scene = instantiate(SceneCfg(num_envs=2, env_spacing=8.0))
@@ -219,6 +224,21 @@ def test_tiled_lidar_returns_are_local_to_each_environment():
         assert not torch.isfinite(lidar.data.points.torch[0]).any()
         assert lidar.data.valid.torch[1].all()
         torch.testing.assert_close(lidar.data.points.torch[1], kept)
+
+        # After a reset of environment 0, the periodic lidar captures again but writes only that
+        # environment. Environment 1 is not due and keeps its scan although its target moved.
+        periodic = scene["periodic"]
+        periodic_kept = periodic.data.points.torch[1].clone()
+        periodic.reset(env_ids=[0])
+        target = scene["target"]
+        pose = target.data.root_link_pose_w.torch.clone()
+        pose[1, :3] += pose.new_tensor([0.3, 0.3, -0.3])
+        target.write_root_pose_to_sim_index(root_pose=pose)
+        sim.step()
+        scene.update(sim.get_physics_dt())
+        assert not torch.allclose(lidar.data.points.torch[1], kept, atol=1e-3)
+        assert periodic.data.valid.torch[0].all()
+        torch.testing.assert_close(periodic.data.points.torch[1], periodic_kept)
 
 
 @pytest.mark.integration

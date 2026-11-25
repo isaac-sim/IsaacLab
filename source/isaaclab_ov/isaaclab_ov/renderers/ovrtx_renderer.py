@@ -1035,13 +1035,13 @@ class OVRTXRenderer(BaseRenderer):
         finally:
             mapping.unmap(stream=stream)
 
-    def render_lidar(self, render_data: OVRTXLidarRenderData, lidar_data: LidarData) -> None:
+    def render_lidar(self, render_data: OVRTXLidarRenderData, lidar_data: LidarData, *, env_mask: wp.array) -> None:
         """Capture one tiled lidar product and publish its point cloud.
 
         The capture submits only this lidar. Another lidar's pose is written when that lidar
         captures, so including it here would replace its buffers with a scan from a stale pose.
         Camera products stay on the camera step. A lidar needs the point cloud immediately, so this
-        submission waits.
+        submission waits. The product traces every tile; only the tiles in ``env_mask`` are written.
         """
         if not self._initialized_scene:
             raise RuntimeError("Scene not initialized. Call initialize() first.")
@@ -1085,10 +1085,15 @@ class OVRTXRenderer(BaseRenderer):
         if self._use_ovstage:
             result = self.backend.renderer.step(render_products=requested, delta_time=delta_time, ordinal=ordinal)
 
-        self._publish_lidar_output(render_data, result, lidar_data)
+        self._publish_lidar_output(render_data, result, lidar_data, env_mask=env_mask)
 
     def _publish_lidar_output(
-        self, render_data: OVRTXLidarRenderData, products: RenderProductSetOutputs, lidar_data: LidarData
+        self,
+        render_data: OVRTXLidarRenderData,
+        products: RenderProductSetOutputs,
+        lidar_data: LidarData,
+        *,
+        env_mask: wp.array,
     ) -> None:
         """Split one lidar product's point cloud into ``lidar_data``.
 
@@ -1108,16 +1113,18 @@ class OVRTXRenderer(BaseRenderer):
             )
 
         try:
-            self._copy_mapped_lidar_point_cloud(point_cloud, lidar_data, Device.CUDA)
+            self._copy_mapped_lidar_point_cloud(point_cloud, lidar_data, Device.CUDA, env_mask=env_mask)
         except Exception as exc:
             message = str(exc).lower()
             if not ("failed to map" in message or "unpublish" in message or "point cloud was empty" in message):
                 raise
 
             logger.info("Retrying OvRTX lidar point-cloud readback on the CPU: %s", exc)
-            self._copy_mapped_lidar_point_cloud(point_cloud, lidar_data, Device.CPU)
+            self._copy_mapped_lidar_point_cloud(point_cloud, lidar_data, Device.CPU, env_mask=env_mask)
 
-    def _copy_mapped_lidar_point_cloud(self, point_cloud, lidar_data: LidarData, device: Device) -> None:
+    def _copy_mapped_lidar_point_cloud(
+        self, point_cloud, lidar_data: LidarData, device: Device, *, env_mask: wp.array
+    ) -> None:
         """Map one point cloud and copy it into the lidar buffers.
 
         A CUDA map that produces no coordinates raises so the caller can fall back to the CPU map.
@@ -1143,7 +1150,13 @@ class OVRTXRenderer(BaseRenderer):
             if device is Device.CUDA and mapped_point_count(mapped) == 0:
                 raise RuntimeError("OVRTX lidar CUDA point cloud was empty")
 
-            copy_tiled_point_cloud(mapped, lidar_data.points.torch, lidar_data.intensity.torch, lidar_data.valid.torch)
+            copy_tiled_point_cloud(
+                mapped,
+                lidar_data.points.torch,
+                lidar_data.intensity.torch,
+                lidar_data.valid.torch,
+                env_mask=env_mask,
+            )
 
     def update_lidar(
         self,
