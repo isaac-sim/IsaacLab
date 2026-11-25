@@ -153,7 +153,7 @@ class FabricBackend:
             self._geometry_bindings[index] = (selections, frequency, cached, offsets, frame)
 
     def _bind_geometries(self, provider: SceneDataProvider, paths: tuple[str, ...]) -> None:
-        """Bind declared destinations by device and cadence; SDP owns all data movement."""
+        """Bind declared destinations by cadence; SDP owns all data movement."""
         # Foreign physics publishes world points. Author the sink once so Kit's USD refresh agrees.
         groups = {}
         for path in paths:
@@ -162,18 +162,15 @@ class FabricBackend:
             geometry.SetResetXformStack(True)
             prim_type = geometry.GetPrim().GetTypeName()
             if prim_type == "Mesh":
-                device, frequency = self.device, 1
+                frequency = 1
             elif prim_type in {"BasisCurves", "Points"}:
-                # RTX Hydra reads these points from CPU Fabric (BasisCurves: NVBug 6502662).
-                device = "cpu"
                 frequency = geometry.GetPrim().GetAttribute("isaaclab:pointsUpdateFrequency").Get() or 1
             else:
                 raise TypeError(f"Unsupported Fabric point destination {path}: {prim_type}.")
-            groups.setdefault((device, frequency), []).append(path)
+            groups.setdefault(frequency, []).append(path)
         self.stage.SynchronizeToFabric()
         self._geometry_bindings = []
-        for index, (group, group_paths) in enumerate(groups.items()):
-            device, frequency = group
+        for index, (frequency, group_paths) in enumerate(groups.items()):
             tag = f"isaaclab:geometryIndex:group{index}"
             for row, path in enumerate(group_paths):
                 prim = self.stage.GetPrimAtPath(path)
@@ -183,9 +180,11 @@ class FabricBackend:
                 (usdrt.Sdf.ValueTypeNames.Point3fArray, "points", usdrt.Usd.Access.Read),
                 (usdrt.Sdf.ValueTypeNames.Int, tag, usdrt.Usd.Access.Read),
             ]
-            selection = self.stage.SelectPrims(require_attrs=attrs, device=device)
+            # All geometry stays on the simulation device. On a GPU, Kit RTX reads the positions
+            # directly from GPU Fabric, so no copy to the CPU is needed.
+            selection = self.stage.SelectPrims(require_attrs=attrs, device=self.device)
             write_selection = self.stage.SelectPrims(
-                require_attrs=[(*attrs[0][:2], usdrt.Usd.Access.ReadWrite), attrs[1]], device=device
+                require_attrs=[(*attrs[0][:2], usdrt.Usd.Access.ReadWrite), attrs[1]], device=self.device
             )
             offsets = dict.fromkeys(group_paths, 0)
             self._geometry_bindings.append(
