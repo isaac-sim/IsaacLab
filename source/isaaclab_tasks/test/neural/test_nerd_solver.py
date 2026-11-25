@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -223,6 +224,19 @@ def test_nerd_task_without_contact_sensors(checkpoint: Path, device: str):
         stepper = backend.solver.stepper
         assert (stepper.precision, stepper.compiled) == (Precision.FP32, False)
         assert list(backend.graphs) == [("simulate", 1)]
+
+
+# Windows CI runs this where Triton is really missing, with the model that the scripts record and train there.
+@pytest.mark.windows_ci
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_nerd_task_without_triton(checkpoint: Path, device: str, monkeypatch: pytest.MonkeyPatch):
+    """Without Triton, which PyTorch installs on Linux only, the solver steps the model without ``torch.compile``."""
+    monkeypatch.setitem(sys.modules, "triton", None)  # Importing Triton fails, as where it is not installed
+    with environment(TASK, nerd_task_cfg(TASK, checkpoint, 4, device)) as env:
+        env.reset()
+        observations, *_ = env.step(_random_actions(env))
+        assert observations["policy"].isfinite().all()
+        assert not env.sim.backend_manager.backend.solver.stepper.compiled
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
