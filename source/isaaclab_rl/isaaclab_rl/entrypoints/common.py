@@ -544,7 +544,7 @@ def create_isaaclab_env(
         env = gym.make(task, cfg=env_cfg)
     else:
         # the warp frontend lives in the optional isaaclab_experimental package
-        from isaaclab_experimental.envs.frontend import WarpFrontend
+        from isaaclab_experimental.deprecated.envs.frontend import WarpFrontend
 
         env = WarpFrontend.build_env(env_cfg, task)
     if convert_marl_to_single_agent and isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):
