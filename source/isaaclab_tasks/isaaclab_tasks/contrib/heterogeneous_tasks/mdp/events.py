@@ -13,11 +13,9 @@ import re
 from typing import TYPE_CHECKING, NamedTuple
 
 import numpy as np
-import shapely
 import torch
 import warp as wp
 from scipy.spatial import ConvexHull, HalfspaceIntersection
-from shapely.affinity import affine_transform
 
 from pxr import Usd, UsdGeom, UsdPhysics
 
@@ -165,14 +163,28 @@ class reset_tabletop(ManagerTermBase):
         self.table_variants = cfg.params["table_variants"]
         if len(self.table_variants) != self.table.num_mesh_variants:
             raise ValueError("Declare one measured surface and pose for each table mesh variant, in spawner order.")
-        self.surfaces = tuple(
-            shapely.Polygon(table.surface_outline, table.surface_holes) for table in self.table_variants
-        )
-        if any(not surface.is_valid or surface.is_empty for surface in self.surfaces):
-            raise ValueError("Tabletop requires valid support outlines.")
+        # Keep the measured rings as edges. Footprint containment and boundary clearance are checked
+        # directly on the device, including openings and concave outlines; no polygon Boolean is needed.
+        surfaces = []
+        for table in self.table_variants:
+            rings = [np.asarray(ring, dtype=np.float32) for ring in (table.surface_outline, *table.surface_holes)]
+            for ring in rings:
+                if ring.ndim != 2 or ring.shape[1] != 2 or len(ring) < 3 or not np.isfinite(ring).all():
+                    raise ValueError("Tabletop requires finite XY support rings with at least three vertices.")
+                edges = np.roll(ring, -1, axis=0) - ring
+                area = abs(np.sum(ring[:, 0] * edges[:, 1] - ring[:, 1] * edges[:, 0])) / 2
+                if area <= 1e-9 or (np.linalg.norm(edges, axis=1) <= 1e-9).any():
+                    raise ValueError("Tabletop requires non-degenerate support rings.")
+            surfaces.append(np.concatenate([np.stack((ring, np.roll(ring, -1, axis=0)), axis=1) for ring in rings]))
+        width = max(len(edges) for edges in surfaces)
+        self._table_edges = torch.zeros(len(surfaces), width, 2, 2, device=env.device)
+        for index, edges in enumerate(surfaces):
+            self._table_edges[index] = torch.as_tensor(edges[-1, -1], device=env.device)
+            self._table_edges[index, : len(edges)] = torch.as_tensor(edges, device=env.device)
+        self._placement_edges = torch.empty(env.num_envs, width, 2, 2, device=env.device)
+        self._placement_bounds = torch.empty(env.num_envs, 2, 2, device=env.device)
         if any(not math.isfinite(table.surface_height) for table in self.table_variants):
             raise ValueError("Tabletop requires finite local surface heights.")
-        self.placement_regions = np.empty(env.num_envs, dtype=object)
         self.tabletop_heights = torch.empty(env.num_envs, device=env.device)
         candidates = [member.spawn.assets_cfg for member in self.objects.cfg.rigid_objects.values()]
         labels = [dict(spawn.semantic_tags or ())["_catalog_key"] for spawn in candidates[0]]
@@ -282,22 +294,27 @@ class reset_tabletop(ManagerTermBase):
         counts = torch.randint(object_count[0], object_count[1] + 1, (len(ids),), device=env.device)
         # Table and object placement are sampled together: a small table must not invalidate a world
         # that fits on another variant. All candidates still use their measured surface/workspace intersection.
-        limits = workspace.cpu().numpy()
-        reachable = shapely.box(*limits[0, :2], *limits[1, :2])
-        local_regions, heights = [], []
-        for variant, surface in zip(self.table_variants, self.surfaces, strict=True):
+        table_edges, region_bounds, heights = [], [], []
+        for variant, edges in zip(self.table_variants, self._table_edges, strict=True):
             x, y, z, w = variant.init_state.rot
             cosine, sine = 1 - 2 * (y * y + z * z), 2 * (w * z + x * y)
             if abs(x) > 1e-6 or abs(y) > 1e-6:
                 raise ValueError("Tabletop reset requires a horizontal table; yaw rotation is supported.")
             tx, ty, tz = variant.init_state.pos
-            region = affine_transform(surface, [cosine, -sine, sine, cosine, tx, ty])
-            region = region.intersection(reachable).buffer(-clearance)
+            rotation = workspace.new_tensor([[cosine, -sine], [sine, cosine]])
+            edges = edges @ rotation.T + workspace.new_tensor([tx, ty])
+            lower = torch.maximum(edges.amin((0, 1)), workspace[0, :2]) + clearance
+            upper = torch.minimum(edges.amax((0, 1)), workspace[1, :2]) - clearance
             height = tz + variant.surface_height
-            if height < limits[0, 2] - 1e-5 or height + clearance >= limits[1, 2]:
-                region = shapely.Polygon()
-            local_regions.append(region)
+            if height < workspace[0, 2] - 1e-5 or height + clearance >= workspace[1, 2]:
+                upper = lower.clone()
+            table_edges.append(edges)
+            region_bounds.append(torch.stack((lower, upper)))
             heights.append(height)
+        table_edges, region_bounds = torch.stack(table_edges), torch.stack(region_bounds)
+        # This is only an upper bound for an inexpensive area rejection. Every proposed footprint
+        # must also pass the exact outline/hole boundary test and the XYZ workspace check below.
+        region_areas = (region_bounds[:, 1] - region_bounds[:, 0]).clamp_min(0).prod(1)
         previous = self.table.mesh_variant_ids.torch[ids].long()
         variant_poses = workspace.new_tensor(
             [(*variant.init_state.pos, *variant.init_state.rot) for variant in self.table_variants]
@@ -306,21 +323,23 @@ class reset_tabletop(ManagerTermBase):
         for _ in range(max_attempts):
             remaining = ids[remaining_rows]
             self._select_objects(remaining, counts[remaining_rows], clearance)
-            footprints = self.local_footprints[remaining, ..., :2].cpu().numpy()
-            occupied = (shapely.area(shapely.polygons(footprints)) * self.active[remaining].cpu().numpy()).sum(1)
-            eligible = occupied[:, None] < shapely.area(local_regions)[None, :]
+            footprints = self.local_footprints[remaining, ..., :2]
+            following = footprints.roll(-1, dims=2)
+            areas = (footprints[..., 0] * following[..., 1] - footprints[..., 1] * following[..., 0]).sum(2).abs() / 2
+            occupied = (areas * self.active[remaining]).sum(1)
+            eligible = occupied[:, None] < region_areas[None]
             if len(self.table_variants) > 1:
-                eligible[np.arange(len(remaining)), previous[remaining_rows].cpu().numpy()] = False
-            possible = torch.as_tensor(eligible.any(1), device=env.device)
+                eligible[torch.arange(len(remaining), device=env.device), previous[remaining_rows]] = False
+            possible = eligible.any(1)
             if not possible.any():
-                if not any(not region.is_empty for region in local_regions):
+                if not (region_areas > 0).any():
                     raise RuntimeError("No usable table/workspace intersection.")
                 continue
             # Retry infeasible worlds independently; one dense composition must not stall the whole batch.
             pending_rows = remaining_rows[~possible]
             remaining_rows = remaining_rows[possible]
             remaining = ids[remaining_rows]
-            eligible = torch.as_tensor(eligible, dtype=torch.float32, device=env.device)[possible]
+            eligible = eligible[possible].float()
             selected = torch.multinomial(eligible, 1).flatten()
             if len(self.table_variants) > 1:
                 self.table.write_mesh_variant_to_sim(selected, env_ids=remaining)
@@ -333,12 +352,9 @@ class reset_tabletop(ManagerTermBase):
             self.tabletop_heights[remaining] = (
                 workspace.new_tensor(heights)[selected] + env.scene.env_origins[remaining, 2]
             )
-            for world, variant, origin in zip(
-                remaining.tolist(), selected.tolist(), env.scene.env_origins[remaining].cpu().numpy(), strict=True
-            ):
-                self.placement_regions[world] = affine_transform(
-                    local_regions[variant], [1, 0, 0, 1, origin[0], origin[1]]
-                )
+            origins = env.scene.env_origins[remaining, :2]
+            self._placement_edges[remaining] = table_edges[selected] + origins[:, None, None]
+            self._placement_bounds[remaining] = region_bounds[selected] + origins[:, None]
             poses, placed = self._sample(remaining, workspace, clearance, min(max_attempts, 32))
             # Publish every pending world's new geometry and poses together. Unplaced slots stay apart
             # outside the workspace rather than inheriting overlapping poses from a previous composition.
@@ -353,7 +369,9 @@ class reset_tabletop(ManagerTermBase):
             if not len(remaining_rows):
                 break
         else:
-            raise RuntimeError(f"No collision-free tabletop reset for worlds {ids[remaining_rows].tolist()}.")
+            raise RuntimeError(
+                f"No collision-free table/workspace intersection placement for worlds {ids[remaining_rows].tolist()}."
+            )
         self._bind_tasks(ids, clearance)
 
     def _select_objects(self, ids: torch.Tensor, counts: torch.Tensor, clearance: float) -> None:
@@ -439,6 +457,38 @@ class reset_tabletop(ManagerTermBase):
             self.in_container[world] = self.families[binding.family]["relation"] == "in"
             self.instructions[world] = binding.instruction
 
+    @staticmethod
+    def _supported(points: torch.Tensor, edges: torch.Tensor, clearance: float) -> torch.Tensor:
+        """Keep a convex footprint within a measured outline, outside holes, with boundary clearance.
+
+        Ray crossings test footprint vertices against all rings. Edge intersections and minimum segment
+        distances catch concave cutouts between vertices; a ring vertex inside the footprint catches a
+        completely enclosed hole. Repeated vertices pad the batched polygons and are ignored as edges.
+        """
+        a, b = points[:, :, None], points.roll(-1, 1)[:, :, None]
+        c, d = edges[:, None, :, 0], edges[:, None, :, 1]
+        ab, cd = b - a, d - c
+        ac, ad = c - a, d - a
+        valid_edges = cd.square().sum(-1) > 1e-18
+        dy = cd[..., 1]
+        fraction = (a[..., 1] - c[..., 1]) / torch.where(dy.abs() > 1e-12, dy, 1.0)
+        crosses = ((c[..., 1] > a[..., 1]) != (d[..., 1] > a[..., 1])) & (a[..., 0] < c[..., 0] + fraction * cd[..., 0])
+        inside = (crosses.sum(2) % 2 == 1).all(1)
+        side_c = ab[..., 0] * ac[..., 1] - ab[..., 1] * ac[..., 0]
+        side_d = ab[..., 0] * ad[..., 1] - ab[..., 1] * ad[..., 0]
+        side_a = cd[..., 0] * (-ac[..., 1]) - cd[..., 1] * (-ac[..., 0])
+        side_b = cd[..., 0] * (b - c)[..., 1] - cd[..., 1] * (b - c)[..., 0]
+        intersects = (side_c * side_d <= 0) & (side_a * side_b <= 0)
+        intersects &= valid_edges & (ab.square().sum(-1) > 1e-18)
+        enclosed = ((side_c >= 0).all(1) | (side_c <= 0).all(1)) & valid_edges[:, 0]
+        # The closest points of disjoint line segments include at least one segment endpoint.
+        directions = torch.stack((ab.expand_as(ac), ab.expand_as(ac), cd.expand_as(ac), cd.expand_as(ac)), -2)
+        offsets = torch.stack((ac, ad, -ac, b - c), -2)
+        projection = ((offsets * directions).sum(-1) / directions.square().sum(-1).clamp_min(1e-18)).clamp(0, 1)
+        distance = (offsets - projection[..., None] * directions).square().sum(-1).amin(-1)
+        near_boundary = ((distance < clearance * clearance) | intersects) & valid_edges
+        return inside & ~near_boundary.any(dim=(1, 2)) & ~enclosed.any(1)
+
     def _sample(
         self, ids: torch.Tensor, workspace: torch.Tensor, clearance: float, max_attempts: int
     ) -> tuple[torch.Tensor, torch.Tensor]:
@@ -450,9 +500,7 @@ class reset_tabletop(ManagerTermBase):
         local_bounds = self.local_bounds[ids] - com[:, :, None]
         local_footprints = self.local_footprints[ids] - com[:, :, None]
         origin = env.scene.env_origins[ids]
-        regions = self.placement_regions[ids.cpu().numpy()]
-        bounds = torch.as_tensor(shapely.bounds(regions), dtype=torch.float32, device=env.device)
-        lo, hi = bounds[:, :2], bounds[:, 2:]
+        lo, hi = self._placement_bounds[ids].unbind(1)
         top = self.tabletop_heights[ids]
         poses = torch.zeros(count, width, 7, device=env.device)
         poses[..., 6] = 1.0
@@ -492,8 +540,7 @@ class reset_tabletop(ManagerTermBase):
                 pos[:, 2] = top - extent_lo[:, 2] + clearance
                 world_points = rotated + pos[:, None]
                 valid = (upper >= lower).all(1)
-                supported = shapely.covers(regions, shapely.polygons(world_points[..., :2].cpu().numpy()))
-                valid &= torch.as_tensor(supported, device=env.device)
+                valid &= self._supported(world_points[..., :2], self._placement_edges[ids], clearance)
                 candidate_low, candidate_high = extent_lo + pos, extent_hi + pos
                 valid &= (candidate_low >= workspace[0] + origin).all(1) & (
                     candidate_high <= workspace[1] + origin

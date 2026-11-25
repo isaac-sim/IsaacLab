@@ -95,7 +95,6 @@ dependencies = [
     "coacd>=1.0.7",
     "fast-simplification>=0.1.11",
     "alphashape>=1.3.1",
-    "shapely>=2.1.2",
     "meshio>=5.3.5",
     "pycollada>=0.9",
     "resolve-robotics-uri-py>=0.4.0",

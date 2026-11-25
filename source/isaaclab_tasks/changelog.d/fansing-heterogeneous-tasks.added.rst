@@ -6,7 +6,8 @@
   are interchangeable, and any environment can request any globally indexed task family.
   Geometry uses SAH BVHs to keep dense reset-time mesh-overlap queries stable.
   Reset places objects collision-free inside the polygon intersection of the declared, measured tabletop outline and a
-  hand-defined robot workspace, preserving outlines and holes. Placement samples COM poses using
+  hand-defined robot workspace, preserving outlines and holes. Batched footprint/boundary checks use
+  tensor operations without a task dependency on Shapely. Placement samples COM poses using
   collision geometry relative to the simulator COM, accounting for mesh and COM offsets from the asset origin.
   Nine explicit NVIDIA-hosted SimReady table assets retain
   their actual geometry and triangle collisions, without a box proxy. Articulated table equipment is frozen

@@ -10,7 +10,6 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-import shapely
 import torch
 import trimesh
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
@@ -280,9 +279,6 @@ def test_reset_intersects_workspace_and_table_and_binds_only_feasible_tasks(env)
     state = env.tabletop
     reset_params = env.event_manager.get_term_cfg("place_objects").params
     assert not state.penetrating_worlds().any()
-    assert all(surface.area == pytest.approx(0.864, abs=1e-6) for surface in state.surfaces[:2])
-    assert state.surfaces[2].area < 0.05
-    assert all(len(surface.interiors) == 1 for surface in state.surfaces)
     assert all(state.instructions)
     with pytest.raises(ValueError, match="Unavailable"):
         state.set_task([0], [len(env.cfg.tasks)])
@@ -353,9 +349,25 @@ def test_reset_intersects_workspace_and_table_and_binds_only_feasible_tasks(env)
         table_local[..., :2] /= scale[:, None, None, None]
         assert (table_local[..., :2][state.active] >= table_local.new_tensor([-0.45, -0.5]) + 0.005 - 1e-6).all()
         assert (table_local[..., :2][state.active] <= table_local.new_tensor([0.45, 0.5]) - 0.005 + 1e-6).all()
-        hole = shapely.box(-0.09, -0.1, 0.09, 0.1)
-        for points in table_local[..., :2][state.active].cpu().numpy():
-            assert shapely.MultiPoint(points).convex_hull.disjoint(hole)
+        # Independently test the rectangular opening against each transformed convex footprint.
+        # Include footprint edge normals, so rotated shapes cannot slip through an AABB-only test.
+        hole = np.array([[-0.09, -0.1], [0.09, -0.1], [0.09, 0.1], [-0.09, 0.1]])
+        footprints = (
+            quat_apply(poses[..., None, 3:].expand(-1, -1, state.local_footprints.shape[2], -1), state.local_footprints)
+            + poses[..., None, :3]
+        )
+        footprints = quat_apply_inverse(
+            table[:, None, None, 3:].expand(-1, len(state.names), footprints.shape[2], -1),
+            footprints - table[:, None, None, :3],
+        )
+        for points in footprints[..., :2][state.active].cpu().numpy():
+            edges = np.roll(points, -1, axis=0) - points
+            axes = np.concatenate((np.eye(2), np.column_stack((-edges[:, 1], edges[:, 0]))))
+            object_projection, hole_projection = points @ axes.T, hole @ axes.T
+            assert np.any(
+                (object_projection.max(0) < hole_projection.min(0))
+                | (hole_projection.max(0) < object_projection.min(0))
+            )
         assert not state.penetrating_worlds().any()
     assert not env.termination_manager.compute().any()
     state.set_task([0, 1, container_world], [0, 0, 1])
