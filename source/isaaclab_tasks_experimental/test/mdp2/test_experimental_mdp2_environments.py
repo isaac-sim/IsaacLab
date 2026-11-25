@@ -52,10 +52,11 @@ def test_mdp2_environment_resets_and_steps(task_name):
         env.close()
 
 
-@pytest.mark.parametrize("disabled", [None, "action_rate"])
+@pytest.mark.parametrize("disabled", [None, "action_rate", "joint_vel"])
 def test_reach_curriculum_sets_reward_weights_at_first_reset_after_threshold(disabled):
     """The Reach curriculum keeps its reward weights until the first reset after its step threshold, then sets them
-    in every world, from a captured step. It leaves out a reward that the task disables."""
+    in every world, from a captured step. It skips a reward that the task disables and leaves every other weight
+    unchanged."""
     task_name = "Isaac-Reach-Franka-MDP2"
     env_cfg, _ = resolve_task_config(task_name, None, overrides=["physics=newton_mjwarp"])
     env_cfg.sim.device = "cuda:0"
@@ -73,10 +74,10 @@ def test_reach_curriculum_sets_reward_weights_at_first_reset_after_threshold(dis
         indices = {op.use: op.index for op in unwrapped.mdp.ops[mdp2.Phase.REWARDS]}
         names = [name for name in ("action_rate", "joint_vel") if name != disabled]
         assert f"rewards.{disabled}" not in indices
-        columns = [indices[f"rewards.{name}"] for name in names]
         weights = unwrapped.state.reward_weights.torch
-        initial = weights[:, columns].clone()
-        final = torch.tensor([getattr(env_cfg, f"curriculum_{name}") for name in names], device=unwrapped.device)
+        initial, final = weights.clone(), weights.clone()
+        for name in names:
+            final[:, indices[f"rewards.{name}"]] = getattr(env_cfg, f"curriculum_{name}")
 
         env.reset(seed=0)
         actions = torch.zeros(env.action_space.shape, device=unwrapped.device)
@@ -87,8 +88,8 @@ def test_reach_curriculum_sets_reward_weights_at_first_reset_after_threshold(dis
             early_reset |= resetting and step <= env_cfg.curriculum_after_steps
             if applied_at is None and resetting and step > env_cfg.curriculum_after_steps:
                 applied_at = step
-            expected = final.expand_as(initial) if applied_at is not None else initial
-            torch.testing.assert_close(weights[:, columns], expected, msg=f"weights after step {step}")
+            expected = final if applied_at is not None else initial
+            torch.testing.assert_close(weights, expected, msg=f"weights after step {step}")
         assert early_reset and applied_at is not None
         # Steps after the first replay the captured graphs, so the curriculum ran inside one.
         assert applied_at > 1 and unwrapped.num_graphs > 0

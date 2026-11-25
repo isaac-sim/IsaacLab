@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import importlib
 import sys
 from typing import TYPE_CHECKING
@@ -158,6 +159,9 @@ def _resolve_default_library(argv: list[str], backends: dict[str, str]) -> str |
 
     # task registration is deferred until a task name asks for it
     import isaaclab_tasks  # noqa: F401
+
+    with contextlib.suppress(ImportError):
+        import isaaclab_tasks_experimental  # noqa: F401
 
     try:
         default_library = gym.spec(args.task.split(":")[-1]).kwargs.get("default_agent")
