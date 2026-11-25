@@ -117,6 +117,9 @@ class RslRlSacAlgorithmCfg:
     symmetry_cfg: RslRlSymmetryCfg | None = None
     """Optional replay augmentation and actor mirror-loss configuration."""
 
+    grad_reduce_bucket_mb: float = 25
+    """Maximum gradient bucket size in MiB for distributed reduction."""
+
     use_cuda_graph: bool = False
     """Whether to capture update steps with CUDA graphs; independent of torch_compile_mode."""
 

@@ -81,6 +81,7 @@ from isaaclab.utils.warp import ProxyArray
 from isaaclab_ov.cloner import ovrtx_replicate
 from isaaclab_ov.renderers.ovrtx_annotator_utils import (
     IdentifierMap,
+    RgbaColor,
     build_instance_id_to_labels_and_semantics,
     build_semantic_id_to_labels,
     decode_semantic_id_map,
@@ -98,6 +99,7 @@ from isaaclab_ov.renderers.ovrtx_renderer_kernels import (
     generate_random_colors_from_ids_kernel,
     hide_environment_bodies_kernel,
     normalize_mesh_normals,
+    remap_semantic_colors_kernel,
 )
 from isaaclab_ov.renderers.ovrtx_shader_cache import redirect_shader_cache
 from isaaclab_ov.renderers.ovrtx_usd import (
@@ -655,6 +657,8 @@ class OVRTXRenderer(BaseRenderer):
         self._initialized_scene = False
         # Flat scratch buffers for colorized segmentation, one per output, sized for the largest atlas.
         self._output_id_color_buffers: dict[str, wp.array] = {}
+        self._semantic_palette_key: tuple[tuple[RgbaColor, RgbaColor], ...] = ()
+        self._semantic_palette_buffers: tuple[wp.array, wp.array] | None = None
         self._visual_material_writer_ref: weakref.ReferenceType[OVRTXVisualMaterialWriter] | None = None
 
         # Clone preparation resolves scene ownership before acquiring native resources.
@@ -1384,6 +1388,38 @@ class OVRTXRenderer(BaseRenderer):
                         tiled_data = tiled_data.reshape((*tiled_data.shape, 1))
                     self._launch_extract_all_tiles(render_data, tiled_data, output_buffers[key])
 
+    def _prepare_semantic_palette(
+        self, id_to_labels: dict[RgbaColor, dict[str, str]]
+    ) -> dict[RgbaColor, dict[str, str]]:
+        """Prepare the pixel replacements and matching metadata for the configured class palette."""
+        palette = self.cfg.semantic_segmentation_mapping
+        mapped = {}
+        replacements = []
+        for color, semantics in id_to_labels.items():
+            target = next(
+                (
+                    tuple(palette[f"{kind}:{label}"])
+                    for kind, labels in semantics.items()
+                    for label in labels.split(",")
+                    if f"{kind}:{label}" in palette
+                ),
+                color,
+            )
+            mapped[target] = semantics
+            if target != color:
+                replacements.append((color, target))
+        key = tuple(replacements)
+        if key:
+            if key != self._semantic_palette_key:
+                source = np.asarray([color for color, _ in key], dtype=np.uint8).view(np.uint32).reshape(-1)
+                target = np.asarray([color for _, color in key], dtype=np.uint8)
+                self._semantic_palette_buffers = (
+                    wp.array(source, dtype=wp.uint32, device=self._device),
+                    wp.array(target, dtype=wp.uint8, device=self._device),
+                )
+        self._semantic_palette_key = key
+        return mapped
+
     def _process_segmentation_metadata(
         self, render_data: OVRTXCameraRenderData, frames: Sequence[FrameOutput], output_buffers: dict[str, wp.array]
     ) -> None:
@@ -1428,11 +1464,12 @@ class OVRTXRenderer(BaseRenderer):
         if maps[_SEMANTIC_ID_MAP_VAR] is not None:
             labels = decode(_SEMANTIC_ID_MAP_VAR, decode_semantic_id_map)
         if semantic in output_buffers and labels is not None:
-            render_data.renderer_info[semantic] = {
-                "idToLabels": build_semantic_id_to_labels(
-                    labels, colorize=self.cfg.colorize_semantic_segmentation, device=self._device
-                )
-            }
+            id_to_labels = build_semantic_id_to_labels(
+                labels, colorize=self.cfg.colorize_semantic_segmentation, device=self._device
+            )
+            if self.cfg.colorize_semantic_segmentation and self.cfg.semantic_segmentation_mapping:
+                id_to_labels = self._prepare_semantic_palette(id_to_labels)
+            render_data.renderer_info[semantic] = {"idToLabels": id_to_labels}
         if instance in output_buffers:
             instances = decode(_STABLE_ID_SEMANTIC_ID_MAP_VAR, decode_stable_id_semantic_id_map)
             paths = decode(_STABLE_ID_MAP_VAR, decode_stable_id_map)
@@ -1527,6 +1564,19 @@ class OVRTXRenderer(BaseRenderer):
                 stop = product.env_offset + product.num_envs
                 buffers = {key: buffer[product.env_offset : stop] for key, buffer in output_buffers.items()}
             self._process_render_frame(render_data, frame, buffers)
+        if (
+            self.cfg.colorize_semantic_segmentation
+            and self.cfg.semantic_segmentation_mapping
+            and "semantic_segmentation" in render_data.renderer_info
+            and self._semantic_palette_key
+        ):
+            image = output_buffers["semantic_segmentation"]
+            wp.launch(
+                remap_semantic_colors_kernel,
+                dim=image.shape[:3],
+                inputs=[image, *self._semantic_palette_buffers],
+                device=self._device,
+            )
 
     def _process_render_frame(
         self, render_data: OVRTXCameraRenderData, frame: FrameOutput, output_buffers: dict[str, wp.array]
@@ -2222,6 +2272,8 @@ class OVRTXRenderer(BaseRenderer):
             self._geometry_timestamp = -1
             self._transforms_timestamp = -1
             self._output_id_color_buffers.clear()
+            self._semantic_palette_key = ()
+            self._semantic_palette_buffers = None
             self._initialized_scene = False
             self._visual_material_writer_ref = None
             self.meshes.clear()

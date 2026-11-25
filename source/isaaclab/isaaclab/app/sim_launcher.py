@@ -396,15 +396,25 @@ def validate_launch(  # noqa: C901
         if enabled:
             kit_sources.append(source)
     kit_sources = tuple(dict.fromkeys(kit_sources))
+    auto_rtx_cameras = tuple(
+        node
+        for node in configs
+        if isinstance(node, CameraCfg) and getattr(node.renderer_cfg, "renderer_type", None) == "auto_rtx"
+    )
     for node in configs:
         if isinstance(node, PhysxAutoCfg):
             replacements[id(node)] = _resolve_physx_auto_cfg(node, bool(kit_sources))
         elif isinstance(node, RendererCfg) and node.renderer_type == "auto_rtx":
-            replacements[id(node)] = IsaacRtxRendererCfg() if kit_sources else OVRTXRendererCfg()
+            renderer = IsaacRtxRendererCfg() if kit_sources else OVRTXRendererCfg()
+            if kit_sources and hasattr(node, "global_settings"):
+                renderer.global_settings = node.global_settings
+            replacements[id(node)] = renderer
         elif isinstance(node, VisualizerCfg) and max_visible is not None:
             node.max_visible_envs = max_visible
 
     configs = _walk_runtime_configs(cfg, replacements)
+    for camera in auto_rtx_cameras:
+        camera._forward_deprecated_renderer_fields()
     if kit_sources and implicit_viewer_cameras:
         # The OVRTX runtime cannot share a process with Kit, so a Kit run keeps the OpenGL view only.
         for name, visualizer, window_size, streaming_view in implicit_viewer_cameras:

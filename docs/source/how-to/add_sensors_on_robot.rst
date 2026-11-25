@@ -32,7 +32,7 @@ The tutorial corresponds to the ``add_sensors_on_robot.py`` script in the
 
    .. literalinclude:: ../../../scripts/tutorials/04_sensors/add_sensors_on_robot.py
       :language: python
-      :emphasize-lines: 74-96, 147-160, 177-178
+      :emphasize-lines: 79-102, 153-166, 187-188
       :linenos:
 
 
@@ -183,7 +183,7 @@ Now that we have gone through the code, let's run the script and see the result:
 
       .. code-block:: bash
 
-         uv run python scripts/tutorials/04_sensors/add_sensors_on_robot.py --num_envs 2 --viz kit
+         uv run --extra ov python scripts/tutorials/04_sensors/add_sensors_on_robot.py --num_envs 2 --viz newton_rtx
 
 
 This command should open a stage with a ground plane, lights, and two quadrupedal robots.
@@ -211,13 +211,13 @@ following commands:
       .. code-block:: bash
 
          # Frame Transformer
-         uv run python scripts/tutorials/04_sensors/run_frame_transformer.py --viz kit
+         uv run --extra ov python scripts/tutorials/04_sensors/run_frame_transformer.py --viz newton_rtx
 
          # Ray Caster
-         uv run python scripts/tutorials/04_sensors/run_ray_caster.py --viz kit
+         uv run --extra ov python scripts/tutorials/04_sensors/run_ray_caster.py --viz newton_rtx
 
          # Ray Caster Camera
-         uv run python scripts/tutorials/04_sensors/run_ray_caster_camera.py --viz kit
+         uv run --extra ov python scripts/tutorials/04_sensors/run_ray_caster_camera.py --viz newton_rtx
 
          # USD Camera
-         uv run python scripts/tutorials/04_sensors/run_usd_camera.py --viz kit
+         uv run --extra ov python scripts/tutorials/04_sensors/run_usd_camera.py --viz newton_rtx

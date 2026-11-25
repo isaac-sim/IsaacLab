@@ -351,6 +351,7 @@ class DirectMARLEnv(gym.Env):
         # terminal observations belong to the step that captured them
         for agent in self.cfg.possible_agents:
             self.extras[agent].pop("final_obs", None)
+            self.extras[agent].pop("final_obs_every_step", None)
         # set the seed
         if seed is not None:
             self.seed(seed)
@@ -406,6 +407,7 @@ class DirectMARLEnv(gym.Env):
         # terminal observations belong to the step that captured them
         for agent in self.cfg.possible_agents:
             self.extras[agent].pop("final_obs", None)
+            self.extras[agent].pop("final_obs_every_step", None)
         actions = {agent: action.to(self.device) for agent, action in actions.items()}
 
         # add action noise
@@ -443,15 +445,14 @@ class DirectMARLEnv(gym.Env):
 
         # -- reset envs that terminated/timed-out and log the episode information
         reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
+        if self.cfg.final_obs_every_step or (self.cfg.compute_final_obs and len(reset_env_ids) > 0):
+            # Copy before reset or interval events can modify buffers borrowed by observations.
+            terminal_obs = tree_map(torch.clone, self._compute_observations())
+            for agent, obs in terminal_obs.items():
+                self.extras[agent]["final_obs"] = obs
+                if self.cfg.final_obs_every_step:
+                    self.extras[agent]["final_obs_every_step"] = True
         if len(reset_env_ids) > 0:
-            # capture the per-agent terminal observation before reset and expose it for Same-Step
-            # autoreset. apply the same observation noise as the returned obs so the bootstrapped
-            # terminal value matches the distribution the policy is trained on.
-            if self.cfg.compute_final_obs:
-                # copy, since resetting may update the task buffers that observations borrow
-                terminal_obs = tree_map(torch.clone, self._compute_observations())
-                for agent, obs in terminal_obs.items():
-                    self.extras[agent]["final_obs"] = obs
             self._reset_idx(reset_env_ids)
 
         # -- handle episode reset requested from visualizer UI controls

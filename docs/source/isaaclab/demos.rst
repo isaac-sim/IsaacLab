@@ -72,10 +72,11 @@ No source checkout is required.
        </button>
        <button type="button" class="demo-card" aria-pressed="false"
                data-demo-name="H1 Locomotion" data-demo-id="h1-locomotion"
-               data-demo-physics="isaacsim_physx,newton_mjwarp"
+               data-demo-physics="newton_mjwarp,isaacsim_physx"
                data-demo-visualizers="kit,newton,rerun,viser"
-               data-demo-visualizers-isaacsim-physx="kit,newton,rerun,viser"
-               data-demo-visualizers-newton-mjwarp="kit,newton,rerun,viser"
+               data-demo-visualizers-isaacsim-physx="newton,kit,rerun,viser"
+               data-demo-visualizers-newton-mjwarp="newton_rtx,newton,kit,rerun,viser"
+               data-demo-extras="ovrtx"
                data-demo-description="Select H1 robots and control a trained rough-terrain policy with the keyboard and follow camera.">
          <img src="../../_static/demos/h1_locomotion.jpg" alt="H1 locomotion in Isaac Lab" loading="lazy">
          <span>H1 Locomotion</span>
@@ -84,8 +85,9 @@ No source checkout is required.
                data-demo-name="SONIC" data-demo-id="sonic"
                data-demo-physics="newton_mjwarp,isaacsim_physx"
                data-demo-visualizers="newton,kit,rerun,viser"
-               data-demo-visualizers-isaacsim-physx="kit,newton,rerun,viser"
-               data-demo-visualizers-newton-mjwarp="newton,kit,rerun,viser"
+               data-demo-visualizers-isaacsim-physx="newton,kit,rerun,viser"
+               data-demo-visualizers-newton-mjwarp="newton_rtx,newton,kit,rerun,viser"
+               data-demo-extras="ovrtx"
                data-demo-description="Record G1 traversing deformable gravel and sand with released SONIC policies.">
          <img src="../../_static/browser_demos/previews/g1.jpg" alt="G1 humanoid robot in Isaac Lab" loading="lazy">
          <span>SONIC</span>
@@ -101,7 +103,7 @@ No source checkout is required.
        </button>
        <button type="button" class="demo-card" aria-pressed="false"
                data-demo-name="Pick and Place" data-demo-id="pick-and-place"
-               data-demo-physics="isaacsim_physx" data-demo-visualizers="kit"
+               data-demo-physics="isaacsim_physx" data-demo-visualizers="newton"
                data-demo-description="Interactively pick up a cube with a parallel robot and place it on a target.">
          <img src="../../_static/demos/pick_and_place.jpg" alt="Interactive pick and place demo" loading="lazy">
          <span>Pick and Place</span>
@@ -136,6 +138,8 @@ No source checkout is required.
                data-demo-name="Rizon–Sharpa Coffee" data-demo-id="rizon-sharpa-coffee"
                data-demo-physics="newton_coupler" data-demo-fixed-physics="true"
                data-demo-visualizers="newton,kit"
+               data-demo-visualizers-newton-coupler="newton_rtx,newton,kit"
+               data-demo-extras="ovrtx"
                data-demo-args="--device cuda:0 --water"
                data-demo-description="Scoop coffee with scripted IK, dissolve it into water and stir.">
          <img src="../../_static/environment-previews/rizon_sharpa_coffee.jpg"
@@ -151,7 +155,7 @@ No source checkout is required.
        </aside>
        <aside class="admonition hint demo-command-note" data-demo-note="pick-and-place" hidden>
          <p class="admonition-title">Pick and place</p>
-         <p>Pick and place requires Kit input.</p>
+         <p>Pick and place uses the Newton viewer for input. Its surface gripper still requires Isaac Sim physics.</p>
        </aside>
      <aside class="admonition hint demo-command-note" data-demo-note="rizon-sharpa-coffee" hidden>
        <p class="admonition-title">Coffee assets</p>
@@ -208,14 +212,16 @@ SONIC on gravel and sand
 ------------------------
 
 The SONIC demo runs a G1 robot over gravel and sand with Newton MJWarp and MPM,
-or Isaac Sim PhysX and PBD. It requires an NVIDIA GPU and uses Kit for RTX rendering.
+or Isaac Sim PhysX and PBD. It requires an NVIDIA GPU. The Newton physics path records
+with Newton RTX by default; the retained Isaac Sim physics path uses Kit physics
+and Newton OpenGL visualization.
 
 From the repository root, install the simulator, recording dependencies, and the
 additional packages used to download and run the released ONNX models:
 
 .. code-block:: bash
 
-   uv sync --extra isaacsim --extra video
+   uv sync --extra ov --extra video
    uv pip install "huggingface-hub>=0.34" "onnxruntime-gpu>=1.22"
 
 The demo downloads the planner and tracker from
@@ -226,20 +232,20 @@ Run either backend:
 
 .. code-block:: bash
 
-   uv run --extra isaacsim --extra video isaaclab demo sonic \
+   uv run --extra ov --extra video isaaclab demo sonic \
      --physics newton_mjwarp --output logs/sonic_newton
 
    uv run --extra isaacsim --extra video isaaclab demo sonic \
      --physics isaacsim_physx --video --output logs/sonic_physx
 
-Without ``--viz``, Newton records offscreen with Kit/RTX and opens no simulation window;
-PhysX opens Kit and records only with ``--video``. Both commands above save
+Without ``--viz``, Newton records its viewport offscreen and opens no simulation window;
+PhysX opens the Newton visualizer and records only with ``--video``. Both commands above save
 ``sonic_0000.mp4`` in the selected output directory (``logs/sonic`` when ``--output`` is omitted).
 The terminal reports simulation progress. Recording advances
 in simulation time, so the full MPM scene can take substantially longer than the video
 duration. Pass ``--seconds`` to change the simulation duration.
 
-Pass ``--viz newton`` or ``--viz kit`` to open a Newton simulation window instead.
+With Newton physics, pass ``--viz newton_rtx`` to choose an interactive RTX visualizer instead.
 With an explicit ``--viz`` selection, recording is opt-in via ``--video``.
 
 Append ``env.sim.device=cuda:1`` to select a different CUDA device for physics and SONIC

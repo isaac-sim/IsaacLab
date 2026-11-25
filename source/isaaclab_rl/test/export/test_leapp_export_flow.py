@@ -239,7 +239,7 @@ def test_leapp_export_flow(
             return runner
 
         monkeypatch.setattr(module, "create_rsl_rl_runner", create_runner)
-        with pytest.raises(TypeError, match="LEAPP export requires an MLPModel policy"):
+        with pytest.raises(TypeError, match="LEAPP export requires"):
             module.export_rsl_rl_agent(args, env_cfg, agent_cfg)
         assert not (tmp_path / task / f"{task}.onnx").exists()
         return

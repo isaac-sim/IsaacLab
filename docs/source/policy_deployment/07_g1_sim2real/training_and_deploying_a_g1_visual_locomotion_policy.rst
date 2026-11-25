@@ -148,8 +148,8 @@ On the computer attached to the chest RealSense, start the official ROS driver:
 
 Install ``ros-lyrical-realsense2-camera`` and its device dependencies on that computer first.
 If the camera cannot sustain 90 Hz, select a supported 60 Hz profile. Camera and deployment
-processes must use the same ROS domain, discover each other on the robot network, and have
-synchronized clocks: freshness checks use the original image capture timestamp.
+processes must use the same ROS domain and discover each other on the robot network.
+Synchronize their clocks for consistent message timestamps.
 
 On the deployment machine, run the preprocessor in another terminal:
 
@@ -181,7 +181,15 @@ Supply a continuous ``geometry_msgs/msg/Twist`` command on ``/cmd_vel``. Only ``
 
    ros2 topic pub --rate 50 /cmd_vel geometry_msgs/msg/Twist '{}'
 
-After the launcher reports ``Fresh policy output ready``, the operator can enable policy control:
+The Isaac ROS graph starts inference once its required inputs are available. Its joint commands
+go directly to the official forward controller, chained through the safety controller.
+Check that commands are being published at the expected 50 Hz:
+
+.. code-block:: bash
+
+   ros2 topic hz /g1_policy/joint_commands
+
+Stop this monitor with ``Ctrl+C``, then enable policy control:
 
 .. code-block:: bash
 
@@ -189,18 +197,21 @@ After the launcher reports ``Fresh policy output ready``, the operator can enabl
 
 The official controller blends from the activation pose toward the policy with a maximum blend
 rate of 0.3 per second. Replace the zero-command publisher with a ROS teleoperation source when
-needed; use only one command source and keep its publication interval below 0.2 seconds.
+needed; use only one command source and publish at the policy rate.
 
-To request a latched stop, publish:
+To switch to damping, use the official controller-manager command from another terminal:
 
 .. code-block:: bash
 
-   ros2 topic pub --once /g1_policy/stop std_msgs/msg/Empty '{}'
+   ros2 control switch_controllers \
+       --activate freeze_controller \
+       --deactivate forward_joint_command_controller safety_controller
 
-``Ctrl+C`` also requests damping and waits for the controller switch before shutting down the ROS
-processes. Setting ``blend_ratio`` back to zero holds the activation pose; it is not the damping stop.
-During operation, an input or output timeout of 0.2 seconds also requests damping.
-Restart deployment after a stop.
+After the switch succeeds, ``freeze_controller`` applies damping with zero stiffness and
+``Kd=3``. ``Ctrl+C`` in the launcher then shuts down the ROS processes; it does not request
+this damping switch. Setting ``blend_ratio`` back to zero holds the activation pose; it is
+not the damping stop. The launcher does not automatically stop on stale inputs or missing
+policy outputs. Restart deployment after switching to damping.
 
 .. warning::
 

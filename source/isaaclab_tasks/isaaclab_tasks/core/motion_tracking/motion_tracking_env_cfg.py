@@ -28,7 +28,10 @@ from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
+from isaaclab_tasks.utils import preset
+
 from . import mdp
+from .mdp.observations import motion_reference_action
 
 
 @configclass
@@ -122,6 +125,48 @@ class ObservationsCfg:
     # observation groups
     policy: PolicyCfg = PolicyCfg(enable_corruption=True, concatenate_terms=True)
     critic: CriticCfg = CriticCfg(enable_corruption=False, concatenate_terms=True)
+
+    @configclass
+    class StateCfg(ObsGroup):
+        """Physical robot state for model-based learning."""
+
+        state = ObsTerm(func=mdp.motion_state)
+
+    @configclass
+    class GoalCfg(ObsGroup):
+        """Current reference frame."""
+
+        frame = ObsTerm(func=mdp.motion_frame, params={"command_name": "motion"})
+
+    @configclass
+    class ContextCfg(ObsGroup):
+        """Privileged body masses."""
+
+        mass = ObsTerm(func=mdp.body_mass)
+
+    @configclass
+    class LabelsCfg(ObsGroup):
+        """Self-collision events counted by the self-collision penalty."""
+
+        self_collisions = ObsTerm(
+            func=mdp.self_collision_events,
+            params={"sensor_cfg": SceneEntityCfg("self_collision"), "threshold": 10.0},
+        )
+
+    @configclass
+    class ActorGoalCfg(ObsGroup):
+        command = ObsTerm(func=mdp.generated_commands, params={"command_name": "motion"})
+
+    @configclass
+    class ReferenceActionCfg(ObsGroup):
+        action = ObsTerm(func=motion_reference_action, params={"command_name": "motion"})
+
+    actor_goal = preset(default=None, state_obs=ActorGoalCfg())
+    reference_action = preset(default=None, state_obs=ReferenceActionCfg())
+    state = preset(default=None, state_obs=StateCfg())
+    goal = preset(default=None, state_obs=GoalCfg())
+    context = preset(default=None, state_obs=ContextCfg())
+    labels = preset(default=None, state_obs=LabelsCfg())
 
 
 @configclass

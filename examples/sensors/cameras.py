@@ -8,17 +8,20 @@
 .. code-block:: bash
 
     # Usage
-    uvx --from 'isaaclab[isaacsim]' isaaclab example camera
+    uvx --from 'isaaclab[ov]' isaaclab example camera
 
 """
 
 import argparse
 from pathlib import Path
+from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
+from isaaclab_ov.renderers import OVRTXRendererCfg
 
 from isaaclab.app import add_launcher_args, launch_simulation
 
@@ -32,13 +35,14 @@ parser.add_argument("--save_interval", type=int, default=100, help="Steps betwee
 parser.add_argument("--output_dir", type=Path, default=Path("output/camera"), help="Directory for saved images.")
 parser.add_argument(
     "--physics",
-    default="isaacsim_physx",
-    choices=["isaacsim_physx"],
+    default="ovphysx",
+    choices=["isaacsim_physx", "ovphysx"],
     help="Physics backend.",
 )
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["kit"])
 args_cli = parser.parse_args()
+if args_cli.visualizer is None:
+    args_cli.visualizer = ["newton_gl" if args_cli.physics == "isaacsim_physx" else "newton_rtx"]
 if args_cli.log_interval < 1:
     parser.error("--log_interval must be at least 1.")
 if args_cli.save_interval < 1:
@@ -87,6 +91,7 @@ class SensorsSceneCfg(InteractiveSceneCfg):
 
     # sensors
     camera = CameraCfg(
+        renderer_cfg=IsaacRtxRendererCfg() if args_cli.physics == "isaacsim_physx" else OVRTXRendererCfg(),
         prim_path="{ENV_REGEX_NS}/Robot/base/front_cam",
         update_period=0.1,
         height=480,
@@ -233,12 +238,12 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: "InteractiveScene") -
 def main() -> None:
     """Run the camera example."""
     sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device, use_fabric=not args_cli.disable_fabric)
-    with launch_simulation(sim_cfg, args_cli):
+    scene_cfg = SensorsSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0)
+    with launch_simulation(SimpleNamespace(sim=sim_cfg, scene=scene_cfg), args_cli):
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
         sim.set_camera_view(eye=[3.5, 3.5, 3.5], target=[0.0, 0.0, 0.0])
         # design scene
-        scene_cfg = SensorsSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0)
         scene = instantiate(scene_cfg)
         sim.reset()
         print("[INFO]: Setup complete...")
