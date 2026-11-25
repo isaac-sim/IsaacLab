@@ -82,8 +82,6 @@ class RoughPhysicsCfg(PresetCfg):
         num_substeps=2,
         default_shape_cfg=NewtonShapeCfg(margin=0.01, ke=160000.0, kd=1100.0),
     )
-    # SCC with sparse dynamics and the reordered bilateral solver: the dense P-ADMM solver is
-    # 40-50x slower on legged robots with 4096 environments.
     newton_kamino = NewtonCfg(
         solver_cfg=KaminoSCCSolverCfg(
             max_contacts_per_world=64,
