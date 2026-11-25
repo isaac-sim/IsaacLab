@@ -59,12 +59,12 @@ Demos
      - A Franka suction tool sorts parcels of different sizes onto receiving belts and into bins.
      - `Suction sorting <https://github.com/isaac-sim/isaaclab_demos/blob/main/demos/conveyor_suction/README.md>`_
    * - ``cube-reorient``
-     - Trains the Shadow Hand camera task to turn a cube to a goal pose; with ``--cosmos``, on images
-       Cosmos3-Nano-Sim-Transfer generates from the camera's depth.
+     - Trains the Shadow Hand camera task to turn a cube to a goal pose on images Cosmos3-Nano-Sim-Transfer
+       generates from the camera's depth. It needs the Cosmos server.
      - `Cube reorientation <https://github.com/isaac-sim/isaaclab_demos/blob/main/demos/cube_reorient/README.md>`_
    * - ``apple-pick-place``
-     - A GR00T N1.7 policy moves an apple onto a plate with a Unitree G1; with ``--cosmos``, it sees the Cosmos head
-       camera image. It needs a GR00T policy server.
+     - A GR00T N1.7 policy moves an apple onto a plate with a Unitree G1, seeing the head camera image
+       Cosmos3-Nano-Sim-Transfer generates from depth. It needs a GR00T policy server and the Cosmos server.
      - `G1 apple pick-and-place
        <https://github.com/isaac-sim/isaaclab_demos/blob/main/demos/apple_pick_place/README.md>`_
 
