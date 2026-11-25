@@ -93,7 +93,7 @@ class OVRTXRendererCfg(RendererCfg):
       the search.
 
     The value applies to every camera sensor of this renderer configuration, but each failed frame of the search
-    splits only one sensor. Set the same value on every OVRTX renderer configuration of a task. Without a shared
+    splits only one sensor. A lidar sensor shares this configuration class and ignores the value. Set the same value on every OVRTX renderer configuration of a task. Without a shared
     OVStage, another value gives another OVRTX renderer with its own copy of the scene. See
     :ref:`known-issues-rtx-buffer-limit`.
     """
