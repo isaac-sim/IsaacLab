@@ -112,23 +112,3 @@ that require those values. Contact-force observables are penetration-based indic
 force measurements. External body forces do not affect the standalone model. Use free-motion coupling
 when numerical contact with other moving bodies is required. Neural solvers currently reject coupled-solver
 entries.
-
-Evaluate an explicit policy
----------------------------
-
-Policy evaluation uses the shared RSL-RL playback workflow. ``physics=`` selects evaluation
-physics; ``--checkpoint`` selects the policy using the ordinary playback checkpoint resolver.
-
-.. code-block:: bash
-
-   uv run --extra newton-neural isaaclab play --rl_library rsl_rl --evaluate \
-       --task Isaac-Reach-Franka --checkpoint logs/rsl_rl/reach_franka_nerd/RUN/model_100.pt \
-       physics=newton_mjwarp
-
-Evaluate additional checkpoints by invoking the same command again. Supply matching ``agent.*``
-overrides when the policy was trained with settings that differ from the selected task defaults,
-including network dimensions and action clipping. For example, ANYmal C policies trained with neural
-physics use ``agent.clip_actions=1.5``. Saved agent YAML is not restored automatically.
-
-The report counts each world's first episode once and reports reward, duration and termination
-fractions. Command metrics are not part of the report.

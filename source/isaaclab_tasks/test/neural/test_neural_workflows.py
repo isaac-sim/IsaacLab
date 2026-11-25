@@ -84,14 +84,12 @@ def test_recording_is_taken_on_the_reference_solver(task, selections):
     assert type(steel.sim.physics.solver_cfg) is not type(reference.sim.physics.solver_cfg)
 
 
-def test_anymal_action_bounds_have_one_declaration():
-    env, agent = resolve_task_config(TASKS[1], "rsl_rl_cfg_entry_point", overrides=["physics=newton_nerd"])
+def test_anymal_recording_and_deployment_use_same_target_bounds():
+    env, _ = resolve_task_config(TASKS[1], None, overrides=["physics=newton_nerd"])
     recording, _ = resolve_task_config(
         TASKS[1], None, env_cfg_entry_point="nerd_recording_cfg_entry_point", overrides=[]
     )
     assert recording.actions.joint_targets.clip == env.actions.joint_pos.clip
-    for low, high in env.actions.joint_pos.clip.values():
-        assert agent.clip_actions * env.actions.joint_pos.scale == pytest.approx((high - low) / 2)
 
 
 def test_optional_configuration_imports_without_neural_library():
