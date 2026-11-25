@@ -195,12 +195,14 @@ class NewtonCollisionPipelineCfg:
     Defaults to ``True`` (same as Newton's default).
     """
 
-    contact_matching: Literal["disabled", "latest", "sticky"] = "disabled"
-    """Frame-to-frame rigid-contact matching mode.
+    include_static_kinematic_pairs: bool = True
+    """Whether to generate contacts for static-kinematic and kinematic-kinematic shape pairs.
 
-    ``"latest"`` matches contacts with the previous frame; ``"sticky"`` also retains
-    friction anchors. Enable either mode for standalone :attr:`VBDSolverCfg.rigid_contact_history`.
-    Matching adds contact sorting and history storage. Defaults to ``"disabled"`` (Newton's default).
+    Set to ``False`` to skip collision detection between immovable (static and kinematic) bodies,
+    which avoids generating contacts that dynamic solvers discard. Static-static pairs are always
+    filtered by Newton.
+
+    Defaults to ``True`` (same as Newton's default).
     """
 
     rigid_contact_max: int | None = None
@@ -278,6 +280,14 @@ class NewtonCollisionPipelineCfg:
 
     sdf_all_shapes: SDFAllShapesCfg | None = None
     """Optional strict SDF provisioning for every finite colliding shape."""
+
+    contact_matching: Literal["disabled", "latest", "sticky"] = "disabled"
+    """Frame-to-frame rigid-contact matching mode.
+
+    ``"latest"`` matches contacts with the previous frame; ``"sticky"`` also retains
+    friction anchors. Enable either mode for standalone :attr:`VBDSolverCfg.rigid_contact_history`.
+    Matching adds contact sorting and history storage. Defaults to ``"disabled"`` (Newton's default).
+    """
 
     def to_pipeline_args(self) -> dict[str, Any]:
         """Build keyword arguments for :class:`newton.CollisionPipeline`.

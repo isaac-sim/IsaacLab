@@ -58,15 +58,6 @@ class VBDSolverCfg(NewtonSolverCfg):
     particle_rest_shape_contact_exclusion_radius: float = 0.0
     """Rest-shape separation threshold for filtering contacts [m]."""
 
-    rigid_avbd_contact_alpha: float | None = None
-    """Body-body contact C0 stabilization strength [dimensionless], in [0, 1]; ``None`` uses Newton's mode default."""
-
-    rigid_contact_history: bool = False
-    """Whether to warm-start matched body-body contacts across steps.
-
-    Requires collision matching in standalone rigid VBD; coupled rigid entries are unsupported.
-    """
-
     rigid_joint_linear_ke: float = 1.0e5
     """Structural linear stiffness of non-rod rigid joints [N/m], separate from joint-drive gains."""
 
@@ -81,3 +72,12 @@ class VBDSolverCfg(NewtonSolverCfg):
 
     rigid_body_particle_contact_buffer_size: int = 256
     """Per-body particle, edge, and face soft-contact capacity when VBD integrates rigid bodies."""
+
+    rigid_avbd_contact_alpha: float | None = None
+    """Body-body contact C0 stabilization strength [dimensionless], in [0, 1]; ``None`` uses Newton's mode default."""
+
+    rigid_contact_history: bool = False
+    """Whether to warm-start matched body-body contacts across steps.
+
+    Requires collision matching in standalone rigid VBD; coupled rigid entries are unsupported.
+    """

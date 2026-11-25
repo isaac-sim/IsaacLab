@@ -519,6 +519,7 @@ def resolve_task_config(
     agent_cfg_entry_point: str | None,
     play_mode: bool = False,
     overrides: Sequence[str] | None = None,
+    env_cfg_entry_point: str = "env_cfg_entry_point",
 ):
     """Resolve env and agent configs with Hydra overrides, presets, scalars, and interpolations applied.
 
@@ -534,13 +535,14 @@ def resolve_task_config(
         overrides: Optional Hydra arguments to use instead of reading them from
             :data:`sys.argv`. This keeps programmatic task composition on the same
             path as command-line composition. Defaults to None.
+        env_cfg_entry_point: Registered environment configuration for this workflow.
 
     Returns:
         Tuple of (env_cfg, agent_cfg) fully resolved.
     """
     task = task_name.split(":")[-1]
     env_cfg, agent_cfg, hydra_args = register_task(
-        task, agent_cfg_entry_point, play_mode=play_mode, overrides=overrides
+        task, agent_cfg_entry_point, play_mode=play_mode, overrides=overrides, env_cfg_entry_point=env_cfg_entry_point
     )
     if not hydra_args:
         return replace_strings_with_env_cfg_spaces(env_cfg), agent_cfg
@@ -565,6 +567,7 @@ def register_task(
     agent_entry: str | None,
     play_mode: bool = False,
     overrides: Sequence[str] | None = None,
+    env_cfg_entry_point: str = "env_cfg_entry_point",
 ) -> tuple:
     """Load configs, collect presets recursively, register base config to Hydra.
 
@@ -578,6 +581,7 @@ def register_task(
             configuration's ``play_mode`` method after loading. Defaults to False.
         overrides: Optional Hydra arguments to compose instead of :data:`sys.argv`.
             Non-string literals replace resolved preset values; strings at preset paths select alternatives.
+        env_cfg_entry_point: Registered environment configuration for this workflow.
 
     Returns:
         Tuple of ``(env_cfg, agent_cfg, hydra_args)`` where presets have been
@@ -586,7 +590,7 @@ def register_task(
     """
     from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
-    env_cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
+    env_cfg = load_cfg_from_registry(task_name, env_cfg_entry_point)
     agent_cfg = load_cfg_from_registry(task_name, agent_entry) if agent_entry else None
 
     # CLI preset tokens: ``presets=NAME[,...]`` broadcasts (no typing claim),

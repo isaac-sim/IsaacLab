@@ -534,6 +534,8 @@ class NewtonBackend:
         )
         ops = self.solver_ops = instantiate(solver_cfg, self.model, mode, env_template)
         solver = self.solver = ops.native
+        # A newly built solver already reflects the setup-time model. Subsequent changes remain queued.
+        self.model_changes.clear()
         if initial_body_variants:
             # MuJoCo compiles one geom layout for all worlds, before their variants diverge.
             bodies, variants = zip(*initial_body_variants, strict=True)

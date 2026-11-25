@@ -113,7 +113,58 @@ def test_newton_shape_cfg_defaults_match_newton():
 
 def test_collision_cfg_leaves_max_triangle_pairs_to_newton():
     """The default must not override Newton's estimate, which grows with the world count."""
-    assert NewtonCollisionPipelineCfg().to_pipeline_args()["max_triangle_pairs"] is None
+    args = NewtonCollisionPipelineCfg().to_pipeline_args()
+    assert args["max_triangle_pairs"] is None
+    assert args["include_static_kinematic_pairs"] is True
+
+
+@pytest.mark.kitless
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_collision_cfg_filters_static_and_kinematic_pairs(device):
+    """Disabling static/kinematic pairs drops immovable-immovable contacts while keeping dynamic contacts."""
+
+    def _run_collision(include_static_kinematic_pairs: bool) -> list[tuple[int, int]]:
+        cfg = NewtonCfg(
+            solver_cfg=XPBDSolverCfg(),
+            collision_cfg=NewtonCollisionPipelineCfg(
+                broad_phase="sap",
+                include_static_kinematic_pairs=include_static_kinematic_pairs,
+            ),
+            use_cuda_graph=False,
+        )
+        builder = create_builder(cfg)
+        builder.add_ground_plane()
+        builder.begin_world()
+        kin_a = builder.add_body(
+            xform=wp.transform(wp.vec3(0.0, 0.0, 0.05), wp.quat_identity()), mass=1.0, is_kinematic=True
+        )
+        builder.add_shape_box(body=kin_a, hx=0.1, hy=0.1, hz=0.1)
+        kin_b = builder.add_body(
+            xform=wp.transform(wp.vec3(0.05, 0.0, 0.05), wp.quat_identity()), mass=1.0, is_kinematic=True
+        )
+        builder.add_shape_box(body=kin_b, hx=0.1, hy=0.1, hz=0.1)
+        dyn = builder.add_body(
+            xform=wp.transform(wp.vec3(0.0, 0.0, 0.24), wp.quat_identity()), mass=1.0, is_kinematic=False
+        )
+        builder.add_shape_box(body=dyn, hx=0.1, hy=0.1, hz=0.1)
+        builder.end_world()
+
+        backend = NewtonBackend(NewtonBackendCfg(physics_cfg=cfg, device=device), builder=builder, dt=0.01)
+        backend.init_solver()
+        backend.collision_pipeline.collide(backend.state_0, backend.contacts)
+        n = int(backend.contacts.rigid_contact_count.numpy()[0])
+        s0 = backend.contacts.rigid_contact_shape0.numpy()[:n]
+        s1 = backend.contacts.rigid_contact_shape1.numpy()[:n]
+        shape_body = backend.model.shape_body.numpy()
+        return [tuple(sorted((int(shape_body[a]), int(shape_body[b])))) for a, b in zip(s0, s1)]
+
+    with_immovable = set(_run_collision(True))
+    without_immovable = set(_run_collision(False))
+
+    # Static (-1) vs kinematic (0, 1) and kinematic (0) vs kinematic (1) are present by default and filtered when False.
+    assert (-1, 0) in with_immovable or (0, 1) in with_immovable
+    assert all(a == 2 or b == 2 for a, b in without_immovable), f"Unexpected immovable pair: {without_immovable}"
+    assert (0, 2) in without_immovable and (0, 2) in with_immovable
 
 
 def test_explicit_collision_capacity_reaches_the_solver_before_construction():
@@ -798,6 +849,14 @@ def test_model_changes_notify_the_solver_once_per_step_and_warn_once_when_ignore
     events = []
     ignored = ModelFlags.BODY_INERTIAL_PROPERTIES
     backend = _recording_backend(events, ignored_model_changes={ignored: "Ignored model change"})
+
+    # Construction incorporates setup edits; edits made by solver-init consumers still need notification.
+    backend.model_changes.add(ignored)
+    backend.solver_init_callbacks.append(lambda: backend.model_changes.add(ModelFlags.JOINT_PROPERTIES))
+    backend.init_solver()
+    backend.step()
+    assert [event for event in events if event[0] == "notify"] == [("notify", ModelFlags.JOINT_PROPERTIES)]
+    events.clear()
 
     with caplog.at_level(logging.WARNING, logger=newton_backend.__name__):
         for flag in (ignored, ModelFlags.JOINT_DOF_PROPERTIES, ignored):

@@ -41,11 +41,11 @@ import warp as wp
 wp.init()
 pytestmark = pytest.mark.skipif(not wp.is_cuda_available(), reason="CUDA device required")
 
-import isaaclab_experimental.envs.mdp.rewards as warp_rew
-import isaaclab_experimental.envs.mdp.terminations as warp_term
-import isaaclab_tasks_experimental.core as tasks_experimental_core
-import isaaclab_tasks_experimental.core.locomotion.mdp.rewards as warp_loco_rew
-import isaaclab_tasks_experimental.core.velocity.mdp.rewards as warp_velocity_rew
+import isaaclab_experimental.deprecated.envs.mdp.rewards as warp_rew
+import isaaclab_experimental.deprecated.envs.mdp.terminations as warp_term
+import isaaclab_tasks_experimental.deprecated.core as tasks_experimental_core
+import isaaclab_tasks_experimental.deprecated.core.locomotion.mdp.rewards as warp_loco_rew
+import isaaclab_tasks_experimental.deprecated.core.velocity.mdp.rewards as warp_velocity_rew
 from parity_helpers import (
     DEVICE,
     NUM_BODIES,
@@ -291,9 +291,9 @@ def _build_feet_air_time_variance(body_ids=(0, 2)) -> CaptureCase:
     )
 
 
-_SHARED_REW = "isaaclab_experimental.envs.mdp.rewards"
-_SHARED_TERM = "isaaclab_experimental.envs.mdp.terminations"
-_LOCO_REW = "isaaclab_tasks_experimental.core.locomotion.mdp.rewards"
+_SHARED_REW = "isaaclab_experimental.deprecated.envs.mdp.rewards"
+_SHARED_TERM = "isaaclab_experimental.deprecated.envs.mdp.terminations"
+_LOCO_REW = "isaaclab_tasks_experimental.deprecated.core.locomotion.mdp.rewards"
 
 CAPTURE_SPECS: list[CaptureSpec] = [
     CaptureSpec(_SHARED_REW, "is_terminated_term", "reward", _build_is_terminated_term),
@@ -303,7 +303,7 @@ CAPTURE_SPECS: list[CaptureSpec] = [
     CaptureSpec(_SHARED_REW, "base_height_l2", "reward", partial(_build_base_height_l2, terrain=False)),
     CaptureSpec(_SHARED_REW, "base_height_l2", "reward", partial(_build_base_height_l2, terrain=True)),
     CaptureSpec(
-        "isaaclab_tasks_experimental.core.velocity.mdp.rewards",
+        "isaaclab_tasks_experimental.deprecated.core.velocity.mdp.rewards",
         "feet_air_time_variance",
         "reward",
         _build_feet_air_time_variance,
@@ -320,8 +320,8 @@ def _ids(module: str, *names: str) -> list[str]:
     return [f"{module}:{name}" for name in names]
 
 
-_SH = "isaaclab_experimental.envs.mdp"
-_TE = "isaaclab_tasks_experimental.core"
+_SH = "isaaclab_experimental.deprecated.envs.mdp"
+_TE = "isaaclab_tasks_experimental.deprecated.core"
 _MUT = "covered by the capture-mutate-replay check in the matching parity test file"
 _NONE = "capturable (fixed dim=num_envs launch over a mask) but no capture coverage yet"
 _MIRROR = "per-task warp mirror; isaaclab_tasks_experimental has no test directory"
@@ -441,7 +441,7 @@ def _warp_mdp_modules() -> list:
     """The shared warp MDP modules plus every per-task warp MDP mirror."""
     modules = []
     for leaf in _MDP_LEAF_MODULES:
-        modules.append(importlib.import_module(f"isaaclab_experimental.envs.mdp.{leaf}"))
+        modules.append(importlib.import_module(f"isaaclab_experimental.deprecated.envs.mdp.{leaf}"))
     for entry in pkgutil.iter_modules(tasks_experimental_core.__path__):
         for leaf in _MDP_LEAF_MODULES:
             try:
