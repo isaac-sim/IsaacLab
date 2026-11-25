@@ -464,7 +464,7 @@ def test_lidar_readback_propagates_cpu_map_failure(monkeypatch):
 
     renderer = _make_mocked_scene_renderer(monkeypatch, use_ovstage=False, clone_env_paths=[])
     renderer._warp_device = types.SimpleNamespace(stream=types.SimpleNamespace(cuda_stream=1))
-    lidar = ovrtx_renderer_module.OVRTXLidarRenderData("Lidar", 0.1)
+    lidar = ovrtx_renderer_module.OVRTXLidarRenderData("Lidar", 0.1, ["/Lidar"])
     cloud = MagicMock()
     cloud.map.side_effect = [
         RuntimeError("Failed to map CUDA point cloud"),

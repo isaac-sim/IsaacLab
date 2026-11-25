@@ -8,7 +8,7 @@
 An ``OmniLidar`` prim carries a LidarWpm scan. Those
 model attributes are written explicitly because the host USD runtime does not have the
 ``omniSensor`` schema registered. An unregistered ``OmniLidar`` type is not Xformable, so the pose
-written to the renderer is the configured offset composed with the parent prim's world pose.
+written to the renderer composes the local mount pose with the parent prim's world pose.
 A renderer that implements lidar capture reads those attributes.
 """
 
@@ -245,12 +245,9 @@ class OVRTXLidar(SensorBase):
 
         num_rays = self.cfg.num_rays()
         self._data = LidarData(self._num_envs, num_rays, self._device)
-        self._local_pos = torch.tensor(self.cfg.offset.pos, dtype=torch.float32, device=self._device)
-        self._local_quat = torch.tensor(self.cfg.offset.rot, dtype=torch.float32, device=self._device)
         self._pos_w = ProxyArray(wp.zeros(self._num_envs, dtype=wp.vec3f, device=self._device))
         self._quat_w = ProxyArray(wp.zeros(self._num_envs, dtype=wp.quatf, device=self._device))
         self._bind_parent_pose()
-        self._write_world_poses()
 
         provider = self._sim.get_scene_data_provider()
         self._sim.render_context.ensure_prepare_stage(self.stage, provider.num_envs)
@@ -259,6 +256,12 @@ class OVRTXLidar(SensorBase):
             raise RuntimeError(f"Lidar prim '{self.cfg.prim_path}' was not found after the scene was cloned.")
 
         self._render_data = self._renderer.create_lidar_render_data(self.cfg, lidar_paths, self._num_envs)
+        if self.cfg.spawn is None:
+            positions, rotations = self._read_authored_mounts(lidar_paths)
+        else:
+            positions, rotations = self.cfg.offset.pos, self.cfg.offset.rot
+        self._local_pos = torch.tensor(positions, dtype=torch.float32, device=self._device)
+        self._local_quat = torch.tensor(rotations, dtype=torch.float32, device=self._device)
         self._push_renderer_pose()
 
     def _invalidate_initialize_callback(self, event):
@@ -297,8 +300,42 @@ class OVRTXLidar(SensorBase):
         self._write_world_poses()
         self._renderer.update_lidar(self._render_data, self._pos_w, self._quat_w)
 
+    def _read_authored_mounts(self, authored_paths: list[str]) -> tuple[list, list]:
+        """Read local USD transforms once and order them like the tiled render product."""
+        mounts = {}
+        for path in authored_paths:
+            # OmniLidar may be unregistered in host USD. XformCache then skips its authored xform ops.
+            transform = Gf.Transform(UsdGeom.Xformable(self.stage.GetPrimAtPath(path)).GetLocalTransformation())
+            rotation = transform.GetRotation().GetQuat()
+            mounts[Sdf.Path(path)] = (tuple(transform.GetTranslation()), (*rotation.imaginary, rotation.real))
+
+        if len(mounts) == 1:
+            pos, rot = next(iter(mounts.values()))
+            return [pos], [rot]
+
+        # Native copies can exist only in OvRTX. Resolve each missing tile against its source subtree.
+        sources = {
+            Sdf.Path(target): Sdf.Path(root)
+            for root, targets in self._renderer.scene.clone_copies
+            for target in targets
+        }
+        positions, rotations = [], []
+        for tile_path in self._render_data.lidar_paths:
+            path = Sdf.Path(tile_path)
+            if path not in mounts:
+                for prefix in reversed(path.GetPrefixes()):
+                    if prefix in sources:
+                        path = path.ReplacePrefix(prefix, sources[prefix])
+                        break
+            if path not in mounts:
+                raise RuntimeError(f"Cannot resolve the authored lidar mount for {tile_path!r}.")
+            pos, rot = mounts[path]
+            positions.append(pos)
+            rotations.append(rot)
+        return positions, rotations
+
     def _write_world_poses(self) -> None:
-        """Compose the configured offset with each parent world pose.
+        """Compose the local mount pose with each parent world pose.
 
         The parent view follows a translated, rotated, or moving mount. A parent that is not an
         xform uses the clone-plan origins cached at initialization and an identity rotation.
@@ -307,8 +344,8 @@ class OVRTXLidar(SensorBase):
         pos_w, quat_w = math_utils.combine_frame_transforms(
             parent_pos,
             parent_quat,
-            self._local_pos.unsqueeze(0).expand(self._num_envs, -1),
-            self._local_quat.unsqueeze(0).expand(self._num_envs, -1),
+            self._local_pos.expand(self._num_envs, -1),
+            self._local_quat.expand(self._num_envs, -1),
         )
         self._pos_w.torch.copy_(pos_w)
         self._quat_w.torch.copy_(quat_w)

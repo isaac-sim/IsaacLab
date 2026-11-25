@@ -206,3 +206,65 @@ def test_tiled_lidar_returns_are_local_to_each_environment():
         assert not torch.isfinite(lidar.data.points.torch[0]).any()
         assert lidar.data.valid.torch[1].all()
         torch.testing.assert_close(lidar.data.points.torch[1], kept)
+
+
+@pytest.mark.integration
+@pytest.mark.rendering
+@pytest.mark.ov
+@pytest.mark.skipif(not wp.is_cuda_available(), reason="Tiled lidar capture requires CUDA.")
+def test_referenced_lidar_follows_authored_mount():
+    """A referenced lidar scans from its translated and tilted mount as the parent moves."""
+    from isaaclab_ov.physics import OvPhysxCfg
+    from isaaclab_ov.renderers.ovrtx_lidar_sensor import spawn_lidar
+
+    import isaaclab.sim as sim_utils
+    from isaaclab.assets import RigidObjectCfg
+    from isaaclab.scene import InteractiveSceneCfg
+    from isaaclab.utils import configclass, instantiate
+
+    def spawn_platform(path, cfg, **kwargs):
+        platform = sim_utils.spawn_cuboid(path, cfg, **kwargs)
+        mount = OVRTXLidarCfg.OffsetCfg(
+            pos=(0.3, 0.0, 3.0), rot=(0.0, math.sin(math.pi / 12), 0.0, math.cos(math.pi / 12))
+        )
+        spawn_lidar(
+            str(platform.GetPath()) + "/Lidar",
+            _lidar_cfg(scan_type="solidState", offset=mount, output_frame_of_reference="WORLD"),
+        )
+        return platform
+
+    @configclass
+    class SceneCfg(InteractiveSceneCfg):
+        platform = RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Platform",
+            spawn=sim_utils.CuboidCfg(
+                func=spawn_platform,
+                size=(4.0, 4.0, 1.0),
+                rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
+                collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+                mass_props=sim_utils.MassCfg(mass=1.0),
+            ),
+        )
+        lidar = _lidar_cfg(
+            prim_path="{ENV_REGEX_NS}/Platform/Lidar",
+            spawn=None,
+            scan_type="solidState",
+            output_frame_of_reference="WORLD",
+        )
+
+    with sim_utils.build_simulation_context(sim_cfg=sim_utils.SimulationCfg(physics=OvPhysxCfg())) as sim:
+        scene = instantiate(SceneCfg(num_envs=2, env_spacing=8.0))
+        sim.register_interactive_scene(scene)
+        sim.reset()
+        platform = scene["platform"]
+        pose = platform.data.root_link_pose_w.torch.clone()
+        # A beam tilted 30 degrees from vertical intersects the top face 2.5 m below its mount.
+        local_hit = pose.new_tensor([0.3 - 2.5 * math.tan(math.pi / 6), 0.0, 0.5])
+        for displacement in (0.0, 0.4):
+            pose[1, 0] += displacement
+            platform.write_root_pose_to_sim_index(root_pose=pose)
+            sim.step()
+            scene.update(sim.get_physics_dt())
+            data = scene["lidar"].data
+            assert data.valid.torch.all()
+            torch.testing.assert_close(data.points.torch[:, 0], pose[:, :3] + local_hit, atol=1e-3, rtol=0.0)

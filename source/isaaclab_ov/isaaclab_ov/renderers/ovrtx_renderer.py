@@ -598,7 +598,8 @@ class OVRTXCameraRenderData:
 class OVRTXLidarRenderData:
     """Native resources and capture interval for one tiled lidar."""
 
-    def __init__(self, scope: str, sample_dt: float):
+    def __init__(self, scope: str, sample_dt: float, lidar_paths: list[str]):
+        self.lidar_paths = lidar_paths
         self.render_product_path = f"/{scope}/RenderProduct"
         self.point_cloud_path = f"/{scope}/Vars/PointCloud"
         self.xform_binding: AttributeBinding[wp.array] | ovstage.Query | None = None
@@ -907,7 +908,7 @@ class OVRTXRenderer(BaseRenderer):
 
         scope = f"RenderLidar_{self.scene.next_camera_id}"
         update_period = float(cfg.update_period)
-        render_data = OVRTXLidarRenderData(scope, update_period or self._sim.get_physics_dt())
+        render_data = OVRTXLidarRenderData(scope, update_period or self._sim.get_physics_dt(), lidar_paths)
         product_path = render_data.render_product_path
 
         usd = build_lidar_render_product_as_string(
