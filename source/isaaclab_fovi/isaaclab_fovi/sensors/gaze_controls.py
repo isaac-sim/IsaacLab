@@ -3,12 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Gaze sliders for foveated cameras in the side panel of Newton viewer windows."""
+"""Gaze and foveation controls for foveated cameras in the Camera Sensor section of Newton viewer windows."""
 
 from __future__ import annotations
 
 import weakref
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from isaaclab.sim import SimulationContext
 
@@ -22,14 +22,21 @@ GAZE_LIMIT_DEG = 90.0
 
 
 class ViewerGazeControls:
-    """Gaze and foveation controls for one foveated camera in each Newton viewer window.
+    """Gaze and foveation controls for one foveated camera, in the Camera Sensor section of each Newton viewer window,
+    below its Camera Source selector.
 
-    The tilt and pan sliders show the first environment's gaze every frame, so they follow whatever sets it, such as a
-    gaze action or a drag in the viewer. Moving one sets that gaze in every environment; a gaze action that sets the
-    gaze every step overrides them. The foveation slider steps through :attr:`FoveatedCameraCfg.viewer_cmf_a_values`
-    and the camera's starting CMF constant where :meth:`FoveatedCamera.set_cmf_a` can change the retina, and otherwise
-    shows the CMF constant and why it is fixed. A change in any window redraws the camera view of every window.
+    A window draws the controls while the camera is its camera source, so a camera the viewer cannot show, or another
+    camera chosen in the window's camera menu, has none. The tilt and pan sliders show the first environment's gaze
+    every frame, so they follow whatever sets it, such as a gaze action or a drag in the viewer. Moving one sets that
+    gaze in every environment; a gaze action that sets the gaze every step overrides them. The foveation slider steps
+    through :attr:`cmf_a_values` and the camera's starting CMF constant where :meth:`FoveatedCamera.set_cmf_a` can
+    change the retina, and otherwise shows the CMF constant and why it is fixed. A change in any window redraws the
+    camera view of every window.
     """
+
+    cmf_a_values: ClassVar[tuple[float, ...]] = (0.001, 0.01, 0.1, 1.0, 10.0, 100.0, 1000.0)
+    """CMF constants [deg] the foveation slider offers every camera, with its starting one. Assign another tuple to
+    change them; the sliders read it as they draw."""
 
     def __init__(self, camera: FoveatedCamera):
         """Create the sliders for ``camera``, which they hold weakly: once it is gone, they draw nothing.
@@ -37,33 +44,30 @@ class ViewerGazeControls:
         The viewer cannot unregister a UI callback, so each window keeps a callback that then returns at once.
         """
         self._camera = weakref.ref(camera)
-        self._label = camera.cfg.prim_path.rsplit("/", 1)[-1]
-        self._cmf_a_values = sorted(
-            {float(value) for value in camera.cfg.viewer_cmf_a_values} | {float(camera.cfg.cmf_a_deg)}
-        )
-        """The foveation slider's CMF constants [deg]; the starting one stays an option after a switch."""
+        self._start_cmf_a = float(camera.cfg.cmf_a_deg)
+        """The camera's starting CMF constant [deg], which stays a stop of the foveation slider after a switch."""
         self._windows: list[BaseVisualizer] = []
-        """The Newton viewer windows that show the controls."""
+        """The Newton viewer windows that draw the controls while the camera is their source."""
 
     def attach(self, sim: SimulationContext) -> None:
-        """Add the sliders to every Newton viewer window of ``sim`` that does not show them yet."""
+        """Add the controls to every Newton viewer window of ``sim`` that does not have them yet."""
         for visualizer in sim.visualizers:
             if visualizer.cfg.backend.visualizer_type == "newton" and all(
                 window is not visualizer for window in self._windows
             ):
                 self._windows.append(visualizer)
-                visualizer.register_ui_callback(self._render, position="side")
+                visualizer.register_sensor_ui_callback(self._render)
 
-    def _render(self, imgui: Any) -> None:
-        """Draw the controls in the side panel of one window."""
+    def _render(self, imgui: Any, sensor: Any) -> None:
+        """Draw the controls in a window's Camera Sensor section while ``sensor``, its camera source, is the camera."""
         camera = self._camera()
-        if camera is None or not camera.is_initialized:
+        if camera is None or sensor is not camera or not camera.is_initialized:
             return
-        # Each camera's widgets share labels, so they need their own ID scope; a header does not open one.
+        # Each camera's widgets share labels, so they need their own ID scope.
         imgui.push_id(f"isaaclab_fovi.viewer_gaze_controls.{id(self)}")
         try:
-            if imgui.collapsing_header(f"Foveated camera: {self._label}"):
-                self._draw_controls(imgui, camera)
+            imgui.separator_text("Foveated Camera")
+            self._draw_controls(imgui, camera)
         finally:
             imgui.pop_id()
 
@@ -84,7 +88,7 @@ class ViewerGazeControls:
         self._draw_foveation(imgui, camera)
 
     def _draw_foveation(self, imgui: Any, camera: FoveatedCamera) -> None:
-        """Draw the CMF constant: a slider over the configured values, or the fixed value and why it is fixed."""
+        """Draw the CMF constant: a slider over :attr:`cmf_a_values`, or the fixed value and why it is fixed."""
         from .foveated_camera import _runtime_cmf_a_limitation  # The camera module imports this one.
 
         current = float(camera.cfg.cmf_a_deg)
@@ -93,7 +97,7 @@ class ViewerGazeControls:
             if imgui.is_item_hovered():
                 imgui.set_tooltip(f"Fixed because {_runtime_cmf_a_limitation(camera)}.")
             return
-        values = self._cmf_a_values if current in self._cmf_a_values else sorted({*self._cmf_a_values, current})
+        values = sorted({float(value) for value in self.cmf_a_values} | {self._start_cmf_a, current})
         index = values.index(current)
         changed, index = imgui.slider_int("Foveation", index, 0, len(values) - 1, f"cmf_a {current:g} deg")
         if imgui.is_item_hovered():
@@ -111,7 +115,8 @@ class ViewerGazeControls:
 
 
 def add_viewer_gaze_controls(camera: FoveatedCamera) -> None:
-    """Show ``camera``'s gaze sliders in the Newton viewer windows of every simulation reset while it exists."""
+    """Add ``camera``'s controls to the Newton viewer windows of every simulation reset while it exists; a window
+    draws them while the camera is its camera source."""
     controls = ViewerGazeControls(camera)
     name = f"isaaclab_fovi.viewer_gaze_controls.{id(controls)}"
     SimulationContext.add_reset_callback(name, controls.attach)

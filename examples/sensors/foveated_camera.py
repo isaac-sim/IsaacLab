@@ -5,12 +5,12 @@
 
 """Explore a cluttered scene through the experimental foveated camera.
 
-The viewer shows the camera's retina, covered at launch by a window that shows the gaze on the viewing sphere beside
-the retina; move or resize that window to see the viewer's own view of the retina.
+The viewer shows the camera's image, the foveated camera's cortical view, covered at launch by a window that shows the
+gaze on the viewing sphere beside that view; move or resize that window to see the viewer's own.
 Use WASD or the arrow keys to move the camera, and Q/E to lower or raise it.
 Drag with the left mouse button, or press I/K and J/L, to steer the gaze.
-The side panel's sliders follow the gaze and set it, and step the foveation (cmf_a) through
-``env.scene.eye.viewer_cmf_a_values`` on Newton. Press H to show or hide the viewer controls.
+Below the side panel's Camera Source selector, gaze sliders follow the gaze and set it, and on Newton a foveation
+slider steps the CMF constant (cmf_a) through --cmf_a_values. Press H to show or hide the viewer controls.
 Use --target to choose where the retina looks at launch.
 
 .. code-block:: bash
@@ -19,6 +19,8 @@ Use --target to choose where the retina looks at launch.
     uv run --extra fovi --extra ovrtx isaaclab example foveated-camera renderer=ovrtx --viz newton
     # A large CMF constant gives the matched non-foveated retina, for comparison:
     uv run --extra fovi isaaclab example foveated-camera env.scene.eye.cmf_a_deg=1000
+    # Other stops for the foveation slider, with the camera's own cmf_a added:
+    uv run --extra fovi isaaclab example foveated-camera --cmf_a_values 0.2,2,20
 """
 
 from __future__ import annotations
@@ -31,7 +33,6 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 import gymnasium as gym
-import numpy as np
 import torch
 import warp as wp
 from fovi.sensing.projection import gaze_rotation
@@ -42,7 +43,6 @@ from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
 from isaaclab_newton.physics import NewtonCfg, XPBDSolverCfg
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
-from PIL import Image, ImageDraw, ImageFont
 
 import isaaclab.sim as sim_utils
 from isaaclab.app import add_launcher_args, launch_simulation
@@ -107,7 +107,7 @@ FISHEYE = sim_utils.PinholeCameraCfg(
 )
 PREVIEW_SIZE = 256
 COMPARISON_WINDOW = "Foveated camera"
-"""Title of the window that shows the viewing sphere beside the retina."""
+"""Title of the window that shows the viewing sphere beside the foveated camera's cortical view."""
 
 
 def viewing_sphere_rays(screen: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
@@ -125,11 +125,29 @@ def outline(mask: torch.Tensor) -> torch.Tensor:
     return mask & torch.nn.functional.max_pool2d((~mask)[None, None].float(), 3, 1, 1)[0, 0].bool()
 
 
+def _cmf_a_values(text: str) -> tuple[float, ...]:
+    """Parse comma-separated CMF constants [deg], each positive and finite."""
+    try:
+        values = tuple(float(value) for value in text.split(","))
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"expected comma-separated numbers, got {text!r}") from None
+    if not all(0 < value < math.inf for value in values):
+        raise argparse.ArgumentTypeError(f"expected positive, finite CMF constants, got {text!r}")
+    return values
+
+
 parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
 parser.add_argument(
     "--max_steps", type=int, default=-1, help="Number of render frames; -1 runs until the viewer closes."
 )
 parser.add_argument("--target", choices=OBJECTS, help="Set the initial gaze toward this object.")
+parser.add_argument(
+    "--cmf_a_values",
+    type=_cmf_a_values,
+    metavar="DEG,DEG,...",
+    help="Comma-separated CMF constants [deg] the foveation slider below the Camera Source selector steps through,"
+    " with the camera's own added.",
+)
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["newton"])
 args_cli, overrides = setup_preset_cli(parser)
@@ -237,19 +255,9 @@ def gaze_toward(centre: tuple[float, float, float], camera_cfg: FoveatedCameraCf
 def camera_comparison(
     camera: FoveatedCamera, overview: FoveatedCamera
 ) -> tuple[Callable[[], None], Callable[[torch.Tensor], wp.array]]:
-    """Draw the lens and gaze on the viewing sphere used in the docs, beside the retina."""
+    """Draw the lens and gaze on the viewing sphere used in the docs, beside the foveated camera's cortical view."""
     size, gap = PREVIEW_SIZE, 6
-    header_height = 28
-    image_width = 2 * size + gap
-    header_color = (25, 28, 32, 255)
-    header = Image.new("RGBA", (image_width, header_height), header_color)
-    draw = ImageDraw.Draw(header)
-    font = ImageFont.load_default(size=17)
-    draw.text((8, header_height / 2), "Viewing sphere", font=font, fill="white", anchor="lm")
-    draw.text((size + gap + 8, header_height / 2), "Retina", font=font, fill="white", anchor="lm")
-    labels = torch.from_numpy(np.array(header)).to(camera.device)
-    divider = labels[:1, size : size + gap].expand(size, -1, -1)
-    displayed_cmf_a = None
+    divider = torch.tensor((25, 28, 32, 255), dtype=torch.uint8, device=camera.device).expand(size, gap, -1)
 
     coords = overview.sampling_coords
     pixels = torch.arange(size, device=camera.device)
@@ -271,18 +279,12 @@ def camera_comparison(
         if overview.supports_batch_update:
             overview.update_batch((overview,), 0.0)
 
-    def compose(retina: torch.Tensor) -> wp.array:
-        """The view for one RGB retina image (H, W, 3): the viewing sphere, then the retina."""
-        nonlocal displayed_cmf_a
+    def compose(image: torch.Tensor) -> wp.array:
+        """The view for one RGB cortical-view image of the foveated camera (H, W, 3): the viewing sphere, then that
+        image."""
         # The retina may change its foveation at runtime, so its coordinates are read for every frame.
         retina_coords = camera.sampling_coords
-        if camera.cfg.cmf_a_deg != displayed_cmf_a:
-            displayed_cmf_a = camera.cfg.cmf_a_deg
-            draw.rectangle((image_width - 140, 0, image_width - 1, header_height - 1), fill=header_color)
-            text = f"cmf_a {displayed_cmf_a:g} deg"
-            draw.text((image_width - 8, header_height / 2), text, font=font, fill="white", anchor="rm")
-            labels.copy_(torch.from_numpy(np.array(header)))
-        detail = torch.cat((retina, torch.full_like(retina[..., :1], 255)), dim=-1)
+        detail = torch.cat((image, torch.full_like(image[..., :1], 255)), dim=-1)
 
         # Transform the fixed observer into the live camera frame, independently of active gaze.
         position, orientation = camera.get_world_poses(convention="opengl")
@@ -345,7 +347,7 @@ def camera_comparison(
         detail = detail.permute(2, 0, 1).unsqueeze(0)
         detail = torch.nn.functional.interpolate(detail, size=(size, size), mode="nearest")[0].permute(1, 2, 0)
         detail[..., :3].masked_fill_(~retina_disc[..., None], 0)
-        return wp.from_torch(torch.cat((labels, torch.cat((full, divider, detail), dim=1)), dim=0))
+        return wp.from_torch(torch.cat((full, divider, detail), dim=1).contiguous())
 
     return prepare, compose
 
@@ -404,10 +406,15 @@ def main() -> None:
     if cfg.scene.eye.renderer_cfg.renderer_type == "ovrtx":
         print("Starting OVRTX. The first frame can take several minutes with a cold shader cache.", flush=True)
     with launch_simulation(cfg, args_cli):
+        if args_cli.cmf_a_values is not None:
+            # The panel's controls load USD, so they are imported once the simulation has launched.
+            from isaaclab_fovi.sensors import ViewerGazeControls
+
+            ViewerGazeControls.cmf_a_values = args_cli.cmf_a_values
         visualizer_types = {v.backend.visualizer_type for v in cfg.sim.visualizer_cfgs}
         if visualizer_types - {"newton"}:
             logger.warning(
-                "The foveated-camera example's gaze keys and viewing-sphere panel need the Newton visualizer"
+                "The foveated-camera example's gaze keys and viewing-sphere window need the Newton visualizer"
                 " (--viz newton). With %s, the gaze stays where it starts (see --target).",
                 ", ".join(sorted(visualizer_types - {"newton"})),
             )
@@ -428,8 +435,6 @@ def main() -> None:
                 pool_enabled=False,
                 mask_to_sensor_fov=True,
                 data_types=["rgb"],
-                # The overview only draws the panel; the viewer's gaze sliders are for the eye.
-                viewer_gaze_controls=False,
             )
         scene = instantiate(cfg.scene)
         sim.register_interactive_scene(scene)
@@ -486,7 +491,7 @@ def main() -> None:
 class GazeSteering:
     """Steer the eye's gaze with the mouse and I/J/K/L.
 
-    Left-dragging the viewer steers only the gaze, as I/J/K/L and the side panel's sliders do; a drag that starts over
+    Left-dragging the viewer steers only the gaze, as I/J/K/L and the gaze sliders do; a drag that starts over
     the viewer's panels stays with them. The viewer itself moves the eye's mount with WASD/QE.
     """
 

@@ -782,6 +782,9 @@ class NewtonVisualizerBase(BaseVisualizer):
     rtx_view_index: int | None = None
     rtx_rendering: bool = False
     sensor_view_selected: bool = False
+    _sensor_ui_callbacks: tuple[Callable[[Any, Camera], None], ...] = ()
+    """Callbacks that draw a scene sensor's own controls in the Camera Sensor section; see
+    :meth:`register_sensor_ui_callback`."""
 
     def __init__(self, cfg):
         super().__init__(cfg)
@@ -1009,16 +1012,27 @@ class NewtonVisualizerBase(BaseVisualizer):
         hover_tooltip(imgui, "Vertical field of view; the Focal Length slider changes it")
 
     def _rtx_appearance_controller(self) -> RtxAppearance | None:
-        """Create the OVRTX appearance controller on first use, or None when it cannot be created."""
+        """Create the OVRTX appearance controller on first use.
+
+        Returns:
+            The controller. None until the viewer camera has a rendered frame, or if the controller cannot be created.
+        """
         if self._rtx_appearance is None and not self._rtx_appearance_failed:
             view = self._rtx_view()
             try:
                 camera = view.camera
                 renderer = self._sim.get_or_create_backend(camera.cfg.renderer_cfg)
+                if camera._render_data in renderer.backend.unrendered:
+                    # The viewer camera shares the OVRTX engine. Until a frame renders, a failed frame can move it to a
+                    # new render product, and the controller would keep writing to the old one without an error.
+                    return None
+                # The viewer camera has one view, so it has one render product. The unpacking fails if it has more,
+                # because the controls would change only the first one.
+                (product,) = camera._render_data.products
                 self._rtx_appearance = RtxAppearance(
                     self._sim.stage,
                     renderer,
-                    camera._render_data.render_product_path,
+                    product.path,
                     camera.cfg.background_color,
                 )
             except Exception:
@@ -1180,11 +1194,25 @@ class NewtonVisualizerBase(BaseVisualizer):
         """Order the Camera Source list: the free Perspective, then scene sensors."""
         return 0 if view.camera is None else 1
 
+    def register_sensor_ui_callback(self, callback: Callable[[Any, Camera], None]) -> None:
+        """Draw a scene sensor's own controls in the Camera Sensor section, below the Camera Source selector.
+
+        While a scene sensor is the camera source, ``callback`` is invoked every UI frame with the ``imgui`` module and
+        that sensor, after the section's channel and environment controls. It draws only for the sensors it handles.
+        """
+        self._sensor_ui_callbacks = (*self._sensor_ui_callbacks, callback)
+
     def _draw_sensor_controls(self, imgui, view) -> None:
-        """Choose which channel of a sensor is shown, and which environment, or tile several environments."""
-        camera = view.camera
+        """Choose which channel of a sensor is shown and which environments, then draw the sensor's own controls."""
         imgui.separator_text("Camera Sensor")
         self._draw_sensor_channels(imgui, view)
+        self._draw_sensor_envs(imgui, view)
+        for callback in self._sensor_ui_callbacks:
+            callback(imgui, view.camera)
+
+    def _draw_sensor_envs(self, imgui, view) -> None:
+        """Choose which environment of a sensor is shown, or tile several environments."""
+        camera = view.camera
         offered = self._sensor_tiles.get(view)
         if offered is None:  # A single-instance sensor has no environment to choose.
             return
@@ -2071,6 +2099,11 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             if self._picking_enabled:
                 # Captured graphs retain neutral picking inputs until their last replay.
                 self._viewer_picking_binding.deactivate()
+            if sys.platform == "win32" and self._viewer is not None and not self._runtime_headless:
+                window = self._viewer.renderer.window
+                if window.context is not None:
+                    # Release focus while pyglet's weak event handlers still have live targets.
+                    window.set_visible(False)
         finally:
             self._viewer = self.backend = self._transform_mapping = None
             super().close()
