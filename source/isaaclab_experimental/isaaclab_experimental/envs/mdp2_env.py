@@ -87,6 +87,10 @@ class MDP2Env:
         sim.backend_manager.set_decimation(cfg.decimation)
         # Newton-native actuators step all substeps in one call.
         self._substeps = cfg.decimation if sim.backend_manager.handles_decimation() else 1
+        # Newton actuators that it cannot capture, such as networks loaded from Torch checkpoints, run on the host:
+        # the physics, which steps them, and the scene reset, which resets them, then run between the graphs.
+        actuators = sim.backend_manager.backend.actuators
+        self._physics_capturable = actuators is None or actuators.is_all_graphable
 
         self.scene_data = InteractiveSceneData(self.scene, sim, self.step_dt)
         schema = self.scene_data.schema
@@ -214,7 +218,7 @@ class MDP2Env:
         work = []
         for item in self.cfg.step:
             if item is Step.PHYSICS:
-                work.append((True, self._simulate))
+                work.append((self._physics_capturable, self._simulate))
             elif item is Step.EVALUATE:
                 work += [
                     (launch.capturable, functools.partial(launch, evaluate)) for launch in self.mdp.launches.evaluate
@@ -235,7 +239,7 @@ class MDP2Env:
         work = []
         for item in self.cfg.reset_step:
             if item is ResetStep.EVENTS:
-                work.append((True, functools.partial(self._reset_scene, mask)))
+                work.append((self._physics_capturable, functools.partial(self._reset_scene, mask)))
                 work += [(launch.capturable, functools.partial(launch, reset)) for launch in launches.reset]
             elif item is ResetStep.COMMIT:
                 work.append((True, functools.partial(self._commit, mask)))

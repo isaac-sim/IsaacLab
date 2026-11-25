@@ -9,7 +9,7 @@ import itertools
 import warnings
 from collections.abc import Callable, Sequence
 from dataclasses import MISSING
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 
@@ -62,6 +62,16 @@ class InclusionSet:
     until the scene's clone strategy selects concrete variants for its environments.
     """
 
+    sample_by: Literal["category", "entry"] = "entry"
+    """How the clone strategy samples compatible assets.
+
+    ``"entry"`` samples assets directly. ``"category"`` first samples a ``category`` semantic
+    tag value uniformly, then an asset uniformly within it, independently for each named asset.
+    Category sampling requires every candidate to have a ``category`` tag; multiple values put
+    an asset in multiple categories. Both modes apply after compatibility matching, without
+    enumerating category combinations. The clone strategy owns both sampling steps.
+    """
+
 
 @configclass
 class CloneCfg:
@@ -107,11 +117,11 @@ def make_valid_clone_combinations(
     clone_combinations: Sequence[InclusionSet] | None = None,
     *,
     all_asset_names: Sequence[str] | None = None,
-) -> tuple[tuple[tuple[int | tuple[int, ...], ...], ...], np.ndarray]:
+) -> tuple[tuple[tuple[int | tuple, ...], ...], np.ndarray]:
     """Resolve inclusion membership and semantic compatibility before replication.
 
     Repeated names create repeated instances. Unclaimed assets join every world independently.
-    Without matching tags, preserve the existing exhaustive product. With matching tags, return
+    Without matching or category sampling, preserve the existing exhaustive product. Otherwise return
     compact compatible groups: each slot lists its candidate prototype IDs, without expanding
     the Cartesian product within a group. Concrete selection belongs to clone-plan construction.
 
@@ -124,7 +134,8 @@ def make_valid_clone_combinations(
 
     Returns:
         World definitions and their relative weights. A definition contains concrete prototype IDs
-        or tuples of alternative IDs per slot. Inclusion weight is split equally across definitions.
+        or tuples of alternative IDs per slot. Category sampling adds a nested tuple per tag value.
+        Inclusion weight is split equally across definitions.
 
     Raises:
         ValueError: Candidate groups are empty or misaligned, asset names are unknown, or no
@@ -136,8 +147,11 @@ def make_valid_clone_combinations(
     combinations = clone_combinations or (InclusionSet(assets=list(dict.fromkeys(asset_names))),)
     claimed = set().union(*(combination.assets for combination in combinations))
     offsets = np.cumsum([0, *(len(candidates) for candidates in variant_cfgs)])
+    configurations = [cfg for candidates in variant_cfgs for cfg in candidates]
     worlds, weights = [], []
     for combination in combinations:
+        if combination.sample_by not in ("category", "entry"):
+            raise ValueError("InclusionSet.sample_by must be 'category' or 'entry'.")
         if unknown := set(combination.assets) - known:
             raise ValueError(f"Unknown assets in clone combination: {sorted(unknown)}.")
         names, choices, candidates = [], [], []
@@ -147,7 +161,7 @@ def make_valid_clone_combinations(
             choices.extend([tuple(range(int(offsets[index]), int(offsets[index + 1])))] * count)
             candidates.extend([variant_cfgs[index]] * count)
         start = len(worlds)
-        if not combination.match_tags:
+        if not combination.match_tags and combination.sample_by == "entry":
             worlds.extend(itertools.product(*choices))
         else:
             buckets = []
@@ -168,12 +182,25 @@ def make_valid_clone_combinations(
                 buckets.append(groups)
                 common = list(groups) if common is None else [key for key in common if key in groups]
             for key in [()] if common is None else common:
-                worlds.append(
-                    tuple(
-                        tuple(group[key]) if group is not None else ids
-                        for group, ids in zip(buckets, choices, strict=True)
-                    )
-                )
+                slots = []
+                for name, group, ids in zip(names, buckets, choices, strict=True):
+                    compatible = tuple(group[key]) if group is not None else ids
+                    if combination.sample_by == "category" and name in combination.assets:
+                        categories = {}
+                        for prototype in compatible:
+                            values = dict.fromkeys(
+                                value
+                                for tag, value in configurations[prototype].semantic_tags or ()
+                                if tag == "category"
+                            )
+                            if not values:
+                                raise ValueError(f"Asset {name!r} has a candidate without 'category' tags.")
+                            for value in values:
+                                categories.setdefault(value, []).append(prototype)
+                        slots.append(tuple(tuple(category) for category in categories.values()))
+                    else:
+                        slots.append(compatible)
+                worlds.append(tuple(slots))
             # Identical groups can arise when all candidates carry several matching values.
             worlds[start:] = dict.fromkeys(worlds[start:])
         count = len(worlds) - start

@@ -5,8 +5,34 @@ Recording Animations of Simulations
 
 .. currentmodule:: isaaclab
 
+Use Newton RTX to record simulation videos or kit-less OVPhysX to capture live physics data.
+Existing projects can also use the Kit recorders to export USD animations.
+
+Newton RTX video recording
+---------------------------
+
+Install the rendering and video extras, then run the recording tutorial:
+
+.. code-block:: bash
+
+   uv run --extra ov --extra video python scripts/tutorials/07_visualizers/run_video_recording.py \
+      --example 1 --num_envs 4 --viz newton_rtx
+
+This records the Newton RTX viewport as an MP4 video. The tutorial also demonstrates recording
+scene-camera outputs and multiple views. See :doc:`/source/concepts/visualization` for recorder
+configuration. Video recording captures rendered frames; it does not produce the time-sampled
+USD layers described below.
+
+Isaac Sim / Kit USD animation (deprecated)
+------------------------------------------
+
+.. deprecated:: 3.1
+
+   Isaac Lab's Kit recording paths will be removed in 3.2. Use Newton RTX for new video-recording
+   workflows. The Stage Recorder and OVD instructions below remain available for projects that
+   need their USD animation outputs.
+
 The **Stage Recorder** and the **Isaac Sim OVD Recorder** generate USD animations for playback in Omniverse.
-The kit-less OVPhysX backend can also capture OVD data while a simulation is running.
 
 The `Stage Recorder`_ extension listens to all motion and USD property changes in the stage during simulation
 and records them as **time-sampled data**. The result is a USD file that captures only the animated changes—**not** the
@@ -28,7 +54,7 @@ The animated USD can be quickly replayed and reviewed by scrubbing through the t
 
 
 Stage Recorder
---------------
+~~~~~~~~~~~~~~
 
 In Isaac Lab, the Stage Recorder is integrated into the :class:`~isaaclab.envs.ui.BaseEnvWindow` class.
 It’s the easiest way to capture physics simulations visually and works directly through the UI.
@@ -36,7 +62,7 @@ It’s the easiest way to capture physics simulations visually and works directl
 To record, Fabric must be disabled—this allows the recorder to track changes to USD and write them out.
 
 Stage Recorder Settings
-~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^
 
 Isaac Lab sets up the Stage Recorder with sensible defaults in ``base_env_window.py``. If needed,
 you can override or inspect these by using the Stage Recorder extension directly in Omniverse Create.
@@ -50,13 +76,15 @@ you can override or inspect these by using the Stage Recorder extension directly
     :pyobject: BaseEnvWindow._toggle_recording_animation_fn
 
 Example Usage
-~~~~~~~~~~~~~
+^^^^^^^^^^^^^
 
-In standalone Isaac Lab environments, pass the ``--disable_fabric`` flag:
+Select a Kit-compatible environment and disable Fabric. This Cartpole example uses
+``physics=isaacsim_physx`` and the ``env.sim.use_fabric=False`` configuration override:
 
 .. code-block:: bash
 
-   python scripts/environments/state_machine/lift_cube_sm.py --num_envs 8 --device cpu --disable_fabric --viz kit
+   uv run --extra isaacsim python scripts/tutorials/03_envs/run_cartpole_rl_env.py \
+      --num_envs 8 --device cpu --viz kit physics=isaacsim_physx env.sim.use_fabric=False
 
 After launching, the Isaac Lab UI window will display a "Record Animation" button.
 Click to begin recording. Click again to stop.
@@ -92,7 +120,7 @@ See the `tutorial on layering in Omniverse`_ for more on working with layers.
 
 
 OVD Recorder
-------------
+~~~~~~~~~~~~
 
 The animation recording CLI uses the Isaac Sim PhysX backend to capture a single interval and bake it
 into a new USD stage. Use ``--viz kit`` to open a window and leave ``HEADLESS`` unset or set to ``0``.
@@ -102,12 +130,11 @@ into a new USD stage. Use ``--viz kit`` to open a window and leave ``HEADLESS`` 
    Select Isaac Sim PhysX by adding ``physics=isaacsim_physx`` to the command line, as shown below.
    Kit-less OVPhysX uses the live capture API described below.
 
-   If Isaac Sim is not installed, add ``--extra isaacsim`` to the ``uv run`` command.
-   See :ref:`installation-optional-extras` for details.
+   The examples include the Isaac Sim extra. See :ref:`installation-optional-extras` for details.
 
 
 Workflow Summary
-~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^
 
 1. User runs Isaac Lab with animation recording enabled via CLI
 2. Isaac Lab starts simulation
@@ -116,7 +143,7 @@ Workflow Summary
 5. The final result is a fully baked, self-contained USD animation
 
 Example Usage
-~~~~~~~~~~~~~
+^^^^^^^^^^^^^
 
 To record an animation:
 
@@ -128,14 +155,18 @@ To record an animation:
 
       .. code-block:: bash
 
-         uv run python scripts/tutorials/03_envs/run_cartpole_rl_env.py --anim_recording_enabled --anim_recording_start_time 1 --anim_recording_stop_time 3 physics=isaacsim_physx --viz kit
+         uv run --extra isaacsim python scripts/tutorials/03_envs/run_cartpole_rl_env.py \
+            --viz kit --anim_recording_enabled --anim_recording_start_time 1 \
+            --anim_recording_stop_time 3 physics=isaacsim_physx
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code-block:: batch
 
-         uv run python scripts\tutorials\03_envs\run_cartpole_rl_env.py --anim_recording_enabled --anim_recording_start_time 1 --anim_recording_stop_time 3 physics=isaacsim_physx --viz kit
+         uv run --extra isaacsim python scripts\tutorials\03_envs\run_cartpole_rl_env.py ^
+            --viz kit --anim_recording_enabled --anim_recording_start_time 1 ^
+            --anim_recording_stop_time 3 physics=isaacsim_physx
 
 .. note::
 
@@ -154,7 +185,7 @@ After the stop time is reached, a file will be saved to:
 
 
 Live OVD capture with kit-less OVPhysX
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+--------------------------------------
 
 Use ``OvPhysxCfg(ovd_recording_capable=True)`` before the first native PhysX instance is created. The
 default is ``False``. After the scene's initial reset completes, get the native OVPhysX handle with

@@ -11,25 +11,26 @@ Example usage:
 .. code-block:: bash
 
     # Generate terrain with height color scheme
-    uvx --from 'isaaclab[isaacsim]' isaaclab example procedural-terrain --color_scheme height
+    uvx --from 'isaaclab[ov]' isaaclab example procedural-terrain --color_scheme height
 
     # Generate terrain with random color scheme
-    uvx --from 'isaaclab[isaacsim]' isaaclab example procedural-terrain --color_scheme random
+    uvx --from 'isaaclab[ov]' isaaclab example procedural-terrain --color_scheme random
 
     # Generate terrain with no color scheme
-    uvx --from 'isaaclab[isaacsim]' isaaclab example procedural-terrain --color_scheme none
+    uvx --from 'isaaclab[ov]' isaaclab example procedural-terrain --color_scheme none
 
     # Generate terrain with curriculum
-    uvx --from 'isaaclab[isaacsim]' isaaclab example procedural-terrain --use_curriculum
+    uvx --from 'isaaclab[ov]' isaaclab example procedural-terrain --use_curriculum
 
     # Generate terrain with curriculum along with flat patches
-    uvx --from 'isaaclab[isaacsim]' isaaclab example procedural-terrain --use_curriculum --show_flat_patches
+    uvx --from 'isaaclab[ov]' isaaclab example procedural-terrain --use_curriculum --show_flat_patches
 
 """
 
 from __future__ import annotations
 
 import argparse
+from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
 from isaaclab.app import add_launcher_args, launch_simulation
@@ -58,11 +59,12 @@ parser.add_argument(
     default=False,
     help="Whether to show the flat patches computed during the terrain generation.",
 )
-parser.add_argument("--physics", default="isaacsim_physx", choices=["isaacsim_physx"], help="Physics backend.")
+parser.add_argument("--physics", default="ovphysx", choices=["isaacsim_physx", "ovphysx"], help="Physics backend.")
 parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["kit"])
 args_cli = parser.parse_args()
+if args_cli.visualizer is None:
+    args_cli.visualizer = ["newton_gl" if args_cli.physics == "isaacsim_physx" else "newton_rtx"]
 if args_cli.max_steps == 0 or args_cli.max_steps < -1:
     parser.error("--max_steps must be positive or -1.")
 
@@ -71,7 +73,9 @@ import random
 import torch
 
 import isaaclab.sim as sim_utils
+from isaaclab.assets import AssetBaseCfg
 from isaaclab.markers.visualization_markers_cfg import VisualizationMarkersCfg
+from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.terrains.sub_terrain_cfg import FlatPatchSamplingCfg
 from isaaclab.terrains.terrain_importer_cfg import TerrainImporterCfg
 
@@ -159,15 +163,19 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, AssetBas
 def main():
     """Main function."""
     sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device)
-    with launch_simulation(sim_cfg, args_cli):
+    scene_cfg = InteractiveSceneCfg(num_envs=1, env_spacing=0.0)
+    scene_cfg.world = AssetBaseCfg(prim_path="/World")
+    with launch_simulation(SimpleNamespace(sim=sim_cfg, scene=scene_cfg), args_cli):
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
         sim.set_camera_view(eye=[15.0, 15.0, 15.0], target=[0.0, 0.0, 0.0])
         # design scene
         scene_entities, scene_origins = design_scene()
+        scene = instantiate(scene_cfg)
         sim.reset()
         print("[INFO]: Setup complete...")
         run_simulator(sim, scene_entities, scene_origins)
+        del scene
 
 
 if __name__ == "__main__":

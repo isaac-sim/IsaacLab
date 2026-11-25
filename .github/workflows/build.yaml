@@ -694,7 +694,7 @@ jobs:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_newton"
+        filter-pattern: "isaaclab_newton,isaaclab_neural,isaaclab_tasks/test/neural,scripts/neural"
         warp-cache: restore
         ovrtx-shader-cache: restore
         test-jobs: "4"

@@ -6,11 +6,16 @@
 """Unit tests: the Newton cloner honors USD-authored ``physics:approximation``."""
 
 import newton
+import numpy as np
 import pytest
+import trimesh
 from isaaclab_newton.cloner.newton_clone_utils import build_source_builders
+from isaaclab_newton.physics.newton_builder import usd_schema_resolvers
 from newton import GeoType, ShapeFlags
 
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
+
+from isaaclab.test.utils import DeviceScope, test_devices
 
 _SOURCE = "/World/Asset"
 
@@ -119,7 +124,7 @@ def _build_sources(stage: Usd.Stage, sources: list[str], **kwargs) -> dict[str, 
         stage,
         sources,
         create_builder=lambda: newton.ModelBuilder(up_axis=newton.Axis.Z),
-        schema_resolvers=[],
+        schema_resolvers=usd_schema_resolvers(None),
         **kwargs,
     )
 
@@ -192,18 +197,64 @@ class TestClonerCollisionApproximation:
         assert list(_collision_shapes(builders[sources[0]]).values()) == [GeoType.SPHERE]
         assert list(_collision_shapes(builders[sources[1]]).values()) == [GeoType.MESH]
 
-    def test_sdf_collider_is_never_remeshed(self):
-        """``physics:approximation`` is ignored on an SDF collider, matching Newton's importer.
-
-        Remeshing one is refused outright by Newton (it would drop the SDF the shape exists to
-        provide), so the authored mode must not reach it even when the prim authors one.
-        """
-        stage = _make_stage("boundingCube")
-        _apply_sdf_collision(stage, f"{_SOURCE}/geom")
-
-        shapes = _collision_shapes(_build(stage))
-
-        assert list(shapes.values()) == [GeoType.MESH]
+    @pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
+    def test_sdf_reduction_is_opt_in_and_preserves_visuals_and_cavities(self, device):
+        """Source import reduces only SDF collisions, retaining authored visuals, mass and the central hole."""
+        stage = _make_stage("none")
+        ring = trimesh.creation.annulus(r_min=0.04, r_max=0.05, height=0.03, sections=64)
+        path = f"{_SOURCE}/ring"
+        mesh = UsdGeom.Mesh.Define(stage, path)
+        # Duplicate vertices as in authored meshes with UV/normal seams.
+        mesh.CreatePointsAttr(ring.vertices[ring.faces].reshape(-1, 3))
+        mesh.CreateFaceVertexCountsAttr(np.full(len(ring.faces), 3, dtype=np.int32))
+        mesh.CreateFaceVertexIndicesAttr(np.arange(ring.faces.size, dtype=np.int32))
+        UsdGeom.Xformable(mesh).AddTranslateOp().Set((0.03, -0.02, 0.01))
+        UsdPhysics.CollisionAPI.Apply(mesh.GetPrim())
+        # SDF must still ignore a non-mesh approximation, while allowing explicit triangle reduction.
+        UsdPhysics.MeshCollisionAPI.Apply(mesh.GetPrim()).CreateApproximationAttr("boundingCube")
+        _apply_sdf_collision(stage, path)
+        original = _build(stage)
+        reduced = _build(stage, sdf_mesh_reduction=0.75)
+        index = reduced.shape_label.index(path)
+        baseline = original.shape_source[original.shape_label.index(path)]
+        cooked = reduced.shape_source[index]
+        assert reduced.shape_type[index] == GeoType.MESH
+        assert reduced.shape_sdf_max_resolution[index] == 64
+        assert len(cooked.indices) <= len(baseline.indices) * 0.3
+        assert len(baseline.indices) == ring.faces.size
+        assert np.linalg.norm(cooked.vertices[cooked.indices.reshape(-1, 3)].mean(axis=1)[:, :2], axis=1).min() > 0.035
+        plain = f"{_SOURCE}/geom"
+        np.testing.assert_array_equal(
+            reduced.shape_source[reduced.shape_label.index(plain)].indices,
+            original.shape_source[original.shape_label.index(plain)].indices,
+        )
+        for before in range(original.shape_count):
+            if not original.shape_flags[before] & ShapeFlags.VISIBLE:
+                continue
+            candidates = [
+                i
+                for i, label in enumerate(reduced.shape_label)
+                if label.startswith(original.shape_label[before]) and reduced.shape_flags[i] & ShapeFlags.VISIBLE
+            ]
+            assert len(candidates) == 1
+            after = candidates[0]
+            np.testing.assert_array_equal(reduced.shape_source[after].vertices, original.shape_source[before].vertices)
+            np.testing.assert_array_equal(reduced.shape_source[after].indices, original.shape_source[before].indices)
+            assert reduced.shape_transform[after] == original.shape_transform[before]
+        np.testing.assert_allclose(reduced.body_mass, original.body_mass)
+        np.testing.assert_allclose(reduced.body_inertia, original.body_inertia)
+        bypass = _build(stage, sdf_mesh_reduction=0.75, skip_mesh_approximation=True)
+        assert len(bypass.shape_source[bypass.shape_label.index(path)].indices) == ring.faces.size
+        # Two slots using the same asset must share the cooked SDF allocation, without merging their bodies.
+        duplicate = "/World/Copy"
+        Sdf.CopySpec(stage.GetRootLayer(), _SOURCE, stage.GetRootLayer(), duplicate)
+        sources = _build_sources(stage, [_SOURCE, duplicate], sdf_mesh_reduction=0.75)
+        combined = newton.ModelBuilder()
+        for builder in sources.values():
+            combined.add_builder(builder)
+        model = combined.finalize(device=device)
+        assert model.body_count == 2
+        assert len(model._texture_sdf_data) == 1, "Repeated slots must not allocate duplicate SDF textures"
 
     def test_primitive_collider_remains_visible_in_mixed_visual_model(self):
         """Colliders remain visible only when their body or static parent has no visual shape.

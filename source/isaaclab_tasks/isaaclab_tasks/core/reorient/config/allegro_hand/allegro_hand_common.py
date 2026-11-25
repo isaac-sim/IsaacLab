@@ -11,6 +11,7 @@ presets, and the sim mixin. No task tunables.
 
 from isaaclab_isaacsim.physics import PhysxCfg
 from isaaclab_isaacsim.sim.schemas import PhysxRigidBodyCfg
+from isaaclab_neural.physics import MJWarpNeRDSolverCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, SteelSolverCfg
 from isaaclab_ov.physics import OvPhysxCfg
 
@@ -85,6 +86,14 @@ class PhysicsCfg(PresetCfg):
             update_data_interval=2,
         ),
         num_substeps=2,
+    )
+    newton_mjwarp_nerd = replace(
+        newton_mjwarp,
+        solver_cfg=MJWarpNeRDSolverCfg.from_mjwarp(
+            newton_mjwarp.solver_cfg,
+            checkpoint="logs/neural/allegro_hand/flashnerd.pt",
+            articulation=ALLEGRO_HAND_ROBOT_CFG.prim_path,
+        ),
     )
     newton_steel = NewtonCfg(
         solver_cfg=SteelSolverCfg(

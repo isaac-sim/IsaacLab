@@ -25,8 +25,8 @@ from isaaclab.utils import clone
 parser = argparse.ArgumentParser(description="Tutorial on spawning and interacting with a Surface Gripper.")
 # append simulation launcher cli args
 add_launcher_args(parser)
-# tutorials should open Kit visualizer by default
-parser.set_defaults(visualizer=["kit"])
+# tutorials should open the Newton visualizer by default
+parser.set_defaults(visualizer=["newton"])
 # parse the arguments
 args_cli = parser.parse_args()
 

@@ -94,7 +94,8 @@ class CollisionAnalyzer:
             for body_id, body_name in zip(body_ids, body_names):
                 _, prim_path = resolve_matching_prims_from_source(
                     self.asset.cfg.prim_path,
-                    predicate=lambda p, name=body_name: p.GetName() == name and p.HasAPI(UsdPhysics.RigidBodyAPI),
+                    predicate=lambda p, name=body_name: p.HasAPI(UsdPhysics.RigidBodyAPI)
+                    and (len(self.asset.body_names) == 1 or p.GetName() == name),
                     expected_num_matches=1,
                 )[0]
                 asset_hasher = RigidObjectHasher(
@@ -103,7 +104,7 @@ class CollisionAnalyzer:
                     device=device,
                     compact_sources=True,
                     geometry_policy=getattr(cfg.asset_cfg, "geometry_policy", "authored_collision"),
-                    body_names=(body_name,),
+                    body_names=(prim_path.rsplit("/", 1)[-1],),
                 )
                 if asset_hasher.num_root != 1:
                     raise ValueError(f"Collision query asset '{prim_path}' must have one clone source.")

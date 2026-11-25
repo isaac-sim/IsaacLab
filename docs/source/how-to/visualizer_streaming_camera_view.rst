@@ -87,16 +87,16 @@ Run the ``run_tiled_camera_visualizer.py`` script in ``IsaacLab/scripts/tutorial
 
       .. code-block:: bash
 
-         uv run python scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py \
-             --task Isaac-Velocity-Rough-AnymalD --num_envs 256 --viz kit
+         uv run --extra ov python scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py \
+             --task Isaac-Velocity-Rough-AnymalD --num_envs 256 --viz newton_rtx
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code-block:: batch
 
-         uv run python scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py ^
-             --task Isaac-Velocity-Rough-AnymalD --num_envs 256 --viz kit
+         uv run --extra ov python scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py ^
+             --task Isaac-Velocity-Rough-AnymalD --num_envs 256 --viz newton_rtx
 
 .. dropdown:: Code for run_tiled_camera_visualizer.py
    :icon: code
@@ -265,16 +265,16 @@ Example 1: Following AnymalD Robots
 
       .. code-block:: bash
 
-         uv run python scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py \
-             --task Isaac-Velocity-Rough-AnymalD --num_envs 256 --viz kit
+         uv run --extra ov python scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py \
+             --task Isaac-Velocity-Rough-AnymalD --num_envs 256 --viz newton_rtx
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code-block:: batch
 
-         uv run python scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py ^
-             --task Isaac-Velocity-Rough-AnymalD --num_envs 256 --viz kit
+         uv run --extra ov python scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py ^
+             --task Isaac-Velocity-Rough-AnymalD --num_envs 256 --viz newton_rtx
 
 The script adds a ``CameraCfg`` beneath each robot's base before constructing the environment.
 Its offset defines the view relative to the base, so the camera follows the robot through the

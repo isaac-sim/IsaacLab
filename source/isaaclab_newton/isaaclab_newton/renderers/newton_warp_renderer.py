@@ -300,7 +300,17 @@ class NewtonWarpRenderer(BaseRenderer):
                 block_dim=self.cfg.kernel_block_dim,
             ),
         )
-        if self.cfg.create_default_light:
+        lighting = getattr(self.backend.model, "isaaclab_lighting", None)
+        if lighting is not None and lighting.authored.numpy()[0]:
+            self.newton_sensor.set_ambient_light(lighting.ambient.numpy()[0])
+            direction = lighting.distant_direction.numpy()[0]
+            if any(direction):
+                self.newton_sensor.create_default_light(
+                    direction=wp.vec3(*direction),
+                    color=lighting.distant_color.numpy()[0],
+                    enable_shadows=self.cfg.enable_shadows and bool(lighting.shadows.numpy()[0]),
+                )
+        elif self.cfg.create_default_light:
             self.newton_sensor.create_default_light(enable_shadows=self.cfg.enable_shadows)
 
     @property

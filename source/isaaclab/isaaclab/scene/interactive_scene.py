@@ -45,7 +45,7 @@ from ..assets import (
 )
 from ..markers import VisualizationMarkers, VisualizationMarkersCfg
 from ..physics import PhysicsEvent, PhysicsManager
-from ..sensors import CameraCfg, ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg
+from ..sensors import CameraCfg, ContactSensorCfg, FrameTransformerCfg, LidarCfg, SensorBase, SensorBaseCfg
 from ..sim import SimulationContext
 from ..sim.usd_export import UsdExporter
 from ..sim.utils.stage import get_current_stage, get_current_stage_id
@@ -235,7 +235,7 @@ class InteractiveScene:
             cfgs.append(child)
             count = cloner.num_spawn_variants(getattr(child, "spawn", None))
             is_per_env = cloner.path.match(child.prim_path, self._env_fmt) is not None
-            is_spawned = isinstance(child, (AssetBaseCfg, CameraCfg)) and child.spawn is not None
+            is_spawned = isinstance(child, (AssetBaseCfg, CameraCfg, LidarCfg)) and child.spawn is not None
             if is_per_env and is_spawned and combinations:
                 clone_asset_names.append(asset_name)
                 spawn = child.spawn
@@ -258,13 +258,11 @@ class InteractiveScene:
             worlds, weights = cloner.make_valid_clone_combinations(
                 clone_asset_names, variant_cfgs, combinations, all_asset_names=scene_asset_names
             )
-            worlds = tuple(
-                tuple(
-                    prototype_indices[slot] if isinstance(slot, int) else tuple(prototype_indices[i] for i in slot)
-                    for slot in world
-                )
-                for world in worlds
-            )
+
+            def remap(slot):
+                return prototype_indices[slot] if isinstance(slot, int) else tuple(remap(choice) for choice in slot)
+
+            worlds = tuple(tuple(remap(slot) for slot in world) for world in worlds)
             return cfgs, worlds, weights
         return cfgs, None, None
 

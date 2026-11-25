@@ -55,7 +55,7 @@ def test_rmpflow_reset_pose_is_stable(task_name: str, drift_tol: float):
     device = "cpu"
     sim_utils.create_new_stage()
     try:
-        env_cfg = parse_env_cfg(task_name, device=device, num_envs=1)
+        env_cfg = parse_env_cfg(task_name, device=device, num_envs=1, overrides=["physics=isaacsim_physx"])
         env = gym.make(task_name, cfg=env_cfg)
     except Exception as e:  # noqa: BLE001
         if "env" in locals() and hasattr(env, "_is_closed"):

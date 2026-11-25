@@ -12,11 +12,34 @@ from isaaclab.utils import configclass, replace
 
 from isaaclab_tasks.core.cabinet import mdp
 
-from isaaclab_assets.robots.openarm import OPENARM_UNI_CFG
+from isaaclab_assets.robots.openarm import (
+    OPENARM_UNI_CFG,
+    OPENARM_UNI_ISAACSIM_BODY_ORDER,
+    OPENARM_UNI_ISAACSIM_JOINT_ORDER,
+)
 
 from isaaclab_tasks.contrib.cabinet.config.openarm.cabinet_openarm_env_cfg import (  # isort: skip
     FRAME_MARKER_SMALL_CFG,
     CabinetEnvCfg,
+)
+
+
+CABINET_ISAACSIM_JOINT_ORDER = (
+    "drawer_bottom_joint",
+    "drawer_top_joint",
+    "door_left_joint",
+    "door_right_joint",
+)
+CABINET_ISAACSIM_BODY_ORDER = (
+    "sektion",
+    "drawer_bottom",
+    "drawer_top",
+    "door_left_link",
+    "door_right_link",
+    "drawer_handle_bottom",
+    "drawer_handle_top",
+    "door_left_nob_link",
+    "door_right_nob_link",
 )
 
 
@@ -26,8 +49,17 @@ class OpenArmCabinetEnvCfg(CabinetEnvCfg):
         # post init of parent
         super().__post_init__()
 
+        # Preserve the original policy-facing cabinet axes.
+        self.scene.cabinet.joint_ordering = CABINET_ISAACSIM_JOINT_ORDER
+        self.scene.cabinet.body_ordering = CABINET_ISAACSIM_BODY_ORDER
+
         # Set OpenArm as robot
-        self.scene.robot = replace(OPENARM_UNI_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace(
+            OPENARM_UNI_CFG,
+            prim_path="{ENV_REGEX_NS}/Robot",
+            joint_ordering=OPENARM_UNI_ISAACSIM_JOINT_ORDER,
+            body_ordering=OPENARM_UNI_ISAACSIM_BODY_ORDER,
+        )
 
         # Set Actions for the specific robot type (OpenArm)
         self.actions.arm_action = mdp.JointPositionActionCfg(

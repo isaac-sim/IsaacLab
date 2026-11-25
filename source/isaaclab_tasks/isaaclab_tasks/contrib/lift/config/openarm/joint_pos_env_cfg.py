@@ -18,7 +18,11 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab_tasks.contrib.lift import mdp
 from isaaclab_tasks.contrib.lift.lift_env_cfg import LiftEnvCfg
 
-from isaaclab_assets.robots.openarm import OPENARM_UNI_CFG
+from isaaclab_assets.robots.openarm import (
+    OPENARM_UNI_CFG,
+    OPENARM_UNI_ISAACSIM_BODY_ORDER,
+    OPENARM_UNI_ISAACSIM_JOINT_ORDER,
+)
 
 ##
 # Pre-defined configs
@@ -37,7 +41,12 @@ class OpenArmCubeLiftEnvCfg(LiftEnvCfg):
         super().__post_init__()
 
         # Set OpenArm as robot
-        self.scene.robot = replace(OPENARM_UNI_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace(
+            OPENARM_UNI_CFG,
+            prim_path="{ENV_REGEX_NS}/Robot",
+            joint_ordering=OPENARM_UNI_ISAACSIM_JOINT_ORDER,
+            body_ordering=OPENARM_UNI_ISAACSIM_BODY_ORDER,
+        )
 
         # Scope the joint-space terms to the OpenArm's own joints.
         self.observations.policy.joint_pos.params = {"asset_cfg": SceneEntityCfg("robot", joint_names=OPENARM_JOINTS)}
