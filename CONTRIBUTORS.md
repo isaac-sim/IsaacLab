@@ -35,6 +35,7 @@ Guidelines for modifications:
 * Matthew Trepte
 * Maximilian Krause
 * Mayank Mittal
+* Mehdi Ataei
 * Mike Yan Michelis
 * Mikhail Yurasov
 * Mustafa Haiderbhai

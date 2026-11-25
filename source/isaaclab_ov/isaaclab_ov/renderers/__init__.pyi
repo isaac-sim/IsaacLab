@@ -4,12 +4,14 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "OVRTXLidarCfg",
     "OVRTXRenderer",
     "OVRTXRendererCfg",
     "OVRTXBackendCfg",
     "Renderer",
 ]
 
+from .ovrtx_lidar_cfg import OVRTXLidarCfg
 from .ovrtx_renderer import OVRTXRenderer
 from .ovrtx_renderer import OVRTXRenderer as Renderer
 from .ovrtx_renderer_cfg import OVRTXBackendCfg, OVRTXRendererCfg

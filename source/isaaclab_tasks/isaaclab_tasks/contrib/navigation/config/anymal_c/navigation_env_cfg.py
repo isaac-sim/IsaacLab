@@ -17,8 +17,10 @@ from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 import isaaclab_tasks.contrib.navigation.mdp as mdp
 from isaaclab_tasks.contrib.velocity.config.anymal_c.flat_env_cfg import AnymalCFlatEnvCfg
+from isaaclab_tasks.utils import resolve_presets
 
-LOW_LEVEL_ENV_CFG = AnymalCFlatEnvCfg()
+# The low-level task is taken with its default presets. Its other presets are not choices of this task.
+LOW_LEVEL_ENV_CFG = resolve_presets(AnymalCFlatEnvCfg())
 
 
 @configclass

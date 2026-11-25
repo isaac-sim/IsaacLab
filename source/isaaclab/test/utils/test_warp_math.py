@@ -198,7 +198,7 @@ def test_shared_math_ownership(source_checkout_root):
     for relative, forbidden in (
         ("isaaclab/isaaclab/sensors/ray_caster/kernels.py", "quat_yaw_only"),
         (
-            "isaaclab_tasks_experimental/isaaclab_tasks_experimental/core/reorient/reorient_warp_env.py",
+            "isaaclab_tasks_experimental/isaaclab_tasks_experimental/deprecated/core/reorient/reorient_warp_env.py",
             "rotation_distance",
         ),
     ):

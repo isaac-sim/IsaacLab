@@ -54,6 +54,7 @@ from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, WindowCfg
 
 from isaaclab_visualizers.desktop_entry import write_desktop_entry
+from isaaclab_visualizers.lidar_points import collect_lidar_hits, frame_visualizer_closeup, log_lidar_hits
 from isaaclab_visualizers.newton.newton_overlay_meshes import OverlayMeshPublisher
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
 
@@ -782,6 +783,9 @@ class NewtonVisualizerBase(BaseVisualizer):
     rtx_view_index: int | None = None
     rtx_rendering: bool = False
     sensor_view_selected: bool = False
+    _sensor_ui_callbacks: tuple[Callable[[Any, Camera], None], ...] = ()
+    """Callbacks that draw a scene sensor's own controls in the Camera Sensor section; see
+    :meth:`register_sensor_ui_callback`."""
 
     def __init__(self, cfg):
         super().__init__(cfg)
@@ -1009,16 +1013,27 @@ class NewtonVisualizerBase(BaseVisualizer):
         hover_tooltip(imgui, "Vertical field of view; the Focal Length slider changes it")
 
     def _rtx_appearance_controller(self) -> RtxAppearance | None:
-        """Create the OVRTX appearance controller on first use, or None when it cannot be created."""
+        """Create the OVRTX appearance controller on first use.
+
+        Returns:
+            The controller. None until the viewer camera has a rendered frame, or if the controller cannot be created.
+        """
         if self._rtx_appearance is None and not self._rtx_appearance_failed:
             view = self._rtx_view()
             try:
                 camera = view.camera
                 renderer = self._sim.get_or_create_backend(camera.cfg.renderer_cfg)
+                if camera._render_data in renderer.backend.unrendered:
+                    # The viewer camera shares the OVRTX engine. Until a frame renders, a failed frame can move it to a
+                    # new render product, and the controller would keep writing to the old one without an error.
+                    return None
+                # The viewer camera has one view, so it has one render product. The unpacking fails if it has more,
+                # because the controls would change only the first one.
+                (product,) = camera._render_data.products
                 self._rtx_appearance = RtxAppearance(
                     self._sim.stage,
                     renderer,
-                    camera._render_data.render_product_path,
+                    product.path,
                     camera.cfg.background_color,
                 )
             except Exception:
@@ -1180,11 +1195,25 @@ class NewtonVisualizerBase(BaseVisualizer):
         """Order the Camera Source list: the free Perspective, then scene sensors."""
         return 0 if view.camera is None else 1
 
+    def register_sensor_ui_callback(self, callback: Callable[[Any, Camera], None]) -> None:
+        """Draw a scene sensor's own controls in the Camera Sensor section, below the Camera Source selector.
+
+        While a scene sensor is the camera source, ``callback`` is invoked every UI frame with the ``imgui`` module and
+        that sensor, after the section's channel and environment controls. It draws only for the sensors it handles.
+        """
+        self._sensor_ui_callbacks = (*self._sensor_ui_callbacks, callback)
+
     def _draw_sensor_controls(self, imgui, view) -> None:
-        """Choose which channel of a sensor is shown, and which environment, or tile several environments."""
-        camera = view.camera
+        """Choose which channel of a sensor is shown and which environments, then draw the sensor's own controls."""
         imgui.separator_text("Camera Sensor")
         self._draw_sensor_channels(imgui, view)
+        self._draw_sensor_envs(imgui, view)
+        for callback in self._sensor_ui_callbacks:
+            callback(imgui, view.camera)
+
+    def _draw_sensor_envs(self, imgui, view) -> None:
+        """Choose which environment of a sensor is shown, or tile several environments."""
+        camera = view.camera
         offered = self._sensor_tiles.get(view)
         if offered is None:  # A single-instance sensor has no environment to choose.
             return
@@ -1638,6 +1667,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self._cfg_visible_env_ids: list[int] | None = None
         self._visible_env_count: int | None = None
         self._num_envs = 0
+        self._lidar_step_counter = 0
 
     # ------------------------------------------------------------------
     # GL lifecycle
@@ -1699,6 +1729,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
                 self._sensor_tiles[view] = camera.num_instances
                 if self.cfg.view is None and not isinstance(self.cfg.streaming_envs, list) and view.cfg.envs == (0,):
                     view.cfg.envs = tuple(range(min(DEFAULT_TILED_ENVS, camera.num_instances)))
+        frame_visualizer_closeup(self, cameras)
         self._select_camera(0)
         if self.cfg.enable_markers and self.rtx_view_index is not None:
             # OVRTX draws markers as stage prims; the viewer camera's renderer shares the registry's groups.
@@ -1746,6 +1777,13 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         # exists in the scene.
         self._viewer._contacts_available = newton_backend_active or bool(scene_data_provider.get_contact_sensors())
 
+    def _log_lidar_points(self, viewer: Any) -> None:
+        """Log every visualized environment's lidar hits into the Newton GL scene."""
+        self._lidar_step_counter += 1
+        hits = collect_lidar_hits(self._sim, self._env_ids, self._lidar_step_counter)
+        if hits is not None:
+            log_lidar_hits(viewer, hits)
+
     def _render_frame(self) -> None:
         """Render one GL frame for the window or an on-demand capture."""
         viewer = self._viewer
@@ -1786,6 +1824,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
                         self._log_scene_contact_sensor_arrows()
                     if self.cfg.enable_markers:
                         render_newton_visualization_markers(viewer, self._env_ids, num_envs=self.backend.model.num_envs)
+                self._log_lidar_points(viewer)
             for name, arguments in self._pending_mesh_submissions.items():
                 viewer.log_mesh(name, **arguments)
             self._pending_mesh_submissions.clear()
@@ -2071,6 +2110,11 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             if self._picking_enabled:
                 # Captured graphs retain neutral picking inputs until their last replay.
                 self._viewer_picking_binding.deactivate()
+            if sys.platform == "win32" and self._viewer is not None and not self._runtime_headless:
+                window = self._viewer.renderer.window
+                if window.context is not None:
+                    # Release focus while pyglet's weak event handlers still have live targets.
+                    window.set_visible(False)
         finally:
             self._viewer = self.backend = self._transform_mapping = None
             super().close()

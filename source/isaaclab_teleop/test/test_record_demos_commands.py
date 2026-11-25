@@ -154,6 +154,16 @@ def test_recording_parses_ovxr_options_like_live(monkeypatch, capsys, arguments,
         assert parsed[0]["using_ovxr"] and parsed[0]["cloudxr_env"] == CLOUDXR_JS_ENV
 
 
+def test_zero_step_rate_without_ovxr_is_accepted(monkeypatch):
+    """A command that passes --ovxr_step_hz 0 without --ovxr keeps working in both entrypoints."""
+    from isaaclab_teleop.entrypoints import record_demos, teleop_se3_agent
+
+    for module in (record_demos, teleop_se3_agent):
+        monkeypatch.setattr(sys, "argv", ["entrypoint.py"])
+        monkeypatch.setattr(module, "args_cli", None, raising=False)
+        assert module._parse_args(["--task", "Test", "--ovxr_step_hz", "0"]).ovxr_step_hz == 0.0
+
+
 def test_recording_ovxr_checks_launch_before_preparing_and_owns_context_cleanup(monkeypatch, tmp_path):
     """OVXR checks precede generic validation, the task hook and simulation launch, as in live teleoperation."""
     import contextlib

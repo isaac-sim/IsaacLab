@@ -47,7 +47,9 @@ _BACKEND_MIRROR_NAMES = frozenset(
         "isaacsim_rtx",
         "newton_kamino",
         "newton_mjwarp",
+        "newton_mjwarp_nerd",
         "newton_mjwarp_vbd_proxy",
+        "newton_nerd",
         "newton_steel",
         "ovphysx",
         "ovrtx",
@@ -165,7 +167,7 @@ def _supports_warp_frontend(
         return False
 
     try:
-        from isaaclab_experimental.envs.frontend import FrontendIncompatibleError, WarpFrontend
+        from isaaclab_experimental.deprecated.envs.frontend import FrontendIncompatibleError, WarpFrontend
 
         from isaaclab_tasks.utils import resolve_task_config
 
