@@ -253,7 +253,7 @@ Export the pretrained dance checkpoint and one reference clip to a LEAPP bundle:
 .. code-block:: bash
 
    uv run --extra leapp isaaclab leapp export \
-       --task Isaac-Motion-Tracking-GenCoord-G1 --rl_library rsl_rl \
+       --task Isaac-Motion-Tracking-GenCoord-G1 --rl_library model_based \
        --checkpoint /path/to/dance/checkpoint.pt \
        --motion_dir /path/to/dance/hiphop.npz --export_save_path exported
 
