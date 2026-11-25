@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Lidar pose composition and return-layout contracts."""
+"""Lidar pose composition, return-layout, and reset contracts."""
 
 from __future__ import annotations
 
@@ -92,8 +92,8 @@ def test_lidar_scan_slot_count(overrides, expected):
     assert _lidar_cfg(**overrides).num_rays() == expected
 
 
-def test_lidar_world_pose_composes_a_rotated_parent():
-    """A parent yaw moves the offset off the world X axis instead of adding it to the origin."""
+def _lidar_without_runtime(*, num_envs: int, is_global: bool = False) -> OVRTXLidar:
+    """Build a lidar without spawning a prim or renderer."""
     lidar = OVRTXLidar.__new__(OVRTXLidar)
     lidar._initialize_handle = None
     lidar._invalidate_initialize_handle = None
@@ -101,7 +101,20 @@ def test_lidar_world_pose_composes_a_rotated_parent():
     lidar._debug_vis_handle = None
     lidar._renderer = None
     lidar._render_data = None
-    lidar._num_envs = 1
+    lidar._parent_view = None
+    lidar._is_global = is_global
+    lidar._num_envs = num_envs
+    lidar._device = "cpu"
+    lidar._data_dirty = False
+    lidar._ALL_ENV_MASK = wp.ones(num_envs, dtype=wp.bool, device="cpu")
+    lidar._reset_mask = wp.zeros(num_envs, dtype=wp.bool, device="cpu")
+    lidar._create_timing_buffers()
+    return lidar
+
+
+def test_lidar_world_pose_composes_a_rotated_parent():
+    """A parent yaw moves the offset off the world X axis instead of adding it to the origin."""
+    lidar = _lidar_without_runtime(num_envs=1)
     lidar._local_pos = torch.tensor([1.0, 0.0, 0.0])
     lidar._local_quat = torch.tensor([0.0, 0.0, 0.0, 1.0])
     lidar._pos_w = ProxyArray(wp.zeros(1, dtype=wp.vec3f, device="cpu"))

@@ -223,7 +223,15 @@ class OVRTXLidar(SensorBase):
             self._force_capture = False
 
     def reset(self, env_ids=None, env_mask=None) -> None:
-        """Clear returns for the reset environments."""
+        """Clear returns for the reset environments.
+
+        A global lidar has one buffer row. Scene environment IDs and masks therefore
+        clear the whole scan instead of indexing that row as if it were a replicated tile.
+        """
+        # World lidars have no per-environment rows; any scene reset refreshes the whole lidar.
+        if self._is_global:
+            env_ids = env_mask = None
+
         reset_mask = self._resolve_indices_and_mask(env_ids, env_mask)
         super().reset(env_mask=reset_mask)
 
