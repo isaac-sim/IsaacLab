@@ -6,8 +6,8 @@
 """Robustness smoke tests for packaged programs and standalone tutorial scripts.
 
 Set ``ISAACLAB_RUN_STANDALONE_SCRIPT_TESTS=1`` to enable the simulator launch
-matrix. Scripts with a ``--max_steps`` option run a few steps and must exit
-cleanly; other scripts must print their readiness marker and survive a soak.
+matrix. Scripts with a ``--max_steps`` option and naturally finite tutorials must
+exit cleanly. Other scripts must print their readiness marker and survive a soak.
 GUI cases additionally require ``DISPLAY`` or ``WAYLAND_DISPLAY``.
 ``ISAACLAB_STANDALONE_SOAK_TIME`` and ``ISAACLAB_STANDALONE_STARTUP_TIMEOUT``
 may be used to tune the default five-second soak and five-minute time limit.
@@ -263,14 +263,14 @@ assert config.physics.solver_cfg.project_outside_colliders is False
 
 def test_every_standalone_script_has_a_launch_contract_or_exemption():
     """Packaged programs must stop themselves; other scripts must be runnable or explicitly exempted."""
-    not_finite = [spec.relative_path for spec in SPECS if spec.program is not None and not spec.finite]
-    assert not not_finite, f"packaged programs need a --max_steps option: {not_finite}"
+    missing_step_limit = [spec.relative_path for spec in SPECS if spec.program is not None and not spec.has_step_limit]
+    assert not missing_step_limit, f"packaged programs need a --max_steps option: {missing_step_limit}"
     missing = [
         spec.relative_path
         for spec in SPECS
         if not spec.finite and spec.readiness_pattern is None and spec.skip_reason is None
     ]
-    assert not missing, f"standalone scripts need --max_steps, a readiness marker, or an OVERRIDES exemption: {missing}"
+    assert not missing, f"standalone scripts need a finite run, readiness marker, or exemption: {missing}"
 
 
 def test_overrides_only_reference_discovered_standalone_scripts():

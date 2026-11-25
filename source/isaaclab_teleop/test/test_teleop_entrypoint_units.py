@@ -158,7 +158,9 @@ def run_live_workflow(monkeypatch):
         monkeypatch.setattr(
             agent,
             "args_cli",
-            agent._build_parser().parse_args(["--task", "Test", "--ovxr", "--ovxr_step_hz", str(step_hz)]),
+            agent._build_parser().parse_args(
+                ["--task", "Test", "--ovxr", *([] if step_hz is None else ["--ovxr_step_hz", str(step_hz)])]
+            ),
             raising=False,
         )
         monkeypatch.setattr(agent, "has_kit", lambda: False)
@@ -172,34 +174,35 @@ def run_live_workflow(monkeypatch):
     return run
 
 
-def test_teleop_se3_agent_yields_only_when_ovxr_is_idle(monkeypatch):
-    """A paused kitless loop must yield without slowing Kit or active physics frames."""
+def test_ovxr_pacing_helper_skips_unthrottled_work_and_waits_out_paused_polling(monkeypatch):
+    """No wait without OVXR or for unthrottled active control; paused polling waits out the environment step."""
     from isaaclab_teleop.entrypoints import _ovxr_runtime
 
     sleeps = []
     monkeypatch.setattr(time, "sleep", sleeps.append)
     monkeypatch.setattr(time, "perf_counter", lambda: 10.003)
-    yield_idle = _ovxr_runtime.pace_ovxr_control_loop
+    pace = _ovxr_runtime.pace_ovxr_control_loop
 
     timing = {"iteration_started_s": 10.0, "action_period_s": 0.02}
-    yield_idle(using_ovxr=False, action_applied=False, **timing)
-    yield_idle(using_ovxr=True, action_applied=True, **timing)
+    pace(using_ovxr=False, action_applied=False, **timing)
+    pace(using_ovxr=True, action_applied=True, step_hz=0.0, **timing)
     assert sleeps == []
 
-    yield_idle(using_ovxr=True, action_applied=False, **timing)
+    pace(using_ovxr=True, action_applied=False, **timing)
     assert sleeps == pytest.approx([0.017])
-    yield_idle(using_ovxr=True, action_applied=False, iteration_started_s=9.9, action_period_s=0.02)
-    assert sleeps == pytest.approx([0.017])  # Slow input work needs no added delay.
+    sleeps.clear()
+    pace(using_ovxr=True, action_applied=True, iteration_started_s=9.9, action_period_s=0.02)
+    assert sleeps == []  # Slow work needs no added delay.
 
 
 @pytest.mark.parametrize(
-    "active,step_hz,expected_polls",
-    [(False, 0.0, 6), (True, 25.0, 3), (None, 25.0, 3)],
+    "active,step_hz,step_dt,expected_polls",
+    [(False, 0.0, 0.02, 6), (True, 25.0, 0.02, 3), (None, 25.0, 0.02, 3), (True, None, 0.04, 3)],
 )
 def test_kitless_loop_respects_control_rate_and_processes_reset(
-    monkeypatch, run_live_workflow, active, step_hz, expected_polls
+    monkeypatch, run_live_workflow, active, step_hz, step_dt, expected_polls
 ):
-    """The real caller preserves idle pacing and applies an explicit active limit."""
+    """The real caller preserves idle pacing, applies an explicit active limit and defaults to the env step."""
     from types import SimpleNamespace
 
     import torch
@@ -236,7 +239,7 @@ def test_kitless_loop_respects_control_rate_and_processes_reset(
         nonlocal advances, clock
         assert anchor_ready, "Input cannot read an unseeded post-reset anchor"
         advances += 1
-        clock += 0.003  # Caller work consumes part of the independent 20ms action budget.
+        clock += 0.003  # Caller input work consumes part of each iteration.
         return torch.ones((1, 36)) if active or (sequence and advances != 4) else None
 
     def step(value):
@@ -258,7 +261,7 @@ def test_kitless_loop_respects_control_rate_and_processes_reset(
     )
     monkeypatch.setattr(agent, "time", SimpleNamespace(perf_counter=lambda: clock, sleep=sleep))
     run_live_workflow(
-        SimpleNamespace(sim=sim, reset=reset, step_dt=0.02, num_envs=1, step=step),
+        SimpleNamespace(sim=sim, reset=reset, step_dt=step_dt, num_envs=1, step=step),
         SimpleNamespace(
             advance=advance,
             reset=lambda: None,
@@ -566,7 +569,9 @@ def test_record_ovxr_loop_follows_live_presentation_and_shutdown_order(run_recor
         close=lambda: events.append("env-close"),
     )
     original = {sig: signal.getsignal(sig) for sig in (signal.SIGINT, signal.SIGTERM)}
-    run_record_workflow(env, session, events, "--mcap_record_path", "session.mcap", create_device=create_device)
+    run_record_workflow(
+        env, session, events, "--mcap_record_path", "session.mcap", "--ovxr_step_hz", "0", create_device=create_device
+    )
 
     assert events == [
         "xr-prepare",

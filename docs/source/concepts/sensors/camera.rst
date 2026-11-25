@@ -13,6 +13,9 @@ configuration can work across supported physics and rendering backends.
 Isaac Lab batches camera views from cloned environments into tiled render passes.
 Each requested output is returned as one GPU buffer with a separate image per view.
 
+For a retina-like image that is dense where a movable gaze points, see the experimental
+:doc:`foveated camera </source/experimental-features/foveated_camera>`.
+
 For silent black or corrupted RTX camera images when scaling the workload, see
 :ref:`known-issues-rtx-buffer-limit`.
 
@@ -79,6 +82,11 @@ configurations match, while each sensor owns a separate tiled render product. Fo
 ``env_0/wrist_camera`` and ``env_1/wrist_camera`` form another. The sensors can use different
 resolutions and output types, and their poses update independently. Define all camera prims
 before initializing the simulation so they are included in the scene exported to OVRTX.
+
+Very large camera sensors can fail to render with OVRTX. In this case, the renderer splits such a
+sensor over several render products automatically. To set the split by hand, use
+:attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.max_envs_per_render_product`. See
+:ref:`renderers-ovrtx-render-product-split`.
 
 .. _camera-configuration:
 

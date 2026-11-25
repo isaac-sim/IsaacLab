@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import os
 import tempfile
-from dataclasses import MISSING
+from dataclasses import MISSING, field
 from typing import TYPE_CHECKING, Literal
 
 from isaaclab.physics import PhysicsCfg
@@ -73,6 +73,13 @@ class OvPhysxCfg(PhysicsCfg):
     later config does not relocate it. The runtime garbage collects the cache against a disk budget;
     deleting the directory reclaims the space immediately, and a system temporary directory may also be
     purged between boots.
+    """
+
+    disable_compiled_stage_cache: bool = field(default=False, kw_only=True)
+    """Bypass the OvPhysX compiled-stage cache when attaching the stage.
+
+    Defaults to False, which inherits the runtime setting.
+    This does not disable the cooked-collider cache.
     """
 
     enable_enhanced_determinism: bool = False
