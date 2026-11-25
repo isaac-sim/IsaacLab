@@ -52,7 +52,7 @@ Read the point cloud
 
 In a standalone simulation loop, advance physics and the scene's sensor clocks before reading
 the measurement. Reading ``data`` captures the scan when it is due. The default
-``update_period=0.0`` samples every simulation step. The default ``frame_rate=0.0`` scans once per
+``update_period=0.0`` samples every simulation step. The default ``frame_rate=None`` scans once per
 capture interval. With ``instant_lidar=False``, the capture interval must be a whole number of scans.
 
 .. code-block:: python

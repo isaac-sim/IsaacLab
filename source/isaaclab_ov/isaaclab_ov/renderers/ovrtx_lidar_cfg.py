@@ -96,12 +96,12 @@ class OVRTXLidarCfg(LidarCfg):
     :attr:`~isaaclab.sensors.lidar.LidarData.points`.
     """
 
-    frame_rate: float = 0.0
-    """Scans per second, in Hz. Defaults to 0, one scan per capture.
+    frame_rate: float | None = None
+    """Scan frequency in Hz. Must be finite and positive when specified.
 
-    Zero scans once per capture interval: :attr:`update_period`, or the physics time step when the period is
-    zero. With ``instant_lidar=False`` the capture interval must be a whole number of scans, so each capture
-    ends on a complete scan.
+    If None, derive the frequency from the capture interval so that each capture spans exactly one scan. The
+    capture interval is :attr:`update_period`, or the physics time step when the period is zero. With
+    ``instant_lidar=False`` the capture interval must be a whole number of scans.
     """
 
     def __post_init__(self):
@@ -139,8 +139,8 @@ class OVRTXLidarCfg(LidarCfg):
         if self.far_range_m <= 0.0:
             raise ValueError(f"Lidar far_range_m must be positive, got {self.far_range_m}.")
 
-        if self.frame_rate < 0.0:
-            raise ValueError(f"Lidar frame_rate cannot be negative, got {self.frame_rate}.")
+        if self.frame_rate is not None and not (math.isfinite(self.frame_rate) and self.frame_rate > 0.0):
+            raise ValueError(f"Lidar frame_rate must be finite and positive, got {self.frame_rate}.")
 
         if any(time < 0 for time in self.fire_time_ns):
             raise ValueError("Lidar fire_time_ns values cannot be negative.")

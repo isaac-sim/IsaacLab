@@ -185,8 +185,11 @@ class OVRTXLidar(SensorBase):
         # Each capture steps the renderer by this interval. A capture reads the last frame of the step, so a
         # scanned lidar must end each capture on a complete scan.
         capture_interval = self.cfg.update_period or sim_ctx.get_physics_dt()
-        # A zero rate is written as (1, interval) so one scan lasts exactly one capture interval.
-        frame_rate = Gf.Vec2d(self.cfg.frame_rate, 1.0) if self.cfg.frame_rate else Gf.Vec2d(1.0, capture_interval)
+        # Without a rate, (1, interval) makes one scan last exactly one capture interval.
+        if self.cfg.frame_rate is None:
+            frame_rate = Gf.Vec2d(1.0, capture_interval)
+        else:
+            frame_rate = Gf.Vec2d(self.cfg.frame_rate, 1.0)
         scans = capture_interval * frame_rate[0] / frame_rate[1]
         if not self.cfg.instant_lidar and (round(scans) < 1 or not math.isclose(scans, round(scans))):
             raise ValueError(

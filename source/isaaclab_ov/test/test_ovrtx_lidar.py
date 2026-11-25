@@ -44,9 +44,17 @@ def test_lidar_cfg_rejects_dropped_misses():
         validate(_lidar_cfg(include_invalid_points=False))
 
 
-@pytest.mark.parametrize(("field", "value"), [("rot_pattern_firing_res_deg", 0.0), ("frame_rate", -1.0)])
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("rot_pattern_firing_res_deg", 0.0),
+        ("frame_rate", 0.0),
+        ("frame_rate", -1.0),
+        ("frame_rate", math.inf),
+    ],
+)
 def test_lidar_cfg_rejects_an_invalid_rate(field, value):
-    """A zero azimuth step cannot divide the azimuth window, and a negative frame rate cannot schedule scans."""
+    """A zero azimuth step cannot divide the azimuth window, and a frame rate must be finite and positive."""
     with pytest.raises(ValueError, match=field):
         _lidar_cfg(**{field: value})
 
