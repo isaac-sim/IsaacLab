@@ -11,10 +11,10 @@ The camera sensor is based on using Warp kernels which do ray-casting against st
 .. code-block:: bash
 
     # RTX scene view without the dense ray-hit overlay
-    uv run python scripts/tutorials/04_sensors/run_ray_caster_camera.py --viz newton_rtx --disable_debug_vis
+    uv run --extra ov python scripts/tutorials/04_sensors/run_ray_caster_camera.py --viz newton_rtx --disable_debug_vis
 
     # OpenGL scene view with the full ray-hit overlay
-    uv run python scripts/tutorials/04_sensors/run_ray_caster_camera.py --viz newton_gl
+    uv run --extra ov python scripts/tutorials/04_sensors/run_ray_caster_camera.py --viz newton_gl
 
 Dense ray-hit overlays currently slow the RTX viewer. ``--disable_debug_vis`` hides
 only that overlay; the camera's resolution and depth outputs remain unchanged.
@@ -38,6 +38,7 @@ parser.add_argument("--num_envs", type=int, default=16, help="Number of environm
 parser.add_argument("--save", action="store_true", default=False, help="Save the obtained data to disk.")
 # append simulation launcher cli args
 add_launcher_args(parser)
+parser.set_defaults(visualizer=["newton_rtx"])
 # parse the arguments
 args_cli = parser.parse_args()
 
@@ -163,9 +164,7 @@ def main():
     """Main function."""
     # Configure the simulation
     sim_cfg = sim_utils.SimulationCfg(
-        physics=OvPhysxCfg(
-            bounce_threshold_velocity=0.5, friction_correlation_distance=0.025, friction_offset_threshold=0.04
-        ),
+        physics=OvPhysxCfg(),
     )
     # Launch the simulator runtime that the configuration needs
     scene_cfg = InteractiveSceneCfg(num_envs=1, env_spacing=0.0)

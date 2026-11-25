@@ -277,10 +277,10 @@ To prepare the checkout without launching a workflow, run:
 
 .. code-block:: bash
 
-   uv sync --extra isaacsim
-   uv run --extra isaacsim python scripts/tutorials/00_sim/create_empty.py --viz kit
+   uv sync --extra ov
+   uv run --extra ov python scripts/tutorials/00_sim/create_empty.py --viz newton_rtx
 
-Omit ``--extra isaacsim`` for the default Newton environment. uv downloads the required
+Use ``uv sync`` without extras for a Newton-only environment. uv downloads the required
 Python version and manages ``.venv``. To choose another directory, set
 ``UV_PROJECT_ENVIRONMENT`` before both ``uv sync`` and ``uv run``. Keep the same extras
 on subsequent commands so uv preserves the integrations you selected.

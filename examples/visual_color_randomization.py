@@ -247,26 +247,30 @@ def main() -> None:
     env_cfg = VisualMaterialEnvCfg()
     env_cfg.scene.num_envs = args_cli.num_envs
     visualizers = [VISUALIZER_ALIASES.get(name, name) for name in args_cli.visualizer]  # newton_gl is the same viewer
-    if "newton" in visualizers:
-        for material in (
-            env_cfg.scene.surface_body,
-            env_cfg.scene.surface_leg,
-            env_cfg.scene.surface_foot,
-            env_cfg.scene.glass_body,
-            env_cfg.scene.glass_leg,
-            env_cfg.scene.glass_foot,
-        ):
-            material.channels = ("color",)
-        env_cfg.events.randomize_surface_style.params["channels"] = {
-            "color": {"r": (0.05, 1.0), "g": (0.05, 1.0), "b": (0.05, 1.0)}
-        }
-        env_cfg.events.randomize_glass_style.params["channels"] = {
-            "color": {"r": (0.05, 1.0), "g": (0.05, 1.0), "b": (0.05, 1.0)}
-        }
     if args_cli.physics != "newton_mjwarp" or visualizers != ["newton"]:
         env_cfg.events.randomize_parts_per_env = None
 
     with launch_simulation(env_cfg, args_cli):
+        if any(
+            viewer.backend.visualizer_type == "newton" and viewer.backend.initial_renderer == "opengl"
+            for viewer in env_cfg.sim.visualizer_cfgs
+        ):
+            for material in (
+                env_cfg.scene.surface_body,
+                env_cfg.scene.surface_leg,
+                env_cfg.scene.surface_foot,
+                env_cfg.scene.glass_body,
+                env_cfg.scene.glass_leg,
+                env_cfg.scene.glass_foot,
+            ):
+                material.channels = ("color",)
+            env_cfg.events.randomize_surface_style.params["channels"] = {
+                "color": {"r": (0.05, 1.0), "g": (0.05, 1.0), "b": (0.05, 1.0)}
+            }
+            env_cfg.events.randomize_glass_style.params["channels"] = {
+                "color": {"r": (0.05, 1.0), "g": (0.05, 1.0), "b": (0.05, 1.0)}
+            }
+
         from isaaclab.envs import ManagerBasedEnv  # noqa: PLC0415
 
         env = ManagerBasedEnv(cfg=env_cfg)

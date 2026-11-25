@@ -9,7 +9,7 @@ This script demonstrates the FrameTransformer sensor by visualizing the frames t
 .. code-block:: bash
 
     # Usage
-    uv run python scripts/tutorials/04_sensors/run_frame_transformer.py --viz newton_rtx
+    uv run --extra ov python scripts/tutorials/04_sensors/run_frame_transformer.py --viz newton_rtx
 
 """
 
@@ -27,6 +27,7 @@ parser = argparse.ArgumentParser(
     description="This script checks the FrameTransformer sensor by visualizing the frames that it creates."
 )
 add_launcher_args(parser)
+parser.set_defaults(visualizer=["newton_rtx"])
 args_cli = parser.parse_args()
 
 """Rest everything follows."""
@@ -146,9 +147,7 @@ def main():
     """Main function."""
     # Configure the simulation
     sim_cfg = sim_utils.SimulationCfg(
-        physics=OvPhysxCfg(
-            bounce_threshold_velocity=0.5, friction_correlation_distance=0.025, friction_offset_threshold=0.04
-        ),
+        physics=OvPhysxCfg(),
         dt=0.005,
         device=args_cli.device,
     )

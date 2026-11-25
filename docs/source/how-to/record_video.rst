@@ -83,12 +83,16 @@ All three examples use the Shadow Hand cube-reorientation task,
 ``Isaac-Reorient-Cube-Shadow-Camera-Direct``, which ships with a built-in tiled camera
 sensor. Examples 1 and 2 each demonstrate one recording source; Example 3 combines three sources.
 
-The migrated tutorial replaces the former four-stream Kit demonstration with
-``newton_viewport``, ``tiled_camera_view`` and ``sensor`` clips. Scripts consuming
-the old ``kit_viewport`` or ``tiled_kit_viewport`` filenames must update their
-inputs. Explicit Kit recording sources remain available in the recorder API
-below while Kit is supported. Pass ``--viz newton_gl`` to record an OpenGL
-viewport instead of the default Newton RTX viewport.
+The Newton RTX default records ``newton_viewport``, ``tiled_camera_view`` and ``sensor`` clips.
+The deprecated Kit mode retains the original four streams and filenames, including
+``kit_viewport`` and ``tiled_kit_viewport``:
+
+.. code-block:: bash
+
+   uv run --extra isaacsim --extra video python scripts/tutorials/07_visualizers/run_video_recording.py \
+      --example 3 --num_envs 4 --viz kit,newton_gl
+
+Pass ``--viz newton_gl`` to record an OpenGL viewport instead of the default Newton RTX viewport.
 The scene camera uses OVRTX by default. Install the ``ovrtx`` extra, or ``ov`` for both OvPhysX
 and OVRTX. The Newton viewport uses RTX by default, independently of the scene-camera recording.
 Use ``--viz newton_gl`` to select its lightweight OpenGL view.

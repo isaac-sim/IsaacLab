@@ -239,7 +239,7 @@ def _make_env_cfg(args, video_stride):
     ]
     if args.backdrop == "kitchen":
         # The kitchen framing applies to the Kit view and to the Newton view when it starts in RTX.
-        for visualizer in cfg.sim.visualizer_cfgs[0 if args.video else 1 :]:
+        for visualizer in cfg.sim.visualizer_cfgs[0 if "newton_rtx" in args.visualizer else 1 :]:
             visualizer.eye, visualizer.lookat = (0.86, -0.61, 0.70), (0.53, -0.03, 0.10)
     return cfg
 

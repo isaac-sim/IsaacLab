@@ -89,7 +89,7 @@ def _shadow_env_cfg(num_envs: int, env_spacing: float = _SHADOW_ENV_SPACING):
     """Build a base Shadow Hand camera env cfg shared by all examples."""
     overrides = list(sys.argv[1:])
     if not any(arg.startswith("renderer=") for arg in overrides):
-        overrides.append("renderer=ovrtx")
+        overrides.append("renderer=rtx")
     env_cfg, _ = resolve_task_config(_TASK_SHADOW, "", overrides=(*overrides, "env.scene.tiled_camera=rgb"))
     env_cfg.scene.tiled_camera.height = 256
     env_cfg.scene.tiled_camera.width = 256
@@ -103,21 +103,26 @@ def _shadow_env_cfg(num_envs: int, env_spacing: float = _SHADOW_ENV_SPACING):
 # ---------------------------------------------------------------------------
 
 
-def _build_env_cfg_example_1(num_envs: int):
+def _build_env_cfg_example_1(num_envs: int, legacy_kit: bool = False):
     """Shadow Hand + Newton viewport: one clip from the interactive viewport."""
+    from isaaclab_visualizers.kit import KitBackendCfg
     from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
     env_cfg = _shadow_env_cfg(num_envs)
     env_cfg.sim.visualizer_cfgs = [
-        VisualizerCfg(eye=_SHADOW_EYE, lookat=_SHADOW_LOOKAT, backend=NewtonGLBackendCfg(initial_renderer="rtx"))
+        VisualizerCfg(
+            eye=_SHADOW_EYE,
+            lookat=_SHADOW_LOOKAT,
+            backend=KitBackendCfg() if legacy_kit else NewtonGLBackendCfg(initial_renderer="rtx"),
+        )
     ]
 
     out = _output_dir(1)
     env_cfg.video_recorders = [
         VideoRecorderCfg(
-            source="viz:newton",
+            source="viz:kit" if legacy_kit else "viz:newton",
             output_dir=out,
-            output_filename_prefix="newton_viewport",
+            output_filename_prefix="kit_viewport" if legacy_kit else "newton_viewport",
             video_length=_VIDEO_LENGTH,
             fps=30,
             step_offset=_RENDER_STEP_OFFSET,
@@ -143,8 +148,9 @@ def _build_env_cfg_example_2(num_envs: int):
     return env_cfg, _TASK_SHADOW
 
 
-def _build_env_cfg_example_3(num_envs: int):
+def _build_env_cfg_example_3(num_envs: int, legacy_kit: bool = False):
     """Record the Newton RTX view, a tiled scene-camera view, and one sensor image together."""
+    from isaaclab_visualizers.kit import KitBackendCfg
     from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
     env_cfg = _shadow_env_cfg(num_envs)
@@ -160,31 +166,40 @@ def _build_env_cfg_example_3(num_envs: int):
             backend=NewtonGLBackendCfg(initial_renderer="rtx"),
         )
     ]
-    out = _output_dir(3)
+    streams = [
+        ("viz:newton", "newton_viewport", _RENDER_STEP_OFFSET),
+        (tiled_view, "tiled_camera_view", _RENDER_STEP_OFFSET),
+        ("sensor:tiled_camera", "sensor", 0),
+    ]
+    if legacy_kit:
+        # Keep the original four streams and filenames for explicitly requested Kit runs.
+        newton_view = env_cfg.sim.visualizer_cfgs[0].replace(streaming_view=False, backend=NewtonGLBackendCfg())
+        env_cfg.sim.visualizer_cfgs = [
+            VisualizerCfg(
+                eye=_SHADOW_EYE,
+                lookat=_SHADOW_LOOKAT,
+                streaming_view=True,
+                streaming_envs=min(num_envs, 16),
+                backend=KitBackendCfg(),
+            ),
+            newton_view,
+        ]
+        streams = [
+            ("viz:kit", "kit_viewport", _RENDER_STEP_OFFSET),
+            ("viz:kit:streaming_view", "tiled_kit_viewport", _RENDER_STEP_OFFSET),
+            ("viz:newton", "newton_viewport", 0),
+            ("sensor:tiled_camera", "sensor", 0),
+        ]
     env_cfg.video_recorders = [
         VideoRecorderCfg(
-            source="viz:newton",
-            output_dir=out,
-            output_filename_prefix="newton_viewport",
+            source=source,
+            output_dir=_output_dir(3),
+            output_filename_prefix=prefix,
             video_length=_VIDEO_LENGTH,
             fps=30,
-            step_offset=_RENDER_STEP_OFFSET,
-        ),
-        VideoRecorderCfg(
-            source=tiled_view,
-            output_dir=out,
-            output_filename_prefix="tiled_camera_view",
-            video_length=_VIDEO_LENGTH,
-            fps=30,
-            step_offset=_RENDER_STEP_OFFSET,
-        ),
-        VideoRecorderCfg(
-            source="sensor:tiled_camera",
-            output_dir=out,
-            output_filename_prefix="sensor",
-            video_length=_VIDEO_LENGTH,
-            fps=30,
-        ),
+            step_offset=offset,
+        )
+        for source, prefix, offset in streams
     ]
     return env_cfg, _TASK_SHADOW
 
@@ -212,12 +227,15 @@ def main():
     """Run the selected video recording example."""
     defaults = {1: 4, 2: 16, 3: 4}
     num_envs = args_cli.num_envs if args_cli.num_envs is not None else defaults[args_cli.example]
-    env_cfg, task = _BUILDERS[args_cli.example](num_envs)
+    visualizers = next((arg.split("=", 1)[1].split(",") for arg in hydra_args if arg.startswith("visualizer=")), None)
+    if args_cli.example == 2:
+        env_cfg, task = _BUILDERS[args_cli.example](num_envs)
+    else:
+        env_cfg, task = _BUILDERS[args_cli.example](num_envs, legacy_kit=bool(visualizers and "kit" in visualizers))
     env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
 
     # The builders configure recording views after task resolution. Reapply the requested
     # visualizer selection, including newton_rtx and none, when launching those views.
-    visualizers = next((arg.split("=", 1)[1].split(",") for arg in hydra_args if arg.startswith("visualizer=")), None)
     with launch_simulation(env_cfg, {**vars(args_cli), "visualizer": visualizers}):
         env = gym.make(task, cfg=env_cfg)
 

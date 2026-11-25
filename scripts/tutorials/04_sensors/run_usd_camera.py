@@ -13,14 +13,14 @@ OVRTX supplies semantic and instance segmentation; it does not expose Isaac Sim'
 .. code-block:: bash
 
     # Usage with GUI
-    uv run python scripts/tutorials/04_sensors/run_usd_camera.py --viz newton_rtx
+    uv run --extra ov python scripts/tutorials/04_sensors/run_usd_camera.py --viz newton_rtx
 
     # Deprecated Isaac Sim path, including instance_id_segmentation_fast outputs
     uv run --extra isaacsim python scripts/tutorials/04_sensors/run_usd_camera.py \
         --physics isaacsim_physx --viz newton_gl --save
 
     # Usage with no visualizer
-    uv run python scripts/tutorials/04_sensors/run_usd_camera.py
+    uv run --extra ov python scripts/tutorials/04_sensors/run_usd_camera.py
 
 """
 
@@ -61,6 +61,7 @@ parser.add_argument(
 # append simulation launcher cli args
 parser.add_argument("--physics", default="ovphysx", choices=["ovphysx", "isaacsim_physx"], help="Physics backend.")
 add_launcher_args(parser)
+parser.set_defaults(visualizer=["newton_rtx"])
 # parse the arguments
 args_cli = parser.parse_args()
 # Camera sensors require the rendering extensions in headless and viewport-free launches.
@@ -268,9 +269,7 @@ def main():
     """Main function."""
     # Configure the simulation
     sim_cfg = sim_utils.SimulationCfg(
-        physics=OvPhysxCfg(
-            bounce_threshold_velocity=0.5, friction_correlation_distance=0.025, friction_offset_threshold=0.04
-        ),
+        physics=OvPhysxCfg(),
         device=args_cli.device,
     )
     # Launch the simulator runtime that the configuration needs

@@ -26,12 +26,12 @@ import sys
 
 import gymnasium as gym
 import torch
-from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_visualizers.kit import KitBackendCfg
 from isaaclab_visualizers.newton import NewtonGLBackendCfg
 
 import isaaclab_tasks  # noqa: F401
+from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
 with contextlib.suppress(ImportError):
     import isaaclab_tasks_experimental  # noqa: F401
@@ -77,6 +77,11 @@ def main():
         raise ValueError("This tutorial supports --viz kit or --viz newton.")
     camera_cfg = next((cfg for cfg in vars(env_cfg.scene).values() if isinstance(cfg, CameraCfg)), None)
     if camera_cfg is None:
+        rtx_view = any(
+            isinstance(backend, KitBackendCfg)
+            or (isinstance(backend, NewtonGLBackendCfg) and backend.initial_renderer == "rtx")
+            for backend in backends
+        )
         eye, target = torch.tensor([[3.0, 3.0, 3.0]]), torch.zeros((1, 3))
         rotation = quat_from_matrix(create_rotation_matrix_from_view(eye, target, device="cpu"))[0]
         # Attaching the sensor to the base gives it the robot's pose through the normal camera view.
@@ -87,11 +92,7 @@ def main():
             data_types=["rgb"],
             spawn=PinholeCameraCfg(focal_length=24.0, clipping_range=(0.1, 1.0e5)),
             offset=CameraCfg.OffsetCfg(pos=(3.0, 3.0, 3.0), rot=tuple(rotation.tolist()), convention="opengl"),
-            renderer_cfg=(
-                IsaacRtxRendererCfg()
-                if any(isinstance(backend, KitBackendCfg) for backend in backends)
-                else NewtonWarpRendererCfg()
-            ),
+            renderer_cfg=MultiBackendRendererCfg().rtx if rtx_view else NewtonWarpRendererCfg(),
         )
         env_cfg.scene.streaming_camera = camera_cfg
     for cfg in visualizers:
