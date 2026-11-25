@@ -141,6 +141,7 @@ Guidelines for modifications:
 * Johnson Sun
 * Juana Du
 * Kai Pei
+* Kaimeng Jiang
 * Kaixi Bao
 * Kourosh Darvish
 * Kousheek Chakraborty

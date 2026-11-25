@@ -110,7 +110,7 @@ def env_loop(
                     env.reset(env_ids=env_id_tensor)
                     env_reset_queue.task_done()
 
-            actions = torch.zeros(env.action_space.shape)
+            actions = torch.zeros(env.action_space.shape, device=env.device)
             get_tasks = [env_action_queue.get() for _ in range(env.num_envs)]
             results = asyncio_event_loop.run_until_complete(asyncio.gather(*get_tasks))
             for env_id, action in results:
