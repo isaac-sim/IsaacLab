@@ -94,7 +94,7 @@ class OVRTXRendererCfg(RendererCfg):
     The value applies to every camera sensor of this renderer configuration, but each failed frame of the search
     splits only one sensor. Set the same value on every OVRTX renderer configuration of a task. Without a shared
     OVStage, another value gives another OVRTX renderer with its own copy of the scene. See
-    :ref:`renderers-ovrtx-render-product-split`.
+    :ref:`known-issues-rtx-buffer-limit`.
     """
 
     temp_usd_dir: str | None = None

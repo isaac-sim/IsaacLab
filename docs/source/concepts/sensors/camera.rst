@@ -86,7 +86,7 @@ before initializing the simulation so they are included in the scene exported to
 Very large camera sensors can fail to render with OVRTX. In this case, the renderer splits such a
 sensor over several render products automatically. To set the split by hand, use
 :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.max_envs_per_render_product`. See
-:ref:`renderers-ovrtx-render-product-split`.
+:ref:`known-issues-rtx-buffer-limit`.
 
 .. _camera-configuration:
 

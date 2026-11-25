@@ -250,9 +250,33 @@ no universal camera-count limit. See `Isaac Lab issue #8412`_ for affected confi
 reproduction steps, and fix status.
 
 The OVRTX renderer (``renderer=ovrtx``) splits a camera sensor over several render products after a
-failed first frame. Each render product then has a smaller atlas.
-:attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.max_envs_per_render_product` sets this split by hand.
-See :ref:`renderers-ovrtx-render-product-split`.
+failed first frame. Each render product then renders a contiguous range of environments into a
+smaller atlas. With the default ``"auto"`` of
+:attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.max_envs_per_render_product`, the renderer halves
+the environments per render product of one sensor. Then it renders the frame again, up to four
+times. When a split renders, a warning gives the number of environments per render product. Set
+this number as the value to skip the search and to keep the same split on every GPU and driver. If
+several sensors get a warning, set the smallest number.
+
+Each extra render product adds a fixed cost to every frame. The failed render products stay in the
+scene until the sensor cleanup, so the search can need more GPU memory than the final split.
+Path tracing and DLSS depend on the pixel position in the atlas, so another split can change the
+color outputs a little.
+
+The value applies to every camera sensor of a renderer configuration. Set the same value on every
+OVRTX renderer configuration of the task, including ``NewtonGLBackendCfg.rtx_renderer_cfg`` of the
+Newton visualizer. Without a :ref:`shared OVStage <ov-clone-routing>`, each configuration with
+another value gets its own OVRTX renderer with its own copy of the scene. On the command line,
+select the OVRTX renderer with ``renderer=ovrtx`` and set the value for each camera of the task:
+
+.. code-block:: bash
+
+   uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Camera \
+      physics=newton_mjwarp renderer=ovrtx \
+      env.scene.tiled_camera.renderer_cfg.max_envs_per_render_product=1280
+
+``renderer=rtx`` replaces the renderer configuration at launch with a default one, so it drops this
+value and the OVRTX renderer uses ``"auto"``.
 
 With other RTX renderers, or instead of a split, reduce the camera resolution, camera count, or
 path-tracing SPP, and inspect images from all cameras before training. Reducing the camera count may
