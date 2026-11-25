@@ -622,6 +622,7 @@ class OVRTXRenderer(BaseRenderer):
         self._transform_buffer = SceneDataFormat.TransposedMatrix44d()
         self._object_scales: wp.array | None = None
         self._geometry_paths: list[str] = []
+        self._has_particle_geometry = False
         self._visible_envs: np.ndarray | None = None
         self._hidden_marker_rows: torch.Tensor | None = None
         self._hidden_envs: wp.array | None = None
@@ -689,6 +690,11 @@ class OVRTXRenderer(BaseRenderer):
                 ).wait()  # fmt: skip
         self._setup_xform_bindings(stage)
         self._setup_geometry_bindings()
+        # Particle deformation can rebuild streamed geometry after the initial capture.
+        # Check the authored prototypes too: native clones need not exist on the USD stage.
+        self._has_particle_geometry = bool(self._geometry_paths) and any(
+            prim.IsA(UsdGeom.Points) for prim in stage.Traverse(Usd.TraverseInstanceProxies())
+        )
         # OVRTX 0.7's GPU camera cache mixes tiled views and misses pose updates.
         # Disable only camera reads before registering products (and before attaching
         # an OVStage), retaining GPU instance transforms for large articulated scenes.
@@ -1873,7 +1879,11 @@ class OVRTXRenderer(BaseRenderer):
         """Add the render products of ``render_data`` to the scene, and render them in every later step."""
         scope = render_data.render_scope_name
         usd = build_render_product_as_string(
-            spec, render_data, device_id=self._warp_device.ordinal, enable_shadows=self.cfg.enable_shadows
+            spec,
+            render_data,
+            device_id=self._warp_device.ordinal,
+            enable_shadows=self.cfg.enable_shadows,
+            wait_for_streaming=self._has_particle_geometry,
         )
         # Registration mutates the shared scene; finish renders using its existing products first.
         if self.cfg.temp_usd_dir is not None:
@@ -1920,6 +1930,7 @@ class OVRTXRenderer(BaseRenderer):
             self._object_scales = None
             self._transform_buffer = SceneDataFormat.TransposedMatrix44d()
             self._geometry_paths = []
+            self._has_particle_geometry = False
             self._geometry_timestamp = -1
             self._transforms_timestamp = -1
             self._output_id_color_buffers.clear()
