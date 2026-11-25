@@ -28,6 +28,9 @@ in ``record/``. Workflow entrypoints compose those pieces.
 * ``NeRDSolverCfg`` and ``MJWarpNeRDSolverCfg`` own checkpoint selection, articulation selection
   and inference settings. The checkpoint persists the model definition and its physical contract.
 
+Task-local model and fitting configurations live in ``dynamics/``. Recording environment
+configurations and exploration terms live in ``record/``; policy agents stay in ``agents/``.
+
 Tasks register ``nerd_cfg_entry_point``, ``nerd_training_cfg_entry_point`` and
 ``nerd_recording_cfg_entry_point`` independently. The normal task resolver composes the selected
 recording environment with the model definition; it does not reconstruct another environment

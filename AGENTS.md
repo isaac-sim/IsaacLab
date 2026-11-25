@@ -32,9 +32,10 @@ The guide owns shared contribution rules. Update them there instead of copying t
   Fix neural configurations and terms rather than relaxing shared lifecycle guards to accommodate them.
 - Policy training, playback, and evaluation belong to the existing RL entrypoints. Keep dedicated
   neural entrypoints for dynamics recording and offline model fitting only.
-
 - Neural solvers use the existing Newton manager and solver-construction path. Declare timing in task
   presets; consume Newton control buffers without inspecting environment action classes in physics code.
+- Keep task-local dynamics model and fitting configs in `dynamics/`, recording workflows in `record/`,
+  and action-producing policy configs in `agents/`; keep them out of the environment config directory root.
 
 ## Commits and branches
 

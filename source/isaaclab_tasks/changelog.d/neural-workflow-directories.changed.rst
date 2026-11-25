@@ -1,0 +1,1 @@
+* Moved task-local neural model and fitting configuration into ``dynamics/`` and recording configuration and terms into ``record/`` for Franka, ANYmal C and Allegro. Policy configuration remains in ``agents/``.

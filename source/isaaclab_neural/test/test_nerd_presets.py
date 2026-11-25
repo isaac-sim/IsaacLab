@@ -121,6 +121,20 @@ def test_neural_ownership_boundaries():
             if path.parent.name == "physics" and isinstance(node, ast.Name):
                 assert node.id not in {"SimulationContext", "ActionManager", "JointPositionAction"}, path
     assert not list((root / "source/isaaclab_tasks/isaaclab_tasks").rglob("nerd_recipe*.py"))
+    for relative in (
+        "core/reach/config/franka",
+        "core/reorient/config/allegro_hand",
+        "contrib/velocity/config/anymal_c",
+    ):
+        task = root / "source/isaaclab_tasks/isaaclab_tasks" / relative
+        for owner, names in (
+            ("dynamics", ("nerd_cfg.py", "nerd_training_cfg.py")),
+            ("record", ("nerd_recording.py", "nerd_recording_cfg.py")),
+        ):
+            for name in names:
+                assert not (task / name).exists()
+                assert (task / owner / name).is_file()
+
     for package in ("isaaclab", "isaaclab_newton"):
         for path in (root / "source" / package / package).rglob("*.py"):
             for node in ast.walk(ast.parse(path.read_text())):

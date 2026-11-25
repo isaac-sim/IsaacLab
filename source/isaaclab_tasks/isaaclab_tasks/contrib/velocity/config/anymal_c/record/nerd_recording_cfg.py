@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Recording action configuration for Franka."""
+"""Recording action configuration for AnymalC."""
 
 from isaaclab_neural.record.recording_cfg import NeRDExplorationActionCfg, NeRDRecorderCfg
 
@@ -13,7 +13,7 @@ from isaaclab.utils import configclass, replace
 
 from isaaclab_tasks.utils import preset
 
-from .franka_reach_env_cfg import FrankaReachBaseEnvCfg
+from ..flat_env_cfg import ANYMAL_C_NERD_TARGET_REACH, AnymalCFlatEnvCfg
 
 
 @configclass
@@ -22,36 +22,40 @@ class ObservationsCfg:
 
 
 @configclass
-class FrankaNeRDExplorationCfg(NeRDExplorationActionCfg):
+class AnymalCNeRDExplorationCfg(NeRDExplorationActionCfg):
     """State exploration and joint excitation for recording."""
 
-    class_type: str = "{DIR}.nerd_recording:FrankaNeRDExploration"
-    episode_frames: tuple[int, int] = (17, 64)
-    arm_joint_count: int = 7
-    state_speed: float = 1.0
-    target_margin: float = 0.5
-    hold_frames: tuple[int, int] = (1, 60)
-    explore_reach: float = 1.0
-    refine_reach: float = 0.3
-    drift_timescale: float = 100.0
+    class_type: str = "{DIR}.nerd_recording:AnymalCNeRDExploration"
+    episode_frames: tuple[int, int] = (100, 100)
+    hold_frames: tuple[int, int] = (1, 10)
+    drop: float = 0.2
+    tilt: float = 0.5
+    base_speed: tuple[float, float] = (1.0, 2.0)
+    joint_reach: float = 0.5
+    joint_speed: float = 2.0
 
 
-_TASK = FrankaReachBaseEnvCfg()
+_TASK = AnymalCFlatEnvCfg()
 
 
 @configclass
-class FrankaRecordingActionsCfg:
+class AnymalCRecordingActionsCfg:
     """Exploration joint targets."""
 
-    joint_targets = FrankaNeRDExplorationCfg()
+    joint_targets = AnymalCNeRDExplorationCfg(
+        clip={
+            joints: (angle - ANYMAL_C_NERD_TARGET_REACH, angle + ANYMAL_C_NERD_TARGET_REACH)
+            for joints, angle in _TASK.scene.robot.init_state.joint_pos.items()
+        }
+    )
 
 
 @configclass
-class FrankaNeRDRecordingEnvCfg(ManagerBasedRLEnvCfg):
+class AnymalCNeRDRecordingEnvCfg(ManagerBasedRLEnvCfg):
     """Reference scene, exploration terms and standard recorder terms."""
 
     recorders = NeRDRecorderCfg()
-    scene = replace(_TASK.scene, table=None)
+    scene = _TASK.scene
     sim = replace(
         _TASK.sim,
         physics=preset(
@@ -72,7 +76,8 @@ class FrankaNeRDRecordingEnvCfg(ManagerBasedRLEnvCfg):
     }
     commands = {}
     curriculum = {}
-    actions = FrankaRecordingActionsCfg()
+    actions = AnymalCRecordingActionsCfg()
     events = {
-        "sample_robot": EventTermCfg(func="isaaclab_neural.record.recording:reset_exploration_state", mode="reset")
+        "physics_material": _TASK.events.physics_material,
+        "sample_robot": EventTermCfg(func="isaaclab_neural.record.recording:reset_exploration_state", mode="reset"),
     }

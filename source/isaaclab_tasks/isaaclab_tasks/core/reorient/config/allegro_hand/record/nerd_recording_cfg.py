@@ -13,7 +13,7 @@ from isaaclab.utils import configclass, replace
 
 from isaaclab_tasks.utils import preset
 
-from .allegro_hand_manager_env_cfg import AllegroHandManagerEnvCfg
+from ..allegro_hand_manager_env_cfg import AllegroHandManagerEnvCfg
 
 
 @configclass
