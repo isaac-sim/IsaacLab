@@ -86,7 +86,7 @@ def to_warp(topology: PrototypeWorldTopology, device: str) -> PrototypeWorldTopo
 
 def make_clone_plan(
     asset_cfgs: Sequence[Any],
-    world_prototypes: Sequence[Sequence[int]],
+    world_prototypes: Sequence[Sequence[int | Sequence[int]]],
     num_worlds: int,
     *,
     weights: Sequence[float] | None = None,
@@ -100,10 +100,15 @@ def make_clone_plan(
     Args:
         asset_cfgs: Asset prototype definitions, retained by reference.
         world_prototypes: Asset indices in each world prototype, including repeated instances.
+            A slot may instead contain candidate indices. Such factorized groups are selected
+            before their individual slots, without enumerating the Cartesian product. Only selected
+            concrete worlds are materialized and identical selections reuse one prototype.
         num_worlds: Number of destination worlds.
         weights: Relative world-prototype weights; ``None`` gives every prototype equal weight.
         shared_assets: Asset indices instantiated once in the shared world ``-1``.
-        clone_strategy: Function selecting world-prototype indices from weights.
+        clone_strategy: Function selecting world-prototype indices from weights. For factorized
+            groups, also selects each slot's concrete candidates with uniform candidate weights.
+            The same strategy owns both decisions and any randomness they require.
         env_template: Destination-world path template with one ``{}`` slot for the world ID.
         positions: Destination-world origins [m], shape [num_worlds, 3]; None preserves authored placement.
 
@@ -114,11 +119,6 @@ def make_clone_plan(
     compositions = (shared_assets, *world_prototypes)
     if len(compositions) == 1:
         raise ValueError("At least one world prototype is required; an empty world is ().")
-    members = np.asarray([asset for world in compositions for asset in world])
-    if members.size and (
-        not np.issubdtype(members.dtype, np.integer) or (members < 0).any() or (members >= len(asset_cfgs)).any()
-    ):
-        raise ValueError("World members must be integer indices into asset_cfgs.")
     weights = np.ones(len(compositions) - 1) if weights is None else np.asarray(weights, dtype=np.float64)
     if weights.shape != (len(compositions) - 1,) or not np.isfinite(weights).all() or (weights < 0).any():
         raise ValueError("Each world prototype requires one finite, non-negative weight.")
@@ -129,6 +129,38 @@ def make_clone_plan(
     has_valid_ids = is_world_layout and (layout >= 0).all() and (layout < len(weights)).all()
     if not has_valid_ids:
         raise ValueError("clone_strategy must select one valid world-prototype index per destination.")
+    if any(not isinstance(slot, (int, np.integer)) for world in compositions[1:] for slot in world):
+        groups = []
+        for world in compositions[1:]:
+            group = []
+            for slot in world:
+                choices = np.asarray([slot] if isinstance(slot, (int, np.integer)) else slot)
+                is_index_list = choices.ndim == 1 and choices.size and np.issubdtype(choices.dtype, np.integer)
+                if not is_index_list or (choices < 0).any() or (choices >= len(asset_cfgs)).any():
+                    raise ValueError("World choices must be nonempty integer indices into asset_cfgs.")
+                group.append(choices)
+            groups.append(group)
+        selected = [None] * num_worlds
+        for group_id in np.unique(layout):
+            env_ids = np.flatnonzero(layout == group_id)
+            columns = []
+            for choices in groups[group_id]:
+                ids = np.asarray(clone_strategy(np.ones(len(choices)), len(env_ids)))
+                is_candidate_layout = ids.shape == (len(env_ids),) and np.issubdtype(ids.dtype, np.integer)
+                if not is_candidate_layout or (ids < 0).any() or (ids >= len(choices)).any():
+                    raise ValueError("clone_strategy must select one valid candidate index per destination.")
+                columns.append(choices[ids])
+            rows = zip(*columns, strict=True) if columns else [()] * len(env_ids)
+            for env_id, row in zip(env_ids, rows, strict=True):
+                selected[env_id] = tuple(int(member) for member in row)
+        prototype_ids = {world: index for index, world in enumerate(dict.fromkeys(selected))}
+        layout = np.asarray([prototype_ids[world] for world in selected], dtype=np.int32)
+        compositions = (shared_assets, *prototype_ids)
+    members = np.asarray([asset for world in compositions for asset in world])
+    if members.size and (
+        not np.issubdtype(members.dtype, np.integer) or (members < 0).any() or (members >= len(asset_cfgs)).any()
+    ):
+        raise ValueError("World members must be integer indices into asset_cfgs.")
     topology = PrototypeWorldTopology(
         num_asset_prototypes=len(asset_cfgs),
         world_prototypes=np.ascontiguousarray(members, dtype=np.int32),

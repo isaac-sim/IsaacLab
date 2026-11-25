@@ -25,6 +25,7 @@ dependencies = [
     "isaaclab-assets",
     "isaaclab-contrib",
     "isaaclab-experimental",
+    "isaaclab-neural",
     "isaaclab-newton",
     "isaaclab-ov",
     "isaaclab-isaacsim",
@@ -115,6 +116,11 @@ tetrahedralization = ["pytetwild[all]>=0.3.0,<0.4"]
 video = ["moviepy>=1.0.3,<2.0.0.dev0"]
 
 optix = ["newton[optix]"]
+
+# Learned robot dynamics models and solvers backing the ``newton_nerd`` and ``newton_mjwarp_nerd`` physics presets.
+newton-neural = [
+    "newton-neural @ git+https://github.com/newton-physics/newton-neural.git@06da4d2a604f3dbb48127a9010c41511cdd37a32",
+]
 
 importers = [
     "isaacsim-asset-isolated==6.2.0.1",
@@ -474,6 +480,7 @@ isaaclab = { path = "source/isaaclab", editable = true }
 "isaaclab-experimental" = { path = "source/isaaclab_experimental", editable = true }
 "isaaclab-fovi" = { path = "source/isaaclab_fovi", editable = true }
 "isaaclab-mimic" = { path = "source/isaaclab_mimic", editable = true }
+"isaaclab-neural" = { path = "source/isaaclab_neural", editable = true }
 "isaaclab-newton" = { path = "source/isaaclab_newton", editable = true }
 "isaaclab-ov" = { path = "source/isaaclab_ov", editable = true }
 "isaaclab-isaacsim" = { path = "source/isaaclab_isaacsim", editable = true }

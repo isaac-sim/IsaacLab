@@ -30,7 +30,7 @@ from isaaclab.utils.string import string_to_callable
 with warnings.catch_warnings(record=True) as caught:
     warnings.simplefilter("always")
     from isaaclab.utils import ModifierBase, ModifierCfg, modifiers, tensor_processors
-    from isaaclab_experimental.utils import modifiers as warp_modifiers
+    from isaaclab_experimental.deprecated.utils import modifiers as warp_modifiers
 
 assert ModifierBase is tensor_processors.TensorProcessor
 assert ModifierCfg is tensor_processors.TensorProcessorCfg

@@ -46,8 +46,8 @@ _self_ref_pattern = re.compile(r"^\s*([A-Za-z0-9._-]+)\s*\[([^\]]+)\]\s*$")
 
 # These integrations are installed from Git in source checkouts. Keep them out of the published
 # PyPI wheel metadata until their pinned versions are available as wheels from a package index.
-_WHEEL_EXCLUDED_EXTRAS = {"rl-games"}
-_WHEEL_EXCLUDED_DEPENDENCIES = {"rl-games", "robomimic"}
+_WHEEL_EXCLUDED_EXTRAS = {"rl-games", "newton-neural"}
+_WHEEL_EXCLUDED_DEPENDENCIES = {"rl-games", "robomimic", "newton-neural"}
 
 
 def _self_ref_extras(requirement: str) -> list[str] | None:
