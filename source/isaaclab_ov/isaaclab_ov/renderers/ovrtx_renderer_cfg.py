@@ -39,10 +39,10 @@ class OVRTXBackendCfg(BackendCfg):
     """Whether the engine borrows a simulation-owned OVStage instead of using its internal stage."""
     read_gpu_transforms: bool = MISSING
     """Whether OVRTX reads its GPU transform cache, resolved before native construction."""
-    motion_bvh: Literal["disable", "enable", "auto"] | None = None
-    """Motion BVH mode passed to the native engine."""
     device: str = MISSING
     """Normalized simulation device: ``cpu`` or ``cuda:<index>``."""
+    motion_bvh: Literal["disable", "enable", "auto"] | None = None
+    """Motion BVH mode passed to the native engine."""
 
 
 @configclass
@@ -112,9 +112,6 @@ class OVRTXRendererCfg(RendererCfg):
     log_file_path: str = os.path.join(tempfile.gettempdir(), "ovrtx_renderer.log")
     """Path for OVRTX log file. Defaults to ``<system temp>/ovrtx_renderer.log``."""
 
-    motion_bvh: Literal["disable", "enable", "auto"] | None = None
-    """Motion BVH mode for non-visual sensor pipelines."""
-
     enable_shadows: bool = False
     """Whether lights cast shadows in RTX Minimal mode. Defaults to False.
 
@@ -155,6 +152,9 @@ class OVRTXRendererCfg(RendererCfg):
     OVRTX does not support ``instance_id_segmentation_fast``. Use
     :attr:`colorize_instance_segmentation` to control colorization of the supported instance segmentation output.
     """
+
+    motion_bvh: Literal["disable", "enable", "auto"] | None = None
+    """Motion BVH mode for non-visual sensor pipelines."""
 
     def validate_config(self) -> None:
         """Validate the render product split."""
