@@ -56,6 +56,9 @@ class SteelSolverCfg(NewtonSolverCfg):
     friction_anchor_beta: float = 0.0
     """Zero selects point friction instead of persistent friction patches."""
 
+    contact_gap_gate: float | None = None
+    """Largest contact gap that gets constraint rows [m]; ``0`` keeps touching contacts only, ``None`` keeps all."""
+
     contact_friction_gap_max: float | None = None
     """Largest contact gap for friction rows [m]; ``None`` uses Newton's default."""
 

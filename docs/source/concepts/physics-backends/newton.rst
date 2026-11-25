@@ -58,6 +58,11 @@ runtime comparison at each task's configured environment count, run
 ``isaaclab benchmark runtime --task TASK presets=newton_steel`` and repeat with
 ``presets=newton_mjwarp`` without passing ``--num_envs``.
 
+Steel solves every contact the collision pipeline reports, including the
+speculative ones inside the shape gap. Set ``contact_gap_gate=0.0`` to solve
+touching contacts only, as MuJoCo does; contact-rich scenes then build fewer
+constraint rows and can step faster.
+
 Related workflows
 -----------------
 
