@@ -30,7 +30,7 @@ __all__ = [
 ]
 
 from .clone_plan import ClonePlan, PrototypeWorldTopology, grid_transforms, make_clone_plan, path, query, to_warp
-from .cloner_cfg import CloneCfg, InclusionSet, add, expand_env_regex_ns
+from .cloner_cfg import CloneCfg, InclusionSet, add, expand_env_regex_ns, make_valid_clone_combinations
 from .cloner_strategies import random, sequential
 from .collision_filter import filter_collisions
 from .fabric_notices import disabled_fabric_change_notifies
@@ -38,7 +38,6 @@ from .replicate_context import ReplicateContext
 from .replicate_session import (
     ReplicateSession,
     clone_plan_from_env_0,
-    make_valid_clone_combinations,
     num_spawn_variants,
     replicate,
 )
