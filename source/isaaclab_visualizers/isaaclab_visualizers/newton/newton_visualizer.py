@@ -54,6 +54,7 @@ from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, WindowCfg
 
 from isaaclab_visualizers.desktop_entry import write_desktop_entry
+from isaaclab_visualizers.lidar_points import collect_lidar_hits, frame_visualizer_closeup, log_lidar_hits
 from isaaclab_visualizers.newton.newton_overlay_meshes import OverlayMeshPublisher
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
 
@@ -1649,6 +1650,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self._cfg_visible_env_ids: list[int] | None = None
         self._visible_env_count: int | None = None
         self._num_envs = 0
+        self._lidar_step_counter = 0
 
     # ------------------------------------------------------------------
     # GL lifecycle
@@ -1710,6 +1712,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
                 self._sensor_tiles[view] = camera.num_instances
                 if self.cfg.view is None and not isinstance(self.cfg.streaming_envs, list) and view.cfg.envs == (0,):
                     view.cfg.envs = tuple(range(min(DEFAULT_TILED_ENVS, camera.num_instances)))
+        frame_visualizer_closeup(self, cameras)
         self._select_camera(0)
         if self.cfg.enable_markers and self.rtx_view_index is not None:
             # OVRTX draws markers as stage prims; the viewer camera's renderer shares the registry's groups.
@@ -1757,6 +1760,13 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         # exists in the scene.
         self._viewer._contacts_available = newton_backend_active or bool(scene_data_provider.get_contact_sensors())
 
+    def _log_lidar_points(self, viewer: Any) -> None:
+        """Log every visualized environment's lidar hits into the Newton GL scene."""
+        self._lidar_step_counter += 1
+        hits = collect_lidar_hits(self._sim, self._env_ids, self._lidar_step_counter)
+        if hits is not None:
+            log_lidar_hits(viewer, hits)
+
     def _render_frame(self) -> None:
         """Render one GL frame for the window or an on-demand capture."""
         viewer = self._viewer
@@ -1797,6 +1807,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
                         self._log_scene_contact_sensor_arrows()
                     if self.cfg.enable_markers:
                         render_newton_visualization_markers(viewer, self._env_ids, num_envs=self.backend.model.num_envs)
+                self._log_lidar_points(viewer)
             for name, arguments in self._pending_mesh_submissions.items():
                 viewer.log_mesh(name, **arguments)
             self._pending_mesh_submissions.clear()
