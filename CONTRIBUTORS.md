@@ -101,6 +101,7 @@ Guidelines for modifications:
 * Elle Miller
 * Emily Sturman
 * Emmanuel Ferdman
+* Evgenii Golubev
 * Fabian Jenelten
 * Fanxing Li
 * Fatima Anes

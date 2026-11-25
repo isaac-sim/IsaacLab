@@ -105,6 +105,32 @@ sets actuator targets before physics. Both modes still step physics. Direct posi
 requires ``scene.lazy_sensor_update=True``. With Isaac RTX, omit ``--visualizer``
 in this mode: a Kit visualizer would render before the pose write.
 
+``Isaac-RizonSharpa-Coffee-Kitchen-Camera-Benchmark`` renders the Rizon-Sharpa coffee demo's kitchen
+scene, without the coffee powder, in every environment. Each environment replays the demo's recorded
+arm motion in a loop from its own time offset, with the demo's physics: 800 Hz, 8 substeps per 100 Hz
+environment step. It requires Newton physics and loads the demo's hosted asset bundle; set
+``ISAACLAB_COFFEE_ASSET_ROOT`` to use a local copy. Its ``benchmark_mode`` defaults to ``render``,
+which writes the demo's measured arm pose after physics. ``physics_render`` instead sends the demo's
+recorded actuator targets before every substep, so MJWarp moves the arm as in the demo. Select the
+mode with ``BENCHMARK_MODE`` or ``env.benchmark_mode=``. Select the camera data type and resolution
+with a ``<data type><resolution>`` preset: data types ``rgb``, ``depth``, ``albedo``,
+``simple_shading_constant_diffuse``, ``simple_shading_diffuse_mdl``, ``simple_shading_full_mdl`` and
+``semantic_segmentation``; resolutions 64, 128 and 256. The Newton renderer, the default, supports
+only ``rgb``, ``albedo``, ``depth`` and ``semantic_segmentation``. It renders without textures,
+because Newton cannot load the robot's UDIM textures.
+
+.. code-block:: bash
+
+   uv run --extra ovrtx isaaclab benchmark runtime \
+       --task Isaac-RizonSharpa-Coffee-Kitchen-Camera-Benchmark \
+       --num_envs 256 \
+       physics=newton_mjwarp renderer=ovrtx presets=simple_shading_full_mdl256
+
+Profiling works in both modes. The pose writes are outside both timers, and each environment step
+makes 8 physics calls. As for the Franka task, ``render`` mode with Isaac RTX requires running without
+a Kit visualizer. ``scripts/benchmarks/record_coffee_arm_motion.py`` re-records the motion from the
+demo.
+
 Set ``ISAACLAB_PHYSICS_PROFILE=1`` to time physics steps with
 :func:`~isaaclab.benchmark.stepping.profile_physics_steps`.
 ``ISAACLAB_RENDER_PROFILE=1`` uses

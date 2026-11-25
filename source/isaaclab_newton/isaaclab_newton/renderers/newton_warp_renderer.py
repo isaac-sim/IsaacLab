@@ -299,6 +299,7 @@ class NewtonWarpRenderer(BaseRenderer):
                 tile_height=self.cfg.tile_rendering_height,
                 block_dim=self.cfg.kernel_block_dim,
             ),
+            load_textures=self.cfg.enable_textures,
         )
         lighting = getattr(self.backend.model, "isaaclab_lighting", None)
         if lighting is not None and lighting.authored.numpy()[0]:
