@@ -170,7 +170,7 @@ Table of Contents
    source/experimental-features/ray
    source/experimental-features/visuo_tactile_sensor
    source/experimental-features/rlinf_vla_posttraining
-   source/experimental-features/experimental_demos
+   source/experimental-features/demos
    source/features/imitation-learning/index
 
 .. toctree::
