@@ -3,4 +3,4 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Composition roots for recording, training and evaluating neural dynamics."""
+"""Composition roots for recording and training neural dynamics."""

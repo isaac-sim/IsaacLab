@@ -30,6 +30,8 @@ The guide owns shared contribution rules. Update them there instead of copying t
 
 - Neural workflows must follow existing manager initialization, stepping, and teardown contracts.
   Fix neural configurations and terms rather than relaxing shared lifecycle guards to accommodate them.
+- Policy training, playback, and evaluation belong to the existing RL entrypoints. Keep dedicated
+  neural entrypoints for dynamics recording and offline model fitting only.
 
 ## Commits and branches
 

@@ -94,6 +94,8 @@ def test_neural_ownership_boundaries():
 
     root = Path(ISAACLAB_ROOT)
     neural = root / "source/isaaclab_neural/isaaclab_neural"
+    assert not (neural / "entrypoints/evaluate.py").exists()
+    assert not (root / "scripts/neural/evaluate.py").exists()
     assert not (neural / "nerd_recipe.py").exists()
     assert not (neural / "nerd_recipe_cfg.py").exists()
     for name, owner in (("nerd_training_cfg.py", "rl"), ("recording.py", "record"), ("recording_cfg.py", "record")):

@@ -108,21 +108,20 @@ entries.
 Evaluate an explicit policy
 ---------------------------
 
-Evaluation follows the existing RSL-RL play convention. ``--trained_on`` selects the physics used to
-resolve the policy configuration. The ordinary ``physics=`` selector chooses evaluation physics.
-Both resolutions preserve domain presets and agent overrides. The shared runner constructor honors
-the configured runner class and its inference settings.
+Policy evaluation uses the shared RSL-RL playback workflow. ``physics=`` selects evaluation
+physics; ``--checkpoint`` selects the policy using the ordinary playback checkpoint resolver.
 
 .. code-block:: bash
 
-   uv run --extra newton-neural python scripts/neural/evaluate.py \
+   uv run --extra newton-neural isaaclab play --rl_library rsl_rl --evaluate \
        --task Isaac-Reach-Franka --checkpoint logs/rsl_rl/reach_franka_nerd/RUN/model_100.pt \
-       --trained_on newton_nerd physics=newton_mjwarp
+       physics=newton_mjwarp
 
-Evaluate additional checkpoints by invoking the same path again. The evaluator does not guess policy
-identity from manager/solver class names or search experiment folders with a custom YAML loader.
-A policy with non-default dimensions must receive its matching ``agent.*`` settings, as in standard
-play. Restoring saved agent YAML automatically is not part of the current play convention.
+Evaluate additional checkpoints by invoking the same command again. Configuration resolves once,
+as in ordinary playback. Supply matching ``agent.*`` overrides when the policy was trained with
+settings that differ from the selected task defaults, including network dimensions and action clipping.
+For example, ANYmal C policies trained with neural physics use ``agent.clip_actions=1.5``.
+Saved agent YAML is not restored automatically.
 
 The report counts each world's first episode once and reports reward, duration and termination
 fractions. It does not reconstruct per-world command metrics from already-aggregated reset logs.
