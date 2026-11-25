@@ -45,7 +45,7 @@ from ..assets import (
 )
 from ..markers import VisualizationMarkers, VisualizationMarkersCfg
 from ..physics import PhysicsEvent, PhysicsManager
-from ..sensors import CameraCfg, ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg
+from ..sensors import CameraCfg, ContactSensorCfg, FrameTransformerCfg, LidarCfg, SensorBase, SensorBaseCfg
 from ..sim import SimulationContext
 from ..sim.usd_export import UsdExporter
 from ..sim.utils.stage import get_current_stage, get_current_stage_id
@@ -235,7 +235,7 @@ class InteractiveScene:
             cfgs.append(child)
             count = cloner.num_spawn_variants(getattr(child, "spawn", None))
             is_per_env = cloner.path.match(child.prim_path, self._env_fmt) is not None
-            is_spawned = isinstance(child, (AssetBaseCfg, CameraCfg)) and child.spawn is not None
+            is_spawned = isinstance(child, (AssetBaseCfg, CameraCfg, LidarCfg)) and child.spawn is not None
             if is_per_env and is_spawned and combinations:
                 clone_asset_names.append(asset_name)
                 spawn = child.spawn
