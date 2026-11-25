@@ -3,9 +3,15 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from types import SimpleNamespace
+
 import pytest
 from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
+from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
+
+from isaaclab.app import validate_launch
+from isaaclab.sim import SimulationCfg
 
 from isaaclab_tasks.contrib.locomanip_pick_place.fixed_base_upper_body_ik_g1_env_cfg import (
     FixedBaseUpperBodyIKG1EnvCfg,
@@ -29,6 +35,9 @@ def test_xr_camera_reference_task_selects_recorded_camera():
 def test_g1_xr_camera_uses_calibration_and_head_locked_panel(env_cfg_type):
     """Both G1 tasks present the calibrated camera in a headset-following panel."""
     cfg = env_cfg_type()
+    assert cfg.scene.robot_pov_cam.renderer_cfg.isaacsim_rtx == IsaacRtxRendererCfg()
+    cfg = resolve_presets(cfg)
+    validate_launch(cfg, {"visualizer": []})
     camera_cfg = cfg.scene.robot_pov_cam
     # The head panel is part of every feed selection.
     feed_cfg = resolve_presets(cfg.isaac_teleop.xr_camera_feeds)[0]
@@ -50,8 +59,7 @@ def test_g1_xr_camera_uses_calibration_and_head_locked_panel(env_cfg_type):
     assert feed_cfg.enable_dlss_ray_reconstruction is True
     assert feed_cfg.dlss_exec_mode == "quality"
     assert feed_cfg.max_update_hz == (20.0 if env_cfg_type is FixedBaseUpperBodyIKG1EnvCfg else 0.0)
-    assert camera_cfg.renderer_cfg.default == OVRTXRendererCfg()
-    assert camera_cfg.renderer_cfg.isaacsim_rtx == IsaacRtxRendererCfg()
+    assert camera_cfg.renderer_cfg == OVRTXRendererCfg()
 
 
 @pytest.mark.parametrize("selection", [[], ["presets=rgb"]])
@@ -92,7 +100,8 @@ def test_locomanipulation_g1_retains_recorded_camera():
 def test_xr_camera_reference_renderer_resolves_for_supported_backends():
     """Reference cameras default to OVRTX and retain explicit Isaac RTX compatibility."""
     camera_renderer_cfg = PickPlaceGR1T2EnvCfg().scene.robot_pov_cam.renderer_cfg
-    default = resolve_presets(camera_renderer_cfg)
+    default = SimpleNamespace(sim=SimulationCfg(physics=OvPhysxCfg()), renderer=resolve_presets(camera_renderer_cfg))
+    validate_launch(default)
     isaacsim_rtx = resolve_presets(
         camera_renderer_cfg,
         selected=("isaacsim_rtx",),
@@ -100,7 +109,7 @@ def test_xr_camera_reference_renderer_resolves_for_supported_backends():
     ovrtx = resolve_presets(camera_renderer_cfg, selected=("ovrtx",))
     expected_rtx = IsaacRtxRendererCfg()
 
-    assert default == OVRTXRendererCfg()
+    assert default.renderer == OVRTXRendererCfg()
     assert isaacsim_rtx == expected_rtx
     assert isinstance(ovrtx, OVRTXRendererCfg)
 
