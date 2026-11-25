@@ -215,6 +215,7 @@ class OvrtxReplicateContext(cloner.ReplicateContext):
                 log_level=renderer.cfg.log_level,
                 use_ovstage=use_ovstage,
                 read_gpu_transforms=read_gpu_transforms == "1",
+                motion_bvh=renderer.cfg.motion_bvh,
                 device=sim.device,
             )
             if share_ovstage and any(other.cfg != backend_cfg for other in sim.get_backends(OVRTXBackendCfg)):

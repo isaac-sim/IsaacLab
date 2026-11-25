@@ -11,7 +11,7 @@ import asyncio
 import logging
 import signal
 import warnings
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import numpy as np
 import torch
@@ -27,6 +27,7 @@ from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg
 
 from isaaclab_visualizers.desktop_entry import write_desktop_entry
+from isaaclab_visualizers.lidar_points import LIDAR_POINT_COLOR, collect_lidar_hits, frame_visualizer_closeup
 
 from .kit_key_event_source import KitKeyEventSource
 
@@ -99,6 +100,8 @@ class KitVisualizer(BaseVisualizer):
         self._app_pumped_this_step: bool = False
         self._controls_kit_timeline = False
         self._owns_kit_timeline = False
+        self._lidar_draw = None
+        self._lidar_draw_unavailable = False
         # Camera tracking state (replaces ViewportCameraController)
         self._interactive_scene = None  # set from SimulationContext._interactive_scene in initialize()
         self._viewer_origin: torch.Tensor | None = None  # world-space origin offset for eye/lookat
@@ -124,6 +127,8 @@ class KitVisualizer(BaseVisualizer):
             return
 
         super().initialize(sim, cameras=cameras)
+        if self.cfg.backend.origin_type == "world":
+            frame_visualizer_closeup(self, cameras)
         scene_data_provider = self._sim.get_scene_data_provider()
         num_envs = scene_data_provider.num_envs
 
@@ -204,6 +209,7 @@ class KitVisualizer(BaseVisualizer):
         self._fabric.update_geometries(provider, self._sim.render_generation)
         if self.cfg.backend.origin_type == "asset":
             self._update_asset_tracking_camera()
+        self._draw_lidar_points()
         self._app_pumped_this_step = self._pump_kit_app_update()
         if self._camera_image_provider is not None:
             image = self.current_image_view.frame.data if self.is_training_paused() else self.render_tiled_rgba_array()
@@ -220,6 +226,41 @@ class KitVisualizer(BaseVisualizer):
         # Markers (VisualizationMarkers) are often created or resized to num_envs only after the first
         # simulation / debug-vis step; re-apply PointInstancer invisibleIds each step when partial viz is on.
         self._refresh_partial_viz_point_instancers_if_needed()
+
+    def _draw_lidar_points(self) -> None:
+        """Draw one environment's lidar hits in the Kit viewport.
+
+        Debug draw is a viewport overlay, so the lidar product does not scan the points. A missing
+        debug-draw interface is reported once and the step continues.
+        """
+        hits = collect_lidar_hits(self._sim, self._env_ids, self._step_counter)
+        if hits is None:
+            return
+        draw = self._lidar_debug_draw()
+        if draw is None:
+            return
+        draw.clear_points()
+        color = (*LIDAR_POINT_COLOR, 1.0)
+        for _, points in hits:
+            if len(points) == 0:
+                continue
+            positions = [(float(point[0]), float(point[1]), float(point[2])) for point in points]
+            draw.draw_points(positions, [color] * len(positions), [6.0] * len(positions))
+
+    def _lidar_debug_draw(self) -> Any | None:
+        """Return the Kit debug-draw interface, or None when it cannot be acquired."""
+        if self._lidar_draw_unavailable:
+            return None
+        if self._lidar_draw is None:
+            try:
+                from isaacsim.util.debug_draw import _debug_draw
+
+                self._lidar_draw = _debug_draw.acquire_debug_draw_interface()
+            except Exception as exc:
+                logger.warning("[KitVisualizer] Lidar point drawing is unavailable: %s", exc)
+                self._lidar_draw_unavailable = True
+                return None
+        return self._lidar_draw
 
     def close(self) -> None:
         """Close viewport resources and restore temporary state."""

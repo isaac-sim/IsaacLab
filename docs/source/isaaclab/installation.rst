@@ -433,7 +433,9 @@ have dedicated commands below.
    * - ``ovphysx`` / ``ovrtx``
      - OV PhysX only / OV RTX only.
    * - ``optix``
-     - The Newton OptiX renderer runtime for RTX GPUs.
+     - The Newton OptiX renderer runtime for RTX GPUs, available with Python 3.12 on
+       Linux x86-64 and Windows x64 only. ARM64 systems, including NVIDIA DGX Spark,
+       are not supported.
    * - ``sb3`` / ``skrl`` / ``rsl-rl`` / ``rlinf`` / ``torchrl``
      - The corresponding RL framework.
    * - ``skrl-jax``
@@ -442,6 +444,9 @@ have dedicated commands below.
      - The corresponding visualizer.
    * - ``mimic`` / ``teleop``
      - Isaac Lab Mimic / XR teleoperation. The wheel's ``mimic`` extra does not include Robomimic.
+   * - ``fovi``
+     - The experimental :doc:`foveated camera </source/experimental-features/foveated_camera>`
+       (``isaaclab_fovi``), with the `fovi <https://pypi.org/project/fovi/>`__ sampling library.
    * - ``tetrahedralization`` / ``video``
      - Mesh tetrahedralization / video recording.
    * - ``leapp``
@@ -455,15 +460,15 @@ have dedicated commands below.
      - Developer test tooling.
 
 Use ``all`` for the curated list above. Isaac Sim, standalone importers, specialized extras
-(``optix``, ``skrl-jax``, ``rlinf``, ``mimic``, ``teleop``, ``tetrahedralization``, ``video``,
-``leapp``), and the developer ``test`` tooling remain opt-in.
+(``optix``, ``skrl-jax``, ``rlinf``, ``mimic``, ``teleop``, ``fovi``, ``tetrahedralization``,
+``video``, ``leapp``), and the developer ``test`` tooling remain opt-in.
 
 .. note::
 
-   RL-Games and Robomimic are not included in the published wheel metadata because the versions
-   used by Isaac Lab are installed from Git and do not provide package-index wheels. To use either
-   integration, install Isaac Lab from a source checkout and select the ``rl-games`` or ``mimic``
-   extra there.
+   RL-Games, Robomimic, and ``newton-neural`` are not included in the published wheel metadata because
+   the versions used by Isaac Lab are installed from Git and do not provide package-index wheels. To use
+   one of these integrations, install Isaac Lab from a source checkout and select the ``rl-games``,
+   ``mimic``, or ``newton-neural`` extra there.
 
 .. note::
 

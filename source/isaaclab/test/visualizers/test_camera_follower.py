@@ -13,9 +13,9 @@ from types import SimpleNamespace
 import pytest
 import torch
 
+from isaaclab.sim.simulation_context import _with_free_view as with_free_view
 from isaaclab.visualizers import PerspectiveCameraCfg, SceneCameraCfg, TrackingCameraCfg, VisualizerCfg
 from isaaclab.visualizers.camera_follower import CameraFollower
-from isaaclab.visualizers.visualizer_cfg import with_free_view
 
 pytestmark = pytest.mark.kitless
 

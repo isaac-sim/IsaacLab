@@ -987,7 +987,7 @@ def test_custom_rsl_models_construct_from_serialized_configs(entry: str, num_act
 
 
 def test_sac_configuration_tracks_native_constructor() -> None:
-    """Typed SAC options match the native constructor arguments and defaults."""
+    """Typed SAC options track the constructor while retaining the task learning rates."""
     import inspect
     from dataclasses import MISSING, fields
 
@@ -1002,4 +1002,9 @@ def test_sac_configuration_tracks_native_constructor() -> None:
     assert {field.name for field in fields(cfg)} - construction == set(parameters) - injected
     for name, parameter in parameters.items():
         if name not in injected and not isinstance(getattr(cfg, name), type(MISSING)):
-            assert getattr(cfg, name) == parameter.default, name
+            expected = (
+                1e-4
+                if name in {"actor_learning_rate", "critic_learning_rate", "alpha_learning_rate"}
+                else parameter.default
+            )
+            assert getattr(cfg, name) == expected, name

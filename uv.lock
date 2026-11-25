@@ -891,6 +891,7 @@ dependencies = [
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d3/8c/5fe3f6719c2d4560c79c62ef6d9b7d6c34d145879ddc0c1a41f8153ad0a6/cupy_cuda12x-14.2.0-cp312-cp312-manylinux2014_aarch64.whl", hash = "sha256:b74340aa7271f0f081f77e2e5107bac75af19b86df29213db7ada90e14428efe", size = 147490427, upload-time = "2026-08-20T02:40:00.196Z" },
     { url = "https://files.pythonhosted.org/packages/7c/5b/65124de2dbaf2e85109f611a41947e39acd6dd938751c04b4c4d7bf6fc82/cupy_cuda12x-14.2.0-cp312-cp312-manylinux2014_x86_64.whl", hash = "sha256:f82141761f2c81905d49387464ae29438887956d99063381c93a1d5d1b7d32e8", size = 136111459, upload-time = "2026-08-20T02:40:04.909Z" },
+    { url = "https://files.pythonhosted.org/packages/e9/18/ddea819204701024bef7fa748730702245d803847c841b737723b94fd091/cupy_cuda12x-14.2.0-cp312-cp312-win_amd64.whl", hash = "sha256:c9571d3b5f2e65758137e210f7fb3c3b34767f0af6b6ca04035a244b6141ee12", size = 98780018, upload-time = "2026-08-20T02:40:09.465Z" },
 ]
 
 [[package]]
@@ -1284,6 +1285,28 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/c8/8b/6391b257fa3d0b553d73e778f953a2f0154292a7a7a085e2374b111e5410/fonttools-4.61.1-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:5fade934607a523614726119164ff621e8c30e8fa1ffffbbd358662056ba69f0", size = 5093598, upload-time = "2025-12-12T17:30:15.79Z" },
     { url = "https://files.pythonhosted.org/packages/80/3b/a3e81b71aed5a688e89dfe0e2694b26b78c7d7f39a5ffd8a7d75f54a12a8/fonttools-4.61.1-cp312-cp312-win_amd64.whl", hash = "sha256:497c31ce314219888c0e2fce5ad9178ca83fe5230b01a5006726cdf3ac9f24d9", size = 2319078, upload-time = "2025-12-12T17:30:22.862Z" },
     { url = "https://files.pythonhosted.org/packages/c7/4e/ce75a57ff3aebf6fc1f4e9d508b8e5810618a33d900ad6c19eb30b290b97/fonttools-4.61.1-py3-none-any.whl", hash = "sha256:17d2bf5d541add43822bcf0c43d7d847b160c9bb01d15d5007d84e2217aaa371", size = 1148996, upload-time = "2025-12-12T17:31:21.03Z" },
+]
+
+[[package]]
+name = "fovi"
+version = "2.7.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cupy-cuda12x" },
+    { name = "einops" },
+    { name = "ipython" },
+    { name = "numpy" },
+    { name = "pillow" },
+    { name = "scipy" },
+    { name = "torch" },
+    { name = "torchvision" },
+    { name = "tqdm" },
+    { name = "trimesh" },
+    { name = "warp-lang" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b8/0f/787082f650d1ae57a420b868edb4e25953eadc569793003fe5257848b674/fovi-2.7.0.tar.gz", hash = "sha256:506faffe547f31db4a4e4ea24b124d918ad8fc7fc2cdcab6822f6f960b75b74a", size = 67610838, upload-time = "2026-11-23T22:02:14.2Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/02/e8/70ec00f724b8df673c5b50eb3e9f3de729f09aa4fb5e71caa1cd642fcd50/fovi-2.7.0-py3-none-any.whl", hash = "sha256:46ec4c489af8925bdcf2dc4017847f1cfa34b6eb0ad5378771ba105a451278ec", size = 330543, upload-time = "2026-11-23T22:02:10.796Z" },
 ]
 
 [[package]]
@@ -1795,16 +1818,16 @@ source = { editable = "source/isaaclab_assets" }
 dependencies = [
     { name = "isaaclab" },
     { name = "isaaclab-contrib" },
-    { name = "isaaclab-newton" },
     { name = "isaaclab-isaacsim" },
+    { name = "isaaclab-newton" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "isaaclab", editable = "source/isaaclab" },
     { name = "isaaclab-contrib", editable = "source/isaaclab_contrib" },
-    { name = "isaaclab-newton", editable = "source/isaaclab_newton" },
     { name = "isaaclab-isaacsim", editable = "source/isaaclab_isaacsim" },
+    { name = "isaaclab-newton", editable = "source/isaaclab_newton" },
 ]
 
 [[package]]
@@ -1840,9 +1863,10 @@ dependencies = [
     { name = "isaaclab-assets" },
     { name = "isaaclab-contrib" },
     { name = "isaaclab-experimental" },
+    { name = "isaaclab-isaacsim" },
+    { name = "isaaclab-neural" },
     { name = "isaaclab-newton" },
     { name = "isaaclab-ov" },
-    { name = "isaaclab-isaacsim" },
     { name = "isaaclab-ppisp" },
     { name = "isaaclab-rl" },
     { name = "isaaclab-tasks" },
@@ -1872,10 +1896,11 @@ dependencies = [
     { name = "requests" },
     { name = "resolve-robotics-uri-py" },
     { name = "rich" },
-    { name = "rsl-rl-lib" },
+    { name = "rsl-rl-lib-extras" },
     { name = "scipy" },
     { name = "starlette" },
     { name = "tensorboard" },
+    { name = "tensordict" },
     { name = "torch" },
     { name = "torchvision" },
     { name = "tqdm" },
@@ -1899,7 +1924,7 @@ all = [
     { name = "rerun-sdk" },
     { name = "rich" },
     { name = "rl-games" },
-    { name = "rsl-rl-lib" },
+    { name = "rsl-rl-lib-extras" },
     { name = "skrl", extra = ["torch", "warp"] },
     { name = "stable-baselines3" },
     { name = "standard-distutils" },
@@ -1926,6 +1951,10 @@ dev = [
     { name = "sphinxcontrib-bibtex" },
     { name = "sphinxemoji" },
 ]
+fovi = [
+    { name = "fovi" },
+    { name = "isaaclab-fovi" },
+]
 importers = [
     { name = "isaacsim-asset-isolated" },
     { name = "tinyobjloader" },
@@ -1942,6 +1971,9 @@ mimic = [
     { name = "isaaclab-mimic" },
     { name = "isaaclab-teleop" },
     { name = "robomimic", marker = "sys_platform != 'win32'" },
+]
+newton-neural = [
+    { name = "newton-neural" },
 ]
 optix = [
     { name = "newton", extra = ["optix", "sim"] },
@@ -1995,7 +2027,7 @@ rlinf = [
     { name = "virtualenv" },
 ]
 rsl-rl = [
-    { name = "rsl-rl-lib" },
+    { name = "rsl-rl-lib-extras" },
 ]
 sb3 = [
     { name = "rich" },
@@ -2058,6 +2090,7 @@ requires-dist = [
     { name = "fast-simplification", specifier = ">=0.1.11" },
     { name = "filelock" },
     { name = "flaky", marker = "extra == 'test'" },
+    { name = "fovi", marker = "extra == 'fovi'", specifier = ">=2.7" },
     { name = "gitpython", specifier = ">=3.1.60" },
     { name = "gym", marker = "extra == 'rl-games'" },
     { name = "gymnasium", specifier = ">=1.2.0" },
@@ -2075,11 +2108,13 @@ requires-dist = [
     { name = "isaaclab-dev", extras = ["sb3", "skrl", "rl-games", "rsl-rl", "viser", "rerun", "ov"], marker = "extra == 'all'" },
     { name = "isaaclab-dev", extras = ["test"], marker = "extra == 'dev'" },
     { name = "isaaclab-experimental", editable = "source/isaaclab_experimental" },
+    { name = "isaaclab-fovi", marker = "extra == 'fovi'", editable = "source/isaaclab_fovi" },
+    { name = "isaaclab-isaacsim", editable = "source/isaaclab_isaacsim" },
     { name = "isaaclab-mimic", marker = "extra == 'mimic'", editable = "source/isaaclab_mimic" },
     { name = "isaaclab-mimic", marker = "extra == 'teleop'", editable = "source/isaaclab_mimic" },
+    { name = "isaaclab-neural", editable = "source/isaaclab_neural" },
     { name = "isaaclab-newton", editable = "source/isaaclab_newton" },
     { name = "isaaclab-ov", editable = "source/isaaclab_ov" },
-    { name = "isaaclab-isaacsim", editable = "source/isaaclab_isaacsim" },
     { name = "isaaclab-ppisp", editable = "source/isaaclab_ppisp" },
     { name = "isaaclab-rl", editable = "source/isaaclab_rl" },
     { name = "isaaclab-tasks", editable = "source/isaaclab_tasks" },
@@ -2100,6 +2135,7 @@ requires-dist = [
     { name = "myst-parser", marker = "extra == 'dev'" },
     { name = "newton", extras = ["optix"], marker = "extra == 'optix'" },
     { name = "newton", extras = ["sim"], git = "https://github.com/newton-physics/newton.git?rev=d31603ff5e8389d1d6b2a5daef6ea2cb074c26ff" },
+    { name = "newton-neural", marker = "extra == 'newton-neural'", git = "https://github.com/newton-physics/newton-neural.git?rev=06da4d2a604f3dbb48127a9010c41511cdd37a32" },
     { name = "newton-usd-schemas", specifier = ">=0.5.0" },
     { name = "numba", specifier = ">=0.63.1" },
     { name = "numpy", specifier = ">=2" },
@@ -2142,8 +2178,8 @@ requires-dist = [
     { name = "rich", marker = "extra == 'sb3'" },
     { name = "rl-games", marker = "extra == 'rl-games'", git = "https://github.com/isaac-sim/rl_games.git?rev=5cf4f9ff07e9a01bbefd167cf19b6804b294b51c" },
     { name = "robomimic", marker = "sys_platform == 'linux' and extra == 'mimic'", git = "https://github.com/ARISE-Initiative/robomimic.git?rev=v0.4.0" },
-    { name = "rsl-rl-lib", git = "https://github.com/leggedrobotics/rsl_rl.git?rev=ea39cc2ae4a615c3d70d4ed9055d8b6e3b4c8acd" },
-    { name = "rsl-rl-lib", marker = "extra == 'rsl-rl'", git = "https://github.com/leggedrobotics/rsl_rl.git?rev=ea39cc2ae4a615c3d70d4ed9055d8b6e3b4c8acd" },
+    { name = "rsl-rl-lib-extras", specifier = "==6.0.0.1" },
+    { name = "rsl-rl-lib-extras", marker = "extra == 'rsl-rl'", specifier = "==6.0.0.1" },
     { name = "scipy", specifier = ">=1.18.0" },
     { name = "skrl", extras = ["jax"], marker = "extra == 'skrl-jax'", specifier = ">=2.1.1" },
     { name = "skrl", extras = ["torch", "warp"], marker = "extra == 'skrl'", specifier = ">=2.1.1" },
@@ -2161,6 +2197,7 @@ requires-dist = [
     { name = "standard-distutils", marker = "extra == 'rl-games'" },
     { name = "starlette", specifier = ">=1.3.1" },
     { name = "tensorboard" },
+    { name = "tensordict", specifier = ">=0.10.0" },
     { name = "timm", marker = "extra == 'rlinf'", specifier = ">=1.0.14" },
     { name = "tinyobjloader", marker = "extra == 'importers'", specifier = "==2.0.0rc13" },
     { name = "torch", specifier = "==2.11.0", index = "https://download.pytorch.org/whl/cu130" },
@@ -2178,7 +2215,7 @@ requires-dist = [
     { name = "wandb", marker = "extra == 'wandb'", specifier = ">=0.13.11" },
     { name = "warp-lang", specifier = "==1.17.0" },
 ]
-provides-extras = ["tetrahedralization", "video", "optix", "importers", "test", "dev", "sb3", "skrl", "skrl-jax", "rl-games", "wandb", "rsl-rl", "torchrl", "viser", "rerun", "isaacsim", "ov", "ovphysx", "ovrtx", "mimic", "teleop", "ovxr", "rlinf", "leapp", "all"]
+provides-extras = ["tetrahedralization", "video", "optix", "newton-neural", "importers", "test", "dev", "sb3", "skrl", "skrl-jax", "rl-games", "wandb", "rsl-rl", "torchrl", "viser", "rerun", "isaacsim", "ov", "ovphysx", "ovrtx", "mimic", "teleop", "ovxr", "rlinf", "leapp", "fovi", "all"]
 
 [[package]]
 name = "isaaclab-experimental"
@@ -2196,6 +2233,28 @@ requires-dist = [
 ]
 
 [[package]]
+name = "isaaclab-fovi"
+version = "0.1.0"
+source = { editable = "source/isaaclab_fovi" }
+dependencies = [
+    { name = "isaaclab" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
+
+[[package]]
+name = "isaaclab-isaacsim"
+version = "13.2.0"
+source = { editable = "source/isaaclab_isaacsim" }
+dependencies = [
+    { name = "isaaclab" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
+
+[[package]]
 name = "isaaclab-mimic"
 version = "2.1.7"
 source = { editable = "source/isaaclab_mimic" }
@@ -2210,6 +2269,21 @@ requires-dist = [
     { name = "isaaclab", editable = "source/isaaclab" },
     { name = "isaaclab-assets", editable = "source/isaaclab_assets" },
     { name = "isaaclab-tasks", editable = "source/isaaclab_tasks" },
+]
+
+[[package]]
+name = "isaaclab-neural"
+version = "0.0.0"
+source = { editable = "source/isaaclab_neural" }
+dependencies = [
+    { name = "isaaclab" },
+    { name = "isaaclab-newton" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "isaaclab", editable = "source/isaaclab" },
+    { name = "isaaclab-newton", editable = "source/isaaclab_newton" },
 ]
 
 [[package]]
@@ -2237,17 +2311,6 @@ requires-dist = [
     { name = "isaaclab", editable = "source/isaaclab" },
     { name = "ovstage", specifier = "==0.4.0.1794520352" },
 ]
-
-[[package]]
-name = "isaaclab-isaacsim"
-version = "13.2.0"
-source = { editable = "source/isaaclab_isaacsim" }
-dependencies = [
-    { name = "isaaclab" },
-]
-
-[package.metadata]
-requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-ppisp"
@@ -3512,6 +3575,17 @@ optix = [
 sim = [
     { name = "mujoco" },
     { name = "mujoco-warp" },
+]
+
+[[package]]
+name = "newton-neural"
+version = "0.1.0.dev0"
+source = { git = "https://github.com/newton-physics/newton-neural.git?rev=06da4d2a604f3dbb48127a9010c41511cdd37a32#06da4d2a604f3dbb48127a9010c41511cdd37a32" }
+dependencies = [
+    { name = "newton", extra = ["sim"] },
+    { name = "numpy" },
+    { name = "torch" },
+    { name = "warp-lang" },
 ]
 
 [[package]]
@@ -5166,9 +5240,9 @@ wheels = [
 ]
 
 [[package]]
-name = "rsl-rl-lib"
-version = "5.5.2"
-source = { git = "https://github.com/leggedrobotics/rsl_rl.git?rev=ea39cc2ae4a615c3d70d4ed9055d8b6e3b4c8acd#ea39cc2ae4a615c3d70d4ed9055d8b6e3b4c8acd" }
+name = "rsl-rl-lib-extras"
+version = "6.0.0.1"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "gitpython" },
     { name = "numpy" },
@@ -5177,6 +5251,10 @@ dependencies = [
     { name = "tensorboard" },
     { name = "tensordict" },
     { name = "torch" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/04/c2/6d2ed3d775e212889facccff81309f282d3573219563bb916711ad02258a/rsl_rl_lib_extras-6.0.0.1.tar.gz", hash = "sha256:08b382ae05077f53fa52691c2cf6882762e196d81c653c3bdd1c75dc6556c094", size = 116008, upload-time = "2026-11-24T21:45:48.418Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/80/26/40236d5e90bdf386ecad6b64025173b8740becc2c697449559180db2014d/rsl_rl_lib_extras-6.0.0.1-py3-none-any.whl", hash = "sha256:8ff45f02515162fcc7240ad31c3370d09fe7c66c5aea8620cb617561e7091f32", size = 158407, upload-time = "2026-11-24T21:45:46.681Z" },
 ]
 
 [[package]]

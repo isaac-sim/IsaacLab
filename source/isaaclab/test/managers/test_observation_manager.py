@@ -916,8 +916,8 @@ def test_stateless_tensor_processor_cfg_roundtrip_preserves_signature_validation
     elif configuration == "legacy_assignment":
         cfg.policy.dummy.modifiers = processors
     else:
-        from isaaclab_experimental.managers import ObservationManager as WarpObservationManager
-        from isaaclab_experimental.utils import tensor_processors as warp_processors
+        from isaaclab_experimental.deprecated.managers import ObservationManager as WarpObservationManager
+        from isaaclab_experimental.deprecated.utils import tensor_processors as warp_processors
 
         def warp_observation(env, out, out_dim):
             out.assign(env.observation.numpy().reshape(-1))

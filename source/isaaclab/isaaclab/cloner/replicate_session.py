@@ -17,12 +17,13 @@ import numpy as np
 
 from .. import sim as sim_utils
 from ..sensors.camera.camera_cfg import CameraCfg
+from ..sensors.lidar.lidar_cfg import LidarCfg
 from ..sensors.sensor_base_cfg import SensorBaseCfg
 from ..utils.string import string_to_callable
 from ..utils.version import has_kit
 from .clone_plan import ClonePlan, grid_transforms, make_clone_plan
 from .clone_plan import path as cloner_path
-from .cloner_cfg import DEFAULT_ENV_TEMPLATE, CloneCfg, InclusionSet, expand_env_regex_ns
+from .cloner_cfg import DEFAULT_ENV_TEMPLATE, CloneCfg, expand_env_regex_ns
 from .cloner_strategies import sequential
 from .replicate_context import ReplicateContext
 from .usd import UsdReplicateContext
@@ -35,47 +36,6 @@ def num_spawn_variants(spawn_cfg: Any) -> int:
     if isinstance(spawn_cfg, sim_utils.MultiUsdFileCfg):
         return 1 if isinstance(spawn_cfg.usd_path, str) else len(spawn_cfg.usd_path)
     return 1
-
-
-def make_valid_clone_combinations(
-    asset_names: Sequence[str],
-    variant_counts: Sequence[int],
-    clone_combinations: Sequence[InclusionSet] | None = None,
-    *,
-    all_asset_names: Sequence[str] | None = None,
-) -> tuple[tuple[tuple[int, ...], ...], np.ndarray]:
-    """Expand named combinations into world memberships and relative weights.
-
-    Repeated names create repeated instances. Each combination's weight is divided equally
-    between its variant combinations; neither padding nor duplicate weighted worlds is needed.
-
-    Args:
-        asset_names: Names of the replicated asset declarations.
-        variant_counts: Number of concrete prototypes for each declaration.
-        clone_combinations: Allowed memberships; unnamed assets are present once in every world.
-        all_asset_names: Scene names, including shared assets that do not enter world memberships.
-
-    Returns:
-        World prototypes indexing the flat variant library, and one weight per world prototype.
-    """
-    if len(asset_names) != len(variant_counts) or any(count <= 0 for count in variant_counts):
-        raise ValueError("Each asset requires one positive variant count.")
-    known = set(asset_names if all_asset_names is None else all_asset_names)
-    combinations = clone_combinations or (InclusionSet(assets=list(dict.fromkeys(asset_names))),)
-    claimed = set().union(*(combination.assets for combination in combinations))
-    offsets = np.cumsum([0, *variant_counts])
-    worlds, weights = [], []
-    for combination in combinations:
-        if unknown := set(combination.assets) - known:
-            raise ValueError(f"Unknown assets in clone combination: {sorted(unknown)}.")
-        choices = []
-        for index, name in enumerate(asset_names):
-            count = combination.assets.count(name) if name in claimed else 1
-            choices.extend([range(*offsets[index : index + 2])] * count)
-        variants = tuple(itertools.product(*choices))
-        worlds.extend(variants)
-        weights.extend([combination.weight / len(variants)] * len(variants))
-    return tuple(worlds), np.asarray(weights, dtype=np.float64)
 
 
 def replicate(plan: ClonePlan, *, replicate_physics: bool | None = None) -> None:
@@ -185,7 +145,7 @@ class ReplicateSession:
         env_spacing: float,
         *,
         clone_strategy: Callable[[np.ndarray, int], np.ndarray] = sequential,
-        world_prototypes: Sequence[Sequence[int]] | None = None,
+        world_prototypes: Sequence[Sequence[int | Sequence[int]]] | None = None,
         weights: Sequence[float] | None = None,
         replicate_physics: bool | None = None,
         env_template: str = DEFAULT_ENV_TEMPLATE,
@@ -215,7 +175,7 @@ def _prepare_cloning(
     env_spacing: float,
     *,
     clone_strategy: Callable[[np.ndarray, int], np.ndarray] = sequential,
-    world_prototypes: Sequence[Sequence[int]] | None = None,
+    world_prototypes: Sequence[Sequence[int | Sequence[int]]] | None = None,
     weights: Sequence[float] | None = None,
     env_template: str = DEFAULT_ENV_TEMPLATE,
     positions: np.ndarray | None = None,
@@ -231,7 +191,7 @@ def _prepare_cloning(
     # Expand spawner variants into asset prototypes; per-asset choices form the default world compositions.
     asset_prototypes, groups, shared, declarations = [], [], [], []
     for cfg in cfgs:
-        if isinstance(cfg, CameraCfg):
+        if isinstance(cfg, (CameraCfg, LidarCfg)):
             sim.get_or_create_backend(cfg.renderer_cfg)
         spawn = getattr(cfg, "spawn", None)
         if spawn is not None:
