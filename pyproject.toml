@@ -25,6 +25,7 @@ dependencies = [
     "isaaclab-assets",
     "isaaclab-contrib",
     "isaaclab-experimental",
+    "isaaclab-neural",
     "isaaclab-newton",
     "isaaclab-ov",
     "isaaclab-isaacsim",
@@ -72,6 +73,7 @@ dependencies = [
     "hf-xet>=1.4.1,<2.0.0 ; platform_machine == 'x86_64' or platform_machine == 'AMD64' or platform_machine == 'aarch64'",
     # ----- tasks -----
     "tensorboard",
+    "tensordict>=0.10.0",
     "numba>=0.63.1",
     # ----- rl utilities -----
     # rc2 is the tested floor for ConfigStore replace=True; switch to stable 1.4 when released.
@@ -81,7 +83,7 @@ dependencies = [
     "rich",
     "tqdm>=4.67.1",
     # Replace this validated source pin with a published release containing SAC before merging.
-    "rsl-rl-lib @ git+https://github.com/leggedrobotics/rsl_rl.git@ea39cc2ae4a615c3d70d4ed9055d8b6e3b4c8acd",
+    "rsl-rl-lib-extras==6.0.0.2",
     "gitpython>=3.1.60",  # used by RL training and experiment logging
     # ----- newton (default physics engine) -----
     # Pin the current Newton development revision until it is included in a release.
@@ -115,6 +117,11 @@ tetrahedralization = ["pytetwild[all]>=0.3.0,<0.4"]
 video = ["moviepy>=1.0.3,<2.0.0.dev0"]
 
 optix = ["newton[optix]"]
+
+# Learned robot dynamics models and solvers backing the ``newton_nerd`` and ``newton_mjwarp_nerd`` physics presets.
+newton-neural = [
+    "newton-neural @ git+https://github.com/newton-physics/newton-neural.git@06da4d2a604f3dbb48127a9010c41511cdd37a32",
+]
 
 importers = [
     "isaacsim-asset-isolated==6.2.0.1",
@@ -165,7 +172,7 @@ rl-games = [
 
 wandb = ["wandb>=0.13.11"]
 
-rsl-rl = ["rsl-rl-lib @ git+https://github.com/leggedrobotics/rsl_rl.git@ea39cc2ae4a615c3d70d4ed9055d8b6e3b4c8acd"]
+rsl-rl = ["rsl-rl-lib-extras==6.0.0.2"]
 
 torchrl = ["torchrl>=0.13"]
 
@@ -474,6 +481,7 @@ isaaclab = { path = "source/isaaclab", editable = true }
 "isaaclab-experimental" = { path = "source/isaaclab_experimental", editable = true }
 "isaaclab-fovi" = { path = "source/isaaclab_fovi", editable = true }
 "isaaclab-mimic" = { path = "source/isaaclab_mimic", editable = true }
+"isaaclab-neural" = { path = "source/isaaclab_neural", editable = true }
 "isaaclab-newton" = { path = "source/isaaclab_newton", editable = true }
 "isaaclab-ov" = { path = "source/isaaclab_ov", editable = true }
 "isaaclab-isaacsim" = { path = "source/isaaclab_isaacsim", editable = true }

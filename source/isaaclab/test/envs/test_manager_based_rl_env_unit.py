@@ -109,7 +109,7 @@ def test_obs_space_follows_clip_constraint():
 @pytest.mark.kitless
 @pytest.mark.parametrize("env_kind", ["manager", "direct", "marl"])
 def test_final_observations_are_owned_and_cleared_each_step_and_reset(env_kind: str) -> None:
-    """An autoreset step exposes owned terminal observations; the next step and an explicit reset drop them."""
+    """Autoreset and viewer-reset steps expose owned terminal observations; later steps and resets drop them."""
     cls = {"manager": ManagerBasedRLEnv, "direct": DirectRLEnv, "marl": DirectMARLEnv}[env_kind]
     env = object.__new__(cls)
     env._is_closed = True
@@ -125,6 +125,7 @@ def test_final_observations_are_owned_and_cleared_each_step_and_reset(env_kind: 
     )
     agents = ["a", "b"] if env_kind == "marl" else [None]
     state = torch.tensor([[10.0], [20.0]])
+    manual_reset_requested = []
 
     def extras_of(agent):
         return env.extras[agent] if agent else env.extras
@@ -138,7 +139,7 @@ def test_final_observations_are_owned_and_cleared_each_step_and_reset(env_kind: 
         device="cpu",
         is_rendering=False,
         is_playing=lambda: True,
-        consume_reset_request=lambda: False,
+        consume_reset_request=lambda: manual_reset_requested.pop() if manual_reset_requested else False,
         step=lambda **kwargs: state.add_(1),
         forward=lambda: None,
     )
@@ -222,6 +223,13 @@ def test_final_observations_are_owned_and_cleared_each_step_and_reset(env_kind: 
         assert "final_obs" not in extras_of(agent)
         assert extras_of(agent)["log"] == {"episode": 1}
         assert extras_of(agent)["user"] is sentinel
+    # a viewer reset on a step without an episode end still exposes the pre-reset observations
+    done[0] = False
+    manual_reset_requested.append(True)
+    state[:] = torch.tensor([[30.0], [40.0]])
+    env.step(actions)
+    for agent in agents:
+        torch.testing.assert_close(terminal(agent), torch.tensor([[31.0], [41.0]]))
     # reset_to does the same for manager-based environments
     if env_kind == "manager":
         env.step(actions)

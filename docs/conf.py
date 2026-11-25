@@ -34,6 +34,8 @@ sys.path.insert(0, os.path.abspath("../source/isaaclab_isaacsim"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_isaacsim/isaaclab_isaacsim"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_newton"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_newton/isaaclab_newton"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_neural"))
+sys.path.insert(0, os.path.abspath("../source/isaaclab_neural/isaaclab_neural"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_experimental"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_experimental/isaaclab_experimental"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab_rl"))
@@ -302,6 +304,7 @@ autodoc_mock_imports = [
     "hydra.core.config_store",
     "omegaconf",
     "newton",
+    "newton_neural",
     "fovi",
 ]
 
@@ -422,6 +425,7 @@ html_sidebars = {
 
 # Keep published links working after guide consolidation.
 isaaclab_doc_redirects = {
+    "source/how-to/train_model_based": "source/experimental-features/model_based",
     "source/concepts/schema_fragments": "source/concepts/schema_cfgs",
     "source/migration/migrating_to_isaaclab_3-0": "source/isaaclab/migrating",
     "source/setup/ecosystem": "source/isaaclab/ecosystem",
@@ -459,7 +463,8 @@ isaaclab_doc_redirects = {
     "source/features/visualizer_tiled_camera": "source/how-to/visualizer_streaming_camera_view",
     "source/how-to/robots": "source/how-to/write_articulation_cfg",
     "source/tutorials/00_sim/create_empty": "source/how-to/create_empty",
-    "source/tutorials/00_sim/launch_app": "source/how-to/launch_app",
+    "source/tutorials/00_sim/launch_app": "source/how-to/create_empty",
+    "source/how-to/launch_app": "source/how-to/create_empty",
     "source/tutorials/00_sim/spawn_prims": "source/how-to/spawn_prims",
     "source/tutorials/01_assets/add_new_robot": "source/how-to/write_articulation_cfg",
     "source/tutorials/01_assets/run_articulation": "source/how-to/run_articulation",

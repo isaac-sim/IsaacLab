@@ -41,6 +41,8 @@ class OVRTXBackendCfg(BackendCfg):
     """Whether OVRTX reads its GPU transform cache, resolved before native construction."""
     device: str = MISSING
     """Normalized simulation device: ``cpu`` or ``cuda:<index>``."""
+    motion_bvh: Literal["disable", "enable", "auto"] | None = None
+    """Motion BVH mode passed to the native engine."""
 
 
 @configclass
@@ -144,12 +146,22 @@ class OVRTXRendererCfg(RendererCfg):
     semantic-label mapping via ``camera.data.info["instance_segmentation"]["idToSemantics"]``.
     """
 
+    semantic_segmentation_mapping: dict[str, tuple[int, int, int, int]] = {}
+    """RGBA colors for semantic labels such as ``{"class:robot": (61, 178, 255, 255)}``.
+
+    Unspecified labels keep their generated colors. Applies to colorized semantic segmentation
+    pixels and their ``idToLabels`` metadata, matching the Isaac RTX palette contract.
+    """
+
     colorize_instance_id_segmentation: bool = True
     """Retained compatibility field; ignored by the OVRTX renderer. Defaults to True.
 
     OVRTX does not support ``instance_id_segmentation_fast``. Use
     :attr:`colorize_instance_segmentation` to control colorization of the supported instance segmentation output.
     """
+
+    motion_bvh: Literal["disable", "enable", "auto"] | None = None
+    """Motion BVH mode for non-visual sensor pipelines."""
 
     def validate_config(self) -> None:
         """Validate the render product split."""
@@ -159,6 +171,9 @@ class OVRTXRendererCfg(RendererCfg):
                 'OVRTXRendererCfg.max_envs_per_render_product must be "auto", "all" or an integer >= 1,'
                 f" got {max_envs!r}."
             )
+        for label, color in self.semantic_segmentation_mapping.items():
+            if len(color) != 4 or any(type(channel) is not int or not 0 <= channel <= 255 for channel in color):
+                raise ValueError(f"Semantic color for {label!r} must have four integer channels in [0, 255].")
 
     def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
         """Return the per-output layouts supported by the OVRTX renderer."""

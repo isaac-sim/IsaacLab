@@ -62,16 +62,6 @@ How-to Guides
 
             :guide-tag:`PhysX` :guide-tag:`Isaac Sim`
 
-      .. container:: guide-entry
-
-         :doc:`Deep-dive into launching the simulation </source/how-to/launch_app>`
-
-         Configure and launch simulation applications from Python and the command line.
-
-         .. container:: guide-metadata
-
-            :guide-tag:`PhysX` :guide-tag:`Isaac Sim`
-
    .. container:: guide-group
 
       .. _asset-authoring:
@@ -362,6 +352,16 @@ How-to Guides
 
             :guide-tag:`PhysX` :guide-tag-newton:`Newton`
 
+      .. container:: guide-entry
+
+         :doc:`Training on neural robot dynamics </source/how-to/neural_robot_dynamics>`
+
+         Record robot trajectories from a task, train a neural dynamics model, and train RL policies on it.
+
+         .. container:: guide-metadata
+
+            :guide-tag-newton:`Newton`
+
    .. container:: guide-group
 
       .. rubric:: Sensors, Cameras, and Rendering
@@ -574,11 +574,11 @@ How-to Guides
 
          :doc:`Recording animations of simulations </source/how-to/record_animation>`
 
-         Capture simulation state and export an animation.
+         Record Newton RTX video or use deprecated Kit USD animation workflows.
 
          .. container:: guide-metadata
 
-            :guide-tag:`PhysX` :guide-tag:`Isaac Sim`
+            :guide-tag-newton:`Newton` :guide-tag:`OvPhysX` :guide-tag:`RTX`
 
       .. container:: guide-entry
 
@@ -595,6 +595,16 @@ How-to Guides
          :doc:`Profiling Isaac Lab with Nsight Systems </source/how-to/profile_with_nsys>`
 
          Capture and inspect runtime traces with NVIDIA Nsight Systems.
+
+   .. container:: guide-group
+
+      .. rubric:: Model-based learning
+
+      .. container:: guide-entry
+
+         :doc:`SuperMimic-style Motion Tracking </source/experimental-features/model_based>`
+
+         Download reference data and train or play a G1 policy with RSL-RL SuperMimic.
 
 .. container:: guide-browser-note
 

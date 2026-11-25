@@ -11,9 +11,13 @@ import argparse
 import contextlib
 import logging
 import os
+from collections.abc import Callable
+
+import torch
+from torch import Tensor
 
 from isaaclab.app import add_launcher_args, launch_simulation
-from isaaclab.envs import DirectMARLEnvCfg
+from isaaclab.envs import DirectMARLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.string import list_intersection
@@ -21,7 +25,7 @@ from isaaclab.utils.string import list_intersection
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import get_checkpoint_path, resolve_task_config, setup_preset_cli
 
-from ...rsl_rl import RslRlBaseRunnerCfg, RslRlSacRunnerCfg, RslRlVecEnvWrapper
+from ...rsl_rl import RslRlBaseRunnerCfg, RslRlSacRunnerCfg, RslRlSuperMimicRunnerCfg, RslRlVecEnvWrapper
 from ...utils.wandb import is_wandb_checkpoint, resolve_wandb_checkpoint
 from ..common import (
     CHECKPOINT_SELECTORS,
@@ -41,7 +45,7 @@ from ..common import (
     startup_screen,
 )
 from . import cli_args_rsl_rl as cli_args
-from .runner_rsl_rl import create_rsl_rl_runner
+from .runner_rsl_rl import configure_rsl_rl_env_cfg, create_rsl_rl_runner, wrap_rsl_rl_env
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +65,9 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--external_callback", default=None, help="Fully qualified path to an externally defined callback."
     )
+    parser.add_argument(
+        "--evaluate", action="store_true", help="Score the first episode of each manager-based environment and exit."
+    )
     cli_args.add_rsl_rl_args(parser)
     add_launcher_args(parser)
     remaining_args_env_registration = cli_args.register_external_tasks(argv)
@@ -79,7 +86,7 @@ def _resolve_checkpoint(
     if args_cli.checkpoint and is_wandb_checkpoint(args_cli.checkpoint):
         return resolve_wandb_checkpoint(args_cli.checkpoint)
     if args_cli.checkpoint == "pretrained":
-        if isinstance(agent_cfg, RslRlSacRunnerCfg):
+        if isinstance(agent_cfg, (RslRlSacRunnerCfg, RslRlSuperMimicRunnerCfg)):
             raise ValueError("Published checkpoints are PPO policies and cannot be loaded by OffPolicyRunner agents.")
         return resolve_published_checkpoint("rsl_rl", args_cli.task, env_cfg)
     if args_cli.checkpoint in CHECKPOINT_SELECTORS:
@@ -100,11 +107,56 @@ def _resolve_checkpoint(
     return get_checkpoint_path(log_root_path, agent_cfg.load_run, agent_cfg.load_checkpoint)
 
 
+@torch.inference_mode()
+def score_policy(env: RslRlVecEnvWrapper, policy: Callable[..., Tensor]) -> tuple[int, float, float, dict[str, float]]:
+    """Report rewards, durations and termination fractions for each world's first episode.
+
+    Aggregated command metrics cannot distinguish first endings from later autoresets, so they are not
+    reconstructed from extras['log']. All worlds count once, regardless of their episode lengths.
+    """
+    task = env.unwrapped
+    obs, _ = env.reset()
+    reward, seconds = (torch.zeros(task.num_envs, device=task.device) for _ in range(2))
+    running = torch.ones(task.num_envs, dtype=torch.bool, device=task.device)  # Environments in their first episode
+    endings = dict.fromkeys(task.termination_manager.active_terms, 0)
+    for _ in range(task.max_episode_length):
+        obs, step_reward, dones, extras = env.step(policy(obs))
+        policy.reset(dones)  # The shared RSL-RL policy interface clears recurrent state at episode endings.
+        reward += step_reward * running
+        seconds += task.step_dt * running
+        ended = running & dones.bool()
+        running &= ~ended
+        count = int(ended.sum())
+        if count == 0:
+            continue
+        for name in endings:
+            endings[name] += int((ended & task.termination_manager.get_term(name)).sum())
+        if not running.any():
+            break
+    episode_count = int((~running).sum())
+    if episode_count == 0:
+        raise RuntimeError("No evaluation episode completed within the task episode limit")
+    divisor = episode_count
+    return (
+        episode_count,
+        reward[~running].sum().item() / divisor,
+        seconds[~running].sum().item() / divisor,
+        {name: count / divisor for name, count in endings.items()},
+    )
+
+
 def run(argv: list[str]) -> None:
     """Play a checkpoint of an RSL-RL agent."""
     args_cli = _parse_args(argv)
+    if args_cli.task in ("Isaac-Motion-Tracking-GenCoord-G1", "IsaacContrib-Motion-Tracking-GenCoord-G1"):
+        from .play_model_based import run as play_published_motion
+
+        play_published_motion(argv)
+        return
     with startup_screen(args_cli, num_stages=3) as screen:
         env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent, play_mode=not args_cli.train_env_cfg)
+        if args_cli.evaluate and not isinstance(env_cfg, ManagerBasedRLEnvCfg):
+            raise ValueError("--evaluate requires a manager-based RL environment for termination reporting")
         pre_launch_video_config(env_cfg, args_cli)
         screen.stage("Launching simulation")
         with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
@@ -123,6 +175,7 @@ def run(argv: list[str]) -> None:
             env_cfg.log_dir = log_dir
             apply_video_recording(env_cfg, log_dir, args_cli, subdir="play", checkpoint_path=resume_path)
 
+            configure_rsl_rl_env_cfg(env_cfg, agent_cfg, inference=not args_cli.train_env_cfg)
             screen.stage("Creating environment")
             env = create_isaaclab_env(
                 args_cli.task,
@@ -133,7 +186,7 @@ def run(argv: list[str]) -> None:
             cleanup.callback(lambda: close_env(env))
 
             screen.stage("Loading policy")
-            env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
+            env = wrap_rsl_rl_env(env, agent_cfg)
             logger.info(f"Loading model checkpoint from: {resume_path}")
             runner = create_rsl_rl_runner(env, agent_cfg, inference=True)
             # configure_seed must run after runner construction so torch determinism does not disturb its initialization
@@ -142,17 +195,29 @@ def run(argv: list[str]) -> None:
             runner.load(resume_path, map_location=agent_cfg.device)
             policy = runner.get_inference_policy(device=env.unwrapped.device)
 
+            if args_cli.evaluate:
+                screen.close()
+                episodes, reward, seconds, endings = score_policy(env, policy)
+                logger.info("%d episodes, mean reward %.3f, mean duration %.3f s", episodes, reward, seconds)
+                for name, fraction in endings.items():
+                    logger.info("  %s: %.2f%%", name, 100 * fraction)
+                return
+
             export_model_dir = os.path.join(log_dir, "exported")
             runner.export_policy_to_jit(path=export_model_dir, filename="policy.pt")
             runner.export_policy_to_onnx(path=export_model_dir, filename="policy.onnx")
 
-            obs = env.get_observations()
-
-            def step() -> None:
-                nonlocal obs
-                obs, _, dones, _ = env.step(policy(obs))
-                # reset recurrent states for episodes that have terminated
-                policy.reset(dones)
-
             screen.close()
-            run_playback(step, dt=env.unwrapped.step_dt, args_cli=args_cli, env_cfg=env_cfg)
+            play_policy(env, policy, args_cli, env_cfg)
+
+
+def play_policy(env, policy, args_cli, env_cfg, *, max_steps=None):
+    """Run a loaded RSL-RL policy with shared video and real-time playback controls."""
+    obs = env.get_observations()
+
+    def step() -> None:
+        nonlocal obs
+        obs, _, dones, _ = env.step(policy(obs))
+        policy.reset(dones)
+
+    run_playback(step, dt=env.unwrapped.step_dt, args_cli=args_cli, env_cfg=env_cfg, max_steps=max_steps)

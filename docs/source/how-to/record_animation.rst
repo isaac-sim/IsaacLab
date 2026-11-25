@@ -5,6 +5,33 @@ Recording Animations of Simulations
 
 .. currentmodule:: isaaclab
 
+Use Newton RTX to record simulation videos without Isaac Sim. The Kit-based USD animation
+workflows are retained below for existing projects.
+
+Newton RTX video recording
+---------------------------
+
+Install the rendering and video extras, then run the recording tutorial:
+
+.. code-block:: bash
+
+   uv run --extra ov --extra video python scripts/tutorials/07_visualizers/run_video_recording.py \
+      --example 1 --num_envs 4 --viz newton_rtx
+
+This records the Newton RTX viewport as an MP4 video. The tutorial also demonstrates recording
+scene-camera outputs and multiple views. See :doc:`/source/concepts/visualization` for recorder
+configuration. Video recording captures rendered frames; it does not produce the time-sampled
+USD layers described below.
+
+Isaac Sim / Kit USD animation (deprecated)
+------------------------------------------
+
+.. deprecated:: 3.1
+
+   Isaac Lab's Kit recording paths will be removed in 3.2. Use Newton RTX for new video-recording
+   workflows. The Stage Recorder and OVD instructions below remain available for projects that
+   need their USD animation outputs.
+
 Isaac Lab supports two approaches for recording animations of physics simulations: the **Stage Recorder** and the **OVD Recorder**.
 Both generate USD outputs that can be played back in Omniverse, but they differ in how they work and when you’d use them.
 
@@ -28,7 +55,7 @@ The animated USD can be quickly replayed and reviewed by scrubbing through the t
 
 
 Stage Recorder
---------------
+~~~~~~~~~~~~~~
 
 In Isaac Lab, the Stage Recorder is integrated into the :class:`~isaaclab.envs.ui.BaseEnvWindow` class.
 It’s the easiest way to capture physics simulations visually and works directly through the UI.
@@ -36,7 +63,7 @@ It’s the easiest way to capture physics simulations visually and works directl
 To record, Fabric must be disabled—this allows the recorder to track changes to USD and write them out.
 
 Stage Recorder Settings
-~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^
 
 Isaac Lab sets up the Stage Recorder with sensible defaults in ``base_env_window.py``. If needed,
 you can override or inspect these by using the Stage Recorder extension directly in Omniverse Create.
@@ -50,13 +77,15 @@ you can override or inspect these by using the Stage Recorder extension directly
     :pyobject: BaseEnvWindow._toggle_recording_animation_fn
 
 Example Usage
-~~~~~~~~~~~~~
+^^^^^^^^^^^^^
 
-In standalone Isaac Lab environments, pass the ``--disable_fabric`` flag:
+Select a Kit-compatible environment and disable Fabric. This Cartpole example uses
+``physics=isaacsim_physx`` and the ``env.sim.use_fabric=False`` configuration override:
 
 .. code-block:: bash
 
-   python scripts/environments/state_machine/lift_cube_sm.py --num_envs 8 --device cpu --disable_fabric --viz kit
+   uv run --extra isaacsim python scripts/tutorials/03_envs/run_cartpole_rl_env.py \
+      --num_envs 8 --device cpu --viz kit physics=isaacsim_physx env.sim.use_fabric=False
 
 After launching, the Isaac Lab UI window will display a "Record Animation" button.
 Click to begin recording. Click again to stop.
@@ -92,7 +121,7 @@ See the `tutorial on layering in Omniverse`_ for more on working with layers.
 
 
 OVD Recorder
-------------
+~~~~~~~~~~~~
 
 The OVD Recorder uses OmniPVD to record simulation data and bake it directly into a new USD stage.
 This method is more scalable and better suited for large-scale training scenarios (e.g. multi-env RL).
@@ -111,7 +140,7 @@ It’s not UI-controlled—the whole process is enabled through CLI flags and ru
 
 
 Workflow Summary
-~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^
 
 1. User runs Isaac Lab with animation recording enabled via CLI
 2. Isaac Lab starts simulation
@@ -120,7 +149,7 @@ Workflow Summary
 5. The final result is a fully baked, self-contained USD animation
 
 Example Usage
-~~~~~~~~~~~~~
+^^^^^^^^^^^^^
 
 To record an animation:
 
@@ -132,14 +161,18 @@ To record an animation:
 
       .. code-block:: bash
 
-         uv run python scripts/tutorials/03_envs/run_cartpole_rl_env.py --anim_recording_enabled --anim_recording_start_time 1 --anim_recording_stop_time 3 physics=isaacsim_physx
+         uv run --extra isaacsim python scripts/tutorials/03_envs/run_cartpole_rl_env.py \
+            --viz kit --anim_recording_enabled --anim_recording_start_time 1 \
+            --anim_recording_stop_time 3 physics=isaacsim_physx
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code-block:: batch
 
-         uv run python scripts\tutorials\03_envs\run_cartpole_rl_env.py --anim_recording_enabled --anim_recording_start_time 1 --anim_recording_stop_time 3 physics=isaacsim_physx
+         uv run --extra isaacsim python scripts\tutorials\03_envs\run_cartpole_rl_env.py ^
+            --viz kit --anim_recording_enabled --anim_recording_start_time 1 ^
+            --anim_recording_stop_time 3 physics=isaacsim_physx
 
 .. note::
 

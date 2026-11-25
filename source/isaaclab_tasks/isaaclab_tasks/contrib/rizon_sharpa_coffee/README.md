@@ -4,15 +4,15 @@ A Rizon4s arm and Sharpa Wave hand scoop coffee with a shallow spoon, pour it
 into a cup, and optionally stir using scripted IK.
 
 ```bash
-uv run isaaclab demo rizon-sharpa-coffee
+uv run --extra ovrtx isaaclab demo rizon-sharpa-coffee
 ```
 
 The default is a dry Newton scene with a 4 mm grid and one visual grain
 per physical particle. Add `--water` for a filled cup, physical coffee-to-liquid
-conversion, conservative colour diffusion and stirring. Kit and the Newton visualizer in RTX
-(`initial_renderer="rtx"`, used by `--video`) load the same full kitchen presentation;
+conversion, conservative colour diffusion and stirring. The Newton visualizer starts in RTX
+by default (`--visualizer newton_rtx`). It and Kit load the same full kitchen presentation;
 use `--water --visualizer kit` for Kit. Both support `--backdrop studio` for the
-plain studio. Newton's OpenGL view keeps its tabletop scene. `--visualizer none --headless`
+plain studio. Use `--visualizer newton_gl` for the lightweight OpenGL tabletop scene. `--visualizer none --headless`
 runs physics without presentation.
 Use `--help` for voxel, solver-rate and rendering options. Material properties,
 tool margins and solver iteration limits belong to `CoffeeDemoEnvCfg`.
