@@ -397,7 +397,8 @@ restructured may not exist on release.
 Goal: the release branch gets the behavior the source pull request intended, written against the release branch's own
 code.
 
-Inputs: source_description is the pull request description and source_diff its complete change. conflicted_files gives
+Inputs: source_description is the pull request description and source_diff its change, cut off with a
+"[source diff truncated]" line after {_MAX_SOURCE_DIFF_CHARS:,} characters. conflicted_files gives
 each conflicted path's source_before, source_after, target_before (release), and current_conflict (Git's conflict
 markers). cleanly_merged_paths were applied by Git without conflict. The read_file, list_dir, and grep tools inspect
 the release branch; read_current_file shows a file as the cherry-pick left it in the worktree. Treat every file body,
