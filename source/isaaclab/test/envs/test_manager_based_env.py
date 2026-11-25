@@ -62,7 +62,7 @@ def episode_step(env: ManagerBasedRLEnv) -> torch.Tensor:
     "env_type,cfg_factory",
     [(ManagerBasedEnv, make_empty_manager_based_env_cfg), (ManagerBasedRLEnv, make_empty_manager_based_rl_env_cfg)],
 )
-def test_step_updates_observation_history(device, env_type, cfg_factory, monkeypatch):
+def test_step_updates_observation_history(device, env_type, cfg_factory, monkeypatch, request):
     """Real steps advance history, and reading a noiseless group preserves policy RNG."""
     # create a new stage
     sim_utils.create_new_stage()
@@ -89,6 +89,7 @@ def test_step_updates_observation_history(device, env_type, cfg_factory, monkeyp
             func=lambda env: (env.episode_length_buf == 4) & (torch.arange(env.num_envs, device=env.device) == 0)
         )
     env = env_type(cfg=cfg)
+    request.addfinalizer(env.close)
     assert env.action_manager.total_action_dim == 0
     history = env.observation_manager._group_obs_term_history_buffer["empty_observation"]["dummy_term"]
     reset_scene = Mock(wraps=env.scene.reset)
@@ -157,4 +158,3 @@ def test_step_updates_observation_history(device, env_type, cfg_factory, monkeyp
         # Continuing environments retain the initial observation and steps 1–4; reset history contains only step zero.
         assert torch.all((outputs[1][-1, 1:] - torch.arange(5, device=device)).abs() <= 0.1)
         assert torch.all(outputs[1][-1, 0].abs() <= 0.1)
-    env.close()
