@@ -34,6 +34,8 @@ _MAX_CORRECTIONS = 2
 _MAX_MODEL_OUTPUT_TOKENS = 65_536
 _REASONING_EFFORT = "medium"
 _REQUEST_TIMEOUT_SECONDS = 600
+# Leaves about 10 of the job's 30 minutes for pre-commit, validation, the draft PR, and the failure comment.
+_RESOLUTION_TIME_LIMIT_SECONDS = 20 * 60
 _RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 _REGULAR_FILE_MODES = {"100644", "100755"}
 _RESOLUTION_ACTIONS = ("edit", "write", "keep_target", "delete")
@@ -162,10 +164,13 @@ def request_resolutions(
 ) -> tuple[str, dict[str, list[dict[str, str]]]]:
     """Request and validate a constrained resolution, trying models in order."""
     failures = []
-    for model in models:
+    deadline = time.monotonic() + _RESOLUTION_TIME_LIMIT_SECONDS
+    for index, model in enumerate(models):
         print(f"Requesting conflict resolution from NVIDIA model {model}.", flush=True)
+        # Split the remaining time evenly so a slow model leaves the fallback models their share.
+        model_deadline = time.monotonic() + (deadline - time.monotonic()) / (len(models) - index)
         try:
-            return model, _resolve_with_model(model, context, api_key)
+            return model, _resolve_with_model(model, context, api_key, model_deadline)
         except BackportBlockedError:
             raise
         except (ConflictResolutionError, OSError, ValueError) as error:
@@ -306,8 +311,10 @@ def write_summary(path: Path, model: str, result: dict[str, list[dict[str, str]]
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def _resolve_with_model(model: str, context: dict[str, Any], api_key: str) -> dict[str, list[dict[str, str]]]:
-    """Run one model's read-only tool loop and return its validated resolution."""
+def _resolve_with_model(
+    model: str, context: dict[str, Any], api_key: str, deadline: float
+) -> dict[str, list[dict[str, str]]]:
+    """Run one model's read-only tool loop before a monotonic deadline and return its validated resolution."""
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": _system_prompt()},
         {"role": "user", "content": json.dumps(context, ensure_ascii=False, separators=(",", ":"))},
@@ -315,7 +322,7 @@ def _resolve_with_model(model: str, context: dict[str, Any], api_key: str) -> di
     tool_calls = corrections = prompt_tokens = completion_tokens = 0
     try:
         for _ in range(_MAX_TOOL_CALLS + _MAX_CORRECTIONS + 2):
-            response = _request_json(_completion_payload(model, messages), api_key)
+            response = _request_json(_completion_payload(model, messages), api_key, deadline)
             usage = response.get("usage") if isinstance(response, dict) else None
             if isinstance(usage, dict):
                 prompt_tokens += usage.get("prompt_tokens") or 0
@@ -532,8 +539,8 @@ def _table_text(text: str) -> str:
     return " ".join(text.split()).replace("|", "\\|")
 
 
-def _request_json(payload: dict[str, Any], api_key: str) -> dict[str, Any] | list[Any]:
-    """POST one authenticated request to the fixed NVIDIA inference endpoint."""
+def _request_json(payload: dict[str, Any], api_key: str, deadline: float) -> dict[str, Any] | list[Any]:
+    """POST one authenticated request to the fixed NVIDIA inference endpoint before a monotonic deadline."""
     headers = {
         "Accept": "application/json",
         "Authorization": f"Bearer {api_key}",
@@ -549,8 +556,11 @@ def _request_json(payload: dict[str, Any], api_key: str) -> dict[str, Any] | lis
             headers=headers,
             method="POST",
         )
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise ConflictResolutionError("the conflict-resolution time budget is used up")
         try:
-            with urllib.request.urlopen(request, timeout=_REQUEST_TIMEOUT_SECONDS) as response:
+            with urllib.request.urlopen(request, timeout=min(_REQUEST_TIMEOUT_SECONDS, remaining)) as response:
                 decoded = json.loads(response.read().decode("utf-8"))
             if not isinstance(decoded, dict | list):
                 raise ConflictResolutionError("NVIDIA inference returned a non-object JSON payload")
