@@ -542,7 +542,7 @@ def test_rlinf_launch_passes_checkpoint_and_model_config_to_workers(
     @contextlib.contextmanager
     def training_context(actual_runner, overrides):
         assert actual_runner is runner
-        assert overrides == ["physics=newton_mjwarp", "env.scene.num_envs=2"]
+        assert overrides == ["env.sim.physics.split=train", "physics=newton_mjwarp", "env.scene.num_envs=2"]
         events.append("enter")
         try:
             yield

@@ -171,7 +171,7 @@ def run(argv: list[str]) -> None:
     runner = EmbodiedRunner(cfg=cfg, actor=actor_group, rollout=rollout_group, env=env_group)
     context = nullcontext()
     if entry_point := cfg.runner.get("isaaclab_context"):
-        context = string_to_callable(entry_point)(runner, args_cli.env_overrides)
+        context = string_to_callable(entry_point)(runner, list(cfg.env.train.init_params.env_overrides))
     with context:
         runner.init_workers()
         runner.run()

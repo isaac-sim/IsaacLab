@@ -206,8 +206,8 @@ Camera preprocessing is configured under each split's ``isaaclab`` section with
 ``gpu_resize_height``, ``gpu_resize_width``, ``gpu_crop_scale`` and
 ``gpu_crop_random``. Cropping runs before resizing on the image device, for both
 main and extra camera views. The default crop scale is zero. GR00T N1.5 requires
-the final train/eval image dimensions to match; incompatible dimensions raise an
-error when loading the policy. Random training crops and center evaluation crops
+both resize dimensions when resizing and matching final train/eval image
+dimensions; incompatible settings raise an error when loading the policy. Random training crops and center evaluation crops
 may still differ while producing the same output dimensions.
 
 A training recipe may set ``runner.isaaclab_context`` to a ``module:callable``
@@ -218,8 +218,9 @@ string to manage optional services around worker initialization and training:
    runner:
      isaaclab_context: my_demo.training:service_context
 
-The callable receives the RLinf runner and CLI environment overrides and returns
-a context manager. Its cleanup runs after training, including on an exception.
+The callable receives the RLinf runner and the merged training environment
+overrides (recipe settings with CLI overrides applied) and returns a context
+manager. Its cleanup runs after training, including on an exception.
 Recipes without this setting run as before. Keep service-specific behavior in the
 downstream task; the context is training configuration and is not passed to Gym
 environment constructors.

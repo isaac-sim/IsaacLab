@@ -467,19 +467,30 @@ def n15_loader(monkeypatch, tmp_path):
     "training,evaluation,expected",
     [
         ({"gpu_resize_width": 256, "gpu_resize_height": 128}, {}, (256, 128)),
-        ({"gpu_resize_width": 192}, {}, (192, 240)),
-        ({"gpu_resize_height": 128}, {}, (320, 128)),
-        ({"gpu_resize_width": 192}, {"gpu_resize_height": 240}, (192, 240)),
+        ({"gpu_resize_width": 192, "gpu_resize_height": 240}, {}, (192, 240)),
     ],
 )
 def test_n15_loader_sets_input_size_without_mutating_checkpoint_metadata(
     n15_loader, training, evaluation, expected
 ) -> None:
-    """The transform sees width/height in metadata order, with unspecified dimensions retained."""
+    """The transform sees resized width/height without mutating checkpoint metadata."""
     model, transform = n15_loader(training, evaluation)
     actual = transform.set_metadata.call_args.args[0]
     assert actual.modalities.video["head"].resolution == expected
     assert model.metadata.modalities.video["head"].resolution == (320, 240)
+
+
+@pytest.mark.parametrize(
+    "training,evaluation",
+    [
+        ({"gpu_resize_width": 224}, {}),
+        ({}, {"gpu_resize_height": 240}),
+    ],
+)
+def test_n15_loader_rejects_partial_resize(n15_loader, training, evaluation) -> None:
+    """Unspecified camera dimensions cannot be inferred from recording metadata."""
+    with pytest.raises(ValueError, match="requires both gpu_resize_width and gpu_resize_height"):
+        n15_loader(training, evaluation)
 
 
 @pytest.mark.parametrize("training", [{"gpu_resize_width": 256, "gpu_resize_height": 128}, {}])

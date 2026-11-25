@@ -195,6 +195,15 @@ def _patch_gr00t_get_model(cfg: dict) -> None:
     if not data_config_class or model_type == "gr00t_n1d7":
         return
 
+    evaluation_cfg = {**cfg, **_load_full_cfg().get("env", {}).get("eval", {}).get("isaaclab", {})}
+    resize_keys = ("gpu_resize_width", "gpu_resize_height")
+    for split, options in (("train", cfg), ("eval", evaluation_cfg)):
+        if (options.get("gpu_resize_width") is None) != (options.get("gpu_resize_height") is None):
+            raise ValueError(
+                f"GR00T N1.5 requires both gpu_resize_width and gpu_resize_height in {split}. "
+                "A missing dimension would depend on the camera resolution, which may differ from checkpoint metadata."
+            )
+
     import rlinf.models.embodiment.gr00t as rlinf_gr00t_mod
 
     def patched_get_model(model_cfg, torch_dtype=None) -> object:
@@ -258,8 +267,6 @@ def _patch_gr00t_get_model(cfg: dict) -> None:
             rl_head_config=model_cfg.rl_head_config,
         )
 
-        evaluation_cfg = {**cfg, **_load_full_cfg().get("env", {}).get("eval", {}).get("isaaclab", {})}
-        resize_keys = ("gpu_resize_width", "gpu_resize_height")
         if any(options.get(key) is not None for options in (cfg, evaluation_cfg) for key in resize_keys):
             # GR00T validates incoming video against the recording metadata. The env worker has already resized RGB.
             input_metadata = model.metadata.model_copy(deep=True)
