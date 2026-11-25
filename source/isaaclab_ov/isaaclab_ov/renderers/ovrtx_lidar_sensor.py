@@ -117,6 +117,27 @@ def spawn_lidar(prim_path: str, cfg: OVRTXLidarCfg) -> Usd.Prim:
     return prim
 
 
+def _frame_rate(cfg: OVRTXLidarCfg, capture_interval: float) -> Gf.Vec2d:
+    """Return the ``omni:sensor:frameRate`` value for captures that step the renderer by ``capture_interval``.
+
+    Without a configured rate, ``(1, interval)`` makes one scan last exactly one capture interval. A capture
+    reads the last frame of its step, so a scanned lidar must end each capture on a complete scan.
+
+    Raises:
+        ValueError: If ``instant_lidar`` is False and the capture interval is not a whole number of scans.
+    """
+    if cfg.frame_rate is None:
+        return Gf.Vec2d(1.0, capture_interval)
+
+    scans = capture_interval * cfg.frame_rate
+    if not cfg.instant_lidar and (round(scans) < 1 or not math.isclose(scans, round(scans))):
+        raise ValueError(
+            f"Lidar with instant_lidar=False needs a capture interval of whole scans: {capture_interval} s"
+            f" capture, {cfg.frame_rate} Hz frame_rate."
+        )
+    return Gf.Vec2d(cfg.frame_rate, 1.0)
+
+
 @wp.kernel
 def _clear_lidar_returns_kernel(
     env_mask: wp.array(dtype=wp.bool),
@@ -182,20 +203,8 @@ class OVRTXLidar(SensorBase):
                 raise RuntimeError(f"Could not find a lidar prim at {spawn_target!r}.")
 
         sim_ctx = sim_utils.SimulationContext.instance()
-        # Each capture steps the renderer by this interval. A capture reads the last frame of the step, so a
-        # scanned lidar must end each capture on a complete scan.
-        capture_interval = self.cfg.update_period or sim_ctx.get_physics_dt()
-        # Without a rate, (1, interval) makes one scan last exactly one capture interval.
-        if self.cfg.frame_rate is None:
-            frame_rate = Gf.Vec2d(1.0, capture_interval)
-        else:
-            frame_rate = Gf.Vec2d(self.cfg.frame_rate, 1.0)
-        scans = capture_interval * frame_rate[0] / frame_rate[1]
-        if not self.cfg.instant_lidar and (round(scans) < 1 or not math.isclose(scans, round(scans))):
-            raise ValueError(
-                f"Lidar with instant_lidar=False needs a capture interval of whole scans: {capture_interval} s"
-                f" capture, {self.cfg.frame_rate} Hz frame_rate."
-            )
+        # Each capture steps the renderer by this interval.
+        frame_rate = _frame_rate(self.cfg, self.cfg.update_period or sim_ctx.get_physics_dt())
         for prim in lidar_prims:
             prim.CreateAttribute("omni:sensor:frameRate", Sdf.ValueTypeNames.Double2).Set(frame_rate)
 

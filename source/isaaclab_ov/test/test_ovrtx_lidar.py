@@ -15,7 +15,7 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_ov.renderers import OVRTXLidarCfg
-from isaaclab_ov.renderers.ovrtx_lidar_sensor import OVRTXLidar
+from isaaclab_ov.renderers.ovrtx_lidar_sensor import OVRTXLidar, _frame_rate
 
 from isaaclab.utils import validate
 from isaaclab.utils.warp import ProxyArray
@@ -99,6 +99,27 @@ def test_lidar_cfg_rejects_an_invalid_rate(field, value):
 def test_lidar_scan_slot_count(overrides, expected):
     """A solid-state scan keeps one slot per pattern ray, and a rotary scan repeats that pattern."""
     assert _lidar_cfg(**overrides).num_rays() == expected
+
+
+@pytest.mark.parametrize(
+    ("frame_rate", "instant_lidar", "capture_interval", "expected"),
+    [
+        (None, False, 0.15, (1.0, 0.15)),
+        (10.0, False, 0.1, (10.0, 1.0)),
+        (10.0, False, 0.3, (10.0, 1.0)),
+        (10.0, True, 0.15, (10.0, 1.0)),
+        (10.0, False, 0.15, None),
+        (10.0, False, 0.05, None),
+    ],
+)
+def test_lidar_frame_rate_spans_whole_scans(frame_rate, instant_lidar, capture_interval, expected):
+    """A scanned lidar must end each capture on a whole scan. An instant lidar accepts any capture interval."""
+    cfg = _lidar_cfg(frame_rate=frame_rate, instant_lidar=instant_lidar)
+    if expected is None:
+        with pytest.raises(ValueError, match="whole scans"):
+            _frame_rate(cfg, capture_interval)
+    else:
+        assert tuple(_frame_rate(cfg, capture_interval)) == pytest.approx(expected)
 
 
 def _lidar_without_runtime(*, num_envs: int, is_global: bool = False) -> OVRTXLidar:
