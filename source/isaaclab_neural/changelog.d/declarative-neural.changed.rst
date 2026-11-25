@@ -1,1 +1,0 @@
-* **Breaking:** Separated model definitions, optimization and recording environments; replaced simulation wrappers with standard RecorderManager terms and native trajectory output. Solver resources were supplied through Newton construction, and evaluation preserved caller presets using the shared RSL-RL runner.

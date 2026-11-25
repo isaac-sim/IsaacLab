@@ -1,1 +1,0 @@
-* **Breaking:** Registered neural models, training settings and recording environments separately. Kept the Franka neural alternative out of the OSC inheritance path and shared ANYmal target bounds between recording and deployment.
