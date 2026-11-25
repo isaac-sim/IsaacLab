@@ -229,6 +229,8 @@ def validate_resolutions(output: dict[str, Any], context: dict[str, Any]) -> dic
         path = edit["path"]
         if not isinstance(path, str) or path in files or path in {item["path"] for item in validated_extra}:
             raise ConflictResolutionError(f"extra edit path must be a new, non-conflicted path: {path!r}")
+        if path.startswith(".github/"):
+            raise ConflictResolutionError(f"extra edits may not change repository automation under .github/: {path!r}")
         current = _read_worktree_file(path)
         if current is None:
             raise ConflictResolutionError(f"extra edit path does not exist: {path!r}")
@@ -407,8 +409,8 @@ Rules:
 2. Do not add code, fixtures, helpers, options, or files that the source pull request did not add. When a source hunk
    edits code that exists only on the default branch, do not recreate that code.
 3. When release has an equivalent of the edited code in another file, apply the source intent there with extra_edits.
-   extra_edits may also fix a cleanly merged path that does not fit release. When release already has the behavior,
-   make no change.
+   extra_edits may also fix a cleanly merged path that does not fit release, but never a path under .github/. When
+   release already has the behavior, make no change.
 4. Choose one action for every conflicted path:
    - edit: search/replace edits applied to target_before. Prefer this whenever release has the file.
    - write: the complete final file in content. Use it only for a file release lacks or a small file.

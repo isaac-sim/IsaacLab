@@ -15,6 +15,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+_AUTOMATION_PREFIX = ".github/"
 _BACKPORT_MARKER = "backport-active-release"
 _BACKPORT_PATTERN = re.compile(
     rf"^\s*-\s*\[\s*[xX]\s*\]\s*<!--\s*{re.escape(_BACKPORT_MARKER)}\s*-->",
@@ -83,6 +84,11 @@ def validate_candidate(
     """
     source_paths = changed_paths(source_parent, source)
     kept_paths, extra_paths = _resolution_exceptions(resolution_report)
+    automation_extra_paths = {path for path in extra_paths if path.startswith(_AUTOMATION_PREFIX)}
+    if automation_extra_paths:
+        raise BackportValidationError(
+            "inferred extra edits may not change repository automation: " + _format_paths(automation_extra_paths)
+        )
     if candidate is None:
         _validate_staged_worktree()
         candidate_paths = changed_paths(target, cached=True)
