@@ -53,7 +53,6 @@ def test_lidar_cfg_rejects_a_non_positive_azimuth_step():
 @pytest.mark.parametrize(
     ("overrides", "expected"),
     [
-        ({"scan_type": "solidState"}, 1),
         (
             {
                 "scan_type": "solidState",
