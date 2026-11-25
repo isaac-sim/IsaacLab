@@ -22,7 +22,6 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from dataclasses import dataclass
-from unittest.mock import patch
 
 import numpy as np
 import pytest
@@ -39,7 +38,7 @@ from isaaclab_ov import tensor_types as TT  # noqa: E402
 from isaaclab_ov.assets import RigidObject, RigidObjectCollection  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
 from isaaclab_ov.sim.views import OvPhysxView  # noqa: E402
-from isaaclab_ov.test.fixtures.views.session_reads import binding_values, replays_only  # noqa: E402
+from isaaclab_ov.test.fixtures.views.session_reads import binding_values, captures_again, replays_only  # noqa: E402
 from ovphysx.types import SimObjectType  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
@@ -302,8 +301,8 @@ def test_session_reads_after_a_native_structural_edit(device: str) -> None:
     """After ``invalidate_session_reads`` and a body disabled through the native handle, the next read captures again
     and reads the binding's values.
 
-    It guards the invalidation itself (released plans are captured again, never replayed); with today's ovphysx a plan
-    captured before this edit also still reads correctly, so it cannot show that the edit needs the invalidation.
+    With today's ovphysx a plan captured before this edit would still read correctly, so the recapture is asserted
+    directly: an invalidation that kept the plans fails it.
     """
     with build_simulation_context(device=device, sim_cfg=SimulationCfg(physics=OvPhysxCfg(), device=device)) as sim:
         cubes = _spawn_cubes("Edited", y_offset=0.0)
@@ -323,7 +322,8 @@ def test_session_reads_after_a_native_structural_edit(device: str) -> None:
             for _ in range(5):  # the second cube falls
                 sim.step()
             replayed.fill_(-1.0)
-            view.read_into(TT.RIGID_BODY_POSE, replayed)
+            with captures_again(TT.RIGID_BODY_POSE):
+                view.read_into(TT.RIGID_BODY_POSE, replayed)
             expected = binding_values(view, TT.RIGID_BODY_POSE)
             torch.testing.assert_close(wp.to_torch(replayed), wp.to_torch(expected), atol=0.0, rtol=0.0)
         finally:
@@ -475,9 +475,10 @@ def test_session_reads_match_bindings(scene: _RigidScene, tensor_type: int) -> N
     """A session read fills ``read_into`` with the binding's values in the binding's row order."""
     for _ in range(3):
         scene.sim.step()
-    # A collection reads LINK_* through its RIGID_BODY_* binding; the cuboid pairs read the rigid-body types.
+    # A collection reads LINK_* through its RIGID_BODY_* binding (one collection: they share the layout); the cuboid
+    # pairs read the rigid-body types.
     served = {TT.LINK_POSE: TT.RIGID_BODY_POSE, TT.LINK_VELOCITY: TT.RIGID_BODY_VELOCITY}.get(tensor_type)
-    owners = (scene.fused, scene.stepped) if served else (scene.dynamic, scene.kinematic, scene.spinning)
+    owners = (scene.fused,) if served else (scene.dynamic, scene.kinematic, scene.spinning)
     for owner in owners:
         view = owner.root_view
         expected = binding_values(view, tensor_type)
@@ -499,13 +500,14 @@ def test_session_read_replays_on_the_callers_stream(scene: _RigidScene, null_str
     replayed = wp.zeros_like(expected)
     view.read_into(TT.RIGID_BODY_POSE, replayed)  # captures the plan
     replayed.fill_(-1.0)
+    copied = wp.zeros_like(expected)
     wp.synchronize_device(device)
     stream = wp.get_device(device).null_stream if null_stream else wp.Stream(device)
-    with wp.ScopedStream(stream), patch.object(wp, "capture_launch", wraps=wp.capture_launch) as launch:
+    with wp.ScopedStream(stream):
         view.read_into(TT.RIGID_BODY_POSE, replayed)
-    assert launch.call_args.kwargs["stream"] is stream
-    wp.synchronize_device(device)
-    torch.testing.assert_close(wp.to_torch(replayed), wp.to_torch(expected), atol=0.0, rtol=0.0)
+        wp.copy(copied, replayed)  # queued after the replay on the same stream
+    wp.synchronize_stream(stream)  # only this stream: a replay elsewhere leaves the copy holding -1
+    torch.testing.assert_close(wp.to_torch(copied), wp.to_torch(expected), atol=0.0, rtol=0.0)
 
 
 @pytest.mark.parametrize("scene", _CUDA_SCENES, indirect=True)

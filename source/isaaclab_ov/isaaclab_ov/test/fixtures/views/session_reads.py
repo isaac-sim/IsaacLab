@@ -19,6 +19,9 @@ from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
 REPLAY_ONLY = "read_into did not replay its captured session read"
 """Failure of a binding read or a new capture where only the captured plan may serve the read."""
 
+RECAPTURE = "read_into replayed a plan it had to capture again"
+"""Failure of a replay where the read must capture a new plan."""
+
 
 def binding_values(view: OvPhysxView, tensor_type: int) -> wp.array:
     """Read ``tensor_type`` straight from its TensorBinding: the reference a session read must match.
@@ -44,3 +47,12 @@ def replays_only(view: OvPhysxView, tensor_type: int) -> Iterator[None]:
     ):
         yield
     assert launch.call_count == 1, REPLAY_ONLY
+
+
+@contextlib.contextmanager
+def captures_again(tensor_type: int) -> Iterator[None]:
+    """Fail unless the one ``read_into`` inside captures a new plan of ``tensor_type``, rather than replaying one."""
+    capture = OvPhysxSessionReads._capture
+    with patch.object(OvPhysxSessionReads, "_capture", autospec=True, side_effect=capture) as spy:
+        yield
+    assert spy.call_count == 1 and spy.call_args.args[1] == tensor_type, RECAPTURE
