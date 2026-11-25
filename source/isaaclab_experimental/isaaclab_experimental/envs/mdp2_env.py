@@ -117,9 +117,7 @@ class MDP2Env:
         # Newton actuators that it cannot capture, such as networks loaded from Torch checkpoints, run on the host:
         # the physics, which steps them, and the scene reset, which resets them, then run between the graphs.
         actuators = sim.backend_manager.backend.actuators
-        self._physics_capturable = sim.backend_manager.supports_step_capture() and (
-            actuators is None or actuators.is_all_graphable
-        )
+        self._actuators_capturable = actuators is None or actuators.is_all_graphable
 
         self.scene_data = InteractiveSceneData(self.scene, sim, self.step_dt)
         self._all_envs = ProxyArray(wp.ones(self.num_envs, dtype=wp.bool, device=self.device))
@@ -302,6 +300,8 @@ class MDP2Env:
         """Return the work of a control step, in the order of the config's ``step``, each with whether a CUDA graph
         can capture it."""
         transition = self.transition
+        # The physics steps inside the graphs where the backend captures its step and every actuator it runs.
+        self._physics_capturable = self.sim.backend_manager.supports_step_capture() and self._actuators_capturable
         evaluate = Call(self.state, transition=transition, observations=transition.observations)
         work = []
         for item in self.cfg.step:
@@ -335,7 +335,8 @@ class MDP2Env:
             if item is ResetStep.OBSERVE and render:
                 work += rendering
             if item is ResetStep.EVENTS:
-                work.append((self._physics_capturable, functools.partial(self._reset_scene, mask)))
+                # Newton resets its own actuators here: those it cannot capture keep the scene reset out of the graphs.
+                work.append((self._actuators_capturable, functools.partial(self._reset_scene, mask)))
                 work += [(launch.capturable, functools.partial(launch, reset)) for launch in launches.reset]
             elif item is ResetStep.COMMIT:
                 work.append((True, functools.partial(self._commit, mask)))
