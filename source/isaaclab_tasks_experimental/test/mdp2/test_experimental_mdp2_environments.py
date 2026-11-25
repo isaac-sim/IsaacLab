@@ -11,6 +11,7 @@ import pytest
 import torch
 from isaaclab_experimental import mdp2
 
+from isaaclab.sim import SimulationContext
 from isaaclab.utils import replace
 
 from isaaclab_tasks.utils import resolve_task_config
@@ -93,3 +94,18 @@ def test_reach_curriculum_sets_reward_weights_at_first_reset_after_threshold(dis
         assert applied_at > 1 and unwrapped.num_graphs > 0
     finally:
         env.close()
+
+
+def test_locomotion_world_configs_must_share_gear_ratios():
+    """World configs that give a gear-weighted reward different gear ratios fail the build, which then leaves no
+    simulation behind."""
+    task_name = "Isaac-Humanoid-MDP2"
+    env_cfg, _ = resolve_task_config(task_name, None, overrides=["physics=newton_mjwarp"])
+    env_cfg.sim.device = "cuda:0"
+    env_cfg.scene.num_envs = 4
+    energy = env_cfg.task.rewards["energy"]
+    even_gears = replace(energy, params={**energy.params, "gear_ratio": {".*": 1.0}})
+    env_cfg.task = [env_cfg.task, replace(env_cfg.task, rewards={**env_cfg.task.rewards, "energy": even_gears})]
+    with pytest.raises(ValueError, match="gear ratios"):
+        gym.make(task_name, cfg=env_cfg)
+    assert SimulationContext.instance() is None

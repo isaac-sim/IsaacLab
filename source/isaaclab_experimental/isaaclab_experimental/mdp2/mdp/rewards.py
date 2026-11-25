@@ -659,14 +659,18 @@ def _align_foot_contacts(ctx: TermContext) -> None:
     if set(names) != sensor_by_name.keys():
         raise ValueError("'feet_slide' needs matching articulation and contact sensor body names.")
     aligned = ctx.state["aligned_sensor_ids"]
-    aligned.copy_(aligned.new_tensor([sensor_by_name[name] for name in names]))
+    values = aligned.new_tensor([sensor_by_name[name] for name in names])
+    # World configs that define the use differently share this state, which starts as NaN, so they must agree.
+    if not aligned.isnan().all() and not torch.equal(aligned, values):
+        raise ValueError("'feet_slide': the world configs of a use must select the same feet in the same order.")
+    aligned.copy_(values)
 
 
 feet_slide = Term(
     torch=_feet_slide_torch,
     warp=_feet_slide,
     init=_align_foot_contacts,
-    state={"aligned_sensor_ids": State(("body_ids",), persistent=True)},
+    state={"aligned_sensor_ids": State(("body_ids",), initial=float("nan"), persistent=True)},
 )
 """Sum the planar speeds of matched articulation feet whose normal force history exceeded 1 N."""
 

@@ -234,7 +234,11 @@ def _init_gears(ctx: TermContext, gear_ratio: dict[str, float], **_) -> None:
     state = ctx.state["scaled_gears"]
     gears = state.new_ones(state.shape)
     gears[indices] = state.new_tensor(values)
-    state.copy_(gears / gears.max())
+    gears /= gears.max()
+    # World configs that define the use differently share this state, which starts as NaN, so they must agree.
+    if not state.isnan().all() and not torch.equal(state, gears):
+        raise ValueError("The world configs of a use must select the same joints and gear ratios.")
+    state.copy_(gears)
 
 
 @wp.func
@@ -257,7 +261,7 @@ power_consumption = Term(
     .sum(dim=1),
     warp=_power_consumption,
     init=_init_gears,
-    state={"scaled_gears": State(("joint_ids",), persistent=True)},
+    state={"scaled_gears": State(("joint_ids",), initial=float("nan"), persistent=True)},
 )
 """Sum over the selected joints of the absolute action times the joint velocity [rad/s or m/s], each weighted by the
 joint's gear ratio from ``gear_ratio`` (joint-name patterns, one where none matches) over the largest one."""
@@ -300,7 +304,7 @@ joint_pos_limits_penalty_ratio = Term(
     torch=_joint_pos_limits_penalty_ratio_torch,
     warp=_joint_pos_limits_penalty_ratio,
     init=_init_gears,
-    state={"scaled_gears": State(("joint_ids",), persistent=True)},
+    state={"scaled_gears": State(("joint_ids",), initial=float("nan"), persistent=True)},
 )
 """Sum over the selected joints of how far the joint position, scaled to [-1, 1] between its soft limits, exceeds
 ``threshold``, over ``1 - threshold``, each weighted by the relative gear ratio as in :data:`power_consumption`."""
