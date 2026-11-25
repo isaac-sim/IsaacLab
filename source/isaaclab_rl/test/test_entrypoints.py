@@ -551,18 +551,27 @@ def test_rlinf_launch_passes_checkpoint_and_model_config_to_workers(tmp_path: Pa
                 "model": {"model_path": "./base", "model_type": "gr00t", "rl_head_config": {"add_value_head": True}}
             },
             "rollout": {"model": {"model_path": "./rollout", "rl_head_config": {"disable_dropout": True}}},
-            "env": {"train": {"init_params": {"id": "Test"}}, "eval": {"init_params": {"id": "Test"}}},
+            "env": {
+                "train": {"init_params": {"id": "Test", "env_overrides": ["env.sim.physics.split=train"]}},
+                "eval": {"init_params": {"id": "Test", "env_overrides": ["env.sim.physics.split=validation"]}},
+            },
         }
     )
     OmegaConf.save(cfg, tmp_path / "ppo.yaml")
     checkpoint = step_dir if backend is train_rlinf else weights
     args = ["--config_path", str(tmp_path), "--config_name", "ppo", "--task", "Test-Cosmos"]
     args += ["--checkpoint", str(checkpoint.relative_to(tmp_path))]
+    args += ["env.scene.num_envs=2"]
     with pytest.raises(RuntimeError, match="worker boundary"):
         backend.run(args)
     GlobalHydra.instance().clear()
     assert os.environ["RAY_ENABLE_UV_RUN_RUNTIME_ENV"] == "0"
     resolved = validate.call_args.args[0]
+    assert list(resolved.env.train.init_params.env_overrides) == ["env.sim.physics.split=train", "env.scene.num_envs=2"]
+    assert list(resolved.env.eval.init_params.env_overrides) == [
+        "env.sim.physics.split=validation",
+        "env.scene.num_envs=2",
+    ]
     assert (
         resolved.env.train.init_params.id
         == resolved.env.eval.init_params.id

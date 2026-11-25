@@ -231,6 +231,27 @@ Do not set this aarch64 path on x86_64 Linux. If it was inherited from a
 previous setup, run ``unset LD_PRELOAD`` before launching Isaac Lab.
 
 
+Episode success metrics
+~~~~~~~~~~~~~~~~~~~~~~~
+
+For tasks with both success and failure terminations, configure an explicit Boolean
+success observation under each split's ``isaaclab`` section:
+
+.. code-block:: yaml
+
+   success_observation:
+     group: metrics
+     key: success
+
+The adapter records success only when this observation is true on a terminated step.
+The task must expose the completed episode's outcome on that step, including when the
+simulator resets automatically. Without this setting, existing recipes continue to
+count task terminations as success. Timeouts alone do not count as success.
+
+Train and evaluation retain their own ``init_params.env_overrides`` from the recipe.
+Command-line environment overrides are appended, so they take precedence on matching fields.
+
+
 Quick Start
 -----------
 
