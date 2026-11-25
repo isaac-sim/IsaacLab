@@ -136,11 +136,10 @@ def _plain_name(label: str) -> str:
 class reset_tabletop(ManagerTermBase):
     """Place sampled objects on the reachable part of a table, then select an available task.
 
-    Object combinations come from the scene's inclusion set and stay fixed for the lifetime of the
-    scene. Resets change the table variant and sample object COM poses from collision geometry relative to COM.
-    Convex footprints reject overlaps; Newton's collision pipeline screens the resulting poses against the
-    robot and actual collision shapes without stepping physics. Infeasible placements raise instead of
-    accepting overlaps.
+    Every slot supports the complete catalog and a non-colliding placeholder. Resets sample cardinality,
+    categories and concrete assets before selecting native mesh variants and placing their COMs. Convex
+    footprints reject overlaps; Newton's collision pipeline screens actual geometry without stepping.
+    Task IDs are stable indices into ``env.cfg.tasks``, shared by all environments.
 
     ``env.tabletop.available_tasks[world]`` lists the instructions that category- and size-compatible pairs of
     the world's objects afford. Instructions name objects in plain words, by the ``name`` semantic tag of the asset
@@ -149,8 +148,8 @@ class reset_tabletop(ManagerTermBase):
     ``object_ids`` and ``target_ids`` give the first such pair. With ``graspable_size``, the bound object
     also has to suit the gripper: (smallest extent, narrowest horizontal extent) limits [m], below which the
     gripper cannot pinch the object and above which it does not fit between the open fingers. A reset chooses one unless
-    :meth:`set_task` requests a particular binding. A world with no available task has an empty instruction
-    and never reports task success; its object combination is retained.
+    :meth:`set_task` requests a task family. Reset reserves a compatible pair for that family; geometrically
+    infeasible compositions are retried at the same cardinality.
     """
 
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedRLEnv):
@@ -175,90 +174,60 @@ class reset_tabletop(ManagerTermBase):
             raise ValueError("Tabletop requires finite local surface heights.")
         self.placement_regions = np.empty(env.num_envs, dtype=object)
         self.tabletop_heights = torch.empty(env.num_envs, device=env.device)
-        plan = env.sim.get_clone_plan()
-        topology = plan.topology
-        slots = {cfg.prim_path: index for index, cfg in enumerate(self.objects.cfg.rigid_objects.values())}
-        geometry, metadata, cache = {}, {}, {}
-        for prototype in np.unique(topology.world_prototypes):
-            declaration = plan.asset_cfgs[prototype]
-            if declaration.prim_path not in slots:
-                continue
-            spawn = declaration.spawn.assets_cfg[0]
-            tags = spawn.semantic_tags or ()
-            label = next(value for key, value in tags if key == "_catalog_key")
-            if label not in cache:
-                cache[label] = _collision_geometry(spawn)
-            geometry[int(prototype)] = cache[label]
-            name = next((value for key, value in tags if key == "name"), None) or _plain_name(label)
-            metadata[int(prototype)] = (label, {value for key, value in tags if key == "category"}, name)
-        bounds = np.zeros((env.num_envs, len(self.names), 2, 3), dtype=np.float32)
-        active = np.zeros((env.num_envs, len(self.names)), dtype=bool)
-        vertices = max(len(polygon) for _, polygon in geometry.values())
-        footprints = np.zeros((env.num_envs, len(self.names), vertices, 3), dtype=np.float32)
-        labels, categories, spoken = [], [], []
-        for world, composition in enumerate(topology.world_prototype_layout):
-            start, end = topology.world_prototype_starts[composition + 1 : composition + 3]
-            world_labels, world_categories = [""] * len(self.names), [set() for _ in self.names]
-            world_names = [""] * len(self.names)
-            for prototype in topology.world_prototypes[start:end]:
-                declaration = plan.asset_cfgs[prototype]
-                if declaration.prim_path not in slots:
-                    continue
-                slot = slots[declaration.prim_path]
-                label, tags, name = metadata[int(prototype)]
-                bounds[world, slot], polygon = geometry[int(prototype)]
-                footprints[world, slot, :, :2] = polygon[-1]
-                footprints[world, slot, : len(polygon), :2] = polygon
-                active[world, slot] = label != "__empty__"
-                world_labels[slot], world_categories[slot], world_names[slot] = label, tags, name
-            labels.append(world_labels)
-            categories.append(world_categories)
-            spoken.append(world_names)
-        self.object_names = tuple(tuple(row) for row in labels)
-        self.active = torch.as_tensor(active, device=env.device)
-        corners = np.array(list(itertools.product((0, 1), repeat=3)))
-        self.local_corners = torch.as_tensor(bounds[:, :, corners, np.arange(3)], device=env.device)
-        self.local_bounds = torch.as_tensor(bounds, device=env.device)
-        self.local_footprints = torch.as_tensor(footprints, device=env.device)
-        self.available_tasks = []
-        # The object slots and the target slots that the instruction of each world's tasks can refer to.
-        self._task_slots: list[list[tuple[list[int], list[int]]]] = []
+        candidates = [member.spawn.assets_cfg for member in self.objects.cfg.rigid_objects.values()]
+        labels = [dict(spawn.semantic_tags or ())["_catalog_key"] for spawn in candidates[0]]
+        if any([dict(spawn.semantic_tags or ())["_catalog_key"] for spawn in row] != labels for row in candidates):
+            raise ValueError("Every object slot must declare the same complete catalog and placeholder, in order.")
+        self._labels = tuple(labels)
+        self._empty = labels.index("__empty__")
+        self._spoken = tuple(
+            dict(spawn.semantic_tags or ()).get("name") or _plain_name(label)
+            for label, spawn in zip(labels, candidates[0], strict=True)
+        )
+        self._categories = tuple(
+            {value for key, value in spawn.semantic_tags or () if key == "category"} for spawn in candidates[0]
+        )
+        categories = sorted(set().union(*self._categories) - {"__empty__"})
+        self._category_assets = tuple(
+            [i for i, tags in enumerate(self._categories) if category in tags and i != self._empty]
+            for category in categories
+        )
+        geometry = [_collision_geometry(spawn) for spawn in candidates[0]]
+        bounds = np.asarray([bound for bound, _ in geometry], dtype=np.float32)
+        vertices = max(len(polygon) for _, polygon in geometry)
+        footprints = np.zeros((len(geometry), vertices, 3), dtype=np.float32)
+        for index, (_, polygon) in enumerate(geometry):
+            footprints[index, :, :2] = polygon[-1]
+            footprints[index, : len(polygon), :2] = polygon
+        self._catalog_bounds = torch.as_tensor(bounds, device=env.device)
+        self._catalog_footprints = torch.as_tensor(footprints, device=env.device)
+        self._corners = np.array(list(itertools.product((0, 1), repeat=3)))
+        extent = bounds[:, 1] - bounds[:, 0]
+        self._sizes = np.sort(extent[:, :2], axis=1)
+        self._graspable = np.arange(len(labels)) != self._empty
         limits = cfg.params.get("graspable_size")
-        for world in range(env.num_envs):
-            names = spoken[world]
-            # An instruction names its object and its target, so one task stands for all pairs of those names.
-            pairs: dict[tuple[str, str, str], tuple[int, int]] = {}
-            for family, rule in self.families.items():
-                for source, target in itertools.permutations(range(len(self.names)), 2):
-                    if not active[world, source] or rule["target"] not in categories[world][target]:
-                        continue
-                    extent = np.diff(bounds[world, source], axis=0)[0]
-                    if limits is not None and (extent.min() < limits[0] or extent[:2].min() > limits[1]):
-                        continue
-                    size = np.sort(extent[:2])
-                    support = np.sort(np.diff(bounds[world, target], axis=0)[0, :2])
-                    # A conservative inset reserves room for a rim or container walls.
-                    if np.any(size + 2 * cfg.params["clearance"] > support * 0.8):
-                        continue
-                    pairs.setdefault((family, names[source], names[target]), (source, target))
-            tasks, slots = [], []
-            for (family, object_name, target_name), (source, target) in pairs.items():
-                rule = self.families[family]
-                instruction = rule["instruction"].format(object=object_name, target=target_name)
-                tasks.append(Task(family, self.names[source], self.names[target], instruction))
-                slots.append(
-                    (
-                        [slot for slot, name in enumerate(names) if active[world, slot] and name == object_name],
-                        [
-                            slot
-                            for slot, name in enumerate(names)
-                            if name == target_name and rule["target"] in categories[world][slot]
-                        ],
-                    )
-                )
-            self.available_tasks.append(tuple(tasks))
-            self._task_slots.append(slots)
-        self.available_tasks = tuple(self.available_tasks)
+        if limits is not None:
+            self._graspable &= (extent.min(1) >= limits[0]) & (extent[:, :2].min(1) <= limits[1])
+        self._sources, self._targets = [], []
+        for family, rule in self.families.items():
+            targets = np.array([i for i, tags in enumerate(self._categories) if rule["target"] in tags], dtype=int)
+            viable = np.zeros(len(labels), dtype=bool)
+            for target in targets:
+                viable |= (self._sizes + 2 * cfg.params["clearance"] <= self._sizes[target] * 0.8).all(1)
+            viable &= self._graspable
+            groups = tuple([i for i in group if viable[i]] for group in self._category_assets if viable[group].any())
+            if not groups:
+                raise ValueError(f"Task {family!r} has no category- and size-compatible catalog pair.")
+            self._sources.append(groups)
+            self._targets.append(targets)
+        shape = (env.num_envs, len(self.names))
+        self.object_names = [tuple("" for _ in self.names) for _ in range(env.num_envs)]
+        self.active = torch.zeros(shape, dtype=torch.bool, device=env.device)
+        self.local_bounds = torch.zeros((*shape, 2, 3), device=env.device)
+        self.local_corners = torch.zeros((*shape, 8, 3), device=env.device)
+        self.local_footprints = torch.zeros((*shape, vertices, 3), device=env.device)
+        self.available_tasks = [() for _ in range(env.num_envs)]
+        self._task_slots = [[] for _ in range(env.num_envs)]
         self.instructions = [""] * env.num_envs
         self.task_ids = torch.full((env.num_envs,), -1, dtype=torch.long, device=env.device)
         self.object_ids = torch.zeros(env.num_envs, dtype=torch.long, device=env.device)
@@ -272,16 +241,16 @@ class reset_tabletop(ManagerTermBase):
         object_bodies = []
         for label, world in zip(self._backend.model.body_label, self._backend.model.body_world.numpy(), strict=True):
             slot = next((i for i, name in enumerate(self.names) if f"/{name}/" in label + "/"), None)
-            object_bodies.append(slot is not None and world >= 0 and active[world, slot])
+            object_bodies.append(slot is not None and world >= 0)
         self._object_bodies = torch.tensor(object_bodies, device=env.device)
         env.tabletop = self
 
     def set_task(self, env_ids: list[int], task_ids: list[int]) -> None:
-        """Request available binding indices on the next reset; -1 chooses randomly each episode."""
+        """Request a task-family index from ``env.cfg.tasks`` on any world; -1 samples a family each reset."""
         if len(env_ids) != len(task_ids):
             raise ValueError("Each world requires one task index.")
         for world, task in zip(env_ids, task_ids, strict=True):
-            if not 0 <= world < len(self.available_tasks) or not -1 <= task < len(self.available_tasks[world]):
+            if not 0 <= world < len(self.available_tasks) or not -1 <= task < len(self.families):
                 raise ValueError(f"Unavailable task {task} for world {world}.")
         for world, task in zip(env_ids, task_ids, strict=True):
             self._requested[world] = task
@@ -298,6 +267,7 @@ class reset_tabletop(ManagerTermBase):
         clearance: float = 0.005,
         max_attempts: int = 128,
         graspable_size: tuple[float, float] | None = None,
+        object_count: tuple[int, int] = (2, 8),
     ) -> None:
         ids = torch.arange(env.num_envs, device=env.device)[env_ids]
         if not len(ids):
@@ -307,6 +277,9 @@ class reset_tabletop(ManagerTermBase):
         workspace = torch.as_tensor(workspace, dtype=torch.float32, device=env.device)
         if workspace.shape != (2, 3) or not torch.isfinite(workspace).all() or (workspace[0] >= workspace[1]).any():
             raise ValueError("Workspace must contain finite, ordered XYZ lower and upper bounds.")
+        if not 2 <= object_count[0] <= object_count[1] <= len(self.names):
+            raise ValueError("Object count must be an inclusive range between two and the number of slots.")
+        counts = torch.randint(object_count[0], object_count[1] + 1, (len(ids),), device=env.device)
         # Table and object placement are sampled together: a small table must not invalidate a world
         # that fits on another variant. All candidates still use their measured surface/workspace intersection.
         limits = workspace.cpu().numpy()
@@ -325,23 +298,30 @@ class reset_tabletop(ManagerTermBase):
                 region = shapely.Polygon()
             local_regions.append(region)
             heights.append(height)
-        footprints = self.local_footprints[ids, ..., :2].cpu().numpy()
-        occupied_area = (shapely.area(shapely.polygons(footprints)) * self.active[ids].cpu().numpy()).sum(1)
-        eligible = occupied_area[:, None] < shapely.area(local_regions)[None, :]
         previous = self.table.mesh_variant_ids.torch[ids].long()
-        if len(self.table_variants) > 1:
-            eligible[np.arange(len(ids)), previous.cpu().numpy()] = False
-        if not eligible.any(1).all():
-            failed = ids[torch.as_tensor(~eligible.any(1), device=env.device)]
-            raise RuntimeError(f"No usable table/workspace intersection with enough area for worlds {failed.tolist()}.")
-        weights = torch.as_tensor(eligible, dtype=torch.float32, device=env.device)
         variant_poses = workspace.new_tensor(
             [(*variant.init_state.pos, *variant.init_state.rot) for variant in self.table_variants]
         )
         remaining_rows = torch.arange(len(ids), device=env.device)
         for _ in range(max_attempts):
             remaining = ids[remaining_rows]
-            selected = torch.multinomial(weights[remaining_rows], 1).flatten()
+            self._select_objects(remaining, counts[remaining_rows], clearance)
+            footprints = self.local_footprints[remaining, ..., :2].cpu().numpy()
+            occupied = (shapely.area(shapely.polygons(footprints)) * self.active[remaining].cpu().numpy()).sum(1)
+            eligible = occupied[:, None] < shapely.area(local_regions)[None, :]
+            if len(self.table_variants) > 1:
+                eligible[np.arange(len(remaining)), previous[remaining_rows].cpu().numpy()] = False
+            possible = torch.as_tensor(eligible.any(1), device=env.device)
+            if not possible.any():
+                if not any(not region.is_empty for region in local_regions):
+                    raise RuntimeError("No usable table/workspace intersection.")
+                continue
+            # Retry infeasible worlds independently; one dense composition must not stall the whole batch.
+            pending_rows = remaining_rows[~possible]
+            remaining_rows = remaining_rows[possible]
+            remaining = ids[remaining_rows]
+            eligible = torch.as_tensor(eligible, dtype=torch.float32, device=env.device)[possible]
+            selected = torch.multinomial(eligible, 1).flatten()
             if len(self.table_variants) > 1:
                 self.table.write_mesh_variant_to_sim(selected, env_ids=remaining)
             table_poses = variant_poses[selected].clone()
@@ -359,34 +339,99 @@ class reset_tabletop(ManagerTermBase):
                 self.placement_regions[world] = affine_transform(
                     local_regions[variant], [1, 0, 0, 1, origin[0], origin[1]]
                 )
-            poses, placed = self._sample(remaining, workspace, clearance, max_attempts)
-            accepted = remaining[placed]
-            if len(accepted):
-                self.objects.write_body_com_pose_to_sim_index(body_poses=poses[placed].contiguous(), env_ids=accepted)
-                self.objects.write_body_velocity_to_sim_index(
-                    body_velocities=torch.zeros(len(accepted), len(self.names), 6, device=env.device), env_ids=accepted
-                )
+            poses, placed = self._sample(remaining, workspace, clearance, min(max_attempts, 32))
+            # Publish every pending world's new geometry and poses together. Unplaced slots stay apart
+            # outside the workspace rather than inheriting overlapping poses from a previous composition.
+            self.objects.write_body_com_pose_to_sim_index(body_poses=poses.contiguous(), env_ids=remaining)
+            self.objects.write_body_velocity_to_sim_index(
+                body_velocities=torch.zeros(len(remaining), len(self.names), 6, device=env.device), env_ids=remaining
+            )
+            if placed.any():
                 bad = self.penetrating_worlds()
                 placed &= ~bad[remaining]
-            remaining_rows = remaining_rows[~placed]
+            remaining_rows = torch.cat((pending_rows, remaining_rows[~placed]))
             if not len(remaining_rows):
                 break
         else:
             raise RuntimeError(f"No collision-free tabletop reset for worlds {ids[remaining_rows].tolist()}.")
-        for world in ids.tolist():
-            available = self.available_tasks[world]
-            task = self._requested[world]
-            if available and task < 0:
-                task = int(torch.randint(len(available), (), device=env.device))
-            self.task_ids[world] = task
+        self._bind_tasks(ids, clearance)
+
+    def _select_objects(self, ids: torch.Tensor, counts: torch.Tensor, clearance: float) -> None:
+        """Sample categories before assets, reserve a compatible task pair, then permute occupied and empty slots."""
+        width = len(self.names)
+        selected = np.full((len(ids), width), self._empty, dtype=np.int32)
+        for row, (world, count) in enumerate(zip(ids.tolist(), counts.tolist(), strict=True)):
+            family = self._requested[world]
+            if family < 0:
+                family = np.random.randint(len(self.families))
+            groups = self._sources[family]
+            group = groups[np.random.randint(len(groups))]
+            source = group[np.random.randint(len(group))]
+            targets = self._targets[family]
+            targets = targets[(self._sizes[source] + 2 * clearance <= self._sizes[targets] * 0.8).all(1)]
+            selected[row, :2] = (source, targets[np.random.randint(len(targets))])
+            for slot in range(2, count):
+                category = self._category_assets[np.random.randint(len(self._category_assets))]
+                selected[row, slot] = category[np.random.randint(len(category))]
+            np.random.shuffle(selected[row])
+        selected = torch.as_tensor(selected, device=self._env.device)
+        self.objects.write_mesh_variant_to_sim(selected, env_ids=ids)
+        self.active[ids] = selected != self._empty
+        self.local_bounds[ids] = self._catalog_bounds[selected]
+        self.local_corners[ids] = self.local_bounds[ids][:, :, self._corners, np.arange(3)]
+        self.local_footprints[ids] = self._catalog_footprints[selected]
+        for world, row in zip(ids.tolist(), selected.tolist(), strict=True):
+            self.object_names[world] = tuple(self._labels[index] for index in row)
+
+    def _bind_tasks(self, ids: torch.Tensor, clearance: float) -> None:
+        """Rebuild bindings from current slot selections, using global task-family IDs on every world."""
+        selected = self.objects.mesh_variant_ids.torch[ids].cpu().tolist()
+        for world, variants in zip(ids.tolist(), selected, strict=True):
+            pairs = {}
+            for family, rule in self.families.items():
+                for source, target in itertools.permutations(range(len(self.names)), 2):
+                    source_variant, target_variant = variants[source], variants[target]
+                    if (
+                        self._graspable[source_variant]
+                        and rule["target"] in self._categories[target_variant]
+                        and (self._sizes[source_variant] + 2 * clearance <= self._sizes[target_variant] * 0.8).all()
+                    ):
+                        pairs.setdefault(
+                            (family, self._spoken[variants[source]], self._spoken[variants[target]]), (source, target)
+                        )
+            tasks, slots = [], []
+            for (family, source_name, target_name), (source, target) in pairs.items():
+                instruction = self.families[family]["instruction"].format(object=source_name, target=target_name)
+                tasks.append(Task(family, self.names[source], self.names[target], instruction))
+                slots.append(
+                    (
+                        [
+                            i
+                            for i, variant in enumerate(variants)
+                            if variant != self._empty and self._spoken[variant] == source_name
+                        ],
+                        [
+                            i
+                            for i, variant in enumerate(variants)
+                            if variant != self._empty
+                            and self._spoken[variant] == target_name
+                            and self.families[family]["target"] in self._categories[variant]
+                        ],
+                    )
+                )
+            self.available_tasks[world], self._task_slots[world] = tuple(tasks), slots
+            requested = self._requested[world]
+            choices = [
+                i for i, task in enumerate(tasks) if requested < 0 or task.family == tuple(self.families)[requested]
+            ]
+            if not choices:
+                raise RuntimeError(f"No evaluable requested task after reset of world {world}.")
+            task = choices[int(torch.randint(len(choices), (), device=self._env.device))]
+            binding = tasks[task]
+            self.task_ids[world] = tuple(self.families).index(binding.family)
             self.object_mask[world] = self.target_mask[world] = False
-            if task < 0:
-                self.instructions[world] = ""
-                continue
-            objects, targets = self._task_slots[world][task]
-            self.object_mask[world, objects] = True
-            self.target_mask[world, targets] = True
-            binding = available[task]
+            sources, targets = slots[task]
+            self.object_mask[world, sources] = self.target_mask[world, targets] = True
             self.object_ids[world], self.target_ids[world] = (
                 self.names.index(binding.object),
                 self.names.index(binding.target),
@@ -412,7 +457,8 @@ class reset_tabletop(ManagerTermBase):
         poses = torch.zeros(count, width, 7, device=env.device)
         poses[..., 6] = 1.0
         poses[..., :3] = origin[:, None] + poses.new_tensor([0.0, -10.0, 0.5])
-        poses[..., 0] += torch.arange(width, device=env.device) * 0.02
+        spacing = local_bounds.abs().amax(dim=(1, 2, 3)) * 2 + clearance
+        poses[..., 0] += torch.arange(width, device=env.device) * spacing[:, None]
         low, high = torch.zeros_like(poses[..., :3]), torch.zeros_like(poses[..., :3])
         footprints = torch.zeros(count, width, self.local_footprints.shape[2], 3, device=env.device)
         placed = torch.zeros(count, width, dtype=torch.bool, device=env.device)

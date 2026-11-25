@@ -15,6 +15,8 @@ from newton import GeoType, ShapeFlags
 
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
+from isaaclab.test.utils import DeviceScope, test_devices
+
 _SOURCE = "/World/Asset"
 
 
@@ -195,7 +197,8 @@ class TestClonerCollisionApproximation:
         assert list(_collision_shapes(builders[sources[0]]).values()) == [GeoType.SPHERE]
         assert list(_collision_shapes(builders[sources[1]]).values()) == [GeoType.MESH]
 
-    def test_sdf_reduction_is_opt_in_and_preserves_visuals_and_cavities(self):
+    @pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
+    def test_sdf_reduction_is_opt_in_and_preserves_visuals_and_cavities(self, device):
         """Source import reduces only SDF collisions, retaining authored visuals, mass and the central hole."""
         stage = _make_stage("none")
         ring = trimesh.creation.annulus(r_min=0.04, r_max=0.05, height=0.03, sections=64)
@@ -242,6 +245,16 @@ class TestClonerCollisionApproximation:
         np.testing.assert_allclose(reduced.body_inertia, original.body_inertia)
         bypass = _build(stage, sdf_mesh_reduction=0.75, skip_mesh_approximation=True)
         assert len(bypass.shape_source[bypass.shape_label.index(path)].indices) == ring.faces.size
+        # Two slots using the same asset must share the cooked SDF allocation, without merging their bodies.
+        duplicate = "/World/Copy"
+        Sdf.CopySpec(stage.GetRootLayer(), _SOURCE, stage.GetRootLayer(), duplicate)
+        sources = _build_sources(stage, [_SOURCE, duplicate], sdf_mesh_reduction=0.75)
+        combined = newton.ModelBuilder()
+        for builder in sources.values():
+            combined.add_builder(builder)
+        model = combined.finalize(device=device)
+        assert model.body_count == 2
+        assert len(model._texture_sdf_data) == 1, "Repeated slots must not allocate duplicate SDF textures"
 
     def test_primitive_collider_remains_visible_in_mixed_visual_model(self):
         """Colliders remain visible only when their body or static parent has no visual shape.

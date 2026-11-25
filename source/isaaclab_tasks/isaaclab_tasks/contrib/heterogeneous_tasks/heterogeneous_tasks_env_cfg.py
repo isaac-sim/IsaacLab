@@ -88,7 +88,6 @@ STAINLESS_TABLE_CFG = TableCfg(
         rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
         semantic_tags=[
             ("category", "table"),
-            *[("object_count", str(count)) for count in range(OBJECT_COUNT[0], OBJECT_COUNT[1] + 1)],
         ],
     ),
     init_state=RigidObjectCfg.InitialStateCfg(
@@ -214,7 +213,7 @@ EMPTY_OBJECT_CFG = sim_utils.SphereCfg(
     visible=False,
     mass_props=sim_utils.MassCfg(mass=0.001),
     rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
-    collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
+    collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=False),
 )
 
 
@@ -260,119 +259,109 @@ ASSET_CATALOG = {
         semantic_tags=[
             ("category", category),
             *[("name", name) for name in (ASSET_NAMES.get(path.split("/")[-2]),) if name],
-            *[("object_count", str(count)) for count in range(OBJECT_COUNT[0], min(max_count, OBJECT_COUNT[1]) + 1)],
         ],
     )
-    for path, (category, max_count) in {
-        "Residential/Kitchen/Food/Fruit/Granny_Smith_Apple_A01/sm_food_produce_apple_grannySmith_a01_01.usd": (
-            "food",
-            8,
-        ),
-        "Residential/Kitchen/Food/Fruit/Red_Delicious_Apple_A01/sm_food_produce_apple_redDelicous_a01_01.usd": (
-            "food",
-            8,
-        ),
-        "Residential/Kitchen/Food/Fruit/Banana_A01/sm_food_produce_banana_a01_01.usd": ("food", 4),
-        "Residential/Kitchen/Dishware/Plastic_Small_Plate_A01/sm_dishware_plastic_smallPlate_a01_01.usd": ("plate", 8),
-        "Residential/Kitchen/Dishware/Bowl_U01/sm_kitchenware_bowl_u01_01.usd": ("container", 4),
-        "Residential/Kitchen/Dishware/Bowl_H01/sm_kitchenware_bowl_h01_01.usd": ("container", 4),
-        "Industrial/Tools/Hand/Socket_B01_03/sm_handTool_socket_5_8in_b01_01.usd": ("tool", 8),
-        "Industrial/Tools/Hand/Socket_1_2in_B01/sm_handTool_socket_1_2in_b01_01.usd": ("tool", 8),
-        "Industrial/Tools/Hand/Socket_B01_07/sm_handTool_socket_9_16in_b01_01.usd": ("tool", 8),
-        "Residential/Kitchen/Cooking_Gear/Tray_A01/sm_kitchenware_tray_a01_01.usd": ("tray", 2),
-        "Residential/Kitchen/Dishware/Bowl_F01/sm_kitchenware_bowl_f01_01.usd": ("container", 2),
-        "Residential/Kitchen/Dishware/Bowl_N01/sm_kitchenware_bowl_n01_01.usd": ("container", 4),
-        "Residential/Kitchen/Dishware/Bowl_Q01/sm_kitchenware_bowl_q01_01.usd": ("container", 8),
-        "Residential/Kitchen/Dishware/Bowl_S01/sm_kitchenware_bowl_s01_01.usd": ("container", 4),
-        "Residential/Kitchen/Dishware/Kitchenware_Bowl_B01/sm_kitchenware_bowl_b01_01.usd": ("container", 4),
-        "Residential/Kitchen/Dishware/Kitchenware_Bowl_D01/sm_kitchenware_bowl_d01_01.usd": ("container", 4),
-        "Residential/Kitchen/Dishware/Plastic_Tray_A01/sm_dishware_plastic_tray_a01_01.usd": ("tray", 2),
-        "Residential/Kitchen/Food/Fruit/Orange_A01_02/sm_food_produce_orange_a01_01.usd": ("food", 8),
-        "Residential/Kitchen/Food/Fruit/Banana_Bunch_A01/sm_food_produce_banana_bunch_a01_01.usd": ("food", 4),
-        "Residential/Kitchen/Food/Vegetables/Eggplant_A01/sm_food_produce_eggplant_a01_01.usd": ("food", 2),
-        "Residential/Kitchen/Food/Vegetables/Garlic_Bulb_A01/sm_food_produce_garlic_bulb_a01_01.usd": ("food", 8),
-        "Residential/Kitchen/Food/Fruit/Lime_A01/sm_food_produce_lime_a01_01.usd": ("food", 8),
-        "Residential/Kitchen/Food/Vegetables/Onion_A01/sm_food_produce_onion_a01_01.usd": ("food", 8),
-        "Residential/Kitchen/Food/Fruit/Pear_A01/sm_food_produce_pear_a01_01.usd": ("food", 8),
-        "Residential/Kitchen/Food/Fruit/Strawberry_A01/sm_food_produce_strawberry_a01_01.usd": ("food", 8),
-        "Residential/Kitchen/Food/Fruit/Tangerine_A01/sm_food_produce_tangerine_a01_01.usd": ("food", 8),
-        "Residential/Kitchen/Food/Vegetables/Zucchini_A01/sm_food_produce_zucchini_a01_01.usd": ("food", 4),
-        "Residential/Kitchen/Food/Fruit/Lime_A02/sm_food_produce_lime_a02_01.usd": ("food", 8),
-        "Residential/Kitchen/Food/Breads/Bagel_B01/sm_food_prepared_bagel_b01_01.usd": ("food", 8),
-        "Residential/Kitchen/Food/Vegetables/Onion_B01/sm_food_produce_onion_b01_01.usd": ("food", 8),
-        "Residential/Kitchen/Food/Breads/Bagel_C01/sm_food_prepared_bagel_c01_01.usd": ("food", 8),
-        "Residential/Kitchen/Food/Fruit/Mango_C01/sm_food_produce_mango_c01_01.usd": ("food", 8),
-        "Residential/Kitchen/Food/Breads/Bagel_D01/sm_food_prepared_bagel_d01_01.usd": ("food", 8),
-        "Residential/Kitchen/Food/Breads/Bagel_E01/sm_food_prepared_bagel_e01_01.usd": ("food", 8),
-        "Residential/Kitchen/Food/Breads/Bagel_F01/sm_food_prepared_bagel_f01_01.usd": ("food", 8),
-        "Residential/Kitchen/Food/Breads/Bagel_G01/sm_food_prepared_bagel_g01_01.usd": ("food", 8),
-        "Residential/Kitchen/Food/Breads/Bagel_H01/sm_food_prepared_bagel_h01_01.usd": ("food", 8),
-        "Residential/Kitchen/Food/Breads/Bagel_I01/sm_food_prepared_bagel_i01_01.usd": ("food", 8),
-        "Residential/Kitchen/Food/Beverages/Beer_Bottle_A01/sm_food_beverage_beerBottle_a01_01.usd": ("bottle", 8),
-        "Residential/Kitchen/Food/Condiments/Ketchup_A01/sm_food_condiment_ketchup_a01_01.usd": ("bottle", 8),
-        "Residential/Kitchen/Food/Condiments/Ketchup_A02/sm_food_condiment_ketchup_a02_01.usd": ("bottle", 8),
-        "Residential/Kitchen/Food/Condiments/Ketchup_A03/sm_food_condiment_ketchup_a03_01.usd": ("bottle", 8),
-        "Residential/Kitchen/Food/Condiments/Jam_C01/sm_food_processed_jam_c01_01.usd": ("bottle", 8),
-        "Residential/Kitchen/Food/Beverages/Beer_Bottle_O01/sm_food_beverage_beerBottle_o01_01.usd": ("bottle", 8),
-        "Residential/Kitchen/Food/Canned_Goods/Can_B01/sm_food_beverage_can_b01_01.usd": ("can", 8),
-        "Residential/Kitchen/Food/Canned_Goods/Canned_Food_B01/sm_food_processed_cannedFood_b01_01.usd": ("can", 8),
-        "Residential/Kitchen/Food/Canned_Goods/Can_C01/sm_food_beverage_can_c01_01.usd": ("can", 8),
-        "Residential/Kitchen/Food/Canned_Goods/Canned_Food_C01/sm_food_processed_cannedFood_c01_01.usd": ("can", 8),
-        "Residential/Kitchen/Food/Canned_Goods/Can_D01/sm_food_beverage_can_d01_01.usd": ("can", 8),
-        "Residential/Kitchen/Food/Canned_Goods/Canned_Food_D01/sm_food_processed_cannedFood_d01_01.usd": ("can", 8),
-        "Residential/Kitchen/Food/Canned_Goods/Can_E01/sm_food_beverage_can_e01_01.usd": ("can", 8),
-        "Residential/Kitchen/Food/Canned_Goods/Canned_Food_E01/sm_food_processed_cannedFood_e01_01.usd": ("can", 8),
-        "Residential/Kitchen/Food/Canned_Goods/Canned_Food_F01/sm_food_processed_cannedFood_f01_01.usd": ("can", 8),
-        "Residential/Kitchen/Food/Canned_Goods/Can_G01/sm_food_beverage_can_g01_01.usd": ("can", 8),
-        "Residential/Kitchen/Food/Canned_Goods/Can_H01/sm_food_beverage_can_h01_01.usd": ("can", 8),
-        "Residential/Kitchen/Food/Canned_Goods/Can_I01/sm_food_beverage_can_i01_01.usd": ("can", 8),
-        "Residential/Kitchen/Food/Canned_Goods/Can_J01/sm_food_beverage_can_j01_01.usd": ("can", 8),
-        "Residential/Kitchen/Food/Canned_Goods/Canned_Food_J01/sm_food_processed_cannedFood_j01_01.usd": ("can", 8),
-        "Residential/Kitchen/Food/Canned_Goods/Can_K01/sm_food_beverage_can_k01_01.usd": ("can", 8),
-        "Residential/Kitchen/Food/Canned_Goods/Canned_Food_K01/sm_food_processed_cannedFood_k01_01.usd": ("can", 8),
-        "Residential/Kitchen/Food/Canned_Goods/Can_L01/sm_food_beverage_can_l01_01.usd": ("can", 8),
-        "Residential/Kitchen/Food/Canned_Goods/Canned_Food_L01/sm_food_processed_cannedFood_l01_01.usd": ("can", 8),
-        "Residential/Kitchen/Food/Canned_Goods/Can_M01/sm_food_beverage_can_m01_01.usd": ("can", 8),
-        "Residential/Kitchen/Food/Canned_Goods/Canned_Food_M01/sm_food_processed_cannedFood_m01_01.usd": ("can", 8),
-        "Residential/Kitchen/Food/Canned_Goods/Can_N01/sm_food_beverage_can_n01_01.usd": ("can", 8),
-        "Residential/Kitchen/Food/Canned_Goods/Canned_Food_N01/sm_food_processed_cannedFood_n01_01.usd": ("can", 8),
-        "Residential/Kitchen/Utensils/Cup_A01/sm_kitchenware_cup_a01_01.usd": ("utensil", 8),
-        "Residential/Kitchen/Utensils/Fork_A01/sm_kitchenware_fork_a01_01.usd": ("utensil", 4),
-        "Residential/Kitchen/Utensils/Ladle_A01/sm_kitchenware_ladle_a01_01.usd": ("utensil", 2),
-        "Residential/Kitchen/Utensils/Spoon_Wooden_A01/sm_utensil_spoon_wooden_a01_01.usda": ("utensil", 4),
-        "Residential/Kitchen/Utensils/Fork_B01/sm_kitchenware_fork_b01_01.usd": ("utensil", 4),
-        "Residential/Kitchen/Utensils/Fork_C01/sm_kitchenware_fork_c01_01.usd": ("utensil", 4),
-        "Residential/Kitchen/Utensils/Fork_D01/sm_kitchenware_fork_d01_01.usd": ("utensil", 8),
-        "Residential/Kitchen/Utensils/Fork_E01/sm_kitchenware_fork_e01_01.usd": ("utensil", 4),
-        "Residential/Kitchen/Utensils/Fork_F01/sm_kitchenware_fork_f01_01.usd": ("utensil", 4),
-        "Residential/Kitchen/Utensils/Fork_G01/sm_kitchenware_fork_g01_01.usd": ("utensil", 4),
-        "Residential/Kitchen/Utensils/Fork_H01/sm_kitchenware_fork_h01_01.usd": ("utensil", 4),
-        "Residential/Kitchen/Utensils/Fork_I01/sm_kitchenware_fork_i01_01.usd": ("utensil", 4),
-        "Industrial/Tools/Hand/Socket_B01_04/sm_handTool_socket_11_32in_b01_01.usd": ("tool", 8),
-        "Industrial/Tools/Hand/Socket_B01_05/sm_handTool_socket_15_32in_b01_01.usd": ("tool", 8),
-        "Industrial/Tools/Hand/Socket_B01_06/sm_handTool_socket_5_16in_b01_01.usd": ("tool", 8),
-        "Industrial/Tools/Hand/Socket_B01_08/sm_handTool_socket_21_32in_b01_01.usd": ("tool", 8),
-        "Industrial/Tools/Hand/Screwdriver_Phillips_Ph1_A01/sm_handTool_screwdriver_phillips_ph1_a01_01.usd": (
-            "tool",
-            8,
-        ),
-        "Industrial/Tools/Hand/Socket_1_3_16in_A01/sm_handTool_socket_1_3_16in_a01_01.usd": ("tool", 8),
-        "Industrial/Tools/Hand/Socket_1_5_16in_A01/sm_handTool_socket_1_5_16in_a01_01.usd": ("tool", 8),
-        "Industrial/Tools/Hand/Socket_3_4in_A01/sm_handTool_socket_3_4in_a01_01.usd": ("tool", 8),
-        "Industrial/Tools/Hand/Socket_3_8in_A01/sm_handTool_socket_3_8in_a01_01.usd": ("tool", 8),
-        "Industrial/Tools/Hand/Socket_5_16in_A01/sm_handTool_socket_5_16in_a01_01.usd": ("tool", 8),
-        "Industrial/Tools/Hand/Socket_5_8in_A01/sm_handTool_socket_5_8in_a01_01.usd": ("tool", 8),
-        "Residential/Kitchen/Dishware/Kitchenware_Bowl_C01/sm_kitchenware_bowl_c01_01.usd": ("container", 8),
-        "Residential/Kitchen/Dishware/Kitchenware_Bowl_E01/sm_kitchenware_bowl_e01_01.usd": ("container", 8),
-        "Residential/Kitchen/Dishware/Bowl_I01/sm_kitchenware_bowl_i01_01.usd": ("container", 4),
-        "Residential/Kitchen/Dishware/Bowl_J01/sm_kitchenware_bowl_j01_01.usd": ("container", 2),
-        "Residential/Kitchen/Dishware/Bowl_K01/sm_kitchenware_bowl_k01_01.usd": ("container", 8),
-        "Residential/Kitchen/Dishware/Bowl_L01/sm_kitchenware_bowl_l01_01.usd": ("container", 8),
-        "Residential/Kitchen/Dishware/Bowl_M01/sm_kitchenware_bowl_m01_01.usd": ("container", 8),
-        "Residential/Kitchen/Dishware/Bowl_O01/sm_kitchenware_bowl_o01_01.usd": ("container", 8),
-        "Residential/Kitchen/Dishware/Bowl_P01/sm_kitchenware_bowl_p01_01.usd": ("container", 4),
-        "Residential/Kitchen/Dishware/Bowl_R01/sm_kitchenware_bowl_r01_01.usd": ("container", 4),
-        "Residential/Personal_Items/Notebook_A02/sm_misc_notebook_a02_01.usd": ("object", 4),
+    for path, category in {
+        "Residential/Kitchen/Food/Fruit/Granny_Smith_Apple_A01/sm_food_produce_apple_grannySmith_a01_01.usd": "food",
+        "Residential/Kitchen/Food/Fruit/Red_Delicious_Apple_A01/sm_food_produce_apple_redDelicous_a01_01.usd": "food",
+        "Residential/Kitchen/Food/Fruit/Banana_A01/sm_food_produce_banana_a01_01.usd": "food",
+        "Residential/Kitchen/Dishware/Plastic_Small_Plate_A01/sm_dishware_plastic_smallPlate_a01_01.usd": "plate",
+        "Residential/Kitchen/Dishware/Bowl_U01/sm_kitchenware_bowl_u01_01.usd": "container",
+        "Residential/Kitchen/Dishware/Bowl_H01/sm_kitchenware_bowl_h01_01.usd": "container",
+        "Industrial/Tools/Hand/Socket_B01_03/sm_handTool_socket_5_8in_b01_01.usd": "tool",
+        "Industrial/Tools/Hand/Socket_1_2in_B01/sm_handTool_socket_1_2in_b01_01.usd": "tool",
+        "Industrial/Tools/Hand/Socket_B01_07/sm_handTool_socket_9_16in_b01_01.usd": "tool",
+        "Residential/Kitchen/Cooking_Gear/Tray_A01/sm_kitchenware_tray_a01_01.usd": "tray",
+        "Residential/Kitchen/Dishware/Bowl_F01/sm_kitchenware_bowl_f01_01.usd": "container",
+        "Residential/Kitchen/Dishware/Bowl_N01/sm_kitchenware_bowl_n01_01.usd": "container",
+        "Residential/Kitchen/Dishware/Bowl_Q01/sm_kitchenware_bowl_q01_01.usd": "container",
+        "Residential/Kitchen/Dishware/Bowl_S01/sm_kitchenware_bowl_s01_01.usd": "container",
+        "Residential/Kitchen/Dishware/Kitchenware_Bowl_B01/sm_kitchenware_bowl_b01_01.usd": "container",
+        "Residential/Kitchen/Dishware/Kitchenware_Bowl_D01/sm_kitchenware_bowl_d01_01.usd": "container",
+        "Residential/Kitchen/Dishware/Plastic_Tray_A01/sm_dishware_plastic_tray_a01_01.usd": "tray",
+        "Residential/Kitchen/Food/Fruit/Orange_A01_02/sm_food_produce_orange_a01_01.usd": "food",
+        "Residential/Kitchen/Food/Fruit/Banana_Bunch_A01/sm_food_produce_banana_bunch_a01_01.usd": "food",
+        "Residential/Kitchen/Food/Vegetables/Eggplant_A01/sm_food_produce_eggplant_a01_01.usd": "food",
+        "Residential/Kitchen/Food/Vegetables/Garlic_Bulb_A01/sm_food_produce_garlic_bulb_a01_01.usd": "food",
+        "Residential/Kitchen/Food/Fruit/Lime_A01/sm_food_produce_lime_a01_01.usd": "food",
+        "Residential/Kitchen/Food/Vegetables/Onion_A01/sm_food_produce_onion_a01_01.usd": "food",
+        "Residential/Kitchen/Food/Fruit/Pear_A01/sm_food_produce_pear_a01_01.usd": "food",
+        "Residential/Kitchen/Food/Fruit/Strawberry_A01/sm_food_produce_strawberry_a01_01.usd": "food",
+        "Residential/Kitchen/Food/Fruit/Tangerine_A01/sm_food_produce_tangerine_a01_01.usd": "food",
+        "Residential/Kitchen/Food/Vegetables/Zucchini_A01/sm_food_produce_zucchini_a01_01.usd": "food",
+        "Residential/Kitchen/Food/Fruit/Lime_A02/sm_food_produce_lime_a02_01.usd": "food",
+        "Residential/Kitchen/Food/Breads/Bagel_B01/sm_food_prepared_bagel_b01_01.usd": "food",
+        "Residential/Kitchen/Food/Vegetables/Onion_B01/sm_food_produce_onion_b01_01.usd": "food",
+        "Residential/Kitchen/Food/Breads/Bagel_C01/sm_food_prepared_bagel_c01_01.usd": "food",
+        "Residential/Kitchen/Food/Fruit/Mango_C01/sm_food_produce_mango_c01_01.usd": "food",
+        "Residential/Kitchen/Food/Breads/Bagel_D01/sm_food_prepared_bagel_d01_01.usd": "food",
+        "Residential/Kitchen/Food/Breads/Bagel_E01/sm_food_prepared_bagel_e01_01.usd": "food",
+        "Residential/Kitchen/Food/Breads/Bagel_F01/sm_food_prepared_bagel_f01_01.usd": "food",
+        "Residential/Kitchen/Food/Breads/Bagel_G01/sm_food_prepared_bagel_g01_01.usd": "food",
+        "Residential/Kitchen/Food/Breads/Bagel_H01/sm_food_prepared_bagel_h01_01.usd": "food",
+        "Residential/Kitchen/Food/Breads/Bagel_I01/sm_food_prepared_bagel_i01_01.usd": "food",
+        "Residential/Kitchen/Food/Beverages/Beer_Bottle_A01/sm_food_beverage_beerBottle_a01_01.usd": "bottle",
+        "Residential/Kitchen/Food/Condiments/Ketchup_A01/sm_food_condiment_ketchup_a01_01.usd": "bottle",
+        "Residential/Kitchen/Food/Condiments/Ketchup_A02/sm_food_condiment_ketchup_a02_01.usd": "bottle",
+        "Residential/Kitchen/Food/Condiments/Ketchup_A03/sm_food_condiment_ketchup_a03_01.usd": "bottle",
+        "Residential/Kitchen/Food/Condiments/Jam_C01/sm_food_processed_jam_c01_01.usd": "bottle",
+        "Residential/Kitchen/Food/Beverages/Beer_Bottle_O01/sm_food_beverage_beerBottle_o01_01.usd": "bottle",
+        "Residential/Kitchen/Food/Canned_Goods/Can_B01/sm_food_beverage_can_b01_01.usd": "can",
+        "Residential/Kitchen/Food/Canned_Goods/Canned_Food_B01/sm_food_processed_cannedFood_b01_01.usd": "can",
+        "Residential/Kitchen/Food/Canned_Goods/Can_C01/sm_food_beverage_can_c01_01.usd": "can",
+        "Residential/Kitchen/Food/Canned_Goods/Canned_Food_C01/sm_food_processed_cannedFood_c01_01.usd": "can",
+        "Residential/Kitchen/Food/Canned_Goods/Can_D01/sm_food_beverage_can_d01_01.usd": "can",
+        "Residential/Kitchen/Food/Canned_Goods/Canned_Food_D01/sm_food_processed_cannedFood_d01_01.usd": "can",
+        "Residential/Kitchen/Food/Canned_Goods/Can_E01/sm_food_beverage_can_e01_01.usd": "can",
+        "Residential/Kitchen/Food/Canned_Goods/Canned_Food_E01/sm_food_processed_cannedFood_e01_01.usd": "can",
+        "Residential/Kitchen/Food/Canned_Goods/Canned_Food_F01/sm_food_processed_cannedFood_f01_01.usd": "can",
+        "Residential/Kitchen/Food/Canned_Goods/Can_G01/sm_food_beverage_can_g01_01.usd": "can",
+        "Residential/Kitchen/Food/Canned_Goods/Can_H01/sm_food_beverage_can_h01_01.usd": "can",
+        "Residential/Kitchen/Food/Canned_Goods/Can_I01/sm_food_beverage_can_i01_01.usd": "can",
+        "Residential/Kitchen/Food/Canned_Goods/Can_J01/sm_food_beverage_can_j01_01.usd": "can",
+        "Residential/Kitchen/Food/Canned_Goods/Canned_Food_J01/sm_food_processed_cannedFood_j01_01.usd": "can",
+        "Residential/Kitchen/Food/Canned_Goods/Can_K01/sm_food_beverage_can_k01_01.usd": "can",
+        "Residential/Kitchen/Food/Canned_Goods/Canned_Food_K01/sm_food_processed_cannedFood_k01_01.usd": "can",
+        "Residential/Kitchen/Food/Canned_Goods/Can_L01/sm_food_beverage_can_l01_01.usd": "can",
+        "Residential/Kitchen/Food/Canned_Goods/Canned_Food_L01/sm_food_processed_cannedFood_l01_01.usd": "can",
+        "Residential/Kitchen/Food/Canned_Goods/Can_M01/sm_food_beverage_can_m01_01.usd": "can",
+        "Residential/Kitchen/Food/Canned_Goods/Canned_Food_M01/sm_food_processed_cannedFood_m01_01.usd": "can",
+        "Residential/Kitchen/Food/Canned_Goods/Can_N01/sm_food_beverage_can_n01_01.usd": "can",
+        "Residential/Kitchen/Food/Canned_Goods/Canned_Food_N01/sm_food_processed_cannedFood_n01_01.usd": "can",
+        "Residential/Kitchen/Utensils/Cup_A01/sm_kitchenware_cup_a01_01.usd": "utensil",
+        "Residential/Kitchen/Utensils/Fork_A01/sm_kitchenware_fork_a01_01.usd": "utensil",
+        "Residential/Kitchen/Utensils/Ladle_A01/sm_kitchenware_ladle_a01_01.usd": "utensil",
+        "Residential/Kitchen/Utensils/Spoon_Wooden_A01/sm_utensil_spoon_wooden_a01_01.usda": "utensil",
+        "Residential/Kitchen/Utensils/Fork_B01/sm_kitchenware_fork_b01_01.usd": "utensil",
+        "Residential/Kitchen/Utensils/Fork_C01/sm_kitchenware_fork_c01_01.usd": "utensil",
+        "Residential/Kitchen/Utensils/Fork_D01/sm_kitchenware_fork_d01_01.usd": "utensil",
+        "Residential/Kitchen/Utensils/Fork_E01/sm_kitchenware_fork_e01_01.usd": "utensil",
+        "Residential/Kitchen/Utensils/Fork_F01/sm_kitchenware_fork_f01_01.usd": "utensil",
+        "Residential/Kitchen/Utensils/Fork_G01/sm_kitchenware_fork_g01_01.usd": "utensil",
+        "Residential/Kitchen/Utensils/Fork_H01/sm_kitchenware_fork_h01_01.usd": "utensil",
+        "Residential/Kitchen/Utensils/Fork_I01/sm_kitchenware_fork_i01_01.usd": "utensil",
+        "Industrial/Tools/Hand/Socket_B01_04/sm_handTool_socket_11_32in_b01_01.usd": "tool",
+        "Industrial/Tools/Hand/Socket_B01_05/sm_handTool_socket_15_32in_b01_01.usd": "tool",
+        "Industrial/Tools/Hand/Socket_B01_06/sm_handTool_socket_5_16in_b01_01.usd": "tool",
+        "Industrial/Tools/Hand/Socket_B01_08/sm_handTool_socket_21_32in_b01_01.usd": "tool",
+        "Industrial/Tools/Hand/Screwdriver_Phillips_Ph1_A01/sm_handTool_screwdriver_phillips_ph1_a01_01.usd": "tool",
+        "Industrial/Tools/Hand/Socket_1_3_16in_A01/sm_handTool_socket_1_3_16in_a01_01.usd": "tool",
+        "Industrial/Tools/Hand/Socket_1_5_16in_A01/sm_handTool_socket_1_5_16in_a01_01.usd": "tool",
+        "Industrial/Tools/Hand/Socket_3_4in_A01/sm_handTool_socket_3_4in_a01_01.usd": "tool",
+        "Industrial/Tools/Hand/Socket_3_8in_A01/sm_handTool_socket_3_8in_a01_01.usd": "tool",
+        "Industrial/Tools/Hand/Socket_5_16in_A01/sm_handTool_socket_5_16in_a01_01.usd": "tool",
+        "Industrial/Tools/Hand/Socket_5_8in_A01/sm_handTool_socket_5_8in_a01_01.usd": "tool",
+        "Residential/Kitchen/Dishware/Kitchenware_Bowl_C01/sm_kitchenware_bowl_c01_01.usd": "container",
+        "Residential/Kitchen/Dishware/Kitchenware_Bowl_E01/sm_kitchenware_bowl_e01_01.usd": "container",
+        "Residential/Kitchen/Dishware/Bowl_I01/sm_kitchenware_bowl_i01_01.usd": "container",
+        "Residential/Kitchen/Dishware/Bowl_J01/sm_kitchenware_bowl_j01_01.usd": "container",
+        "Residential/Kitchen/Dishware/Bowl_K01/sm_kitchenware_bowl_k01_01.usd": "container",
+        "Residential/Kitchen/Dishware/Bowl_L01/sm_kitchenware_bowl_l01_01.usd": "container",
+        "Residential/Kitchen/Dishware/Bowl_M01/sm_kitchenware_bowl_m01_01.usd": "container",
+        "Residential/Kitchen/Dishware/Bowl_O01/sm_kitchenware_bowl_o01_01.usd": "container",
+        "Residential/Kitchen/Dishware/Bowl_P01/sm_kitchenware_bowl_p01_01.usd": "container",
+        "Residential/Kitchen/Dishware/Bowl_R01/sm_kitchenware_bowl_r01_01.usd": "container",
+        "Residential/Personal_Items/Notebook_A02/sm_misc_notebook_a02_01.usd": "object",
     }.items()
 }
 """100 NVIDIA-hosted SimReady props: relative USD paths, sampling categories and maximum world counts.
@@ -381,119 +370,16 @@ The known failing large plastic plate is excluded. Reduced SDF collision meshes 
 SimReady's PhysX validation alone does not certify contact behavior on Newton.
 """
 
-RECEIVER_ASSETS = (
-    "Bowl_U01",
-    "Bowl_H01",
-    "Tray_A01",
-    "Bowl_F01",
-    "Bowl_N01",
-    "Bowl_Q01",
-    "Bowl_S01",
-    "Kitchenware_Bowl_B01",
-    "Kitchenware_Bowl_D01",
-    "Plastic_Tray_A01",
-    "Kitchenware_Bowl_C01",
-    "Bowl_I01",
-    "Bowl_J01",
-    "Bowl_K01",
-    "Bowl_L01",
-    "Bowl_O01",
-    "Bowl_P01",
-    "Bowl_R01",
-)
-"""The trays and the bowls of 12 cm or more. The first object of every world is one of them: its target."""
-
-MOVABLE_ASSETS = (
-    "Red_Delicious_Apple_A01",
-    "Socket_B01_03",
-    "Garlic_Bulb_A01",
-    "Lime_A01",
-    "Strawberry_A01",
-    "Tangerine_A01",
-    "Lime_A02",
-    "Onion_B01",
-    "Beer_Bottle_A01",
-    "Ketchup_A01",
-    "Ketchup_A02",
-    "Ketchup_A03",
-    "Can_B01",
-    "Canned_Food_B01",
-    "Can_C01",
-    "Canned_Food_C01",
-    "Can_D01",
-    "Canned_Food_D01",
-    "Can_E01",
-    "Canned_Food_F01",
-    "Can_G01",
-    "Can_H01",
-    "Can_I01",
-    "Can_J01",
-    "Canned_Food_J01",
-    "Can_K01",
-    "Canned_Food_K01",
-    "Can_L01",
-    "Canned_Food_L01",
-    "Can_M01",
-    "Canned_Food_M01",
-    "Can_N01",
-    "Cup_A01",
-    "Socket_B01_08",
-    "Socket_1_3_16in_A01",
-    "Socket_1_5_16in_A01",
-    "Socket_3_4in_A01",
-    "Socket_3_8in_A01",
-    "Socket_5_16in_A01",
-    "Socket_5_8in_A01",
-)
-"""Props that suit the gripper and fit every receiver, by the rules of :class:`~.mdp.reset_tabletop`.
-
-The second object of every world is one of them, so every world offers a task.
-"""
-
-SLOT_ASSETS = (
-    RECEIVER_ASSETS,
-    MOVABLE_ASSETS,
-    *[
-        tuple(
-            label
-            for label, spawn in ASSET_CATALOG.items()
-            if not {("category", "container"), ("category", "tray")} & set(spawn.semantic_tags)
-        )
-    ]
-    * (OBJECT_COUNT[1] - 2),
-)
-"""Catalog labels that each object slot samples from; the slots after the first two hold no further receiver."""
-
-
 OBJECTS_CFG = RigidObjectCollectionCfg(
     rigid_objects={
         f"object_{slot}": RigidObjectCfg(
             prim_path=f"{{ENV_REGEX_NS}}/object_{slot}",
             spawn=sim_utils.MultiAssetSpawnerCfg(
                 assets_cfg=[
-                    spawn.replace(
-                        semantic_tags=[
-                            *[
-                                (tag, value)
-                                for tag, value in spawn.semantic_tags
-                                if tag != "object_count" or int(value) > slot
-                            ],
-                            ("_catalog_key", label),
-                        ]
-                    )
+                    spawn.replace(semantic_tags=[*spawn.semantic_tags, ("_catalog_key", label)])
                     for label, spawn in ASSET_CATALOG.items()
-                    if label in SLOT_ASSETS[slot]
-                    and any(tag == "object_count" and int(value) > slot for tag, value in spawn.semantic_tags)
                 ]
-                + [
-                    EMPTY_OBJECT_CFG.replace(
-                        semantic_tags=[
-                            ("_catalog_key", "__empty__"),
-                            ("category", "__empty__"),
-                            *[("object_count", str(count)) for count in range(OBJECT_COUNT[0], slot + 1)],
-                        ]
-                    )
-                ],
+                + [EMPTY_OBJECT_CFG.replace(semantic_tags=[("_catalog_key", "__empty__"), ("category", "__empty__")])],
                 static=False,
                 random_choice=False,
             ),
@@ -502,10 +388,7 @@ OBJECTS_CFG = RigidObjectCollectionCfg(
         for slot in range(OBJECT_COUNT[1])
     },
 )
-"""Complete object group; inclusion matching selects count, then category and asset per occupied slot.
-
-Slot 0 holds a receiver and slot 1 a prop that can be placed in or on it (see ``SLOT_ASSETS``).
-"""
+"""Identical slots: every catalog asset and a non-colliding placeholder are available in every world."""
 
 
 @configclass
@@ -518,9 +401,7 @@ class TabletopSceneCfg(InteractiveSceneCfg):
 
     clone_cfg = CloneCfg(
         clone_strategy=random,
-        clone_combinations=[
-            InclusionSet(assets=["objects", "work_table"], match_tags=["object_count"], sample_by="category")
-        ],
+        clone_combinations=[InclusionSet(assets=["objects", "work_table"], sample_by="category")],
     )
     objects = OBJECTS_CFG
 
@@ -655,6 +536,7 @@ class EventsCfg:
         mode="reset",
         params={
             "objects": SceneEntityCfg("objects"),
+            "object_count": OBJECT_COUNT,
             "table": SceneEntityCfg("work_table"),
             "table_variants": TABLE_VARIANTS,
             "workspace": ROBOT_WORKSPACE,
@@ -680,8 +562,8 @@ class VLAHeterogeneousEnvCfg(ManagerBasedRLEnvCfg):
     """Sample bounded object combinations; tasks become available from categories and geometric fit.
 
     ``OBJECTS_CFG`` declares the object collection before environment construction. Empty placeholders
-    keep runtime views rectangular; inclusion matching selects the count, category and concrete assets.
-    Every world holds a receiver and a prop that can be placed in or on it, so every world offers a task.
+    keep runtime views rectangular. Every reset samples the count, category and concrete assets anew.
+    Any environment can select any task family; its composition includes a compatible object and receiver.
     """
 
     scene: TabletopSceneCfg = TabletopSceneCfg(num_envs=1, env_spacing=10.0, lazy_sensor_update=True)
@@ -716,8 +598,8 @@ class VLAHeterogeneousEnvCfg(ManagerBasedRLEnvCfg):
             sdf_mesh_reduction=0.75,
             num_substeps=4,
             collision_decimation=1,
-            # Thousands of small hull meshes: cuBQL takes about 0.1 s to build each one's BVH, LBVH a few ms.
-            bvh_constructor_geometry="lbvh",
+            # SAH keeps dense mesh-overlap queries stable across reset-time asset changes.
+            bvh_constructor_geometry="sah",
         ),
     )
 

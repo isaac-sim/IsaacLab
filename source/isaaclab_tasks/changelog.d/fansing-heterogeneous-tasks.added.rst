@@ -1,7 +1,10 @@
 * Added ``IsaacContrib-VLA-Heterogeneous-Franka``: a shared tabletop scene for vision-language-action policies
   on Newton, with bounded combinations from a tagged object catalog instead of fixed per-benchmark layouts.
   Sampling chooses categories uniformly before assets uniformly within each category, without enumerating combinations.
-  The first object of a world is a tray or bowl and the second a prop that fits it, so every world offers a task.
+  Every slot offers the complete catalog and a non-colliding placeholder. Every reset resamples the object count,
+  category composition and concrete assets, including a size-compatible pair for an evaluable task. Slot roles
+  are interchangeable, and any environment can request any globally indexed task family.
+  Geometry uses SAH BVHs to keep dense reset-time mesh-overlap queries stable.
   Reset places objects collision-free inside the polygon intersection of the declared, measured tabletop outline and a
   hand-defined robot workspace, preserving outlines and holes. Placement samples COM poses using
   collision geometry relative to the simulator COM, accounting for mesh and COM offsets from the asset origin.
@@ -18,8 +21,8 @@
   Camera and object collection constants compose directly through config copies and replacements, without
   config factories or post-init scene generation. The robot preserves its original home pose, arm impedance and
   disabled self-collisions, preventing internal collision hulls from deforming the open Robotiq linkage.
-  The flat catalog references 100 NVIDIA-hosted SimReady props, with large assets restricted to sparse worlds through
-  inclusion tags. Ordinary USD configs and collision fragments declare the catalog; backend-owned
+  The flat catalog references 100 NVIDIA-hosted SimReady props. Infeasible placements retry concrete compositions
+  while preserving the sampled cardinality. Ordinary USD configs and collision fragments declare the catalog; backend-owned
   ``sdf_mesh_reduction=0.75`` targets 75% fewer collision triangles and generates native SDFs while preserving the
   original visual meshes and receiver cavities. The known failing large plastic plate is excluded.
   Four solver substeps with refreshed contacts and a shared gripper/object contact response reduce finger penetration

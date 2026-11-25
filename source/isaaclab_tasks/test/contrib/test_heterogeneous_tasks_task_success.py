@@ -21,6 +21,7 @@ from pxr import Usd, UsdGeom, UsdPhysics
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg, RigidObjectCollectionCfg
 from isaaclab.cloner import InclusionSet
+from isaaclab.cloner.cloner_strategies import random
 from isaaclab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg
 from isaaclab.envs import mdp as isaaclab_mdp
 from isaaclab.managers import EventTermCfg, ObservationGroupCfg, ObservationTermCfg, SceneEntityCfg, TerminationTermCfg
@@ -189,12 +190,6 @@ def env(request, tmp_path):
         "Box_A01": sim_utils.UsdFileCfg(usd_path=str(path)),
         "__empty__": sim_utils.SphereCfg(radius=0.001, visible=False),
     }
-    worlds = (
-        ("small", "plate", "thin"),
-        ("small", "small", "plate"),
-        ("large", "plate", "__empty__"),
-        ("small", "Box_A01", "plate"),
-    )
     table_path = tmp_path / "table.usda"
     _table(table_path)
     cfg = _EnvCfg(seed=42)
@@ -231,21 +226,17 @@ def env(request, tmp_path):
         )
     )
     cfg.sim.device = request.param
-    names = [f"object_{slot}" for slot in range(3)]
+    names = [f"object_{slot}" for slot in range(8)]
     collection = {}
     for slot, name in enumerate(names):
         candidates = []
-        for label in dict.fromkeys(row[slot] for row in worlds):
+        for label in bodies:
             spawn = bodies[label].copy()
             spawn.rigid_props = sim_utils.UsdPhysicsRigidBodyCfg()
             spawn.mass_props = sim_utils.MassCfg(mass=0.1)
-            spawn.collision_props = sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True)
-            spawn.semantic_tags = [
-                ("_catalog_key", label),
-                *[("case", str(i)) for i, row in enumerate(worlds) if row[slot] == label],
-            ]
-            if label != "__empty__":
-                spawn.semantic_tags.append(("category", "object"))
+            spawn.collision_props = sim_utils.UsdPhysicsCollisionCfg(collision_enabled=label != "__empty__")
+            spawn.semantic_tags = [("_catalog_key", label)]
+            spawn.semantic_tags.append(("category", "__empty__" if label == "__empty__" else "object"))
             if label in ("plate", "Box_A01"):
                 spawn.semantic_tags.append(("category", "plate" if label == "plate" else "container"))
             if label == "plate":
@@ -257,7 +248,8 @@ def env(request, tmp_path):
             init_state=RigidObjectCfg.InitialStateCfg(pos=(0, -10, 0.5)),
         )
     cfg.scene.objects = RigidObjectCollectionCfg(rigid_objects=collection)
-    cfg.scene.clone_cfg.clone_combinations = [InclusionSet(assets=["objects"], match_tags=["case"])]
+    cfg.scene.clone_cfg.clone_strategy = random
+    cfg.scene.clone_cfg.clone_combinations = [InclusionSet(assets=["objects"], sample_by="category")]
     cfg.events = {
         "reset": EventTermCfg(func=isaaclab_mdp.reset_scene_to_default, mode="reset"),
         "place_objects": EventTermCfg(
@@ -265,6 +257,7 @@ def env(request, tmp_path):
             mode="reset",
             params={
                 "objects": SceneEntityCfg("objects"),
+                "object_count": (2, 8),
                 "table": SceneEntityCfg("work_table"),
                 "table_variants": tables,
                 "workspace": ((0.25, -0.35, 0.1), (0.9, 0.35, 0.6)),
@@ -285,32 +278,60 @@ def env(request, tmp_path):
 def test_reset_intersects_workspace_and_table_and_binds_only_feasible_tasks(env):
     env.reset()
     state = env.tabletop
-    container_world = next(i for i, names in enumerate(state.object_names) if "Box_A01" in names)
-    large_world = next(i for i, names in enumerate(state.object_names) if "large" in names)
-    # World 0 also holds an object that fits the plate but is too thin for the gripper. The two objects of
-    # world 1 share a name, so one instruction stands for both.
-    assert [len(state.available_tasks[i]) for i in (0, 1, large_world, container_world)] == [1, 1, 0, 2]
-    assert sorted(state.active.sum(1).tolist()) == [2, 3, 3, 3]
+    reset_params = env.event_manager.get_term_cfg("place_objects").params
     assert not state.penetrating_worlds().any()
     assert all(surface.area == pytest.approx(0.864, abs=1e-6) for surface in state.surfaces[:2])
     assert state.surfaces[2].area < 0.05
     assert all(len(surface.interiors) == 1 for surface in state.surfaces)
-    assert state.instructions[0] and state.instructions[1] and state.instructions[container_world]
-    assert state.instructions[large_world] == ""
+    assert all(state.instructions)
     with pytest.raises(ValueError, match="Unavailable"):
-        state.set_task([large_world], [0])
+        state.set_task([0], [len(env.cfg.tasks)])
+    # Every world must reach every cardinality and task ID, with concrete assets changing on reset.
+    counts = [set() for _ in range(env.num_envs)]
+    selections = [[set() for _ in state.names] for _ in range(env.num_envs)]
+    seen_tasks = [set() for _ in range(env.num_envs)]
+    placeholder = len(next(iter(state.objects.cfg.rigid_objects.values())).spawn.assets_cfg) - 1
+    for attempt in range(14):
+        count = 2 + attempt % 7
+        reset_params["object_count"] = (count, count)
+        family = attempt // 7
+        state.set_task(list(range(env.num_envs)), [family] * env.num_envs)
+        env.reset()
+        assert state.task_ids.tolist() == [family] * env.num_envs
+        assert state.active.sum(1).tolist() == [count] * env.num_envs
+        torch.testing.assert_close(state.active, state.objects.mesh_variant_ids.torch != placeholder)
+        assert not state.penetrating_worlds().any()
+        for world, row in enumerate(state.objects.mesh_variant_ids.torch.tolist()):
+            counts[world].add(int(state.active[world].sum()))
+            seen_tasks[world].add(int(state.task_ids[world]))
+            for slot, variant in enumerate(row):
+                selections[world][slot].add(variant)
+    assert all(values == set(range(2, 9)) for values in counts)
+    assert all(values == {0, 1} for values in seen_tasks)
+    assert all(len(values) > 1 for row in selections for values in row)
+    reset_params["object_count"] = (2, 8)
+    sampled = [set() for _ in range(env.num_envs)]
+    for _ in range(6):
+        env.reset()
+        for world, count in enumerate(state.active.sum(1).tolist()):
+            assert 2 <= count <= 8
+            sampled[world].add(count)
+    assert all(len(values) > 1 for values in sampled), "Cardinality must be resampled in every environment."
+    reset_params["object_count"] = (2, 2)
+    env.reset()
+    container_world, untouched = 2, [1, 3]
     poses = state.objects.data.body_link_pose_w.torch
     before = poses.clone()
     for _ in range(3):
         table_before = state.table.mesh_variant_ids.torch.clone()
         env.reset(env_ids=torch.tensor([0, container_world], device=env.device))
         poses = state.objects.data.body_link_pose_w.torch
-        torch.testing.assert_close(poses[[1, large_world]], before[[1, large_world]])
+        torch.testing.assert_close(poses[untouched], before[untouched])
         assert not torch.equal(poses[0], before[0])
         table_after = state.table.mesh_variant_ids.torch
-        assert (table_after[[0, large_world, container_world]] != 2).all(), "Small tables cannot hold these worlds"
+        assert (table_after[[0, container_world]] != 2).all(), "Small tables cannot hold these worlds"
         assert (table_after[[0, container_world]] != table_before[[0, container_world]]).all()
-        torch.testing.assert_close(table_after[[1, large_world]], table_before[[1, large_world]])
+        torch.testing.assert_close(table_after[untouched], table_before[untouched])
         torch.testing.assert_close(state.tabletop_heights, torch.full_like(state.tabletop_heights, 0.2))
         corners = quat_apply(poses[..., None, 3:].expand(-1, -1, 8, 4), state.local_corners) + poses[..., None, :3]
         # Contact bounds must land at table + clearance even with mesh and COM offsets from the origin.
@@ -325,7 +346,7 @@ def test_reset_intersects_workspace_and_table_and_binds_only_feasible_tasks(env)
         assert (local[state.active] <= local.new_tensor([0.9, 0.35, 0.6])).all()
         table = state.table.data.root_link_pose_w.torch
         table_local = quat_apply_inverse(
-            table[:, None, None, 3:].expand(-1, 3, 8, 4), corners - table[:, None, None, :3]
+            table[:, None, None, 3:].expand(-1, len(state.names), 8, 4), corners - table[:, None, None, :3]
         )
         # Compare the small table in the original mesh coordinates, including its scaled opening.
         scale = torch.where(table_after == 2, 0.2, 1.0)
@@ -337,17 +358,25 @@ def test_reset_intersects_workspace_and_table_and_binds_only_feasible_tasks(env)
             assert shapely.MultiPoint(points).convex_hull.disjoint(hole)
         assert not state.penetrating_worlds().any()
     assert not env.termination_manager.compute().any()
-    inside = next(i for i, task in enumerate(state.available_tasks[container_world]) if task.family == "in_box")
-    state.set_task([0, 1, container_world], [0, 0, inside])
+    state.set_task([0, 1, container_world], [0, 0, 1])
     env.reset()
-    # Instructions name objects in plain words: by the asset's name tag, or else by its catalog label without the
-    # asset code.
     assert state.instructions[0] == "Place small on white plate."
     assert state.instructions[container_world] == "Put small in box."
+    # Sample duplicate named objects and a second receiver using the same public reset path.
+    reset_params["object_count"] = (3, 3)
+    for world, accepted in ((1, lambda row: row.count("small") == 2), (container_world, lambda row: "plate" in row)):
+        for _ in range(128):
+            env.reset(env_ids=torch.tensor([world], device=env.device))
+            if accepted(state.object_names[world]):
+                break
+        else:
+            pytest.fail("The reset sampler could not reach a declared category composition.")
+    assert state.object_mask[1].sum() == 2
     target = state.objects.data.body_link_pose_w.torch
 
-    def place(world: int, offset: tuple[float, float, float], body: int = 0, reference: int | None = None):
+    def place(world: int, offset: tuple[float, float, float], body: int | None = None, reference: int | None = None):
         """Move an object of the world to an offset in the frame of the world's target, or of another object."""
+        body = int(state.object_ids[world]) if body is None else body
         pose = target[world, state.target_ids[world] if reference is None else reference].clone()
         pose[:3] += quat_apply(pose[3:][None], pose.new_tensor([offset]))[0]
         ids = torch.tensor([world], device=env.device)
@@ -374,7 +403,7 @@ def test_reset_intersects_workspace_and_table_and_binds_only_feasible_tasks(env)
     # An object that slides across the plate is not placed until it has come to rest.
     state.objects.write_body_velocity_to_sim_index(
         body_velocities=target.new_tensor([[[0.5, 0, 0, 0, 0, 0]]]),
-        body_ids=[0],
+        body_ids=[int(state.object_ids[0])],
         env_ids=torch.tensor([0], device=env.device),
     )
     assert not settle(1)[-1][0]
@@ -388,20 +417,23 @@ def test_reset_intersects_workspace_and_table_and_binds_only_feasible_tasks(env)
     assert not any(done[0] for done in settle(60))
     sensor = env.scene["contact"]
     force = sensor.data.normal_force_matrix_w.torch[
-        0, sensor.sensor_names.index("object_0"), sensor.filter_object_names.index(state.names[state.target_ids[0]])
+        0,
+        sensor.sensor_names.index(state.names[state.object_ids[0]]),
+        sensor.filter_object_names.index(state.names[state.target_ids[0]]),
     ]
     assert force.norm() >= 0.1
-    # The instruction of world 1 names two objects alike: whichever of them rests on the plate counts.
-    place(1, (0, 0, 0.072), body=1)
+    # Any object with the instruction's name counts, including the second matching instance.
+    second = int(state.object_mask[1].nonzero().flatten()[1])
+    place(1, (0, 0, 0.072), body=second)
     assert settle(60)[-1][1]
-    # An object that rests on another receiver than the one the instruction names does not count.
+    # Another receiver present in the composition must not satisfy the requested container task.
     place(container_world, (0, 0, 0.072), reference=state.object_names[container_world].index("plate"))
     assert not any(done[container_world] for done in settle(60))
-    params = dict(env.cfg.events["place_objects"].params, workspace=((2, 2, 0), (3, 3, 1)))
+    params = dict(reset_params, workspace=((2, 2, 0), (3, 3, 1)))
     with pytest.raises(RuntimeError, match="intersection"):
         state(env, torch.tensor([0], device=env.device), **params)
     # The rectangle lies wholly inside the table's opening, while still inside its outer bounds.
-    params = dict(env.cfg.events["place_objects"].params, workspace=((0.58, -0.02, 0.1), (0.62, 0.02, 0.6)))
+    params = dict(reset_params, workspace=((0.58, -0.02, 0.1), (0.62, 0.02, 0.6)))
     with pytest.raises(RuntimeError, match="intersection"):
         state(env, torch.tensor([0], device=env.device), **params)
 

@@ -10,7 +10,7 @@ from typing import Any
 
 import numpy as np
 import warp as wp
-from newton import JointType, ModelBuilder, ShapeFlags
+from newton import JointType, Mesh, ModelBuilder, ShapeFlags
 
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
@@ -130,6 +130,7 @@ def build_source_builders(
             source's USD import result.
     """
     builders = {}
+    collision_meshes = {}
     sources = tuple(dict.fromkeys(sources))
     for source in sources:
         builder = create_builder()
@@ -193,6 +194,22 @@ def build_source_builders(
                 if visible and imageable.ComputePurpose() in (UsdGeom.Tokens.default_, UsdGeom.Tokens.proxy):
                     builder.shape_flags[index] |= ShapeFlags.VISIBLE
             import_builder_visual_material_paths(builder, stage)
+        # Native deferred SDF caching keys by Mesh identity. Reuse identical collision-only sources
+        # across slots so their textures are cooked once; visual meshes and prebuilt SDFs stay independent.
+        for index, mesh in enumerate(builder.shape_source):
+            if (
+                isinstance(mesh, Mesh)
+                and mesh.sdf is None
+                and not mesh.enable_surface_velocity
+                and builder.shape_flags[index] & ShapeFlags.COLLIDE_SHAPES
+                and not builder.shape_flags[index] & ShapeFlags.VISIBLE
+                and (
+                    builder.shape_sdf_max_resolution[index] is not None
+                    or builder.shape_sdf_target_voxel_size[index] is not None
+                )
+            ):
+                key = (hash(mesh), mesh.maxhullvert)
+                builder.shape_source[index] = collision_meshes.setdefault(key, mesh)
         _name_root_joints_after_their_body(builder)
         builders[source] = builder
         if import_results_out is not None:
