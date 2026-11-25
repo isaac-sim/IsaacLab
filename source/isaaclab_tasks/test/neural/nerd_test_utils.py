@@ -113,12 +113,12 @@ def refused(task: str, env_cfg: Any, error: type[Exception], match: str) -> None
         pass
 
 
-def record_dataset(task: str, dataset: Path, num_envs: int, num_frames: int, device: str) -> None:
+def record_dataset(task: str, dataset: Path, num_envs: int, num_frames: int, device: str, *overrides: str) -> None:
     """Record a dataset of ``task`` with ``scripts/neural/record.py``, in ``dataset`` or where the script puts it."""
     from isaaclab.paths import ISAACLAB_ROOT  # noqa: PLC0415
 
     argv = ["--task", task, "--num_envs", str(num_envs), "--num_frames", str(num_frames), "--device", device]
-    argv += ["--dataset", str(dataset)]
+    argv += ["--dataset", str(dataset), *overrides]
     try:
         runpy.run_path(str(Path(ISAACLAB_ROOT) / "scripts/neural/record.py"))["main"](argv)
     finally:

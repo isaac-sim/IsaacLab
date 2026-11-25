@@ -65,16 +65,16 @@ and constraint capacity explicitly.
 Recording architecture
 ----------------------
 
-Recording uses the existing ``RecorderManager`` and the normal environment step. A dynamics recorder
-term copies state and contact inputs before physics, then returns a complete frame with consumed controls,
-free-motion labels and validity after physics. The manager stores each world's episode and exports it
-before automatic reset. Exploration actions own command generators; reset events write sampled states,
+Recording uses the existing ``RecorderManager`` hooks and the normal environment step. A dynamics recorder
+term copies state and contact inputs before physics, then adds consumed controls, free-motion labels and
+validity after physics. Exploration actions own command generators; reset events write sampled states,
 and termination terms declare the exploration duration and reject divergent state.
 
-The native output handler implements the recorder's dataset interface and batches exported episodes into
-``TrajectoryWriter`` shards. Each episode is an independent native world; shorter episodes are padded with
-invalid frames. Training and validation split by those independent episodes. There is no intermediate
-HDF5 conversion, alternate simulation loop or dependency on PR #9121.
+Frames stay batched across environments. The recorder term writes them through the native
+``TrajectoryWriter`` every ``shard_frames`` steps as one contiguous stream per environment, and each reset
+marks the next frame of its environments as an episode start. The manager exports no per-environment
+episodes, so the cost of recording does not grow with the number of episodes. Training and validation
+split by environment.
 
 Run policies
 ------------

@@ -16,7 +16,7 @@ import warp as wp
 from prettytable import PrettyTable
 
 from ..utils import configclass, instantiate
-from ..utils.datasets import DatasetFileHandlerBase, EpisodeData, HDF5DatasetFileHandler
+from ..utils.datasets import EpisodeData, HDF5DatasetFileHandler
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import RecorderTermCfg
 
@@ -217,14 +217,6 @@ class RecorderManager(ManagerBase):
     def active_terms(self) -> list[str]:
         """Name of active recorder terms."""
         return self._term_names
-
-    @property
-    def dataset_file_handler(self) -> DatasetFileHandlerBase | None:
-        """The configured output handler, or ``None`` when file export is disabled.
-
-        Recording entrypoints may bind format-specific runtime resources before the first reset.
-        """
-        return self._dataset_file_handler
 
     @property
     def records_physics_steps(self) -> bool:

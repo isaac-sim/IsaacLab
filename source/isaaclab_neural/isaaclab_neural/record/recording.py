@@ -3,11 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Exploration actions, standard recorder terms and native NeRD dataset output."""
+"""Exploration actions and the recorder term that writes native NeRD datasets."""
 
 from __future__ import annotations
 
-from pathlib import Path
+from collections.abc import Sequence
 
 import numpy as np
 import torch
@@ -20,7 +20,6 @@ from newton_neural.systems import BindingArticulation, SystemArticulation
 from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
 from isaaclab.envs.mdp.actions.joint_actions import JointPositionAction
 from isaaclab.managers import RecorderTerm
-from isaaclab.utils.datasets import DatasetFileHandlerBase, EpisodeData
 
 from .recording_cfg import NeRDDynamicsRecorderCfg, NeRDExplorationActionCfg
 
@@ -110,19 +109,35 @@ def exploration_timeout(env: ManagerBasedRLEnv) -> torch.Tensor:
 
 
 class NeRDDynamicsRecorder(RecorderTerm):
-    """Capture complete transitions through the existing pre/post-step recorder hooks.
+    """Capture one frame per environment step and write contiguous per-environment shards.
 
-    The entrypoint supplies optional contact probes and free-acceleration columns after constructing the model.
-    RecorderManager owns per-world episode storage and exports before automatic resets.
+    The pre-step hook copies state and contact inputs; the post-step hook adds the consumed controls, the
+    free-motion label and validity. Frames stay batched across environments and reach the native
+    ``TrajectoryWriter`` every :attr:`~NeRDDynamicsRecorderCfg.shard_frames` steps, so recording materializes
+    no per-episode data. A reset marks the next frame of its environments as an episode start.
+
+    The entrypoint supplies the robot binding, the writer, optional contact probes and free-acceleration
+    columns after constructing the model, and closes the recorder when the workflow ends.
     """
 
     binding: BindingArticulation
     backend: NewtonBackend
 
-    def __init__(self, cfg: NeRDDynamicsRecorderCfg, env: ManagerBasedRLEnv):
+    def __init__(self, cfg: NeRDDynamicsRecorderCfg, env: ManagerBasedRLEnv) -> None:
         super().__init__(cfg, env)
         self.sensor = None
         self.free_columns = None
+        self.writer: TrajectoryWriter | None = None
+        self._frames: list[dict[str, torch.Tensor]] = []
+        self._episode_starts: list[torch.Tensor] = []
+        self._valid: list[torch.Tensor] = []
+        # Environments whose next frame starts an episode. The first recorded frame always does.
+        self._starting = torch.ones(env.num_envs, dtype=torch.bool, device=env.device)
+        self._continues = False
+
+    def record_post_reset(self, env_ids: Sequence[int] | slice | None) -> tuple[None, None]:
+        self._starting[slice(None) if env_ids is None else env_ids] = True
+        return None, None
 
     def record_pre_step(self) -> tuple[None, None]:
         self._env.sim.forward()
@@ -136,84 +151,47 @@ class NeRDDynamicsRecorder(RecorderTerm):
             self.frame.update({name: value.clone() for name, value in features.items()})
         return None, None
 
-    def record_post_step(self) -> tuple[str, dict[str, torch.Tensor]]:
-        self.frame.update(self.binding.read_control(self.backend.control))
+    def record_post_step(self) -> tuple[None, None]:
+        frame = self.frame
+        # Buffered frames outlive the step, so the control buffers that later steps overwrite are copied.
+        controls = self.binding.read_control(self.backend.control)
+        frame.update({name: value.clone() for name, value in controls.items()})
         if self.free_columns is not None:
             acceleration = wp.to_torch(self.backend.solver.mjw_data.qacc_smooth)
-            self.frame["joint_qdd_free"] = acceleration.gather(1, self.free_columns)
+            frame["joint_qdd_free"] = acceleration.gather(1, self.free_columns)
         valid = ~self._env.reset_terminated
-        for value in self.frame.values():
+        for value in frame.values():
             valid = valid & torch.isfinite(value).flatten(1).all(dim=1)
-        return "dynamics", {**self.frame, "valid": valid}
-
-
-class NeRDDatasetFileHandler(DatasetFileHandlerBase):
-    """Write RecorderManager episodes directly into the native NeRD trajectory format.
-
-    Each episode is an independent native world. Padding is invalid, and a shard never continues another
-    episode. The workflow supplies the native writer after constructing the model; no intermediate dataset
-    or environment reconstruction is involved.
-    """
-
-    frame_count: int
-
-    def __init__(self):
-        self.writer: TrajectoryWriter | None = None
-        self.episodes = []
-        self.episode_count = 0
-        self.complete = True
-        self.env_args = None
-
-    def create(self, file_path: str, env_name: str | None = None) -> None:
-        self.path = Path(file_path)
-        self.env_name = env_name
-
-    def add_env_args(self, env_args: dict) -> None:
-        if self.env_args is not None and self.env_args != env_args:
-            raise ValueError("NeRD recording settings changed during capture")
-        self.env_args = env_args
-
-    def write_episode(self, episode: EpisodeData, demo_id: int | None = None, dataset_compression: bool = True) -> None:
-        if demo_id is not None:
-            raise ValueError("Native NeRD datasets identify independent episodes by world index")
-        self.episodes.append(episode.data["dynamics"])
-        self.episode_count += 1
-        if len(self.episodes) >= 4096:
+        self._frames.append(frame)
+        self._episode_starts.append(self._starting.clone())
+        self._valid.append(valid)
+        self._starting.zero_()
+        if len(self._frames) >= self.cfg.shard_frames:
             self.flush()
+        return None, None
 
     def flush(self) -> None:
-        if not self.episodes:
+        """Write the buffered frames of all environments as one shard that continues the previous one."""
+        if not self._frames:
             return
-        first = self.episodes[0]
-        lengths = [len(episode["valid"]) for episode in self.episodes]
-        shape = (len(lengths), self.frame_count)
-        frames = {
-            name: torch.zeros((*shape, *value.shape[1:]), dtype=value.dtype, device=value.device)
-            for name, value in first.items()
-        }
-        for world, (episode, length) in enumerate(zip(self.episodes, lengths, strict=True)):
-            for name, value in episode.items():
-                frames[name][world, :length] = value
-        valid = frames.pop("valid")
-        starts = torch.zeros_like(valid)
-        starts[:, 0] = True
-        self.writer.write(frames, starts, valid)
-        self.episodes.clear()
+        signals = {name: torch.stack([frame[name] for frame in self._frames], dim=1) for name in self._frames[0]}
+        episode_start, valid = torch.stack(self._episode_starts, dim=1), torch.stack(self._valid, dim=1)
+        self.writer.write(signals, episode_start, valid, continues=self._continues)
+        self._continues = True
+        self._frames.clear()
+        self._episode_starts.clear()
+        self._valid.clear()
 
-    def close(self) -> None:
-        if self.writer is not None:
+    def close(self, *, complete: bool = True) -> None:
+        """Write the remaining frames and publish the dataset index.
+
+        Args:
+            complete: Whether the recording ran to its end. An interrupted recording keeps the shards that
+                were already written and is marked incomplete.
+        """
+        if self.writer is None:
+            return
+        if complete:
             self.flush()
-            self.writer.close(complete=self.complete)
-            self.writer = None
-
-    def get_env_name(self) -> str | None:
-        return self.env_name
-
-    def get_num_episodes(self) -> int:
-        return self.episode_count
-
-    def open(self, file_path: str, mode: str = "r") -> None:
-        raise NotImplementedError("Read native recordings with newton_neural.data.TrajectoryDataset")
-
-    def load_episode(self, episode_name: str) -> EpisodeData:
-        raise NotImplementedError("Read native recordings with newton_neural.data.TrajectoryWindows")
+        writer, self.writer = self.writer, None
+        writer.close(complete=complete)

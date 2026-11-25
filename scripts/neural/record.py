@@ -49,10 +49,9 @@ def main(argv: list[str] | None = None) -> None:
     )
     env_cfg.scene.num_envs = args.num_envs
     env_cfg.seed = args.seed
-    env_cfg.recorders.dataset_export_dir_path = str(args.dataset.parent)
-    env_cfg.recorders.dataset_filename = args.dataset.name
     with launch_simulation(env_cfg, args):
         env = ManagerBasedRLEnv(env_cfg)
+        capture = env.recorder_manager.get_term("dynamics")
         try:
             exploration = env.action_manager.get_term("joint_targets")
             backend, binding = env.sim.backend_manager.backend, exploration.binding
@@ -75,28 +74,24 @@ def main(argv: list[str] | None = None) -> None:
                 "physical_model": physical_contract(backend.model, binding, free_motion=free_motion),
                 "model_cfg": to_dict(model_cfg),
             }
-            capture = env.recorder_manager.get_term("dynamics")
             capture.binding, capture.backend = binding, backend
             capture.sensor = None if contact is None else contact.sensor(backend.model, binding)
             capture.free_columns = free_acceleration_indices(backend.solver, binding) if free_motion else None
-            handler = env.recorder_manager.dataset_file_handler
-            handler.frame_count = exploration.cfg.episode_frames[1]
-            handler.writer = TrajectoryWriter(
-                handler.path, nerd.signals, env.step_dt, generation=env.recorder_manager.get_ep_meta()
+            capture.writer = TrajectoryWriter(
+                args.dataset, nerd.signals, env.step_dt, generation=env.recorder_manager.get_ep_meta()
             )
             action = torch.zeros(env.num_envs, env.action_manager.total_action_dim, device=env.device)
             env.reset()
             for _ in range(args.num_frames):
                 env.step(action)
-            env.recorder_manager.export_episodes()
+            capture.close()
             nerd.save(args.dataset / "model.pt")
             dump_yaml(str(args.dataset / "params" / "env.yaml"), env_cfg)
             dump_yaml(str(args.dataset / "params" / "model.yaml"), model_cfg)
         except BaseException:
-            env.recorder_manager.dataset_file_handler.complete = False
+            capture.close(complete=False)
             raise
         finally:
-            env.recorder_manager.close()
             env.close()
 
 

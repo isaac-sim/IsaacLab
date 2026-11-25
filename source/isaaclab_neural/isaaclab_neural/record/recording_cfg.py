@@ -6,7 +6,7 @@
 """Action terms for collecting dynamics data with the normal environment lifecycle."""
 
 from isaaclab.envs.mdp import JointPositionActionCfg
-from isaaclab.managers import RecorderManagerBaseCfg, RecorderTermCfg
+from isaaclab.managers import DatasetExportMode, RecorderManagerBaseCfg, RecorderTermCfg
 from isaaclab.utils import configclass
 
 
@@ -23,15 +23,19 @@ class NeRDExplorationActionCfg(JointPositionActionCfg):
 
 @configclass
 class NeRDDynamicsRecorderCfg(RecorderTermCfg):
-    """Pre-step state and post-step control/label capture through RecorderManager."""
+    """Batched capture of pre-step state and post-step controls and labels into native shards."""
 
     class_type: str = "{DIR}.recording:NeRDDynamicsRecorder"
+
+    shard_frames: int = 256
+    """Frames buffered for all environments before a shard is written."""
 
 
 @configclass
 class NeRDRecorderCfg(RecorderManagerBaseCfg):
-    """Native NeRD episode output through the existing recorder manager."""
+    """Recorder manager whose dynamics term writes native NeRD shards."""
 
-    dataset_file_handler_class_type: type | str = "{DIR}.recording:NeRDDatasetFileHandler"
-    export_in_close: bool = True
+    dataset_export_mode: DatasetExportMode = DatasetExportMode.EXPORT_NONE
+    """The dynamics term writes batched shards itself, so the manager exports no per-environment episodes."""
+
     dynamics = NeRDDynamicsRecorderCfg()
