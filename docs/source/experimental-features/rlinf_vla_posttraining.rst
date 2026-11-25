@@ -33,18 +33,12 @@ Prerequisites
 - **Isaac Lab** installed and configured
 - **Isaac-GR00T** repo (for VLA inference and data transforms)
 - A **pretrained VLA checkpoint** in HuggingFace format. The ``assemble_trocar`` recipe
-  uses the GR00T N1.5 SFT checkpoint trained for 100,000 steps,
-  ``trocar_install_segfixed/rot_0_10_320ep_sim_78ep_real_8gpu_100k``.
+  uses the GR00T N1.5 100k SFT checkpoint from
+  `Trocar policy checkpoints <https://huggingface.co/nvidia/Assemble_Trocar>`__.
   Place its ``config.json``, model weights and ``experiment_cfg/`` directory directly in
   ``.pretrained_checkpoints/rlinf/Assemble_Trocar_SFT_100k`` relative to the Isaac Lab root,
   or pass the checkpoint directory with ``--model_path``.
 - Multi-GPU setup recommended (FSDP requires at least 1 GPU)
-
-.. note::
-
-   Public release of the 100k SFT checkpoint is pending. The previously published
-   ``nvidia/Assemble_Trocar`` model is an older checkpoint and does not supply these weights.
-   The updated recipe requires the 100k checkpoint to be provided locally until it is released.
 
 Trocar task assets and policy compatibility
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -70,9 +64,7 @@ For example, if the pack is extracted into ``/data/trocar-assets``:
    export ASSET_LOCAL=/data/trocar-assets
 
 The default root is ``/workspace/assets``. An HTTPS asset root with the same layout is also
-accepted. The asset pack is not bundled with Isaac Lab, and a public download location has
-not yet been provided. The task requires access to this pack; installing Isaac Lab and
-downloading the older published checkpoint alone is insufficient.
+accepted.
 
 The existing task IDs and recipe now use the revised assets, robot reset poses and camera
 presets with 320-by-240 RGB observations, 30 Hz control, 25-second episodes and absolute
