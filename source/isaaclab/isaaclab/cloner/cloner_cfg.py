@@ -9,7 +9,7 @@ import itertools
 import warnings
 from collections.abc import Callable, Sequence
 from dataclasses import MISSING
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 
@@ -62,13 +62,14 @@ class InclusionSet:
     until the scene's clone strategy selects concrete variants for its environments.
     """
 
-    sample_by: str | None = None
-    """Choose a semantic tag value uniformly, then an asset uniformly within that value.
+    sample_by: Literal["category", "entry"] = "entry"
+    """How the clone strategy samples compatible assets.
 
-    Applied independently to each named asset after compatibility matching. This keeps large
-    categories from dominating smaller ones without enumerating category or asset combinations.
-    Every candidate must have this tag; multiple values put a candidate in multiple categories.
-    None samples compatible assets directly. The clone strategy owns both sampling steps.
+    ``"entry"`` samples assets directly. ``"category"`` first samples a ``category`` semantic
+    tag value uniformly, then an asset uniformly within it, independently for each named asset.
+    Category sampling requires every candidate to have a ``category`` tag; multiple values put
+    an asset in multiple categories. Both modes apply after compatibility matching, without
+    enumerating category combinations. The clone strategy owns both sampling steps.
     """
 
 
@@ -149,6 +150,8 @@ def make_valid_clone_combinations(
     configurations = [cfg for candidates in variant_cfgs for cfg in candidates]
     worlds, weights = [], []
     for combination in combinations:
+        if combination.sample_by not in ("category", "entry"):
+            raise ValueError("InclusionSet.sample_by must be 'category' or 'entry'.")
         if unknown := set(combination.assets) - known:
             raise ValueError(f"Unknown assets in clone combination: {sorted(unknown)}.")
         names, choices, candidates = [], [], []
@@ -158,7 +161,7 @@ def make_valid_clone_combinations(
             choices.extend([tuple(range(int(offsets[index]), int(offsets[index + 1])))] * count)
             candidates.extend([variant_cfgs[index]] * count)
         start = len(worlds)
-        if not combination.match_tags and not combination.sample_by:
+        if not combination.match_tags and combination.sample_by == "entry":
             worlds.extend(itertools.product(*choices))
         else:
             buckets = []
@@ -182,18 +185,16 @@ def make_valid_clone_combinations(
                 slots = []
                 for name, group, ids in zip(names, buckets, choices, strict=True):
                     compatible = tuple(group[key]) if group is not None else ids
-                    if combination.sample_by and name in combination.assets:
+                    if combination.sample_by == "category" and name in combination.assets:
                         categories = {}
                         for prototype in compatible:
                             values = dict.fromkeys(
                                 value
                                 for tag, value in configurations[prototype].semantic_tags or ()
-                                if tag == combination.sample_by
+                                if tag == "category"
                             )
                             if not values:
-                                raise ValueError(
-                                    f"Asset {name!r} has a candidate without {combination.sample_by!r} tags."
-                                )
+                                raise ValueError(f"Asset {name!r} has a candidate without 'category' tags.")
                             for value in values:
                                 categories.setdefault(value, []).append(prototype)
                         slots.append(tuple(tuple(category) for category in categories.values()))
