@@ -697,7 +697,10 @@ def _safe_worktree_path(path: str) -> Path:
     """Resolve a Git path and require it to remain inside the current worktree."""
     _validate_repository_path(path)
     root = Path(_git("rev-parse", "--show-toplevel").strip()).resolve()
-    candidate = (root / Path(*PurePosixPath(path).parts)).resolve(strict=False)
+    unresolved = root.joinpath(*PurePosixPath(path).parts)
+    candidate = unresolved.resolve(strict=False)
+    if candidate != unresolved:
+        raise ConflictResolutionError(f"repository path goes through a symbolic link: {path!r}")
     if candidate != root and root not in candidate.parents:
         raise ConflictResolutionError(f"repository path escapes the worktree: {path!r}")
     return candidate
