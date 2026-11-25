@@ -477,7 +477,7 @@ def _run_tool(call: dict[str, Any], target: str) -> str:
                 return f"error: {path!r} does not exist in the worktree"
             output = current["content"]
         elif name == "list_dir":
-            entries = _git("ls-tree", "-r", "--name-only", target, "--", path).splitlines()
+            entries = _git("ls-tree", "-r", "--name-only", target, *(["--", path] if path else [])).splitlines()
             output = "\n".join(entries[:_MAX_LIST_DIR_ENTRIES]) + (
                 "\n..." if len(entries) > _MAX_LIST_DIR_ENTRIES else ""
             )
