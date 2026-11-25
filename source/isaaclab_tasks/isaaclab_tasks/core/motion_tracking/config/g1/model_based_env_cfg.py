@@ -74,3 +74,7 @@ class G1MaxCoordModelBasedEnvCfg(G1ModelBasedEnvCfg):
             state=replace(G1ModelBasedEnvCfg().observations.full_state.state, func=observations.maximal_state),
         ),
     )
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.commands.motion.representation = "maxcoord"

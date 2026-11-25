@@ -18,20 +18,26 @@ import torch
 torch.jit._state.disable()
 
 from isaaclab.app import launch_simulation
-from isaaclab.utils import update_from_dict
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.math import quat_apply_inverse
 
-from isaaclab_rl.model_based.kinematics import from_native, quat_inv, quat_mul, quat_to_rot6d
-from isaaclab_rl.model_based.representations import GOAL_FRAME_STRIDE, NUM_GOAL_FRAMES, goal_window_indices
-from isaaclab_rl.model_based.rollout import PhysicalRollout
-from isaaclab_rl.model_based.runner import REFERENCE_REVISION, build_actor
-
+from isaaclab_tasks.core.motion_tracking.mdp.model_based.kinematics import (
+    from_native,
+    quat_inv,
+    quat_mul,
+    quat_to_rot6d,
+)
+from isaaclab_tasks.core.motion_tracking.mdp.model_based.representations import (
+    GOAL_FRAME_STRIDE,
+    NUM_GOAL_FRAMES,
+    goal_window_indices,
+)
 from isaaclab_tasks.utils import resolve_task_config
 
 from ..common import resolve_published_checkpoint
 from .export_common import add_common_export_args, finalize_export_args, leapp_capture, resolve_export_save_path
-from .play_model_based import _restore_environment
+from .play_model_based import REFERENCE_REVISION, _restore_environment, legacy_agent_cfg, load_legacy_actor
+from .runner_rsl_rl import configure_rsl_rl_env_cfg, wrap_rsl_rl_env
 
 
 class MotionPolicy(torch.nn.Module):
@@ -44,10 +50,9 @@ class MotionPolicy(torch.nn.Module):
 
     def __init__(self, actor, default_joint_pos, action_scale, action_offset):
         super().__init__()
-        active = [name for name, fraction in zip(actor._task_names, actor._slot_fractions) if fraction > 0]
-        if active != ["motion"]:
-            raise ValueError("Motion export requires a motion-only actor slot allocation.")
-        self.actor = actor
+        if actor.export_reference_action:
+            raise ValueError("Motion deployment requires an absolute-action actor.")
+        self.actor = actor.policy
         self.register_buffer("default_joint_pos", default_joint_pos)
         self.register_buffer("action_scale", action_scale)
         self.register_buffer("action_offset", action_offset)
@@ -62,10 +67,10 @@ class MotionPolicy(torch.nn.Module):
         # Keep the training layout: all joint targets, followed by all root orientations.
         relative = quat_mul(quat_inv(from_native(quat))[:, None].expand(-1, NUM_GOAL_FRAMES, -1), motion[..., -5:-1])
         goal = torch.cat((motion[..., :-5].flatten(1), quat_to_rot6d(relative).flatten(1)), -1)
-        history_n = self.actor.obs_normalizer(history).flatten(1)
+        history_n = self.actor.obs_norm(history).flatten(1)
 
         def decode(goal):
-            latent = torch.tanh(self.actor.encoders["motion"](self.actor.goal_normalizers["motion"](goal)))
+            latent = torch.tanh(self.actor.encoder(self.actor.goal_norm(goal)))
             return self.actor.decoder(torch.cat((latent, history_n), -1))
 
         actions = decode(goal)
@@ -81,40 +86,45 @@ class MotionPolicy(torch.nn.Module):
         return target, history, applied_action, torch.ones_like(initialized)
 
 
-def export_policy(adapter, actor, args, cfg, destination):
+def export_policy(env, actor, args, cfg, destination):
     """Capture sensor inputs, history feedback and physical joint outputs."""
     from leapp import annotate
     from leapp.utils.tensor_description import TensorSemantics
 
     from isaaclab.utils.leapp.export_annotator import _effective_joint_gains
 
-    robot = adapter.command.robot
+    owner = env.unwrapped
+    command = owner.command_manager.get_term("motion")
+    robot = command.robot
+    action = owner.action_manager.get_term("joint_pos")
+    action_scale = torch.as_tensor(action._scale, device=owner.device).expand(1, robot.num_joints)
+    action_offset = torch.as_tensor(action._offset, device=owner.device).expand(1, robot.num_joints)
     names = robot.joint_names
-    if adapter.cfg.actor_obs != "proprio" or len(names) != 29:
+    if command.cfg.actor_obs != "proprio" or len(names) != 29:
         raise ValueError("G1 deployment requires a 29-joint proprioceptive actor.")
-    if adapter.motion.motion_ends.numel() != 1:
+    if command.motion.motion_ends.numel() != 1:
         raise ValueError("Select one reference clip with --motion_dir for deployment.")
     policy = MotionPolicy(
         actor.cpu(),
         robot.data.default_joint_pos.torch[:1].cpu(),
-        adapter.action_scale.cpu(),
-        adapter.action_offset.cpu(),
+        action_scale.cpu(),
+        action_offset.cpu(),
     ).eval()
     kp, kd = (x[:1].cpu() for x in _effective_joint_gains(robot))
-    history = torch.zeros(1, actor.history_length, actor.obs_dim)
+    history = torch.zeros(1, actor.policy.history_length, actor.policy.obs_dim)
     previous = torch.zeros(1, len(names))
     initialized = torch.zeros(1)
     node = args.export_task_name or args.task
-    adapter.reset()
+    env.reset()
     with leapp_capture(args, save_path=str(destination), env_cfg=cfg) as steps:
         for _ in range(steps):
             data = robot.data
-            idx = goal_window_indices(adapter.motion, adapter.command.time_steps)
+            idx = goal_window_indices(command.motion, command.time_steps)
             motion = torch.cat(
                 (
-                    adapter.motion.joint_pos[idx],
-                    adapter.motion.joint_vel[idx],
-                    adapter.motion.root_quat_w[idx],
+                    command.motion.joint_pos[idx],
+                    command.motion.joint_vel[idx],
+                    command.motion.root_quat_w[idx],
                     torch.ones_like(idx[..., None], dtype=torch.float32),
                 ),
                 -1,
@@ -170,16 +180,16 @@ def export_policy(adapter, actor, args, cfg, destination):
             annotate.output_tensors(
                 node, outputs, static_outputs=gains, export_with=args.export_method or "onnx-torchscript"
             )
-            adapter.advance(actions.detach().to(adapter.device))
+            env.step(actions.detach().to(owner.device))
     # Export the already-resampled reference consumed by training, in native joint order.
-    motion = adapter.motion
+    motion = command.motion
     np.savez(
         destination / node / "motion.npz",
         joint_pos=motion.joint_pos.cpu().numpy(),
         joint_vel=motion.joint_vel.cpu().numpy(),
         root_quat_w=motion.root_quat_w.cpu().numpy(),
         joint_names=np.asarray(names),
-        fps=np.float32(1 / adapter.env.step_dt),
+        fps=np.float32(1 / owner.step_dt),
         goal_frames=NUM_GOAL_FRAMES,
         goal_stride=GOAL_FRAME_STRIDE,
     )
@@ -187,7 +197,7 @@ def export_policy(adapter, actor, args, cfg, destination):
 
 def run(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    add_common_export_args(parser, agent_default="model_based_cfg_entry_point")
+    add_common_export_args(parser, agent_default="rsl_rl_cfg_entry_point")
     parser.add_argument("--motion_dir", help="Single reference clip, or a directory containing one clip.")
     parser.add_argument("--asset_path", help="Override the saved robot asset path.")
     args, overrides = finalize_export_args(parser, argv)
@@ -210,11 +220,9 @@ def run(argv: list[str] | None = None) -> int:
     if args.task and args.task != checkpoint["task"]:
         parser.error("Task must match the checkpoint")
     args.task = checkpoint["task"]
-    cfg, agent = resolve_task_config(args.task, checkpoint["agent"], overrides=[])
+    cfg, _ = resolve_task_config(args.task, "rsl_rl_cfg_entry_point", overrides=[])
+    agent = legacy_agent_cfg(checkpoint)
     _restore_environment(cfg, checkpoint["env_cfg"])
-    update_from_dict(agent, checkpoint["agent_cfg"])
-    if [name for name, fraction in agent.slot_mix.items() if fraction > 0] != ["motion"]:
-        parser.error("Motion export requires a motion-only actor slot allocation.")
     cfg.scene.num_envs = 1
     cfg.sim.device = args.device
     cfg.commands.motion.evaluation = True
@@ -224,16 +232,17 @@ def run(argv: list[str] | None = None) -> int:
         cfg.scene.robot.spawn.usd_path = args.asset_path
     motion_path = args.motion_dir or cfg.commands.motion.motion_dir
     cfg.commands.motion.motion_dir = motion_path if Path(motion_path).is_dir() else retrieve_file_path(motion_path)
+    configure_rsl_rl_env_cfg(cfg, agent)
     destination = Path(resolve_export_save_path(args, "model_based", str(Path(path).parent)))
     destination.mkdir(parents=True, exist_ok=True)
     with launch_simulation(cfg, args):
         env = gym.make(args.task, cfg=cfg)
         try:
-            adapter = PhysicalRollout(env, agent)
-            actor = build_actor(adapter, agent).eval()
-            actor.load_state_dict(checkpoint["actor"])
+            env = wrap_rsl_rl_env(env, agent)
+            obs, _ = env.reset()
+            actor = load_legacy_actor(checkpoint, obs, agent, env.unwrapped.device)
             with torch.inference_mode():
-                export_policy(adapter, actor, args, cfg, destination)
+                export_policy(env, actor, args, cfg, destination)
         finally:
             env.close()
     return 0

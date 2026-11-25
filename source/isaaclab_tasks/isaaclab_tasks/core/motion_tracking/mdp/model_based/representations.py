@@ -12,15 +12,15 @@ from __future__ import annotations
 
 import math
 from abc import ABC, abstractmethod
-from collections.abc import Callable
-from dataclasses import dataclass
 from typing import Literal, Protocol
 
 import torch
 import torch.nn as nn
+from rsl_rl.env.differentiable_task import DifferentiableTask
+from rsl_rl.models import MLPModel
 from tensordict import TensorDict
 
-from isaaclab_rl.model_based.kinematics import (
+from isaaclab_tasks.core.motion_tracking.mdp.model_based.kinematics import (
     matrix_from_quat,
     matrix_to_quat,
     quat_apply,
@@ -363,32 +363,6 @@ class SimulationContext(Protocol):
     def denormalize(self, values: torch.Tensor, columns: slice) -> torch.Tensor: ...
 
 
-ExtractFromMotion = Callable[[MotionReference, torch.Tensor, torch.Tensor], torch.Tensor]
-
-
-@dataclass(frozen=True)
-class TaskSpec:
-    """Contract for one task slot of the multi-encoder actor."""
-
-    name: str
-    goal_dim: int
-    extract_training_goal: ExtractFromMotion
-
-
-def build_actor_obs_td(
-    goals_by_name: dict[str, torch.Tensor],
-    history: torch.Tensor,
-    critic: torch.Tensor | None = None,
-) -> TensorDict:
-    """``history`` (B, H, obs_dim) (+ optional ``critic``) plus one ``goal_<name>``
-    key per task. The newest frame ``history[:, -1]`` is the current obs."""
-    obs: dict[str, torch.Tensor] = {"history": history}
-    if critic is not None:
-        obs["critic"] = critic
-    obs.update({f"goal_{name}": goal for name, goal in goals_by_name.items()})
-    return TensorDict(obs, batch_size=[history.shape[0]], device=history.device)
-
-
 def create_representation(
     name: str,
     full_state_dim: int,
@@ -450,22 +424,6 @@ PROPRIO_NOISE_HALF_WIDTHS: dict[str, float] = {
     "joint_vel": 0.5,
     "actions": 0.0,
 }
-
-
-def term_major_to_temporal(flat: torch.Tensor, term_widths: list[int], history_length: int) -> torch.Tensor:
-    """Convert term-major flat obs to a ``(B, H, sum(w_i))`` frame-major window.
-
-    Input layout ``[term0_t0..tH-1, term1_t0..tH-1, ...]`` is what the deployed
-    actor obs group emits; the decoder consumes frame-major. Applied at the ONNX
-    export boundary so deploy and training see the same window.
-    """
-    parts = []
-    off = 0
-    for w in term_widths:
-        chunk = flat[..., off : off + history_length * w]
-        parts.append(chunk.unflatten(-1, (history_length, w)))
-        off += history_length * w
-    return torch.cat(parts, dim=-1)
 
 
 def extract_actor_goal(wm_goal: torch.Tensor) -> torch.Tensor:
@@ -554,9 +512,6 @@ def assemble_anchor_window(
     return rel_pos, rel_ori
 
 
-_compiled_assemble_goal = torch.compile(_assemble_goal)
-
-
 class StateRepresentation(nn.Module, ABC):
     """Abstract base class for state representations.
 
@@ -565,9 +520,6 @@ class StateRepresentation(nn.Module, ABC):
 
     Subclasses must set these instance attributes in ``__init__``:
       full_state_dim, rep_state_dim, prediction_dim
-
-    And extend this class attribute to cover every key ``loss_blocks`` returns:
-      LOSS_WEIGHT_CONFIG: dict[str, str]
     """
 
     full_state_dim: int
@@ -575,13 +527,6 @@ class StateRepresentation(nn.Module, ABC):
     prediction_dim: int
     num_joints: int
     actor_obs_mode: Literal["rep_state", "proprio"] = "rep_state"
-
-    # Each channel group's nominal-error field on ``WorldModelLearnerCfg``. Every
-    # representation scores the integrated root pose; subclasses add their own.
-    LOSS_WEIGHT_CONFIG: dict[str, str] = {
-        "root_pos": "nominal_error_root_pose_pos",
-        "root_ori": "nominal_error_root_pose_ori",
-    }
 
     substep_coeff: float = 1.0
 
@@ -616,6 +561,37 @@ class StateRepresentation(nn.Module, ABC):
     def reconstruct_full_state(self, aux_state: torch.Tensor, rep_state: torch.Tensor) -> torch.Tensor:
         """Reconstruct full state from aux_state + rep_state (on-demand, for viz)."""
         ...
+
+    @property
+    def increment_dim(self):
+        return self.prediction_dim
+
+    @property
+    def error_floor(self):
+        return self._default_joint_pos.new_full((self.prediction_dim,), 0.01)
+
+    def unflatten(self, flat):
+        return self.extract_aux_state(flat), self.represent(flat)
+
+    def features(self, state):
+        return state[1]
+
+    def integrate(self, state, increment):
+        return self.apply_prediction(*state, increment, self.dt)
+
+    def increments(self, state, next_state):
+        if isinstance(self, GenCoordRepresentation):
+            _, _, _, v, w, speeds = decompose_state(self.reconstruct_full_state(*state))
+            _, _, _, nv, nw, nspeeds = decompose_state(self.reconstruct_full_state(*next_state))
+            q = state[0][..., 3:7]
+            return torch.cat((quat_apply_inverse(q, nv - v), quat_apply_inverse(q, nw - w), nspeeds - speeds), -1)
+        _, _, v, w = self.world_frame_bodies(*state)
+        _, _, nv, nw = self.world_frame_bodies(*next_state)
+        q = state[0][..., None, 3:7].expand(*v.shape[:-1], 4)
+        return torch.cat((quat_apply_inverse(q, nv - v).flatten(-2), quat_apply_inverse(q, nw - w).flatten(-2)), -1)
+
+    def error(self, prediction, target):
+        return self.increments(target, prediction)
 
     def bind(self, fk, soft_joint_pos_limits: torch.Tensor, sim_context: SimulationContext, reward_fn) -> None:
         """Resolve env-dependent state needed by the reward and the proprio sensor."""
@@ -720,10 +696,14 @@ class StateRepresentation(nn.Module, ABC):
         The single goal-build path shared by the WM env, the task goal extractor, and
         the viewer so every site produces an identical layout.
         """
+        shape = motion_times.shape
+        motion_times = motion_times.reshape(-1)
+        aux_state = aux_state.reshape(-1, 7)
         content = motion_goal_window(motion, motion_times)
         target_pos, target_quat = motion_anchor_window(motion, motion_times)
         root_pos, root_quat = aux_state[..., :3], aux_state[..., 3:7]
-        return _compiled_assemble_goal(content, root_pos, root_quat, target_pos, target_quat)
+        wm_goal, actor_goal = _assemble_goal(content, root_pos, root_quat, target_pos, target_quat)
+        return wm_goal.reshape(*shape, -1), actor_goal.reshape(*shape, -1)
 
     @abstractmethod
     def world_frame_bodies(
@@ -747,8 +727,8 @@ class StateRepresentation(nn.Module, ABC):
         """Per-env scalar reward used for WM-env rollouts.
 
         ``action``/``last_action`` are raw policy outputs (pre-scale/offset), as the
-        replay buffer stores them; :class:`isaaclab_rl.model_based.models.Dynamics` is the sole
-        place the raw→proc transform is applied.
+        replay buffer stores them. The task maps them to physical joint targets
+        before passing them to the learned dynamics.
         """
         return self._reward_fn(
             next_aux_state,
@@ -766,7 +746,7 @@ class StateRepresentation(nn.Module, ABC):
 
     @abstractmethod
     def loss_blocks(self, rep_state: torch.Tensor, aux_state: torch.Tensor) -> dict[str, torch.Tensor]:
-        """The channel groups the state loss scores, keyed as ``LOSS_WEIGHT_CONFIG``.
+        """The channel groups scored by the task's world-model loss.
 
         Whatever the blocks leave out is excluded from the loss.
         """
@@ -781,12 +761,6 @@ class GenCoordRepresentation(StateRepresentation):
     Prediction: [Δv_b(3), Δw_b(3), Δvj(N)] — accel-level deltas in the current
     root frame; poses and derived channels are integrated analytically.
     """
-
-    LOSS_WEIGHT_CONFIG = {
-        **StateRepresentation.LOSS_WEIGHT_CONFIG,
-        "joint_pos": "nominal_error_joint_pos",
-        "joint_vel": "nominal_error_joint_vel",
-    }
 
     def __init__(self, num_joints: int, default_joint_pos: torch.Tensor):
         super().__init__()
@@ -928,14 +902,6 @@ class MaxCoordRepresentation(StateRepresentation):
     Aux state:  [root_pos(3), root_quat(4)]
     Prediction: [vel_delta(B*3), avel_delta(B*3)] in root body frame
     """
-
-    LOSS_WEIGHT_CONFIG = {
-        **StateRepresentation.LOSS_WEIGHT_CONFIG,
-        "body_pos": "nominal_error_body_pos",
-        "body_rot": "nominal_error_body_rot",
-        "body_vel": "nominal_error_body_vel",
-        "body_avel": "nominal_error_body_avel",
-    }
 
     def __init__(self, num_bodies: int, default_joint_pos: torch.Tensor):
         super().__init__()
@@ -1089,3 +1055,117 @@ class MaxCoordRepresentation(StateRepresentation):
             columns, sim_context = self._encoder_bias
             joint_pos_rel = joint_pos_rel + sim_context.denormalize(sim_ctx, columns)
         return torch.cat([projected_gravity, avel[..., 0, :], joint_pos_rel, joint_vel], -1)
+
+
+class MotionTrackingTask(DifferentiableTask):
+    """Differentiable motion objectives shared with the physical tracking task."""
+
+    action_history_length = 1
+
+    def __init__(self, env, device="cpu", actor_obs="rep_state", termination_softness=0.05):
+        self.env = env.unwrapped
+        self.command = self.env.command_manager.get_term("motion")
+        self.motion = self.command.motion
+        self.representation = self.command.representation
+        self.termination_softness = termination_softness
+        action = self.env.action_manager.get_term("joint_pos")
+        self.action_scale = torch.as_tensor(action._scale, device=device)
+        self.action_offset = torch.as_tensor(action._offset, device=device)
+        if self.action_scale.ndim > 1:
+            self.action_scale = self.action_scale[0]
+        if self.action_offset.ndim > 1:
+            self.action_offset = self.action_offset[0]
+        self.sampler = (
+            self.command.create_sampler(self.command.cfg.return_sampler, 5.0 * self.env.step_dt)
+            if self.command.cfg.sampling_mode == "external" and not self.command.cfg.evaluation
+            else None
+        )
+
+    def actor_obs(self, state, goal, context, prev_actions):
+        aux, rep = state
+        sensor = self.representation.compute_actor_sensor(
+            rep,
+            context,
+            aux_state=aux,
+            joint_state=self.representation.joint_state(rep),
+            last_action=prev_actions[..., -1, :],
+        )
+        _, actor_goal = self.representation.compute_wm_goal(self.motion, goal[..., 0].long(), aux)
+        return TensorDict({"policy": sensor, "actor_goal": actor_goal}, batch_size=sensor.shape[:-1])
+
+    def advance(self, next_state, goal, context):
+        frames = goal[..., 0].long()
+        clips = torch.searchsorted(self.motion.motion_ends, frames, right=True)
+        return torch.minimum(frames + 1, self.motion.motion_ends[clips] - 1)[..., None].float(), context
+
+    def dynamics_actions(self, actions):
+        return actions * self.action_scale + self.action_offset
+
+    def dynamics_context(self, state, context, prev_actions):
+        return context
+
+    def critic_obs(self, state, goal, context, prev_actions, history):
+        wm_goal, _ = self.representation.compute_wm_goal(self.motion, goal[..., 0].long(), state[0])
+        return torch.cat((state[1], wm_goal, context), -1)
+
+    def reward(self, state, actions, next_state, goal, prev_actions, labels=None):
+        aux, rep = next_state
+        return self.representation.compute_wm_reward_from_reference(
+            rep,
+            aux,
+            self.representation.joint_state(rep),
+            actions,
+            prev_actions[..., -1, :],
+            *self.motion.body_state(goal[..., 0].long()),
+        )
+
+    def termination_prob(self, next_state, goal, labels=None):
+        aux = next_state[0]
+        frames = goal[..., 0].long()
+        target_pos, target_quat = self.motion.root_pos_w[frames], self.motion.root_quat_w[frames]
+        height = (target_pos[..., 2] - aux[..., 2]).abs()
+        tilt = (2 * (target_quat[..., 1:3].square().sum(-1) - aux[..., 4:6].square().sum(-1))).abs()
+        terms = self.env.cfg.terminations
+        error = torch.maximum(
+            height / terms.anchor_pos.params["threshold"], tilt / terms.anchor_ori.params["threshold"]
+        )
+        return torch.sigmoid((error - 1) / self.termination_softness)
+
+    def world_model_loss(self, prediction, target, scale):
+        pred = self.representation.loss_blocks(prediction[1], prediction[0])
+        truth = self.representation.loss_blocks(target[1], target[0])
+        errors = {
+            "root_pos": 0.01,
+            "root_ori": 0.02,
+            "joint_pos": 0.1,
+            "joint_vel": 3.14,
+            "body_pos": 0.05,
+            "body_rot": 0.1,
+            "body_vel": 1.0,
+            "body_avel": 3.14,
+        }
+        return torch.cat([(pred[key] - truth[key]) / errors[key] for key in pred], -1).square().mean(-1)
+
+    def add_noise(self, observation):
+        if self.representation.actor_obs_mode == "proprio" and not self.command.cfg.evaluation:
+            return self.representation.add_proprio_noise(observation)
+        return observation
+
+    def update_curriculum(self, goal, rewards, dones, extras):
+        if self.sampler is None:
+            return
+        manager = self.env.termination_manager
+        truncated = manager.time_outs
+        clip_end = manager.get_term("motion_end")
+        weights = self.sampler.record(
+            goal[:, 0].long(), rewards, manager.terminated & ~truncated, clip_end, truncated & ~clip_end
+        )
+        if weights is not None:
+            self.command.set_sampling_distribution(weights)
+
+
+class ZeroValue(MLPModel):
+    """Zero bootstrap for the finite-horizon motion-tracking ablation."""
+
+    def forward(self, *args, **kwargs):
+        return super().forward(*args, **kwargs) * 0.0

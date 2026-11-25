@@ -1,7 +1,7 @@
 SuperMimic-style Motion Tracking
 ========================================
 
-The ``model_based`` backend learns a world model from simulation and trains a
+RSL-RL SuperMimic learns a world model from simulation and trains a
 policy through predicted motion rollouts. It is based on
 `SuperMimic <https://github.com/HybridRobotics/supermimic>`_ and uses Isaac Lab's
 motion-tracking tasks and standard train/play commands.
@@ -66,7 +66,7 @@ Select the training preset with ``--agent``:
 
    * - Preset
      - Configuration
-   * - ``model_based_cfg_entry_point`` (default)
+   * - ``rsl_rl_cfg_entry_point`` (default)
      - Muon/Adam optimizers, one observation frame, 32-step policy rollouts.
    * - ``paper_model_based_cfg_entry_point`` (GenCoord)
      - Adam, ten proprioception frames, cosine learning-rate decay, 320k steps.
@@ -75,24 +75,22 @@ Select the training preset with ``--agent``:
 
 Override individual options on the command line, for example:
 
-* ``agent.actor_obs=proprio agent.history_length=10`` for proprioception history.
-* ``agent.policy.horizon=16`` for 16-step predicted policy rollouts.
-* ``agent.wandb_project=PROJECT`` for W&B logging.
+* ``--agent paper_model_based_cfg_entry_point`` for the ten-frame proprioception preset.
+* ``agent.algorithm.horizon=16`` for 16-step predicted policy rollouts.
+* ``--logger wandb --log_project_name PROJECT`` for W&B logging.
 
 Training outputs
 ----------------
 
-``--log_dir`` selects the output directory; the default is
-``logs/model_based/<timestamp>``. Training writes:
+Outputs are saved under ``logs/rsl_rl/g1_motion_tracking/<timestamp>``:
 
-* ``model_*.pt``: model weights, optimizer states, and task/agent configurations.
-* ``metrics.jsonl``: physical iterations, transitions, learning updates, losses,
-  rewards, and elapsed time.
-* Configuration files and a run manifest.
+* ``model_*.pt``: actor, critic, world-model weights and optimizer states.
+* TensorBoard events with training losses, rewards and throughput.
+* Saved environment and agent configurations under ``params/``.
 
 One iteration advances every environment by one control step. For example,
 40,000 iterations with 4096 environments collect 163,840,000 transitions.
-``learning_updates`` reports the separate count of learning cycles.
+``iteration`` in the learner checkpoint reports the separate count of learning cycles.
 
 Multi-GPU training
 ------------------
@@ -102,15 +100,15 @@ Use ``train_multigpu`` with environment and learner batch sizes specified
 
 .. code-block:: bash
 
-   uv run --frozen isaaclab train_multigpu --rl_library model_based --num_gpus 2 -- \
+   uv run --frozen isaaclab train_multigpu --rl_library rsl_rl --num_gpus 2 -- \
        --task Isaac-Motion-Tracking-GenCoord-G1 \
        --agent paper_model_based_cfg_entry_point --num_envs 2048 \
-       --motion_dir /path/to/motions \
-       --asset_path /path/to/g1.usd \
-       agent.wm.batch_size=1024 agent.policy.batch_size=2048
+       env.commands.motion.motion_dir=/path/to/motions \
+       env.scene.robot.spawn.usd_path=/path/to/g1.usd \
+       agent.algorithm.world_model_cfg.batch_size=1024 agent.algorithm.policy_batch_size=2048
 
 Reference clips are split across GPUs; provide at least one clip per GPU.
-Rank zero saves checkpoints, and each rank writes its metrics. The learning
+Rank zero saves checkpoints and training metrics. The learning
 rate is unchanged unless you override it. Playback uses the full reference set.
 
 Sim-to-real
@@ -135,7 +133,7 @@ Sources and licenses
   `mjlab, revision 8ee51fbc
   <https://github.com/mujocolab/mjlab/blob/8ee51fbcf806a7419189f706d9e394cbeb7790fa/src/mjlab/utils/lab_api/math.py>`_
   (BSD-3-Clause), together with Isaac Lab math utilities.
-* **Observation normalization:** ``rsl_rl.modules.EmpiricalNormalization``;
+* **Learning, replay and neural networks:** ``rsl-rl-lib-extras`` (imported as ``rsl_rl``);
   license: ``docs/licenses/dependencies/rsl_rl-license.txt``.
 
 Isaac Lab integration code uses BSD-3-Clause. Dataset and robot-asset terms

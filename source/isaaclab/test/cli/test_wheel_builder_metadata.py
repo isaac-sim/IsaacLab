@@ -160,7 +160,7 @@ def test_wheel_builder_core_pins_match_root_pyproject(source_checkout_root: Path
     """The bundled wheel must preserve the source checkout's physics and training dependencies."""
     with (source_checkout_root / "pyproject.toml").open("rb") as f:
         source_dependencies = tomllib.load(f)["project"]["dependencies"]
-    for package in ("newton", "rsl-rl-lib"):
+    for package in ("newton", "rsl-rl-lib-extras"):
         expected = [dep for dep in source_dependencies if _requirement_name(dep) == package]
         actual = [dep for dep in generated_wheel_project["dependencies"] if _requirement_name(dep) == package]
         assert len(expected) == 1
@@ -168,7 +168,7 @@ def test_wheel_builder_core_pins_match_root_pyproject(source_checkout_root: Path
 
     # RSL-RL is also exposed through its own ``rsl-rl`` extra.
     assert generated_wheel_project["optional-dependencies"]["rsl-rl"] == [
-        dep for dep in source_dependencies if _requirement_name(dep) == "rsl-rl-lib"
+        dep for dep in source_dependencies if _requirement_name(dep) == "rsl-rl-lib-extras"
     ]
 
 

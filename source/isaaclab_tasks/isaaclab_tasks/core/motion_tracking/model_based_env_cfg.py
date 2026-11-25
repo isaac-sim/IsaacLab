@@ -70,11 +70,32 @@ class ReferenceObservationsCfg:
 
     @configclass
     class ActorCfg(ObservationGroupCfg):
-        sensor = ObservationTermCfg(func=observations.actor_sensor)
+        sensor = ObservationTermCfg(func=observations.policy_frame)
         enable_corruption = False
 
     full_state = StateCfg()
-    actor = ActorCfg()
+
+    @configclass
+    class GoalCfg(ObservationGroupCfg):
+        goal = ObservationTermCfg(func=observations.actor_goal)
+
+    @configclass
+    class PhaseCfg(ObservationGroupCfg):
+        phase = ObservationTermCfg(func=observations.reference_phase)
+
+    @configclass
+    class ContextCfg(ObservationGroupCfg):
+        context = ObservationTermCfg(func=observations.simulation_context)
+
+    @configclass
+    class PreviousActionCfg(ObservationGroupCfg):
+        action = ObservationTermCfg(func=mdp.last_action)
+
+    policy = ActorCfg()
+    actor_goal = GoalCfg()
+    phase = PhaseCfg()
+    context = ContextCfg()
+    previous_action = PreviousActionCfg()
 
 
 @configclass

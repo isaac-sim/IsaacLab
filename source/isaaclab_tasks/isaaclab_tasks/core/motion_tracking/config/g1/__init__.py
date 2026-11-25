@@ -24,11 +24,12 @@ for representation, env_class, agent_class in (
     ("GenCoord", "G1ModelBasedEnvCfg", "TrackingModelBasedCfg"),
     ("MaxCoord", "G1MaxCoordModelBasedEnvCfg", "MaxCoordModelBasedCfg"),
 ):
-    agent_entries = {"model_based_cfg_entry_point": f"{__name__}.agents.model_based_cfg:{agent_class}"}
+    agent_entries = {"rsl_rl_cfg_entry_point": f"{__name__}.agents.rsl_rl_supermimic_cfg:{agent_class}"}
+    agent_entries["rsl_rl_supermimic_cfg_entry_point"] = agent_entries["rsl_rl_cfg_entry_point"]
     if representation == "GenCoord":
         agent_entries.update(
-            paper_model_based_cfg_entry_point=f"{__name__}.agents.model_based_cfg:PaperTrackingModelBasedCfg",
-            paper_no_critic_cfg_entry_point=f"{__name__}.agents.model_based_cfg:PaperNoCriticModelBasedCfg",
+            paper_model_based_cfg_entry_point=f"{__name__}.agents.rsl_rl_supermimic_cfg:PaperTrackingModelBasedCfg",
+            paper_no_critic_cfg_entry_point=f"{__name__}.agents.rsl_rl_supermimic_cfg:PaperNoCriticModelBasedCfg",
         )
     for prefix in ("Isaac", "IsaacContrib"):
         gym.register(
@@ -37,7 +38,7 @@ for representation, env_class, agent_class in (
             disable_env_checker=True,
             kwargs={
                 "env_cfg_entry_point": f"{__name__}.model_based_env_cfg:{env_class}",
-                "default_agent": "model_based",
+                "default_agent": "rsl_rl",
                 **agent_entries,
             },
         )

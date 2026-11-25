@@ -9,8 +9,11 @@ import torch
 
 from isaaclab.envs.mdp.observations import joint_pos_rel, joint_vel, last_action
 
-from isaaclab_rl.model_based.kinematics import from_native, matrix_from_quat, quat_apply_inverse
-
+from isaaclab_tasks.core.motion_tracking.mdp.model_based.kinematics import (
+    from_native,
+    matrix_from_quat,
+    quat_apply_inverse,
+)
 from isaaclab_tasks.core.motion_tracking.mdp.model_based.rewards import tracking_reward
 
 
@@ -95,3 +98,26 @@ def anchor_orientation_failure(env, threshold: float) -> torch.Tensor:
 def motion_end(env) -> torch.Tensor:
     command = env.command_manager.get_term("motion")
     return command.at_clip_end
+
+
+def policy_frame(env):
+    command = env.command_manager.get_term("motion")
+    rep = command.representation
+    if rep.actor_obs_mode == "rep_state":
+        state = full_state(env) if command.cfg.representation == "gencoord" else maximal_state(env)
+        return rep.represent(state)
+    sensor = actor_sensor(env)
+    return sensor if command.cfg.evaluation else rep.add_proprio_noise(sensor)
+
+
+def actor_goal(env):
+    command = env.command_manager.get_term("motion")
+    return command.representation.compute_wm_goal(command.motion, command.time_steps, full_state(env)[:, :7])[1]
+
+
+def reference_phase(env):
+    return env.command_manager.get_term("motion").time_steps[:, None].float()
+
+
+def simulation_context(env):
+    return env.command_manager.get_term("motion").normalized_context()

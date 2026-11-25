@@ -1,5 +1,2 @@
-* Added a standalone model-based backend with differentiable world-model rollouts, actor-critic learning, and distributed training through the unified CLI, with state representations and replay storage grouped with their consuming modules.
-* Grouped physical collection, replay, context normalization, and imagined trajectories in the rollout module.
-* Bound differentiable FK and analytic IK to the loaded USD articulation, removing the separate MJCF input.
-* Added model-based pretrained checkpoint playback and single-file reference downloads using the shared asset utilities.
-* Kept deterministic playback settings in the play entrypoint rather than a task-specific play-mode method.
+* Added RSL-RL SuperMimic configuration, physical successor observations, and shared single- and multi-GPU training. Learning, networks and replay use ``rsl-rl-lib-extras``.
+* Added playback of published motion checkpoints and LEAPP export with observation history and reference-motion inputs.

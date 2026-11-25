@@ -3,7 +3,7 @@
 SuperMimic-style Motion Tracking
 ========================================
 
-Train a G1 motion-tracking policy with the ``model_based`` backend, then play or
+Train a G1 motion-tracking policy with RSL-RL SuperMimic, then play or
 record its checkpoint. Install Isaac Lab and its training dependencies first.
 See :doc:`/source/experimental-features/model_based` for training options.
 
@@ -39,40 +39,34 @@ For LAFAN1 motions sampled at 30 Hz:
 
 .. code-block:: bash
 
-   uv run --frozen isaaclab train --rl_library model_based \
+   uv run --frozen isaaclab train --rl_library rsl_rl \
        --task Isaac-Motion-Tracking-GenCoord-G1 \
        --num_envs 4096 --max_iterations 40000 \
-       --motion_dir /data/lafan1_download/g1 \
-       --asset_path /data/robots/g1/g1.usda \
-       --log_dir logs/model_based/g1 \
+       env.commands.motion.motion_dir=/data/lafan1_download/g1 \
+       env.scene.robot.spawn.usd_path=/data/robots/g1/g1.usda \
        env.commands.motion.source_fps=30
 
-The output directory contains ``model_*.pt`` checkpoints, saved configurations,
-and ``metrics.jsonl`` with iterations, losses, and rewards. The command above
-saves its final checkpoint as ``logs/model_based/g1/model_040000.pt``.
+Training writes checkpoints, TensorBoard metrics and the resolved configurations to
+``logs/rsl_rl/g1_motion_tracking/<timestamp>``. The final checkpoint is ``model_39999.pt``.
 
 Play and record
 ---------------
 
-Play a saved checkpoint:
+Play a checkpoint using the same task, agent preset and motion inputs as training:
 
 .. code-block:: bash
 
-   uv run --frozen isaaclab play --rl_library model_based \
-       --checkpoint logs/model_based/g1/model_040000.pt \
-       --num_envs 1 --steps 3000 --visualizer newton_gl --real-time
+   uv run --frozen isaaclab play --rl_library rsl_rl \
+       --task Isaac-Motion-Tracking-GenCoord-G1 \
+       --checkpoint /path/to/run/model_39999.pt \
+       --num_envs 1 --visualizer newton_gl --real-time \
+       env.commands.motion.motion_dir=/data/lafan1_download/g1 \
+       env.scene.robot.spawn.usd_path=/data/robots/g1/g1.usda \
+       env.commands.motion.source_fps=30
 
-Playback restores the checkpoint's configuration. Keep its motion and asset
-files accessible, or supply their new locations with ``--motion_dir`` and
-``--asset_path``.
-
-To record a 30-second video:
-
-.. code-block:: bash
-
-   uv run --frozen --extra video isaaclab play --rl_library model_based \
-       --checkpoint logs/model_based/g1/model_040000.pt \
-       --num_envs 1 --video newton_gl --video_length 1500
+To record 30 seconds, add ``--video newton_gl --video_length 1500`` and use
+``uv run --frozen --extra video``. If training used a non-default preset, pass the
+same ``--agent`` and model overrides when playing its checkpoint.
 
 Pretrained dance sample
 -----------------------
@@ -117,11 +111,11 @@ For BONES-SEED CSV clips:
 
 .. code-block:: bash
 
-   uv run --frozen isaaclab train --rl_library model_based \
+   uv run --frozen isaaclab train --rl_library rsl_rl \
        --task Isaac-Motion-Tracking-GenCoord-G1 \
        --num_envs 4096 --max_iterations 40000 \
-       --motion_dir /data/bones-seed/g1 \
-       --asset_path /data/robots/g1/g1.usda \
+       env.commands.motion.motion_dir=/data/bones-seed/g1 \
+       env.scene.robot.spawn.usd_path=/data/robots/g1/g1.usda \
        env.commands.motion.source_fps=120 \
        env.commands.motion.csv.header=true \
        'env.commands.motion.csv.root_position=["root_translateX","root_translateY","root_translateZ"]' \

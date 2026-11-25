@@ -17,10 +17,14 @@ from isaaclab.managers import CommandTerm
 from isaaclab.utils.datasets.motion_loader import MotionLibrary
 from isaaclab.utils.math import quat_from_euler_xyz, quat_mul
 
-from isaaclab_rl.model_based.kinematics import ForwardKinematics, from_native, quat_apply_inverse, to_native
-from isaaclab_rl.model_based.representations import StateRepresentation, TaskSpec, actor_goal_dim, motion_goal_window
+from isaaclab_tasks.core.motion_tracking.mdp.model_based.kinematics import (
+    ForwardKinematics,
+    from_native,
+    to_native,
+)
+from isaaclab_tasks.core.motion_tracking.mdp.model_based.representations import motion_goal_window
 
-from .commands_cfg import ReturnSamplerCfg, TasksCfg
+from .commands_cfg import ReturnSamplerCfg
 from .rewards import tracking_reward
 
 
@@ -163,15 +167,38 @@ class MotionCommand(CommandTerm):
         self.nominal_com = self.com.clone()
         self._command = torch.zeros(self.num_envs, 20 * self.robot.num_joints, device=self.device)
         self.body_indexes = self.robot.find_bodies(self.motion.fk.body_names, preserve_order=True)[0]
+        from .representations import create_representation
+
+        self.context_mean = torch.tensor([0.75, 0, 0, 0] + [0] * self.robot.num_joints, device=self.device)
+        self.context_scale = torch.tensor(
+            [0.45, 0.025, 0.05, 0.05] + [0.01] * self.robot.num_joints, device=self.device
+        )
+        state_dim = 13 + 2 * self.robot.num_joints if cfg.representation == "gencoord" else 13 * len(self.body_indexes)
+        self.representation = create_representation(
+            cfg.representation,
+            state_dim,
+            self.robot.num_joints,
+            env.step_dt,
+            env.cfg.decimation,
+            self.robot.data.default_joint_pos.torch[0].clone(),
+            cfg.actor_obs,
+        ).to(self.device)
+        self.representation.bind(fk, self.robot.data.soft_joint_pos_limits.torch[0], self, self.reward_fn)
+
+    def normalized_context(self):
+        return (torch.cat((self.friction, self.com, self.encoder_bias), -1) - self.context_mean) / self.context_scale
+
+    def find(self, name):
+        return {"encoder_bias": slice(4, 4 + self.robot.num_joints)}.get(name)
+
+    def denormalize(self, values, columns):
+        return values[..., columns] * self.context_scale[columns] + self.context_mean[columns]
 
     @property
     def command(self):
         return self._command
 
     reward_fn = staticmethod(tracking_reward)
-
-    def task_specs(self, tasks, representation, num_goals):
-        return resolve_task_specs(tasks, representation, num_goals, self.device)
 
     @property
     def at_clip_end(self) -> torch.Tensor:
@@ -264,94 +291,6 @@ class MotionReference(MotionLibrary):
             self.root_ang_vel_w[frames],
             self.joint_vel[frames],
         )
-
-
-def make_motion_task(representation: StateRepresentation, num_goals: int) -> TaskSpec:
-    """Motion-tracking task: goal is the full motion target (actor side)."""
-
-    def extract(motion, motion_times, aux_state):
-        _, actor_goal = representation.compute_wm_goal(motion, motion_times, aux_state)
-        return actor_goal
-
-    return TaskSpec(
-        name="motion",
-        goal_dim=actor_goal_dim(num_goals),
-        extract_training_goal=extract,
-    )
-
-
-def make_velocity_task(
-    lin_vel_x_range: tuple[float, float],
-    lin_vel_y_range: tuple[float, float],
-    ang_vel_z_range: tuple[float, float],
-    window_frames: int,
-    command_noise: tuple[float, float, float],
-    device: str = "cpu",
-) -> TaskSpec:
-    """Velocity-command task: 3D body-frame ``[vx_b, vy_b, wz_b]``.
-
-    Linear x/y are in the
-    root body frame, yaw rate about the body z-axis. At training time the
-    command is projected from the motion's root velocity into the body frame
-    and perturbed by fresh per-step uniform noise (``command_noise``,
-    per-axis half-width) clamped to the configured ranges.
-
-    ``window_frames`` controls a centered mean over N motion frames around
-    ``t`` (``0`` or ``1`` = raw instantaneous). The reference motion is
-    known offline, so there is no causality constraint — centering avoids
-    the ~N/2 * dt lag a causal window would introduce. The window clamps to
-    the concatenated motion array (not per clip), so frames within ~N/2 of a
-    clip boundary average in a neighbouring clip's velocity.
-    """
-    lo = torch.tensor([lin_vel_x_range[0], lin_vel_y_range[0], ang_vel_z_range[0]], device=device)
-    hi = torch.tensor([lin_vel_x_range[1], lin_vel_y_range[1], ang_vel_z_range[1]], device=device)
-    noise_half = torch.tensor(command_noise, device=device)
-
-    def _clamp(cmd):
-        return torch.clamp(cmd, lo.to(cmd.device), hi.to(cmd.device))
-
-    def _centered_mean(track, motion_times):
-        if window_frames <= 1:
-            return track[motion_times]
-        half = window_frames // 2
-        offsets = torch.arange(window_frames, device=motion_times.device, dtype=motion_times.dtype) - half
-        idx = (motion_times.unsqueeze(-1) + offsets).clamp(min=0, max=track.shape[0] - 1)
-        return track[idx].mean(dim=1)
-
-    def _body_frame_cmd(motion, times, quat):
-        v_b = quat_apply_inverse(quat, _centered_mean(motion.root_lin_vel_w, times))
-        w_b = quat_apply_inverse(quat, _centered_mean(motion.root_ang_vel_w, times))
-        return torch.stack([v_b[:, 0], v_b[:, 1], w_b[:, 2]], dim=-1)
-
-    def extract(motion, motion_times, aux_state):
-        cmd = _body_frame_cmd(motion, motion_times, aux_state[:, 3:7])
-        noise = (torch.rand_like(cmd) * 2 - 1) * noise_half.to(cmd.device)
-        return _clamp(cmd + noise)
-
-    return TaskSpec(
-        name="velocity",
-        goal_dim=3,
-        extract_training_goal=extract,
-    )
-
-
-def resolve_task_specs(
-    tasks: TasksCfg,
-    representation: StateRepresentation,
-    num_goals: int,
-    device: str = "cpu",
-) -> list[TaskSpec]:
-    return [
-        make_motion_task(representation, num_goals),
-        make_velocity_task(
-            tasks.velocity.lin_vel_x_range,
-            tasks.velocity.lin_vel_y_range,
-            tasks.velocity.ang_vel_z_range,
-            tasks.velocity.window_frames,
-            tasks.velocity.command_noise,
-            device,
-        ),
-    ]
 
 
 def randomize_context(env, env_ids) -> None:

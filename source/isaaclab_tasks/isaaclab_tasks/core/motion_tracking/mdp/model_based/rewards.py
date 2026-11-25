@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import torch
 
-from isaaclab_rl.model_based.kinematics import (
+from isaaclab_tasks.core.motion_tracking.mdp.model_based.kinematics import (
     matrix_from_quat,
     quat_inv,
     quat_mul,

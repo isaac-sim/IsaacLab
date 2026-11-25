@@ -29,7 +29,7 @@ _BACKEND_MODULES = {
         "skrl": "isaaclab_rl.entrypoints.backends.export_skrl",
     },
     "train": {
-        "model_based": "isaaclab_rl.entrypoints.backends.train_model_based",
+        "model_based": "isaaclab_rl.entrypoints.backends.train_rsl_rl",
         "rl_games": "isaaclab_rl.entrypoints.backends.train_rl_games",
         "rlinf": "isaaclab_rl.entrypoints.backends.train_rlinf",
         "rsl_rl": "isaaclab_rl.entrypoints.backends.train_rsl_rl",

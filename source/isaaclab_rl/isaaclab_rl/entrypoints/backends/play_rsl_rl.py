@@ -21,7 +21,7 @@ from isaaclab.utils.string import list_intersection
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import get_checkpoint_path, resolve_task_config, setup_preset_cli
 
-from ...rsl_rl import RslRlBaseRunnerCfg, RslRlSacRunnerCfg, RslRlVecEnvWrapper
+from ...rsl_rl import RslRlBaseRunnerCfg, RslRlSacRunnerCfg, RslRlSuperMimicRunnerCfg
 from ...utils.wandb import is_wandb_checkpoint, resolve_wandb_checkpoint
 from ..common import (
     CHECKPOINT_SELECTORS,
@@ -41,7 +41,7 @@ from ..common import (
     startup_screen,
 )
 from . import cli_args_rsl_rl as cli_args
-from .runner_rsl_rl import create_rsl_rl_runner
+from .runner_rsl_rl import configure_rsl_rl_env_cfg, create_rsl_rl_runner, wrap_rsl_rl_env
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +105,12 @@ def run(argv: list[str]) -> None:
     args_cli = _parse_args(argv)
     with startup_screen(args_cli, num_stages=3) as screen:
         env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent, play_mode=not args_cli.train_env_cfg)
+        if args_cli.checkpoint == "pretrained" and isinstance(agent_cfg, RslRlSuperMimicRunnerCfg):
+            # The published dance checkpoint stores the original task and actor format.
+            from .play_model_based import run as play_published_motion
+
+            play_published_motion(argv)
+            return
         pre_launch_video_config(env_cfg, args_cli)
         screen.stage("Launching simulation")
         with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
@@ -123,6 +129,7 @@ def run(argv: list[str]) -> None:
             env_cfg.log_dir = log_dir
             apply_video_recording(env_cfg, log_dir, args_cli, subdir="play", checkpoint_path=resume_path)
 
+            configure_rsl_rl_env_cfg(env_cfg, agent_cfg, inference=not args_cli.train_env_cfg)
             screen.stage("Creating environment")
             env = create_isaaclab_env(
                 args_cli.task,
@@ -133,7 +140,7 @@ def run(argv: list[str]) -> None:
             cleanup.callback(lambda: close_env(env))
 
             screen.stage("Loading policy")
-            env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
+            env = wrap_rsl_rl_env(env, agent_cfg)
             logger.info(f"Loading model checkpoint from: {resume_path}")
             runner = create_rsl_rl_runner(env, agent_cfg, inference=True)
             # configure_seed must run after runner construction so torch determinism does not disturb its initialization
