@@ -23,7 +23,7 @@ import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config, setup_preset_cli
 
 from isaaclab_neural.physics.nerd_solver import physical_contract
-from isaaclab_neural.recording import free_acceleration_indices
+from isaaclab_neural.record.recording import free_acceleration_indices
 
 
 def main(argv: list[str] | None = None) -> None:

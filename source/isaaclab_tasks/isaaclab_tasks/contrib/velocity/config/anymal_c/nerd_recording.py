@@ -6,7 +6,7 @@
 """Exploration of ANYmal C under held joint targets."""
 
 import torch
-from isaaclab_neural.recording import NeRDExplorationAction
+from isaaclab_neural.record.recording import NeRDExplorationAction
 from newton_neural.data import CommandHeld, SamplerFloatingBase
 
 

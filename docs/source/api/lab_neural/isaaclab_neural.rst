@@ -20,9 +20,9 @@ Optimization
 Recording terms
 ---------------
 
-.. autoclass:: isaaclab_neural.recording_cfg.NeRDExplorationActionCfg
+.. autoclass:: isaaclab_neural.record.recording_cfg.NeRDExplorationActionCfg
    :members:
    :exclude-members: __init__
 
-.. automodule:: isaaclab_neural.recording
+.. automodule:: isaaclab_neural.record.recording
    :members:

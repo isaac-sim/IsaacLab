@@ -12,7 +12,7 @@ import sys
 
 import pytest
 from isaaclab_neural import NeRDCfg, NeRDTrainingCfg
-from isaaclab_neural.recording_cfg import NeRDRecorderCfg
+from isaaclab_neural.record.recording_cfg import NeRDRecorderCfg
 
 from isaaclab_tasks.utils import load_cfg_from_registry, resolve_task_config
 from isaaclab_tasks.utils.hydra import PresetTarget, enumerate_task_presets
@@ -94,6 +94,9 @@ def test_neural_ownership_boundaries():
     neural = root / "source/isaaclab_neural/isaaclab_neural"
     assert not (neural / "nerd_recipe.py").exists()
     assert not (neural / "nerd_recipe_cfg.py").exists()
+    for name, owner in (("nerd_training_cfg.py", "rl"), ("recording.py", "record"), ("recording_cfg.py", "record")):
+        assert not (neural / name).exists()
+        assert (neural / owner / name).is_file()
     forbidden = {
         "RecordingSimulation",
         "EnvSimulation",

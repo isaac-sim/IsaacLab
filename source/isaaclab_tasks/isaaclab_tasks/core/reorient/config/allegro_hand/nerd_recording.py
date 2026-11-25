@@ -6,7 +6,7 @@
 """Independent hand-state and joint-target exploration."""
 
 import torch
-from isaaclab_neural.recording import NeRDExplorationAction
+from isaaclab_neural.record.recording import NeRDExplorationAction
 from newton_neural.data import CommandBase, SamplerBase
 from torch import Tensor
 

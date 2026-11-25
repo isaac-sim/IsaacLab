@@ -16,6 +16,10 @@ through Newton's existing lifecycle. Install it with ``uv sync --extra newton-ne
 Configuration ownership
 -----------------------
 
+The neural package follows Isaac Lab's functional boundaries: model definitions at the root,
+solver integration in ``physics/``, training configuration in ``rl/`` and recorder terms/configuration
+in ``record/``. Workflow entrypoints compose those pieces.
+
 * ``NeRDCfg`` defines the model architecture and physical inputs. Task-specific model definitions
   such as ``AnymalCNeRDCfg`` are independent of recording, training and inference.
 * ``NeRDTrainingCfg`` owns optimizer, batch, noise and validation settings.

@@ -5,7 +5,7 @@
 
 """Recording action configuration for Franka."""
 
-from isaaclab_neural.recording_cfg import NeRDExplorationActionCfg, NeRDRecorderCfg
+from isaaclab_neural.record.recording_cfg import NeRDExplorationActionCfg, NeRDRecorderCfg
 
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import EventTermCfg, TerminationTermCfg
@@ -60,10 +60,14 @@ class FrankaNeRDRecordingEnvCfg(ManagerBasedRLEnvCfg):
     observations = {}
     rewards = {}
     terminations = {
-        "invalid_state": TerminationTermCfg(func="isaaclab_neural.recording:invalid_exploration_state"),
-        "exploration_timeout": TerminationTermCfg(func="isaaclab_neural.recording:exploration_timeout", time_out=True),
+        "invalid_state": TerminationTermCfg(func="isaaclab_neural.record.recording:invalid_exploration_state"),
+        "exploration_timeout": TerminationTermCfg(
+            func="isaaclab_neural.record.recording:exploration_timeout", time_out=True
+        ),
     }
     commands = {}
     curriculum = {}
     actions = FrankaRecordingActionsCfg()
-    events = {"sample_robot": EventTermCfg(func="isaaclab_neural.recording:reset_exploration_state", mode="reset")}
+    events = {
+        "sample_robot": EventTermCfg(func="isaaclab_neural.record.recording:reset_exploration_state", mode="reset")
+    }

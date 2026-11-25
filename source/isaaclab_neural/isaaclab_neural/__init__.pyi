@@ -9,4 +9,4 @@ __all__ = [
 ]
 
 from .nerd_cfg import NeRDCfg
-from .nerd_training_cfg import NeRDTrainingCfg
+from .rl.nerd_training_cfg import NeRDTrainingCfg
