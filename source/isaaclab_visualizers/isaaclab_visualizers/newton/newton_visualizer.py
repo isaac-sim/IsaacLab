@@ -177,7 +177,7 @@ class NewtonViewerGL(ViewerGL):
 
     _contacts_available = True
     _lidar_available = False
-    show_lidar_points = False
+    show_lidar_hits = False
     """Whether lidar hits are copied onto the host and drawn in the OpenGL view."""
     CAMERA_SPEED_BOOST_MULTIPLIER = 2.0
     camera_keys_suspended = False
@@ -539,10 +539,10 @@ class NewtonViewerGL(ViewerGL):
             _, renderer.arrow_scale = imgui.slider_float("Contact Width", renderer.arrow_scale, 0.25, 5.0)
             tip("Width of the contact arrows")
         _lidar_available = (not rtx) and self._lidar_available
-        self.show_lidar_points = _imgui_optional_checkbox(
+        self.show_lidar_hits = _imgui_optional_checkbox(
             imgui,
-            "Show Lidar Points",
-            self.show_lidar_points,
+            "Show Lidar Hits",
+            self.show_lidar_hits,
             _lidar_available,
             "OpenGL only" if rtx else "No lidar sensors in this environment",
             "Copy and draw lidar hits",
@@ -1790,10 +1790,10 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self._viewer._contacts_available = newton_backend_active or bool(scene_data_provider.get_contact_sensors())
         self._viewer._lidar_available = scene_has_lidar(sim)
 
-    def _log_lidar_points(self, viewer: Any) -> None:
+    def _log_lidar_hits(self, viewer: Any) -> None:
         """Log every visualized environment's lidar hits into the Newton GL scene."""
         self._logged_lidar_names = sync_lidar_hits(
-            self._sim, self._env_ids, viewer, viewer.show_lidar_points, self._logged_lidar_names
+            self._sim, self._env_ids, viewer, viewer.show_lidar_hits, self._logged_lidar_names
         )
 
     def _render_frame(self) -> None:
@@ -1836,7 +1836,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
                         self._log_scene_contact_sensor_arrows()
                     if self.cfg.enable_markers:
                         render_newton_visualization_markers(viewer, self._env_ids, num_envs=self.backend.model.num_envs)
-                self._log_lidar_points(viewer)
+                self._log_lidar_hits(viewer)
             for name, arguments in self._pending_mesh_submissions.items():
                 viewer.log_mesh(name, **arguments)
             self._pending_mesh_submissions.clear()
@@ -2312,7 +2312,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self._viewer.show_inertia_boxes = self.cfg.backend.show_inertia_boxes
         self._viewer.show_com = self.cfg.backend.show_com
         self._viewer.show_particles = self.cfg.backend.show_particles
-        self._viewer.show_lidar_points = self.cfg.backend.show_lidar_points
+        self._viewer.show_lidar_hits = self.cfg.backend.show_lidar_hits
         self._viewer.up_axis = 2  # Z-up
         self._viewer.scaling = 1.0
         self._viewer.particle_color = self.cfg.backend.particle_color

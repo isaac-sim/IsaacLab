@@ -289,7 +289,7 @@ class ViserVisualizer(BaseVisualizer):
         self.backend = None
         self._pending_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self._warned_marker_render_failure = False
-        self._show_lidar_points = self.cfg.backend.show_lidar_points
+        self._show_lidar_hits = self.cfg.backend.show_lidar_hits
         self._logged_lidar_names: list[str] = []
         self._paused_rendering = False
         self._paused_simulation = False
@@ -399,7 +399,7 @@ class ViserVisualizer(BaseVisualizer):
                 self._viewer.log_state(self.backend.state_0)
                 if self.cfg.enable_markers:
                     self._render_markers(self.backend.model.num_envs)
-                self._log_lidar_points()
+                self._log_lidar_hits()
             self._render_live_plots()
             self._push_streaming_frame()
         finally:
@@ -418,12 +418,12 @@ class ViserVisualizer(BaseVisualizer):
         # the browser canvas.  Black bars are added on whichever axis needs it.
         self._viewer._server.scene.set_background_image(_letterbox_16_9(composite), format="jpeg")
 
-    def _log_lidar_points(self) -> None:
+    def _log_lidar_hits(self) -> None:
         """Log lidar hits into the Viser scene when the overlay is enabled."""
         if self._viewer is None:
             return
         self._logged_lidar_names = sync_lidar_hits(
-            self._sim, self._env_ids, self._viewer, self._show_lidar_points, self._logged_lidar_names
+            self._sim, self._env_ids, self._viewer, self._show_lidar_hits, self._logged_lidar_names
         )
 
     def _render_markers(self, num_envs: int) -> None:
@@ -577,11 +577,11 @@ class ViserVisualizer(BaseVisualizer):
                     def _(event, _attr=attr):
                         setattr(viewer, _attr, event.target.value)
 
-                lidar_cb = server.gui.add_checkbox("Lidar Points", initial_value=self._show_lidar_points)
+                lidar_cb = server.gui.add_checkbox("Lidar Hits", initial_value=self._show_lidar_hits)
 
                 @lidar_cb.on_update
                 def _(event):
-                    self._show_lidar_points = event.target.value
+                    self._show_lidar_hits = event.target.value
 
     def set_camera_view(
         self, eye: tuple[float, float, float] | list[float], target: tuple[float, float, float] | list[float]

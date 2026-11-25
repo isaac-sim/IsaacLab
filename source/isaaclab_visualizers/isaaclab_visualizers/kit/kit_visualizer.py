@@ -102,7 +102,6 @@ class KitVisualizer(BaseVisualizer):
         self._owns_kit_timeline = False
         self._lidar_draw = None
         self._lidar_draw_unavailable = False
-        self._lidar_drawn = False
         # Camera tracking state (replaces ViewportCameraController)
         self._interactive_scene = None  # set from SimulationContext._interactive_scene in initialize()
         self._viewer_origin: torch.Tensor | None = None  # world-space origin offset for eye/lookat
@@ -232,17 +231,11 @@ class KitVisualizer(BaseVisualizer):
         """Draw one environment's lidar hits in the Kit viewport.
 
         Debug draw is a viewport overlay, so the lidar product does not scan the points. A missing
-        debug-draw interface is reported once and the step continues. Hits are copied only while
-        :attr:`~isaaclab_visualizers.kit.KitBackendCfg.show_lidar_points` is True.
+        debug-draw interface is reported once and the step continues.
         """
-        if not self.cfg.backend.show_lidar_points:
-            if self._lidar_drawn:
-                draw = self._lidar_debug_draw()
-                if draw is not None:
-                    draw.clear_points()
-                self._lidar_drawn = False
+        hits = collect_lidar_hits(self._sim, self._env_ids, self._step_counter)
+        if hits is None:
             return
-        hits = collect_lidar_hits(self._sim, self._env_ids)
         draw = self._lidar_debug_draw()
         if draw is None:
             return
@@ -253,7 +246,6 @@ class KitVisualizer(BaseVisualizer):
                 continue
             positions = [(float(point[0]), float(point[1]), float(point[2])) for point in points]
             draw.draw_points(positions, [color] * len(positions), [6.0] * len(positions))
-        self._lidar_drawn = True
 
     def _lidar_debug_draw(self) -> Any | None:
         """Return the Kit debug-draw interface, or None when it cannot be acquired."""
