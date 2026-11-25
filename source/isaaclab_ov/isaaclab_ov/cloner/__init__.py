@@ -8,7 +8,6 @@ from .replicate import (
     OvrtxReplicateContext,
     OvstageReplicateContext,
     ovphysx_replicate,
-    ovrtx_replicate,
     ovstage_replicate,
 )
 
@@ -17,6 +16,5 @@ __all__ = [
     "OvrtxReplicateContext",
     "OvstageReplicateContext",
     "ovphysx_replicate",
-    "ovrtx_replicate",
     "ovstage_replicate",
 ]

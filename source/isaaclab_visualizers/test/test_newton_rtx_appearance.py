@@ -7,12 +7,15 @@
 
 from __future__ import annotations
 
+import contextlib
 import time
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import numpy as np
 import pytest
 
+ovstage = pytest.importorskip("ovstage")
 pytest.importorskip("ovrtx")
 from isaaclab_visualizers.newton import newton_rtx_appearance as module
 from isaaclab_visualizers.newton.newton_rtx_appearance import RtxAppearance, find_scene_lights, sun_matrix
@@ -62,10 +65,15 @@ class _Native:
         self.writes, self.fail, self.fail_add = [], fail, fail_add
         self.added, self.removed = [], []
 
-    def write_attribute(self, **kwargs):
+    def write_attribute(self, query, attribute, *, tensors, semantic, **kwargs):
         if self.fail:
             raise RuntimeError("write refused")
-        self.writes.append(kwargs)
+        if semantic == ovstage.AttributeSemantic.TOKEN_ID:
+            tensors = [self.tokens[int(token)] for token in tensors]
+        elif semantic == ovstage.AttributeSemantic.MATRIX:
+            tensors = ovstage.dltensor_to_numpy(tensors).reshape(-1, 4, 4)
+        self.writes.append(dict(prim_paths=query, attribute_name=attribute, tensor=tensors, **kwargs))
+        return SimpleNamespace(wait=lambda: None)
 
     def add_usd_reference_from_string(self, usd, path):
         if self.fail_add:
@@ -77,12 +85,37 @@ class _Native:
         self.removed.append(reference)
 
 
-def _appearance(native=None, background_color=None, ovstage=False):
+@pytest.fixture(autouse=True)
+def _population(monkeypatch):
+    monkeypatch.setattr(
+        ovstage.population,
+        "add_usd_reference_from_string",
+        lambda stage, usd, path: stage.add_usd_reference_from_string(usd, path),
+    )
+    monkeypatch.setattr(ovstage.population, "apply_usd_changes", Mock())
+    monkeypatch.setattr(ovstage.population, "remove_usd", lambda stage, ref: stage.remove_usd(ref))
+
+
+def _appearance(native=None, background_color=None):
     prims = [
         _Prim("/World/sun", "DistantLight", 3000.0, (0.75, 0.75, 0.75)),
         _Prim("/World/cube", "Cube", 1.0, (1, 1, 1)),
     ]
-    renderer = SimpleNamespace(_use_ovstage=ovstage, backend=SimpleNamespace(renderer=native or _Native()))
+    native = native or _Native()
+    native.tokens = []
+
+    def intern(token):
+        if token not in native.tokens:
+            native.tokens.append(token)
+        return SimpleNamespace(raw_id=native.tokens.index(token))
+
+    renderer = SimpleNamespace(
+        scene=SimpleNamespace(
+            stage=native, ordinal=7, paths=SimpleNamespace(intern_token=intern), query=contextlib.nullcontext
+        ),
+        backend=SimpleNamespace(renderer=native),
+        _remove_usd_reference=native.remove_usd,
+    )
     return RtxAppearance(
         _Stage(prims), renderer, "/RenderCamera_0/RenderProduct", background_color
     ), renderer.backend.renderer
@@ -346,9 +379,10 @@ def test_closing_removes_the_viewer_lights_once():
     assert native.removed == ["reference:/NewtonViewerDome:1", "reference:/NewtonViewerSun:2"]
 
 
-def test_the_controls_are_unavailable_on_the_shared_stage_path():
-    appearance, _ = _appearance(ovstage=True)
-
+def test_the_controls_require_a_live_stage():
+    appearance, _ = _appearance()
+    assert appearance.available
+    appearance._renderer.scene.stage = None
     assert not appearance.available
 
 

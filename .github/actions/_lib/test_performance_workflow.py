@@ -33,14 +33,14 @@ def test_ci_activation_and_runner_selection() -> None:
     paginated = [[{"event": "commented"}], [{"event": "labeled", "actor": None}, _labeled("isaaclab-bot[bot]")]]
     ignored = [[_labeled("github-actions[bot]"), {"event": "commented", "actor": {"login": "human"}}]]
     cases = [
-        ("push", "push", "", "", [], True, True, False, True),
-        ("actions bot", "pull_request", "synchronize", "", ignored, False, False, True, False),
-        ("removed human label", "pull_request", "synchronize", "", [removed_label], False, True, True, False),
-        ("paginated bot label", "pull_request", "synchronize", "", paginated, False, True, True, False),
-        ("API error", "pull_request", "synchronize", "", [], True, False, True, False),
-        ("explicit rerun", "pull_request", "labeled", "ci:run-docker", [], True, True, True, False),
-        ("ovstage rerun", "pull_request", "labeled", "ci:run-ovstage", [], True, True, True, True),
-        ("other label", "pull_request", "labeled", "triage", [], True, True, False, False),
+        ("push", "push", "", "", [], True, True, False),
+        ("actions bot", "pull_request", "synchronize", "", ignored, False, False, True),
+        ("removed human label", "pull_request", "synchronize", "", [removed_label], False, True, True),
+        ("paginated bot label", "pull_request", "synchronize", "", paginated, False, True, True),
+        ("API error", "pull_request", "synchronize", "", [], True, False, True),
+        ("explicit rerun", "pull_request", "labeled", "ci:run-docker", [], True, True, True),
+        ("ovstage rerun", "pull_request", "labeled", "ci:run-ovstage", [], True, True, True),
+        ("other label", "pull_request", "labeled", "triage", [], True, True, False),
     ]
     data = {
         "script": activation["with"]["script"],
@@ -58,7 +58,7 @@ const assert = require('node:assert/strict');
 const AsyncFunction = Object.getPrototypeOf(async function() {}).constructor;
 (async () => {
   for (const row of input.cases) {
-    const [name, eventName, action, label, pages, error, activated, expectedCancel, expectedOvstage] = row;
+    const [name, eventName, action, label, pages, error, activated, expectedCancel] = row;
     const outputs = {};
     const context = {eventName, payload: {action, pull_request: {number: 42}, label: {name: label}},
                      repo: {owner: 'owner', repo: 'lab'}};
@@ -84,8 +84,10 @@ const AsyncFunction = Object.getPrototypeOf(async function() {}).constructor;
         evaluate(input.ovstage),
       ],
       [activated ? ['self-hosted', 'gpu'] : ['ubuntu-latest'],
-       activated, !activated, expectedCancel, expectedOvstage],
+       activated, !activated, expectedCancel, true],
       name);
+    needs.build.result = 'failure';
+    assert.equal(evaluate(input.ovstage), false, name + ': failed build');
   }
 })();
 """

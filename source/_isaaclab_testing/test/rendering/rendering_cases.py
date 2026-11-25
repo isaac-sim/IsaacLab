@@ -108,7 +108,7 @@ _KITLESS_CASES = [
 KITLESS_CASES = tuple(
     (stage, case)
     for case in _KITLESS_CASES
-    for stage in (("legacy", "ovstage") if case.renderer == "ovrtx" else ("legacy",))
+    for stage in (("ovstage",) if case.renderer == "ovrtx" else ("legacy",))
 )
 
 
@@ -172,7 +172,7 @@ SPECIALIZED_KITLESS_CASES = tuple(
             scene=scene,
         ),
     )
-    for stage in (("legacy", "ovstage") if case.renderer == "ovrtx" else ("legacy",))
+    for stage in (("ovstage",) if case.renderer == "ovrtx" else ("legacy",))
 )
 # Cable instance segmentation crashes native OVRTX (NVBUG#6463802); exercise its other channels.
 _CABLE_AOVS = (RenderBufferKind.RGB, RenderBufferKind.ALBEDO, RenderBufferKind.DEPTH, RenderBufferKind.NORMALS)
@@ -233,7 +233,7 @@ GAUSSIAN_KITLESS_CASES = tuple(
             scene="gaussian_splats_raspberry_4envs",
         ),
     )
-    for stage in ("legacy", "ovstage")
+    for stage in ("ovstage",)
 )
 KIT_RENDERING_CASES = (
     KIT_CASES
@@ -265,7 +265,7 @@ KITLESS_RENDERING_CASES = (
     + SPECIALIZED_KITLESS_CASES
     + GAUSSIAN_KITLESS_CASES
     + (
-        *((stage, RenderCase("newton", "ovrtx", _CABLE_AOVS, scene="franka_cable")) for stage in ("legacy", "ovstage")),
+        *((stage, RenderCase("newton", "ovrtx", _CABLE_AOVS, scene="franka_cable")) for stage in ("ovstage",)),
         ("legacy", RenderCase("newton", "newton_warp", (RenderBufferKind.RGB,), scene="kuka_materials")),
         (
             "legacy",
@@ -273,11 +273,7 @@ KITLESS_RENDERING_CASES = (
         ),
         *(
             (stage, RenderCase("newton", "ovrtx", (RenderBufferKind.RGB,), scene="kuka_materials"))
-            for stage in ("legacy", "ovstage")
-        ),
-        *(
-            ("legacy", RenderCase(physics, "ovrtx", (RenderBufferKind.RGB,), scene="cartpole", variant="async"))
-            for physics in ("newton", "ovphysx")
+            for stage in ("ovstage",)
         ),
     )
 )

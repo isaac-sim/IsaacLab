@@ -1309,7 +1309,7 @@ def _register_ordinary_ovrtx(kind):
     if kind == "renderer":
         sim.get_or_create_backend(OVRTXRendererCfg(log_file_path="ordinary.log"))
     else:
-        cfg = OVRTXBackendCfg(use_ovstage=False, read_gpu_transforms=True, device=sim.device)
+        cfg = OVRTXBackendCfg(read_gpu_transforms=True, device=sim.device)
         sim._backend_registry.append((cfg, object()))
 
 

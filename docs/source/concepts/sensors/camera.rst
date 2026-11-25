@@ -365,8 +365,7 @@ capture renders every environment. The camera calls each processor with ``env_ma
 environments due for the capture, whose frame and timestamp advance. Stateful processors (frame stacking, temporal
 filters, video generation) use it to advance only those rows.
 
-With asynchronous rendering, images may be delayed or repeated, and processors receive ``env_mask=None``.
-Use synchronous rendering (``async_rendering=False``) for processors that advance frame history.
+OVRTX captures synchronously through OvStage, so its processors receive the mask for the current capture.
 
 Post-render image signal processing
 -----------------------------------
@@ -375,7 +374,7 @@ Post-render image signal processing
 The shipped processor is PPISP (Physically Plausible Image Signal Processing), which converts the
 scene-linear ``rgb_hdr`` output through responsivity, exposure, vignetting, color correction, and a
 camera response function into ``rgb`` and ``rgba``. The camera requests ``rgb_hdr`` from the renderer.
-PPISP is stateless and supports asynchronous rendering with both ``PpispProcessorCfg`` and deprecated ``isp_cfg``.
+PPISP is stateless.
 
 :class:`~isaaclab_ppisp.PpispProcessorCfg` accepts :class:`~isaaclab_ppisp.PpispCfg` for explicit
 coefficients or coefficients imported from a USD camera, or :class:`~isaaclab.sensors.camera.CameraISPMode` to

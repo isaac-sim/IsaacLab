@@ -35,8 +35,6 @@ class OVRTXBackendCfg(BackendCfg):
     # FIXME: revert once OVRTX stops warning on every cloned attribute without data.
     log_level: str = "error"
     """Native renderer log level."""
-    use_ovstage: bool = MISSING
-    """Whether the engine borrows a simulation-owned OVStage instead of using its internal stage."""
     read_gpu_transforms: bool = MISSING
     """Whether OVRTX reads its GPU transform cache, resolved before native construction."""
     device: str = MISSING
@@ -66,16 +64,12 @@ class OVRTXRendererCfg(RendererCfg):
     """The launcher that registers the OVRTX runtime before the stage is created."""
 
     cloning_contexts: tuple[type | str, ...] = ("isaaclab_ov.cloner:OvrtxReplicateContext",)
-    """Request native OVRTX copies; clone preparation may select a shared OVStage instead."""
+    """Route scene copies through OvStage; sharing with OvPhysX is optional."""
 
     async_rendering: bool = False
-    """Trade one capture of camera latency for pipelined rendering. Defaults to False (synchronous).
+    """Compatibility option; OvStage always renders synchronously.
 
-    Each camera returns its previous capture while rendering its next image. The first capture
-    and the first capture after reset wait for a fresh image. Live pose and calibration fields
-    stay current. ``camera.data.info[output_name]["capture"]`` carries the image's matching
-    ``pos_w``, ``quat_w_world``, ``intrinsic_matrices``, and per-environment ``frame`` indices.
-    The ovstage path does not support pipelining and renders synchronously.
+    Setting this to True logs a warning and uses synchronous rendering.
     """
 
     max_envs_per_render_product: int | Literal["auto", "all"] = "auto"

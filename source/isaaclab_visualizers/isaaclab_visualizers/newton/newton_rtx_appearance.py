@@ -151,16 +151,30 @@ class RtxAppearance:
 
     @property
     def available(self) -> bool:
-        """Whether the renderer accepts attribute writes; the shared-stage path does not yet."""
-        return not self._renderer._use_ovstage and self._renderer.backend.renderer is not None
+        """Whether the renderer has a live OvStage for appearance writes."""
+        return self._renderer.scene is not None and self._renderer.scene.stage is not None
 
     def _write(self, paths: list[str], attribute: str, tensor: Any, **kwargs: Any) -> bool:
-        from ovrtx import PrimMode
+        import ovstage
+        from isaaclab_ov.stage import xform_tensor_from_numpy
 
         try:
-            self._renderer.backend.renderer.write_attribute(
-                prim_paths=paths, attribute_name=attribute, tensor=tensor, prim_mode=PrimMode.MUST_EXIST, **kwargs
-            )
+            scene = self._renderer.scene
+            semantic = kwargs.pop("semantic", ovstage.AttributeSemantic.NONE)
+            if semantic == ovstage.AttributeSemantic.TOKEN_ID:
+                tensor = np.array([scene.paths.intern_token(token).raw_id for token in tensor], dtype=np.uint64)
+            elif semantic == ovstage.AttributeSemantic.MATRIX:
+                tensor = xform_tensor_from_numpy(tensor)
+            with scene.query(paths) as query:
+                scene.stage.write_attribute(
+                    query,
+                    attribute,
+                    ordinal=scene.ordinal,
+                    tensors=tensor,
+                    is_array=False,
+                    semantic=semantic,
+                    **kwargs,
+                ).wait()
         except Exception as exc:
             logger.exception("[NewtonRtxAppearance] Could not write %s.", attribute)
             self.error = f"Could not change {attribute}: {exc}"
@@ -171,7 +185,16 @@ class RtxAppearance:
     def _add(self, usd: str, path: str, what: str) -> Any | None:
         """Add a light layer to the OVRTX stage and return its reference, or None after reporting why not."""
         try:
-            return self._renderer.backend.renderer.add_usd_reference_from_string(usd, path)
+            import ovstage
+
+            scene = self._renderer.scene
+            reference = ovstage.population.add_usd_reference_from_string(scene.stage, usd, path)
+            try:
+                ovstage.population.apply_usd_changes(scene.stage, ordinal=scene.ordinal)
+            except Exception:
+                ovstage.population.remove_usd(scene.stage, reference)
+                raise
+            return reference
         except Exception as exc:
             logger.exception("[NewtonRtxAppearance] Could not add the %s.", what)
             self.error = f"Could not add the {what}: {exc}"
@@ -202,7 +225,7 @@ class RtxAppearance:
         """
         if active and not self._ensure_lights():
             return False
-        from ovrtx import Semantic
+        from ovstage import AttributeSemantic
 
         scene_enabled, scale, tint = (self.scene_enabled, self.scene_scale, self.scene_tint) if active else (
             True, 1.0, (1.0, 1.0, 1.0)
@@ -224,7 +247,7 @@ class RtxAppearance:
             return False
         states = ["inherited" if show else "invisible" for show in visible]
         wrote = (
-            self._write(paths, "visibility", states, semantic=Semantic.TOKEN_STRING)
+            self._write(paths, "visibility", states, semantic=AttributeSemantic.TOKEN_ID)
             and self._write(paths, "inputs:intensity", np.array(intensities, np.float32))
             and self._write(paths, "inputs:color", np.array(colors, np.float32))
         )
@@ -233,20 +256,20 @@ class RtxAppearance:
                 [_SUN_PATH],
                 "omni:xform",
                 sun_matrix(self.sun_elevation, self.sun_azimuth)[None],
-                semantic=Semantic.XFORM_MAT4x4,
+                semantic=AttributeSemantic.MATRIX,
             )
         return wrote
 
     def apply_background(self) -> bool:
         """Write the background type and, for a solid color, the color."""
-        from ovrtx import Semantic
+        from ovstage import AttributeSemantic
 
         solid = self.background == 1
         wrote = self._write(
             [self._product],
             "omni:rtx:background:source:type",
             ["color" if solid else "domeLight"],
-            semantic=Semantic.TOKEN_STRING,
+            semantic=AttributeSemantic.TOKEN_ID,
         )
         if solid and wrote:
             wrote = self._write(
@@ -306,7 +329,7 @@ class RtxAppearance:
         reference, self._dome_reference = self._dome_reference, None
         if reference is not None:
             try:
-                self._renderer.backend.renderer.remove_usd(reference)
+                self._renderer._remove_usd_reference(reference)
             except Exception:
                 logger.debug("[NewtonRtxAppearance] The dome light was already removed.", exc_info=True)
         return self.apply_lights()
@@ -334,6 +357,6 @@ class RtxAppearance:
         for reference in references:
             if reference is not None:
                 try:
-                    self._renderer.backend.renderer.remove_usd(reference)
+                    self._renderer._remove_usd_reference(reference)
                 except Exception:
                     logger.debug("[NewtonRtxAppearance] A viewer light was already removed.", exc_info=True)
