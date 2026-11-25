@@ -48,9 +48,7 @@ class MotionCommand(CommandTerm):
         self.body_indices = torch.tensor(
             self.robot.find_bodies(self.cfg.body_names, preserve_order=True)[0], dtype=torch.long, device=self.device
         )
-        self.motion = MotionLoader(
-            self.cfg.motion_file, body_names=self.cfg.body_names, joint_names=self.robot.joint_names, device=self.device
-        )
+        self.motion = self._load_motion()
         if not math.isclose(self.motion.fps * env.step_dt, 1.0, rel_tol=1e-5):
             raise ValueError("Motion FPS must match the policy rate; resample the reference before training.")
         if cfg.body_names[0] != self.robot.body_names[0]:
@@ -78,6 +76,26 @@ class MotionCommand(CommandTerm):
             "sampling_top1_prob": torch.zeros(self.num_envs, device=self.device),
             "sampling_top1_bin": torch.zeros(self.num_envs, device=self.device),
         }
+
+    def _load_motion(self) -> MotionLoader:
+        """Load the named reference and convert link-origin velocities to body COM velocities if needed."""
+        if self.cfg.input_velocity_point not in ("link", "com"):
+            raise ValueError(
+                f"Unknown input velocity point: {self.cfg.input_velocity_point!r}; expected 'link' or 'com'."
+            )
+        if self.cfg.input_velocity_point == "link":
+            body_com_pos_b = self.robot.data.body_com_pos_b.torch[0, self.body_indices]
+            if body_com_pos_b.shape != (len(self.cfg.body_names), 3) or not torch.isfinite(body_com_pos_b).all():
+                raise ValueError("Expected finite body COM offsets with shape (tracked bodies, 3).")
+        source_body_names = [self.cfg.body_name_map.get(name, name) for name in self.cfg.body_names]
+        motion = MotionLoader(
+            self.cfg.motion_file, body_names=source_body_names, joint_names=self.robot.joint_names, device=self.device
+        )
+        if self.cfg.input_velocity_point == "link":
+            offsets = body_com_pos_b.to(device=self.device, dtype=motion.body_pos_w.dtype)
+            offsets_w = quat_apply(motion.body_quat_w, offsets.expand_as(motion.body_pos_w))
+            motion.body_lin_vel_w = motion.body_lin_vel_w + torch.cross(motion.body_ang_vel_w, offsets_w, dim=-1)
+        return motion
 
     def __str__(self) -> str:
         msg = "MotionCommand:\n"

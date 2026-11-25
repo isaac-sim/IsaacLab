@@ -1,0 +1,21 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""MicroDuck motion tracking with foot and head position rewards."""
+
+import gymnasium as gym
+
+from . import agents
+
+gym.register(
+    id="Isaac-Motion-Tracking-MicroDuck-Feet-Head",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.tracking_env_cfg:MicroDuckMotionTrackingEnvCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:MicroDuckMotionTrackingPPORunnerCfg",
+        "default_agent": "rsl_rl",
+    },
+)
