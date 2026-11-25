@@ -48,7 +48,6 @@ if not _MISSING_MODULES:
         OVRTXBackend,
         OVRTXCameraRenderData,
         OVRTXRenderer,
-        OVRTXRenderProduct,
         _AsyncWriteBuffers,
         _gpu_side_render_var_sync_enabled,
     )
@@ -870,56 +869,48 @@ def test_ovrtx_split_search_leaves_out_a_sensor_removed_before_its_first_frame(m
     assert submissions == [set(failed), set(kept.render_product_paths)]
 
 
-def test_ovrtx_split_search_skips_a_sensor_removed_during_the_search(monkeypatch):
-    """A sensor that a cleanup removes during the search gets no new render products. The search goes on."""
-    renderer, (first, removed, last) = _make_search_cameras(monkeypatch, False, 8, [("auto", 64)] * 3)
+@pytest.mark.parametrize(
+    ("num_envs", "cameras", "layouts"),
+    [
+        pytest.param(8, [("auto", 64)] * 3, [[4, 4], [8]], id="search-goes-on"),
+        pytest.param(1, [(1, 64), ("auto", 64)], None, id="search-gives-up"),
+    ],
+)
+def test_ovrtx_split_search_handles_a_sensor_removed_during_the_search(monkeypatch, num_envs, cameras, layouts):
+    """A sensor that a cleanup removes during the search gets no new render products.
+
+    The scene write of the first sensor cleans up the second sensor, for example through a callback. Of three equal
+    "auto" sensors, the search halves the first in the order of the engine, and the last keeps its split. A sensor
+    with 1 environment cannot be halved, so the search gives up on the "auto" sensor and raises the failed frame. It
+    still moves the sensor with an integer split to new render products.
+    """
+    renderer, sensors = _make_search_cameras(monkeypatch, False, num_envs, cameras)
+    removed = sensors.pop(1)
     failed = set(renderer.backend.render_products)
     removed_paths = removed.render_product_paths
     add_usd_reference = renderer.backend.renderer.add_usd_reference_from_string
     add_usd_reference.reset_mock()
 
     def write_and_clean_up(usd, path):
-        # The scene write of the first sensor cleans up the second sensor, for example through a callback.
         add_usd_reference.side_effect = None
         renderer.cleanup(removed)
         return MagicMock()
 
     add_usd_reference.side_effect = write_and_clean_up
-    submissions = _install_step(renderer, lambda products: bool(products & failed))
+    # With layouts to reach, a step fails only while it renders a failed render product.
+    submissions = _install_step(renderer, lambda products: layouts is None or bool(products & failed))
 
-    renderer.render_batch([first, last])
+    if layouts is None:
+        with pytest.raises(RuntimeError, match="failed to produce a frame"):
+            renderer.render_batch(sensors)
+    else:
+        renderer.render_batch(sensors)
+        assert [[product.num_envs for product in camera.products] for camera in sensors] == layouts
+        assert [c.args[1] for c in add_usd_reference.call_args_list] == [f"/{c.render_scope_name}" for c in sensors]
+        assert submissions[-1] == {path for camera in sensors for path in camera.render_product_paths}
 
-    # Of equal sensors, the first in the order of the engine is halved. The last sensor keeps its split.
-    assert [[product.num_envs for product in camera.products] for camera in (first, last)] == [[4, 4], [8]]
-    assert [c.args[1] for c in add_usd_reference.call_args_list] == [
-        f"/{first.render_scope_name}",
-        f"/{last.render_scope_name}",
-    ]
     assert removed.render_product_paths == removed_paths
-    assert not renderer.backend.render_products & set(removed_paths)
-    assert submissions[-1] == {*first.render_product_paths, *last.render_product_paths}
-
-
-def test_ovrtx_split_search_gives_up_with_a_sensor_removed_during_the_search(monkeypatch):
-    """A search that gives up raises the failed frame, also if a cleanup removes a sensor during the search."""
-    # A sensor with 1 environment cannot be halved, so the search gives up on the "auto" sensor. It still moves the
-    # sensor with an integer split to new render products, and that scene write cleans up the "auto" sensor.
-    renderer, (fixed, removed) = _make_search_cameras(monkeypatch, False, 1, [(1, 64), ("auto", 64)])
-    failed = set(renderer.backend.render_products)
-    add_usd_reference = renderer.backend.renderer.add_usd_reference_from_string
-
-    def write_and_clean_up(usd, path):
-        add_usd_reference.side_effect = None
-        renderer.cleanup(removed)
-        return MagicMock()
-
-    add_usd_reference.side_effect = write_and_clean_up
-    _install_step(renderer, lambda products: True)
-
-    with pytest.raises(RuntimeError, match="failed to produce a frame"):
-        renderer.render_batch([fixed])
-
-    assert renderer.backend.render_products == set(fixed.render_product_paths)
+    assert renderer.backend.render_products == {path for camera in sensors for path in camera.render_product_paths}
     assert not renderer.backend.render_products & failed
 
 
@@ -958,66 +949,61 @@ def _plan_ids(plan) -> list[tuple[int, int | None]]:
     return [(id(data), max_envs) for data, max_envs in plan.max_envs_per_render_product]
 
 
-def test_ovrtx_split_plan_halves_the_auto_sensor_with_the_largest_buffer():
-    """The plan halves the "auto" sensor with the most atlas pixels times samples per pixel. Others keep their split.
-
-    The halved sensor is not the first, so the test also checks that the plan keeps the order of the engine.
-    """
-    small, large, fixed = _plan_sensor(8, spp=4), _plan_sensor(16), _plan_sensor(64, searches_split=False)
-    error = RuntimeError("OVRTX failed to produce a frame")
-
-    plan = ovrtx_renderer_module._plan_split([large, small, fixed], error, 0)
-
-    assert plan.halved is small
-    assert _plan_ids(plan) == [(id(large), 16), (id(small), 4), (id(fixed), 64)]
-
-
-def test_ovrtx_split_plan_halves_the_first_and_largest_render_product():
-    """The plan halves the environments of the first render product, which has the most environments.
-
-    10 environments with a limit of 3 give render products of 3, 3, 3 and 1 environments. The next limit is 2, not 1.
-    """
-    sensor = _plan_sensor(3, 3, 3, 1)
-
-    plan = ovrtx_renderer_module._plan_split([sensor], RuntimeError("failed to produce a frame"), 0)
-
-    assert plan.halved is sensor
-    assert _plan_ids(plan) == [(id(sensor), 2)]
-
-
-def test_ovrtx_split_plan_halves_the_first_of_equal_auto_sensors():
-    """Of "auto" sensors with the same buffer size, the plan halves the first in the order of the engine."""
-    first, second = _plan_sensor(16), _plan_sensor(16)
-
-    plan = ovrtx_renderer_module._plan_split([first, second], RuntimeError("failed to produce a frame"), 0)
-
-    assert plan.halved is first
-    assert _plan_ids(plan) == [(id(first), 8), (id(second), 16)]
-
-
 # "limit" stands for _MAX_SMALLER_LAYOUTS. Without ovrtx, ovrtx_renderer_module is None when pytest collects the tests.
 @pytest.mark.parametrize(
-    ("num_envs", "num_smaller_layouts"), [(16, "limit"), (1, 0)], ids=["after-the-limit", "one-environment"]
+    ("sensors", "num_smaller_layouts", "error", "halved", "next_max_envs"),
+    [
+        pytest.param(
+            [_plan_sensor(16), _plan_sensor(8, spp=4), _plan_sensor(64, searches_split=False)],
+            0,
+            "OVRTX failed to produce a frame",
+            1,
+            [16, 4, 64],
+            id="largest-buffer",
+        ),
+        pytest.param([_plan_sensor(3, 3, 3, 1)], 0, "failed to produce a frame", 0, [2], id="first-render-product"),
+        pytest.param(
+            [_plan_sensor(16), _plan_sensor(16)], 0, "failed to produce a frame", 0, [8, 16], id="equal-sensors"
+        ),
+        pytest.param(
+            [_plan_sensor(16), _plan_sensor(16, searches_split=False)],
+            "limit",
+            "failed to produce a frame",
+            None,
+            [None, 16],
+            id="after-the-limit",
+        ),
+        pytest.param(
+            [_plan_sensor(1), _plan_sensor(16, searches_split=False)],
+            0,
+            "failed to produce a frame",
+            None,
+            [None, 16],
+            id="one-environment",
+        ),
+        pytest.param([_plan_sensor(16)], 0, "device lost", None, [], id="another-error"),
+    ],
 )
-def test_ovrtx_split_plan_gives_up_on_every_auto_sensor(num_envs, num_smaller_layouts):
-    """Without a sensor to halve, the plan gives up on the "auto" sensors and keeps the split of the others."""
+def test_ovrtx_split_plan_halves_one_sensor_or_gives_up(sensors, num_smaller_layouts, error, halved, next_max_envs):
+    """The plan halves the "auto" sensor with the most atlas pixels times samples per pixel. Others keep their split.
+
+    - ``largest-buffer``: The halved sensor is not the first, so the row also checks that the plan keeps the order of
+      the engine.
+    - ``first-render-product``: 10 environments with a limit of 3 give render products of 3, 3, 3 and 1 environments.
+      The plan halves the first render product, so the next limit is 2, not 1.
+    - ``equal-sensors``: Of "auto" sensors with the same buffer size, the plan halves the first in the order of the
+      engine.
+    - ``after-the-limit`` and ``one-environment``: Without a sensor to halve, the plan gives up on the "auto" sensors
+      and keeps the split of the others.
+    - ``another-error``: Only a failed frame starts the search, so another error gives an empty plan.
+    """
     if num_smaller_layouts == "limit":
         num_smaller_layouts = ovrtx_renderer_module._MAX_SMALLER_LAYOUTS
-    auto, fixed = _plan_sensor(num_envs), _plan_sensor(16, searches_split=False)
 
-    plan = ovrtx_renderer_module._plan_split(
-        [auto, fixed], RuntimeError("failed to produce a frame"), num_smaller_layouts
-    )
+    plan = ovrtx_renderer_module._plan_split(sensors, RuntimeError(error), num_smaller_layouts)
 
-    assert plan.halved is None
-    assert _plan_ids(plan) == [(id(auto), None), (id(fixed), 16)]
-
-
-def test_ovrtx_split_plan_is_empty_for_another_error():
-    """Only a failed frame starts the search, so another error gives an empty plan."""
-    plan = ovrtx_renderer_module._plan_split([_plan_sensor(16)], RuntimeError("device lost"), 0)
-
-    assert plan == ovrtx_renderer_module._SplitPlan()
+    assert plan.halved is (None if halved is None else sensors[halved])
+    assert _plan_ids(plan) == [(id(sensors[index]), max_envs) for index, max_envs in enumerate(next_max_envs)]
 
 
 @pytest.mark.parametrize(
@@ -2124,11 +2110,17 @@ def test_ovrtx_process_frame_reads_authored_camera_render_vars(monkeypatch, use_
 
 
 @pytest.mark.parametrize("use_ovstage", [False, True])
-def test_ovrtx_process_frame_stitches_split_frames_in_env_order(monkeypatch, use_ovstage):
-    """A split sensor registers one product per environment range and writes each product's frame into that range."""
+def test_ovrtx_process_frame_writes_each_render_product_into_its_environment_range(monkeypatch, use_ovstage):
+    """A split sensor registers one render product per environment range and writes each frame into that range.
+
+    5 environments with a limit of 3 give render products of 3 and 2 environments, with atlases of 2 x 2 and 2 x 1
+    tiles. Each tile has the value of its environment, so a tile in a wrong environment gives a wrong value. A missing
+    frame or label map of the second render product raises before the first render product writes its outputs.
+    Every product carries the scene-wide label map, which is decoded once from the first product.
+    """
     from .test_ovrtx_annotator_utils import _encode_identifier_map
 
-    num_envs = 5
+    num_envs, untouched = 5, 255
     camera_paths = [f"/World/envs/env_{i}/cam" for i in range(num_envs)]
     renderer = _make_mocked_scene_renderer(monkeypatch, use_ovstage, [f"/World/envs/env_{i}" for i in range(num_envs)])
     renderer.cfg.colorize_semantic_segmentation = False
@@ -2138,80 +2130,103 @@ def test_ovrtx_process_frame_stitches_split_frames_in_env_order(monkeypatch, use
     )
     monkeypatch.setattr(renderer, "_map_render_var_to_dlpack", contextlib.nullcontext)
 
-    renderer.cfg.max_envs_per_render_product = 2
+    renderer.cfg.max_envs_per_render_product = 3
     cfg = _make_camera_cfg(["rgba", "depth", "semantic_segmentation"])
     render_data = renderer.create_render_data(CameraRenderSpec(cfg, "cpu", num_envs, tuple(camera_paths), num_envs))
     paths = render_data.render_product_paths
-    assert paths == tuple(f"/RenderCamera_0/RenderProduct_{k}" for k in range(3))
+    assert paths == ("/RenderCamera_0/RenderProduct_0", "/RenderCamera_0/RenderProduct_1")
     assert renderer.backend.render_products == set(paths)
-    slices = [camera_paths[0:2], camera_paths[2:4], camera_paths[4:5]]
+    slices = [camera_paths[0:3], camera_paths[3:5]]
     if use_ovstage:
         queried = [c.args[0] for c in renderer.scene.paths.create_path_list_from_strings.call_args_list]
-        assert queried[:3] == [[path] for path in paths]
+        assert queried[:2] == [[path] for path in paths]
         writes = [c for c in renderer.scene.stage.write_attribute.call_args_list if c.args[1] == "camera"]
-        assert [c.kwargs["tensors"].tolist() for c in writes] == [[0, 1], [2, 3], [4]]
+        assert [c.kwargs["tensors"].tolist() for c in writes] == [[0, 1, 2], [3, 4]]
     else:
         assert renderer.backend.renderer.write_array_attribute.call_args_list == [
             call(prim_paths=[path], attribute_name="camera", tensors=[cameras])
             for path, cameras in zip(paths, slices, strict=True)
         ]
 
-    # Products 0 and 1 hold two environments side by side, the last product holds one. Every product
-    # carries the scene-wide label map, which is decoded once from the first product.
     def semantic_map(entries):
         render_var = MagicMock()
         encoded = _encode_identifier_map(entries)
         render_var.map.side_effect = lambda **kwargs: contextlib.nullcontext(encoded)
         return render_var
 
+    def tiled(product, dtype, channels):
+        # Environment env_offset + i is the tile in row i // num_cols and column i % num_cols of the atlas.
+        atlas = np.zeros((product.num_rows * 8, product.num_cols * 16, channels), dtype=wp.dtype_to_numpy(dtype))
+        for index in range(product.num_envs):
+            row, col = divmod(index, product.num_cols)
+            atlas[row * 8 : (row + 1) * 8, col * 16 : (col + 1) * 16] = 10 + product.env_offset + index
+        return wp.array(atlas, dtype=dtype, device="cpu")
+
+    keys = render_data.render_var_keys
     entries = [((2, 0, 0, 0), "class: label2;"), ((3, 0, 0, 0), "class: label3;")]
-    frames = []
-    for value, shape in zip((2, 3, 4), ((8, 32), (8, 32), (8, 16)), strict=True):
-        render_vars = {
-            render_data.render_var_keys["LdrColor"]: wp.full((*shape, 4), value, dtype=wp.uint8, device="cpu"),
-            render_data.render_var_keys["DistanceToImagePlaneSD"]: wp.full(
-                (*shape, 1), float(value), dtype=wp.float32, device="cpu"
-            ),
-            render_data.render_var_keys["SemanticSegmentation"]: wp.full(
-                (*shape, 1), value, dtype=wp.uint32, device="cpu"
-            ),
-            render_data.render_var_keys["SemanticIdMap"]: semantic_map(entries),
-        }
-        frames.append(types.SimpleNamespace(render_vars=render_vars))
-    buffers = {
-        "rgba": wp.zeros((num_envs, 8, 16, 4), dtype=wp.uint8, device="cpu"),
-        "depth": wp.zeros((num_envs, 8, 16, 1), dtype=wp.float32, device="cpu"),
-        "semantic_segmentation": wp.zeros((num_envs, 8, 16, 1), dtype=wp.int32, device="cpu"),
+    frames = [
+        types.SimpleNamespace(
+            render_vars={
+                keys["LdrColor"]: tiled(product, wp.uint8, 4),
+                keys["DistanceToImagePlaneSD"]: tiled(product, wp.float32, 1),
+                keys["SemanticSegmentation"]: tiled(product, wp.uint32, 1),
+                keys["SemanticIdMap"]: semantic_map(entries),
+            }
+        )
+        for product in render_data.products
+    ]
+    buffers = render_data.warp_buffers = {
+        "rgba": wp.full((num_envs, 8, 16, 4), untouched, dtype=wp.uint8, device="cpu"),
+        "depth": wp.full((num_envs, 8, 16, 1), untouched, dtype=wp.float32, device="cpu"),
+        "semantic_segmentation": wp.full((num_envs, 8, 16, 1), untouched, dtype=wp.int32, device="cpu"),
     }
-    renderer._process_render_frames(render_data, frames, buffers)
+
+    def process(product_frames=None):
+        product_frames = product_frames or [[frame] for frame in frames]
+        products = {path: types.SimpleNamespace(frames=found) for path, found in zip(paths, product_frames, strict=True)}
+        renderer._process_render_products((render_data,), products)
+
+    def assert_outputs(expected):
+        for output in buffers.values():
+            np.testing.assert_array_equal(output.numpy(), np.broadcast_to(expected, output.shape))
+
+    with pytest.raises(RuntimeError, match="RenderProduct_1"):
+        process([[frames[0]], []])
+    assert_outputs(untouched)
+
+    # The instance label maps are only checked here, so placeholders stand in for them.
+    for key in ("StableIdMap", "StableIdSemanticIdMap"):
+        for frame in frames:
+            frame.render_vars[keys[key]] = object()
+    del frames[1].render_vars[keys["StableIdMap"]]
+    buffers["instance_segmentation"] = wp.full((num_envs, 8, 16, 1), untouched, dtype=wp.int32, device="cpu")
+    with pytest.raises(RuntimeError, match="StableIdMap"):
+        process()
+    assert_outputs(untouched)
+    del buffers["instance_segmentation"]
+
+    process()
     # The first product gives its labels and its raw tensors from one mapping of each label map.
-    id_map_key = render_data.render_var_keys["SemanticIdMap"]
-    assert [frame.render_vars[id_map_key].map.call_count for frame in frames] == [1, 1, 1]
-    expected = np.array([2, 2, 3, 3, 4]).reshape(num_envs, 1, 1, 1)
-    for output in buffers.values():
-        np.testing.assert_array_equal(output.numpy(), np.broadcast_to(expected, output.shape))
+    assert [frame.render_vars[keys["SemanticIdMap"]].map.call_count for frame in frames] == [1, 1]
+    assert_outputs(np.arange(10, 10 + num_envs).reshape(num_envs, 1, 1, 1))
     labels = render_data.renderer_info["semantic_segmentation"]["idToLabels"]
     assert {key: value for key, value in labels.items() if key >= 2} == {2: {"class": "label2"}, 3: {"class": "label3"}}
     # The same entries in another order give other raw bytes but the same labels, so the sensor does not raise.
-    frames[1].render_vars[render_data.render_var_keys["SemanticIdMap"]] = semantic_map(entries[::-1])
-    renderer._process_render_frames(render_data, frames, buffers)
+    frames[1].render_vars[keys["SemanticIdMap"]] = semantic_map(entries[::-1])
+    process()
     # A product whose label map differs would give wrong labels for its IDs, so the sensor raises.
-    frames[2].render_vars[render_data.render_var_keys["SemanticIdMap"]] = semantic_map(entries[:1])
-    with pytest.raises(
-        RuntimeError, match="different SemanticIdMap for render product '/RenderCamera_0/RenderProduct_2'"
-    ) as error:
-        renderer._process_render_frames(render_data, frames, buffers)
+    frames[1].render_vars[keys["SemanticIdMap"]] = semantic_map(entries[:1])
+    different = "different SemanticIdMap for render product '/RenderCamera_0/RenderProduct_1'"
+    with pytest.raises(RuntimeError, match=different) as error:
+        process()
     assert 'max_envs_per_render_product to "all"' in str(error.value)
     # A map that only a later product returns would leave the IDs of the sensor without labels, so the sensor raises.
-    del frames[0].render_vars[id_map_key]
-    with pytest.raises(
-        RuntimeError, match="different SemanticIdMap for render product '/RenderCamera_0/RenderProduct_1'"
-    ):
-        renderer._process_render_frames(render_data, frames, buffers)
+    del frames[0].render_vars[keys["SemanticIdMap"]]
+    with pytest.raises(RuntimeError, match=different):
+        process()
     # No product returns a map, so the sensor gives no labels, as one render product does.
-    for frame in frames[1:]:
-        del frame.render_vars[id_map_key]
-    renderer._process_render_frames(render_data, frames, buffers)
+    del frames[1].render_vars[keys["SemanticIdMap"]]
+    process()
     assert "semantic_segmentation" not in render_data.renderer_info
     render_data.cleanup()
     assert renderer.backend.render_products == set()
@@ -2227,65 +2242,6 @@ def test_launch_extract_all_tiles_rejects_wider_output_channels():
         renderer._launch_extract_all_tiles(
             render_data, types.SimpleNamespace(shape=(8, 16, 3)), types.SimpleNamespace(shape=(2, 8, 16, 4))
         )
-
-
-def test_ovrtx_process_frame_writes_each_render_product_into_its_environment_range(monkeypatch):
-    """Each render product writes its frame only into the outputs of its own environment range.
-
-    5 environments over render products of 3 and 2 environments give atlases of 2 x 2 and 2 x 1 tiles. Each tile
-    has the value of its environment, so a tile in a wrong environment gives a wrong value. A missing frame or
-    label map of the second render product raises before the first render product writes its outputs.
-    """
-    num_envs, untouched = 5, 255
-    camera_paths = [f"/World/envs/env_{i}/Camera" for i in range(num_envs)]
-    renderer = _make_ovrtx_renderer_without_backend()
-    renderer._device = "cpu"
-    monkeypatch.setattr(renderer, "_map_render_var_to_dlpack", contextlib.nullcontext)
-    spec = CameraRenderSpec(_make_camera_cfg(["rgba"]), "cpu", num_envs, tuple(camera_paths), num_envs)
-    render_data = OVRTXCameraRenderData(spec, "RenderCamera_0", camera_paths, "auto")
-    render_data.products = [
-        OVRTXRenderProduct("/RenderCamera_0/RenderProduct_0", camera_paths[:3], 0, 3, 2, 2),
-        OVRTXRenderProduct("/RenderCamera_0/RenderProduct_1", camera_paths[3:], 3, 2, 2, 1),
-    ]
-    frames = []
-    for product in render_data.products:
-        atlas = np.zeros((product.num_rows * 8, product.num_cols * 16, 4), dtype=np.uint8)
-        for index in range(product.num_envs):
-            row, col = divmod(index, product.num_cols)
-            atlas[row * 8 : (row + 1) * 8, col * 16 : (col + 1) * 16] = 10 + product.env_offset + index
-        color = wp.array(atlas, dtype=wp.uint8, device="cpu")
-        frames.append(types.SimpleNamespace(render_vars={render_data.render_var_keys["LdrColor"]: color}))
-    render_data.warp_buffers = {"rgba": wp.full((num_envs, 8, 16, 4), untouched, dtype=wp.uint8, device="cpu")}
-
-    def process(product_frames):
-        renderer._process_render_products(
-            (render_data,),
-            {
-                path: types.SimpleNamespace(frames=found)
-                for path, found in zip(render_data.render_product_paths, product_frames, strict=True)
-            },
-        )
-
-    with pytest.raises(RuntimeError, match="RenderProduct_1"):
-        process([[frames[0]], []])
-    np.testing.assert_array_equal(render_data.warp_buffers["rgba"].numpy(), untouched)
-
-    # The label maps are only checked here, so placeholders stand in for them.
-    for key in ("SemanticIdMap", "StableIdMap", "StableIdSemanticIdMap"):
-        for frame in frames:
-            frame.render_vars[render_data.render_var_keys[key]] = object()
-    del frames[1].render_vars[render_data.render_var_keys["StableIdMap"]]
-    render_data.warp_buffers["instance_segmentation"] = wp.zeros((num_envs, 8, 16, 1), dtype=wp.int32, device="cpu")
-    with pytest.raises(RuntimeError, match="StableIdMap"):
-        process([[frame] for frame in frames])
-    np.testing.assert_array_equal(render_data.warp_buffers["rgba"].numpy(), untouched)
-
-    del render_data.warp_buffers["instance_segmentation"]
-    process([[frame] for frame in frames])
-    expected = np.arange(10, 10 + num_envs, dtype=np.uint8).reshape(num_envs, 1, 1, 1)
-    np.testing.assert_array_equal(
-        render_data.warp_buffers["rgba"].numpy(), np.broadcast_to(expected, (num_envs, 8, 16, 4))
-    )
 
 
 @pytest.mark.parametrize(
