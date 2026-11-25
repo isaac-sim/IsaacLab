@@ -95,7 +95,7 @@ def test_rsl_rl_entrypoints_load_checkpoint(tmp_path: Path, monkeypatch, entrypo
     monkeypatch.setattr(train_rsl_rl, "launch_simulation", lambda *args: contextlib.nullcontext())
     monkeypatch.setattr(app, "launch_simulation", lambda *args: contextlib.nullcontext())
     monkeypatch.setattr(train_rsl_rl, "create_rsl_rl_runner", lambda *args, **kwargs: runner)
-    monkeypatch.setattr(train_rsl_rl, "RslRlVecEnvWrapper", lambda env, **kwargs: env)
+    monkeypatch.setattr(runner_rsl_rl, "RslRlVecEnvWrapper", lambda env, **kwargs: env)
     monkeypatch.setattr(benchmark, "BaseIsaacLabBenchmark", MagicMock())
     monkeypatch.setattr(capture, "run_config_from_env_cfg", lambda cfg: None)
     args.benchmark_formatter = "schema"

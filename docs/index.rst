@@ -164,6 +164,7 @@ Table of Contents
    :titlesonly:
    :caption: Experimental Features
 
+   source/experimental-features/model_based
    source/experimental-features/bleeding-edge
    source/concepts/warp_environments
    source/experimental-features/mdp2

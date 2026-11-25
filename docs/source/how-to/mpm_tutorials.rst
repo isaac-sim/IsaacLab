@@ -29,10 +29,9 @@ material models.
 Running the tutorials
 ---------------------
 
-The material and rigid-body tutorials launch Kit by default, requiring the
-``isaacsim`` extra. The surface-reconstruction tutorial launches Newton by
-default. Use ``--viz`` to select another visualizer; the Newton RTX view also requires
-``uv run --extra ovrtx``.
+The material and rigid-body tutorials use Newton RTX by default, requiring the
+``ovrtx`` extra. The surface-reconstruction tutorial uses the Newton visualizer.
+Use ``--viz`` to select another visualizer.
 
 
 Comparing material parameters
@@ -55,8 +54,8 @@ Start with the elastic stiffness comparison:
 
 .. code-block:: bash
 
-   uv run --extra isaacsim python scripts/tutorials/08_mpm/material_parameters.py \
-     --preset young_modulus --viz kit
+   uv run --extra ovrtx python scripts/tutorials/08_mpm/material_parameters.py \
+     --preset young_modulus --viz newton_rtx
 
 The three specimens share the same geometry, initial velocities, particle
 mass, solver settings, and seeded particle layout. Their Young's moduli are
@@ -112,8 +111,8 @@ To apply sustained compression, add ``--press_spheres`` to either sphere preset:
 
 .. code-block:: bash
 
-   uv run --extra isaacsim python scripts/tutorials/08_mpm/material_parameters.py \
-     --preset poisson_ratio --press_spheres --viz kit
+   uv run --extra ovrtx python scripts/tutorials/08_mpm/material_parameters.py \
+     --preset poisson_ratio --press_spheres --viz newton_rtx
 
 The plates descend after a two-second settling period and hold the spheres
 under compression. Compare the lateral expansion and volume response while
@@ -141,8 +140,8 @@ total mass.
 
 .. code-block:: bash
 
-   uv run --extra isaacsim python scripts/tutorials/08_mpm/rigid_body_equivalence.py \
-     --viz kit
+   uv run --extra ovrtx python scripts/tutorials/08_mpm/rigid_body_equivalence.py \
+     --viz newton_rtx
 
 The MPM objects use a large finite stiffness and pressure-yield threshold to
 approximate a rigid material. Compare their rolling, sliding, and shape

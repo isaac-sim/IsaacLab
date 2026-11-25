@@ -16,7 +16,7 @@ Save camera images and reproject depth into 3D points with
 
    .. literalinclude:: ../../../scripts/tutorials/04_sensors/run_usd_camera.py
       :language: python
-      :emphasize-lines: 173-175, 224-229, 231-250
+      :emphasize-lines: 186-188, 237-242, 244-263
       :linenos:
 
 
@@ -85,10 +85,10 @@ To run the accompanying script, execute the following command:
 .. code-block:: bash
 
    # Usage with saving and drawing
-   uv run python scripts/tutorials/04_sensors/run_usd_camera.py --save --draw --viz kit
+   uv run --extra ov python scripts/tutorials/04_sensors/run_usd_camera.py --save --draw --viz newton_rtx
 
    # Usage with saving only (no visualizer)
-   uv run python scripts/tutorials/04_sensors/run_usd_camera.py --save
+   uv run --extra ov python scripts/tutorials/04_sensors/run_usd_camera.py --save
 
 
 The simulation should start, and you can observe different objects falling down. An output folder will be created

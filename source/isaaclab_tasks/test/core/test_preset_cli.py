@@ -297,7 +297,7 @@ def test_teleop_tasks_resolve_public_physics_selectors(monkeypatch, task_name, p
         arguments.extend(["--physics", physics])
     _, selections = setup_preset_cli(_make_parser(), arguments)
     cfg = parse_env_cfg(task_name, device="cpu", num_envs=1, overrides=selections)
-    expected_type = {None: PhysxCfg, "isaacsim_physx": PhysxCfg, "ovphysx": OvPhysxCfg, "newton_mjwarp": NewtonCfg}
+    expected_type = {None: OvPhysxCfg, "isaacsim_physx": PhysxCfg, "ovphysx": OvPhysxCfg, "newton_mjwarp": NewtonCfg}
     assert isinstance(cfg.sim.physics, expected_type[physics])
     assert cfg.scene.num_envs == 1 and cfg.sim.device == "cpu"
     if "SO101" in task_name:
