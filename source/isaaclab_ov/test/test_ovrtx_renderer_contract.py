@@ -1849,10 +1849,11 @@ def test_ovrtx_split_search_recovers_from_a_real_failed_frame(monkeypatch, caplo
 
     if not torch.cuda.is_available():
         pytest.skip("OVRTX rendering requires CUDA")
-    if torch.cuda.get_device_properties(0).total_memory < 16 * 1024**3:
+    device = device
+    if torch.cuda.get_device_properties(torch.device(device)).total_memory < 16 * 1024**3:
         pytest.skip("The failed frame allocates its oversized buffer first and needs about 13 GB of GPU memory")
     num_envs, image_size, spp = 4, 1024, 40
-    SimulationContext.instance().device = "cuda:0"
+    SimulationContext.instance().device = device
     env_template = "/World/envs/env_{}"
     stage = Usd.Stage.CreateInMemory()
     UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
@@ -1894,7 +1895,7 @@ def test_ovrtx_split_search_recovers_from_a_real_failed_frame(monkeypatch, caplo
         camera_cfg.render_settings = {"omni:rtx:rtpt:spp": ("Int", spp), "omni:rtx:post:aa:op": ("Token", "rtxaa")}
         spec = CameraRenderSpec(
             cfg=camera_cfg,
-            device="cuda:0",
+            device=device,
             num_instances=num_envs,
             view_count=num_envs,
             camera_prim_paths=tuple(env_template.format(i) + "/cam0" for i in range(num_envs)),
@@ -1905,13 +1906,13 @@ def test_ovrtx_split_search_recovers_from_a_real_failed_frame(monkeypatch, caplo
             height=image_size,
             width=image_size,
             num_views=num_envs,
-            device="cuda:0",
+            device=device,
             supported_specs=renderer.supported_output_types(),
         )
         renderer.set_outputs(rd, data.output)
-        positions = torch.tensor([[0.0, 0.0, 5.0]] * num_envs, device="cuda:0")
+        positions = torch.tensor([[0.0, 0.0, 5.0]] * num_envs, device=device)
         quats = convert_camera_frame_orientation_convention(
-            torch.tensor([[0.0, 0, 0, 1.0]] * num_envs, device="cuda:0"), origin="opengl", target="world"
+            torch.tensor([[0.0, 0, 0, 1.0]] * num_envs, device=device), origin="opengl", target="world"
         )
         renderer.update_camera(
             rd,
@@ -2134,7 +2135,6 @@ def test_ovrtx_process_frame_reads_authored_camera_render_vars(monkeypatch, use_
     }
 
     def tiled(values, channels, dtype):
-        # Environment i is the tile in row i // 3 and column i % 3 of the tiled image of 3 x 2 tiles.
         tiled_image = np.zeros((2 * 8, 3 * 16, channels), dtype=wp.dtype_to_numpy(dtype))
         for env, value in enumerate(values):
             row, col = divmod(env, 3)
@@ -2221,7 +2221,6 @@ def test_ovrtx_process_frame_writes_each_render_product_into_its_environment_ran
         return render_var
 
     def tiled(product, dtype, channels):
-        # Environment env_offset + i is the tile in row i // num_cols and column i % num_cols of the tiled image.
         tiled_image = np.zeros((product.num_rows * 8, product.num_cols * 16, channels), dtype=wp.dtype_to_numpy(dtype))
         for index in range(product.num_envs):
             row, col = divmod(index, product.num_cols)

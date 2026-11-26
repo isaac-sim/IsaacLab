@@ -249,9 +249,7 @@ no universal camera-count limit. See `Isaac Lab issue #8412`_ for affected confi
 reproduction steps, and fix status.
 
 The OVRTX renderer (``renderer=ovrtx``) fails such a frame with an error. By default, it then
-renders the camera sensor in smaller groups of environments. A warning names the group size. The
-environment variable ``ISAAC_LAB_OVRTX_MAX_ENVS_PER_RENDER_PRODUCT`` with that number skips the
-search, and the value ``all`` turns the split off.
+renders the camera sensor in smaller groups of environments, and a warning names the group size.
 
 With other RTX renderers, or instead of smaller groups, reduce the image size, the number of
 environments, or path-tracing SPP. Then inspect images from all cameras before training. Fewer
