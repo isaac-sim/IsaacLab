@@ -283,8 +283,8 @@ def convert_dict_to_backend(
 def update_dict(orig_dict: dict, new_dict: collections.abc.Mapping) -> dict:
     """Updates existing dictionary with values from a new dictionary.
 
-    This function mimics the dict.update() function. However, it works for
-    nested dictionaries as well.
+    This function mimics dict.update() and recursively merges nested mappings.
+    A mapping replaces an existing non-mapping value.
 
     Args:
         orig_dict: The original dictionary to insert items to.
@@ -295,7 +295,10 @@ def update_dict(orig_dict: dict, new_dict: collections.abc.Mapping) -> dict:
     """
     for keyname, value in new_dict.items():
         if isinstance(value, collections.abc.Mapping):
-            orig_dict[keyname] = update_dict(orig_dict.get(keyname, {}), value)
+            current = orig_dict.get(keyname)
+            if not isinstance(current, collections.abc.MutableMapping):
+                current = dict(current) if isinstance(current, collections.abc.Mapping) else {}
+            orig_dict[keyname] = update_dict(current, value)
         else:
             orig_dict[keyname] = value
     return orig_dict
