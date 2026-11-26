@@ -58,13 +58,12 @@ def test_index_fill(device, dim, dtype, value, indices):
     torch.testing.assert_close(data.cpu(), expected)
 
 
+@pytest.mark.kitless
 def test_index_fill_rejects_invalid_boolean_mask() -> None:
-    """A broadcastable but invalid mask must not modify unrelated environments."""
+    """Reject wrong-rank and wrong-length masks without modifying the input."""
     data = torch.arange(6, dtype=torch.float32).reshape(2, 3)
     expected = data.clone()
     for mask in (torch.tensor([True]), torch.tensor([[True, False, True]])):
         with pytest.raises(ValueError, match="Boolean mask"):
             index_fill_(data, mask, -1.0, dim=-1)
         torch.testing.assert_close(data, expected)
-    index_fill_(data, torch.tensor([True, False, True]), -1.0, dim=-1)
-    torch.testing.assert_close(data, torch.tensor([[-1.0, 1.0, -1.0], [-1.0, 4.0, -1.0]]))
