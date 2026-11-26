@@ -83,11 +83,13 @@ def test_saturate(device):
     assert torch.all(torch.less_equal(output_per_batch, upper_per_batch)).item()
 
 
-def test_normalize_float16_extreme_norms() -> None:
+@pytest.mark.kitless
+@pytest.mark.parametrize("device", test_devices())
+def test_normalize_float16_extreme_norms(device: str) -> None:
     """Keep zero and large finite vectors well-defined in half precision."""
-    data = torch.tensor([[0.0, 0.0], [65504.0, 65504.0], [3.0, 4.0]], dtype=torch.float16)
+    data = torch.tensor([[0.0, 0.0], [65504.0, 65504.0], [3.0, 4.0]], dtype=torch.float16, device=device)
     result = math_utils.normalize(data)
-    expected = torch.tensor([[0.0, 0.0], [2**-0.5, 2**-0.5], [0.6, 0.8]], dtype=data.dtype)
+    expected = torch.tensor([[0.0, 0.0], [2**-0.5, 2**-0.5], [0.6, 0.8]], dtype=data.dtype, device=device)
     torch.testing.assert_close(result, expected)
 
 

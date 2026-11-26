@@ -96,7 +96,6 @@ def normalize(x: torch.Tensor, eps: float = 1e-9) -> torch.Tensor:
         Normalized tensor of shape (N, dims).
     """
     # In float16, the norm can overflow and the default epsilon can underflow.
-    # Evaluate the division in float32, then preserve the input dtype.
     if x.dtype == torch.float16:
         x_float = x.float()
         return (x_float / x_float.norm(p=2, dim=-1).clamp_min(eps).unsqueeze(-1)).to(dtype=x.dtype)
