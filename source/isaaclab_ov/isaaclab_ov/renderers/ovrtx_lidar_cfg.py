@@ -87,7 +87,12 @@ class OVRTXLidarCfg(LidarCfg):
     """Native coordinate encoding. Both modes publish Cartesian XYZ positions in meters. Defaults to ``CARTESIAN``."""
 
     instant_lidar: bool = True
-    """Whether one render step publishes a complete scan. Defaults to True."""
+    """Whether each renderer frame traces a complete scan at a single timestamp. Defaults to True.
+
+    When True, all rays have zero firing-time offsets. When False, the renderer follows the scan's
+    firing schedule. This flag does not control how often Isaac Lab captures: :attr:`update_period`
+    controls capture scheduling in both modes, with zero making the sensor due every physics step.
+    """
 
     include_invalid_points: bool = True
     """Keep missed rays in their original slots. Tiled OvRTX lidar requires True.
@@ -97,11 +102,20 @@ class OVRTXLidarCfg(LidarCfg):
     """
 
     frame_rate: float | None = None
-    """Scan frequency in Hz. Must be finite and positive when specified.
+    """Renderer scan frequency in Hz. Defaults to None. A specified value must be finite and positive.
 
-    If None, derive the frequency from the capture interval so that each capture spans exactly one scan. The
-    capture interval is :attr:`update_period`, or the physics time step when the period is zero. With
-    ``instant_lidar=False`` the capture interval must be a whole number of scans.
+    None derives the rate from :attr:`update_period`, or the physics time step when that period is zero,
+    so each capture spans one scan period. For example, ``update_period=0.1`` gives 10 Hz. Zero is not
+    an automatic-rate sentinel and is rejected.
+
+    With :attr:`instant_lidar` False, this rate sets the scan period. An explicit rate must fit a positive
+    whole number of scans into each capture interval; 10 Hz accepts a 0.2 s capture but rejects 0.15 s.
+    The firing pattern sets the ray times within the scan; :attr:`fire_time_ns` values are not rescaled.
+
+    With :attr:`instant_lidar` True, each renderer frame is a complete snapshot, including when the
+    capture interval is shorter than one scan period. The rate can still produce multiple frames
+    within one capture. In both modes Isaac Lab returns only the last renderer frame, not a batch
+    or an accumulation of all frames. None avoids producing multiple frames per capture.
     """
 
     def __post_init__(self):
