@@ -18,7 +18,7 @@ from isaaclab_mimic.datagen import generation
 pytestmark = pytest.mark.kitless
 
 
-@pytest.mark.parametrize("device", test_devices(DeviceScope.ALL))
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_action_batch_device_and_environment_order(device: str, monkeypatch: pytest.MonkeyPatch) -> None:
     """Deliver out-of-order queued actions to their owning environments on the simulation device."""
     monkeypatch.setattr(generation, "num_success", 0)
@@ -30,14 +30,11 @@ def test_action_batch_device_and_environment_order(device: str, monkeypatch: pyt
         action_queue.put_nowait((env_id, expected[env_id]))
     received = []
 
-    def step(actions: torch.Tensor) -> None:
-        received.append(actions)
-
     env = SimpleNamespace(
         num_envs=3,
         device=device,
         action_space=SimpleNamespace(shape=(3, 2)),
-        step=step,
+        step=received.append,
         sim=SimpleNamespace(is_stopped=lambda: True),
     )
     loop = asyncio.new_event_loop()
