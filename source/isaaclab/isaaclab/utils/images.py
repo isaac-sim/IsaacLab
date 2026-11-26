@@ -61,7 +61,7 @@ def is_normals_like(data_type: str) -> bool:
 
 
 """
-Normalizers.
+Pre-processing.
 """
 
 
@@ -92,6 +92,11 @@ def resize_images(
     if image.dtype == torch.uint8:
         resized = resized.round().clamp(0, 255)
     return resized.to(image.dtype)
+
+
+"""
+Normalizers.
+"""
 
 
 def normalize_rgb(
