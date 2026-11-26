@@ -19,11 +19,19 @@ from isaaclab.envs.mdp.actions.actions_cfg import (
     BinaryJointPositionActionCfg,
     DifferentialInverseKinematicsActionCfg,
     JointEffortActionCfg,
+    JointPositionActionCfg,
     JointPositionToLimitsActionCfg,
+    JointVelocityActionCfg,
     OperationalSpaceControllerActionCfg,
+    RelativeJointPositionActionCfg,
 )
 from isaaclab.envs.mdp.actions.binary_joint_actions import AbsBinaryJointPositionAction, BinaryJointPositionAction
-from isaaclab.envs.mdp.actions.joint_actions import JointEffortAction
+from isaaclab.envs.mdp.actions.joint_actions import (
+    JointEffortAction,
+    JointPositionAction,
+    JointVelocityAction,
+    RelativeJointPositionAction,
+)
 from isaaclab.envs.mdp.actions.joint_actions_to_limits import JointPositionToLimitsAction
 from isaaclab.envs.mdp.actions.rmpflow_actions_cfg import RMPFlowActionCfg
 from isaaclab.envs.mdp.actions.rmpflow_task_space_actions import RMPFlowAction
@@ -49,7 +57,7 @@ class _JointIds:
         return len(self.warp)
 
 
-def _make_env(joint_names: list[str] | None = None, num_envs: int = NUM_ENVS) -> SimpleNamespace:
+def _make_env(joint_names: list[str] | None = None, num_envs: int = NUM_ENVS, decimation: int = 1) -> SimpleNamespace:
     """Create a minimal environment whose robot resolves every joint query to ``joint_names``."""
     if joint_names is None:
         joint_names = JOINT_NAMES
@@ -66,7 +74,8 @@ def _make_env(joint_names: list[str] | None = None, num_envs: int = NUM_ENVS) ->
         is_fixed_base=True,
     )
     sim = SimpleNamespace(get_physics_dt=lambda: 0.01)
-    return SimpleNamespace(num_envs=num_envs, device="cpu", scene={"robot": robot}, sim=sim)
+    cfg = SimpleNamespace(decimation=decimation)
+    return SimpleNamespace(num_envs=num_envs, device="cpu", scene={"robot": robot}, sim=sim, cfg=cfg)
 
 
 def _diff_ik_cfg(
@@ -295,18 +304,124 @@ def test_osc_controller_limits_bound_clip() -> None:
         ),
         (JointEffortAction, JointEffortActionCfg(scale=2.0, clip={".*": (-1.0, 1.0)})),
         (JointPositionToLimitsAction, JointPositionToLimitsActionCfg(scale=2.0, rescale_to_limits=False)),
+        (JointPositionAction, JointPositionActionCfg(scale=2.0, use_default_offset=False, chunk_length=1)),
+        (JointPositionAction, JointPositionActionCfg(scale=2.0, use_default_offset=False, chunk_length=4)),
+        (JointEffortAction, JointEffortActionCfg(scale=2.0, chunk_length=4)),
     ],
 )
 def test_recordable_joint_actions_process_into_the_same_buffer(action_cls, cfg) -> None:
     """A step that records ``apply_actions`` reads the processed buffer, so processing writes it in place."""
     cfg.asset_name, cfg.joint_names = "robot", [".*"]
-    action = action_cls(cfg, _make_env(["a", "b"]))
+    action = action_cls(cfg, _make_env(["a", "b"], decimation=4))
     processed = action.processed_actions
 
     action.process_actions(torch.full((2, action.action_dim), -0.25))
 
     assert action.processed_actions is processed
     assert torch.all(processed < 0.0)
+
+
+# The joint action terms that chunks apply to, their configurations and the setter of their command.
+_KINDS = {
+    "position": (JointPositionAction, JointPositionActionCfg, "set_joint_position_target_index"),
+    "velocity": (JointVelocityAction, JointVelocityActionCfg, "set_joint_velocity_target_index"),
+    "effort": (JointEffortAction, JointEffortActionCfg, "set_joint_effort_target_index"),
+}
+
+
+def _joint_action(
+    kind: str, chunk_length: int, interpolate: bool = False, device: str = "cpu", **env_attrs
+) -> tuple[ActionTerm, list]:
+    """A joint action over four physics steps on joints at 1.0, and the list of applied commands."""
+    action_cls, cfg_cls, setter = _KINDS[kind]
+    env = _make_env(["a", "b"], decimation=4)
+    env.device = device
+    env.__dict__.update(env_attrs)
+    robot = env.scene["robot"]
+    applied = []
+    robot.data = SimpleNamespace(joint_pos=SimpleNamespace(torch=torch.full((NUM_ENVS, 2), 1.0, device=device)))
+    setattr(robot, setter, lambda *, target, joint_ids: applied.append(target.clone()))
+    options = {"interpolate": interpolate} if kind == "position" else {}
+    if kind != "effort":
+        options["use_default_offset"] = False
+    cfg = cfg_cls(asset_name="robot", joint_names=[".*"], chunk_length=chunk_length, **options)
+    return action_cls(cfg, env), applied
+
+
+# Per mode: the action kind, chunk_length, interpolate, and each action with the first joint's command on the four
+# physics steps.
+_CHUNK = [([2.0, 2.0, 4.0, 4.0], [2.0, 2.0, 4.0, 4.0]), ([5.0, 5.0, 7.0, 7.0], [5.0, 5.0, 7.0, 7.0])]
+_STEPS = {
+    # The default holds one command for the environment step, as before chunks.
+    "held": ("position", 1, False, [([2.0, 2.0], [2.0] * 4), ([4.0, 4.0], [4.0] * 4)]),
+    "chunk": ("position", 2, False, _CHUNK),
+    # From the joints at 1.0, then from the last target 3.0 rather than the joints, which a physics step may lag; the
+    # third action follows a reset, so it starts from the joints again.
+    "interpolate": (
+        "position",
+        2,
+        True,
+        [([3.0, 3.0], [2.0, 2.0, 3.0, 3.0]), ([5.0, 5.0], [4.0, 4.0, 5.0, 5.0]), ([3.0, 3.0], [2.0, 2.0, 3.0, 3.0])],
+    ),
+    # Velocity and effort commands chunk the same way.
+    "velocity chunk": ("velocity", 2, False, _CHUNK),
+    "effort chunk": ("effort", 2, False, _CHUNK),
+}
+
+
+@pytest.mark.parametrize("mode", _STEPS)
+def test_joint_actions_apply_their_commands_in_order_over_the_physics_steps(mode: str) -> None:
+    """Each of a chunk's commands holds for ``decimation / chunk_length`` physics steps; the next action restarts it."""
+    kind, chunk_length, interpolate, steps = _STEPS[mode]
+    action, applied = _joint_action(kind, chunk_length, interpolate)
+    assert action.action_dim == len(steps[0][0])
+    for i, (actions, expected) in enumerate(steps):
+        if i == 2:
+            action.reset()
+        applied.clear()
+        action.process_actions(torch.tensor([actions] * NUM_ENVS))
+        for _ in range(4):
+            action.apply_actions()
+        torch.testing.assert_close(torch.stack(applied)[:, 0, 0], torch.tensor(expected))
+    # Flat like every term's processed actions, so recorders can concatenate the terms.
+    assert action.processed_actions.shape == (NUM_ENVS, chunk_length * 2)
+
+
+def test_joint_actions_reject_chunks_they_cannot_apply() -> None:
+    """A chunk must divide the physics steps, and its commands need a backend that runs the actions between them."""
+    action, _ = _joint_action("position", chunk_length=2)
+    for chunk_length in (0, -2, 3):
+        with pytest.raises(ValueError, match="positive divisor"):
+            JointPositionAction(action.cfg.replace(chunk_length=chunk_length), action._env)
+    action, _ = _joint_action("effort", 2, _physics_handles_decimation=True, _physics_handles_actions=False)
+    with pytest.raises(RuntimeError, match="first command"):
+        action.apply_actions()
+    # A relative action adds itself to the joint positions on every physics step, so it has no chunk of targets.
+    relative = RelativeJointPositionActionCfg(asset_name="robot", joint_names=[".*"], chunk_length=2)
+    with pytest.raises(ValueError, match="chunk_length must be 1"):
+        RelativeJointPositionAction(relative, action._env)
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="needs CUDA")
+def test_joint_position_chunk_advances_when_replayed_from_a_cuda_graph() -> None:
+    """A backend records ``apply_actions`` once and replays it on every physics step."""
+    action, applied = _joint_action("position", chunk_length=2, device="cuda")
+    action.process_actions(torch.zeros(NUM_ENVS, 4, device="cuda"))
+    stream = torch.cuda.Stream()
+    with torch.cuda.stream(stream):
+        action.apply_actions()
+    torch.cuda.synchronize()
+    graph = torch.cuda.CUDAGraph()
+    with torch.cuda.graph(graph):
+        action.apply_actions()
+    target = applied[-1]
+    for actions, expected in _CHUNK:
+        action.process_actions(torch.tensor([actions] * NUM_ENVS, device="cuda"))
+        seen = []
+        for _ in range(4):
+            graph.replay()
+            seen.append(target[0, 0].item())
+        assert seen == expected
 
 
 def test_subclass_overriding_action_methods_does_not_inherit_is_graphable() -> None:

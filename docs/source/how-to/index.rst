@@ -216,6 +216,16 @@ How-to Guides
 
       .. container:: guide-entry
 
+         :doc:`Applying action chunks </source/how-to/action_chunks>`
+
+         Let a chunked policy act once per environment step through joint action terms.
+
+         .. container:: guide-metadata
+
+            :guide-tag-newton:`Newton`
+
+      .. container:: guide-entry
+
          :doc:`Creating a manager-based base environment </source/how-to/create_manager_base_env>`
 
          Build a non-RL environment from reusable manager terms.
