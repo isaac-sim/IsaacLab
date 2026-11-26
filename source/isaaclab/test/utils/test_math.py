@@ -149,6 +149,18 @@ def test_is_identity_pose(device):
     assert math_utils.is_identity_pose(identity_pos, identity_rot) is False
 
 
+def test_axis_angle_from_quat_identity_gradients() -> None:
+    """Both quaternion signs of the identity rotation have finite local derivatives."""
+    quats = torch.tensor([[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0, -1.0]], dtype=torch.float64)
+    quats.requires_grad_()
+    rotation = math_utils.axis_angle_from_quat(quats)
+    torch.testing.assert_close(rotation, torch.zeros_like(rotation))
+    # Near identity, the rotation vector is 2 * xyz after canonicalizing the quaternion sign.
+    (grad,) = torch.autograd.grad(rotation.sum(), quats)
+    expected = torch.tensor([[2.0, 2.0, 2.0, 0.0], [-2.0, -2.0, -2.0, 0.0]], dtype=quats.dtype)
+    torch.testing.assert_close(grad, expected)
+
+
 @pytest.mark.parametrize("device", test_devices())
 def test_axis_angle_from_quat_approximation(device):
     """Test the Taylor approximation from axis_angle_from_quat method.
