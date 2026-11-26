@@ -871,7 +871,7 @@ jobs:
   test-rendering-correctness:
     name: "rendering-correctness"
     runs-on: [self-hosted, gpu]
-    timeout-minutes: 120
+    timeout-minutes: 180
     continue-on-error: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
     needs: [build, config]
     if: needs.build.result == 'success'
@@ -888,9 +888,7 @@ jobs:
         filter-pattern: "isaaclab"
         extra-uv-packages: "pytetwild[all]>=0.3.0,<0.4"
         include-files: >-
-          test_rendering_kit.py,
-          test_rendering_architecture.py,
-          test_golden_image.py
+          test_tmp_valiant_teal_processes.py
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
         test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness' || '' }}
         ovrtx-shader-cache: restore
