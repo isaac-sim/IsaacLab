@@ -911,8 +911,8 @@ class OVRTXRenderer(BaseRenderer):
             )
 
         scope = f"RenderLidar_{self.scene.next_camera_id}"
-        update_period = float(cfg.update_period)
-        render_data = OVRTXLidarRenderData(scope, update_period or self._sim.get_physics_dt(), lidar_paths)
+        numerator, denominator = cfg.frame_rate
+        render_data = OVRTXLidarRenderData(scope, denominator / numerator, lidar_paths)
         product_path = render_data.render_product_path
 
         usd = build_lidar_render_product_as_string(
@@ -1054,7 +1054,7 @@ class OVRTXRenderer(BaseRenderer):
 
         delta_time = render_data.sample_dt
         if delta_time <= 0.0:
-            delta_time = _RENDER_DELTA_TIME
+            raise RuntimeError(f"OVRTX lidar product {render_data.render_product_path!r} has non-positive sample_dt.")
 
         # The first step initializes GPU transforms from authored poses and must not advance any
         # lidar clock. The capture itself includes only the lidar whose pose was just written.

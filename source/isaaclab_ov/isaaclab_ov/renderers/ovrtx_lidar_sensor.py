@@ -110,7 +110,7 @@ def spawn_lidar(prim_path: str, cfg: OVRTXLidarCfg) -> Usd.Prim:
     prim.CreateAttribute("omni:sensor:modelName", Sdf.ValueTypeNames.String).Set("LidarWpm")
     prim.CreateAttribute("cameraSensorType", Sdf.ValueTypeNames.Token).Set("lidar")
     prim.CreateAttribute("visibility", Sdf.ValueTypeNames.Token).Set("invisible")
-    prim.CreateAttribute("omni:sensor:frameRate", Sdf.ValueTypeNames.Double2).Set(Gf.Vec2d(10.0, 1.0))
+    prim.CreateAttribute("omni:sensor:frameRate", Sdf.ValueTypeNames.Double2).Set(Gf.Vec2d(*cfg.frame_rate))
 
     _author_wpm(prim, cfg)
 
@@ -293,7 +293,7 @@ class OVRTXLidar(SensorBase):
         the buffers dirty without filling ``_is_outdated``, so the empty mask is not a reason to
         keep the previous scan.
         """
-        if self.cfg.update_period > 0.0 and not self._force_capture and not bool(env_mask.numpy().any()):
+        if not self._force_capture and not bool(env_mask.numpy().any()):
             return
 
         self._push_renderer_pose()

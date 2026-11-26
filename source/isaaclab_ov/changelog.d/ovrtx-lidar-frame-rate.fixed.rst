@@ -1,0 +1,1 @@
+* Fixed OvRTX lidar captures that failed to map the point cloud when ``update_period`` was not one lidar frame. Each capture now advances the renderer by the ``frame_rate`` rational, and ``update_period`` no longer gates the scan.

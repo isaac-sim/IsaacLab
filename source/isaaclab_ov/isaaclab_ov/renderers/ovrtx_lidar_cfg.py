@@ -35,6 +35,9 @@ class OVRTXLidarCfg(LidarCfg):
     spawn: OVRTXLidarSpawnerCfg | None = OVRTXLidarSpawnerCfg()
     renderer_cfg: OVRTXRendererCfg = OVRTXRendererCfg(motion_bvh="auto")
 
+    frame_rate: tuple[float, float] = (10.0, 1.0)
+    """USD ``omni:sensor:frameRate`` rational ``(numerator, denominator)``. Defaults to ``(10.0, 1.0)``."""
+
     scan_type: Literal["rotary", "solidState"] = "rotary"
     """USD ``scanType`` token. Defaults to ``rotary``.
 
@@ -130,6 +133,18 @@ class OVRTXLidarCfg(LidarCfg):
 
         if self.far_range_m <= 0.0:
             raise ValueError(f"Lidar far_range_m must be positive, got {self.far_range_m}.")
+
+        numerator, denominator = self.frame_rate if len(self.frame_rate) == 2 else (None, None)
+        if (
+            numerator is None
+            or not math.isfinite(numerator)
+            or not math.isfinite(denominator)
+            or numerator <= 0.0
+            or denominator <= 0.0
+        ):
+            raise ValueError(
+                f"Lidar frame_rate must be a finite, positive (numerator, denominator) pair, got {self.frame_rate}."
+            )
 
         if any(time < 0 for time in self.fire_time_ns):
             raise ValueError("Lidar fire_time_ns values cannot be negative.")
