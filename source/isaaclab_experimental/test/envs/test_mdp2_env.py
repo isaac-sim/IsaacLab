@@ -611,6 +611,32 @@ def test_env_runs_the_tasks_of_a_sequence_in_turn_and_logs_their_progress():
         env.close()
 
 
+def test_progress_is_logged_over_the_episodes_that_ran():
+    """Under an episode budget of one episode, the progress of each task is logged over that episode, not over every
+    world, most of which finished none."""
+
+    def stage(steps: int) -> mdp2.TaskCfg:
+        ready = mdp2.Quantity(after_steps, inputs={"episode_length": mdp2.episode_length}, params={"steps": steps})
+        return mdp2.TaskCfg(quantities={"ready": ready}, done=mdp2.quantities.ready)
+
+    cfg = cartpole_cfg()
+    cfg.task.terminations["cart_out_of_bounds"] = None
+    cfg.task = mdp2.compose(cfg.task, mdp2.sequence(warm=stage(3), hold=stage(6)))
+    cfg.episode_budget = 1
+    env = MDP2RLEnv(cfg)
+    try:
+        env.reset()
+        for _ in range(2 * env.max_episode_length):
+            _, _, _, _, extras = env.step(torch.zeros(NUM_ENVS, 1, device=env.device))
+            if env.episodes_completed:
+                break
+        assert env.episodes_completed == 1
+        log = extras["log"]
+        assert log["Progress/warm"] == 1.0 and log["Progress/hold"] == 1.0 and log["Progress/task"] == 1.0
+    finally:
+        env.close()
+
+
 def test_verify_capture_finds_python_state_that_the_graph_freezes():
     """The debug check passes a task whose captured steps are exact, and names a stage whose Python-side state the
     graph froze at capture."""

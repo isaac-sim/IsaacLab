@@ -33,5 +33,5 @@
 * Changed :class:`~isaaclab_experimental.envs.MDP2RLEnv` to keep its episode statistics in one generated kernel
   inside the captured step, instead of about 15 Torch operations per step, and to sum them once per step for
   ``extras["log"]``: about 15 to 35 µs less per step at 4,096 worlds. Without a time limit, rewards are logged per
-  second of each episode rather than as zero, and a choice's tasks are averaged over the finished episodes that drew
-  them.
+  second of each episode rather than as zero, and the progress of a task is averaged over the finished episodes that
+  ran it, such as those that drew a task of a choice, rather than over every world.

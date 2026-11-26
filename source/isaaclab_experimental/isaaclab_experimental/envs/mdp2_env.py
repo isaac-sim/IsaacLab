@@ -638,24 +638,24 @@ class MDP2RLEnv(MDP2Env, gym.Env):
                 array = argument(value, wp.array(dtype=value.warp.dtype))
                 names.append(f"Metrics/{op.name.split('.', 1)[1]}")
                 columns.append(f"wp.where({member(op.worlds)}, float({array}[world]) * {share(op.worlds)!r}, 0.0)")
-        # Progress, over the worlds of the world configs that have each task, and for a task of a choice over those
-        # that drew it: such a task keeps a second column, of the worlds that ran it, to divide by.
+        # Progress, over the last episodes that ran each task: in the worlds of the world configs that have it, and for
+        # a task of a choice in those that drew it. Each task keeps a second column, of the worlds that ran it, to
+        # divide by, so that worlds without a finished episode, such as under an episode budget, do not count.
         paths = list(dict.fromkeys(path for tree in self.mdp.tasks for path in sorted(tree.completes)))
         drawn = {node.path for tree in self.mdp.tasks for node in tree.nodes if tree.drawn(node)}
-        ratios: list[tuple[int, int]] = []  # Columns of the tasks of a choice: (done, ran)
+        ratios: list[tuple[int, int]] = []  # Columns of the tasks: (done, ran)
         for path in paths:
             worlds = [w for tree in self.mdp.tasks if path in tree.completes for w in tree.worlds]
             worlds = None if len(worlds) == n else worlds
             done = argument(self.state.arrays[mdp2.progress_field(path, "done")], wp.array(dtype=wp.bool))
             names.append(f"Progress/{path or 'task'}")
+            ran = member(worlds)
             if path in drawn:
                 active = argument(self.state.arrays[mdp2.progress_field(path, "active")], wp.array(dtype=wp.bool))
-                ran = f"({member(worlds)} and {active}[world])"
-                columns.append(f"wp.where({ran} and {done}[world], 1.0, 0.0)")
-                ratios.append((len(columns) - 1, len(columns)))
-                columns.append(f"wp.where({ran}, 1.0, 0.0)")
-            else:
-                columns.append(f"wp.where({member(worlds)} and {done}[world], {share(worlds)!r}, 0.0)")
+                ran = f"({ran} and {active}[world])"
+            columns.append(f"wp.where({ran} and {done}[world], 1.0, 0.0)")
+            ratios.append((len(columns) - 1, len(columns)))
+            columns.append(f"wp.where({ran}, 1.0, 0.0)")
 
         self._log_names = names
         self._last_episodes = torch.zeros(len(columns), n, device=device)
