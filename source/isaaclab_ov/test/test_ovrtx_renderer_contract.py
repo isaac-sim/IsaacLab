@@ -7,12 +7,13 @@
 
 import contextlib
 import ctypes
+import functools
 import importlib.util
 import logging
 import sys
 import types
 from builtins import ExceptionGroup
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import Literal
 from unittest.mock import MagicMock, call
 
@@ -595,10 +596,13 @@ _FAILED_FRAME = (
 
 
 def _add_search_camera(
-    monkeypatch, renderer: OVRTXRenderer, name: str, num_envs: int, max_envs: int | Literal["auto", "all"], width: int
+    renderer: OVRTXRenderer, name: str, num_envs: int, max_envs: int | Literal["auto", "all"], width: int
 ):
-    """Register one square ``rgb`` sensor of ``num_envs`` environments with ``renderer``."""
-    monkeypatch.setenv(_MAX_ENVS_PER_RENDER_PRODUCT_ENV, str(max_envs))
+    """Register one square ``rgb`` sensor of ``num_envs`` environments with ``renderer``.
+
+    The renderer reads the variable once, so the test gives each sensor its own value of ``max_envs``.
+    """
+    renderer._max_envs_per_render_product = max_envs
     cfg = _make_camera_cfg(["rgb"])
     cfg.prim_path = f"/World/envs/env_.*/{name}"
     cfg.width = cfg.height = width
@@ -622,7 +626,7 @@ def _make_search_cameras(
         lambda *args, **kwargs: build(*args, **{**kwargs, "device_id": 0}),
     )
     return renderer, [
-        _add_search_camera(monkeypatch, renderer, f"cam{index}", num_envs, max_envs, width)
+        _add_search_camera(renderer, f"cam{index}", num_envs, max_envs, width)
         for index, (max_envs, width) in enumerate(cameras)
     ]
 
@@ -725,7 +729,7 @@ def test_ovrtx_render_batch_halves_envs_per_render_product_while_the_first_frame
         # A camera sensor that registers now first waits for the pending frame. Its error raises before the scene
         # changes.
         with pytest.raises(ExceptionGroup, match="before the renderer added the render products") as group:
-            _add_search_camera(monkeypatch, renderer, "late", 5, "auto", 64)
+            _add_search_camera(renderer, "late", 5, "auto", 64)
         (failure,) = group.value.exceptions
         assert "failed to produce a frame" in str(failure)
         camera.pending = camera.ready = None
@@ -768,7 +772,6 @@ def test_ovrtx_render_batch_stops_the_split_search_after_the_last_smaller_layout
     num_smaller = len(products_per_step) - 1
     assert "The automatic search (ISAAC_LAB_OVRTX_MAX_ENVS_PER_RENDER_PRODUCT=auto, the default)" in note
     assert f"the default) tried {num_smaller} smaller group size(s)" in note
-    assert ("stops after 4 tries" if num_smaller == 4 else "No camera sensor could be halved any further") in note
     assert renderer.cfg.log_file_path in note
     # The note lists the last group size that failed, which is the value to go below. One environment is no group.
     last_group = num_envs // 2**num_smaller
@@ -778,14 +781,14 @@ def test_ovrtx_render_batch_stops_the_split_search_after_the_last_smaller_layout
     )
     assert (entry in note) == (last_group > 1)
 
-    # The camera left the steps. A later render batch raises at once and steps nothing. Its error points at the
-    # groups that the note names.
+    # The camera left the steps. A later render batch raises at once and steps nothing. Its cause carries the note
+    # with the groups.
     assert camera not in renderer.backend.unrendered
     assert renderer.backend.render_products == set()
-    hint = "renders no frames.*to an integer below the groups that the error above names"
-    with pytest.raises(RuntimeError, match=hint) as later:
+    with pytest.raises(RuntimeError, match="renders no frames") as later:
         renderer.render_batch([camera])
     assert later.value.__cause__ is error.value
+    assert later.value.__cause__.__notes__ == [note]
     assert [len(products) for products in submissions] == products_per_step
     _assert_no_product_stepped_twice(submissions)
     assert not caplog.records
@@ -862,13 +865,11 @@ def test_ovrtx_split_search_retires_every_failed_product_before_a_scene_write(mo
     assert renderer.backend.render_products == set().union(*(c.render_product_paths for c in cameras[:written]))
     assert not renderer.backend.render_products & failed
     assert list(renderer.backend.unrendered) == cameras[:written]
-    # A later render batch raises at once and steps nothing. The scene write error names no groups of environments,
-    # so the error has no integer hint.
+    # A later render batch raises at once and steps nothing.
     steps = len(submissions)
     with pytest.raises(RuntimeError, match="renders no frames") as later:
         renderer.render_batch(cameras)
     assert later.value.__cause__ is error.value
-    assert "ISAAC_LAB_OVRTX_MAX_ENVS_PER_RENDER_PRODUCT" not in str(later.value)
     assert len(submissions) == steps
 
 
@@ -963,7 +964,12 @@ def _plan_sensor(*num_envs: int, searches_split: bool = True, spp: int = 1) -> t
     products = [types.SimpleNamespace(num_envs=count, num_cols=count, num_rows=1) for count in num_envs]
     cfg = types.SimpleNamespace(render_settings={"omni:rtx:rtpt:spp": ("Int", spp)})
     return types.SimpleNamespace(
-        searches_split=searches_split, products=products, width=64, height=64, spec=types.SimpleNamespace(cfg=cfg)
+        searches_split=searches_split,
+        products=products,
+        num_envs_per_render_product=num_envs[0],
+        width=64,
+        height=64,
+        spec=types.SimpleNamespace(cfg=cfg),
     )
 
 
@@ -1050,14 +1056,20 @@ def test_ovrtx_split_search_halves_the_sensor_with_the_largest_buffer_first(
     assert len(caplog.records) == len(too_large)
 
 
-def test_ovrtx_split_search_covers_every_renderer_of_a_shared_engine(monkeypatch):
-    """One step renders the products of every renderer on the engine, so the search can halve another one's sensor."""
-    renderer, (small,) = _make_search_cameras(monkeypatch, True, 16, [("auto", 32)])
-    other = OVRTXRenderer(OVRTXRendererCfg(enable_shadows=True), sim=SimulationContext.instance())
+def _add_renderer_on_shared_engine(renderer: OVRTXRenderer, cfg: "OVRTXRendererCfg | None" = None) -> OVRTXRenderer:
+    """Return a second renderer on the backend of ``renderer``, ready to register CPU sensors on the ovstage path."""
+    other = OVRTXRenderer(cfg or OVRTXRendererCfg(), sim=SimulationContext.instance())
     other.backend = other.scene = renderer.backend
     other._device = "cpu"
     other._use_ovstage = other._initialized_scene = True
-    large = _add_search_camera(monkeypatch, other, "large", 16, "auto", 64)
+    return other
+
+
+def test_ovrtx_split_search_covers_every_renderer_of_a_shared_engine(monkeypatch):
+    """One step renders the products of every renderer on the engine, so the search can halve another one's sensor."""
+    renderer, (small,) = _make_search_cameras(monkeypatch, True, 16, [("auto", 32)])
+    other = _add_renderer_on_shared_engine(renderer, OVRTXRendererCfg(enable_shadows=True))
+    large = _add_search_camera(other, "large", 16, "auto", 64)
     shadows = {}
     build = ovrtx_renderer_module.build_render_product_as_string
 
@@ -1084,11 +1096,8 @@ def test_ovrtx_failed_frame_note_names_the_sensors_of_every_renderer_of_a_shared
     the other renderers without a frame, after the sensors of this renderer.
     """
     renderer, (small,) = _make_search_cameras(monkeypatch, True, 64, [("all", 32)])
-    other = OVRTXRenderer(OVRTXRendererCfg(), sim=SimulationContext.instance())
-    other.backend = other.scene = renderer.backend
-    other._device = "cpu"
-    other._use_ovstage = other._initialized_scene = True
-    large = _add_search_camera(monkeypatch, other, "large", 64, "auto", 64)
+    other = _add_renderer_on_shared_engine(renderer)
+    large = _add_search_camera(other, "large", 64, "auto", 64)
     _install_step(renderer, lambda products: True)
 
     with pytest.raises(RuntimeError, match="failed to produce a frame") as error:
@@ -1436,10 +1445,10 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, capfd, use
                 ["rgb", "distance_to_image_plane"] if index == 0 else ["rgb", "distance_to_image_plane", "normals"]
             )
             cfg.height, cfg.width = height, width
-            # One environment per render product splits the second camera in the asynchronous rows. The renderer
-            # reads this variable when it registers the camera.
+            # One environment per render product splits the second camera in the asynchronous rows. The test gives
+            # each sensor its own value.
             split = asynchronous and index == 1
-            monkeypatch.setenv(_MAX_ENVS_PER_RENDER_PRODUCT_ENV, "1" if split else "auto")
+            renderer._max_envs_per_render_product = 1 if split else "auto"
             spec = CameraRenderSpec(
                 cfg=cfg,
                 device="cuda:0",
@@ -1604,6 +1613,79 @@ def _segmentation_key(pixel: torch.Tensor) -> int | tuple[int, ...]:
     return int(pixel[0]) if pixel.numel() == 1 else tuple(pixel.tolist())
 
 
+def _make_live_scene(env_template: str, num_envs: int, num_env_xforms: int, cfg: OVRTXRendererCfg):
+    """Return an in-memory stage and a renderer on the GPU with a clone plan of ``num_envs`` environments.
+
+    The stage has a dome light and the environment roots ``env_template.format(0)`` to ``num_env_xforms - 1``. The
+    caller adds the prims of the first environment and calls ``prepare_stage``.
+    """
+    from pxr import Usd, UsdGeom, UsdLux
+
+    from isaaclab.cloner import make_clone_plan, replicate
+    from isaaclab.scene_data import SceneDataProvider
+
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
+    UsdGeom.SetStageMetersPerUnit(stage, 1.0)
+    UsdLux.DomeLight.Define(stage, "/World/Light").CreateIntensityAttr(1000.0)
+    for index in range(num_env_xforms):
+        UsdGeom.Xform.Define(stage, env_template.format(index))
+    renderer = SimulationContext.instance().get_or_create_backend(cfg)
+    renderer._sdp = SceneDataProvider(
+        types.SimpleNamespace(transform_paths=[], geometry_timestamp=0, get_geometry_batches=lambda _format: [])
+    )
+    plan = make_clone_plan(
+        (AssetBaseCfg(prim_path=env_template.format("[^/]+"), cloning_contexts=renderer.cfg.cloning_contexts),),
+        ((0,),),
+        num_envs,
+        positions=np.zeros((num_envs, 3), dtype=np.float32),
+        env_template=env_template,
+    )
+    SimulationContext.instance().plan = plan
+    replicate(plan)
+    return stage, renderer
+
+
+def _add_live_camera(
+    renderer: OVRTXRenderer, camera_cfg: CameraCfg, camera_prim_paths: tuple[str, ...], positions: torch.Tensor
+) -> tuple[OVRTXCameraRenderData, CameraData]:
+    """Register a camera sensor of ``camera_cfg`` with ``renderer``, with output buffers and one pose per environment.
+
+    Each camera is at its row of ``positions`` and looks down the z axis, which is the identity orientation of the
+    OpenGL convention.
+    """
+    from isaaclab.utils.math import convert_camera_frame_orientation_convention
+
+    num_envs = len(positions)
+    spec = CameraRenderSpec(
+        cfg=camera_cfg,
+        device="cuda:0",
+        num_instances=num_envs,
+        view_count=num_envs,
+        camera_prim_paths=camera_prim_paths,
+    )
+    render_data = renderer.create_render_data(spec)
+    data = CameraData.allocate(
+        data_types=camera_cfg.data_types,
+        height=camera_cfg.height,
+        width=camera_cfg.width,
+        num_views=num_envs,
+        device="cuda:0",
+        supported_specs=renderer.supported_output_types(),
+    )
+    renderer.set_outputs(render_data, data.output)
+    quats = convert_camera_frame_orientation_convention(
+        torch.tensor([[0.0, 0, 0, 1.0]] * num_envs, device="cuda:0"), origin="opengl", target="world"
+    )
+    renderer.update_camera(
+        render_data,
+        ProxyArray(wp.from_torch(positions, dtype=wp.vec3f)),
+        ProxyArray(wp.from_torch(quats, dtype=wp.quatf)),
+        None,
+    )
+    return render_data, data
+
+
 @pytest.mark.integration
 @pytest.mark.rendering
 @pytest.mark.parametrize(
@@ -1622,12 +1704,9 @@ def test_ovrtx_split_sensor_outputs_match_single_product(
     import ovrtx
     import ovstage
 
-    from pxr import Gf, Usd, UsdGeom, UsdLux
+    from pxr import Gf, UsdGeom
 
-    from isaaclab.cloner import make_clone_plan, replicate
-    from isaaclab.scene_data import SceneDataProvider
     from isaaclab.sim import add_labels
-    from isaaclab.utils.math import convert_camera_frame_orientation_convention
 
     if not torch.cuda.is_available():
         pytest.skip("OVRTX rendering requires CUDA")
@@ -1635,12 +1714,10 @@ def test_ovrtx_split_sensor_outputs_match_single_product(
     SimulationContext.instance().device = "cuda:0"
     monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", str(int(use_ovstage)))
     env_template = "/Lab/Cells/Cell{}" if use_ovstage else "/World/envs/env_{}"
-    stage = Usd.Stage.CreateInMemory()
-    UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
-    UsdGeom.SetStageMetersPerUnit(stage, 1.0)
-    UsdLux.DomeLight.Define(stage, "/World/Light").CreateIntensityAttr(1000.0)
-    for index in range(1 if use_ovstage else num_envs):
-        UsdGeom.Xform.Define(stage, env_template.format(index))
+    cfg = OVRTXRendererCfg(
+        colorize_semantic_segmentation=colorize_semantic, colorize_instance_segmentation=colorize_instance
+    )
+    stage, renderer = _make_live_scene(env_template, num_envs, 1 if use_ovstage else num_envs, cfg)
     # A render product has at most one simple shading type, and simple shading excludes rgb. So each simple shading
     # type needs a camera kind of its own.
     camera_kinds = [
@@ -1687,66 +1764,22 @@ def test_ovrtx_split_sensor_outputs_match_single_product(
 
     # Both the legacy and the ovstage path render each frame with step.
     monkeypatch.setattr(ovrtx.Renderer, "step", record_products(ovrtx.Renderer.step))
-    cfg = OVRTXRendererCfg(
-        colorize_semantic_segmentation=colorize_semantic, colorize_instance_segmentation=colorize_instance
-    )
-    renderer = SimulationContext.instance().get_or_create_backend(cfg)
-    renderer._sdp = SceneDataProvider(
-        types.SimpleNamespace(transform_paths=[], geometry_timestamp=0, get_geometry_batches=lambda _format: [])
-    )
-    plan = make_clone_plan(
-        (AssetBaseCfg(prim_path=env_template.format("[^/]+"), cloning_contexts=renderer.cfg.cloning_contexts),),
-        ((0,),),
-        num_envs,
-        positions=np.zeros((num_envs, 3), dtype=np.float32),
-        env_template=env_template,
-    )
-    SimulationContext.instance().plan = plan
-    replicate(plan)
 
     positions = torch.tensor(_SPLIT_CAMERA_POSITIONS, device="cuda:0")
-    # The identity orientation of the OpenGL convention looks down the z axis, at the cubes.
-    quats = convert_camera_frame_orientation_convention(
-        torch.tensor([[0.0, 0, 0, 1.0]] * num_envs, device="cuda:0"), origin="opengl", target="world"
-    )
     # The center pixel of each camera sees the top of a cube on the ground.
     center = _SPLIT_IMAGE_SIZE // 2
     expected_depth = positions[:, 2] - _SPLIT_CUBE_SIZE / 2
     cameras = []
 
     def add_camera(data_types, max_envs):
-        # The renderer reads the variable when it registers a sensor. One renderer start costs seconds, so the
-        # sensors share one renderer and each sensor gets its own value.
-        monkeypatch.setenv(_MAX_ENVS_PER_RENDER_PRODUCT_ENV, str(max_envs))
+        # One renderer start costs seconds, so the sensors share one renderer and the test gives each sensor its own
+        # value.
+        renderer._max_envs_per_render_product = max_envs
         camera_cfg = _make_camera_cfg(data_types)
         camera_cfg.height = camera_cfg.width = _SPLIT_IMAGE_SIZE
-        spec = CameraRenderSpec(
-            cfg=camera_cfg,
-            device="cuda:0",
-            num_instances=num_envs,
-            view_count=num_envs,
-            camera_prim_paths=tuple(
-                env_template.format(i) + f"/cam{len(cameras)}" for i in range(1 if use_ovstage else num_envs)
-            ),
-        )
-        rd = renderer.create_render_data(spec)
-        data = CameraData.allocate(
-            data_types=data_types,
-            height=_SPLIT_IMAGE_SIZE,
-            width=_SPLIT_IMAGE_SIZE,
-            num_views=num_envs,
-            device="cuda:0",
-            supported_specs=renderer.supported_output_types(),
-        )
-        renderer.set_outputs(rd, data.output)
-        renderer.update_camera(
-            rd,
-            ProxyArray(wp.from_torch(positions, dtype=wp.vec3f)),
-            ProxyArray(wp.from_torch(quats, dtype=wp.quatf)),
-            None,
-        )
-        cameras.append((rd, data))
-        return rd, data
+        paths = tuple(env_template.format(i) + f"/cam{len(cameras)}" for i in range(1 if use_ovstage else num_envs))
+        cameras.append(_add_live_camera(renderer, camera_cfg, paths, positions))
+        return cameras[-1]
 
     def render(sensors):
         renderer.render_batch([rd for rd, _ in sensors])
@@ -1885,11 +1918,7 @@ def test_ovrtx_split_search_recovers_from_a_real_failed_frame(monkeypatch, caplo
     """A real failed first frame of OVRTX starts the search, so the error text of OVRTX still matches."""
     import ovrtx
 
-    from pxr import Gf, Usd, UsdGeom, UsdLux
-
-    from isaaclab.cloner import make_clone_plan, replicate
-    from isaaclab.scene_data import SceneDataProvider
-    from isaaclab.utils.math import convert_camera_frame_orientation_convention
+    from pxr import Gf, UsdGeom
 
     if not torch.cuda.is_available():
         pytest.skip("OVRTX rendering requires CUDA")
@@ -1899,12 +1928,7 @@ def test_ovrtx_split_search_recovers_from_a_real_failed_frame(monkeypatch, caplo
     num_envs, image_size, spp = 4, 1024, 40
     SimulationContext.instance().device = device
     env_template = "/World/envs/env_{}"
-    stage = Usd.Stage.CreateInMemory()
-    UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
-    UsdGeom.SetStageMetersPerUnit(stage, 1.0)
-    UsdLux.DomeLight.Define(stage, "/World/Light").CreateIntensityAttr(1000.0)
-    for index in range(num_envs):
-        UsdGeom.Xform.Define(stage, env_template.format(index))
+    stage, renderer = _make_live_scene(env_template, num_envs, num_envs, OVRTXRendererCfg())
     UsdGeom.Camera.Define(stage, env_template.format(0) + "/cam0").AddTranslateOp().Set(Gf.Vec3d(0, 0, 5))
     UsdGeom.Cube.Define(stage, env_template.format(0) + "/cube").CreateSizeAttr(_SPLIT_CUBE_SIZE)
 
@@ -1919,50 +1943,14 @@ def test_ovrtx_split_search_recovers_from_a_real_failed_frame(monkeypatch, caplo
             raise
 
     monkeypatch.setattr(ovrtx.Renderer, "step", recording_step)
-    renderer = SimulationContext.instance().get_or_create_backend(OVRTXRendererCfg())
-    renderer._sdp = SceneDataProvider(
-        types.SimpleNamespace(transform_paths=[], geometry_timestamp=0, get_geometry_batches=lambda _format: [])
-    )
-    plan = make_clone_plan(
-        (AssetBaseCfg(prim_path=env_template.format("[^/]+"), cloning_contexts=renderer.cfg.cloning_contexts),),
-        ((0,),),
-        num_envs,
-        positions=np.zeros((num_envs, 3), dtype=np.float32),
-        env_template=env_template,
-    )
-    SimulationContext.instance().plan = plan
-    replicate(plan)
     try:
         renderer.prepare_stage(stage, num_envs)
         camera_cfg = _make_camera_cfg(["rgb"])
         camera_cfg.height = camera_cfg.width = image_size
         camera_cfg.render_settings = {"omni:rtx:rtpt:spp": ("Int", spp), "omni:rtx:post:aa:op": ("Token", "rtxaa")}
-        spec = CameraRenderSpec(
-            cfg=camera_cfg,
-            device=device,
-            num_instances=num_envs,
-            view_count=num_envs,
-            camera_prim_paths=tuple(env_template.format(i) + "/cam0" for i in range(num_envs)),
-        )
-        rd = renderer.create_render_data(spec)
-        data = CameraData.allocate(
-            data_types=["rgb"],
-            height=image_size,
-            width=image_size,
-            num_views=num_envs,
-            device=device,
-            supported_specs=renderer.supported_output_types(),
-        )
-        renderer.set_outputs(rd, data.output)
         positions = torch.tensor([[0.0, 0.0, 5.0]] * num_envs, device=device)
-        quats = convert_camera_frame_orientation_convention(
-            torch.tensor([[0.0, 0, 0, 1.0]] * num_envs, device=device), origin="opengl", target="world"
-        )
-        renderer.update_camera(
-            rd,
-            ProxyArray(wp.from_torch(positions, dtype=wp.vec3f)),
-            ProxyArray(wp.from_torch(quats, dtype=wp.quatf)),
-            None,
+        rd, data = _add_live_camera(
+            renderer, camera_cfg, tuple(env_template.format(i) + "/cam0" for i in range(num_envs)), positions
         )
 
         with caplog.at_level(logging.WARNING):
@@ -2144,6 +2132,15 @@ def test_ovrtx_process_frame_routes_hdr_to_output_device(monkeypatch, source_dev
         clone.assert_called_once_with(source, device="cpu")
 
 
+def _tiled_image(num_rows: int, num_cols: int, values: Sequence[int], dtype, channels: int) -> wp.array:
+    """Return a CPU tiled image of 8 x 16 pixel tiles, with ``values[k]`` in every pixel and channel of tile ``k``."""
+    image = np.zeros((num_rows * 8, num_cols * 16, channels), dtype=wp.dtype_to_numpy(dtype))
+    for index, value in enumerate(values):
+        row, col = divmod(index, num_cols)
+        image[row * 8 : (row + 1) * 8, col * 16 : (col + 1) * 16] = value
+    return wp.array(image, dtype=dtype, device="cpu")
+
+
 @pytest.mark.parametrize("use_ovstage", [False, True])
 def test_ovrtx_process_frame_reads_authored_camera_render_vars(monkeypatch, use_ovstage):
     """Both OVRTX APIs extract each camera's outputs using keys from its authored USD."""
@@ -2178,13 +2175,6 @@ def test_ovrtx_process_frame_reads_authored_camera_render_vars(monkeypatch, use_
         "depth": ("DistanceToImagePlaneSD", 1, wp.float32),
     }
 
-    def tiled(values, channels, dtype):
-        tiled_image = np.zeros((2 * 8, 3 * 16, channels), dtype=wp.dtype_to_numpy(dtype))
-        for env, value in enumerate(values):
-            row, col = divmod(env, 3)
-            tiled_image[row * 8 : (row + 1) * 8, col * 16 : (col + 1) * 16] = value
-        return wp.array(tiled_image, dtype=dtype, device="cpu")
-
     for camera_id in range(2):
         cfg = _make_camera_cfg(list(outputs))
         render_data = renderer.create_render_data(
@@ -2196,7 +2186,8 @@ def test_ovrtx_process_frame_reads_authored_camera_render_vars(monkeypatch, use_
                 camera_prim_paths=[f"/World/envs/env_{i}/cam{camera_id}" for i in range(num_envs)],
             )
         )
-        stage = stages[_single_render_product(render_data).path]
+        product = _single_render_product(render_data)
+        stage = stages[product.path]
         keys = {
             prim.GetAttribute("sourceName").Get(): str(prim.GetPath())
             for prim in stage.Traverse()
@@ -2207,18 +2198,21 @@ def test_ovrtx_process_frame_reads_authored_camera_render_vars(monkeypatch, use_
         expected = {}
         for index, (output, (source, channels, dtype)) in enumerate(outputs.items(), start=1):
             expected[output] = [10 * camera_id + index + 20 * env for env in range(num_envs)]
-            frame.render_vars[keys[source]] = tiled(expected[output], channels, dtype)
+            frame.render_vars[keys[source]] = _tiled_image(
+                product.num_rows, product.num_cols, expected[output], dtype, channels
+            )
             buffers[output] = wp.zeros((num_envs, 8, 16, channels), dtype=dtype, device="cpu")
         frames = [frame]
         if camera_id == 1:
             generated = types.SimpleNamespace(
-                end_time=0.5, render_vars={keys["LdrColor"]: tiled([99] * num_envs, 4, wp.uint8)}
+                end_time=0.5,
+                render_vars={
+                    keys["LdrColor"]: _tiled_image(product.num_rows, product.num_cols, [99] * num_envs, wp.uint8, 4)
+                },
             )
             frames.insert(0, generated)
         render_data.warp_buffers = buffers
-        renderer._process_render_products(
-            (render_data,), {_single_render_product(render_data).path: types.SimpleNamespace(frames=frames)}
-        )
+        renderer._process_render_products((render_data,), {product.path: types.SimpleNamespace(frames=frames)})
         for output, values in expected.items():
             for env, value in enumerate(values):
                 np.testing.assert_array_equal(buffers[output].numpy()[env], value)
@@ -2240,7 +2234,7 @@ def test_ovrtx_process_frame_writes_each_render_product_into_its_environment_ran
     )
     monkeypatch.setattr(renderer, "_map_render_var_to_dlpack", contextlib.nullcontext)
 
-    monkeypatch.setenv(_MAX_ENVS_PER_RENDER_PRODUCT_ENV, "3")
+    renderer._max_envs_per_render_product = 3
     cfg = _make_camera_cfg(["rgba", "depth", "semantic_segmentation"])
     render_data = renderer.create_render_data(CameraRenderSpec(cfg, "cpu", num_envs, tuple(camera_paths), num_envs))
     paths = render_data.render_product_paths
@@ -2264,26 +2258,23 @@ def test_ovrtx_process_frame_writes_each_render_product_into_its_environment_ran
         render_var.map.side_effect = lambda **kwargs: contextlib.nullcontext(encoded)
         return render_var
 
-    def tiled(product, dtype, channels):
-        tiled_image = np.zeros((product.num_rows * 8, product.num_cols * 16, channels), dtype=wp.dtype_to_numpy(dtype))
-        for index in range(product.num_envs):
-            row, col = divmod(index, product.num_cols)
-            tiled_image[row * 8 : (row + 1) * 8, col * 16 : (col + 1) * 16] = 10 + product.env_offset + index
-        return wp.array(tiled_image, dtype=dtype, device="cpu")
-
     keys = render_data.render_var_keys
     entries = [((2, 0, 0, 0), "class: label2;"), ((3, 0, 0, 0), "class: label3;")]
-    frames = [
-        types.SimpleNamespace(
-            render_vars={
-                keys["LdrColor"]: tiled(product, wp.uint8, 4),
-                keys["DistanceToImagePlaneSD"]: tiled(product, wp.float32, 1),
-                keys["SemanticSegmentation"]: tiled(product, wp.uint32, 1),
-                keys["SemanticIdMap"]: semantic_map(entries),
-            }
+    frames = []
+    for product in render_data.products:
+        # Every pixel of an environment holds its index plus 10.
+        values = range(10 + product.env_offset, 10 + product.env_offset + product.num_envs)
+        tiled = functools.partial(_tiled_image, product.num_rows, product.num_cols, values)
+        frames.append(
+            types.SimpleNamespace(
+                render_vars={
+                    keys["LdrColor"]: tiled(wp.uint8, 4),
+                    keys["DistanceToImagePlaneSD"]: tiled(wp.float32, 1),
+                    keys["SemanticSegmentation"]: tiled(wp.uint32, 1),
+                    keys["SemanticIdMap"]: semantic_map(entries),
+                }
+            )
         )
-        for product in render_data.products
-    ]
     buffers = render_data.warp_buffers = {
         "rgba": wp.full((num_envs, 8, 16, 4), untouched, dtype=wp.uint8, device="cpu"),
         "depth": wp.full((num_envs, 8, 16, 1), untouched, dtype=wp.float32, device="cpu"),

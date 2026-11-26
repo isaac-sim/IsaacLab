@@ -134,9 +134,6 @@ _FAILED_FRAME_NOTE = (
     " A render product renders the images of a group of environments."
 )
 _OTHER_FIXES = "A smaller image size, fewer path-tracing samples per pixel or fewer environments can avoid the failure."
-_INTEGER_HINT = (
-    "Set ISAAC_LAB_OVRTX_MAX_ENVS_PER_RENDER_PRODUCT to an integer below the groups that the error above names."
-)
 _MAX_SMALLER_LAYOUTS = 4
 _PER_PRODUCT_ATTRIBUTES = frozenset({"camera", "orderedVars", "resolution", "usd-path"})
 _GPU_CAMERA_TRANSFORMS_ATTRIBUTE = "omni:rtx:scene:hydra:readGPUCameraTransformsFromFabricInRenderDelegate"
@@ -207,8 +204,8 @@ _MAX_ENVS_PER_RENDER_PRODUCT_ENV = "ISAAC_LAB_OVRTX_MAX_ENVS_PER_RENDER_PRODUCT"
 def _max_envs_per_render_product() -> int | Literal["auto", "all"]:
     """Return the maximum number of environments in one render product of a camera sensor.
 
-    The environment variable :data:`_MAX_ENVS_PER_RENDER_PRODUCT_ENV` sets it. The renderer checks it when it is
-    constructed and reads it when a camera sensor registers. A lidar sensor ignores it.
+    The environment variable :data:`_MAX_ENVS_PER_RENDER_PRODUCT_ENV` sets it. The renderer reads it once when it is
+    constructed. A lidar sensor ignores it.
 
     - Unset, empty or ``auto``: One render product, and smaller groups of environments after a failed first frame.
     - ``all``: Always one render product.
@@ -395,14 +392,13 @@ def _plan_split(cameras: Sequence[OVRTXCameraRenderData], error: RuntimeError, n
     # OVRTX reports a failed frame only in its error text, so the search runs only on that text.
     if _FAILED_FRAME_TEXT not in str(error):
         return _SplitPlan()
-    # The first render product of a sensor has the most environments.
-    candidates = [data for data in cameras if data.searches_split and data.products[0].num_envs > 1]
+    candidates = [data for data in cameras if data.searches_split and data.num_envs_per_render_product > 1]
     halved = max(candidates, key=_split_priority) if candidates and num_smaller_layouts < _MAX_SMALLER_LAYOUTS else None
 
     def next_max_envs(data: OVRTXCameraRenderData) -> int | None:
         if halved is None and data.searches_split:
             return None
-        num_envs = data.products[0].num_envs
+        num_envs = data.num_envs_per_render_product
         return math.ceil(num_envs / 2) if data is halved else num_envs
 
     return _SplitPlan(tuple((data, next_max_envs(data)) for data in cameras), halved)
@@ -485,6 +481,12 @@ class OVRTXCameraRenderData:
     def render_product_paths(self) -> tuple[str, ...]:
         """Paths of every render product of this sensor, in environment order."""
         return tuple(product.path for product in self.products)
+
+    @property
+    def num_envs_per_render_product(self) -> int:
+        """Largest number of environments in one render product of this sensor."""
+        # The first render product of a sensor has the most environments.
+        return self.products[0].num_envs
 
     def cleanup(self) -> None:
         """Release this camera's native resources and buffers. Safe to call repeatedly.
@@ -571,7 +573,7 @@ class OVRTXRenderer(BaseRenderer):
     def __init__(self, cfg: OVRTXRendererCfg, *, sim: SimulationContext):
         super().__init__(cfg, sim=sim)
         # A wrong value of the variable fails here, before the scene is built, and not at the first camera sensor.
-        _max_envs_per_render_product()
+        self._max_envs_per_render_product = _max_envs_per_render_product()
         self._warp_device = wp.get_device(self._sim.device)
         self._device = str(self._warp_device)
         self._lidars: list[OVRTXLidarRenderData] = []
@@ -1139,7 +1141,7 @@ class OVRTXRenderer(BaseRenderer):
                 for path in camera_paths
             ]
         render_data = OVRTXCameraRenderData(
-            spec, f"RenderCamera_{self.scene.next_camera_id}", camera_paths, _max_envs_per_render_product()
+            spec, f"RenderCamera_{self.scene.next_camera_id}", camera_paths, self._max_envs_per_render_product
         )
         try:
             self._add_render_products(render_data, spec)
@@ -1593,44 +1595,35 @@ class OVRTXRenderer(BaseRenderer):
                 errors.append(error)
         return errors
 
-    def _note_failed_frame(
-        self, error: Exception, num_smaller_layouts: int = 0, unrendered: Iterable[OVRTXCameraRenderData] = ()
-    ) -> None:
+    def _note_failed_frame(self, error: Exception, num_smaller_layouts: int = 0) -> None:
         """Add a note about render product splits to an error about a failed frame.
+
+        The note lists the sensors of this renderer first. On a shared engine, the failed step also rendered the
+        sensors of the other renderers without a rendered frame, so the note lists them after.
 
         Args:
             error: The error of the failed step.
             num_smaller_layouts: Number of smaller layouts that the search tried before this step.
-            unrendered: Sensors without a rendered frame at the failed step. On a shared engine, they can belong to
-                other renderers. The note lists them after the sensors of this renderer.
         """
         notes = getattr(error, "__notes__", ())
         if _FAILED_FRAME_TEXT not in str(error) or any(note.startswith(_FAILED_FRAME_NOTE) for note in notes):
             return
         cameras = []
-        others = [data for data in unrendered if data not in self._camera_render_data]
-        for data in [*self._camera_render_data, *others]:
-            # The first render product of a sensor has the most environments.
-            if data.products[0].num_envs > 1:
+        for data in dict.fromkeys([*self._camera_render_data, *self.backend.unrendered]):
+            if data.num_envs_per_render_product > 1:
                 # A script can write another sample count onto the render product, so the entry names its source.
                 spp = _path_tracing_spp(data)
                 samples = "sample" if spp == 1 else "samples"
                 cameras.append(
-                    f"{data.spec.cfg.prim_path!r} ({data.products[0].num_envs} environments of"
+                    f"{data.spec.cfg.prim_path!r} ({data.num_envs_per_render_product} environments of"
                     f" {data.width}x{data.height} pixels, {spp} path-tracing {samples} per pixel"
                     " in the camera configuration)"
                 )
         paragraphs = [_FAILED_FRAME_NOTE]
         if num_smaller_layouts:
-            # Below the limit, the search ends when no "auto" sensor is left to halve, see _plan_split.
-            if num_smaller_layouts >= _MAX_SMALLER_LAYOUTS:
-                stop = f"The search stops after {_MAX_SMALLER_LAYOUTS} tries."
-            else:
-                stop = "No camera sensor could be halved any further."
             paragraphs.append(
                 "The automatic search (ISAAC_LAB_OVRTX_MAX_ENVS_PER_RENDER_PRODUCT=auto, the default)"
                 f" tried {num_smaller_layouts} smaller group size(s), and the first frame failed with each of them."
-                f" {stop}"
                 f" The OVRTX log file {self.cfg.log_file_path} can show the cause."
             )
         if cameras:
@@ -1925,12 +1918,10 @@ class OVRTXRenderer(BaseRenderer):
             raise RuntimeError("Scene not initialized. Call initialize() first.")
         failed = next((data for data in render_data if data.first_frame_error is not None), None)
         if failed is not None:
-            # A failed scene write of the search names no groups, so only a failed frame gets the integer hint.
-            hint = f" {_INTEGER_HINT}" if _FAILED_FRAME_TEXT in str(failed.first_frame_error) else ""
             raise RuntimeError(
                 f"Camera {failed.spec.cfg.prim_path} renders no frames,"
                 " because its first frame failed and no smaller group of environments rendered."
-                f" The error above gives the cause.{hint} {_OTHER_FIXES}"
+                " The error above gives the cause."
             ) from failed.first_frame_error
         if self.backend.renderer is None or not self._camera_render_data:
             return
@@ -1941,18 +1932,16 @@ class OVRTXRenderer(BaseRenderer):
                 self._render_batch_once(render_data)
                 break
             except RuntimeError as error:
-                unrendered = list(self.backend.unrendered)
-                plan = _plan_split(unrendered, error, num_smaller_layouts)
+                plan = _plan_split(list(self.backend.unrendered), error, num_smaller_layouts)
+                if plan.halved is None:
+                    # The plan removes the sensors that give up from the unrendered ones, so the note comes first.
+                    self._note_failed_frame(error, num_smaller_layouts)
                 # Even without a halved sensor, the plan moves the other sensors off their failed render products.
                 self._apply_split_plan(plan, error)
                 if plan.halved is None:
-                    # The plan removed the sensors that gave up from the unrendered ones, so the note gets the list.
-                    self._note_failed_frame(error, num_smaller_layouts, unrendered)
                     raise
         for data in self.backend.unrendered:
             if data.searches_split and len(data.products) > 1:
-                # The first render product has the most environments.
-                max_envs = data.products[0].num_envs
                 logger.warning(
                     "The first frame failed while camera %s rendered all %d environments in one render product."
                     " A render product renders the images of a group of environments."
@@ -1965,8 +1954,8 @@ class OVRTXRenderer(BaseRenderer):
                     data.spec.cfg.prim_path,
                     data.num_envs,
                     len(data.products),
-                    max_envs,
-                    max_envs,
+                    data.num_envs_per_render_product,
+                    data.num_envs_per_render_product,
                 )
         self.backend.unrendered.clear()
 
