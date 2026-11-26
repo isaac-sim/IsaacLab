@@ -111,8 +111,6 @@ env:
       task_description: "place the AGX Orin in the protective box"
       gpu_resize_height: 240
       gpu_resize_width: 320
-      gpu_crop_scale: 0.0
-      gpu_crop_random: false
       main_images: "front_camera"
       extra_view_images:
         - "left_wrist_camera"
@@ -167,7 +165,6 @@ env:
       task_description: "place the AGX Orin in the protective box"
     isaaclab:
       <<: *isaaclab_config
-      gpu_crop_random: false
 
 rollout:
   group_name: "RolloutGroup"

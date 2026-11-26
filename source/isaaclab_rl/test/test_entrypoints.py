@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import contextlib
 import importlib
+import importlib.util
 import os
 import signal
 import subprocess
@@ -22,6 +23,7 @@ import gymnasium as gym
 import numpy as np
 import pytest
 import torch
+import yaml
 from hydra.core.global_hydra import GlobalHydra
 from omegaconf import OmegaConf
 
@@ -647,6 +649,33 @@ def test_rlinf_rejects_image_config_before_workers(backend, training, evaluation
         rlinf_launch.launch(backend)
     rlinf_launch.validate.assert_not_called()
     rlinf_launch.cluster.assert_not_called()
+
+
+def _shipped_rlinf_recipes() -> list[str]:
+    """Return the names of the RLinf recipes (YAML with ``actor``, ``rollout`` and ``env``) in ``isaaclab_tasks``."""
+    root = Path(importlib.util.find_spec("isaaclab_tasks").origin).parent
+    recipes = []
+    for path in sorted(root.rglob("*.yaml")):
+        cfg = yaml.safe_load(path.read_text())
+        if isinstance(cfg, dict) and {"actor", "rollout", "env"} <= cfg.keys():
+            recipes.append(path.stem)
+    return recipes
+
+
+@pytest.mark.usefixtures("rlinf_launch")
+@pytest.mark.parametrize("recipe", _shipped_rlinf_recipes())
+def test_rlinf_shipped_recipes_pass_image_validation(recipe: str) -> None:
+    """Shipped recipes pass the image checks of the training driver and of every RLinf worker."""
+    # isaaclab_contrib is only needed by the RLinf backend
+    from isaaclab_contrib.rl.rlinf.config import validate_image_config
+
+    with pytest.raises(RuntimeError, match="worker boundary"):
+        try:
+            train_rlinf.run(["--config_name", recipe])
+        finally:
+            GlobalHydra.instance().clear()
+    # the extension's register() repeats the check on the raw recipe file, where RLinf only logs failures
+    validate_image_config(yaml.safe_load(Path(os.environ["RLINF_CONFIG_FILE"]).read_text()))
 
 
 @pytest.mark.parametrize("enabled,fail", [(False, False), (True, False), (True, True)])

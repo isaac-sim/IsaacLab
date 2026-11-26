@@ -127,8 +127,6 @@ env:
       # needed here; the processor applies its own crop/resize afterward.
       gpu_resize_height: 240
       gpu_resize_width: 320
-      gpu_crop_scale: 0.0
-      gpu_crop_random: false
 
       main_images: "front_camera"
       extra_view_images:
@@ -190,7 +188,6 @@ env:
       task_description: "place the apple in the plate"
     isaaclab:
       <<: *isaaclab_config
-      gpu_crop_random: false
 
 rollout:
   group_name: "RolloutGroup"
