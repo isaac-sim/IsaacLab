@@ -132,7 +132,7 @@ def test_invalid_batch_size(circular_buffer):
     [(2, None, 1), (2, None, 3), (3, None, 1), (2, -1, 1)],
     ids=["broadcastable", "incompatible", "staged-shift", "stacked"],
 )
-def test_append_rejects_changed_frame_shape_without_mutating_history(max_len, stack_dim, bad_width):
+def test_append_rejects_changed_frame_shape_without_mutating_history(max_len: int, stack_dim: int | None, bad_width: int) -> None:
     """A frame must match the shape established by the first append."""
     buf = CircularBuffer(max_len=max_len, batch_size=2, device="cpu", stack_dim=stack_dim)
     first = torch.tensor([[1.0, 2.0], [3.0, 4.0]])
