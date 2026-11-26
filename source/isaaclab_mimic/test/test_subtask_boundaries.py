@@ -38,8 +38,9 @@ def test_first_subtask_start_offsets(offset_range):
     starts = result[:, 0, 0]
     assert np.all(starts >= offset_range[0])
     assert np.all(starts <= offset_range[1])
-    if offset_range[0] != offset_range[1]:
-        assert np.unique(starts).size > 1
+    # The fixed seed and batch exercise both inclusive endpoints without a flaky retry loop.
+    assert starts.min() == offset_range[0]
+    assert starts.max() == offset_range[1]
     np.testing.assert_array_equal(result[:, :, 1], source[:, :, 1])
     np.testing.assert_array_equal(result[:, 1, 0], source[:, 1, 0])
     np.testing.assert_array_equal(generator.src_demo_datagen_info_pool.subtask_boundaries["arm"], source)
