@@ -8,6 +8,8 @@
 from __future__ import annotations
 
 import contextlib
+import math
+from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
@@ -15,12 +17,40 @@ import warp as wp
 
 from isaaclab_ov.renderers.ovrtx_renderer_kernels import copy_dense_lidar_points_kernel
 
+if TYPE_CHECKING:
+    from isaaclab_ov.renderers.ovrtx_lidar_cfg import OVRTXLidarCfg
+
 # Bit 6 of the PointCloud Flags channel. See omni::sensors::ElementFlags::VALID.
 _VALID_FLAG = 0x40
 # rtx::rtxsensor::SensorFrameData::CompactionType::eCompacted
 _COMPACTED = 2
 # PointCloud coordsType. Spherical Coordinates contain azimuth [deg], elevation [deg], and range [m].
 _SPHERICAL = 1
+
+
+def lidar_scan_and_step_ns(cfg: OVRTXLidarCfg, capture_interval: float) -> tuple[int, int]:
+    """Return the scan length and the renderer step of one capture, in whole nanoseconds.
+
+    OvRTX times lidar frames in whole nanoseconds, so a scan or step that is not a whole number of nanoseconds
+    can end a capture on a frame shorter than one scan. Without a configured rate, one scan spans one capture.
+    A scanned lidar steps the renderer by a whole number of scans, so each capture ends on a complete scan.
+
+    Raises:
+        ValueError: If ``instant_lidar`` is False and the capture interval is not a whole number of scans.
+    """
+    step_ns = round(capture_interval * 1e9)
+    if cfg.frame_rate is None:
+        return step_ns, step_ns
+    scan_ns = round(1e9 / cfg.frame_rate)
+    if cfg.instant_lidar:
+        return scan_ns, step_ns
+    scans = round(step_ns / scan_ns)
+    if scans < 1 or not math.isclose(step_ns, scans * scan_ns, rel_tol=1e-6):
+        raise ValueError(
+            f"Lidar with instant_lidar=False needs a capture interval of whole scans: {capture_interval} s"
+            f" capture, {cfg.frame_rate} Hz frame_rate."
+        )
+    return scan_ns, scans * scan_ns
 
 
 def _as_torch(value, *, clone: bool = True) -> torch.Tensor:

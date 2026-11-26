@@ -15,6 +15,7 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_ov.renderers import OVRTXLidarCfg
+from isaaclab_ov.renderers.ovrtx_lidar import lidar_scan_and_step_ns
 from isaaclab_ov.renderers.ovrtx_lidar_sensor import OVRTXLidar, _frame_rate
 
 from isaaclab.utils import validate
@@ -104,10 +105,12 @@ def test_lidar_scan_slot_count(overrides, expected):
 @pytest.mark.parametrize(
     ("frame_rate", "instant_lidar", "capture_interval", "expected"),
     [
-        (None, False, 0.15, (1.0, 0.15)),
-        (10.0, False, 0.1, (10.0, 1.0)),
-        (10.0, False, 0.3, (10.0, 1.0)),
-        (10.0, True, 0.15, (10.0, 1.0)),
+        (None, False, 0.15, (1e9, 150000000)),
+        (None, False, 1 / 60, (1e9, 16666667)),
+        (10.0, False, 0.1, (1e9, 100000000)),
+        (10.0, False, 0.3, (1e9, 100000000)),
+        (120.0, False, 1 / 60, (1e9, 8333333)),
+        (10.0, True, 0.15, (1e9, 100000000)),
         (10.0, False, 0.15, None),
         (10.0, False, 0.05, None),
     ],
@@ -120,6 +123,16 @@ def test_lidar_frame_rate_spans_whole_scans(frame_rate, instant_lidar, capture_i
             _frame_rate(cfg, capture_interval)
     else:
         assert tuple(_frame_rate(cfg, capture_interval)) == pytest.approx(expected)
+
+
+@pytest.mark.parametrize(
+    ("frame_rate", "expected"),
+    [(None, (16666667, 16666667)), (120.0, (8333333, 16666666))],
+)
+def test_lidar_capture_steps_whole_nanosecond_scans(frame_rate, expected):
+    """A 1/60 s capture steps the renderer by whole scans of whole nanoseconds, the unit OvRTX times frames in."""
+    cfg = _lidar_cfg(frame_rate=frame_rate, instant_lidar=False)
+    assert lidar_scan_and_step_ns(cfg, 1 / 60) == expected
 
 
 def _lidar_without_runtime(*, num_envs: int, is_global: bool = False) -> OVRTXLidar:

@@ -88,7 +88,7 @@ from isaaclab_ov.renderers.ovrtx_annotator_utils import (
     decode_stable_id_map,
     decode_stable_id_semantic_id_map,
 )
-from isaaclab_ov.renderers.ovrtx_lidar import copy_tiled_point_cloud
+from isaaclab_ov.renderers.ovrtx_lidar import copy_tiled_point_cloud, lidar_scan_and_step_ns
 from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg, OVRTXRendererCfg
 from isaaclab_ov.renderers.ovrtx_renderer_kernels import (
     accumulate_mesh_normals,
@@ -912,7 +912,8 @@ class OVRTXRenderer(BaseRenderer):
 
         scope = f"RenderLidar_{self.scene.next_camera_id}"
         update_period = float(cfg.update_period)
-        render_data = OVRTXLidarRenderData(scope, update_period or self._sim.get_physics_dt(), lidar_paths)
+        _, step_ns = lidar_scan_and_step_ns(cfg, update_period or self._sim.get_physics_dt())
+        render_data = OVRTXLidarRenderData(scope, step_ns / 1e9, lidar_paths)
         product_path = render_data.render_product_path
 
         usd = build_lidar_render_product_as_string(

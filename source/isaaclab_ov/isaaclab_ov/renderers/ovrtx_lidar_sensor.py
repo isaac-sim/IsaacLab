@@ -14,7 +14,6 @@ A renderer that implements lidar capture reads those attributes.
 
 from __future__ import annotations
 
-import math
 import sys
 from typing import TYPE_CHECKING
 
@@ -28,6 +27,8 @@ from isaaclab.sim.utils.prims import clone, get_current_stage
 from isaaclab.sim.views import FrameView
 from isaaclab.utils import math as math_utils
 from isaaclab.utils.warp import ProxyArray
+
+from .ovrtx_lidar import lidar_scan_and_step_ns
 
 if TYPE_CHECKING:
     from .ovrtx_lidar_cfg import OVRTXLidarCfg
@@ -120,22 +121,13 @@ def spawn_lidar(prim_path: str, cfg: OVRTXLidarCfg) -> Usd.Prim:
 def _frame_rate(cfg: OVRTXLidarCfg, capture_interval: float) -> Gf.Vec2d:
     """Return the ``omni:sensor:frameRate`` value for captures that step the renderer by ``capture_interval``.
 
-    Without a configured rate, ``(1, interval)`` makes one scan last exactly one capture interval. A capture
-    reads the last frame of its step, so a scanned lidar must end each capture on a complete scan.
+    The rate is ``(1e9, scan_ns)``, so the scan is a whole number of nanoseconds, the unit OvRTX times frames in.
 
     Raises:
         ValueError: If ``instant_lidar`` is False and the capture interval is not a whole number of scans.
     """
-    if cfg.frame_rate is None:
-        return Gf.Vec2d(1.0, capture_interval)
-
-    scans = capture_interval * cfg.frame_rate
-    if not cfg.instant_lidar and (round(scans) < 1 or not math.isclose(scans, round(scans))):
-        raise ValueError(
-            f"Lidar with instant_lidar=False needs a capture interval of whole scans: {capture_interval} s"
-            f" capture, {cfg.frame_rate} Hz frame_rate."
-        )
-    return Gf.Vec2d(cfg.frame_rate, 1.0)
+    scan_ns, _ = lidar_scan_and_step_ns(cfg, capture_interval)
+    return Gf.Vec2d(1e9, scan_ns)
 
 
 @wp.kernel
