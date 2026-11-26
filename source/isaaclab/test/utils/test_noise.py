@@ -147,6 +147,7 @@ def test_additive_bias_mask_reset():
     torch.testing.assert_close(output, torch.tensor([[1.0, 1.0], [0.0, 0.0], [1.0, 1.0]]))
 
 
+@pytest.mark.kitless
 def test_component_bias_reset_before_first_observation() -> None:
     """Reset before the observation shape is known must support vector-valued bias parameters."""
     cfg = noise.NoiseModelWithAdditiveBiasCfg(
@@ -161,3 +162,21 @@ def test_component_bias_reset_before_first_observation() -> None:
     cfg.bias_noise_cfg.bias = torch.tensor([0.4, 0.5, 0.6])
     model.reset(env_ids=[1])
     torch.testing.assert_close(model(data), torch.tensor([[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]))
+
+
+@pytest.mark.kitless
+def test_scalar_bias_reset_before_first_observation_preserves_sampling_order() -> None:
+    """Scalar samplers still consume their original random draw on early reset."""
+    cfg = noise.NoiseModelWithAdditiveBiasCfg(
+        noise_cfg=noise.ConstantNoiseCfg(bias=0.0),
+        bias_noise_cfg=noise.GaussianNoiseCfg(mean=0.0, std=1.0),
+    )
+    with torch.random.fork_rng(devices=[]):
+        torch.manual_seed(42)
+        expected = torch.randn(2, 1)
+        expected_state = torch.get_rng_state()
+        torch.manual_seed(42)
+        model = noise.NoiseModelWithAdditiveBias(cfg, num_envs=2, device="cpu")
+        model.reset()
+        torch.testing.assert_close(model._bias, expected)
+        assert torch.equal(torch.get_rng_state(), expected_state)
