@@ -10,7 +10,7 @@ import torch
 
 from isaaclab.utils.datasets import EpisodeData
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.kitless]
 
 
 def test_episode_index_bounds() -> None:
