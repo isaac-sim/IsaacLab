@@ -202,13 +202,17 @@ validation workers. Without it, each split retains its own task ID. Simulator
 subprocesses discover installed tasks through the ``isaaclab.tasks`` entry-point
 group, so downstream tasks do not need to be copied into Isaac Lab.
 
-Camera preprocessing is configured under each split's ``isaaclab`` section with
-``gpu_resize_height``, ``gpu_resize_width``, ``gpu_crop_scale`` and
-``gpu_crop_random``. Cropping runs before resizing on the image device, for both
-main and extra camera views. The default crop scale is zero. GR00T N1.5 requires
-both resize dimensions when resizing and matching final train/eval image
-dimensions; incompatible settings raise an error when loading the policy. Random training crops and center evaluation crops
-may still differ while producing the same output dimensions.
+Camera size adaptation is configured under each split's ``isaaclab`` section with
+``gpu_resize_height`` and ``gpu_resize_width``. Resizing runs on the image device
+for main and extra camera views; uint8 pixels round to nearest. Visual augmentation
+belongs to task observation ``tensor_processors`` or downstream data pipelines.
+The Trocar recipe configures its task's GPU crop processor through environment
+overrides, with random training crops and center evaluation crops.
+
+GR00T N1.5 requires both resize dimensions and matching final train/eval image
+sizes. The train/play driver validates these settings before launching workers;
+worker-side validation remains as a defensive check. Deprecated draft-recipe keys
+``gpu_crop_scale`` and ``gpu_crop_random`` raise an error with migration guidance.
 
 A training recipe may set ``runner.isaaclab_context`` to a ``module:callable``
 string to manage optional services around worker initialization and training:

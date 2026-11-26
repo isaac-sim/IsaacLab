@@ -517,11 +517,23 @@ def test_rlinf_rejects_pretrained_checkpoint() -> None:
     [
         (train_rlinf, "validation", False),
         (play_rlinf, "validation", False),
+        (train_rlinf, "image-validation", False),
+        (play_rlinf, "image-validation", False),
+        (train_rlinf, "augmentation-validation", False),
         (train_rlinf, None, False),
         (train_rlinf, None, True),
         (train_rlinf, "training", True),
     ],
-    ids=["train-validation", "play-validation", "train-no-context", "train-context", "train-context-error"],
+    ids=[
+        "train-validation",
+        "play-validation",
+        "train-image-validation",
+        "play-image-validation",
+        "train-augmentation-validation",
+        "train-no-context",
+        "train-context",
+        "train-context-error",
+    ],
 )
 def test_rlinf_launch_passes_checkpoint_and_model_config_to_workers(
     tmp_path: Path, monkeypatch, backend, boundary, with_context
@@ -612,6 +624,15 @@ def test_rlinf_launch_passes_checkpoint_and_model_config_to_workers(
             },
         }
     )
+    if boundary == "image-validation":
+        cfg.env.train.isaaclab = {
+            "data_config_class": "example:DataConfig",
+            "gpu_resize_width": 224,
+            "gpu_resize_height": 224,
+        }
+        cfg.env.eval.isaaclab = {"gpu_resize_width": 256}
+    if boundary == "augmentation-validation":
+        cfg.env.train.isaaclab = {"gpu_crop_scale": 0.05}
     if with_context:
         cfg.runner.isaaclab_context = "_rlinf_context_test:training_context"
     OmegaConf.save(cfg, tmp_path / "ppo.yaml")
@@ -619,6 +640,19 @@ def test_rlinf_launch_passes_checkpoint_and_model_config_to_workers(
     args = ["--config_path", str(tmp_path), "--config_name", "ppo", "--task", "Test-Cosmos"]
     args += ["--checkpoint", str(checkpoint.relative_to(tmp_path))]
     args += ["physics=newton_mjwarp", "env.scene.num_envs=2"]
+    if boundary in ("image-validation", "augmentation-validation"):
+        message = (
+            "matching train/eval image sizes"
+            if boundary == "image-validation"
+            else "task observation tensor_processors"
+        )
+        with pytest.raises(ValueError, match=message):
+            backend.run(args)
+        validate.assert_not_called()
+        sys.modules["rlinf.scheduler"].Cluster.assert_not_called()
+        assert events == []
+        GlobalHydra.instance().clear()
+        return
     if boundary:
         message = "worker boundary" if boundary == "validation" else "training boundary"
         with pytest.raises(RuntimeError, match=message):

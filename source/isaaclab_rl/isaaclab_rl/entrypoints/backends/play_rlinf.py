@@ -74,6 +74,8 @@ def run(argv: list[str]) -> None:
     from rlinf.workers.env.env_worker import EnvWorker
     from rlinf.workers.rollout.hf.huggingface_worker import MultiStepRolloutWorker
 
+    from isaaclab_contrib.rl.rlinf.config import validate_image_config
+
     mp.set_start_method("spawn", force=True)
 
     logger.info(f"Using config: {config_name}")
@@ -122,6 +124,7 @@ def run(argv: list[str]) -> None:
         for model in (cfg.actor.model, cfg.rollout.model):
             model.model_path = str(Path(model.model_path).expanduser().resolve())
 
+    validate_image_config(cfg)
     cfg = validate_cfg(cfg)
     fields = {
         "Task": cfg.env.eval.init_params.id,

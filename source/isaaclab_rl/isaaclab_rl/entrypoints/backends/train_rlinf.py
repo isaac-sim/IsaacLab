@@ -78,6 +78,8 @@ def run(argv: list[str]) -> None:
 
     from isaaclab.utils.string import string_to_callable
 
+    from isaaclab_contrib.rl.rlinf.config import validate_image_config
+
     mp.set_start_method("spawn", force=True)
 
     logger.info(f"Using config: {config_name}")
@@ -133,6 +135,7 @@ def run(argv: list[str]) -> None:
             model.model_path = str(Path(model.model_path).expanduser().resolve())
 
     write_run_manifest(str(log_dir), library="rlinf", task=task_id, metadata={"config_name": config_name})
+    validate_image_config(cfg)
     cfg = validate_cfg(cfg)
     cli_args.print_rlinf_banner(
         "RLinf Training Configuration",

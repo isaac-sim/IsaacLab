@@ -42,6 +42,7 @@ Usage:
 from __future__ import annotations
 
 import collections.abc
+import contextlib
 import logging
 import os
 from enum import Enum
@@ -49,12 +50,17 @@ from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import gymnasium as gym
 import numpy as np
 import torch
 import yaml
 from rlinf.models.embodiment.gr00t import embodiment_tags
 
-from isaaclab.utils.images import crop_and_resize_images
+import isaaclab.app
+import isaaclab.cli
+from isaaclab.utils.images import resize_images
+
+from .config import validate_image_config
 
 if TYPE_CHECKING:
     import torch
@@ -188,6 +194,7 @@ def _patch_gr00t_get_model(cfg: dict) -> None:
     Args:
         cfg: The IsaacLab-specific configuration dictionary (``env.train.isaaclab``).
     """
+    validate_image_config(_load_full_cfg())
     # Always ensure embodiment tag is registered
     _patch_embodiment_tags(cfg)
     # N1.7 owns model and processor loading in RLinf.
@@ -198,13 +205,6 @@ def _patch_gr00t_get_model(cfg: dict) -> None:
 
     evaluation_cfg = {**cfg, **_load_full_cfg().get("env", {}).get("eval", {}).get("isaaclab", {})}
     resize_keys = ("gpu_resize_width", "gpu_resize_height")
-    for split, options in (("train", cfg), ("eval", evaluation_cfg)):
-        if (options.get("gpu_resize_width") is None) != (options.get("gpu_resize_height") is None):
-            raise ValueError(
-                f"GR00T N1.5 requires both gpu_resize_width and gpu_resize_height in {split}. "
-                "A missing dimension would depend on the camera resolution, which may differ from checkpoint metadata."
-            )
-
     import rlinf.models.embodiment.gr00t as rlinf_gr00t_mod
 
     def patched_get_model(model_cfg, torch_dtype=None) -> object:
@@ -276,15 +276,6 @@ def _patch_gr00t_get_model(cfg: dict) -> None:
                     original if cfg.get(key) is None else cfg[key]
                     for key, original in zip(resize_keys, video.resolution)
                 )
-                evaluation_size = tuple(
-                    original if evaluation_cfg.get(key) is None else evaluation_cfg[key]
-                    for key, original in zip(resize_keys, video.resolution)
-                )
-                if training_size != evaluation_size:
-                    raise ValueError(
-                        "GR00T N1.5 requires matching train/eval image sizes after GPU resizing "
-                        f"(width, height): train={training_size}, eval={evaluation_size}."
-                    )
                 video.resolution = training_size
             modality_transform.set_metadata(input_metadata)
 
@@ -494,8 +485,8 @@ def _create_generic_env_wrapper(task_id: str) -> type:
     The wrapper class will load the task configuration at runtime
     (after the simulation runtime starts) and configure observation mapping accordingly.
 
-    This follows the same pattern as i4h's rlinf_ext: all isaaclab-dependent
-    imports happen inside _make_env_function, after the simulation runtime starts.
+    Task discovery and configuration imports stay in the simulator subprocess.
+    Actor and rollout workers only load the lightweight launcher interfaces.
 
     Args:
         task_id: The gymnasium task ID.
@@ -527,8 +518,6 @@ def _create_generic_env_wrapper(task_id: str) -> type:
             self._image_options = {
                 "height": self._isaaclab_cfg.get("gpu_resize_height"),
                 "width": self._isaaclab_cfg.get("gpu_resize_width"),
-                "crop_scale": self._isaaclab_cfg.get("gpu_crop_scale", 0.0),
-                "random_crop": self._isaaclab_cfg.get("gpu_crop_random", False),
             }
             super().__init__(cfg, num_envs, seed_offset, total_num_processes, worker_info)
 
@@ -589,7 +578,7 @@ def _create_generic_env_wrapper(task_id: str) -> type:
             """Create the environment factory function.
 
             This function runs in a child process (via ``SubProcIsaacLabEnv``).
-            All IsaacLab-dependent imports happen here, after the simulation runtime starts.
+            Task imports and registration happen in the simulator child process.
 
             Returns:
                 A callable that creates and returns the IsaacLab environment and sim app.
@@ -602,17 +591,11 @@ def _create_generic_env_wrapper(task_id: str) -> type:
                     A tuple of ``(env, sim_app)`` where ``env`` is the unwrapped
                     gymnasium environment and ``sim_app`` stops the simulation runtime on ``close()``.
                 """
-                import contextlib
-
-                import gymnasium as gym
-
-                from isaaclab.app import launch_simulation
-                from isaaclab.cli import load_external_tasks
-
+                # Importing isaaclab_tasks registers its tasks. Keep that work in the simulator
+                # child rather than also registering tasks in actor and rollout workers.
                 from isaaclab_tasks.utils import parse_env_cfg
 
-                # The spawned simulator has its own Gym registry, separate from the CLI's.
-                load_external_tasks()
+                isaaclab.cli.load_external_tasks()
                 isaac_env_cfg = parse_env_cfg(
                     self.isaaclab_env_id,
                     num_envs=self.cfg.init_params.num_envs,
@@ -624,7 +607,9 @@ def _create_generic_env_wrapper(task_id: str) -> type:
                 sim_app = contextlib.ExitStack()
                 # Each RLinf env worker owns one GPU; Kit's renderer enumerates GPUs through Vulkan, which
                 # ignores CUDA_VISIBLE_DEVICES, so pin it to the worker's GPU or concurrent workers crash it.
-                sim_app.enter_context(launch_simulation(isaac_env_cfg, {"enable_cameras": True, "multi_gpu": False}))
+                sim_app.enter_context(
+                    isaaclab.app.launch_simulation(isaac_env_cfg, {"enable_cameras": True, "multi_gpu": False})
+                )
 
                 env = gym.make(self.isaaclab_env_id, cfg=isaac_env_cfg, render_mode="rgb_array").unwrapped
 
@@ -668,7 +653,7 @@ def _create_generic_env_wrapper(task_id: str) -> type:
             # main_images: single camera key -> (B, H, W, C)
             main_key = cfg.get("main_images")
             if main_key and main_key in camera_obs:
-                rlinf_obs["main_images"] = crop_and_resize_images(camera_obs[main_key], **self._image_options)
+                rlinf_obs["main_images"] = resize_images(camera_obs[main_key], **self._image_options)
 
             # extra_view_images: camera key(s) -> stack to (B, N, H, W, C)
             extra_keys = cfg.get("extra_view_images")
@@ -676,7 +661,7 @@ def _create_generic_env_wrapper(task_id: str) -> type:
                 if isinstance(extra_keys, str):
                     extra_keys = [extra_keys]
                 extra_imgs = [
-                    crop_and_resize_images(camera_obs[k], **self._image_options) for k in extra_keys if k in camera_obs
+                    resize_images(camera_obs[k], **self._image_options) for k in extra_keys if k in camera_obs
                 ]
                 if extra_imgs:
                     rlinf_obs["extra_view_images"] = torch.stack(extra_imgs, dim=1)

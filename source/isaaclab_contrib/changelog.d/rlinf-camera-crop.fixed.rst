@@ -1,3 +1,3 @@
-* Applied RLinf camera cropping even when the rendered image already matched the requested resize dimensions.
-* Required paired resize dimensions and validated matching GR00T N1.5 train/eval output image sizes and preserved checkpoint metadata when adapting input dimensions.
+* Kept visual augmentation in task observation processors and deterministic GPU image resizing in the RLinf adapter.
+* Validated GR00T N1.5 train/eval image sizes on the driver before worker startup, preserving checkpoint metadata when adapting input dimensions.
 * Resolved worker split settings once for observation preprocessing and padded hold actions.

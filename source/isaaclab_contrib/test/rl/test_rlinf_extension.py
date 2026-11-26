@@ -348,24 +348,7 @@ def test_success_configuration_enables_terminal_capture(explicit_success, set_co
 class TestObsConversion:
     """Worker observation preprocessing and conversion into GR00T inputs."""
 
-    def test_camera_crop_applies_when_resize_matches_input(self, set_config_env) -> None:
-        from omegaconf import OmegaConf
-
-        options = {
-            "main_images": "head",
-            "extra_view_images": [],
-            "gpu_resize_height": 4,
-            "gpu_resize_width": 4,
-            "gpu_crop_scale": 0.5,
-            "gpu_crop_random": False,
-        }
-        worker = ext._create_generic_env_wrapper("test")(OmegaConf.create({"isaaclab": options}), 1, 0, 1, None)
-        image = torch.arange(16, dtype=torch.uint8).reshape(1, 4, 4, 1).expand(-1, -1, -1, 3)
-        result = worker._wrap_obs({"camera_images": {"head": image}})["main_images"]
-        assert result.shape == image.shape
-        assert result[0, [0, 0, 3, 3], [0, 3, 0, 3], 0].tolist() == [5, 6, 9, 10]
-
-    def test_policy_camera_crop_uses_evaluation_options_for_all_views(self, set_config_env) -> None:
+    def test_policy_camera_resize_uses_evaluation_options_for_all_views(self, set_config_env) -> None:
         from omegaconf import OmegaConf
 
         options = {
@@ -374,17 +357,17 @@ class TestObsConversion:
             "extra_view_images": ["wrist"],
             "gpu_resize_height": 2,
             "gpu_resize_width": 3,
-            "gpu_crop_scale": 0.5,
-            "gpu_crop_random": False,
         }
         worker = ext._create_generic_env_wrapper("test")(OmegaConf.create({"isaaclab": options}), 2, 0, 1, None)
-        head = torch.arange(2 * 4 * 6 * 3, dtype=torch.uint8).reshape(2, 4, 6, 3)
-        wrist = head.flip((2,))
+        head = torch.full((2, 4, 6, 3), 17, dtype=torch.uint8)
+        wrist = torch.full_like(head, 83)
         joints = torch.arange(8).reshape(2, 4)
         obs = worker._wrap_obs({"policy": {"joints": joints}, "camera_images": {"head": head, "wrist": wrist}})
         torch.testing.assert_close(obs["states"], joints[:, 1:3])
-        torch.testing.assert_close(obs["main_images"], head[:, 1:3, 1:4])
-        torch.testing.assert_close(obs["extra_view_images"], wrist[:, None, 1:3, 1:4])
+        assert obs["main_images"].shape == (2, 2, 3, 3)
+        assert obs["extra_view_images"].shape == (2, 1, 2, 3, 3)
+        assert obs["main_images"].dtype == obs["extra_view_images"].dtype == torch.uint8
+        assert (obs["main_images"] == 17).all() and (obs["extra_view_images"] == 83).all()
 
     def test_extra_view_images_conversion(self, set_config_env) -> None:
         """Extra view images should be split into separate GR00T video keys."""
