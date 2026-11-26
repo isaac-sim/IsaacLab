@@ -24,6 +24,7 @@ from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 from isaaclab.utils import configclass
+from isaaclab.utils.tensor_processors import TensorProcessorCfg
 from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.contrib.assemble_trocar import mdp
@@ -508,6 +509,27 @@ class G1AssembleTrocarEnvCfg(ManagerBasedRLEnvCfg):
     curriculum = None
 
     num_rerenders_on_reset: int = 1
+
+    policy_crop_scale: float = 0.0
+    """Fraction removed from policy RGB dimensions; disabled for non-policy task previews."""
+    policy_crop_random: bool = False
+    """Choose independent random crop offsets during training instead of center crops."""
+
+    def validate_config(self):
+        """Apply final policy augmentation overrides through standard observation processors."""
+        if not 0 <= self.policy_crop_scale < 1:
+            raise ValueError("policy_crop_scale must be in [0, 1).")
+        for name in ("front_camera", "left_wrist_camera", "right_wrist_camera"):
+            term = getattr(self.observations.camera_images, name)
+            processors = [p for p in term.tensor_processors or () if p.func is not mdp.crop_policy_camera]
+            if self.policy_crop_scale:
+                processors.append(
+                    TensorProcessorCfg(
+                        func=mdp.crop_policy_camera,
+                        params={"scale": self.policy_crop_scale, "random_crop": self.policy_crop_random},
+                    )
+                )
+            term.tensor_processors = processors or None
 
     def __post_init__(self):
         """Post initialization."""

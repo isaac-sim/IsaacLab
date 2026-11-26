@@ -120,3 +120,25 @@ def get_robot_dex3_joint_states(env: ManagerBasedRLEnv) -> torch.Tensor:
     torch.gather(joint_pos, 1, idx_batch, out=pos_buf)
 
     return pos_buf
+
+
+def crop_policy_camera(images: torch.Tensor, scale: float = 0.05, random_crop: bool = False) -> torch.Tensor:
+    """Crop Trocar policy RGB on its device; center crops borrow storage, random crops allocate.
+
+    Input and output use BHWC layout with unchanged dtype. Each training image gets its
+    own random offset; evaluation uses the center. The RL adapter handles final resizing.
+    """
+    if not 0 <= scale < 1:
+        raise ValueError("Policy camera crop scale must be in [0, 1).")
+    if not scale:
+        return images
+    batch, height, width, _ = images.shape
+    h, w = max(1, int(height * (1 - scale))), max(1, int(width * (1 - scale)))
+    if not random_crop:
+        top, left = (height - h) // 2, (width - w) // 2
+        return images[:, top : top + h, left : left + w]
+    tops = torch.randint(height - h + 1, (batch, 1), device=images.device)
+    lefts = torch.randint(width - w + 1, (batch, 1), device=images.device)
+    rows = tops + torch.arange(h, device=images.device)
+    cols = lefts + torch.arange(w, device=images.device)
+    return images[torch.arange(batch, device=images.device)[:, None, None], rows[:, :, None], cols[:, None, :]]

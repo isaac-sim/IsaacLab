@@ -5,6 +5,7 @@
 
 __all__ = [
     "AssembleTrocarState",
+    "crop_policy_camera",
     "get_assemble_trocar_state",
     "get_robot_body_joint_states",
     "get_robot_dex3_joint_states",
@@ -32,7 +33,7 @@ from .events import (
     reset_tray_with_random_rotation,
     set_newton_shape_solref,
 )
-from .observations import get_robot_body_joint_states, get_robot_dex3_joint_states
+from .observations import crop_policy_camera, get_robot_body_joint_states, get_robot_dex3_joint_states
 from .rewards import (
     AssembleTrocarState,
     get_assemble_trocar_state,

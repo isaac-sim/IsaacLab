@@ -11,3 +11,4 @@
   ``.pretrained_checkpoints/rlinf/Assemble_Trocar_SFT_100k`` and the instruction
   ``install trocar from tray`` for training and evaluation. Use ``--model_path`` to select another checkpoint.
 * Preserved the task's transparency, anti-aliasing and RTX settings when selecting ``renderer=rtx`` explicitly.
+* Configured policy camera crops through task observation processors, keeping visual augmentation outside core image preprocessing.
