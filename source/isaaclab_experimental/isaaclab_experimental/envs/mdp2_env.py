@@ -233,7 +233,7 @@ class MDP2Env:
         Startup events run once, when the environment is created: those that the new task adds do not run.
         With an episode budget, the new task starts a new evaluation, so it truncates the episodes.
         """
-        if not truncate and self.cfg.episode_budget is not None:
+        if not truncate and self._budgeted:
             raise ValueError(
                 "With an episode budget, a new task starts a new evaluation: update it with truncate=True."
             )

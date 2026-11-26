@@ -16,7 +16,17 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_experimental import mdp2
-from isaaclab_experimental.envs import MDP2RLEnv, MDP2RLEnvCfg, ResetStep, Stage, Step, mdp2_env, mdp2_scene_data
+from isaaclab_experimental.envs import (
+    MDP2Env,
+    MDP2EnvCfg,
+    MDP2RLEnv,
+    MDP2RLEnvCfg,
+    ResetStep,
+    Stage,
+    Step,
+    mdp2_env,
+    mdp2_scene_data,
+)
 from isaaclab_experimental.mdp2 import mdp, rng
 from isaaclab_experimental.mdp2.config import group_terms
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
@@ -889,6 +899,23 @@ def test_update_task_keeps_the_state_of_the_uses_both_tasks_have():
         kept = [rewards.index(op.name) for op in env.mdp.ops[mdp2.Phase.REWARDS]]
         assert (env.episode_length_buf == 2).all()
         assert torch.equal(env.step_buffers()["episode_rewards"], sums[kept])
+    finally:
+        env.close()
+
+
+def test_env_without_rl_config_updates_its_task_without_truncating():
+    """An MDP2Env, whose config has no episode budget, updates its task without truncating: the episodes go on."""
+    rl = cartpole_cfg()
+    cfg = MDP2EnvCfg(
+        sim=rl.sim, scene=rl.scene, task=rl.task, decimation=rl.decimation, backend=rl.backend, seed=rl.seed
+    )
+    env = MDP2Env(cfg)
+    try:
+        env.reset()
+        for _ in range(2):
+            env.step(torch.zeros(NUM_ENVS, 1, device=env.device))
+        env.update_task(cfg.task, truncate=False)
+        assert (env.state.episode_length.torch == 2).all()
     finally:
         env.close()
 
