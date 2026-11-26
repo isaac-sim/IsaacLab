@@ -552,7 +552,8 @@ def test_ovrtx_failed_frame_error_names_the_render_product_split(mode, failed_fr
         assert len(notes) == 1
         assert "Set ISAAC_LAB_OVRTX_MAX_ENVS_PER_RENDER_PRODUCT to an integer below" in notes[0]
         assert (
-            "'/World/envs/env_0/Camera' (2 environments of 16x8 pixels, 4 path-tracing samples per pixel)" in notes[0]
+            "'/World/envs/env_0/Camera' (2 environments of 16x8 pixels, 4 path-tracing samples per pixel"
+            " in the camera configuration)" in notes[0]
         )
         assert "cannot tell which camera sensor caused the failure" in notes[0]
         assert "Wrist" not in notes[0]
@@ -578,6 +579,13 @@ def test_ovrtx_max_envs_per_render_product_rejects_another_value(monkeypatch):
     expected = "ISAAC_LAB_OVRTX_MAX_ENVS_PER_RENDER_PRODUCT.*Expected auto, all or an integer >= 1"
     with pytest.raises(ValueError, match=expected):
         _max_envs_per_render_product()
+
+
+def test_ovrtx_renderer_rejects_a_wrong_max_envs_per_render_product_at_construction(monkeypatch):
+    """A wrong value of the variable fails before the scene is built, not when the first camera sensor registers."""
+    monkeypatch.setenv(_MAX_ENVS_PER_RENDER_PRODUCT_ENV, "half")
+    with pytest.raises(ValueError, match="ISAAC_LAB_OVRTX_MAX_ENVS_PER_RENDER_PRODUCT.*'half'"):
+        _make_ovrtx_renderer_without_backend()
 
 
 _FAILED_FRAME = (
@@ -760,19 +768,22 @@ def test_ovrtx_render_batch_stops_the_split_search_after_the_last_smaller_layout
     num_smaller = len(products_per_step) - 1
     assert "The automatic search (ISAAC_LAB_OVRTX_MAX_ENVS_PER_RENDER_PRODUCT=auto, the default)" in note
     assert f"the default) tried {num_smaller} smaller group size(s)" in note
-    assert ("stops after 4 tries" if num_smaller == 4 else "stops at one environment per render product") in note
+    assert ("stops after 4 tries" if num_smaller == 4 else "No camera sensor could be halved any further") in note
     assert renderer.cfg.log_file_path in note
     # The note lists the last group size that failed, which is the value to go below. One environment is no group.
     last_group = num_envs // 2**num_smaller
     entry = (
-        f"{camera.spec.cfg.prim_path!r} ({last_group} environments of 64x64 pixels, 1 path-tracing sample per pixel)"
+        f"{camera.spec.cfg.prim_path!r} ({last_group} environments of 64x64 pixels, 1 path-tracing sample per pixel"
+        " in the camera configuration)"
     )
     assert (entry in note) == (last_group > 1)
 
-    # The camera left the steps. A later render batch raises at once and steps nothing.
+    # The camera left the steps. A later render batch raises at once and steps nothing. Its error points at the
+    # groups that the note names.
     assert camera not in renderer.backend.unrendered
     assert renderer.backend.render_products == set()
-    with pytest.raises(RuntimeError, match="renders no frames.*ISAAC_LAB_OVRTX_MAX_ENVS_PER_RENDER_PRODUCT") as later:
+    hint = "renders no frames.*to an integer below the groups that the error above names"
+    with pytest.raises(RuntimeError, match=hint) as later:
         renderer.render_batch([camera])
     assert later.value.__cause__ is error.value
     assert [len(products) for products in submissions] == products_per_step
@@ -821,7 +832,10 @@ def test_ovrtx_split_search_names_an_auto_sensor_without_one_camera_path_per_env
     assert len(submissions) == 1
     (text,) = error.value.__notes__
     assert "=auto, the default) tried" not in text
-    assert "'/World/Camera' (8 environments of 16x8 pixels, 1 path-tracing sample per pixel)" in text
+    assert (
+        "'/World/Camera' (8 environments of 16x8 pixels, 1 path-tracing sample per pixel in the camera configuration)"
+        in text
+    )
     assert [product.num_envs for product in camera.products] == [8]
 
 
@@ -848,11 +862,13 @@ def test_ovrtx_split_search_retires_every_failed_product_before_a_scene_write(mo
     assert renderer.backend.render_products == set().union(*(c.render_product_paths for c in cameras[:written]))
     assert not renderer.backend.render_products & failed
     assert list(renderer.backend.unrendered) == cameras[:written]
-    # A later render batch raises at once and steps nothing.
+    # A later render batch raises at once and steps nothing. The scene write error names no groups of environments,
+    # so the error has no integer hint.
     steps = len(submissions)
-    with pytest.raises(RuntimeError, match="renders no frames.*ISAAC_LAB_OVRTX_MAX_ENVS_PER_RENDER_PRODUCT") as later:
+    with pytest.raises(RuntimeError, match="renders no frames") as later:
         renderer.render_batch(cameras)
     assert later.value.__cause__ is error.value
+    assert "ISAAC_LAB_OVRTX_MAX_ENVS_PER_RENDER_PRODUCT" not in str(later.value)
     assert len(submissions) == steps
 
 
@@ -1061,6 +1077,34 @@ def test_ovrtx_split_search_covers_every_renderer_of_a_shared_engine(monkeypatch
     assert not renderer.backend.unrendered
     # Each sensor keeps the product settings of its own renderer.
     assert shadows == {small.render_scope_name: False, large.render_scope_name: True}
+
+
+def test_ovrtx_failed_frame_note_names_the_sensors_of_every_renderer_of_a_shared_engine(monkeypatch):
+    """The failed step renders the sensors of every renderer on the engine. The note therefore names the sensors of
+    the other renderers without a frame, after the sensors of this renderer.
+    """
+    renderer, (small,) = _make_search_cameras(monkeypatch, True, 64, [("all", 32)])
+    other = OVRTXRenderer(OVRTXRendererCfg(), sim=SimulationContext.instance())
+    other.backend = other.scene = renderer.backend
+    other._device = "cpu"
+    other._use_ovstage = other._initialized_scene = True
+    large = _add_search_camera(monkeypatch, other, "large", 64, "auto", 64)
+    _install_step(renderer, lambda products: True)
+
+    with pytest.raises(RuntimeError, match="failed to produce a frame") as error:
+        renderer.render_batch([small])
+
+    # The search halved the sensor of the other renderer 4 times, from 64 to 4 environments, and gave up on it.
+    assert large not in renderer.backend.unrendered
+    (note,) = error.value.__notes__
+    assert "tried 4 smaller group size(s)" in note
+    entries = (
+        f"{small.spec.cfg.prim_path!r} (64 environments of 32x32 pixels, 1 path-tracing sample per pixel"
+        " in the camera configuration), "
+        f"{large.spec.cfg.prim_path!r} (4 environments of 64x64 pixels, 1 path-tracing sample per pixel"
+        " in the camera configuration)."
+    )
+    assert f"per camera sensor: {entries}" in note
 
 
 def _install_attribute_store(renderer: OVRTXRenderer, use_ovstage: bool) -> dict:
