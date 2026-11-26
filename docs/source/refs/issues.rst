@@ -248,8 +248,9 @@ memory. The threshold depends on the padded atlas dimensions and rendering setti
 no universal camera-count limit. See `Isaac Lab issue #8412`_ for affected configurations,
 reproduction steps, and fix status.
 
-The OVRTX renderer (``renderer=ovrtx``) fails such a frame with an error. By default, it then
-renders the camera sensor in smaller groups of environments, and a warning names the group size.
+Above the renderer buffer limit, the OVRTX renderer (``renderer=ovrtx``) fails the frame with an
+error. By default, it then renders the camera sensor in smaller groups of environments, and a
+warning names the group size.
 
 With other RTX renderers, or instead of smaller groups, reduce the image size, the number of
 environments, or path-tracing SPP. Then inspect images from all cameras before training. Fewer

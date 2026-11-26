@@ -1632,6 +1632,7 @@ class OVRTXRenderer(BaseRenderer):
                 " The renderer cannot tell which camera sensor caused the failure."
                 " Set ISAAC_LAB_OVRTX_MAX_ENVS_PER_RENDER_PRODUCT to an integer below the group of the sensor"
                 " with the largest image, for example half of it."
+                " The integer needs a camera prim in each environment."
             )
         paragraphs.append(_OTHER_FIXES)
         error.add_note("\n".join(paragraphs))
@@ -1933,11 +1934,13 @@ class OVRTXRenderer(BaseRenderer):
                 break
             except RuntimeError as error:
                 plan = _plan_split(list(self.backend.unrendered), error, num_smaller_layouts)
-                if plan.halved is None:
-                    # The plan removes the sensors that give up from the unrendered ones, so the note comes first.
-                    self._note_failed_frame(error, num_smaller_layouts)
-                # Even without a halved sensor, the plan moves the other sensors off their failed render products.
-                self._apply_split_plan(plan, error)
+                try:
+                    if plan.halved is None:
+                        # The plan removes the sensors that give up from the unrendered ones, so the note comes first.
+                        self._note_failed_frame(error, num_smaller_layouts)
+                finally:
+                    # Even without a halved sensor, the plan moves the other sensors off their failed render products.
+                    self._apply_split_plan(plan, error)
                 if plan.halved is None:
                     raise
         for data in self.backend.unrendered:
