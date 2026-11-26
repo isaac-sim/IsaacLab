@@ -27,6 +27,7 @@ def test_create_dataset_file(tmp_path, monkeypatch):
     assert {path.name for path in tmp_path.iterdir()} == {"absolute.hdf5", "no_extension.hdf5", "relative.hdf5"}
 
 
+@pytest.mark.kitless
 def test_failed_open_allows_reusing_handler(tmp_path: Path) -> None:
     """Reject an invalid dataset without retaining the file or blocking the next open."""
     invalid_path = str(tmp_path / "invalid.hdf5")
