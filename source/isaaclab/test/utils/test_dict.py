@@ -4,8 +4,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import enum
-from types import MappingProxyType
 from collections import namedtuple
+from types import MappingProxyType
 
 import numpy as np
 import pytest
