@@ -6,6 +6,7 @@
 """Action assembly at the generation loop's environment-step boundary."""
 
 import asyncio
+import warnings
 from types import SimpleNamespace
 
 import pytest
@@ -37,6 +38,14 @@ def test_action_batch_device_and_environment_order(device: str, monkeypatch: pyt
         step=received.append,
         sim=SimpleNamespace(is_stopped=lambda: True),
     )
+    # Python 3.12 warns when this lookup creates the initial default loop.
+    # Preserve that loop for subsequent tests without leaking our own loop.
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message="There is no current event loop", category=DeprecationWarning)
+        try:
+            previous_loop = asyncio.get_event_loop()
+        except RuntimeError:
+            previous_loop = None
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
@@ -48,4 +57,4 @@ def test_action_batch_device_and_environment_order(device: str, monkeypatch: pyt
         loop.run_until_complete(asyncio.wait_for(action_queue.join(), timeout=1.0))
     finally:
         loop.close()
-        asyncio.set_event_loop(None)
+        asyncio.set_event_loop(previous_loop)
