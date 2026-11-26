@@ -157,7 +157,8 @@ class NoiseModelWithAdditiveBias(NoiseModel):
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         """Reset the noise model.
 
-        This method resets the bias term for the specified environments.
+        This method resets the bias term for the specified environments. For per-component biases,
+        initial sampling is deferred until the first observation establishes the component count.
 
         Args:
             env_ids: The environment ids to reset the noise model for. Defaults to None,
@@ -165,6 +166,9 @@ class NoiseModelWithAdditiveBias(NoiseModel):
             env_mask: Boolean mask of the environments to reset. Shape is (num_envs,). Takes precedence over
                 ``env_ids``. Defaults to None.
         """
+        if self._sample_bias_per_component and self._num_components is None:
+            # The first observation establishes the component count and initializes all biases.
+            return
         if env_mask is not None:
             # sample every bias and keep the selected ones, so the mask is never compacted on the host
             bias = self._bias_noise_cfg.func(self._zero_bias, self._bias_noise_cfg)

@@ -145,3 +145,19 @@ def test_additive_bias_mask_reset():
 
     output = noise_model(torch.zeros(3, 2))
     torch.testing.assert_close(output, torch.tensor([[1.0, 1.0], [0.0, 0.0], [1.0, 1.0]]))
+
+
+def test_component_bias_reset_before_first_observation() -> None:
+    """Reset before the observation shape is known must support vector-valued bias parameters."""
+    cfg = noise.NoiseModelWithAdditiveBiasCfg(
+        noise_cfg=noise.ConstantNoiseCfg(bias=0.0),
+        bias_noise_cfg=noise.ConstantNoiseCfg(bias=torch.tensor([0.1, 0.2, 0.3])),
+    )
+    model = noise.NoiseModelWithAdditiveBias(cfg, num_envs=2, device="cpu")
+    model.reset()
+    data = torch.zeros(2, 3)
+    torch.testing.assert_close(model(data), torch.tensor([[0.1, 0.2, 0.3], [0.1, 0.2, 0.3]]))
+
+    cfg.bias_noise_cfg.bias = torch.tensor([0.4, 0.5, 0.6])
+    model.reset(env_ids=[1])
+    torch.testing.assert_close(model(data), torch.tensor([[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]))
