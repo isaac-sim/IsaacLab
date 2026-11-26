@@ -16,7 +16,7 @@ pytestmark = pytest.mark.kitless
 
 
 @pytest.mark.parametrize("offset_range", [(0, 0), (2, 9)])
-def test_first_subtask_start_offsets(offset_range):
+def test_first_subtask_start_offsets(offset_range: tuple[int, int]) -> None:
     """Honor both configured bounds while leaving source boundaries and end indices unchanged."""
     source = np.tile([[0, 80], [80, 160]], (256, 1, 1))
     configs = [
@@ -36,8 +36,6 @@ def test_first_subtask_start_offsets(offset_range):
         np.random.set_state(rng_state)
 
     starts = result[:, 0, 0]
-    assert np.all(starts >= offset_range[0])
-    assert np.all(starts <= offset_range[1])
     # The fixed seed and batch exercise both inclusive endpoints without a flaky retry loop.
     assert starts.min() == offset_range[0]
     assert starts.max() == offset_range[1]
