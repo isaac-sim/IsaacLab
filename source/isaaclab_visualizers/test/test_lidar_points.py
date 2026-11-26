@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""World-frame lidar hits drawn by the Newton GL, Viser, and Kit visualizers."""
+"""World-frame lidar hits drawn by the Newton GL and Viser visualizers."""
 
 from __future__ import annotations
 

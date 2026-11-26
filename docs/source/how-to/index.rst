@@ -354,9 +354,9 @@ How-to Guides
 
       .. container:: guide-entry
 
-         :doc:`Training on neural robot dynamics </source/how-to/neural_robot_dynamics>`
+         :doc:`Training on neural robot dynamics (NeRD) </source/how-to/neural_robot_dynamics>`
 
-         Record robot trajectories from a task, train a neural dynamics model, and train RL policies on it.
+         Record robot trajectories from a task, train a neural robot dynamics (NeRD) model, and train RL policies on it.
 
          .. container:: guide-metadata
 
@@ -554,7 +554,13 @@ How-to Guides
 
          :doc:`Kitless XR with Isaac Capture </source/how-to/kitless_xr>`
 
-         Install Isaac Capture and OVXR packages for live teleoperation and MCAP replay.
+         Use Isaac Capture and OVXR for live teleoperation and MCAP replay without Isaac Sim.
+
+      .. container:: guide-entry
+
+         :doc:`Installing kitless XR </source/how-to/kitless_xr_source>`
+
+         Install and verify the Isaac Capture and OVXR packages for kitless XR workflows.
 
       .. container:: guide-entry
 
@@ -612,9 +618,3 @@ How-to Guides
 
       This collection is a work in progress. If a question is not answered here, open an issue on the
       `Isaac Lab GitHub repository <https://github.com/isaac-sim/IsaacLab>`_.
-
-.. toctree::
-   :hidden:
-
-   kitless_xr
-   kitless_xr_source
