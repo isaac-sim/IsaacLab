@@ -2394,6 +2394,40 @@ def test_action_terms_read_quantities():
         assert scene.data("robot", "joint_effort_target").torch.tolist() == [[1.5, 1.5]] * 2, backend
 
 
+def set_joint_to_four(mask, joint_pos):
+    joint_pos[:, 0] = torch.where(mask, torch.full_like(joint_pos[:, 0], 4.0), joint_pos[:, 0])
+
+
+def copy_goal(action, goal, target, mask):
+    target[:, 0] = goal if mask is None else torch.where(mask, goal, target[:, 0])
+
+
+def test_quantities_that_only_actions_read_are_computed_again_after_a_reset():
+    """A quantity that only an action term reads is computed again in the worlds that reset, so that the first
+    action of an episode reads the scene that the reset events wrote, as an observation would."""
+    position = mdp2.Term(torch=lambda joint_pos: joint_pos[:, 0].clone())
+    goal = mdp2.Quantity(position, inputs={"joint_pos": robot.joint_pos})
+    act = mdp2.Action(
+        mdp2.Term(torch=copy_goal, shape=("worlds", 1)),
+        inputs={"goal": mdp2.quantities.goal},
+        outputs={"target": robot.joint_effort_target},
+    )
+    task = mdp2.TaskCfg(
+        quantities={"goal": goal},
+        actions={"act": act},
+        events={"set": mdp2.Event(mdp2.Term(torch=set_joint_to_four), outputs={"joint_pos": robot.joint_pos})},
+    )
+    for backend in ("torch", "warp"):
+        scene = PointMassScene(num_worlds=2, joint_names=("a",), device=DEVICE)
+        builder = mdp2.MDPBuilder(scene.schema)
+        builder.add_task(task)
+        mdp = builder.finalize(device=DEVICE, backend=backend)
+        state, transition = mdp.state(scene), mdp.transition()
+        env_reset(mdp, state, scene, transition.observations, torch.ones(2, dtype=torch.bool, device=DEVICE))
+        mdp2.apply_actions(mdp, state, ProxyArray(wp.from_torch(torch.zeros(2, mdp.action_dim, device=DEVICE))))
+        assert scene.data("robot", "joint_effort_target").torch[:, 0].tolist() == [4.0, 4.0], backend
+
+
 def test_python_action_hooks_write_only_where_their_action_applies():
     """A Python action hook gets the worlds where its action applies as ``mask``: the task of a choice that no world
     drew writes nowhere. A hook without ``mask``, which would write in every world, is refused."""

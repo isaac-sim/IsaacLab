@@ -348,12 +348,13 @@ def build_plan(
         if isinstance(op, TermOp) and (op.reset is not None or any(not spec.persistent for spec in op.state.values()))
     ]
 
-    # Observations and action offsets read quantities between steps, also in worlds that were just reset, where
-    # they are computed again, with the quantities that they read. The others keep the values of the last step.
+    # Observations and actions read quantities between steps, also in worlds that were just reset, where they are
+    # computed again, with the quantities that they read. The others keep the values of the last step.
     read = {selector for op in ops[Phase.OBSERVATIONS] for selector in op.inputs.values()}
     noises = [op.observation.noise for op in ops[Phase.OBSERVATIONS]]
     read |= {noise.scale for noise in noises if noise is not None and noise.scale is not None}
     read |= {op.offset for op in ops[Phase.ACTIONS] if isinstance(op, ActionOp)}
+    read |= {selector for op in ops[Phase.ACTIONS] if isinstance(op, TermOp) for selector in op.inputs.values()}
     switched = tuple(
         op for phase_ops in ops.values() for op in phase_ops if isinstance(op, TermOp) and (op.when or op.stages)
     )
