@@ -348,7 +348,8 @@ Limitations
 - The environments support Isaac Lab actuators with :attr:`~isaaclab.actuators.ActuatorBase.capturable`, and
   Newton's own actuators, which run delayed, BAM, and network ones. Newton cannot capture networks loaded from
   TorchScript checkpoints, so with them the physics and the scene reset run between the graphs. Isaac Lab's own
-  actuator networks are not supported.
+  delayed actuators and actuator networks are not supported: Newton runs delayed actuators itself, unless
+  ``use_newton_actuators=False``.
 - Joint and body orderings (``ArticulationCfg.joint_ordering`` and ``body_ordering``) are not supported: terms read
   the asset's data in kernels, and orderings make the asset keep reordered copies that it refreshes outside the
   graphs.

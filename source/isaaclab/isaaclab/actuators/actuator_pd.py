@@ -34,6 +34,8 @@ logger = logging.getLogger(__name__)
 class _DelayedActuator:
     """Shared command history and reset lifecycle for delayed actuator models."""
 
+    capturable: ClassVar[bool] = False  # Masked resets draw delays from Torch's generator, which graphs cannot record
+
     def __init__(self, cfg: DelayedImplicitActuatorCfg | DelayedPDActuatorCfg, *args, **kwargs) -> None:
         self._max_delay = 0 if cfg.max_delay is None else cfg.max_delay
         if not 0 <= cfg.min_delay <= self._max_delay:
@@ -43,24 +45,14 @@ class _DelayedActuator:
         self.velocities_delay_buffer = DelayBuffer(self._max_delay, self._num_envs, device=self._device)
         self.efforts_delay_buffer = DelayBuffer(self._max_delay, self._num_envs, device=self._device)
         self._delay_buffers = (self.positions_delay_buffer, self.velocities_delay_buffer, self.efforts_delay_buffer)
-        # Masked resets draw delays from a device stream, which a replayed CUDA graph advances, seeded from Torch.
-        seed = int(torch.randint(0, 2**31 - 1, (1,)).item())
-        self._delay_seed = wp.array([seed], dtype=wp.int32, device=self._device)
-        self._drawn_time_lags = wp.zeros(self._num_envs, dtype=wp.int32, device=self._device)
 
     def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None) -> None:
         super().reset(env_ids, env_mask)
         if env_mask is not None:
             # draw a delay for every environment and keep the selected ones, so the mask stays on the device
-            wp.launch(
-                _draw_time_lags,
-                dim=self._num_envs,
-                inputs=[self._delay_seed, self.cfg.min_delay, self._max_delay],
-                outputs=[self._drawn_time_lags],
-                device=self._device,
+            time_lags = torch.randint(
+                self.cfg.min_delay, self._max_delay + 1, (self._num_envs,), dtype=torch.int, device=self._device
             )
-            wp.launch(_advance_seed, dim=1, inputs=[self._delay_seed], device=self._device)
-            time_lags = wp.to_torch(self._drawn_time_lags)
             selected = wp.to_torch(env_mask)
             for delay_buffer in self._delay_buffers:
                 torch.where(selected, time_lags, delay_buffer.time_lags, out=delay_buffer.time_lags)
@@ -93,18 +85,6 @@ class _DelayedActuator:
 """
 Implicit Actuator Models.
 """
-
-
-@wp.kernel
-def _draw_time_lags(seed: wp.array(dtype=wp.int32), low: int, high: int, time_lags: wp.array(dtype=wp.int32)):
-    """Draw a time lag in ``[low, high]`` for every environment from the stream ``seed``."""
-    env = wp.tid()
-    time_lags[env] = wp.randi(wp.rand_init(seed[0], env), low, high + 1)
-
-
-@wp.kernel
-def _advance_seed(seed: wp.array(dtype=wp.int32)):
-    seed[0] = seed[0] + 1
 
 
 class ImplicitActuator(ActuatorBase):
@@ -514,8 +494,6 @@ class DelayedPDActuator(_DelayedActuator, IdealPDActuator):
     cfg: DelayedPDActuatorCfg
     """The configuration for the actuator model."""
 
-    capturable: ClassVar[bool] = True  # Masked resets draw delays from a device stream
-
 
 class RemotizedPDActuator(DelayedPDActuator):
     """Ideal PD actuator with angle-dependent torque limits.
@@ -529,8 +507,6 @@ class RemotizedPDActuator(DelayedPDActuator):
 
     The torque limits are interpolated based on the current joint positions and applied to the actuator commands.
     """
-
-    capturable: ClassVar[bool] = False  # The lookup of the torque limits assigns through a boolean mask
 
     def __init__(
         self,
