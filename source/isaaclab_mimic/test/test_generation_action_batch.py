@@ -19,7 +19,7 @@ pytestmark = pytest.mark.kitless
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.ALL))
-def test_action_batch_device_and_environment_order(device, monkeypatch):
+def test_action_batch_device_and_environment_order(device: str, monkeypatch: pytest.MonkeyPatch) -> None:
     """Deliver out-of-order queued actions to their owning environments on the simulation device."""
     monkeypatch.setattr(generation, "num_success", 0)
     monkeypatch.setattr(generation, "num_failures", 0)
@@ -30,7 +30,7 @@ def test_action_batch_device_and_environment_order(device, monkeypatch):
         action_queue.put_nowait((env_id, expected[env_id]))
     received = []
 
-    def step(actions):
+    def step(actions: torch.Tensor) -> None:
         received.append(actions)
 
     env = SimpleNamespace(
