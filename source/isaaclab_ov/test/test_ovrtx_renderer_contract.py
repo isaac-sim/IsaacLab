@@ -1849,7 +1849,7 @@ def test_ovrtx_split_search_recovers_from_a_real_failed_frame(monkeypatch, caplo
 
     if not torch.cuda.is_available():
         pytest.skip("OVRTX rendering requires CUDA")
-    device = device
+    device = "cuda:0"
     if torch.cuda.get_device_properties(torch.device(device)).total_memory < 16 * 1024**3:
         pytest.skip("The failed frame allocates its oversized buffer first and needs about 13 GB of GPU memory")
     num_envs, image_size, spp = 4, 1024, 40
