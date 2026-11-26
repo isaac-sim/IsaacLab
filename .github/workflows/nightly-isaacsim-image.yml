@@ -219,7 +219,7 @@ jobs:
             echo
             echo "## Checklist"
             echo
-            echo "Docker and GPU tests run on demand. This workflow comments \`run-ci\` after opening the pull request or updating its commit."
+            echo "Docker and GPU tests run on demand. This workflow comments \`run-ci ovstage\` after opening the pull request or updating its commit."
             echo
             echo '- [ ] I have read and understood the [contribution guidelines](https://isaac-sim.github.io/IsaacLab/main/source/refs/contributing.html)'
             echo '- [ ] I have run the [`pre-commit` checks](https://pre-commit.com/) with `uv run isaaclab --format`'
@@ -261,7 +261,7 @@ jobs:
 
           if [ "$BRANCH_CHANGED" = "true" ] || [ "$pr_created" = "true" ]; then
             gh api --method POST "repos/$REPOSITORY/issues/$pr_number/comments" \
-              -f body='run-ci' >/dev/null
+              -f body='run-ci ovstage' >/dev/null
             echo "Triggered CI on PR #$pr_number."
           fi
 

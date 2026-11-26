@@ -24,15 +24,7 @@ rendering-correctness-kitless-legacy = [
   "source/_isaaclab_testing/test/rendering/test_rendering_kitless_ovphysx_ovrtx.py::test_rendering[legacy-cartpole-ovphysx-ovrtx-async]",
 ]
 
-rendering-correctness-kitless-ovstage = [
-  "source/_isaaclab_testing/test/rendering/test_rendering_kitless_newton_ovrtx.py::test_rendering[ovstage-cartpole-newton-ovrtx]",
-  "source/_isaaclab_testing/test/rendering/test_rendering_kitless_ovphysx_ovrtx.py::test_rendering[ovstage-cartpole-ovphysx-ovrtx]",
-  "source/_isaaclab_testing/test/rendering/test_rendering_kitless_newton_ovrtx.py::test_rendering[ovstage-franka_cloth-newton-ovrtx]",
-  "source/_isaaclab_testing/test/rendering/test_rendering_kitless_newton_ovrtx.py::test_rendering[ovstage-franka_soft-newton-ovrtx]",
-  "source/_isaaclab_testing/test/rendering/test_rendering_kitless_newton_ovrtx.py::test_rendering[ovstage-franka_cable-newton-ovrtx]",
-]
-
-# Nodes the shader-cache warmer runs: the RTX-renderer subset of the lists above,
+# Nodes the shader-cache warmer runs: representative RTX-renderer scenes,
 # which are the only ones that compile PSO blobs. isaacsim_rtx fills kit/ and ovrtx
 # fills kitless/; the newton_warp nodes drive the Warp rasterizer and populate
 # neither tree. Exact node IDs rather than a -k expression so a parametrize-ID

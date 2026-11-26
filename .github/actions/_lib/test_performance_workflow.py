@@ -7,6 +7,7 @@
 
 import json
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -14,6 +15,7 @@ import textwrap
 from contextlib import suppress
 from pathlib import Path
 
+import tomllib
 import yaml
 
 _WORKFLOW = Path(__file__).resolve().parents[2] / "workflows/build.yaml"
@@ -251,6 +253,78 @@ process.stdout.write(ok ? '1' : '0');
             assert f"repos/owner/lab/issues/42/labels/{expected_label}" in label_calls[0]
             assert f"labels[]={expected_label}" in label_calls[1]
             assert f"repos/owner/lab/issues/42/labels/{expected_label}" in label_calls[2]
+
+    nightly_image = yaml.safe_load((_WORKFLOW.parent / "nightly-isaacsim-image.yml").read_text(encoding="utf-8"))
+    open_pr_script = next(
+        step["run"]
+        for step in nightly_image["jobs"]["update-image-pin"]["steps"]
+        if step.get("name") == "Open or refresh the draft PR"
+    )
+    comment_match = re.search(r"-f body='([^']*)'", open_pr_script)
+    assert comment_match is not None
+    nightly_comment = comment_match.group(1)
+    assert gate_allows(True, nightly_comment), nightly_comment
+    code, output, outputs, _ = run_authorize(nightly_comment)
+    assert code == 0 and outputs["label"] == "ci:run-ovstage", (nightly_comment, output, outputs)
+
+
+def test_ovstage_ci_coverage(tmp_path: Path) -> None:
+    repo_root = _WORKFLOW.parents[2]
+    expected_ovstage_files = {
+        p.name
+        for p in (repo_root / "source/_isaaclab_testing/test/rendering").glob("test_rendering_kitless_*_ovrtx.py")
+    }
+    subsets = tomllib.loads((repo_root / ".github/test-subsets/postmerge-rendering.toml").read_text(encoding="utf-8"))
+    assert expected_ovstage_files and "rendering-correctness-kitless-ovstage" not in subsets
+
+    build_workflow = yaml.safe_load(_WORKFLOW.read_text(encoding="utf-8"))
+    nightly_workflow = yaml.safe_load((_WORKFLOW.parent / "nightly-ovstage.yml").read_text(encoding="utf-8"))
+
+    nightly_on = nightly_workflow.get("on", nightly_workflow.get(True, {}))
+    assert nightly_on.get("schedule") and "workflow_dispatch" in nightly_on
+    assert all(not job.get("continue-on-error", False) for job in nightly_workflow["jobs"].values())
+
+    tags = []
+    for wf, event_name in ((build_workflow, "push"), (nightly_workflow, "schedule")):
+        step = next(s for s in wf["jobs"]["config"]["steps"] if s.get("id") == "image_tag")
+        out_file = tmp_path / f"tag-{event_name}"
+        subprocess.run(
+            ["bash", "-c", step["run"]],
+            env={
+                **os.environ,
+                "EVENT_NAME": event_name,
+                "PR_NUMBER": "",
+                "REF_NAME": "main",
+                "SHA": "abcdef123456",
+                "CI_IMAGE_REPOSITORY": "isaac-lab-ci",
+                "CONFIG_REF": "",
+                "CONFIG_HASH": "",
+                "GITHUB_OUTPUT": str(out_file),
+            },
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        outputs = dict(line.split("=", 1) for line in out_file.read_text(encoding="utf-8").splitlines() if "=" in line)
+        tags.append(outputs["ci_image_tag"])
+    assert tags == ["isaac-lab-ci:main-abcdef123456", "isaac-lab-ci:main-abcdef123456"]
+
+    build_with = next(
+        s["with"]
+        for s in build_workflow["jobs"]["test-rendering-correctness-kitless-ovstage"]["steps"]
+        if s.get("uses") == "./.github/actions/run-package-tests"
+    )
+    nightly_with = next(
+        s["with"]
+        for s in nightly_workflow["jobs"]["test-rendering-correctness-kitless-ovstage"]["steps"]
+        if s.get("uses") == "./.github/actions/run-package-tests"
+    )
+    assert {f.strip() for f in build_with["include-files"].split(",")} == expected_ovstage_files
+    assert build_with["test-k-expr"] == "ovstage"
+    assert not build_with.get("test-node-ids-file") and not build_with.get("test-node-ids-key")
+    assert {k: v for k, v in nightly_with.items() if k != "container-name"} == {
+        k: v for k, v in build_with.items() if k != "container-name"
+    }
 
 
 def test_benchmark_cancellation(tmp_path: Path) -> None:
