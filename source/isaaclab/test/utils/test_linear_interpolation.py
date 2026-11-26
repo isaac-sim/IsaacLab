@@ -3,14 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Regression coverage for piecewise linear interpolation."""
-
 import pytest
 import torch
 
 from isaaclab.utils.interpolation import LinearInterpolation
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.kitless]
 
 
 def test_interpolation_boundary_gradients() -> None:
