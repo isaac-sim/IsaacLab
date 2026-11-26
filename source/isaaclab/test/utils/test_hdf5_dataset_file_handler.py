@@ -27,6 +27,7 @@ def test_create_dataset_file(tmp_path, monkeypatch):
     assert {path.name for path in tmp_path.iterdir()} == {"absolute.hdf5", "no_extension.hdf5", "relative.hdf5"}
 
 
+@pytest.mark.kitless
 def test_failed_episode_write_can_be_retried(tmp_path: Path) -> None:
     """A failed nested tensor write must not publish an incomplete episode."""
     path = str(tmp_path / "episodes.hdf5")
