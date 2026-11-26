@@ -638,9 +638,9 @@ class MDP2RLEnv(MDP2Env, gym.Env):
                 array = argument(value, wp.array(dtype=value.warp.dtype))
                 names.append(f"Metrics/{op.name.split('.', 1)[1]}")
                 columns.append(f"wp.where({member(op.worlds)}, float({array}[world]) * {share(op.worlds)!r}, 0.0)")
-        # Progress, over the last episodes that ran each task: in the worlds of the world configs that have it, and for
-        # a task of a choice in those that drew it. Each task keeps a second column, of the worlds that ran it, to
-        # divide by, so that worlds without a finished episode, such as under an episode budget, do not count.
+        # Progress, over the last finished episodes of the worlds of the world configs that have each task, and for a
+        # task of a choice of those that drew it. Each task keeps a second column, of those episodes, to divide by, so
+        # that worlds without a finished episode, such as under an episode budget, do not count.
         paths = list(dict.fromkeys(path for tree in self.mdp.tasks for path in sorted(tree.completes)))
         drawn = {node.path for tree in self.mdp.tasks for node in tree.nodes if tree.drawn(node)}
         ratios: list[tuple[int, int]] = []  # Columns of the tasks: (done, ran)
