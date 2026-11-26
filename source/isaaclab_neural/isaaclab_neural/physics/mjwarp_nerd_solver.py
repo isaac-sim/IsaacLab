@@ -16,6 +16,7 @@ from isaaclab_newton.physics.newton_solver import solver_kwargs
 from newton import Model
 from newton_neural.solvers import SolverNeRDMuJoCo, load_nerd
 
+from ..nerd import default_compile
 from .nerd_solver import (
     COUPLING_ERROR,
     articulation_pattern,
@@ -49,11 +50,14 @@ class MJWarpNeRDSolver(MJWarpSolver):
 
     def build(self, model: Model, mode: wp.DeterministicMode, env_template: str | None) -> SolverNeRDMuJoCo:
         """Build ``SolverNeRDMuJoCo`` from ``self.cfg`` and validate the Newton model."""
-        nerd = load_nerd(self.cfg.checkpoint, wp.device_to_torch(model.device))
+        device = wp.device_to_torch(model.device)
+        nerd = load_nerd(self.cfg.checkpoint, device)
         require_articulation(nerd)
         # Collect matching MJWarpSolverCfg constructor kwargs (no determinism overrides since NOT_GUARANTEED).
         options = solver_kwargs(self.solver_class, self.cfg, mode)
         options.pop("ls_parallel", None)  # Deprecated in Newton; omit to avoid deprecation warning
+        if options.get("compile") is None:
+            options["compile"] = default_compile(device)
         if model._has_body_variants:
             options["separate_worlds"] = True
         options["articulation"] = articulation_pattern(model, self.cfg.articulation, env_template)
