@@ -297,7 +297,12 @@ def update_dict(orig_dict: dict, new_dict: collections.abc.Mapping) -> dict:
         if isinstance(value, collections.abc.Mapping):
             current = orig_dict.get(keyname)
             if not isinstance(current, collections.abc.MutableMapping):
-                current = dict(current) if isinstance(current, collections.abc.Mapping) else {}
+                if isinstance(current, collections.abc.Mapping):
+                    if not value:
+                        continue
+                    current = dict(current)
+                else:
+                    current = {}
             orig_dict[keyname] = update_dict(current, value)
         else:
             orig_dict[keyname] = value
