@@ -204,39 +204,29 @@ validation workers. Without it, each split retains its own task ID. Simulator
 subprocesses discover installed tasks through the ``isaaclab.tasks`` entry-point
 group, so downstream tasks do not need to be copied into Isaac Lab.
 
-Camera size adaptation is configured under each split's ``isaaclab`` section with
-``gpu_resize_height`` and ``gpu_resize_width``. Resizing runs on the image device
-for main and extra camera views; uint8 pixels round to nearest. Visual augmentation
-belongs to task observation ``tensor_processors`` or downstream data pipelines.
-The Trocar recipe configures its task's GPU crop processor through environment
-overrides, with random training crops and center evaluation crops.
+Configure policy input size with ``gpu_resize_height`` and ``gpu_resize_width``
+under each split's ``isaaclab`` section. Resizing stays on the image device and
+rounds uint8 pixels to nearest; augmentation belongs to task observation
+``tensor_processors``. GR00T N1.5 requires paired, matching train/eval dimensions,
+validated before workers start.
 
-GR00T N1.5 requires both resize dimensions and matching final train/eval image
-sizes. The train/play driver validates these settings before launching workers;
-worker-side validation remains as a defensive check. Deprecated draft-recipe keys
-``gpu_crop_scale`` and ``gpu_crop_random`` raise an error with migration guidance.
-
-A training recipe may set ``runner.isaaclab_context`` to a ``module:callable``
-string to manage optional services around worker initialization and training:
+For optional services around worker initialization and training, recipes may set:
 
 .. code-block:: yaml
 
    runner:
      isaaclab_context: my_demo.training:service_context
 
-The callable receives the RLinf runner and the merged training environment
-overrides (recipe settings with CLI overrides applied) and returns a context
-manager. Its cleanup runs after training, including on an exception.
-Recipes without this setting run as before. Keep service-specific behavior in the
-downstream task; the context is training configuration and is not passed to Gym
-environment constructors.
+The callable receives the runner and merged training environment overrides, and
+returns a context manager whose cleanup also runs on exceptions. Service behavior
+stays downstream; no context keywords are passed to Gym constructors.
 
 
 Episode success metrics
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-For tasks with both success and failure terminations, configure an explicit Boolean
-success observation under each split's ``isaaclab`` section:
+Tasks with both success and failure terminations can configure a Boolean
+observation under each split's ``isaaclab`` section:
 
 .. code-block:: yaml
 
@@ -244,19 +234,16 @@ success observation under each split's ``isaaclab`` section:
      group: metrics
      key: success
 
-The adapter enables ``compute_final_obs`` and reads the configured observation from
-``info["final_obs"]``, captured before the simulator resets. The observation returned
-to the policy still belongs to the new episode. Success is recorded only when the
-terminal observation is true on a terminated step; a timeout alone is not success.
-Both ``success_once`` and ``success_at_end`` use this outcome. Missing terminal data
-on a terminated step raises an error instead of using the new episode's observation.
-Terminal observations are used for metrics and are not retained in rollout infos.
-Capturing them adds one observation computation on steps with simulator resets.
-Without this setting, existing recipes continue to count task terminations as success.
+The adapter enables ``compute_final_obs`` and reads success from pre-reset
+``info["final_obs"]``; policy observations still belong to the reset episode.
+Both success metrics preserve the first completed episode's result through the
+action chunk. Timeouts alone are not wins; missing terminal data raises an error.
+Capturing terminal observations adds one observation computation on reset steps;
+those observations are not retained in rollout infos. Without this setting,
+existing recipes continue to count terminations as success.
 
-Train and evaluation retain their own ``init_params.env_overrides`` from the recipe.
-Command-line environment overrides replace recipe entries with the same key before
-being appended, including preset selectors such as ``physics`` and ``renderer``.
+Train/eval retain their own recipe ``init_params.env_overrides``. CLI overrides
+replace matching recipe keys, including ``physics`` and ``renderer`` selectors.
 
 
 Quick Start

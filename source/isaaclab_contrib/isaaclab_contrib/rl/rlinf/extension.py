@@ -46,7 +46,6 @@ import contextlib
 import logging
 import os
 from enum import Enum
-from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -54,6 +53,7 @@ import gymnasium as gym
 import numpy as np
 import torch
 import yaml
+from rlinf.envs.isaaclab.isaaclab_env import IsaaclabBaseEnv
 from rlinf.models.embodiment.gr00t import embodiment_tags
 
 import isaaclab.app
@@ -448,17 +448,19 @@ def _register_isaaclab_envs() -> None:
 
 
 def _step_with_terminal_success(env, actions: torch.Tensor, auto_reset: bool) -> tuple:
-    """Follow RLinf's step protocol while reading success before simulator info is discarded."""
+    """Use RLinf's step, preserving terminal info when explicit success metrics need it."""
+    if not env._isaaclab_cfg.get("success_observation"):
+        return IsaaclabBaseEnv.step(env, actions, auto_reset)
     obs, reward, terminated, truncated, raw_info = env.env.step(actions)
     reward, terminated, truncated = reward.clone(), terminated.clone(), truncated.clone()
     final_obs = raw_info.get("final_obs")
     if final_obs is None:
         if terminated.any():
             raise RuntimeError("Configured success_observation requires pre-reset final_obs on termination.")
-        env._terminal_success = torch.zeros_like(terminated, dtype=torch.bool)
+        terminal_success = torch.zeros_like(terminated, dtype=torch.bool)
     else:
         success_cfg = env._isaaclab_cfg["success_observation"]
-        env._terminal_success = (
+        terminal_success = (
             torch.as_tensor(final_obs[success_cfg["group"]][success_cfg["key"]], device=env.device, dtype=torch.bool)
             .reshape(env.num_envs)
             .clone()
@@ -469,11 +471,11 @@ def _step_with_terminal_success(env, actions: torch.Tensor, auto_reset: bool) ->
     dones = terminated | truncated
     if env._chunk_outcome is not None:
         active = env._chunk_outcome < 0
-        env._terminal_success &= active
+        terminal_success &= active
         env._chunk_outcome = torch.where(
-            active & dones, (terminated & env._terminal_success).to(torch.int8), env._chunk_outcome
+            active & dones, (terminated & terminal_success).to(torch.int8), env._chunk_outcome
         )
-    info = env._record_metrics(reward, terminated, {})
+    info = env._record_metrics(reward, terminated, {}, terminal_success)
     if env.ignore_terminations:
         terminated.zero_()
     if auto_reset and env.auto_reset and dones.any():
@@ -496,8 +498,6 @@ def _create_generic_env_wrapper(task_id: str) -> type:
     Returns:
         A class that inherits from IsaaclabBaseEnv.
     """
-    from rlinf.envs.isaaclab.isaaclab_env import IsaaclabBaseEnv
-
     _task_id = task_id
 
     class IsaacLabGenericEnv(IsaaclabBaseEnv):
@@ -526,15 +526,9 @@ def _create_generic_env_wrapper(task_id: str) -> type:
             self._hold_pose_on_midchunk_reset = self._isaaclab_cfg.get("hold_pose_on_midchunk_reset", False)
             self._chunk_done = None
             self._hold_actions = None
-            self._terminal_success = None
             self._chunk_outcome = None
-            self._step_impl = (
-                partial(_step_with_terminal_success, self)
-                if self._isaaclab_cfg.get("success_observation")
-                else super().step
-            )
 
-        def _record_metrics(self, step_reward, terminations, infos):
+        def _record_metrics(self, step_reward, terminations, infos, terminal_success=None):
             """Record configured success signals, falling back to task termination for existing recipes."""
 
             # RLinf may suppress terminations after this callback; Isaac Lab has already reset.
@@ -543,8 +537,8 @@ def _create_generic_env_wrapper(task_id: str) -> type:
             episode_info = {}
             self.returns += step_reward
             success = terminations.bool()
-            if self._terminal_success is not None:
-                success = success & self._terminal_success
+            if terminal_success is not None:
+                success = success & terminal_success
                 episode_info["success_at_end"] = (
                     success.clone() if self._chunk_outcome is None else self._chunk_outcome > 0
                 )
@@ -580,7 +574,7 @@ def _create_generic_env_wrapper(task_id: str) -> type:
                     mapping = self._isaaclab_cfg.get("action_mapping", {})
                     hold = torch.nn.functional.pad(hold, (mapping.get("prefix_pad", 0), mapping.get("suffix_pad", 0)))
                 actions = torch.where(self._chunk_done[:, None].to(actions.device), hold, actions)
-            obs, reward, terminated, truncated, info = self._step_impl(actions, auto_reset)
+            obs, reward, terminated, truncated, info = _step_with_terminal_success(self, actions, auto_reset)
             if self._chunk_done is not None:
                 self._chunk_done |= truncated
                 self._hold_actions = obs["states"]

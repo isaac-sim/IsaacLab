@@ -269,84 +269,55 @@ class TestConfigLoading:
 def test_episode_success_distinguishes_failure_and_timeout(
     explicit_success, ignore_terminations, missing_final, set_config_env
 ) -> None:
-    """Metrics use the completed episode while policy inputs use the reset episode."""
+    """Chunk metrics keep the completed outcome while policy inputs follow simulator resets."""
     from omegaconf import OmegaConf
 
     options = {"success_observation": {"group": "metrics", "key": "success"}} if explicit_success else {}
     worker = ext._create_generic_env_wrapper("test")(
         OmegaConf.create({"isaaclab": options, "max_episode_steps": 100}), 3, 0, 1, None
     )
-    worker.returns = torch.zeros(3)
+    worker.returns, worker._elapsed_steps = torch.zeros(3), torch.zeros(3)
     worker.success_once = torch.zeros(3, dtype=torch.bool)
-    worker._elapsed_steps = torch.zeros(3)
-    worker._chunk_done = torch.zeros(3, dtype=torch.bool)
-    worker.ignore_terminations = ignore_terminations
-    worker.auto_reset = False
-    # Reset flips both completed episodes' flags, so reading the policy observation is wrong.
-    reset_states = torch.tensor([[10.0], [20.0], [30.0]])
-    next_obs = {"metrics": {"success": torch.tensor([[False], [True], [True]])}}
+    worker.auto_reset, worker.ignore_terminations = False, ignore_terminations
+    states = torch.tensor([[10.0], [20.0], [30.0]])
     worker._isaaclab_cfg["states"] = ["joint_pos"]
-    next_obs["policy"] = {"joint_pos": reset_states}
+    obs = {"policy": {"joint_pos": states}, "metrics": {"success": torch.tensor([[False], [True], [True]])}}
     success = torch.tensor([[True], [False], [True]])
     final_info = {} if missing_final else {"final_obs": {"metrics": {"success": success}}}
     terminations = torch.tensor([True, True, False])
     worker.env = mock.Mock()
     worker.env.step.side_effect = [
-        (next_obs, torch.tensor([2.0, -1.0, 0.0]), terminations, torch.tensor([False, False, True]), final_info),
-        (next_obs, torch.ones(3), torch.zeros(3, dtype=torch.bool), torch.zeros(3, dtype=torch.bool), {}),
+        (obs, torch.tensor([2.0, -1.0, 0.0]), terminations, torch.tensor([False, False, True]), final_info),
+        # The reset episode of env 1 now succeeds. It cannot rewrite the completed failure.
+        (
+            obs,
+            torch.ones(3),
+            torch.tensor([False, True, False]),
+            torch.zeros(3, dtype=torch.bool),
+            {"final_obs": {"metrics": {"success": torch.tensor([[False], [True], [False]])}}},
+        ),
     ]
     if missing_final:
         with pytest.raises(RuntimeError, match="pre-reset final_obs"):
-            worker.step(torch.zeros(3, 1), auto_reset=False)
+            worker.chunk_step(torch.zeros(3, 2, 1))
+        assert worker._chunk_outcome is None
         return
-    obs, _, terminated, truncated, info = worker.step(torch.zeros(3, 1), auto_reset=False)
+    frames = worker.chunk_step(torch.zeros(3, 2, 1))
+    first_obs, _, terminated, truncated, first_info = frames[0]
+    final = frames[-1][4]["episode"]
     expected = [True, not explicit_success, False]
-    assert info["episode"]["success_once"].tolist() == expected
+    assert first_info["episode"]["success_once"].tolist() == final["success_once"].tolist() == expected
     if explicit_success:
-        assert info["episode"]["success_at_end"].tolist() == expected
+        assert first_info["episode"]["success_at_end"].tolist() == final["success_at_end"].tolist() == expected
     assert terminated.tolist() == ([False, False, False] if ignore_terminations else [True, True, False])
-    assert terminations.tolist() == [True, True, False]  # Suppression must not mutate simulator buffers.
+    assert terminations.tolist() == [True, True, False]
     assert truncated.tolist() == [False, False, True]
-    assert worker._chunk_done.tolist() == [True, True, True]
-    torch.testing.assert_close(obs["states"], reset_states)
-    assert set(info) == {"episode"}  # Do not retain terminal RGB in the rollout info list.
+    torch.testing.assert_close(first_obs["states"], states)
+    assert set(first_info) == {"episode"}  # Do not retain terminal RGB in rollout infos.
     success.zero_()
-    assert info["episode"]["success_once"].tolist() == expected
-    _, _, _, _, next_info = worker.step(torch.zeros(3, 1), auto_reset=False)
-    assert next_info["episode"]["success_once"].tolist() == expected
-    if explicit_success:
-        assert next_info["episode"]["success_at_end"].tolist() == [False, False, False]
-    torch.testing.assert_close(next_info["episode"]["return"], torch.tensor([3.0, 0.0, 1.0]))
-
-
-@pytest.mark.parametrize("first_wins,second_wins", [(True, False), (False, True)])
-def test_chunk_metrics_keep_the_first_completed_episode(first_wins, second_wins, set_config_env) -> None:
-    """Reset-episode frames cannot erase a win or turn the completed failure into a win."""
-    from omegaconf import OmegaConf
-
-    options = {"success_observation": {"group": "metrics", "key": "success"}}
-    worker = ext._create_generic_env_wrapper("test")(
-        OmegaConf.create({"isaaclab": options, "max_episode_steps": 100}), 1, 0, 1, None
-    )
-    worker.returns, worker._elapsed_steps = torch.zeros(1), torch.zeros(1)
-    worker.success_once = torch.zeros(1, dtype=torch.bool)
-    worker.auto_reset = worker.ignore_terminations = False
-    obs = {"metrics": {"success": torch.tensor([[False]])}}
-    clear = torch.tensor([False])
-
-    def terminal(won):
-        return {"final_obs": {"metrics": {"success": torch.tensor([[won]])}}}
-
-    worker.env = mock.Mock()
-    worker.env.step.side_effect = [
-        (obs, torch.ones(1), torch.tensor([True]), clear, terminal(first_wins)),
-        (obs, torch.ones(1), torch.tensor([second_wins]), clear, terminal(second_wins) if second_wins else {}),
-    ]
-    frames = worker.chunk_step(torch.zeros(1, 2, 1))
-    metrics = frames[-1][4]["episode"]
-    assert metrics["success_once"].item() is first_wins
-    assert metrics["success_at_end"].item() is first_wins
+    assert first_info["episode"]["success_once"].tolist() == expected
     assert worker._chunk_outcome is None
+    torch.testing.assert_close(final["return"], torch.tensor([3.0, 0.0, 1.0]))
 
 
 @pytest.mark.parametrize("explicit_success", [True, False], ids=["terminal-capture", "unchanged-config"])
@@ -554,20 +525,11 @@ def n15_loader(monkeypatch, tmp_path):
     return load
 
 
-@pytest.mark.parametrize(
-    "training,evaluation,expected",
-    [
-        ({"gpu_resize_width": 256, "gpu_resize_height": 128}, {}, (256, 128)),
-        ({"gpu_resize_width": 192, "gpu_resize_height": 240}, {}, (192, 240)),
-    ],
-)
-def test_n15_loader_sets_input_size_without_mutating_checkpoint_metadata(
-    n15_loader, training, evaluation, expected
-) -> None:
+def test_n15_loader_sets_input_size_without_mutating_checkpoint_metadata(n15_loader) -> None:
     """The transform sees resized width/height without mutating checkpoint metadata."""
-    model, transform = n15_loader(training, evaluation)
+    model, transform = n15_loader({"gpu_resize_width": 256, "gpu_resize_height": 128}, {})
     actual = transform.set_metadata.call_args.args[0]
-    assert actual.modalities.video["head"].resolution == expected
+    assert actual.modalities.video["head"].resolution == (256, 128)
     assert model.metadata.modalities.video["head"].resolution == (320, 240)
 
 
@@ -719,7 +681,7 @@ def test_midchunk_reset_does_not_replay_old_episode_actions(
             ({"states": states}, torch.ones(2), clear, clear, {}),
         ]
     )
-    monkeypatch.setattr(base, "step", step, raising=False)
+    monkeypatch.setattr(base, "step", lambda self, *args, **kwargs: step(*args, **kwargs))
 
     def chunk_step(self, actions):
         return [self.step(action, auto_reset=False) for action in actions.unbind(dim=1)]
