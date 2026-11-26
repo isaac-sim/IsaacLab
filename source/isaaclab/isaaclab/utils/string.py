@@ -69,12 +69,12 @@ def string_to_slice(s: str):
         The slice object.
     """
     # extract the content inside the slice()
-    match = re.match(r"slice\((.*),(.*),(.*)\)", s)
+    match = re.fullmatch(r"slice\((.*),(.*),(.*)\)", s.strip())
     if not match:
         raise ValueError(f"Invalid slice string format: {s}")
 
     # extract start, stop, and step values
-    start_str, stop_str, step_str = match.groups()
+    start_str, stop_str, step_str = (part.strip() for part in match.groups())
 
     # convert 'None' to None and other strings to integers
     start = None if start_str == "None" else int(start_str)
