@@ -40,7 +40,6 @@ def test_action_batch_device_and_environment_order(device, monkeypatch):
         step=step,
         sim=SimpleNamespace(is_stopped=lambda: True),
     )
-    previous_loop = asyncio.get_event_loop()
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
@@ -52,4 +51,4 @@ def test_action_batch_device_and_environment_order(device, monkeypatch):
         loop.run_until_complete(asyncio.wait_for(action_queue.join(), timeout=1.0))
     finally:
         loop.close()
-        asyncio.set_event_loop(previous_loop)
+        asyncio.set_event_loop(None)
