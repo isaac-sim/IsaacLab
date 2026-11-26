@@ -3,12 +3,15 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Construction of the model that a :class:`~isaaclab_neural.NeRDCfg` defines."""
+"""Construction of the model that a :class:`~isaaclab_neural.NeRDCfg` defines, and how it runs by default."""
 
 from __future__ import annotations
 
+import importlib.util
+import logging
 from typing import TYPE_CHECKING
 
+import torch
 from newton_neural.backbones import BackboneFlash
 from newton_neural.contacts import ContactInputBase
 from newton_neural.models import FlashNeRD
@@ -21,6 +24,26 @@ if TYPE_CHECKING:
     from newton_neural.models import NeRDBase
 
     from .nerd_cfg import NeRDCfg
+
+logger = logging.getLogger(__name__)
+
+
+def default_compile(device: torch.device | str) -> bool:
+    """Return whether a model on ``device`` runs through ``torch.compile`` when no setting says otherwise.
+
+    ``torch.compile`` generates CUDA code with Triton, which PyTorch installs on Linux only. Where Triton is
+    missing, such as on Windows, the model runs without ``torch.compile``, which is slower and otherwise
+    equivalent.
+    """
+    if torch.device(device).type != "cuda":
+        return False
+    if importlib.util.find_spec("triton") is not None:
+        return True
+    logger.warning(
+        "Triton is not installed, so torch.compile cannot generate CUDA code and the neural dynamics model runs"
+        " without it. This is slower and otherwise equivalent. PyTorch installs Triton on Linux only."
+    )
+    return False
 
 
 def build_model(dataset: TrajectoryDataset, cfg: NeRDCfg) -> NeRDBase:

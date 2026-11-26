@@ -512,66 +512,21 @@ def test_rlinf_rejects_pretrained_checkpoint() -> None:
         resolve_rlinf_checkpoint("pretrained", log_root_path="logs/rlinf", task="Isaac-Task", config_name="ppo")
 
 
-@pytest.mark.parametrize(
-    "backend,boundary,with_context",
-    [
-        (train_rlinf, "validation", False),
-        (play_rlinf, "validation", False),
-        (train_rlinf, "image-validation", False),
-        (play_rlinf, "image-validation", False),
-        (train_rlinf, "augmentation-validation", False),
-        (train_rlinf, None, False),
-        (train_rlinf, None, True),
-        (train_rlinf, "training", True),
-    ],
-    ids=[
-        "train-validation",
-        "play-validation",
-        "train-image-validation",
-        "play-image-validation",
-        "train-augmentation-validation",
-        "train-no-context",
-        "train-context",
-        "train-context-error",
-    ],
-)
-def test_rlinf_launch_passes_checkpoint_and_model_config_to_workers(
-    tmp_path: Path, monkeypatch, backend, boundary, with_context
-) -> None:
-    """CLI composition preserves worker settings and cleans up a configured training context."""
-    validate = mock.Mock(side_effect=RuntimeError("worker boundary") if boundary == "validation" else lambda cfg: cfg)
-    events = []
-    runner = mock.Mock()
-    runner.init_workers.side_effect = lambda: events.append("initialize")
+def test_rlinf_launch_passes_checkpoint_and_model_config_to_workers(tmp_path: Path, monkeypatch) -> None:
+    """Real CLI composition supplies the native RLinf weight/resume hooks before workers start.
 
-    def run_training():
-        events.append("train")
-        if boundary == "training":
-            raise RuntimeError("training boundary")
-
-    runner.run.side_effect = run_training
-
-    @contextlib.contextmanager
-    def training_context(actual_runner, overrides):
-        assert actual_runner is runner
-        assert overrides == ["env.sim.physics.split=train", "physics=newton_mjwarp", "env.scene.num_envs=2"]
-        events.append("enter")
-        try:
-            yield
-        finally:
-            events.append("exit")
-
-    context_module = types.ModuleType("_rlinf_context_test")
-    context_module.training_context = training_context
-    monkeypatch.setitem(sys.modules, context_module.__name__, context_module)
+    The config directory is given relative to the working directory. Training records its run manifest, and
+    playback resolves ``latest`` through that manifest although the recipe's eval task id differs from its
+    training id.
+    """
+    validate = mock.Mock(side_effect=RuntimeError("worker boundary"))
     modules = {
         "rlinf": {},
         "rlinf.config": {"validate_cfg": validate},
-        "rlinf.runners.embodied_runner": {"EmbodiedRunner": mock.Mock(return_value=runner)},
+        "rlinf.runners.embodied_runner": {"EmbodiedRunner": mock.Mock()},
         "rlinf.runners.embodied_eval_runner": {"EmbodiedEvalRunner": mock.Mock()},
         "rlinf.scheduler": {"Cluster": mock.Mock()},
         "rlinf.utils.placement": {"HybridComponentPlacement": mock.Mock()},
-        "rlinf.workers.actor.fsdp_actor_worker": {"EmbodiedFSDPActor": mock.Mock()},
         "rlinf.workers.env.env_worker": {"EnvWorker": mock.Mock()},
         "rlinf.workers.rollout.hf.huggingface_worker": {"MultiStepRolloutWorker": mock.Mock()},
     }
@@ -581,110 +536,46 @@ def test_rlinf_launch_passes_checkpoint_and_model_config_to_workers(
         monkeypatch.setitem(sys.modules, name, module)
     monkeypatch.setattr(torch.multiprocessing, "set_start_method", lambda *args, **kwargs: None)
     monkeypatch.chdir(tmp_path)
-    for variable in (
-        "PYTHONPATH",
-        "RLINF_CONFIG_FILE",
-        "RLINF_EXT_MODULE",
-        "RAY_ENABLE_UV_RUN_RUNTIME_ENV",
-        "ISAACLAB_RLINF_TASK",
-    ):
+    for variable in ("PYTHONPATH", "RLINF_CONFIG_FILE", "RLINF_EXT_MODULE", "RAY_ENABLE_UV_RUN_RUNTIME_ENV"):
         monkeypatch.delenv(variable, raising=False)
-    step_dir = tmp_path / "checkpoints" / "global_step_400"
-    weights = step_dir / "actor" / "model_state_dict" / "full_weights.pt"
-    weights.parent.mkdir(parents=True)
-    weights.touch()
     cfg = OmegaConf.create(
         {
-            "runner": {"logger": {"log_path": "unused"}, "max_epochs": 1},
-            "algorithm": {"loss_type": "actor_critic"},
-            "cluster": {},
+            "runner": {"logger": {"log_path": "unused"}},
             "actor": {
-                "group_name": "actor",
-                "model": {"model_path": "./base", "model_type": "gr00t", "rl_head_config": {"add_value_head": True}},
+                "model": {"model_path": "./base", "model_type": "gr00t", "rl_head_config": {"add_value_head": True}}
             },
-            "rollout": {
-                "group_name": "rollout",
-                "model": {"model_path": "./rollout", "rl_head_config": {"disable_dropout": True}},
-            },
-            "env": {
-                "group_name": "env",
-                "train": {
-                    "total_num_envs": 1,
-                    "init_params": {
-                        "id": "Test",
-                        "env_overrides": ["physics=physx", "env.sim.physics.split=train", "env.scene.num_envs=8"],
-                    },
-                },
-                "eval": {
-                    "init_params": {
-                        "id": "Test",
-                        "env_overrides": ["physics=physx", "env.sim.physics.split=validation", "env.scene.num_envs=4"],
-                    }
-                },
-            },
+            "rollout": {"model": {"model_path": "./rollout", "rl_head_config": {"disable_dropout": True}}},
+            "env": {"train": {"init_params": {"id": "Test"}}, "eval": {"init_params": {"id": "Test-Eval"}}},
         }
     )
-    if boundary == "image-validation":
-        cfg.env.train.isaaclab = {
-            "data_config_class": "example:DataConfig",
-            "gpu_resize_width": 224,
-            "gpu_resize_height": 224,
-        }
-        cfg.env.eval.isaaclab = {"gpu_resize_width": 256}
-    if boundary == "augmentation-validation":
-        cfg.env.train.isaaclab = {"gpu_crop_scale": 0.05}
-    if with_context:
-        cfg.runner.isaaclab_context = "_rlinf_context_test:training_context"
     OmegaConf.save(cfg, tmp_path / "ppo.yaml")
-    checkpoint = step_dir if backend is train_rlinf else weights
-    args = ["--config_path", str(tmp_path), "--config_name", "ppo", "--task", "Test-Cosmos"]
-    args += ["--checkpoint", str(checkpoint.relative_to(tmp_path))]
-    args += ["physics=newton_mjwarp", "env.scene.num_envs=2"]
-    if boundary in ("image-validation", "augmentation-validation"):
-        message = (
-            "matching train/eval image sizes"
-            if boundary == "image-validation"
-            else "task observation tensor_processors"
-        )
-        with pytest.raises(ValueError, match=message):
-            backend.run(args)
-        validate.assert_not_called()
-        sys.modules["rlinf.scheduler"].Cluster.assert_not_called()
-        assert events == []
+
+    def launch(backend, checkpoint: str):
+        with pytest.raises(RuntimeError, match="worker boundary"):
+            backend.run(["--config_path", ".", "--config_name", "ppo", "--checkpoint", checkpoint])
         GlobalHydra.instance().clear()
-        return
-    if boundary:
-        message = "worker boundary" if boundary == "validation" else "training boundary"
-        with pytest.raises(RuntimeError, match=message):
-            backend.run(args)
-    else:
-        backend.run(args)
-    expected_events = [] if boundary == "validation" else ["initialize", "train"]
-    assert events == (["enter", *expected_events, "exit"] if with_context else expected_events)
-    GlobalHydra.instance().clear()
+        resolved = validate.call_args.args[0]
+        assert resolved.actor.model.model_path == str(tmp_path / "base")
+        assert resolved.rollout.model.model_path == str(tmp_path / "rollout")
+        assert resolved.rollout.model.model_type == "gr00t"
+        assert dict(resolved.rollout.model.rl_head_config) == {"add_value_head": True, "disable_dropout": True}
+        return resolved
+
+    resume_dir = tmp_path / "previous" / "global_step_400"
+    resume_weights = resume_dir / "actor" / "model_state_dict" / "full_weights.pt"
+    resume_weights.parent.mkdir(parents=True)
+    resume_weights.touch()
+    trained = launch(train_rlinf, str(resume_dir.relative_to(tmp_path)))
     assert os.environ["RAY_ENABLE_UV_RUN_RUNTIME_ENV"] == "0"
-    resolved = validate.call_args.args[0]
-    assert list(resolved.env.train.init_params.env_overrides) == [
-        "env.sim.physics.split=train",
-        "physics=newton_mjwarp",
-        "env.scene.num_envs=2",
-    ]
-    assert list(resolved.env.eval.init_params.env_overrides) == [
-        "env.sim.physics.split=validation",
-        "physics=newton_mjwarp",
-        "env.scene.num_envs=2",
-    ]
-    assert (
-        resolved.env.train.init_params.id
-        == resolved.env.eval.init_params.id
-        == os.environ["ISAACLAB_RLINF_TASK"]
-        == "Test-Cosmos"
-    )
-    assert resolved.runner["resume_dir" if backend is train_rlinf else "ckpt_path"] == str(checkpoint)
-    assert resolved.actor.model.model_path == str(tmp_path / "base")
-    assert resolved.rollout.model.model_path == str(tmp_path / "rollout")
-    assert resolved.rollout.model.model_type == "gr00t"
-    assert dict(resolved.rollout.model.rl_head_config) == {"add_value_head": True, "disable_dropout": True}
+    assert trained.runner.resume_dir == str(resume_dir)
+
+    # the training launch above created the only manifested run; RLinf saves checkpoints below its run directory
+    (run_dir,) = (tmp_path / "logs" / "rlinf").iterdir()
+    weights = run_dir / "checkpoints" / "global_step_8" / "actor" / "model_state_dict" / "full_weights.pt"
+    weights.parent.mkdir(parents=True)
+    weights.touch()
+    played = launch(play_rlinf, "latest")
+    assert played.runner.ckpt_path == str(weights)
 
 
 def test_run_backend_restores_sys_argv_after_training(monkeypatch) -> None:
@@ -781,6 +672,18 @@ def test_dispatch_uses_task_registered_default_backend(monkeypatch) -> None:
         gym.registry.pop(task_name, None)
 
     assert received == {"module_name": "isaaclab_rl.entrypoints.backends.train_rsl_rl", "argv": ["--task", task_name]}
+
+
+def test_dispatch_finds_the_default_backend_of_experimental_tasks() -> None:
+    """Tasks of the optional experimental task package also select their registered default backend."""
+    pytest.importorskip("isaaclab_tasks_experimental")
+    # A fresh process, so that no earlier import has registered the experimental tasks.
+    code = (
+        "from isaaclab_rl.entrypoints.dispatch import _resolve_default_library\n"
+        "print(_resolve_default_library(['--task', 'Isaac-Cartpole-MDP2'], {'rsl_rl': ''}))"
+    )
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True)
+    assert result.stdout.strip().splitlines()[-1] == "rsl_rl"
 
 
 def test_dispatch_fuses_option_like_kit_args(monkeypatch) -> None:

@@ -354,9 +354,9 @@ How-to Guides
 
       .. container:: guide-entry
 
-         :doc:`Training on neural robot dynamics </source/how-to/neural_robot_dynamics>`
+         :doc:`Training on neural robot dynamics (NeRD) </source/how-to/neural_robot_dynamics>`
 
-         Record robot trajectories from a task, train a neural dynamics model, and train RL policies on it.
+         Record robot trajectories from a task, train a neural robot dynamics (NeRD) model, and train RL policies on it.
 
          .. container:: guide-metadata
 

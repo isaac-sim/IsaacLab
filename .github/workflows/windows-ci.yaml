@@ -104,11 +104,12 @@ jobs:
             if (Test-Path $env:UV_PROJECT_ENVIRONMENT) { Remove-Item -Recurse -Force $env:UV_PROJECT_ENVIRONMENT }
             $env:UV_CACHE_DIR = "$env:RUNNER_TEMP\uv-cache"
           }
-          uv sync --frozen --extra test --extra isaacsim --extra ov
+          # The neural dynamics test needs the newton-neural extra and is skipped without it.
+          uv sync --frozen --extra test --extra isaacsim --extra ov --extra newton-neural
           if ($LASTEXITCODE -ne 0) {
             # A job killed mid-sync can leave the kept environment broken, so rebuild it once.
             Remove-Item -Recurse -Force $env:UV_PROJECT_ENVIRONMENT -ErrorAction SilentlyContinue
-            uv sync --frozen --extra test --extra isaacsim --extra ov
+            uv sync --frozen --extra test --extra isaacsim --extra ov --extra newton-neural
           }
 
       - name: Resolve cache keys
