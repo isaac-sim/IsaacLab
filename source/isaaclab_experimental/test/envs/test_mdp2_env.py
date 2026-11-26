@@ -559,6 +559,15 @@ def test_built_in_steps_must_run_once_in_order():
         MDP2RLEnv(cfg)
 
 
+def test_env_refuses_physics_other_than_newton(monkeypatch):
+    """MDP2 binds and captures Newton's physics, so a manager of another backend is refused before the scene is
+    built, and the simulation context is cleared."""
+    monkeypatch.setattr(mdp2_env, "NewtonManager", type("OtherManager", (), {}))
+    with pytest.raises(ValueError, match="MDP2 runs on Newton only, got NewtonManager"):
+        MDP2RLEnv(cartpole_cfg())
+    assert SimulationContext.instance() is None
+
+
 after_steps = mdp2.Term(torch=lambda episode_length, *, steps: (episode_length >= steps).float())
 """One from the step ``steps`` of the episode on."""
 

@@ -19,6 +19,7 @@ import gymnasium as gym
 import numpy as np
 import torch
 import warp as wp
+from isaaclab_newton.physics import NewtonManager
 from isaaclab_newton.renderers import NewtonOptixRendererCfg, NewtonWarpRendererCfg
 
 from isaaclab.envs.common import VecEnvObs, VecEnvStepReturn
@@ -79,6 +80,8 @@ class MDP2Env:
     def _init_sim(self) -> None:
         """Build the scene and the MDP; on failure, the caller clears the simulation context."""
         cfg, sim = self.cfg, self.sim
+        if not isinstance(sim.backend_manager, NewtonManager):
+            raise ValueError(f"MDP2 runs on Newton only, got {type(sim.backend_manager).__name__}.")
 
         # Terms read sensor data in kernels, so sensors refresh every step rather than when their data is read. A
         # shallow copy keeps the entities that were added to the config as attributes, and the caller's config.

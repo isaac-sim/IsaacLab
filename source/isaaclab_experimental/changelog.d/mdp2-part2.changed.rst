@@ -25,6 +25,8 @@
 * Changed :class:`~isaaclab_experimental.envs.MDP2Env` to capture its steps through the physics backend
   (:meth:`~isaaclab.physics.PhysicsManager.capture`) instead of a Newton function: a backend that cannot capture its
   step steps between the MDP's graphs. Replayed steps now count their physics steps and advance the simulation time.
+* Changed :class:`~isaaclab_experimental.envs.MDP2Env` to raise a ``ValueError`` on a physics backend other than
+  Newton, instead of capturing writes that the backend synchronizes or reading stale state.
 * Changed ``MDP2EnvCfg.verify_capture`` on physics without a reproducible mode to check the MDP alone, with the physics
   step replaced by nothing, bitwise, instead of comparing to a relative tolerance.
 * Changed :class:`~isaaclab_experimental.envs.MDP2Env` to render only the cameras that some term of the task reads.
