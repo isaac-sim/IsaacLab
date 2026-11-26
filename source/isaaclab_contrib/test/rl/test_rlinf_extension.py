@@ -83,6 +83,9 @@ def _build_rlinf_mocks() -> dict[str, types.ModuleType]:
             self._elapsed_steps += 1
             return obs, reward, terminated, truncated, self._record_metrics(reward, terminated, {})
 
+        def chunk_step(self, actions):
+            return [self.step(action, auto_reset=False) for action in actions.unbind(1)]
+
     mock_isaaclab_base.IsaaclabBaseEnv = _FakeIsaaclabBaseEnv
 
     # Build the module hierarchy
@@ -314,6 +317,36 @@ def test_episode_success_distinguishes_failure_and_timeout(
     if explicit_success:
         assert next_info["episode"]["success_at_end"].tolist() == [False, False, False]
     torch.testing.assert_close(next_info["episode"]["return"], torch.tensor([3.0, 0.0, 1.0]))
+
+
+@pytest.mark.parametrize("first_wins,second_wins", [(True, False), (False, True)])
+def test_chunk_metrics_keep_the_first_completed_episode(first_wins, second_wins, set_config_env) -> None:
+    """Reset-episode frames cannot erase a win or turn the completed failure into a win."""
+    from omegaconf import OmegaConf
+
+    options = {"success_observation": {"group": "metrics", "key": "success"}}
+    worker = ext._create_generic_env_wrapper("test")(
+        OmegaConf.create({"isaaclab": options, "max_episode_steps": 100}), 1, 0, 1, None
+    )
+    worker.returns, worker._elapsed_steps = torch.zeros(1), torch.zeros(1)
+    worker.success_once = torch.zeros(1, dtype=torch.bool)
+    worker.auto_reset = worker.ignore_terminations = False
+    obs = {"metrics": {"success": torch.tensor([[False]])}}
+    clear = torch.tensor([False])
+
+    def terminal(won):
+        return {"final_obs": {"metrics": {"success": torch.tensor([[won]])}}}
+
+    worker.env = mock.Mock()
+    worker.env.step.side_effect = [
+        (obs, torch.ones(1), torch.tensor([True]), clear, terminal(first_wins)),
+        (obs, torch.ones(1), torch.tensor([second_wins]), clear, terminal(second_wins) if second_wins else {}),
+    ]
+    frames = worker.chunk_step(torch.zeros(1, 2, 1))
+    metrics = frames[-1][4]["episode"]
+    assert metrics["success_once"].item() is first_wins
+    assert metrics["success_at_end"].item() is first_wins
+    assert worker._chunk_outcome is None
 
 
 @pytest.mark.parametrize("explicit_success", [True, False], ids=["terminal-capture", "unchanged-config"])

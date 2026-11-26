@@ -471,6 +471,12 @@ def _step_with_terminal_success(env, actions: torch.Tensor, auto_reset: bool) ->
     env._elapsed_steps += 1
     truncated = (env.elapsed_steps >= env.cfg.max_episode_steps) | truncated
     dones = terminated | truncated
+    if env._chunk_outcome is not None:
+        active = env._chunk_outcome < 0
+        env._terminal_success &= active
+        env._chunk_outcome = torch.where(
+            active & dones, (terminated & env._terminal_success).to(torch.int8), env._chunk_outcome
+        )
     info = env._record_metrics(reward, terminated, {})
     if env.ignore_terminations:
         terminated.zero_()
@@ -525,6 +531,7 @@ def _create_generic_env_wrapper(task_id: str) -> type:
             self._chunk_done = None
             self._hold_actions = None
             self._terminal_success = None
+            self._chunk_outcome = None
             self._step_impl = (
                 partial(_step_with_terminal_success, self)
                 if self._isaaclab_cfg.get("success_observation")
@@ -542,7 +549,9 @@ def _create_generic_env_wrapper(task_id: str) -> type:
             success = terminations.bool()
             if self._terminal_success is not None:
                 success = success & self._terminal_success
-                episode_info["success_at_end"] = success.clone()
+                episode_info["success_at_end"] = (
+                    success.clone() if self._chunk_outcome is None else self._chunk_outcome > 0
+                )
             self.success_once = self.success_once | success
             episode_info["success_once"] = self.success_once.clone()
             episode_info["return"] = self.returns.clone()
@@ -552,13 +561,20 @@ def _create_generic_env_wrapper(task_id: str) -> type:
             return {"episode": episode_info}
 
         def chunk_step(self, chunk_actions):
-            """Retire actions predicted for an episode once that episode has reset."""
+            """Preserve the first completed episode's metrics and optionally retire stale actions."""
             if self._hold_pose_on_midchunk_reset:
                 chunk_actions = chunk_actions.to(self.device)
                 self._chunk_done = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
-            result = super().chunk_step(chunk_actions)
-            self._chunk_done = self._hold_actions = None
-            return result
+            # -1 means active, 0 means failure/timeout, 1 means success in this action chunk.
+            self._chunk_outcome = (
+                torch.full_like(self.success_once, -1, dtype=torch.int8)
+                if self._isaaclab_cfg.get("success_observation")
+                else None
+            )
+            try:
+                return super().chunk_step(chunk_actions)
+            finally:
+                self._chunk_done = self._hold_actions = self._chunk_outcome = None
 
         def step(self, actions=None, auto_reset=True):
             """Hold reset joints until the next chunk supplies actions for the new episode."""
