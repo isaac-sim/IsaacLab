@@ -234,29 +234,34 @@ class HDF5DatasetFileHandler(DatasetFileHandlerBase):
             raise ValueError(f"Episode group '{episode_group_name}' already exists in the dataset")
         h5_episode_group = self._hdf5_data_group.create_group(episode_group_name)
 
-        h5_episode_group.attrs["num_samples"] = len(episode.data.get("actions", ()))
+        try:
+            h5_episode_group.attrs["num_samples"] = len(episode.data.get("actions", ()))
 
-        if episode.seed is not None:
-            h5_episode_group.attrs["seed"] = episode.seed
+            if episode.seed is not None:
+                h5_episode_group.attrs["seed"] = episode.seed
 
-        if episode.success is not None:
-            h5_episode_group.attrs["success"] = episode.success
+            if episode.success is not None:
+                h5_episode_group.attrs["success"] = episode.success
 
-        def create_dataset_helper(group, key, value):
-            """Helper method to create dataset that contains recursive dict objects."""
-            if isinstance(value, dict):
-                key_group = group.create_group(key)
-                for sub_key, sub_value in value.items():
-                    create_dataset_helper(key_group, sub_key, sub_value)
-            elif dataset_compression:
-                group.create_dataset(key, data=value.cpu().numpy(), compression="gzip", compression_opts=2)
-            else:
-                group.create_dataset(key, data=value.cpu().numpy())
+            def create_dataset_helper(group, key, value):
+                """Helper method to create dataset that contains recursive dict objects."""
+                if isinstance(value, dict):
+                    key_group = group.create_group(key)
+                    for sub_key, sub_value in value.items():
+                        create_dataset_helper(key_group, sub_key, sub_value)
+                elif dataset_compression:
+                    group.create_dataset(key, data=value.cpu().numpy(), compression="gzip", compression_opts=2)
+                else:
+                    group.create_dataset(key, data=value.cpu().numpy())
 
-        for key, value in episode.data.items():
-            create_dataset_helper(h5_episode_group, key, value)
+            for key, value in episode.data.items():
+                create_dataset_helper(h5_episode_group, key, value)
 
-        self._hdf5_data_group.attrs["total"] += h5_episode_group.attrs["num_samples"]
+            self._hdf5_data_group.attrs["total"] += h5_episode_group.attrs["num_samples"]
+        except BaseException:
+            # Do not leave a partially written episode visible or reserve its demo ID.
+            del self._hdf5_data_group[episode_group_name]
+            raise
         # custom demo ids do not advance the default naming sequence
         if demo_id is None:
             self._demo_count += 1
