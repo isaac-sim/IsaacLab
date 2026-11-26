@@ -117,6 +117,25 @@ def spawn_lidar(prim_path: str, cfg: OVRTXLidarCfg) -> Usd.Prim:
     return prim
 
 
+def apply_lidar_frame_rate(cfg: OVRTXLidarCfg, lidar_paths: list[str]) -> None:
+    """Write ``cfg.frame_rate`` onto every existing lidar prim.
+
+    A tiled capture advances every prim by one interval. Call this only when ``spawn`` is ``None``:
+    spawning already authors the configured rate, and prims left in the stage may not match it
+    or each other.
+    """
+    stage = get_current_stage()
+    rate = Gf.Vec2d(*cfg.frame_rate)
+    for path in lidar_paths:
+        prim = stage.GetPrimAtPath(path)
+        if not prim.IsValid():
+            raise RuntimeError(f"Lidar prim {path!r} was not found while applying its frame rate.")
+        attr = prim.GetAttribute("omni:sensor:frameRate")
+        if not attr.IsValid():
+            attr = prim.CreateAttribute("omni:sensor:frameRate", Sdf.ValueTypeNames.Double2)
+        attr.Set(rate)
+
+
 @wp.kernel
 def _clear_lidar_returns_kernel(
     env_mask: wp.array(dtype=wp.bool),
@@ -262,6 +281,9 @@ class OVRTXLidar(SensorBase):
         lidar_paths = [str(prim.GetPath()) for prim in sim_utils.find_matching_prims(self.cfg.prim_path, self.stage)]
         if not lidar_paths:
             raise RuntimeError(f"Lidar prim '{self.cfg.prim_path}' was not found after the scene was cloned.")
+
+        if self.cfg.spawn is None:
+            apply_lidar_frame_rate(self.cfg, lidar_paths)
 
         self._render_data = self._renderer.create_lidar_render_data(self.cfg, lidar_paths, self._num_envs)
         if self.cfg.spawn is None:
