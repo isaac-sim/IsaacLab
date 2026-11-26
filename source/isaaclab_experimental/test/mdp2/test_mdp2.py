@@ -2461,8 +2461,8 @@ def test_python_action_hooks_write_only_where_their_action_applies():
         mdp2.apply_actions(mdp, state, ProxyArray(wp.from_torch(torch.zeros(4, mdp.action_dim, device=DEVICE))))
         assert scene.data("robot", "joint_effort_target").torch[:, 0].tolist() == [1.0] * 4, backend
 
-        with pytest.raises(ValueError, match="unexpected keyword argument 'mask'"):
-            build(write(1.0), lambda action, target: target.fill_(2.0), backend)
+    with pytest.raises(ValueError, match="unexpected keyword argument 'mask'"):
+        build(write(1.0), lambda action, target: target.fill_(2.0), "torch")
 
 
 def test_choice_draws_one_subtask_per_episode_and_world():

@@ -842,12 +842,9 @@ class MDPBuilder:
         # Python hooks may also take ``cache``, a dict the use keeps for host objects.
         if not isinstance(implementation.compute, wp.Function):
             arguments["cache"] = None
-        # Events and commands take the mask of the worlds to write; other Warp functions take the output to write.
-        if isinstance(cfg, (Command, Event)):
+        # Events, commands, and actions take the mask of their worlds; other Warp functions take their output.
+        if isinstance(cfg, (Command, Event, Action)):
             _check_hook(entry, implementation.compute, arguments, errors, extra="mask")
-        elif isinstance(cfg, Action):
-            # A Python hook takes the worlds where the action is active, as ``mask``, so that it writes only there.
-            _check_hook(entry, implementation.compute, {**arguments, "mask": None}, errors, extra="mask")
         else:
             extra = "out" if implementation is term.warp else None
             _check_hook(entry, implementation.compute, arguments, errors, len(output_shape), extra, dtype)

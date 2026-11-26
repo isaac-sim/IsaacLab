@@ -54,11 +54,10 @@ def _apply_actions(mdp: MDP, call: Call, steps: tuple[Step, ...], store: bool) -
     for step in steps:
         op = step.op
         if isinstance(op, TermOp):
-            # The hook writes its outputs; it may take the worlds where it is active as ``mask``.
+            # The hook writes its outputs in the worlds where it is active, ``mask``.
             active = _active(op, call.state)
             arguments = {**call.state.arguments[op.name], "action": actions[:, op.columns]}
-            arguments["mask"] = None if active is None else active.torch
-            op.compute(**hook_arguments(op.compute, arguments))
+            op.compute(mask=None if active is None else active.torch, **hook_arguments(op.compute, arguments))
             continue
         target = call.state.arrays[op.target].torch.view(mdp.num_worlds, -1)
         ids = slice(None) if op.subset is None else call.state.arrays[op.subset].torch

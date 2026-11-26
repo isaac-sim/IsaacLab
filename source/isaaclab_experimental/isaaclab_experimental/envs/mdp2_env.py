@@ -176,6 +176,8 @@ class MDP2Env:
         if self._event_worlds is not None:
             self._commit_mask = ProxyArray(wp.zeros(self.num_envs, dtype=wp.bool, device=self.device))
 
+        # The physics steps in the graphs where the backend captures its step and every actuator it runs.
+        self._physics_capturable = self.sim.backend_manager.supports_step_capture() and self._actuators_capturable
         self._work = self._step_work()  # The work of a step, in order, each with whether a graph can capture it
         self._runs: list[Callable[[], None]] | None = None  # The captured step: graph replays and the work between them
         self.num_graphs = 0  # CUDA graphs that one captured step replays
@@ -303,13 +305,10 @@ class MDP2Env:
         """Return the work of a control step, in the order of the config's ``step``, each with whether a CUDA graph
         can capture it."""
         transition = self.transition
-        # The physics steps inside the graphs where the backend captures its step and every actuator it runs.
-        self._physics_capturable = self.sim.backend_manager.supports_step_capture() and self._actuators_capturable
         evaluate = Call(self.state, transition=transition, observations=transition.observations)
         work = []
         for item in self.cfg.step:
             if item is Step.PHYSICS:
-                # A physics backend that cannot capture its step steps between the graphs of the MDP.
                 work.append((self._physics_capturable, self._simulate))
             elif item is Step.RENDER:
                 work += [(self._render_capturable, self._render)] if self._cameras else []
@@ -338,7 +337,6 @@ class MDP2Env:
             if item is ResetStep.OBSERVE and render:
                 work += rendering
             if item is ResetStep.EVENTS:
-                # Newton resets its own actuators here: those it cannot capture keep the scene reset out of the graphs.
                 work.append((self._actuators_capturable, functools.partial(self._reset_scene, mask)))
                 work += [(launch.capturable, functools.partial(launch, reset)) for launch in launches.reset]
             elif item is ResetStep.COMMIT:
@@ -638,9 +636,8 @@ class MDP2RLEnv(MDP2Env, gym.Env):
                 array = argument(value, wp.array(dtype=value.warp.dtype))
                 names.append(f"Metrics/{op.name.split('.', 1)[1]}")
                 columns.append(f"wp.where({member(op.worlds)}, float({array}[world]) * {share(op.worlds)!r}, 0.0)")
-        # Progress, over the last finished episodes of the worlds of the world configs that have each task, and for a
-        # task of a choice of those that drew it. Each task keeps a second column, of those episodes, to divide by, so
-        # that worlds without a finished episode, such as under an episode budget, do not count.
+        # Progress, over the last finished episodes of the worlds that have each task, for a task of a choice of those
+        # that drew it: a second column counts those episodes, so worlds that finished none do not count.
         paths = list(dict.fromkeys(path for tree in self.mdp.tasks for path in sorted(tree.completes)))
         drawn = {node.path for tree in self.mdp.tasks for node in tree.nodes if tree.drawn(node)}
         ratios: list[tuple[int, int]] = []  # Columns of the tasks: (done, ran)

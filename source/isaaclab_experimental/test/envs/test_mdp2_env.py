@@ -582,16 +582,16 @@ after_steps = mdp2.Term(torch=lambda episode_length, *, steps: (episode_length >
 """One from the step ``steps`` of the episode on."""
 
 
+def stage(steps: int, weight: float = 1.0) -> mdp2.TaskCfg:
+    """A task done after ``steps`` steps, with a bonus of ``weight``, which makes the bonus a use of this task."""
+    ready = mdp2.Quantity(after_steps, inputs={"episode_length": mdp2.episode_length}, params={"steps": steps})
+    bonus = mdp2.Reward(mdp.is_alive, inputs={"terminated": mdp2.terminated}, weight=weight)
+    return mdp2.TaskCfg(quantities={"ready": ready}, rewards={"bonus": bonus}, done=mdp2.quantities.ready)
+
+
 def test_env_runs_the_tasks_of_a_sequence_in_turn_and_logs_their_progress():
     """A sequence of two tasks, each with its own quantity and reward, steps the same captured and uncaptured, and
     the environment logs how often each task was done in the last episodes."""
-
-    def stage(steps: int, weight: float) -> mdp2.TaskCfg:
-        ready = mdp2.Quantity(after_steps, inputs={"episode_length": mdp2.episode_length}, params={"steps": steps})
-        # The weights differ, so that the bonus is a use of each task rather than one of both.
-        bonus = mdp2.Reward(mdp.is_alive, inputs={"terminated": mdp2.terminated}, weight=weight)
-        return mdp2.TaskCfg(quantities={"ready": ready}, rewards={"bonus": bonus}, done=mdp2.quantities.ready)
-
     cfg = cartpole_cfg()
     cfg.task.terminations["cart_out_of_bounds"] = None
     cfg.task = mdp2.compose(cfg.task, mdp2.sequence(warm=stage(3, 1.0), hold=stage(6, 2.0)))
@@ -614,11 +614,6 @@ def test_env_runs_the_tasks_of_a_sequence_in_turn_and_logs_their_progress():
 def test_progress_is_logged_over_the_episodes_that_ran():
     """Under an episode budget of one episode, the progress of each task is logged over that episode, not over every
     world, most of which finished none."""
-
-    def stage(steps: int) -> mdp2.TaskCfg:
-        ready = mdp2.Quantity(after_steps, inputs={"episode_length": mdp2.episode_length}, params={"steps": steps})
-        return mdp2.TaskCfg(quantities={"ready": ready}, done=mdp2.quantities.ready)
-
     cfg = cartpole_cfg()
     cfg.task.terminations["cart_out_of_bounds"] = None
     cfg.task = mdp2.compose(cfg.task, mdp2.sequence(warm=stage(3), hold=stage(6)))
