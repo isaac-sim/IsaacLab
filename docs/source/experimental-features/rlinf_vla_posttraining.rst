@@ -238,10 +238,15 @@ success observation under each split's ``isaaclab`` section:
      group: metrics
      key: success
 
-The adapter records success only when this observation is true on a terminated step.
-The task must expose the completed episode's outcome on that step, including when the
-simulator resets automatically. Without this setting, existing recipes continue to
-count task terminations as success. Timeouts alone do not count as success.
+The adapter enables ``compute_final_obs`` and reads the configured observation from
+``info["final_obs"]``, captured before the simulator resets. The observation returned
+to the policy still belongs to the new episode. Success is recorded only when the
+terminal observation is true on a terminated step; a timeout alone is not success.
+Both ``success_once`` and ``success_at_end`` use this outcome. Missing terminal data
+on a terminated step raises an error instead of using the new episode's observation.
+Terminal observations are used for metrics and are not retained in rollout infos.
+Capturing them adds one observation computation on steps with simulator resets.
+Without this setting, existing recipes continue to count task terminations as success.
 
 Train and evaluation retain their own ``init_params.env_overrides`` from the recipe.
 Command-line environment overrides replace recipe entries with the same key before

@@ -71,6 +71,18 @@ def _build_rlinf_mocks() -> dict[str, types.ModuleType]:
             self.device = "cpu"
             self.task_description = ""
 
+        @property
+        def elapsed_steps(self):
+            return self._elapsed_steps
+
+        def step(self, actions=None, auto_reset=True):
+            # Model the upstream boundary: RLinf wraps post-reset observations and drops
+            # simulator infos before recording metrics. The adapter must bypass this for success.
+            obs, reward, terminated, truncated, _ = self.env.step(actions)
+            obs = self._wrap_obs(obs)
+            self._elapsed_steps += 1
+            return obs, reward, terminated, truncated, self._record_metrics(reward, terminated, {})
+
     mock_isaaclab_base.IsaaclabBaseEnv = _FakeIsaaclabBaseEnv
 
     # Build the module hierarchy
@@ -246,28 +258,91 @@ class TestConfigLoading:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("explicit_success", [True, False], ids=["success-observation", "legacy-termination"])
-def test_episode_success_distinguishes_failure_and_timeout(explicit_success, set_config_env) -> None:
-    """A failure termination is not a win when the recipe supplies an explicit success observation."""
+@pytest.mark.parametrize(
+    "explicit_success,ignore_terminations,missing_final",
+    [(True, False, False), (True, True, False), (False, False, False), (True, False, True)],
+    ids=["terminal-success", "suppressed-terminations", "legacy-termination", "missing-terminal-data"],
+)
+def test_episode_success_distinguishes_failure_and_timeout(
+    explicit_success, ignore_terminations, missing_final, set_config_env
+) -> None:
+    """Metrics use the completed episode while policy inputs use the reset episode."""
     from omegaconf import OmegaConf
 
     options = {"success_observation": {"group": "metrics", "key": "success"}} if explicit_success else {}
-    worker = ext._create_generic_env_wrapper("test")(OmegaConf.create({"isaaclab": options}), 3, 0, 1, None)
+    worker = ext._create_generic_env_wrapper("test")(
+        OmegaConf.create({"isaaclab": options, "max_episode_steps": 100}), 3, 0, 1, None
+    )
     worker.returns = torch.zeros(3)
     worker.success_once = torch.zeros(3, dtype=torch.bool)
-    worker.elapsed_steps = torch.ones(3)
+    worker._elapsed_steps = torch.zeros(3)
     worker._chunk_done = torch.zeros(3, dtype=torch.bool)
+    worker.ignore_terminations = ignore_terminations
+    worker.auto_reset = False
+    # Reset flips both completed episodes' flags, so reading the policy observation is wrong.
+    reset_states = torch.tensor([[10.0], [20.0], [30.0]])
+    next_obs = {"metrics": {"success": torch.tensor([[False], [True], [True]])}}
+    worker._isaaclab_cfg["states"] = ["joint_pos"]
+    next_obs["policy"] = {"joint_pos": reset_states}
     success = torch.tensor([[True], [False], [True]])
-    worker._wrap_obs({"metrics": {"success": success}})
-    # Observation storage can be reused after wrapping; the recorded outcome must retain its value.
+    final_info = {} if missing_final else {"final_obs": {"metrics": {"success": success}}}
+    terminations = torch.tensor([True, True, False])
+    worker.env = mock.Mock()
+    worker.env.step.side_effect = [
+        (next_obs, torch.tensor([2.0, -1.0, 0.0]), terminations, torch.tensor([False, False, True]), final_info),
+        (next_obs, torch.ones(3), torch.zeros(3, dtype=torch.bool), torch.zeros(3, dtype=torch.bool), {}),
+    ]
+    if missing_final:
+        with pytest.raises(RuntimeError, match="pre-reset final_obs"):
+            worker.step(torch.zeros(3, 1), auto_reset=False)
+        return
+    obs, _, terminated, truncated, info = worker.step(torch.zeros(3, 1), auto_reset=False)
+    expected = [True, not explicit_success, False]
+    assert info["episode"]["success_once"].tolist() == expected
+    if explicit_success:
+        assert info["episode"]["success_at_end"].tolist() == expected
+    assert terminated.tolist() == ([False, False, False] if ignore_terminations else [True, True, False])
+    assert terminations.tolist() == [True, True, False]  # Suppression must not mutate simulator buffers.
+    assert truncated.tolist() == [False, False, True]
+    assert worker._chunk_done.tolist() == [True, True, True]
+    torch.testing.assert_close(obs["states"], reset_states)
+    assert set(info) == {"episode"}  # Do not retain terminal RGB in the rollout info list.
     success.zero_()
-    info = worker._record_metrics(torch.tensor([2.0, -1.0, 0.0]), torch.tensor([True, True, False]), {})
-    assert info["episode"]["success_once"].tolist() == [True, not explicit_success, False]
-    assert worker._chunk_done.tolist() == [True, True, False]
-    worker._wrap_obs({"metrics": {"success": success}})
-    info = worker._record_metrics(torch.ones(3), torch.zeros(3, dtype=torch.bool), {})
-    assert info["episode"]["success_once"].tolist() == [True, not explicit_success, False]
-    torch.testing.assert_close(info["episode"]["return"], torch.tensor([3.0, 0.0, 1.0]))
+    assert info["episode"]["success_once"].tolist() == expected
+    _, _, _, _, next_info = worker.step(torch.zeros(3, 1), auto_reset=False)
+    assert next_info["episode"]["success_once"].tolist() == expected
+    if explicit_success:
+        assert next_info["episode"]["success_at_end"].tolist() == [False, False, False]
+    torch.testing.assert_close(next_info["episode"]["return"], torch.tensor([3.0, 0.0, 1.0]))
+
+
+@pytest.mark.parametrize("explicit_success", [True, False], ids=["terminal-capture", "unchanged-config"])
+def test_success_configuration_enables_terminal_capture(explicit_success, set_config_env, monkeypatch) -> None:
+    """Constructed simulator environments capture final observations only when required."""
+    import contextlib
+
+    import gymnasium as gym
+    from omegaconf import OmegaConf
+
+    import isaaclab.app
+    import isaaclab.cli
+
+    import isaaclab_tasks.utils
+
+    options = {"success_observation": {"group": "metrics", "key": "success"}} if explicit_success else {}
+    worker = ext._create_generic_env_wrapper("test")(
+        OmegaConf.create({"isaaclab": options, "init_params": {"num_envs": 3}}), 3, 0, 1, None
+    )
+    cfg = types.SimpleNamespace(compute_final_obs=False)
+    monkeypatch.setattr(isaaclab_tasks.utils, "parse_env_cfg", lambda *args, **kwargs: cfg)
+    monkeypatch.setattr(isaaclab.cli, "load_external_tasks", lambda: None)
+    monkeypatch.setattr(isaaclab.app, "launch_simulation", lambda *args, **kwargs: contextlib.nullcontext())
+    monkeypatch.setattr(gym, "make", lambda *args, **kwargs: types.SimpleNamespace(unwrapped=kwargs["cfg"]))
+    env, runtime = worker._make_env_function()()
+    try:
+        assert env.compute_final_obs is explicit_success
+    finally:
+        runtime.close()
 
 
 class TestObsConversion:

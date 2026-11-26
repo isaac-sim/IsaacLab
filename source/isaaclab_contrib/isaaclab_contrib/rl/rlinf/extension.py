@@ -45,6 +45,7 @@ import collections.abc
 import logging
 import os
 from enum import Enum
+from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -459,6 +460,34 @@ def _register_isaaclab_envs() -> None:
     logger.debug(f"REGISTER_ISAACLAB_ENVS now contains: {list(REGISTER_ISAACLAB_ENVS.keys())}")
 
 
+def _step_with_terminal_success(env, actions: torch.Tensor, auto_reset: bool) -> tuple:
+    """Follow RLinf's step protocol while reading success before simulator info is discarded."""
+    obs, reward, terminated, truncated, raw_info = env.env.step(actions)
+    reward, terminated, truncated = reward.clone(), terminated.clone(), truncated.clone()
+    final_obs = raw_info.get("final_obs")
+    if final_obs is None:
+        if terminated.any():
+            raise RuntimeError("Configured success_observation requires pre-reset final_obs on termination.")
+        env._terminal_success = torch.zeros_like(terminated, dtype=torch.bool)
+    else:
+        success_cfg = env._isaaclab_cfg["success_observation"]
+        env._terminal_success = (
+            torch.as_tensor(final_obs[success_cfg["group"]][success_cfg["key"]], device=env.device, dtype=torch.bool)
+            .reshape(env.num_envs)
+            .clone()
+        )
+    obs = env._wrap_obs(obs)
+    env._elapsed_steps += 1
+    truncated = (env.elapsed_steps >= env.cfg.max_episode_steps) | truncated
+    dones = terminated | truncated
+    info = env._record_metrics(reward, terminated, {})
+    if env.ignore_terminations:
+        terminated.zero_()
+    if auto_reset and env.auto_reset and dones.any():
+        obs, info = env._handle_auto_reset(dones, obs, info)
+    return obs, reward, terminated, truncated, info
+
+
 def _create_generic_env_wrapper(task_id: str) -> type:
     """Create a generic wrapper class for an IsaacLab task.
 
@@ -506,7 +535,12 @@ def _create_generic_env_wrapper(task_id: str) -> type:
             self._hold_pose_on_midchunk_reset = self._isaaclab_cfg.get("hold_pose_on_midchunk_reset", False)
             self._chunk_done = None
             self._hold_actions = None
-            self._success_observation = None
+            self._terminal_success = None
+            self._step_impl = (
+                partial(_step_with_terminal_success, self)
+                if self._isaaclab_cfg.get("success_observation")
+                else super().step
+            )
 
         def _record_metrics(self, step_reward, terminations, infos):
             """Record configured success signals, falling back to task termination for existing recipes."""
@@ -517,15 +551,16 @@ def _create_generic_env_wrapper(task_id: str) -> type:
             episode_info = {}
             self.returns += step_reward
             success = terminations.bool()
-            if self._success_observation is not None:
-                success = success & self._success_observation
+            if self._terminal_success is not None:
+                success = success & self._terminal_success
+                episode_info["success_at_end"] = success.clone()
             self.success_once = self.success_once | success
             episode_info["success_once"] = self.success_once.clone()
             episode_info["return"] = self.returns.clone()
             episode_info["episode_len"] = self.elapsed_steps.clone()
             episode_info["reward"] = episode_info["return"] / episode_info["episode_len"]
-            infos["episode"] = episode_info
-            return infos
+            # Terminal RGB may be large. Only metrics need to survive in RLinf's rollout info list.
+            return {"episode": episode_info}
 
         def chunk_step(self, chunk_actions):
             """Retire actions predicted for an episode once that episode has reset."""
@@ -544,7 +579,7 @@ def _create_generic_env_wrapper(task_id: str) -> type:
                     mapping = self._isaaclab_cfg.get("action_mapping", {})
                     hold = torch.nn.functional.pad(hold, (mapping.get("prefix_pad", 0), mapping.get("suffix_pad", 0)))
                 actions = torch.where(self._chunk_done[:, None].to(actions.device), hold, actions)
-            obs, reward, terminated, truncated, info = super().step(actions, auto_reset)
+            obs, reward, terminated, truncated, info = self._step_impl(actions, auto_reset)
             if self._chunk_done is not None:
                 self._chunk_done |= truncated
                 self._hold_actions = obs["states"]
@@ -583,6 +618,9 @@ def _create_generic_env_wrapper(task_id: str) -> type:
                     num_envs=self.cfg.init_params.num_envs,
                     overrides=list(self.cfg.init_params.get("env_overrides", None) or ()),
                 )
+                isaac_env_cfg.compute_final_obs = isaac_env_cfg.compute_final_obs or bool(
+                    self._isaaclab_cfg.get("success_observation")
+                )
                 sim_app = contextlib.ExitStack()
                 # Each RLinf env worker owns one GPU; Kit's renderer enumerates GPUs through Vulkan, which
                 # ignores CUDA_VISIBLE_DEVICES, so pin it to the worker's GPU or concurrent workers crash it.
@@ -617,14 +655,6 @@ def _create_generic_env_wrapper(task_id: str) -> type:
             camera_obs = obs.get("camera_images", {})
 
             cfg = self._isaaclab_cfg
-            success_cfg = cfg.get("success_observation")
-            self._success_observation = (
-                torch.as_tensor(obs[success_cfg["group"]][success_cfg["key"]], device=self.device, dtype=torch.bool)
-                .reshape(self.num_envs)
-                .clone()
-                if success_cfg
-                else None
-            )
             # Get task description from config
             task_desc = cfg.get("task_description", "") or self.task_description
             rlinf_obs = {
