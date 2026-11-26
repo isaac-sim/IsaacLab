@@ -59,6 +59,7 @@ def test_case_conversion():
     assert string_utils.to_camel_case("snake_case_string", to="cC") == "snakeCaseString"
 
 
+@pytest.mark.kitless
 def test_string_to_slice_round_trip() -> None:
     """Python's slice representation and compact serialized slices must both round-trip."""
     value = slice(None, -3, None)
@@ -66,8 +67,8 @@ def test_string_to_slice_round_trip() -> None:
     assert string_utils.string_to_slice("slice(None,-3,None)") == value
 
 
+@pytest.mark.kitless
 def test_string_to_slice_rejects_trailing_text() -> None:
-    """A slice string must contain only a valid slice expression."""
     with pytest.raises(ValueError, match="Invalid slice string format"):
         string_utils.string_to_slice("slice(0,2,1)garbage")
 
