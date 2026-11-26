@@ -78,18 +78,6 @@ class OVRTXRendererCfg(RendererCfg):
     The ovstage path does not support pipelining and renders synchronously.
     """
 
-    # TODO: Remove the render product split once OVRTX renders a tiled image of any size.
-    max_envs_per_render_product: int | Literal["auto", "all"] = "auto"
-    """Maximum number of environments in one render product of a camera sensor. Defaults to ``"auto"``.
-
-    - ``"auto"``: One render product, and smaller groups of environments after a failed first frame.
-    - ``"all"``: Always one render product.
-    - An integer of at least 1: At most this many environments in one render product.
-
-    The value applies to every camera sensor of this configuration and must be the same on every OVRTX renderer
-    configuration of a task (a lidar sensor ignores it). See :ref:`known-issues-rtx-buffer-limit`.
-    """
-
     temp_usd_dir: str | None = None
     """Directory for temporary USD debug dumps written during OVRTX stage preparation.
 
@@ -157,13 +145,7 @@ class OVRTXRendererCfg(RendererCfg):
     """Motion BVH mode for non-visual sensor pipelines."""
 
     def validate_config(self) -> None:
-        """Check that :attr:`max_envs_per_render_product` is ``"auto"``, ``"all"`` or an integer of at least 1."""
-        max_envs = self.max_envs_per_render_product
-        if not (type(max_envs) is int and max_envs >= 1) and max_envs not in ("auto", "all"):
-            raise ValueError(
-                'OVRTXRendererCfg.max_envs_per_render_product must be "auto", "all" or an integer >= 1,'
-                f" got {max_envs!r}."
-            )
+        """Check that each color of :attr:`semantic_segmentation_mapping` has four integer channels in [0, 255]."""
         for label, color in self.semantic_segmentation_mapping.items():
             if len(color) != 4 or any(type(channel) is not int or not 0 <= channel <= 255 for channel in color):
                 raise ValueError(f"Semantic color for {label!r} must have four integer channels in [0, 255].")

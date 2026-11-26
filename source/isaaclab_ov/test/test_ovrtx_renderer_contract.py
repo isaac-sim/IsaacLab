@@ -26,7 +26,7 @@ from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 from isaaclab.sensors.camera import CameraCfg
 from isaaclab.sensors.camera.camera_data import CameraData, RenderBufferKind, RenderBufferSpec
 from isaaclab.sim import PinholeCameraCfg, SimulationContext
-from isaaclab.utils import replace, validate
+from isaaclab.utils import replace
 from isaaclab.utils.warp import ProxyArray
 
 _REQUIRED_MODULES = ("isaaclab_ov", "ovrtx")
@@ -45,11 +45,13 @@ if not _MISSING_MODULES:
     from isaaclab_ov.renderers import ovrtx_renderer as ovrtx_renderer_module  # noqa: E402
     from isaaclab_ov.renderers.ovrtx_renderer import (  # noqa: E402
         _DISABLE_LINUX_CUDA_CPU_SYNC_ENV,
+        _MAX_ENVS_PER_RENDER_PRODUCT_ENV,
         OVRTXBackend,
         OVRTXCameraRenderData,
         OVRTXRenderer,
         _AsyncWriteBuffers,
         _gpu_side_render_var_sync_enabled,
+        _max_envs_per_render_product,
     )
 else:
     OVRTXCameraRenderData = None
@@ -57,7 +59,9 @@ else:
     OVRTXRendererCfg = None
     ovrtx_renderer_module = None
     _DISABLE_LINUX_CUDA_CPU_SYNC_ENV = None
+    _MAX_ENVS_PER_RENDER_PRODUCT_ENV = None
     _gpu_side_render_var_sync_enabled = None
+    _max_envs_per_render_product = None
 
 _SPAWN = PinholeCameraCfg(
     focal_length=24.0,
@@ -160,7 +164,11 @@ def _simulation_registry(monkeypatch):
 
     from isaaclab.renderers import RenderContext
 
-    for name in ("ISAAC_LAB_OVRTX_USE_OVSTAGE", "ISAAC_LAB_SHARE_OVSTAGE"):
+    for name in (
+        "ISAAC_LAB_OVRTX_USE_OVSTAGE",
+        "ISAAC_LAB_SHARE_OVSTAGE",
+        "ISAAC_LAB_OVRTX_MAX_ENVS_PER_RENDER_PRODUCT",
+    ):
         monkeypatch.delenv(name, raising=False)
     registry = []
     sim = types.SimpleNamespace(
@@ -542,7 +550,7 @@ def test_ovrtx_failed_frame_error_names_the_render_product_split(mode, failed_fr
     notes = getattr(error, "__notes__", [])
     if failed_frame:
         assert len(notes) == 1
-        assert "OVRTXRendererCfg.max_envs_per_render_product" in notes[0]
+        assert "Set ISAAC_LAB_OVRTX_MAX_ENVS_PER_RENDER_PRODUCT to an integer below" in notes[0]
         assert (
             "'/World/envs/env_0/Camera' (2 environments of 16x8 pixels, 4 path-tracing samples per pixel)" in notes[0]
         )
@@ -553,17 +561,23 @@ def test_ovrtx_failed_frame_error_names_the_render_product_split(mode, failed_fr
 
 
 @pytest.mark.parametrize(
-    "max_envs, valid",
-    [("auto", True), ("all", True), (3, True), (0, False), (-2, False), (True, False), (None, False), ("ALL", False)],
+    "value, expected",
+    [(None, "auto"), ("", "auto"), ("auto", "auto"), ("all", "all"), ("3", 3)],
+    ids=["unset", "empty", "auto", "all", "integer"],
 )
-def test_ovrtx_renderer_cfg_validates_render_product_split(max_envs, valid):
-    """A camera rejects a split value other than "auto", "all" or an integer >= 1 when it validates its config."""
-    cfg = replace(_make_camera_cfg(["rgb"]), renderer_cfg=OVRTXRendererCfg(max_envs_per_render_product=max_envs))
-    if valid:
-        validate(cfg)
-    else:
-        with pytest.raises(ValueError, match='max_envs_per_render_product must be "auto", "all" or an integer >= 1'):
-            validate(cfg)
+def test_ovrtx_max_envs_per_render_product_reads_its_environment_variable(monkeypatch, value, expected):
+    """An unset or empty variable gives "auto". Otherwise the variable gives "auto", "all" or an integer >= 1."""
+    if value is not None:
+        monkeypatch.setenv(_MAX_ENVS_PER_RENDER_PRODUCT_ENV, value)
+    assert _max_envs_per_render_product() == expected
+
+
+def test_ovrtx_max_envs_per_render_product_rejects_another_value(monkeypatch):
+    """A value such as 0 is a configuration error, not a silent fallback to the default."""
+    monkeypatch.setenv(_MAX_ENVS_PER_RENDER_PRODUCT_ENV, "0")
+    expected = "ISAAC_LAB_OVRTX_MAX_ENVS_PER_RENDER_PRODUCT.*Expected auto, all or an integer >= 1"
+    with pytest.raises(ValueError, match=expected):
+        _max_envs_per_render_product()
 
 
 _FAILED_FRAME = (
@@ -573,10 +587,10 @@ _FAILED_FRAME = (
 
 
 def _add_search_camera(
-    renderer: OVRTXRenderer, name: str, num_envs: int, max_envs: int | Literal["auto", "all"], width: int
+    monkeypatch, renderer: OVRTXRenderer, name: str, num_envs: int, max_envs: int | Literal["auto", "all"], width: int
 ):
     """Register one square ``rgb`` sensor of ``num_envs`` environments with ``renderer``."""
-    renderer.cfg.max_envs_per_render_product = max_envs
+    monkeypatch.setenv(_MAX_ENVS_PER_RENDER_PRODUCT_ENV, str(max_envs))
     cfg = _make_camera_cfg(["rgb"])
     cfg.prim_path = f"/World/envs/env_.*/{name}"
     cfg.width = cfg.height = width
@@ -600,7 +614,7 @@ def _make_search_cameras(
         lambda *args, **kwargs: build(*args, **{**kwargs, "device_id": 0}),
     )
     return renderer, [
-        _add_search_camera(renderer, f"cam{index}", num_envs, max_envs, width)
+        _add_search_camera(monkeypatch, renderer, f"cam{index}", num_envs, max_envs, width)
         for index, (max_envs, width) in enumerate(cameras)
     ]
 
@@ -693,7 +707,7 @@ def test_ovrtx_render_batch_halves_envs_per_render_product_while_the_first_frame
     }
     assert renderer.backend.render_products == layouts[2]
     assert not renderer.backend.unrendered
-    assert "OVRTXRendererCfg.max_envs_per_render_product=2 " in caplog.text
+    assert "Set ISAAC_LAB_OVRTX_MAX_ENVS_PER_RENDER_PRODUCT=2 to skip this search." in caplog.text
     assert renderer._process_render_frame.call_count == 3
 
     # A layout that rendered is final: a later failure reaches the caller.
@@ -703,7 +717,7 @@ def test_ovrtx_render_batch_halves_envs_per_render_product_while_the_first_frame
         # A camera sensor that registers now first waits for the pending frame. Its error raises before the scene
         # changes.
         with pytest.raises(ExceptionGroup, match="before the renderer added the render products") as group:
-            _add_search_camera(renderer, "late", 5, "auto", 64)
+            _add_search_camera(monkeypatch, renderer, "late", 5, "auto", 64)
         (failure,) = group.value.exceptions
         assert "failed to produce a frame" in str(failure)
         camera.pending = camera.ready = None
@@ -744,7 +758,8 @@ def test_ovrtx_render_batch_stops_the_split_search_after_the_last_smaller_layout
     assert [len(products) for products in submissions] == products_per_step
     (note,) = error.value.__notes__
     num_smaller = len(products_per_step) - 1
-    assert f'max_envs_per_render_product="auto") tried {num_smaller} smaller group size(s)' in note
+    assert "The automatic search (ISAAC_LAB_OVRTX_MAX_ENVS_PER_RENDER_PRODUCT=auto, the default)" in note
+    assert f"the default) tried {num_smaller} smaller group size(s)" in note
     assert ("stops after 4 tries" if num_smaller == 4 else "stops at one environment per render product") in note
     assert renderer.cfg.log_file_path in note
     # The note lists the last group size that failed, which is the value to go below. One environment is no group.
@@ -757,7 +772,7 @@ def test_ovrtx_render_batch_stops_the_split_search_after_the_last_smaller_layout
     # The camera left the steps. A later render batch raises at once and steps nothing.
     assert camera not in renderer.backend.unrendered
     assert renderer.backend.render_products == set()
-    with pytest.raises(RuntimeError, match="renders no frames.*max_envs_per_render_product") as later:
+    with pytest.raises(RuntimeError, match="renders no frames.*ISAAC_LAB_OVRTX_MAX_ENVS_PER_RENDER_PRODUCT") as later:
         renderer.render_batch([camera])
     assert later.value.__cause__ is error.value
     assert [len(products) for products in submissions] == products_per_step
@@ -805,7 +820,7 @@ def test_ovrtx_split_search_names_an_auto_sensor_without_one_camera_path_per_env
 
     assert len(submissions) == 1
     (text,) = error.value.__notes__
-    assert '"auto") tried' not in text
+    assert "=auto, the default) tried" not in text
     assert "'/World/Camera' (8 environments of 16x8 pixels, 1 path-tracing sample per pixel)" in text
     assert [product.num_envs for product in camera.products] == [8]
 
@@ -835,7 +850,7 @@ def test_ovrtx_split_search_retires_every_failed_product_before_a_scene_write(mo
     assert list(renderer.backend.unrendered) == cameras[:written]
     # A later render batch raises at once and steps nothing.
     steps = len(submissions)
-    with pytest.raises(RuntimeError, match="renders no frames.*max_envs_per_render_product") as later:
+    with pytest.raises(RuntimeError, match="renders no frames.*ISAAC_LAB_OVRTX_MAX_ENVS_PER_RENDER_PRODUCT") as later:
         renderer.render_batch(cameras)
     assert later.value.__cause__ is error.value
     assert len(submissions) == steps
@@ -1026,7 +1041,7 @@ def test_ovrtx_split_search_covers_every_renderer_of_a_shared_engine(monkeypatch
     other.backend = other.scene = renderer.backend
     other._device = "cpu"
     other._use_ovstage = other._initialized_scene = True
-    large = _add_search_camera(other, "large", 16, "auto", 64)
+    large = _add_search_camera(monkeypatch, other, "large", 16, "auto", 64)
     shadows = {}
     build = ovrtx_renderer_module.build_render_product_as_string
 
@@ -1378,9 +1393,9 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, capfd, use
             )
             cfg.height, cfg.width = height, width
             # One environment per render product splits the second camera in the asynchronous rows. The renderer
-            # reads this value when it registers the camera.
+            # reads this variable when it registers the camera.
             split = asynchronous and index == 1
-            renderer.cfg.max_envs_per_render_product = 1 if split else "auto"
+            monkeypatch.setenv(_MAX_ENVS_PER_RENDER_PRODUCT_ENV, "1" if split else "auto")
             spec = CameraRenderSpec(
                 cfg=cfg,
                 device="cuda:0",
@@ -1656,9 +1671,9 @@ def test_ovrtx_split_sensor_outputs_match_single_product(
     cameras = []
 
     def add_camera(data_types, max_envs):
-        # The renderer reads its split value when it registers a sensor. One renderer start costs seconds, so the
+        # The renderer reads the variable when it registers a sensor. One renderer start costs seconds, so the
         # sensors share one renderer and each sensor gets its own value.
-        renderer.cfg.max_envs_per_render_product = max_envs
+        monkeypatch.setenv(_MAX_ENVS_PER_RENDER_PRODUCT_ENV, str(max_envs))
         camera_cfg = _make_camera_cfg(data_types)
         camera_cfg.height = camera_cfg.width = _SPLIT_IMAGE_SIZE
         spec = CameraRenderSpec(
@@ -1911,7 +1926,7 @@ def test_ovrtx_split_search_recovers_from_a_real_failed_frame(monkeypatch, caplo
 
         assert len(errors) == 1 and ovrtx_renderer_module._FAILED_FRAME_TEXT in errors[0], errors
         assert [product.num_envs for product in rd.products] == [2, 2]
-        assert any("max_envs_per_render_product=2 " in record.getMessage() for record in caplog.records)
+        assert any("ISAAC_LAB_OVRTX_MAX_ENVS_PER_RENDER_PRODUCT=2 " in record.getMessage() for record in caplog.records)
         # The environments show the same scene, so each one has the same mean color, and none stays black.
         means = data.output["rgb"].torch.float().mean(dim=(1, 2, 3))
         assert means.min() > 0
@@ -2181,7 +2196,7 @@ def test_ovrtx_process_frame_writes_each_render_product_into_its_environment_ran
     )
     monkeypatch.setattr(renderer, "_map_render_var_to_dlpack", contextlib.nullcontext)
 
-    renderer.cfg.max_envs_per_render_product = 3
+    monkeypatch.setenv(_MAX_ENVS_PER_RENDER_PRODUCT_ENV, "3")
     cfg = _make_camera_cfg(["rgba", "depth", "semantic_segmentation"])
     render_data = renderer.create_render_data(CameraRenderSpec(cfg, "cpu", num_envs, tuple(camera_paths), num_envs))
     paths = render_data.render_product_paths
@@ -2272,7 +2287,7 @@ def test_ovrtx_process_frame_writes_each_render_product_into_its_environment_ran
     different = r"environments from 3 on returned a different map of segmentation labels \(SemanticIdMap\)"
     with pytest.raises(RuntimeError, match=different) as error:
         process()
-    assert 'max_envs_per_render_product to "all"' in str(error.value)
+    assert "Set ISAAC_LAB_OVRTX_MAX_ENVS_PER_RENDER_PRODUCT=all." in str(error.value)
     # A map that only a later product returns would leave the IDs of the sensor without labels, so the sensor raises.
     del frames[0].render_vars[keys["SemanticIdMap"]]
     with pytest.raises(RuntimeError, match=different):

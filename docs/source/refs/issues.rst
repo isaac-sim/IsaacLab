@@ -249,18 +249,9 @@ no universal camera-count limit. See `Isaac Lab issue #8412`_ for affected confi
 reproduction steps, and fix status.
 
 The OVRTX renderer (``renderer=ovrtx``) fails such a frame with an error. By default, it then
-renders the images of a camera sensor in smaller groups of environments.
-:attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.max_envs_per_render_product` gives the maximum
-group size, and the warning after a successful search names the value to set. Set the same value
-on every OVRTX renderer configuration of the task:
-
-.. code-block:: bash
-
-   uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Camera \
-      physics=newton_mjwarp renderer=ovrtx \
-      env.scene.tiled_camera.renderer_cfg.max_envs_per_render_product=256
-
-With the default 512 environments of this task, 256 gives two groups of 256 environments each.
+renders the camera sensor in smaller groups of environments. A warning names the group size. The
+environment variable ``ISAAC_LAB_OVRTX_MAX_ENVS_PER_RENDER_PRODUCT`` with that number skips the
+search, and the value ``all`` turns the split off.
 
 With other RTX renderers, or instead of smaller groups, reduce the image size, the number of
 environments, or path-tracing SPP. Then inspect images from all cameras before training. Fewer

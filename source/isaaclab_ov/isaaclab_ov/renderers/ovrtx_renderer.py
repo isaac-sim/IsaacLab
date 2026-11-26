@@ -197,6 +197,36 @@ def _gpu_side_render_var_sync_enabled() -> bool:
     return value == "1"
 
 
+# TODO: Remove the render product split once OVRTX renders a tiled image of any size.
+_MAX_ENVS_PER_RENDER_PRODUCT_ENV = "ISAAC_LAB_OVRTX_MAX_ENVS_PER_RENDER_PRODUCT"
+
+
+def _max_envs_per_render_product() -> int | Literal["auto", "all"]:
+    """Return the maximum number of environments in one render product of a camera sensor.
+
+    The environment variable :data:`_MAX_ENVS_PER_RENDER_PRODUCT_ENV` sets it. The renderer reads it when a camera
+    sensor registers. A lidar sensor ignores it.
+
+    - Unset, empty or ``auto``: One render product, and smaller groups of environments after a failed first frame.
+    - ``all``: Always one render product.
+    - An integer of at least 1: At most this many environments in one render product.
+
+    Raises:
+        ValueError: If the variable has another value.
+    """
+    value = os.environ.get(_MAX_ENVS_PER_RENDER_PRODUCT_ENV, "").strip()
+    if value in ("", "auto"):
+        return "auto"
+    if value == "all":
+        return "all"
+    if value.isdecimal() and int(value) >= 1:
+        return int(value)
+    raise ValueError(
+        f"Invalid value for environment variable `{_MAX_ENVS_PER_RENDER_PRODUCT_ENV}`: {value!r}."
+        " Expected auto, all or an integer >= 1."
+    )
+
+
 def _write_file(output_dir: Path, file_name: str, content: str) -> None:
     """Write a UTF-8 debug dump, creating its directory if needed."""
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -410,7 +440,7 @@ class OVRTXCameraRenderData:
             render_scope_name: Root scope containing this camera's render products and RenderVars.
             camera_paths: Concrete camera paths in sensor row order.
             max_envs_per_render_product: Maximum number of environments in one render product, see
-                :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.max_envs_per_render_product`.
+                :func:`_max_envs_per_render_product`.
         """
         self.spec = spec
         self.camera_paths = camera_paths
@@ -427,11 +457,8 @@ class OVRTXCameraRenderData:
             logger.warning(
                 "Camera %s has %d camera prim(s) for %d environments."
                 " If its first frame fails, the renderer cannot render its environments in smaller groups."
-                ' To turn off this warning, set OVRTXRendererCfg.max_envs_per_render_product="all"'
-                " on every OVRTX renderer configuration of the task."
-                " This also turns off the automatic search for the other cameras."
-                " A value on one configuration only gives this camera its own renderer"
-                " with a second copy of the scene in GPU memory.",
+                " To turn off this warning, set ISAAC_LAB_OVRTX_MAX_ENVS_PER_RENDER_PRODUCT=all."
+                " This also turns off the automatic search for the other cameras.",
                 spec.cfg.prim_path,
                 len(camera_paths),
                 self.num_envs,
@@ -481,12 +508,10 @@ class OVRTXCameraRenderData:
         count = math.ceil(self.num_envs / envs_per_product)
         if count > 1 and len(self.camera_paths) != self.num_envs:
             raise ValueError(
-                f"OVRTXRendererCfg.max_envs_per_render_product={max_envs} needs a camera prim in each environment,"
+                f"ISAAC_LAB_OVRTX_MAX_ENVS_PER_RENDER_PRODUCT={max_envs} needs a camera prim in each environment,"
                 f" but camera {self.spec.cfg.prim_path} has {len(self.camera_paths)} camera prim(s)"
                 f" for {self.num_envs} environments."
-                ' Set the value to "all" for this camera.'
-                " If other cameras keep another value, this camera can get its own renderer"
-                " with a second copy of the scene in GPU memory."
+                " Set ISAAC_LAB_OVRTX_MAX_ENVS_PER_RENDER_PRODUCT=all."
             )
         self.products: list[OVRTXRenderProduct] = []
         for k in range(count):
@@ -1109,7 +1134,7 @@ class OVRTXRenderer(BaseRenderer):
                 for path in camera_paths
             ]
         render_data = OVRTXCameraRenderData(
-            spec, f"RenderCamera_{self.scene.next_camera_id}", camera_paths, self.cfg.max_envs_per_render_product
+            spec, f"RenderCamera_{self.scene.next_camera_id}", camera_paths, _max_envs_per_render_product()
         )
         try:
             self._add_render_products(render_data, spec)
@@ -1405,8 +1430,7 @@ class OVRTXRenderer(BaseRenderer):
                         f"Camera {render_data.spec.cfg.prim_path}: the environments from {product.env_offset} on"
                         f" returned a different map of segmentation labels ({key}) than the first environments."
                         " The camera has one map of labels for all environments, so some labels would be wrong."
-                        ' Set OVRTXRendererCfg.max_envs_per_render_product to "all"'
-                        " on every OVRTX renderer configuration of the task."
+                        " Set ISAAC_LAB_OVRTX_MAX_ENVS_PER_RENDER_PRODUCT=all."
                         " If the first frame then fails, reduce the image size,"
                         " the path-tracing samples per pixel or the number of environments."
                     )
@@ -1587,7 +1611,7 @@ class OVRTXRenderer(BaseRenderer):
             else:
                 stop = "The search stops at one environment per render product."
             paragraphs.append(
-                'The automatic search (OVRTXRendererCfg.max_envs_per_render_product="auto")'
+                "The automatic search (ISAAC_LAB_OVRTX_MAX_ENVS_PER_RENDER_PRODUCT=auto, the default)"
                 f" tried {num_smaller_layouts} smaller group size(s), and the first frame failed with each of them."
                 f" {stop}"
                 f" The OVRTX log file {self.cfg.log_file_path} can show the cause."
@@ -1596,10 +1620,8 @@ class OVRTXRenderer(BaseRenderer):
             paragraphs.append(
                 f"Largest group of environments in one render product, per camera sensor: {', '.join(cameras)}."
                 " The renderer cannot tell which camera sensor caused the failure."
-                " Set OVRTXRendererCfg.max_envs_per_render_product to an integer below the group of the sensor"
+                " Set ISAAC_LAB_OVRTX_MAX_ENVS_PER_RENDER_PRODUCT to an integer below the group of the sensor"
                 " with the largest image, for example half of it."
-                " Use this value on every OVRTX renderer configuration of the task,"
-                " because another value can cost a second copy of the scene in GPU memory."
             )
         paragraphs.append(_OTHER_FIXES)
         error.add_note("\n".join(paragraphs))
@@ -1890,7 +1912,7 @@ class OVRTXRenderer(BaseRenderer):
                 f"Camera {failed.spec.cfg.prim_path} renders no frames,"
                 " because its first frame failed and no smaller group of environments rendered."
                 " The error above gives the cause."
-                " Set OVRTXRendererCfg.max_envs_per_render_product to an integer below the groups"
+                " Set ISAAC_LAB_OVRTX_MAX_ENVS_PER_RENDER_PRODUCT to an integer below the groups"
                 f" that the error above names. {_OTHER_FIXES}"
             ) from failed.first_frame_error
         if self.backend.renderer is None or not self._camera_render_data:
@@ -1916,8 +1938,7 @@ class OVRTXRenderer(BaseRenderer):
                     "The first frame failed while camera %s rendered all %d environments in one render product."
                     " A render product renders the images of a group of environments."
                     " The camera now uses %d render products with at most %d environments each."
-                    " Set OVRTXRendererCfg.max_envs_per_render_product=%d"
-                    " on every OVRTX renderer configuration of the task."
+                    " Set ISAAC_LAB_OVRTX_MAX_ENVS_PER_RENDER_PRODUCT=%d to skip this search."
                     " This saves startup time and gives the same groups on every GPU."
                     " It can also save GPU memory,"
                     " because the failed tries stay in the scene until the camera is removed."

@@ -86,10 +86,6 @@ The sensors can use different resolutions and output types, and their poses upda
 Define all camera prims before initializing the simulation so they are included in the scene
 exported to OVRTX.
 
-When the first frame of a large camera sensor fails, OVRTX renders the sensor in smaller groups of
-environments by default. :ref:`known-issues-rtx-buffer-limit` describes the setting
-:attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.max_envs_per_render_product` that limits the group size.
-
 .. _camera-configuration:
 
 Configure a camera
