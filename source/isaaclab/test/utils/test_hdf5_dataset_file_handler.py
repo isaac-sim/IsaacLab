@@ -5,6 +5,7 @@
 import json
 import subprocess
 import sys
+from pathlib import Path
 
 import h5py
 import pytest
@@ -24,6 +25,30 @@ def test_create_dataset_file(tmp_path, monkeypatch):
         dataset_file_handler.create(path, "test_env_name")
         dataset_file_handler.close()
     assert {path.name for path in tmp_path.iterdir()} == {"absolute.hdf5", "no_extension.hdf5", "relative.hdf5"}
+
+
+def test_failed_open_allows_reusing_handler(tmp_path: Path) -> None:
+    """Reject an invalid dataset without retaining the file or blocking the next open."""
+    invalid_path = str(tmp_path / "invalid.hdf5")
+    valid_path = str(tmp_path / "valid.hdf5")
+    with h5py.File(invalid_path, "w"):
+        pass
+    handler = HDF5DatasetFileHandler()
+    handler.create(valid_path, "valid_env")
+    handler.close()
+
+    try:
+        with pytest.raises(KeyError):
+            handler.open(invalid_path)
+
+        # A failed open must release the file, allowing it to be recreated.
+        with h5py.File(invalid_path, "w"):
+            pass
+        handler.open(valid_path)
+        assert handler.get_env_name() == "valid_env"
+        assert handler.get_num_episodes() == 0
+    finally:
+        handler.close()
 
 
 def test_env_args_follow_active_file(tmp_path):

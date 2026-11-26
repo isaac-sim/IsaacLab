@@ -67,9 +67,16 @@ class HDF5DatasetFileHandler(DatasetFileHandlerBase):
         """Open an existing dataset file."""
         if self._hdf5_file_stream is not None:
             raise RuntimeError("HDF5 dataset file stream is already in use")
-        self._hdf5_file_stream = _open_non_inheritable(file_path, mode)
-        self._hdf5_data_group = self._hdf5_file_stream["data"]
-        self._demo_count = len(self._hdf5_data_group)
+        file_stream = _open_non_inheritable(file_path, mode)
+        try:
+            data_group = file_stream["data"]
+            demo_count = len(data_group)
+        except BaseException:
+            file_stream.close()
+            raise
+        self._hdf5_file_stream = file_stream
+        self._hdf5_data_group = data_group
+        self._demo_count = demo_count
 
     def create(self, file_path: str, env_name: str | None = None):
         """Create a new dataset file."""
