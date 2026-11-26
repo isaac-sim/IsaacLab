@@ -293,13 +293,15 @@ class OVRTXLidar(SensorBase):
         period has not expired. ``update`` marks the buffers dirty without filling ``_is_outdated``,
         so a forced capture, like ``update_period == 0``, writes every environment.
         """
-        masked = self.cfg.update_period > 0.0 and not self._force_capture
-        if masked and not bool(env_mask.numpy().any()):
+        due_envs_only = self.cfg.update_period > 0.0 and not self._force_capture
+        if due_envs_only and not bool(env_mask.numpy().any()):
             return
 
         self._push_renderer_pose()
         self._sim.render_context.update_scene_state(self._sim.get_physics_step_count())
-        self._renderer.render_lidar(self._render_data, self._data, env_mask=env_mask if masked else self._ALL_ENV_MASK)
+        self._renderer.render_lidar(
+            self._render_data, self._data, env_mask=env_mask if due_envs_only else self._ALL_ENV_MASK
+        )
 
     def _push_renderer_pose(self) -> None:
         """Write the current world pose of every tile. Safe to call more than once per step."""
