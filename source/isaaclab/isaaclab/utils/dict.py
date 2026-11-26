@@ -246,14 +246,15 @@ def convert_dict_to_backend(
     # Define the conversion functions for each backend.
     tensor_type_conversions = TENSOR_TYPE_CONVERSIONS[backend]
 
-    # Materialize one-shot iterables before recursively processing nested dictionaries.
-    array_types = tuple(array_types)
+    # Collect validated selections for recursion without exhausting an invalid iterator.
+    selected_types = []
     # Parse the array types and convert them to the corresponding types: "numpy" -> np.ndarray, etc.
     parsed_types = []
     for t in array_types:
         # Check type is valid.
         if t not in TENSOR_TYPES:
             raise ValueError(f"Unknown array type: '{t}'. Supported array types are 'numpy', 'torch', and 'warp'.")
+        selected_types.append(t)
         # Exclude types that match the backend, since we do not need to convert these.
         if t == backend:
             continue
@@ -274,7 +275,7 @@ def convert_dict_to_backend(
             output_dict[key] = tensor_type_conversions[data_type](value)
         # -- nested dictionaries
         elif isinstance(value, dict):
-            output_dict[key] = convert_dict_to_backend(value, backend=backend, array_types=array_types)
+            output_dict[key] = convert_dict_to_backend(value, backend=backend, array_types=selected_types)
         # -- everything else
         else:
             output_dict[key] = value

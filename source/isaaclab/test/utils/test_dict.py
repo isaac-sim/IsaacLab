@@ -191,6 +191,16 @@ def test_nested_conversion_preserves_requested_backend(type_selection):
         torch.testing.assert_close(value, torch.tensor([expected]))
 
 
+def test_conversion_rejects_unknown_type_before_advancing_iterator() -> None:
+    """An invalid selection must raise ValueError before reading later entries."""
+    def selections():
+        yield "unknown"
+        raise AssertionError("Invalid selection should stop iteration")
+
+    with pytest.raises(ValueError, match="Unknown array type"):
+        dict_utils.convert_dict_to_backend({}, array_types=selections())
+
+
 def test_slice_round_trip_preserves_tuple_containers():
     """Slices nested in tuples should serialize and deserialize without changing container types."""
     data = {
