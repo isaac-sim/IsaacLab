@@ -149,6 +149,7 @@ def test_is_identity_pose(device):
     assert math_utils.is_identity_pose(identity_pos, identity_rot) is False
 
 
+@pytest.mark.kitless
 def test_axis_angle_from_quat_identity_gradients() -> None:
     """Both quaternion signs of the identity rotation have finite local derivatives."""
     quats = torch.tensor([[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0, -1.0]], dtype=torch.float64)

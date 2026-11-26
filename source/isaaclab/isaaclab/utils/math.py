@@ -496,7 +496,7 @@ def axis_angle_from_quat(quat: torch.Tensor, eps: float = 1.0e-6) -> torch.Tenso
     # Avoid dividing by zero even in the unselected branch of torch.where:
     # autograd can otherwise propagate NaN gradients at the identity.
     use_exact = angle.abs() > eps
-    safe_angle = torch.where(use_exact, angle, torch.ones_like(angle))
+    safe_angle = torch.where(use_exact, angle, 1.0)
     sin_half_angles_over_angles = torch.where(
         use_exact, torch.sin(half_angle) / safe_angle, 0.5 - angle * angle / 48
     )
