@@ -336,10 +336,10 @@ class Action(TermCfg):
     """Configuration for an action term, whose hooks turn the columns of the action into writes to ``outputs``.
 
     The term's shape is ``("worlds", n)``, with the number of columns ``n`` it takes, and its hooks get them as
-    ``action``: a Python hook ``compute(action, **args)`` writes its outputs in place, and a func
-    ``compute(world, action, **args)`` writes its world. Actions apply before every physics step, as in MDP1, or
-    once per control step at ``ActionRate.CONTROL``, such as an embedded whole-body controller that writes joint
-    targets.
+    ``action``: a Python hook ``compute(action, mask, **args)`` writes its outputs in place in the worlds where
+    ``mask`` holds, every world when it is ``None``, and a func ``compute(world, action, **args)`` writes its world.
+    Actions apply before every physics step, as in MDP1, or once per control step at ``ActionRate.CONTROL``, such as
+    an embedded whole-body controller that writes joint targets.
     """
 
     phase: ClassVar[Phase] = Phase.ACTIONS

@@ -7,7 +7,7 @@
   :data:`~isaaclab_experimental.mdp2.mdp.image_rgb`.
 * Added :class:`~isaaclab_experimental.mdp2.Action`, action terms whose hooks turn their columns of the action into
   writes, and :data:`~isaaclab_experimental.mdp2.mdp.binary_joint_position`, a binary gripper command with a
-  threshold.
+  threshold. A Python hook takes ``mask``, the worlds where the action applies.
 * Added :func:`~isaaclab_experimental.mdp2.compose`, which merges partial task configs, such as those of a scene, an
   embodiment, and a task, in order.
 * Added tasks of tasks to MDP2: a :class:`~isaaclab_experimental.mdp2.TaskCfg` may say when it is ``done`` (with

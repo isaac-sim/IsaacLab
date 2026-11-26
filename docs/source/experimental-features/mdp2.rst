@@ -246,7 +246,8 @@ episode ended.
 - **Action terms.** A :class:`~isaaclab_experimental.mdp2.DirectAction` scales its columns of the action into a
   field. An :class:`~isaaclab_experimental.mdp2.Action` runs a term's hook on its columns instead, such as
   :data:`~isaaclab_experimental.mdp2.mdp.binary_joint_position` for a gripper, which closes on either side of a
-  threshold, as MDP1's binary joint actions do.
+  threshold, as MDP1's binary joint actions do. A Python hook takes ``mask``, the worlds where the action applies,
+  such as those that drew its task of a choice, and writes only there.
 - **Composition.** :func:`~isaaclab_experimental.mdp2.compose` merges partial task configs term by term, such as
   those of a scene, an embodiment, and a task, and reports uses that two of them define; a later part removes a use
   by setting it to ``None``. Uses keep the order of the parts.

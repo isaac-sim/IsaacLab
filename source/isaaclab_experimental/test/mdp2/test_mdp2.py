@@ -2321,7 +2321,8 @@ def count_applications_warp(
     target[world, 0] = action[world, 0] * calls[world]
 
 
-def count_applications_torch(action, target, calls):
+def count_applications_torch(action, target, calls, mask):
+    assert mask is None  # The action applies in every world
     calls.add_(1.0)
     target[:, 0] = action[:, 0] * calls
 
@@ -2370,7 +2371,9 @@ def test_actions_apply_once_per_control_step_or_before_every_physics_step():
 
 def test_action_terms_read_quantities():
     """An action term reads the quantities of its task, here with Torch hooks only, which a Warp MDP also runs."""
-    follow = mdp2.Term(torch=lambda action, offset, target: target.copy_(action + offset), shape=("worlds", "joints"))
+    follow = mdp2.Term(
+        torch=lambda action, offset, target, mask: target.copy_(action + offset), shape=("worlds", "joints")
+    )
     task = mdp2.TaskCfg(
         quantities={"position": mdp2.Quantity(joint_pos, inputs={"joint_pos": robot.joint_pos})},
         actions={
@@ -2389,6 +2392,43 @@ def test_action_terms_read_quantities():
         mdp2.evaluate(mdp, state, transition)
         mdp2.apply_actions(mdp, state, ProxyArray(wp.full((2, 2), 0.5, dtype=wp.float32, device=DEVICE)))
         assert scene.data("robot", "joint_effort_target").torch.tolist() == [[1.5, 1.5]] * 2, backend
+
+
+def test_python_action_hooks_write_only_where_their_action_applies():
+    """A Python action hook gets the worlds where its action applies as ``mask``: the task of a choice that no world
+    drew writes nowhere. A hook without ``mask``, which would write in every world, is refused."""
+
+    def write(value: float):
+        def compute(action, target, mask):
+            fill = torch.full_like(target[:, 0], value)
+            target[:, 0] = fill if mask is None else torch.where(mask, fill, target[:, 0])
+
+        return compute
+
+    def build(left, right, backend: str):
+        def branch(compute) -> mdp2.TaskCfg:
+            term = mdp2.Term(torch=compute, shape=("worlds", 1))
+            act = mdp2.Action(term, outputs={"target": robot.joint_effort_target})
+            return mdp2.TaskCfg(actions={"act": act}, done=mdp2.quantities.a)
+
+        task = mdp2.compose(
+            mdp2.TaskCfg(quantities=above("a")),
+            pick=mdp2.choice(weights={"left": 1.0, "right": 0.0}, left=branch(left), right=branch(right)),
+        )
+        scene = PointMassScene(num_worlds=4, joint_names=("a",), device=DEVICE)
+        builder = mdp2.MDPBuilder(scene.schema)
+        builder.add_task(task)
+        return scene, builder.finalize(device=DEVICE, backend=backend)
+
+    for backend in ("torch", "warp"):
+        scene, mdp = build(write(1.0), write(2.0), backend)
+        state, transition = mdp.state(scene), mdp.transition()
+        env_reset(mdp, state, scene, transition.observations, torch.ones(4, dtype=torch.bool, device=DEVICE))
+        mdp2.apply_actions(mdp, state, ProxyArray(wp.from_torch(torch.zeros(4, mdp.action_dim, device=DEVICE))))
+        assert scene.data("robot", "joint_effort_target").torch[:, 0].tolist() == [1.0] * 4, backend
+
+        with pytest.raises(ValueError, match="unexpected keyword argument 'mask'"):
+            build(write(1.0), lambda action, target: target.fill_(2.0), backend)
 
 
 def test_choice_draws_one_subtask_per_episode_and_world():

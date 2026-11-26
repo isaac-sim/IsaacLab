@@ -846,8 +846,8 @@ class MDPBuilder:
         if isinstance(cfg, (Command, Event)):
             _check_hook(entry, implementation.compute, arguments, errors, extra="mask")
         elif isinstance(cfg, Action):
-            # A Python hook may take the worlds where the action is active, as ``mask``.
-            _check_hook(entry, implementation.compute, {**arguments, "mask": None}, errors)
+            # A Python hook takes the worlds where the action is active, as ``mask``, so that it writes only there.
+            _check_hook(entry, implementation.compute, {**arguments, "mask": None}, errors, extra="mask")
         else:
             extra = "out" if implementation is term.warp else None
             _check_hook(entry, implementation.compute, arguments, errors, len(output_shape), extra, dtype)
