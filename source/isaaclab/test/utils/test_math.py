@@ -489,13 +489,16 @@ def test_orthogonalize_perspective_depth(device):
     torch.testing.assert_close(orthogonal_depth, expected_orthogonal_depth)
 
 
-def test_orthogonalize_perspective_depth_respects_camera_skew():
+@pytest.mark.kitless
+def test_orthogonalize_perspective_depth_respects_camera_skew() -> None:
     """Perspective range must use the calibrated ray, including intrinsic skew."""
     height, width = 3, 4
     depth = torch.arange(1, 25, dtype=torch.float64).reshape(2, height, width)
     intrinsics = torch.tensor(
-        [[[4.0, 1.5, 0.7], [0.0, 3.0, 1.0], [0.0, 0.0, 1.0]],
-         [[6.0, 0.0, 1.3], [0.0, 5.0, 0.8], [0.0, 0.0, 1.0]]],
+        [
+            [[4.0, 1.5, 0.7], [0.0, 3.0, 1.0], [0.0, 0.0, 1.0]],
+            [[6.0, 0.0, 1.3], [0.0, 5.0, 0.8], [0.0, 0.0, 1.0]],
+        ],
         dtype=torch.float64,
     )
     pixels = np.array([[u, v, 1.0] for v in range(height) for u in range(width)]).T
