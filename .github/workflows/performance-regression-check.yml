@@ -28,7 +28,7 @@ jobs:
         with:
           sparse-checkout: tools/performance_regression
 
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
         id: uv
         with:
           enable-cache: false
