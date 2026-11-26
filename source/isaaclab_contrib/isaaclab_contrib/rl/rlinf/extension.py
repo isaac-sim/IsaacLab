@@ -194,17 +194,17 @@ def _patch_gr00t_get_model(cfg: dict) -> None:
     Args:
         cfg: The IsaacLab-specific configuration dictionary (``env.train.isaaclab``).
     """
-    validate_image_config(_load_full_cfg())
+    full_cfg = _load_full_cfg()
+    validate_image_config(full_cfg)
     # Always ensure embodiment tag is registered
     _patch_embodiment_tags(cfg)
     # N1.7 owns model and processor loading in RLinf.
     data_config_class = cfg.get("data_config_class", "")
-    model_type = _load_full_cfg().get("actor", {}).get("model", {}).get("model_type", "gr00t")
+    model_type = full_cfg.get("actor", {}).get("model", {}).get("model_type", "gr00t")
     if not data_config_class or model_type == "gr00t_n1d7":
         return
 
-    evaluation_cfg = {**cfg, **_load_full_cfg().get("env", {}).get("eval", {}).get("isaaclab", {})}
-    resize_keys = ("gpu_resize_width", "gpu_resize_height")
+    image_size = (cfg.get("gpu_resize_width"), cfg.get("gpu_resize_height"))
     import rlinf.models.embodiment.gr00t as rlinf_gr00t_mod
 
     def patched_get_model(model_cfg, torch_dtype=None) -> object:
@@ -268,15 +268,11 @@ def _patch_gr00t_get_model(cfg: dict) -> None:
             rl_head_config=model_cfg.rl_head_config,
         )
 
-        if any(options.get(key) is not None for options in (cfg, evaluation_cfg) for key in resize_keys):
-            # GR00T validates incoming video against the recording metadata. The env worker has already resized RGB.
+        if image_size[0] is not None:
+            # Validation guarantees paired, matching train/eval sizes; preserve checkpoint metadata.
             input_metadata = model.metadata.model_copy(deep=True)
             for video in input_metadata.modalities.video.values():
-                training_size = tuple(
-                    original if cfg.get(key) is None else cfg[key]
-                    for key, original in zip(resize_keys, video.resolution)
-                )
-                video.resolution = training_size
+                video.resolution = image_size
             modality_transform.set_metadata(input_metadata)
 
         if rl_model_path:
