@@ -62,6 +62,12 @@ runtime comparison at each task's configured environment count, run
 ``isaaclab benchmark runtime --task TASK presets=newton_steel`` and repeat with
 ``presets=newton_mjwarp`` without passing ``--num_envs``.
 
+Steel solves every contact the collision pipeline reports, including
+speculative contacts with a positive gap. Set ``contact_gap_gate=0.0`` to omit
+constraint rows for contacts with a positive gap. This can reduce row counts in
+contact-rich scenes but removes the speculative contact response, so validate
+the setting for the task.
+
 Related workflows
 -----------------
 

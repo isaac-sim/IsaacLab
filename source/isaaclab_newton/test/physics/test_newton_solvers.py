@@ -66,6 +66,11 @@ def test_solver_kwargs_include_configured_options_and_newton_deterministic_mode(
     steel_kwargs = solver_kwargs(newton.solvers.SolverSteel, SteelSolverCfg(), wp.DeterministicMode.GPU_TO_GPU)
     assert steel_kwargs["friction_anchor_beta"] == 0.0
     assert steel_kwargs["use_parallel_streams"] is False
+    assert steel_kwargs["contact_gap_gate"] is None
+    gated_kwargs = solver_kwargs(
+        newton.solvers.SolverSteel, SteelSolverCfg(contact_gap_gate=0.0), wp.DeterministicMode.GPU_TO_GPU
+    )
+    assert gated_kwargs["contact_gap_gate"] == 0.0
     parallel_kwargs = solver_kwargs(
         newton.solvers.SolverSteel,
         SteelSolverCfg(use_parallel_streams=True, parallel_tree=True),
