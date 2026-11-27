@@ -12,8 +12,9 @@ from __future__ import annotations
 
 import contextlib
 import logging
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Hashable, Iterator, Sequence
 from functools import cache
+from typing import Protocol, TypeVar
 
 import numpy as np
 import ovstage
@@ -174,6 +175,19 @@ def ovstage_replicate(
     _apply_ovstage_copies(stage, paths, copies, env_paths, positions, ordinal=ordinal)
 
 
+class StagePublisher(Protocol):
+    """Keep one kind of producer data current on a stage that owns the publisher."""
+
+    def publish(self) -> None:
+        """Write changed producer state at the stage's open ordinal without committing it."""
+
+    def close(self) -> None:
+        """Release native queries before the stage releases its paths."""
+
+
+PublisherT = TypeVar("PublisherT", bound=StagePublisher)
+
+
 @configclass
 class OvstageBackendCfg(BackendCfg):
     """Configuration of a simulation-owned stage and its populated domains."""
@@ -205,6 +219,7 @@ class OvstageBackend:
         self.clone_positions: np.ndarray | None = None
         self._deferred_render_copies: list[tuple[str, list[str]]] | None = None
         self._render_copy_error: Exception | None = None
+        self._publishers: dict[Hashable, StagePublisher] = {}
         self.resources = contextlib.ExitStack()
         """Release borrowers before paths and stage, in reverse registration order."""
         self.reset()
@@ -288,6 +303,32 @@ class OvstageBackend:
         finally:
             self.paths.destroy_path_list(paths)
 
+    def publisher(self, key: Hashable, create: Callable[[], PublisherT]) -> PublisherT:
+        """Return this stage's publisher for ``key``, creating it on first use.
+
+        Consumers that share the stage share one publisher per key, so producer data is written
+        once per change however many consumers refresh. The publisher lives until the stage is
+        reset or closed and is released before the stage's paths.
+
+        Args:
+            key: Identity of the published data, normally the publisher type.
+            create: Factory called only when the stage has no publisher for ``key``.
+
+        Returns:
+            The stage's publisher for ``key``.
+        """
+        publisher = self._publishers.get(key)
+        if publisher is None:
+            publisher = create()
+            self.resources.callback(publisher.close)
+            self._publishers[key] = publisher
+        return publisher
+
+    def publish(self) -> None:
+        """Write changed producer data from every publisher at the open ordinal; the caller commits."""
+        for publisher in self._publishers.values():
+            publisher.publish()
+
     def commit(self) -> int:
         """Seal pending writes and return their ordinal; all consumers share the next write ordinal."""
         ordinal = self.ordinal
@@ -299,6 +340,7 @@ class OvstageBackend:
         """Release borrowers, then the path dictionary and stage."""
         self._deferred_render_copies = None
         self._render_copy_error = None
+        self._publishers.clear()  # The resources release each publisher before the paths.
         self.resources.close()
         self.stage = self.paths = None
 

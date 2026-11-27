@@ -90,6 +90,7 @@ from isaaclab_ov.renderers.ovrtx_annotator_utils import (
 from isaaclab_ov.renderers.ovrtx_lidar import copy_tiled_point_cloud
 from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg, OVRTXRendererCfg
 from isaaclab_ov.renderers.ovrtx_renderer_kernels import (
+    HIDDEN_ENVIRONMENT_DROP,
     accumulate_mesh_normals,
     create_camera_transforms_kernel,
     create_lidar_transforms_kernel,
@@ -114,6 +115,7 @@ from isaaclab_ov.stage import (
     xform_tensor_from_numpy,
     xform_tensor_from_warp,
 )
+from isaaclab_ov.stage_publishers import BodyPosePublisher, body_environment_ids, body_transform_scales
 
 if TYPE_CHECKING:
     from ovrtx import AttributeBinding, FrameOutput, Operation, PendingFetch, RenderVarOutput
@@ -138,9 +140,6 @@ _MAX_SMALLER_LAYOUTS = 4
 _PER_PRODUCT_ATTRIBUTES = frozenset({"camera", "orderedVars", "resolution", "usd-path"})
 _GPU_CAMERA_TRANSFORMS_ATTRIBUTE = "omni:rtx:scene:hydra:readGPUCameraTransformsFromFabricInRenderDelegate"
 _LDR_COLOR_VAR = "LdrColor"
-# TODO: Remove with the below-the-scene hiding workaround in OVRTXRenderer.set_environment_visibility.
-_HIDDEN_DROP = wp.float64(1.0e6)
-"""Distance [m] below the scene to which the bodies of hidden environments are moved."""
 _CAMERA_INTRINSIC_ATTRIBUTES = (
     "focalLength",
     "horizontalAperture",
@@ -609,7 +608,9 @@ class OVRTXRenderer(BaseRenderer):
         self.scene: OvstageBackend | OVRTXBackend | None = None
         self.backend: OVRTXBackend | None = None
         """Native engine borrowed from the simulation registry after clone preparation."""
-        self._object_xform_binding: AttributeBinding[wp.array] | ovstage.Query | None = None
+        self._object_xform_binding: AttributeBinding[wp.array] | None = None
+        self._body_poses: BodyPosePublisher | None = None
+        """Pose publisher of the OVStage scene, owned by the stage and shared by its consumers."""
         self._geometry_points_binding: AttributeBinding[list[wp.array]] | ovstage.Query | None = None
         self._bindings = contextlib.ExitStack()
         self._env_paths: Sequence[str] = ()
@@ -709,46 +710,27 @@ class OVRTXRenderer(BaseRenderer):
         object_paths = self._sdp.backend.transform_paths
         if not object_paths:
             return
-        # SDP poses omit scale. Include native copies that do not exist on the authored USD stage.
-        scales_by_path = {}
-        xform_cache = UsdGeom.XformCache()
-        for root, targets in self.scene.clone_copies:
-            for prim in Usd.PrimRange(stage.GetPrimAtPath(root)):
-                if not prim.IsA(UsdGeom.Xformable):
-                    continue
-                scale = tuple(map(float, Gf.Transform(xform_cache.GetLocalToWorldTransform(prim)).GetScale()))
-                if not all(math.isclose(axis, 1.0, rel_tol=1e-6, abs_tol=1e-6) for axis in scale):
-                    path = str(prim.GetPath())
-                    scales_by_path[path] = scale
-                    scales_by_path.update((target + path[len(root) :], scale) for target in targets)
-        self._object_scales = None
-        # No override lets renderers share SDP's publication instead of multiplying by ones.
-        if any(path in scales_by_path for path in object_paths):
-            scales = [scales_by_path.get(path, (1.0, 1.0, 1.0)) for path in object_paths]
-            self._object_scales = wp.array(scales, dtype=wp.vec3f, device=self._device)
-        reset_xforms = np.ones(len(object_paths), dtype=np.bool_)
         if self._use_ovstage:
-            self._object_xform_binding = self._bindings.enter_context(self.scene.query(object_paths))
-            self.scene.stage.write_attribute(
-                self._object_xform_binding,
-                "omni:resetXformStack",
-                ordinal=self.scene.ordinal,
-                tensors=reset_xforms,
-                is_array=False,
-            ).wait()
-        else:
-            self._object_xform_binding = self.backend.renderer.bind_attribute(
-                prim_paths=object_paths,
-                attribute_name="omni:xform",
-                semantic=Semantic.XFORM_MAT4x4,
-                prim_mode=PrimMode.EXISTING_ONLY,
+            # The stage owns pose publication; renderers that share it share one publisher.
+            self._body_poses = self.scene.publisher(
+                BodyPosePublisher, lambda: BodyPosePublisher(self.scene, self._sdp, stage, self._device)
             )
-            if self._object_xform_binding is None:
-                raise RuntimeError("Failed to create OVRTX object bindings")
-            self._bindings.callback(self._object_xform_binding.unbind)
-            self.backend.renderer.write_attribute(
-                prim_paths=object_paths, attribute_name="omni:resetXformStack", tensor=reset_xforms
-            )
+            return
+        self._object_scales = body_transform_scales(stage, self.scene.clone_copies, object_paths, self._device)
+        self._object_xform_binding = self.backend.renderer.bind_attribute(
+            prim_paths=object_paths,
+            attribute_name="omni:xform",
+            semantic=Semantic.XFORM_MAT4x4,
+            prim_mode=PrimMode.EXISTING_ONLY,
+        )
+        if self._object_xform_binding is None:
+            raise RuntimeError("Failed to create OVRTX object bindings")
+        self._bindings.callback(self._object_xform_binding.unbind)
+        self.backend.renderer.write_attribute(
+            prim_paths=object_paths,
+            attribute_name="omni:resetXformStack",
+            tensor=np.ones(len(object_paths), dtype=np.bool_),
+        )
 
     def _setup_geometry_bindings(self) -> None:
         """Bind SDP's world-space point prims without applying inherited transforms again."""
@@ -1671,7 +1653,8 @@ class OVRTXRenderer(BaseRenderer):
         """Show or hide whole cloned environments' bodies and markers in every camera that renders the scene.
 
         Writing the USD ``visibility`` of a cloned environment corrupts the transforms of its bodies once it is shown
-        again, so hidden bodies are instead moved far below the scene when their poses are published.
+        again, so hidden bodies are instead moved far below the scene when their poses are published. On an OVStage
+        scene, body visibility is stage state and applies to every renderer that shares the stage.
 
         .. todo::
             Hiding by moving bodies below the scene is a workaround. Find why writing ``visibility`` on a cloned
@@ -1689,6 +1672,8 @@ class OVRTXRenderer(BaseRenderer):
         hidden[:num_envs] = ~self._visible_envs
         self._hidden_envs = wp.array(hidden, dtype=wp.uint8, device=self._device) if hidden.any() else None
         self._transforms_timestamp = -1  # Publish the poses again even when the simulation has not stepped.
+        if self._body_poses is not None:
+            self._body_poses.set_hidden_environments(~self._visible_envs)
 
     def _visible_marker_rows(self, marker: Any) -> tuple:
         """Return the marker's translations, orientations, scales, and indices with hidden markers moved away.
@@ -1705,24 +1690,14 @@ class OVRTXRenderer(BaseRenderer):
         if hidden is None or hidden.device != marker.translations.device:
             hidden = self._hidden_marker_rows = torch.as_tensor(~mask, device=marker.translations.device)
         translations = marker.translations.reshape(num_envs, count // num_envs, -1).clone()
-        translations[hidden, :, 2] -= float(_HIDDEN_DROP)
+        translations[hidden, :, 2] -= float(HIDDEN_ENVIRONMENT_DROP)
         return (translations.reshape(marker.translations.shape), *tensors[1:])
 
     def _body_environment_ids(self) -> wp.array:
         """Return each published body's environment index, or ``num_envs`` for a body outside any environment."""
         paths = self._sdp.backend.transform_paths
         if self._body_envs is None or len(self._body_envs) != len(paths):
-            roots = {root: i for i, root in enumerate(self._env_paths)}
-            outside = len(self._env_paths)
-            env_ids = []
-            for path in paths:
-                env_id, end = outside, path.rfind("/")
-                while end > 0:  # Walk up the prim path until it reaches an environment root.
-                    env_id = roots.get(path[:end], outside)
-                    if env_id != outside:
-                        break
-                    end = path.rfind("/", 0, end)
-                env_ids.append(env_id)
+            env_ids = body_environment_ids(paths, self._env_paths)
             self._body_envs = wp.array(env_ids, dtype=wp.int32, device=self._device)
         return self._body_envs
 
@@ -1739,14 +1714,18 @@ class OVRTXRenderer(BaseRenderer):
         wp.launch(
             hide_environment_bodies_kernel,
             len(matrices),
-            [matrices, body_envs, self._hidden_envs, _HIDDEN_DROP, hidden],
+            [matrices, body_envs, self._hidden_envs, HIDDEN_ENVIRONMENT_DROP, hidden],
             device=self._device,
             stream=stream,
         )
         return hidden
 
     def update_transforms(self) -> None:
-        """Write changed SDP transforms to OVRTX."""
+        """Write changed SDP transforms to the active scene."""
+        if self._use_ovstage:
+            # Publishers skip unchanged producer data, so every renderer sharing the stage may refresh it.
+            self.scene.publish()
+            return
         binding = self._object_xform_binding
         if binding is None:
             return
@@ -1754,24 +1733,12 @@ class OVRTXRenderer(BaseRenderer):
         if self._transforms_timestamp == timestamp:
             return
         stream = self._warp_device.stream
-        asynchronous = self.cfg.async_rendering and not self._use_ovstage
+        asynchronous = self.cfg.async_rendering
         output = self._transform_writes.acquire(stream)
         if not self._sdp.get_transforms(output, allow_passthrough=not asynchronous, scales=self._object_scales):
             return
         matrices = self._hide_environment_bodies(output.matrices, stream)
-        if self._use_ovstage:
-            # The write waits for consumption; the producing CUDA stream orders access to the
-            # borrowed buffer.
-            self.scene.stage.write_attribute(
-                binding,
-                "omni:xform",
-                ordinal=self.scene.ordinal,
-                tensors=xform_tensor_from_warp(matrices),
-                is_array=False,
-                semantic=ovstage.AttributeSemantic.MATRIX,
-                cuda_stream=stream.cuda_stream or 1,
-            ).wait()
-        elif asynchronous:
+        if asynchronous:
             self._transform_writes.submit(binding, matrices, stream)
         else:
             binding.write(matrices, data_access=DataAccess.ASYNC, cuda_stream=stream.cuda_stream or 1)
@@ -2195,6 +2162,7 @@ class OVRTXRenderer(BaseRenderer):
                     resources.callback(self.cleanup, render_data)
         finally:
             self._object_xform_binding = self._geometry_points_binding = None
+            self._body_poses = None  # The stage releases its publisher when it closes.
             self._object_scales = None
             self._transform_writes = _AsyncWriteBuffers(SceneDataFormat.TransposedMatrix44d() for _ in range(2))
             self._geometry_offsets.clear()

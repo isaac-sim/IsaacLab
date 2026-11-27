@@ -27,10 +27,11 @@ pytestmark = [
 ]
 
 if not _MISSING_MODULES:
-    import isaaclab_ov.renderers.ovrtx_renderer as ovrtx_renderer_module
+    import isaaclab_ov.stage_publishers as stage_publishers_module
     from isaaclab_ov.renderers import OVRTXRendererCfg
     from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderer
     from isaaclab_ov.stage import OvstageBackend
+    from isaaclab_ov.stage_publishers import BodyPosePublisher
     from ovrtx import DataAccess
 
     from pxr import Gf, Usd, UsdGeom
@@ -207,9 +208,15 @@ def test_update_transforms_consumes_sdp_matrices_once_per_publication(monkeypatc
                 writes.append((query, attribute, kwargs)) or SimpleNamespace(wait=lambda: None)
             ),
         )
-        monkeypatch.setattr(ovrtx_renderer_module, "xform_tensor_from_warp", lambda matrices: matrices)
+        renderer.scene.clone_env_paths = []
+        renderer.scene._publishers = {}
+        renderer.scene.resources = contextlib.ExitStack()
+        renderer.scene.publisher = OvstageBackend.publisher.__get__(renderer.scene)
+        renderer.scene.publish = OvstageBackend.publish.__get__(renderer.scene)
+        monkeypatch.setattr(stage_publishers_module, "xform_tensor_from_warp", lambda matrices: matrices)
         renderer._setup_xform_bindings(stage)
-        assert renderer._object_xform_binding == paths
+        assert renderer._object_xform_binding is None
+        assert renderer.scene._publishers == {BodyPosePublisher: renderer._body_poses}
         writes.clear()
     else:
         renderer._setup_xform_bindings(stage)
@@ -229,10 +236,11 @@ def test_update_transforms_consumes_sdp_matrices_once_per_publication(monkeypatc
         expected[0, :3, :3] = np.diag([2, 3, 4])
     expected[:, 3, :3] = poses[:, :3]
     np.testing.assert_array_equal(matrices.numpy(), expected)
-    assert writes[0][2]["cuda_stream"] == 1  # Torch's default stream, not "no sync"
     if use_ovstage:
+        # Stream ordering of device poses is covered by test_ovstage_publishers.py.
         assert writes[0][2]["ordinal"] == 5
     else:
+        assert writes[0][2]["cuda_stream"] == 1  # Torch's default stream, not "no sync"
         assert writes[0][2]["data_access"] is DataAccess.ASYNC
 
     if not scaled:

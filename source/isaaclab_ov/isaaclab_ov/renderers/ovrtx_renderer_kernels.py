@@ -55,6 +55,11 @@ def create_marker_transforms_kernel(
     transforms[i] = local_transforms[i] * wp.transpose(wp.transform_compose(p, q, s))
 
 
+# TODO: Remove with the below-the-scene hiding workaround in OVRTXRenderer.set_environment_visibility.
+HIDDEN_ENVIRONMENT_DROP = wp.float64(1.0e6)
+"""Distance [m] below the scene to which the bodies of hidden environments are moved."""
+
+
 @wp.kernel(enable_backward=False)
 def hide_environment_bodies_kernel(
     transforms: wp.array(dtype=wp.mat44d),
