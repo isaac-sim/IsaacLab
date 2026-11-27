@@ -15,9 +15,9 @@ from .types import (
     AssetBenchmarkSuite,
     AssetBenchmarkTargets,
     AssetMethodSpec,
-    AssetPropertySpec,
     AssetPhysicsFamily,
     AssetPhysicsVariant,
+    AssetPropertySpec,
 )
 
 __all__ = [

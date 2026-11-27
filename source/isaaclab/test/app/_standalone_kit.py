@@ -5,6 +5,7 @@
 
 """Run Kit smoke-test children without globally flushing background workers' native files."""
 
+import contextlib
 import ctypes
 import os
 import runpy
@@ -19,10 +20,8 @@ def flush_stdio() -> None:
     background thread. Only the two standard output streams need flushing before ``_exit``.
     """
     for stream in (sys.stdout, sys.stderr):
-        try:
+        with contextlib.suppress(ValueError, OSError, AttributeError):
             stream.flush()
-        except (ValueError, OSError, AttributeError):
-            pass
     try:
         libc = ctypes.CDLL("ucrtbase" if os.name == "nt" else None)
         libc.fflush.argtypes = [ctypes.c_void_p]

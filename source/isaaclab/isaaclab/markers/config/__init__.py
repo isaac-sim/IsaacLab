@@ -4,8 +4,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from ... import sim as sim_utils
-from ..visualization_markers_cfg import VisualizationMarkersCfg
 from ...utils.assets import ISAAC_NUCLEUS_DIR
+from ..visualization_markers_cfg import VisualizationMarkersCfg
 
 ##
 # Sensors.

@@ -57,7 +57,10 @@ gym.register(
     id="Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-Mimic-v0",
     entry_point=f"{__name__}.franka_stack_ik_rel_mimic_env:FrankaCubeStackIKRelMimicEnv",
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.franka_stack_ik_rel_visuomotor_cosmos_mimic_env_cfg:FrankaCubeStackIKRelVisuomotorCosmosMimicEnvCfg",
+        "env_cfg_entry_point": (
+            f"{__name__}.franka_stack_ik_rel_visuomotor_cosmos_mimic_env_cfg"
+            ":FrankaCubeStackIKRelVisuomotorCosmosMimicEnvCfg"
+        ),
     },
     disable_env_checker=True,
 )

@@ -62,9 +62,7 @@ gym.register(
         "rsl_rl_sac_cfg_entry_point": f"{agents.__name__}.rsl_rl_sac_cfg:CartpoleSACRunnerCfg",
         "torchrl_cfg_entry_point": f"{agents.__name__}.torchrl_ppo_cfg:CartpolePPOCfg",
         "default_agent": "rsl_rl",
-        "rsl_rl_with_symmetry_cfg_entry_point": (
-            f"{agents.__name__}.rsl_rl_ppo_cfg:CartpolePPORunnerWithSymmetryCfg"
-        ),
+        "rsl_rl_with_symmetry_cfg_entry_point": (f"{agents.__name__}.rsl_rl_ppo_cfg:CartpolePPORunnerWithSymmetryCfg"),
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_manager_ppo_cfg.yaml",
         "sb3_cfg_entry_point": f"{agents.__name__}:sb3_ppo_cfg.yaml",
     },

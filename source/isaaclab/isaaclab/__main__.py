@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+
 def main():
     """Run the Isaac Lab CLI."""
     from isaaclab.cli import cli

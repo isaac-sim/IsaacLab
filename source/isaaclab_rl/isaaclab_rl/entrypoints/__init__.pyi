@@ -20,6 +20,15 @@ __all__ = [
     "zero_agent",
 ]
 
-from .api import BackendName, PlaybackRequest, SimpleAgentRequest, TrainingRequest, play, random_agent, train, zero_agent
+from .api import (
+    BackendName,
+    PlaybackRequest,
+    SimpleAgentRequest,
+    TrainingRequest,
+    play,
+    random_agent,
+    train,
+    zero_agent,
+)
 from .dispatch import run_export_cli, run_play_cli, run_random_agent_cli, run_train_cli, run_zero_agent_cli
 from .multigpu import run_train_multigpu_cli

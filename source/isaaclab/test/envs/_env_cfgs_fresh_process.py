@@ -57,10 +57,7 @@ def main() -> None:
         module_name
         for module_name in sys.modules
         if module_name.partition(".")[0] in _FORBIDDEN_ROOTS
-        or any(
-            module_name == prefix or module_name.startswith(f"{prefix}.")
-            for prefix in _FORBIDDEN_PREFIXES
-        )
+        or any(module_name == prefix or module_name.startswith(f"{prefix}.") for prefix in _FORBIDDEN_PREFIXES)
     )
     assert not forbidden_modules, f"Forbidden modules loaded: {forbidden_modules}"
 

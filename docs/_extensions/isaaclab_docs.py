@@ -262,7 +262,7 @@ class IsaacLabIsaacSimInstall(SphinxDirective):
 .. code-block:: bash
 
    uv pip install "isaacsim[all,extscache]=={version}" --extra-index-url https://pypi.nvidia.com --index-strategy unsafe-best-match --prerelease=allow
-"""
+"""  # noqa: E501
         return _parse_rst(self, content)
 
 

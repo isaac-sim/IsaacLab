@@ -25,8 +25,8 @@ from .utils import (
     DEFAULT_ISAAC_SIM_PATH,
     ISAACLAB_ROOT,
     is_isaac_sim_source_build,
-    runs_isaac_sim_python,
     run_python_command,
+    runs_isaac_sim_python,
 )
 
 logger = logging.getLogger(__name__)
@@ -313,7 +313,9 @@ def cli() -> None:
         or args.test is not None
         or args.isaacsim_source is not None
     ) and not (ISAACLAB_ROOT / "pyproject.toml").is_file():
-        parser.error("This command requires an Isaac Lab source checkout. Run it with uv run isaaclab from that checkout.")
+        parser.error(
+            "This command requires an Isaac Lab source checkout. Run it with uv run isaaclab from that checkout."
+        )
 
     if args.format is not None:
         command_format(args.format)

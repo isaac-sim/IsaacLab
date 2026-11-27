@@ -141,7 +141,6 @@ class _Scheduler(Generic[R]):
         return max(1, min(job.slots, self._max_slots))
 
 
-
 def run_test_files(
     jobs: Iterable[TestFileJob], run: Callable[[TestFileJob, JobContext], R], max_slots: int = 1
 ) -> dict[str, R]:
