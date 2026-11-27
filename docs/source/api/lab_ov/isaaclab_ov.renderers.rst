@@ -16,6 +16,8 @@ The following classes are part of the public :mod:`isaaclab_ov.renderers` API.
    OVRTXRenderer
    OVRTXRendererCfg
    OVRTXBackendCfg
+   OvstageImageRenderer
+   OvstageImageRendererCfg
 
 .. autoclass:: OVRTXRenderer
    :show-inheritance:
@@ -24,6 +26,12 @@ The following classes are part of the public :mod:`isaaclab_ov.renderers` API.
    :show-inheritance:
 
 .. autoclass:: OVRTXBackendCfg
+   :show-inheritance:
+
+.. autoclass:: OvstageImageRenderer
+   :show-inheritance:
+
+.. autoclass:: OvstageImageRendererCfg
    :show-inheritance:
 
 Simulation-owned stages
