@@ -53,6 +53,9 @@ class NewtonGLBackendCfg(VisualizerBackendCfg):
     show_particles: bool = True
     """Show simulation particles. Set to False to hide them, for example in a surface-only view."""
 
+    show_lidar_hits: bool = False
+    """Show lidar hit visualization. Set to True to copy and draw hits; a dense scan is expensive to upload."""
+
     particle_color: tuple[float, float, float] | None = None
     """Optional particle color RGB [0, 1]. Uses Newton viewer defaults when ``None``."""
 

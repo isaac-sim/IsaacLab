@@ -7,11 +7,55 @@
 
 .. _newton-neural-robot-dynamics:
 
-Training on neural robot dynamics
-=================================
+Training on neural robot dynamics (NeRD)
+========================================
 
-The optional ``newton-neural`` integration records robot dynamics, fits a model and runs policies
-through Newton's existing lifecycle. Install it with ``uv sync --extra newton-neural``.
+A neural robot dynamics (NeRD) model is a neural network that predicts how one robot moves. It is
+trained on trajectories recorded from a physics solver and then steps that robot in the solver's place.
+The optional ``newton-neural`` integration records the trajectories of a task, fits a model to them and
+runs policies on the model through Newton's existing lifecycle. Install it with
+``uv sync --extra newton-neural``.
+
+When to train on a model
+------------------------
+
+Reinforcement learning needs a large number of simulation steps, and the physics step is often what
+limits it: resolving contact accurately takes small substeps and iterative constraint solves in every
+environment. A NeRD model advances the robot in all environments with one forward pass of fixed cost.
+
+A model is a good fit when:
+
+* the task runs many parallel environments of one robot, and physics stepping limits training speed;
+* the robot, its actuators and the control period are fixed, so one recording describes them.
+
+Expect these tradeoffs:
+
+* A model is recorded and trained before any policy trains on it. The recording does not depend on a
+  policy, so one model serves every policy that drives the robot with the same controls and control
+  period.
+* A checkpoint holds for the recorded robot, drive gains and timestep. A task that changes them needs
+  a new recording and a new model.
+* Predictions are reliable only for the states, controls and contacts that the recording covers.
+* Policy training speeds up by less than the physics step does, because the rewards, resets and
+  observations of the task run as before.
+* A policy trained on a model should be evaluated on a numerical solver before it is used elsewhere.
+  See `Evaluate an explicit policy`_.
+
+What the model replaces
+-----------------------
+
+A NeRD model replaces the dynamics solve of one robot, in one of two ways. It does not replace the
+renderer or the rest of the simulation: Newton still owns the scene, states, controls, collision
+detection and sensors, and Isaac Lab still owns resets, observations, rewards and rendering.
+
+* With :class:`~isaaclab_neural.physics.NeRDSolverCfg` (``physics=newton_nerd``), the model takes the
+  place of the solver. One forward pass advances the robot by one control period. Where the task has
+  contact, it reaches the model through contact inputs that Newton computes.
+* With :class:`~isaaclab_neural.physics.MJWarpNeRDSolverCfg` (``physics=newton_mjwarp_nerd``), the model
+  predicts only the free motion of the robot inside MuJoCo Warp, which still solves contacts and moves
+  the other bodies of the scene.
+
+`Run policies`_ lists what each of the two supports.
 
 Configuration ownership
 -----------------------
@@ -58,6 +102,10 @@ without recording again: ``model.backbone_spans=[1,1]`` configures the model def
 ``model.prediction`` and ``model.contact_bodies`` select the recorded signals. Pass them to ``record.py``;
 training refuses a dataset that was recorded with other values. An output checkpoint is saved before the
 validation report.
+
+On a GPU, training and the physics presets run the model through ``torch.compile``, which needs Triton to
+generate CUDA code. PyTorch installs Triton on Linux only. Where it is missing, such as on Windows, they run
+the model without ``torch.compile`` and log a warning. This is slower and otherwise equivalent.
 
 Franka explores the arm in free space using mixed joint targets. ANYmal explores moving and tilted
 poses using held joint targets and ground probes. Allegro records independent single-solver-step

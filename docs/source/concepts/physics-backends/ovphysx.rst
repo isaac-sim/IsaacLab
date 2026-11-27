@@ -295,10 +295,10 @@ nodes. Initialization raises an error for mixed node counts instead of exposing
 padded state that would produce incorrect reductions.
 
 Deformable scenes also require full-stage materialization. Startup cost therefore
-grows with the number of authored environments. Use this path for small validation
-scenes; training-scale workloads with thousands of environments are not currently
-supported. Deformable bodies are not supported by the heterogeneous fast-path
-cloner.
+grows with the number of authored environments. For large scenes, see
+`Compiled-stage cache`_ for the cache opt-out used by the Franka cloth and
+soft-beam lift presets. Deformable bodies are not supported by the heterogeneous
+fast-path cloner.
 
 .. _ovphysx-native-access:
 

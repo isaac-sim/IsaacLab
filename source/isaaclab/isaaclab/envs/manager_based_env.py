@@ -459,7 +459,6 @@ class ManagerBasedEnv:
             env_ids = slice(None)
         # terminal observations belong to the step that captured them
         self.extras.pop("final_obs", None)
-        self.extras.pop("final_obs_every_step", None)
         # trigger recorder terms for pre-reset calls
         self.recorder_manager.record_pre_reset(env_ids)
 
@@ -517,7 +516,6 @@ class ManagerBasedEnv:
             env_ids = slice(None)
         # terminal observations belong to the step that captured them
         self.extras.pop("final_obs", None)
-        self.extras.pop("final_obs_every_step", None)
         # trigger recorder terms for pre-reset calls
         self.recorder_manager.record_pre_reset(env_ids)
 

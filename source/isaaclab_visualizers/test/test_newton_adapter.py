@@ -566,6 +566,7 @@ class _Viewer:
     def __init__(self):
         self.device = "cpu"
         self.show_contacts = False
+        self.show_lidar_hits = False
         self.paused = False
         self.logged_state = None
         self.logged_contacts = None

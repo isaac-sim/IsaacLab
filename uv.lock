@@ -2178,8 +2178,8 @@ requires-dist = [
     { name = "rich", marker = "extra == 'sb3'" },
     { name = "rl-games", marker = "extra == 'rl-games'", git = "https://github.com/isaac-sim/rl_games.git?rev=5cf4f9ff07e9a01bbefd167cf19b6804b294b51c" },
     { name = "robomimic", marker = "sys_platform == 'linux' and extra == 'mimic'", git = "https://github.com/ARISE-Initiative/robomimic.git?rev=v0.4.0" },
-    { name = "rsl-rl-lib-extras", specifier = "==6.0.0.1" },
-    { name = "rsl-rl-lib-extras", marker = "extra == 'rsl-rl'", specifier = "==6.0.0.1" },
+    { name = "rsl-rl-lib-extras", specifier = "==6.0.0.2" },
+    { name = "rsl-rl-lib-extras", marker = "extra == 'rsl-rl'", specifier = "==6.0.0.2" },
     { name = "scipy", specifier = ">=1.18.0" },
     { name = "skrl", extras = ["jax"], marker = "extra == 'skrl-jax'", specifier = ">=2.1.1" },
     { name = "skrl", extras = ["torch", "warp"], marker = "extra == 'skrl'", specifier = ">=2.1.1" },
@@ -5241,7 +5241,7 @@ wheels = [
 
 [[package]]
 name = "rsl-rl-lib-extras"
-version = "6.0.0.1"
+version = "6.0.0.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "gitpython" },
@@ -5252,9 +5252,9 @@ dependencies = [
     { name = "tensordict" },
     { name = "torch" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/04/c2/6d2ed3d775e212889facccff81309f282d3573219563bb916711ad02258a/rsl_rl_lib_extras-6.0.0.1.tar.gz", hash = "sha256:08b382ae05077f53fa52691c2cf6882762e196d81c653c3bdd1c75dc6556c094", size = 116008, upload-time = "2026-11-24T21:45:48.418Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/4f/44/17605bc86fb3fe14de6731078113a38a38b15d4771885d958fe95a6ce565/rsl_rl_lib_extras-6.0.0.2.tar.gz", hash = "sha256:e05f3cda1598f3463a880780645e97a12aa02a74e8978d51b182b829395994b9", size = 116268, upload-time = "2026-11-25T09:30:06.68Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/80/26/40236d5e90bdf386ecad6b64025173b8740becc2c697449559180db2014d/rsl_rl_lib_extras-6.0.0.1-py3-none-any.whl", hash = "sha256:8ff45f02515162fcc7240ad31c3370d09fe7c66c5aea8620cb617561e7091f32", size = 158407, upload-time = "2026-11-24T21:45:46.681Z" },
+    { url = "https://files.pythonhosted.org/packages/72/b8/5b3b471d4b079fb6f1b89103e949459c31e73517e9fe8d197536f537f576/rsl_rl_lib_extras-6.0.0.2-py3-none-any.whl", hash = "sha256:0a122e27c1198514d18b8030204cac09c0860ae2e6816920791d9090c272b540", size = 158685, upload-time = "2026-11-25T09:30:05.466Z" },
 ]
 
 [[package]]

@@ -249,8 +249,8 @@ class RslRlSuperMimicRunnerCfg(RslRlBaseRunnerCfg):
     class_name: str = "OnPolicyRunner"
     """The runner class resolved by RSL-RL."""
 
-    final_obs_every_step: bool = True
-    """Capture physical observations before resets and interval events on every step."""
+    compute_final_obs: bool = True
+    """Record the observations before resets as the successors of finished episodes."""
 
     separate_goal_terms: tuple[str, ...] = ()
     """Policy terms supplied to the goal encoder separately from the frame history."""

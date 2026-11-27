@@ -239,8 +239,8 @@ ASSET_NAMES = {
 }
 """Names for instructions where the catalog label does not tell assets apart: the bowls, by their color."""
 
-CONTACT_CFG = [sim_utils.UsdPhysicsCollisionCfg(), MujocoCollisionCfg(solref=(0.005, 1.0))]
-"""A 5 ms contact response for the gripper and props, resolved with contacts refreshed at each solver substep."""
+CONTACT_CFG = [sim_utils.UsdPhysicsCollisionCfg(), MujocoCollisionCfg(solref=(0.02, 1.0))]
+"""A 20 ms contact response for the gripper and props, resolved with contacts refreshed at each solver substep."""
 
 OBJECT_COLLISION_CFG = [
     sim_utils.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="none"),

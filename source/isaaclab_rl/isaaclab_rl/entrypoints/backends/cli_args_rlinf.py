@@ -64,12 +64,13 @@ def resolve_config_dir(config_name: str, explicit_path: str | None) -> str:
 
     Resolution order:
 
-    1. *explicit_path* if provided (``--config_path``).
+    1. *explicit_path* if provided (``--config_path``), resolved to an absolute path.
     2. The ``isaaclab_tasks`` package tree, searched for a matching YAML.
     3. The directory containing the RLinf entrypoint implementation.
     """
     if explicit_path is not None:
-        return explicit_path
+        # Hydra's initialize_config_dir() rejects relative directories
+        return str(Path(explicit_path).expanduser().resolve())
     spec = importlib.util.find_spec("isaaclab_tasks")
     if spec is not None and spec.origin is not None:
         matches = list(Path(spec.origin).parent.rglob(f"{config_name}.yaml"))
