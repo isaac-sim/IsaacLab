@@ -11,6 +11,14 @@ Demos
 Select a demo, choose its backend and visualizer, then copy the command to run it locally.
 No source checkout is required.
 
+.. note::
+
+   The bundled Sharpa coffee, RJ45 and robot water-pouring demos are deprecated.
+   They remain available during this deprecation period. To reproduce a bundled run,
+   pin a source checkout to a revision that includes the demos, such as
+   `5c40dd797 <https://github.com/isaac-sim/IsaacLab/tree/5c40dd797baac01eb0dd3d0022eea6873db852d3>`__.
+   The regular kinematic ``teapot-fill`` demo remains supported.
+
 .. raw:: html
 
    <div class="environment-browser demo-browser" data-demo-browser>
