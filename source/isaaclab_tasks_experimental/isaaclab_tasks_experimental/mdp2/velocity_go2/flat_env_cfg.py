@@ -293,13 +293,17 @@ class UnitreeGo2FlatEnvCfg(MDP2RLEnvCfg):
     def play_mode(self):
         """Play without the random pushes, as the MDP1 velocity tasks do."""
         super().play_mode()
-        tasks = [self.task] if isinstance(self.task, mdp2.TaskCfg) else self.task
-        tasks = [replace(task, events={**task.events, "push_robot": None}) for task in tasks]
-        self.task = tasks[0] if isinstance(self.task, mdp2.TaskCfg) else tasks
+        self.task = _without_pushes(self.task)
+
+
+def _without_pushes(task: mdp2.TaskCfg) -> mdp2.TaskCfg:
+    """Return a task and its subtasks without the random pushes."""
+    subtasks = {name: _without_pushes(subtask) for name, subtask in task.subtasks.items()}
+    return replace(task, events={**task.events, "push_robot": None}, subtasks=subtasks)
 
 
 @configclass
 class UnitreeGo2FlatWalkStandEnvCfg(UnitreeGo2FlatEnvCfg):
     """The Go2 flat environment with half of the worlds walking and the other half standing still."""
 
-    task: list[mdp2.TaskCfg] = [TASK, STAND_TASK]
+    task: mdp2.TaskCfg = mdp2.split(walk=TASK, stand=STAND_TASK)

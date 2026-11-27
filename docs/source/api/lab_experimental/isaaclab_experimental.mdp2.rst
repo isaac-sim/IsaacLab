@@ -22,7 +22,10 @@ Terms and task configuration
    SubsetSelector
    TaskCfg
    DirectAction
+   Action
+   ActionRate
    Observation
+   ObservationGroup
    Reward
    Termination
    TimeLimit
@@ -31,7 +34,18 @@ Terms and task configuration
    EventMode
    Quantity
    UniformNoise
+   Tunable
+   tunable
    term_state
+   compose
+   sequence
+   split
+   choice
+   rename
+   Milestone
+   TaskMode
+   progress
+   progress_field
 
 Building and running
 --------------------
@@ -41,15 +55,20 @@ Building and running
 
    MDPBuilder
    MDP
+   Columns
+   Spec
    MDPState
    Transition
    Backend
    CapturedMDP
    startup
+   process_actions
    apply_actions
    evaluate
    reset
    observe
+   tune
+   migrate
 
 Scene data
 ----------
@@ -73,7 +92,11 @@ Scene data
 .. autoclass:: SubsetSelector
 .. autoclass:: TaskCfg
 .. autoclass:: DirectAction
+.. autoclass:: Action
+.. autoclass:: ActionRate
+   :members:
 .. autoclass:: Observation
+.. autoclass:: ObservationGroup
 .. autoclass:: Reward
 .. autoclass:: Termination
 .. autoclass:: TimeLimit
@@ -83,11 +106,25 @@ Scene data
    :members:
 .. autoclass:: Quantity
 .. autoclass:: UniformNoise
+.. autoclass:: Tunable
+.. autofunction:: tunable
 .. autofunction:: term_state
+.. autofunction:: compose
+.. autofunction:: sequence
+.. autofunction:: split
+.. autofunction:: choice
+.. autofunction:: rename
+.. autoclass:: Milestone
+.. autoclass:: TaskMode
+   :members:
+.. autodata:: progress
+.. autofunction:: progress_field
 .. autoclass:: MDPBuilder
    :members:
 .. autoclass:: MDP
    :members:
+.. autoclass:: Columns
+.. autoclass:: Spec
 .. autoclass:: MDPState
    :members:
 .. autoclass:: Transition
@@ -96,10 +133,13 @@ Scene data
 .. autoclass:: CapturedMDP
    :members:
 .. autofunction:: startup
+.. autofunction:: process_actions
 .. autofunction:: apply_actions
 .. autofunction:: evaluate
 .. autofunction:: reset
 .. autofunction:: observe
+.. autofunction:: tune
+.. autofunction:: migrate
 .. autoclass:: SceneData
    :members:
 .. autoclass:: SceneSchema

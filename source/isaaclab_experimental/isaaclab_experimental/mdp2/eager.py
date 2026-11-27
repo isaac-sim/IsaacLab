@@ -62,4 +62,4 @@ def call_init(mdp: MDP, op: TermOp, state: MDPState, hook: Callable) -> None:
         selectors=op.inputs,
         scene_data=state.scene_data,
     )
-    hook(context, **op.params)
+    hook(context, **op.params, **op.tunables)  # Tunable params at their default
