@@ -258,13 +258,11 @@ class InteractiveScene:
             worlds, weights = cloner.make_valid_clone_combinations(
                 clone_asset_names, variant_cfgs, combinations, all_asset_names=scene_asset_names
             )
-            worlds = tuple(
-                tuple(
-                    prototype_indices[slot] if isinstance(slot, int) else tuple(prototype_indices[i] for i in slot)
-                    for slot in world
-                )
-                for world in worlds
-            )
+
+            def remap(slot):
+                return prototype_indices[slot] if isinstance(slot, int) else tuple(remap(choice) for choice in slot)
+
+            worlds = tuple(tuple(remap(slot) for slot in world) for world in worlds)
             return cfgs, worlds, weights
         return cfgs, None, None
 

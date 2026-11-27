@@ -46,7 +46,11 @@ class MJWarpNeRDSolverCfg(MJWarpSolverCfg):
     """Optional inference precision override (``"fp32"``, ``"tf32"``, ``"fp16"``, ``"bf16"``; checkpoint default)."""
 
     compile: bool | None = None
-    """Optional ``torch.compile`` toggle (defaults to ``True`` on CUDA)."""
+    """Optional ``torch.compile`` toggle (defaults to ``True`` on CUDA where Triton is installed).
+
+    ``torch.compile`` needs Triton for CUDA, and PyTorch installs it on Linux only. Elsewhere, such as on
+    Windows, the default is ``False``: the model runs slower and is otherwise equivalent.
+    """
 
     def validate_config(self) -> None:
         """Raise ``ValueError`` if :attr:`checkpoint` is empty or does not exist, with training instructions."""

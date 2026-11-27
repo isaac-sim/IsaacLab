@@ -24,7 +24,7 @@ wp.config.enable_backward = False
 
 import torch
 from isaaclab_neural import NeRDTrainingCfg
-from isaaclab_neural.nerd import build_model
+from isaaclab_neural.nerd import build_model, default_compile
 from newton_neural.data import TrajectoryDataset, TrajectoryWindows
 from newton_neural.evaluation import rollout_error
 from newton_neural.models import NeRDBase
@@ -62,15 +62,19 @@ def check_report(nerd: NeRDBase, held_out: TrajectoryWindows, cfg: NeRDTrainingC
         )
 
 
-def fit(nerd: NeRDBase, windows: TrajectoryWindows, cfg: NeRDTrainingCfg) -> None:
-    """Fit the normalization of ``nerd`` to ``windows`` and train it for ``cfg.max_steps`` optimizer steps."""
+def fit(nerd: NeRDBase, windows: TrajectoryWindows, cfg: NeRDTrainingCfg, compiled: bool) -> None:
+    """Fit the normalization of ``nerd`` to ``windows`` and train it for ``cfg.max_steps`` optimizer steps.
+
+    With ``compiled``, the loss runs through ``torch.compile``.
+    """
     nerd.fit_normalization(windows.loader(cfg.batch_size))
     loss = LossOneStep(noise=cfg.noise)
-    if nerd.device.type == "cuda":
+    if compiled:
         loss.compile()  # The first step compiles the loss, which pays off over thousands of steps
     optimizer = create_optimizer(nerd, lr=cfg.learning_rate)
     schedule = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, cfg.max_steps)
-    print(f"Training for {cfg.max_steps} steps. On a GPU the first one compiles the loss and takes much longer.")
+    first_step = " The first one compiles the loss and takes much longer." if compiled else ""
+    print(f"Training for {cfg.max_steps} steps.{first_step}")
     start = time.perf_counter()
     batches = itertools.islice(windows.loader(cfg.batch_size, epochs=None), cfg.max_steps)
     for step, batch in enumerate(batches, start=1):
@@ -83,8 +87,11 @@ def fit(nerd: NeRDBase, windows: TrajectoryWindows, cfg: NeRDTrainingCfg) -> Non
             print(f"Step {step} of {cfg.max_steps}, loss {error.item():.4f}, {time.perf_counter() - start:.0f} s.")
 
 
-def report(nerd: NeRDBase, held_out: TrajectoryWindows, cfg: NeRDTrainingCfg) -> None:
-    """Print the error of ``nerd`` on the robots that it was not trained on."""
+def report(nerd: NeRDBase, held_out: TrajectoryWindows, cfg: NeRDTrainingCfg, compiled: bool) -> None:
+    """Print the error of ``nerd`` on the robots that it was not trained on.
+
+    With ``compiled``, the rollouts of the model run through ``torch.compile``.
+    """
     if not nerd.prediction.integrates:
         # A model inside a solver gives no next state to roll out, so its one step error is what there is to report.
         loss = LossOneStep()
@@ -99,7 +106,9 @@ def report(nerd: NeRDBase, held_out: TrajectoryWindows, cfg: NeRDTrainingCfg) ->
     if nerd.receptive_field is None:
         del starts["in the middle of an episode"]
     for where, from_episode_start in starts.items():
-        errors = rollout_error(nerd, held_out, horizons=cfg.horizons, from_episode_start=from_episode_start)
+        errors = rollout_error(
+            nerd, held_out, horizons=cfg.horizons, from_episode_start=from_episode_start, compile=compiled
+        )
         for horizon, error in errors.items():
             print(
                 f"Started {where}, after {horizon * held_out.frame_dt:.2f} s alone the joint coordinates are off by "
@@ -140,10 +149,11 @@ def main(argv: list[str] | None = None) -> None:
         check_report(nerd, held_out, cfg)
     except ValueError as error:
         parser.error(str(error))
-    fit(nerd, windows, cfg)
+    compiled = default_compile(nerd.device)  # On a GPU, where PyTorch has the Triton that torch.compile needs
+    fit(nerd, windows, cfg, compiled)
     checkpoint.parent.mkdir(parents=True, exist_ok=True)
     nerd.save(checkpoint)  # Save before reporting so a report failure cannot lose trained weights.
-    report(nerd, held_out, cfg)
+    report(nerd, held_out, cfg, compiled)
     print(f"Saved {checkpoint.resolve()}")
 
 

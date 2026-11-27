@@ -86,7 +86,7 @@ def to_warp(topology: PrototypeWorldTopology, device: str) -> PrototypeWorldTopo
 
 def make_clone_plan(
     asset_cfgs: Sequence[Any],
-    world_prototypes: Sequence[Sequence[int | Sequence[int]]],
+    world_prototypes: Sequence[Sequence[int | Sequence]],
     num_worlds: int,
     *,
     weights: Sequence[float] | None = None,
@@ -101,7 +101,8 @@ def make_clone_plan(
         asset_cfgs: Asset prototype definitions, retained by reference.
         world_prototypes: Asset indices in each world prototype, including repeated instances.
             A slot may instead contain candidate indices. Such factorized groups are selected
-            before their individual slots, without enumerating the Cartesian product. Only selected
+            before their individual slots, without enumerating the Cartesian product. Nested candidate
+            groups choose a group uniformly before choosing its member. Only selected
             concrete worlds are materialized and identical selections reuse one prototype.
         num_worlds: Number of destination worlds.
         weights: Relative world-prototype weights; ``None`` gives every prototype equal weight.
@@ -130,26 +131,38 @@ def make_clone_plan(
     if not has_valid_ids:
         raise ValueError("clone_strategy must select one valid world-prototype index per destination.")
     if any(not isinstance(slot, (int, np.integer)) for world in compositions[1:] for slot in world):
-        groups = []
-        for world in compositions[1:]:
-            group = []
-            for slot in world:
-                choices = np.asarray([slot] if isinstance(slot, (int, np.integer)) else slot)
-                is_index_list = choices.ndim == 1 and choices.size and np.issubdtype(choices.dtype, np.integer)
-                if not is_index_list or (choices < 0).any() or (choices >= len(asset_cfgs)).any():
-                    raise ValueError("World choices must be nonempty integer indices into asset_cfgs.")
-                group.append(choices)
-            groups.append(group)
+
+        def normalize(choices):
+            if isinstance(choices, (int, np.integer)):
+                if not 0 <= choices < len(asset_cfgs):
+                    raise ValueError("World choices must be integer indices into asset_cfgs.")
+                return int(choices)
+            if isinstance(choices, np.ndarray) and (choices.ndim != 1 or not np.issubdtype(choices.dtype, np.integer)):
+                raise ValueError("World choices arrays must contain one-dimensional integer indices.")
+            if isinstance(choices, (str, bytes)) or not isinstance(choices, (Sequence, np.ndarray)) or not len(choices):
+                raise ValueError("World choices must contain nonempty groups of integer indices into asset_cfgs.")
+            return tuple(normalize(choice) for choice in choices)
+
+        def sample(choices, count):
+            if isinstance(choices, int):
+                return np.full(count, choices, dtype=np.int64)
+            ids = np.asarray(clone_strategy(np.ones(len(choices)), count))
+            valid = ids.shape == (count,) and np.issubdtype(ids.dtype, np.integer)
+            if not valid or (ids < 0).any() or (ids >= len(choices)).any():
+                raise ValueError("clone_strategy must select one valid candidate index per destination.")
+            selected = np.empty(count, dtype=np.int64)
+            for index in np.unique(ids):
+                mask = ids == index
+                selected[mask] = sample(choices[index], int(mask.sum()))
+            return selected
+
+        groups = [tuple(normalize(slot) for slot in world) for world in compositions[1:]]
         selected = [None] * num_worlds
         for group_id in np.unique(layout):
             env_ids = np.flatnonzero(layout == group_id)
             columns = []
             for choices in groups[group_id]:
-                ids = np.asarray(clone_strategy(np.ones(len(choices)), len(env_ids)))
-                is_candidate_layout = ids.shape == (len(env_ids),) and np.issubdtype(ids.dtype, np.integer)
-                if not is_candidate_layout or (ids < 0).any() or (ids >= len(choices)).any():
-                    raise ValueError("clone_strategy must select one valid candidate index per destination.")
-                columns.append(choices[ids])
+                columns.append(sample(choices, len(env_ids)))
             rows = zip(*columns, strict=True) if columns else [()] * len(env_ids)
             for env_id, row in zip(env_ids, rows, strict=True):
                 selected[env_id] = tuple(int(member) for member in row)

@@ -158,7 +158,7 @@ def test_example_catalog_lists_packaged_examples(capsys):
     assert "newton-dominoes" in output
     assert "mpm-two-way-coupling" in output
     assert "uvx --torch-backend cu130 --from 'isaaclab[isaacsim,rsl-rl]' isaaclab example mpm-g1-coupling" in output
-    assert "uvx --torch-backend cu130 --from 'isaaclab[isaacsim]' isaaclab example camera" in output
+    assert "uvx --torch-backend cu130 --from 'isaaclab[ov]' isaaclab example camera" in output
     assert "teapot-fill" not in output
 
 
@@ -300,9 +300,11 @@ def test_program_command_rejects_unknown_name(command):
 def test_program_command_reports_missing_optional_dependencies(capsys):
     """A program with missing extras must print its complete uvx installation command."""
     with mock.patch.object(programs, "find_spec", return_value=None), pytest.raises(SystemExit, match="2"):
-        cli.example(["camera"])
+        cli.demo(["pick-and-place"])
 
-    assert "uvx --torch-backend cu130 --from 'isaaclab[isaacsim]' isaaclab example camera" in capsys.readouterr().err
+    assert (
+        "uvx --torch-backend cu130 --from 'isaaclab[isaacsim]' isaaclab demo pick-and-place" in capsys.readouterr().err
+    )
 
 
 @pytest.mark.parametrize(("command_name", "args"), [("demo", ["zoo", "--headless"]), ("example", ["cables"])])

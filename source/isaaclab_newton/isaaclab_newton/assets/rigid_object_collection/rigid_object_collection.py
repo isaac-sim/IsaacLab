@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import warnings
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import torch
@@ -22,6 +22,7 @@ import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object_collection.base_rigid_object_collection import BaseRigidObjectCollection
 from isaaclab.utils import clone, validate
 from isaaclab.utils.warp import ProxyArray, memory
+from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
 from isaaclab.utils.warp.memory import resolve_ids
 from isaaclab.utils.wrench_composer import WrenchComposer
 
@@ -31,6 +32,22 @@ from .rigid_object_collection_data import RigidObjectCollectionData
 
 if TYPE_CHECKING:
     from isaaclab.assets.rigid_object_collection.rigid_object_collection_cfg import RigidObjectCollectionCfg
+
+
+@wp.kernel(enable_backward=False)
+def _collection_variant_selection(
+    selections: wp.array(dtype=Any),
+    worlds: wp.array(dtype=Any),
+    bodies_by_world: wp.array2d(dtype=wp.int32),
+    bodies: wp.array2d(dtype=wp.int32),
+    variants: wp.array2d(dtype=wp.int32),
+):
+    row, column = wp.tid()
+    bodies[row, column] = bodies_by_world[wp.int32(worlds[row]), column]
+    variants[row, column] = wp.int32(selections[row * bodies.shape[1] + column])
+
+
+_COLLECTION_VARIANT_SELECTION = IndexKernelDispatcher(_collection_variant_selection, ("selections", "worlds"))
 
 
 class RigidObjectCollection(BaseRigidObjectCollection):
@@ -88,9 +105,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                     orientation=rigid_body_cfg.init_state.rot,
                 )
             # check that spawn was successful
-            matching_prims = sim_utils.find_matching_prims(rigid_body_cfg.prim_path)
-            if len(matching_prims) == 0:
-                raise RuntimeError(f"Could not find prim with path {rigid_body_cfg.prim_path}.")
+            sim_utils.resolve_matching_prims_from_source(rigid_body_cfg.prim_path)
         # stores object names
         self._body_names_list = []
 
@@ -119,6 +134,15 @@ class RigidObjectCollection(BaseRigidObjectCollection):
     def body_names(self) -> list[str]:
         """Ordered names of bodies in the rigid object collection."""
         return self._body_names_list
+
+    @property
+    def mesh_variant_ids(self) -> ProxyArray:
+        """Selected native mesh variant per environment and object."""
+        if not self.is_initialized:
+            raise RuntimeError("Mesh variant selection requires an initialized rigid object collection.")
+        if self._variant_body_indices is None:
+            raise NotImplementedError("Reset-time mesh selection requires variants for every collection member.")
+        return ProxyArray(self.root_view.get_attribute("body_variant", self._backend_manager.backend.model)[:, :, 0])
 
     @property
     def root_view(self) -> ArticulationView:
@@ -180,6 +204,38 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         # reset external wrench
         self._instantaneous_wrench_composer.reset(env_ids, env_mask)
         self._permanent_wrench_composer.reset(env_ids, env_mask)
+
+    def write_mesh_variant_to_sim(
+        self, variant_ids: torch.Tensor | wp.array, env_ids: Sequence[int] | torch.Tensor | wp.array | None = None
+    ) -> None:
+        """Select each member's native geometry and inertia, preserving environments outside the selection."""
+        if not self.is_initialized:
+            raise RuntimeError("Mesh variant selection requires an initialized rigid object collection.")
+        if self._variant_body_indices is None:
+            raise NotImplementedError("Reset-time mesh selection requires variants for every collection member.")
+        env_ids = self._resolve_env_ids(env_ids)
+        count = env_ids.shape[0]
+        if variant_ids.shape != (count, self.num_bodies):
+            raise ValueError("Mesh variants require one selection per environment and object.")
+        if not count:
+            return
+        bodies = self._variant_selection_bodies[:count]
+        variants = self._variant_selection_ids[:count]
+        wp.launch(
+            _COLLECTION_VARIANT_SELECTION.select(variant_ids, env_ids),
+            dim=(count, self.num_bodies),
+            inputs=[variant_ids.flatten(), env_ids, self._variant_body_indices],
+            outputs=[bodies, variants],
+            device=self.device,
+        )
+        model = self._backend_manager.backend.model
+        flags = model.select_body_variants(variants.flatten(), bodies=bodies.flatten())
+        self._backend_manager.add_model_change(flags)
+        env_mask = shared_kernels.mask_from_ids(
+            env_ids, self._ALL_ENV_INDICES, self._ALL_ENV_MASK, self._index_env_mask
+        )
+        self._backend_manager.invalidate_body_state(env_mask, consume_mask=env_mask is self._index_env_mask)
+        self.data._reset_body_com_pose_b_dependents()
 
     def write_data_to_sim(self) -> None:
         """Write external wrench to the simulation.
@@ -1159,6 +1215,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self._root_view = ArticulationView(
             self._backend_manager.backend.model,
             root_prim_path_exprs,
+            # Body state is rectangular even when collection members have different shape counts.
+            homogeneous=False,
             verbose=False,
         )
         # Newton matches each body once, so members whose prim paths alias the same prim come up short here.
@@ -1168,6 +1226,19 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 f"{self._root_view.count_per_world} objects per world, but the collection config contains "
                 f"{self.num_bodies}."
             )
+
+        self._variant_body_indices = None
+        if all(
+            not getattr(member.spawn, "static", True) and len(member.spawn.spawn_paths) > 1
+            for member in self.cfg.rigid_objects.values()
+        ):
+            model = self._backend_manager.backend.model
+            starts = model.articulation_start.numpy()
+            children = model.joint_child.numpy()
+            bodies = children[starts[self._root_view.articulation_ids.numpy()]]
+            self._variant_body_indices = wp.array(bodies, dtype=wp.int32, device=self.device)
+            self._variant_selection_bodies = wp.empty(bodies.shape, dtype=wp.int32, device=self.device)
+            self._variant_selection_ids = wp.empty(bodies.shape, dtype=wp.int32, device=self.device)
 
         # container for data access
         self._data = RigidObjectCollectionData(

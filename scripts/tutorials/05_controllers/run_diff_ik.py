@@ -15,14 +15,17 @@ for tracking IK targets. Other tasks can retain their calibrated actuator gains.
 .. code-block:: bash
 
     # Usage
-    uv run python scripts/tutorials/05_controllers/run_diff_ik.py
+    uv run --extra ov python scripts/tutorials/05_controllers/run_diff_ik.py
 
 """
 
 """Parse the command-line arguments first."""
 
 import argparse
+from types import SimpleNamespace
 from typing import TYPE_CHECKING
+
+from isaaclab_ov.physics import OvPhysxCfg
 
 from isaaclab.app import add_launcher_args, launch_simulation
 
@@ -32,12 +35,15 @@ parser.add_argument("--robot", type=str, default="franka_panda", help="Name of t
 parser.add_argument("--num_envs", type=int, default=128, help="Number of environments to spawn.")
 # append simulation launcher cli args
 add_launcher_args(parser)
+parser.set_defaults(visualizer=["newton_rtx"])
 # parse the arguments
 args_cli = parser.parse_args()
 
 """Rest everything follows."""
 
 import torch
+
+from pxr import Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
@@ -57,6 +63,16 @@ if TYPE_CHECKING:
 # Pre-defined configs
 ##
 from isaaclab_assets import FRANKA_PANDA_HIGH_PD_CFG, UR10_CFG  # isort:skip
+
+
+def spawn_table(prim_path, cfg, translation=None, orientation=None, **kwargs) -> Usd.Prim:
+    """Correct the stand asset's face-varying normals for the Newton viewer importer."""
+    prim = sim_utils.spawn_from_usd(prim_path, cfg, translation, orientation, **kwargs)
+    mesh = UsdGeom.Mesh(prim.GetStage().GetPrimAtPath(prim.GetPath().AppendPath("Visuals/Base")))
+    normals = mesh.GetNormalsAttr().Get()
+    if len(normals) == len(mesh.GetFaceVertexIndicesAttr().Get()) and len(normals) != len(mesh.GetPointsAttr().Get()):
+        mesh.SetNormalsInterpolation(UsdGeom.Tokens.faceVarying)
+    return prim
 
 
 @configclass
@@ -79,7 +95,10 @@ class TableTopSceneCfg(InteractiveSceneCfg):
     table = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Table",
         spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/Stand/stand_instanceable.usd", scale=(2.0, 2.0, 2.0)
+            func=spawn_table,
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/Stand/stand_instanceable.usd",
+            scale=(2.0, 2.0, 2.0),
+            make_uninstanceable=True,
         ),
     )
 
@@ -198,15 +217,19 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: "InteractiveScene"):
 def main():
     """Main function."""
     # Configure the simulation
-    sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device)
+    sim_cfg = sim_utils.SimulationCfg(
+        physics=OvPhysxCfg(),
+        dt=0.01,
+        device=args_cli.device,
+    )
     # Launch the simulator runtime that the configuration needs
-    with launch_simulation(sim_cfg, args_cli):
+    scene_cfg = TableTopSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0)
+    with launch_simulation(SimpleNamespace(sim=sim_cfg, scene=scene_cfg), args_cli):
         # Initialize the simulation context
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
         sim.set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
         # Design scene
-        scene_cfg = TableTopSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0)
         scene = instantiate(scene_cfg)
         # Play the simulator
         sim.reset()

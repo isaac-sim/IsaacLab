@@ -1975,7 +1975,7 @@ class ArticulationData(BaseArticulationData):
             copy=False,
         )
         self._joint_dynamic_friction_coeff = wp.array(
-            ptr=_fp.ptr + _float_bytes,
+            ptr=_fp.ptr + _float_bytes if _fp.ptr is not None else None,
             shape=(N, D),
             strides=(_stride_row, _stride_col),
             dtype=wp.float32,
@@ -1983,7 +1983,7 @@ class ArticulationData(BaseArticulationData):
             copy=False,
         )
         self._joint_viscous_friction_coeff = wp.array(
-            ptr=_fp.ptr + 2 * _float_bytes,
+            ptr=_fp.ptr + 2 * _float_bytes if _fp.ptr is not None else None,
             shape=(N, D),
             strides=(_stride_row, _stride_col),
             dtype=wp.float32,

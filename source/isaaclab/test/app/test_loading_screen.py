@@ -7,6 +7,7 @@
 
 import builtins
 import errno
+import logging
 import os
 import select
 import subprocess
@@ -243,20 +244,36 @@ def test_shutdown_restores_output_when_live_rendering_fails(monkeypatch: pytest.
     assert builtins.input is original_input
 
 
-def test_redirect_uses_stream_swapping_on_platforms_without_descriptor_redirection(monkeypatch: pytest.MonkeyPatch):
+@pytest.mark.kitless
+def test_redirect_uses_stream_swapping_on_platforms_without_descriptor_redirection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     original_stdout = _OpenStringIO()
     original_stderr = _OpenStringIO()
     monkeypatch.setattr(loading_screen.sys, "platform", "win32")
     monkeypatch.setattr(loading_screen.sys, "stdout", original_stdout)
     monkeypatch.setattr(loading_screen.sys, "stderr", original_stderr)
+    logger = logging.getLogger("isaaclab.test_loading_screen")
     screen = loading_screen.LoadingScreen(1, enabled=True)
 
     screen._redirect()
     print("hidden output")
+    # handlers created during startup bind the spool in place of the console streams
+    out_handler = logging.StreamHandler(loading_screen.sys.stdout)
+    err_handler = logging.StreamHandler(loading_screen.sys.stderr)
+    logger.addHandler(out_handler)
+    logger.addHandler(err_handler)
     assert screen._saved_fds is None
     assert screen._saved_streams == (original_stdout, original_stderr)
 
-    assert screen._restore() == "hidden output\n"
+    try:
+        assert screen._restore() == "hidden output\n"
+        logger.warning("after startup")
+    finally:
+        logger.removeHandler(out_handler)
+        logger.removeHandler(err_handler)
     assert screen._console is original_stdout
     assert loading_screen.sys.stdout is original_stdout
     assert loading_screen.sys.stderr is original_stderr
+    assert original_stdout.getvalue() == "after startup\n"
+    assert original_stderr.getvalue() == "after startup\n"

@@ -461,6 +461,9 @@ class DirectMARLEnv(gym.Env):
                 index_fill_(not_yet_reset, reset_env_ids, False)
             manual_reset_ids = not_yet_reset.nonzero(as_tuple=False).squeeze(-1)
             if len(manual_reset_ids) > 0:
+                if self.cfg.compute_final_obs and len(reset_env_ids) == 0:
+                    for agent, obs in tree_map(torch.clone, self._compute_observations()).items():
+                        self.extras[agent]["final_obs"] = obs
                 for agent in self.terminated_dict:
                     index_fill_(self.terminated_dict[agent], manual_reset_ids, True)
                 self._reset_idx(manual_reset_ids)

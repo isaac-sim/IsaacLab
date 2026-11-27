@@ -15,7 +15,7 @@ Currently, the following models are supported:
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 import torch
 import warp as wp
@@ -43,6 +43,8 @@ class ActuatorNetLSTM(DCMotor):
 
     cfg: ActuatorNetLSTMCfg
     """The configuration of the actuator model."""
+
+    capturable: ClassVar[bool] = False  # Not checked in replayed graphs, so not inherited from DCMotor
 
     def __init__(self, cfg: ActuatorNetLSTMCfg, *args, **kwargs):
         if cfg.network_file is None:
@@ -123,6 +125,8 @@ class ActuatorNetMLP(DCMotor):
 
     cfg: ActuatorNetMLPCfg
     """The configuration of the actuator model."""
+
+    capturable: ClassVar[bool] = False  # The histories are assigned anew at every step, which a graph cannot follow
 
     def __init__(self, cfg: ActuatorNetMLPCfg, *args, **kwargs):
         if cfg.network_file is None:

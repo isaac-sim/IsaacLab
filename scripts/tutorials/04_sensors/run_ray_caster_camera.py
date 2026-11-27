@@ -10,24 +10,35 @@ The camera sensor is based on using Warp kernels which do ray-casting against st
 
 .. code-block:: bash
 
-    # Usage
-    uv run python scripts/tutorials/04_sensors/run_ray_caster_camera.py --viz kit
+    # RTX scene view without the dense ray-hit overlay
+    uv run --extra ov python scripts/tutorials/04_sensors/run_ray_caster_camera.py --viz newton_rtx --disable_debug_vis
+
+    # OpenGL scene view with the full ray-hit overlay
+    uv run --extra ov python scripts/tutorials/04_sensors/run_ray_caster_camera.py --viz newton_gl
+
+Dense ray-hit overlays currently slow the RTX viewer. ``--disable_debug_vis`` hides
+only that overlay; the camera's resolution and depth outputs remain unchanged.
 
 """
 
 """Parse the command-line arguments first."""
 
 import argparse
+from types import SimpleNamespace
+
+from isaaclab_ov.physics import OvPhysxCfg
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.utils import instantiate
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="This script demonstrates how to use the ray-cast camera sensor.")
+parser.add_argument("--disable_debug_vis", action="store_true", help="Hide the dense ray-hit point overlay.")
 parser.add_argument("--num_envs", type=int, default=16, help="Number of environments to generate.")
 parser.add_argument("--save", action="store_true", default=False, help="Save the obtained data to disk.")
 # append simulation launcher cli args
 add_launcher_args(parser)
+parser.set_defaults(visualizer=["newton_rtx"])
 # parse the arguments
 args_cli = parser.parse_args()
 
@@ -39,6 +50,8 @@ from typing import TYPE_CHECKING
 import torch
 
 import isaaclab.sim as sim_utils
+from isaaclab.assets import AssetBaseCfg
+from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors.camera.utils import save_images_to_file
 from isaaclab.sensors.ray_caster import RayCasterCameraCfg, patterns
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
@@ -63,7 +76,7 @@ def define_sensor() -> "RayCasterCamera":
         update_period=0.1,
         offset=RayCasterCameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(1.0, 0.0, 0.0, 0.0)),
         data_types=["distance_to_image_plane", "normals", "distance_to_camera"],
-        debug_vis=True,
+        debug_vis=not args_cli.disable_debug_vis,
         pattern_cfg=patterns.PinholeCameraPatternCfg(
             focal_length=24.0,
             horizontal_aperture=20.955,
@@ -150,9 +163,13 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
 def main():
     """Main function."""
     # Configure the simulation
-    sim_cfg = sim_utils.SimulationCfg()
+    sim_cfg = sim_utils.SimulationCfg(
+        physics=OvPhysxCfg(),
+    )
     # Launch the simulator runtime that the configuration needs
-    with launch_simulation(sim_cfg, args_cli):
+    scene_cfg = InteractiveSceneCfg(num_envs=1, env_spacing=0.0)
+    scene_cfg.world = AssetBaseCfg(prim_path="/World")
+    with launch_simulation(SimpleNamespace(sim=sim_cfg, scene=scene_cfg), args_cli):
         # Initialize the simulation context
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
@@ -160,11 +177,13 @@ def main():
         # Design scene
         scene_entities = design_scene()
         # Play simulator
+        scene = instantiate(scene_cfg)
         sim.reset()
         # Now we are ready!
         print("[INFO]: Setup complete...")
         # Run simulator
         run_simulator(sim=sim, scene_entities=scene_entities)
+        del scene
 
 
 if __name__ == "__main__":

@@ -33,11 +33,8 @@ Prerequisites
 - **Isaac Lab** installed and configured
 - **Isaac-GR00T** repo (for VLA inference and data transforms)
 - A **pretrained VLA checkpoint** in HuggingFace format. A pretrained GR00T checkpoint for
-  ``assemble_trocar`` is available and can be downloaded via:
-
-  .. code-block:: bash
-
-     hf download --repo-type model nvidia/Assemble_Trocar --local-dir /path/to/local/models
+  ``assemble_trocar`` is available on Hugging Face; download it after installing the dependency
+  pins (see :ref:`rlinf-assemble-trocar-checkpoint`).
 - Multi-GPU setup recommended (FSDP requires at least 1 GPU)
 
 Installation
@@ -63,7 +60,7 @@ the alternative model dependencies below.
 
    # Step 2: Install packages with conflicting constraints (--no-deps to bypass resolver)
    uv pip install transformers==4.51.3 "tokenizers>=0.21,<0.22" \
-       "huggingface-hub>=0.30,<1.0" --no-deps
+       "huggingface-hub>=0.34,<1.0" --no-deps
    # Use the official PyTorch3D v0.7.9 tag instead of the older pipablepytorch3d package.
    # GR00T N1.5 only uses pytorch3d.transforms, so skip the compiled extension.
    PYTORCH3D_NO_EXTENSION=1 uv pip install --no-build-isolation \
@@ -87,6 +84,20 @@ The packages installed above intentionally differ from the versions in the
 Isaac Lab lockfile. Use ``uv run --no-sync`` for the commands below so that
 ``uv`` does not replace these GR00T-compatible versions before launching.
 
+.. _rlinf-assemble-trocar-checkpoint:
+
+Assemble Trocar checkpoint
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Download the pretrained GR00T N1.5 checkpoint for ``assemble_trocar`` after Step 2. With the
+``huggingface-hub`` 1.x and ``typer`` 0.27 releases of the Isaac Lab lockfile, the ``hf`` command downloads
+the files but then exits with a non-zero status and a ``click.exceptions.Exit`` traceback, so run it with the
+pinned ``huggingface-hub`` release:
+
+.. code-block:: bash
+
+   uv run --no-sync hf download --repo-type model nvidia/Assemble_Trocar --local-dir /path/to/local/models
+
 .. _rlinf-skipping-flash-attn:
 
 Skipping flash-attn for N1.5
@@ -100,7 +111,7 @@ If Step 4 fails, skip installation of flash-attn and apply this patch instead:
    git apply /path/to/IsaacLab/scripts/imitation_learning/locomanipulation_sdg/gr00t/no_flash_attn.patch
 
 The patch switches GR00T to PyTorch SDPA, so flash-attn is no longer required.
-The training and evaluation commands below work unchanged. This patch does not apply to N1.7.
+The training and evaluation commands below work unchanged. N1.7 does not need this patch (see below).
 
 GR00T N1.7
 ~~~~~~~~~~
@@ -113,6 +124,8 @@ package with incompatible APIs. After Step 1 above, replace Steps 2–4 with:
    uv pip install --no-deps \
        "git+https://github.com/NVIDIA/Isaac-GR00T.git@1a1837f20538b7d7e21f977a11a5aee14f99803c" \
        "transformers==4.57.3" "tokenizers>=0.22,<0.23" "huggingface-hub>=0.34,<1.0"
+   # Optional: building flash-attn requires a CUDA 13 nvcc. Without it, N1.7 logs a warning
+   # and runs the backbone with PyTorch SDPA attention instead.
    uv pip install --no-deps --no-build-isolation "flash-attn==2.8.3"
 
 Set ``actor.model.model_type: gr00t_n1d7`` in the task YAML. RLinf loads the model and
@@ -151,18 +164,6 @@ The H2 examples use N1.7. Download the checkpoint for either task and the shared
 Authenticate with ``uv run --no-sync hf auth login`` if required, using an account with access to the
 selected checkpoint repositories.
 
-The recorded evaluations used the task author's checkpoints below. Repository access is required;
-anonymous requests return HTTP 401.
-
-* Apple: repository ``LiFanxing/pnp_apple``, revision ``1f136aee682574518e8fc36e20a091211f10c8b4``,
-  directory ``checkpoint_1``.
-* Pack AGX: repository ``LiFanxing/pack_agx``, revision ``40a2c24c04e58a66d1c703dd0cb3027c696eb76c``,
-  directory ``rl_pack_agx_orin_contR_004pos_10ang-1/global_step_800``.
-
-To use either with the shared Cosmos backbone, authenticate and download the indicated directory at
-its revision, then pass its local path to ``isaaclab play`` with ``--model_path``. The directory must
-contain ``config.json``.
-
 The H2 + Sharpa robot, NuRec capture, and scene objects are hosted on the official Isaac asset server
 under :attr:`~isaaclab.utils.assets.ISAACLAB_NUCLEUS_DIR`. To use a local mirror, configure the shared
 Isaac asset root before launching:
@@ -172,7 +173,8 @@ Isaac asset root before launching:
    export ISAACSIM_ASSET_ROOT=/path/to/mirror
 
 The mirror must retain the ``Isaac/IsaacLab`` subtree, including ``Robots/Unitree/H2``,
-``Environments/NuRec``, and ``Objects``. For example, the robot USD must be located at
+``Environments/Grid`` (the default ground plane), ``Environments/NuRec``, and ``Objects``.
+For example, the robot USD must be located at
 ``/path/to/mirror/Isaac/IsaacLab/Robots/Unitree/H2/H2_with_sharpa_flat.usd``.
 
 
@@ -392,7 +394,8 @@ Key Files
    └── extension.py       # Task registration, obs/action conversion
 
 For detailed configuration options, CLI arguments, and how to add new tasks,
-use the unified ``uv run isaaclab train --rl_library rlinf`` and ``uv run isaaclab play --rl_library rlinf`` commands.
+use the unified ``uv run --no-sync isaaclab train --rl_library rlinf`` and
+``uv run --no-sync isaaclab play --rl_library rlinf`` commands.
 
 Attribution and Citation
 ------------------------

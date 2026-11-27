@@ -5,6 +5,8 @@
 
 import math
 
+from isaaclab_ov.physics import OvPhysxCfg
+
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
@@ -137,6 +139,9 @@ class NavigationEnvCfg(ManagerBasedRLEnvCfg):
 
     def __post_init__(self):
         """Post initialization."""
+        self.sim.physics = OvPhysxCfg(
+            bounce_threshold_velocity=0.5, friction_correlation_distance=0.025, friction_offset_threshold=0.04
+        )
 
         self.sim.dt = LOW_LEVEL_ENV_CFG.sim.dt
         self.sim.render_interval = LOW_LEVEL_ENV_CFG.decimation
