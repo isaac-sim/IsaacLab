@@ -13,7 +13,7 @@ import types
 from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import MISSING, Field, dataclass, field
-from typing import Any, ClassVar, TypeVar
+from typing import Any, ClassVar, TypeVar, dataclass_transform
 
 from .dict import to_dict, update_from_dict
 from .string import ResolvableString
@@ -31,13 +31,8 @@ Wrapper around dataclass.
 """
 
 
-def __dataclass_transform__():
-    """Add annotations decorator for PyLance."""
-    return lambda a: a
-
-
-@__dataclass_transform__()
-def configclass(cls, **kwargs):
+@dataclass_transform(field_specifiers=(field, Field))
+def configclass(cls: type[_ConfigT], **kwargs: Any) -> type[_ConfigT]:
     """Wrapper around `dataclass` functionality to add extra checks and utilities.
 
     As of Python 3.7, the standard dataclasses have two main issues which makes them non-generic for
