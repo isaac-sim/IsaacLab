@@ -40,6 +40,7 @@ from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
 from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
+from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
 
 from isaaclab_tasks.utils import PresetCfg
 
@@ -357,7 +358,23 @@ class CurriculumCfg:
 ##
 
 
-VELOCITY_SIM_CFG = SimulationCfg(dt=0.005, render_interval=4, physics=RoughPhysicsCfg())
+VELOCITY_SIM_CFG = SimulationCfg(
+    dt=0.005,
+    render_interval=4,
+    physics=RoughPhysicsCfg(),
+    visualizer_cfgs=VisualizerCfg(
+        cameras=[
+            TrackingCameraCfg(
+                eye=(1.8, -3.0, 1.1),
+                lookat=(0.15, 0.0, 0.0),
+                focal_length=26.0,
+                track_path="robot",
+                follow_heading=True,
+                heading_smoothing_time_constant=0.2,
+            )
+        ]
+    ),
+)
 """Shared simulation defaults for locomotion velocity tasks."""
 
 

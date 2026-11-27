@@ -28,7 +28,7 @@ from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
-from isaaclab.visualizers import VisualizerCfg
+from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
 
 from isaaclab_tasks.utils import PresetCfg, preset
 
@@ -80,7 +80,10 @@ REACH_SIM_CFG = sim_utils.SimulationCfg(
     dt=preset(default=1 / 120, newton_nerd=REACH_DECIMATION / 120),
     render_interval=preset(default=REACH_DECIMATION, newton_nerd=1),
     physics=ReachPhysicsCfg(),
-    visualizer_cfgs=VisualizerCfg(eye=(3.5, 3.5, 3.5)),
+    visualizer_cfgs=VisualizerCfg(
+        eye=(3.5, 3.5, 3.5),
+        cameras=[TrackingCameraCfg(eye=(1.8, -1.8, 1.5), lookat=(0.3, 0.0, 0.4), focal_length=28.0)],
+    ),
 )
 """Shared simulation defaults for Reach tasks."""
 

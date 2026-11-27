@@ -3,12 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Unit tests for the camera sources of the Newton GL window."""
+"""Unit tests for the Tracking Camera views of the Newton GL window."""
 
 from __future__ import annotations
 
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 import torch
 
@@ -16,7 +17,8 @@ pytest.importorskip("newton")
 from isaaclab_visualizers.newton.newton_visualizer import NewtonGLVisualizer, NewtonVisualizerBase
 from pyglet.math import Vec3
 
-from isaaclab.visualizers import PerspectiveCameraCfg
+from isaaclab.visualizers import PerspectiveCameraCfg, TrackingCameraCfg
+from isaaclab.visualizers.camera_follower import CameraFollower
 
 pytestmark = pytest.mark.kitless
 
@@ -35,13 +37,14 @@ class _Camera:
 class _Scene:
     num_envs = 2
     env_origins = torch.tensor([[0.0, 0.0, 0.0], [10.0, 0.0, 0.0]])
+    articulations, rigid_objects = {"robot": None}, {}
 
     def __getitem__(self, name):
         return SimpleNamespace(is_initialized=False)
 
 
 class _View:
-    """An image view; a class, not a namespace, so that it can key the pose dictionary."""
+    """An image view; a class, not a namespace, so that it can key the follower dictionary."""
 
     def __init__(self, source, camera=None):
         self.cfg, self.camera = SimpleNamespace(source=source), camera
@@ -62,14 +65,32 @@ def _visualizer(views) -> NewtonVisualizerBase:
     viz._viewer = SimpleNamespace(camera=camera, set_camera=set_camera)
     viz._sim = SimpleNamespace(get_physics_step_count=lambda: 10, get_physics_dt=lambda: 0.1)
     viz._image_views = list(views)
-    viz.rtx_rendering, viz._perspective_pose = False, None
+    viz._followers = {view: CameraFollower(view.cfg.source, _Scene()) for view in views if viz._is_tracking_view(view)}
+    viz.rtx_rendering, viz._rtx_pose_view, viz._perspective_pose = False, None, None
     return viz
 
 
-def test_a_lone_free_view_is_called_perspective():
-    viz = _visualizer([_view(PerspectiveCameraCfg())])
+def test_a_lone_free_view_is_called_perspective_and_a_task_view_the_tracking_camera():
+    free, task = _view(PerspectiveCameraCfg()), _view(TrackingCameraCfg(env_index=0, eye=(2.0, 0.0, 1.0)))
+    viz = _visualizer([free, task])
 
-    assert viz._view_labels([0]) == ["Perspective"]
+    assert viz._view_labels([0, 1]) == ["Perspective (interactive)", "Tracking Camera (fixed to env)"]
+    assert [viz._is_tracking_view(view) for view in viz._image_views] == [False, True]
+
+
+def test_tracking_cameras_are_numbered_only_when_several_share_a_name():
+    views = [
+        _view(PerspectiveCameraCfg()),
+        _view(TrackingCameraCfg(env_index=0)),
+        _view(TrackingCameraCfg(env_index=1)),
+    ]
+    viz = _visualizer(views)
+
+    assert viz._view_labels([0, 1, 2]) == [
+        "Perspective (interactive)",
+        "Tracking Camera 1 (fixed to env)",
+        "Tracking Camera 2 (fixed to env)",
+    ]
 
 
 def test_scene_cameras_are_named_by_their_prim_without_the_environment_pattern():
@@ -77,22 +98,22 @@ def test_scene_cameras_are_named_by_their_prim_without_the_environment_pattern()
     sensor = _View("/World/envs/env_[^/]+/Robot/wrist_camera", camera=camera)
     viz = _visualizer([_view(PerspectiveCameraCfg()), sensor])
 
-    assert viz._view_labels([0, 1]) == ["Perspective", "wrist_camera (RGB sensor)"]
+    assert viz._view_labels([0, 1]) == ["Perspective (interactive)", "wrist_camera (RGB sensor)"]
 
 
-def test_the_camera_list_puts_perspective_first_then_sensors():
+def test_the_camera_list_puts_perspective_first_then_tracking_cameras_then_sensors():
     sensor = _View("/World/envs/env_[^/]+/Camera", camera=object())
-    free = _view(PerspectiveCameraCfg())
-    viz = _visualizer([sensor, free])
+    tracking, free = _view(TrackingCameraCfg(env_index=0)), _view(PerspectiveCameraCfg())
+    viz = _visualizer([sensor, tracking, free])
 
-    order = sorted(range(2), key=lambda i: viz._source_rank(viz._image_views[i]))
+    order = sorted(range(3), key=lambda i: viz._source_rank(viz._image_views[i]))
 
-    assert order == [1, 0]
+    assert order == [2, 1, 0]
 
 
 def test_the_free_perspective_pose_is_kept_while_another_source_is_shown():
-    free = _view(PerspectiveCameraCfg())
-    viz = _visualizer([free])
+    free, task = _view(PerspectiveCameraCfg()), _view(TrackingCameraCfg(env_index=0))
+    viz = _visualizer([free, task])
     viz._focal_length_to_vertical_fov_degrees = lambda focal=None: 40.0
     viz.current_image_view = free
     viz._viewer.camera.fov = 0.0
@@ -100,11 +121,41 @@ def test_the_free_perspective_pose_is_kept_while_another_source_is_shown():
     camera.pos, camera.pitch, camera.yaw = (1.0, 2.0, 3.0), -10.0, 45.0
 
     viz._remember_perspective_pose()
-    camera.pos, camera.pitch, camera.yaw = (9.0, 9.0, 9.0), 0.0, 0.0  # A sensor moved it.
+    camera.pos, camera.pitch, camera.yaw = (9.0, 9.0, 9.0), 0.0, 0.0  # A Tracking Camera or sensor moved it.
     viz.cfg.focal_length = 50.0
 
     assert viz._restore_perspective_pose()
     assert (tuple(camera.pos), camera.pitch, camera.yaw, viz.cfg.focal_length) == ((1.0, 2.0, 3.0), -10.0, 45.0, 12.0)
+
+
+def test_resetting_the_tracking_camera_works_while_the_rtx_view_is_current():
+    view = _view(TrackingCameraCfg(env_index=0, eye=(2.0, 0.0, 1.0), lookat=(0.0, 0.0, 0.5), focal_length=24.0))
+    rtx = _View("/World/viewer_camera_0_rtx", camera=object())
+    viz = _visualizer([view])
+    cfg = view.cfg.source
+    viz._tracking_defaults = {
+        view: {
+            "eye": cfg.eye,
+            "lookat": cfg.lookat,
+            "focal_length": cfg.focal_length,
+            "track_path": cfg.track_path,
+            "follow_heading": cfg.follow_heading,
+            "heading_smoothing_time_constant": cfg.heading_smoothing_time_constant,
+            "env": 0,
+        }
+    }
+    viz.current_image_view, viz.rtx_rendering, viz._rtx_pose_view = (
+        rtx,
+        True,
+        view,
+    )  # RTX is showing the Tracking Camera.
+    viz._tracking_error = ""
+
+    follower = viz._followers[view]
+    follower.cfg.eye = (9.0, 9.0, 9.0)  # an edit in the window, made on the follower's own copy
+    assert viz._reset_tracking_camera(follower)
+
+    assert follower.cfg.eye == (2.0, 0.0, 1.0) and cfg.eye == (2.0, 0.0, 1.0)
 
 
 def test_a_perspective_that_was_never_left_has_no_pose_to_restore():
@@ -134,7 +185,9 @@ def test_sensor_ui_callbacks_draw_in_the_camera_sensor_section_with_the_selected
 
 def _rtx_view():
     camera = SimpleNamespace(cfg=SimpleNamespace(prim_path="/World/viewer_camera_0", renderer_cfg="ovrtx"))
-    return _View("/World/viewer_camera_0", camera=camera)
+    view = _View("/World/viewer_camera_0", camera=camera)
+    view.invalidate = lambda: None
+    return view
 
 
 def _switchable(views):
@@ -177,6 +230,25 @@ def test_choosing_the_perspective_while_rtx_is_shown_keeps_the_rtx_view():
     viz._choose_camera_source(0)  # the OVRTX camera already follows the Perspective
 
     assert viz.current_image_view is rtx and viz.rtx_rendering
+
+
+def test_picking_a_sensor_while_rtx_is_on_returns_the_rtx_camera_to_rendering_on_demand():
+    rtx = _rtx_view()
+    sensor = _View("/World/sensor", camera=SimpleNamespace(cfg=SimpleNamespace(prim_path="/World/sensor")))
+    sensor.invalidate = lambda: None
+    viz = _switchable([_view(PerspectiveCameraCfg()), rtx, sensor])
+    viz._viewer.picking = None
+    viz._viewer.camera.get_view_matrix = lambda: np.eye(4)
+    viz._release_rtx_scene = lambda: None
+    viz._place_scene_camera_at_viewer = lambda camera: None
+    viz._pose_started = False
+    viz.current_image_view = rtx
+    rtx.camera.cfg.render_on_demand = False  # the shared render while RTX is shown
+
+    NewtonGLVisualizer._select_camera(viz, 2, keep_pose=True)
+
+    assert rtx.camera.cfg.render_on_demand is True
+    assert viz.current_image_view is sensor
 
 
 def test_the_rtx_switch_waits_a_frame_so_the_message_is_shown_first():
@@ -326,3 +398,123 @@ def test_a_free_view_records_the_rtx_window_instead_of_an_opengl_render():
 
     assert viz._capture_view(free, None) == "window frame"
     assert viz.current_image_view is rtx
+
+
+def test_the_camera_speed_slider_sets_the_free_cameras_keyboard_speed():
+    free, tracking = _view(PerspectiveCameraCfg()), _view(TrackingCameraCfg(env_index=0))
+    viz = _switchable([free, tracking])
+    viz._viewer = SimpleNamespace(_camera_speed=5.0, camera_speed=5.0, camera_speed_boost=2.0)
+    viz._pose_source_view = lambda: viz.current_image_view
+    imgui = SimpleNamespace(
+        slider_float=lambda *args: (True, 12.0),
+        SliderFlags_=SimpleNamespace(logarithmic=0),
+        is_item_hovered=lambda *args: False,
+        HoveredFlags_=SimpleNamespace(allow_when_disabled=0),
+    )
+    viz.current_image_view = tracking
+    viz._draw_camera_speed(imgui)
+    assert viz._viewer.camera_speed == 5.0  # a tracking camera does not move with the keys
+
+    viz.current_image_view = free
+    viz._draw_camera_speed(imgui)
+    assert viz._viewer.camera_speed == 12.0 and viz._viewer.camera_speed_boost == 12.0
+
+
+def test_a_window_with_only_the_rtx_camera_draws_its_camera_controls():
+    from unittest.mock import Mock
+
+    viz = _switchable([_rtx_view()])
+    viz.current_image_view = viz._image_views[0]
+    viz._borrowing_view = False
+    viz._draw_appearance = viz._draw_navigation_controls = lambda imgui: None
+    viz._draw_camera_info = viz._draw_window_options = lambda imgui: None
+    imgui = Mock()
+    imgui.is_item_hovered.return_value = False
+    imgui.radio_button.return_value = False  # disabled radio buttons are never clicked
+
+    viz._draw_streaming_view_controls(imgui)  # no other source to list: must not raise
+
+    imgui.combo.assert_not_called()
+    imgui.begin_disabled.assert_called_once()
+
+
+def test_camera_view_controls_are_grouped_under_headers_in_order():
+    from unittest.mock import Mock
+
+    viz = _switchable([_view(PerspectiveCameraCfg()), _rtx_view()])
+    viz._borrowing_view = False
+    order = []
+    viz._draw_appearance = lambda imgui: order.append("appearance")
+    viz._draw_focal_length = lambda imgui: order.append("focal length")
+    viz._draw_camera_speed = lambda imgui: order.append("camera speed")
+    imgui = Mock()
+    imgui.is_item_hovered.return_value = False
+    imgui.combo.side_effect = lambda *args: order.append("camera source") or (False, 0)
+    imgui.radio_button.side_effect = lambda *args: order.append("renderer") or False
+    imgui.separator_text.side_effect = lambda text: order.append(text)
+    imgui.checkbox.side_effect = lambda label, value: (False, value)
+    viz._viewer.vsync = False
+    camera = viz._viewer.camera
+    camera.pos, camera.pitch, camera.yaw, camera.fov = (1.0, 2.0, 3.0), 0.0, 0.0, 40.0
+
+    viz._draw_streaming_view_controls(imgui)
+
+    assert order == [
+        "Camera Source",
+        "camera source",
+        "Rendering",
+        "renderer",
+        "renderer",
+        "appearance",
+        "Camera Settings",
+        "focal length",
+        "camera speed",
+        "Camera Data",
+        "Window",
+    ]
+    imgui.text_disabled.assert_not_called()  # the camera data is plain text, not greyed out
+    assert [call.args[0].split(":")[0] for call in imgui.text.call_args_list] == [
+        "Renderer",
+        "Position",
+        "Rotation",
+        "FOV",
+    ]
+
+
+def test_the_vsync_checkbox_sets_the_window_vsync():
+    from unittest.mock import Mock
+
+    viz = _switchable([_view(PerspectiveCameraCfg()), _rtx_view()])
+    viz._viewer.vsync = False
+    imgui = Mock()
+    imgui.checkbox.return_value = (True, True)
+
+    viz._draw_window_options(imgui)
+
+    assert viz._viewer.vsync is True
+
+
+def test_the_docs_link_does_not_block_the_render_thread(monkeypatch):
+    import threading
+
+    from isaaclab_visualizers.newton import newton_visualizer
+
+    release, started = threading.Event(), threading.Event()
+    monkeypatch.setattr(newton_visualizer.webbrowser, "open", lambda url: (started.set(), release.wait(5)))
+
+    newton_visualizer._open_in_browser("https://example.com")  # returns while the browser call is still blocked
+
+    assert started.wait(5)
+    release.set()
+
+
+def test_a_window_that_forbids_the_rtx_camera_takes_no_viewer_camera():
+    from isaaclab_visualizers.newton.newton_visualizer import NewtonGLVisualizer
+
+    viz = NewtonGLVisualizer.__new__(NewtonGLVisualizer)
+    viz._rtx_camera_path = None
+
+    viz.cfg = SimpleNamespace(backend=SimpleNamespace(rtx_camera=None))
+    assert viz._is_viewer_camera("/World/viewer_camera_0")
+    viz.cfg = SimpleNamespace(backend=SimpleNamespace(rtx_camera=False))
+    assert not viz._is_viewer_camera("/World/viewer_camera_0")

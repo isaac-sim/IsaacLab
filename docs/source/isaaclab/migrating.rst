@@ -2718,7 +2718,7 @@ plus the corresponding ``KitBackendCfg``, ``NewtonGLBackendCfg``,
 and translated once, preserving explicit per-view overrides. Both forms use the same runtime implementation.
 Deprecated declarations emit ``DeprecationWarning``; update the configuration at its declaration site.
 
-The Rerun visualizer (``--viz rerun``, ``RerunBackendCfg``) is deprecated in Isaac Lab 3.2 and will be removed in
+The Rerun visualizer (``--viz rerun``, ``RerunBackendCfg``) is deprecated in Isaac Lab 3.1 and will be removed in
 Isaac Lab 3.3. Creating it emits a ``FutureWarning``. Switch to the Viser visualizer, which is also web-based and
 supports recording and replay: use ``--viz viser`` or ``VisualizerCfg(backend=ViserBackendCfg())``.
 

@@ -21,7 +21,7 @@ def parse_video_source(source: str) -> tuple[str, str, str]:
     """Split a string :attr:`VideoRecorderCfg.source` into ``(kind, name, sub)``.
 
     ``kind`` is ``"viz"`` or ``"sensor"``; ``name`` is the canonical visualizer type (``""`` for a bare
-    ``"viz"``) or the sensor name; ``sub`` is ``"streaming_view"``, a sensor channel, or ``""``.
+    ``"viz"``) or the sensor name; ``sub`` is ``"streaming_view"``, ``"tracking"``, a sensor channel, or ``""``.
     The prefix ``visualizer`` is the long form of ``viz``, as ``--visualizer`` is of ``--viz``;
     the ``newton_gl`` and ``newton_rtx`` aliases are mapped to ``newton``.
     A bare visualizer type is shorthand for ``viz:<type>``.
@@ -36,14 +36,18 @@ def parse_video_source(source: str) -> tuple[str, str, str]:
     name, sub = (*parts, "", "")[:2]
     if kind == "viz" and not parts:
         return kind, "", ""
-    if kind == "viz" and parts[1:] in ([], ["streaming_view"]) and name in (*VISUALIZER_TYPES, *VISUALIZER_ALIASES):
+    if (
+        kind == "viz"
+        and parts[1:] in ([], ["streaming_view"], ["tracking"])
+        and name in (*VISUALIZER_TYPES, *VISUALIZER_ALIASES)
+    ):
         return kind, VISUALIZER_ALIASES.get(name, name), sub
     if kind == "sensor" and 1 <= len(parts) <= 2 and name and sub in ("", *SENSOR_CHANNELS):
         return kind, name, sub
     raise ValueError(
-        f"Invalid video source {source!r}: expected '<type>', 'viz', 'viz:<type>', 'viz:<type>:streaming_view' or "
-        f"'sensor:<name>[:<channel>]', with <type> one of {', '.join(VISUALIZER_TYPES)} and <channel> one of "
-        f"{', '.join(SENSOR_CHANNELS)}."
+        f"Invalid video source {source!r}: expected '<type>', 'viz', 'viz:<type>', 'viz:<type>:streaming_view', "
+        f"'viz:<type>:tracking' or 'sensor:<name>[:<channel>]', with <type> one of "
+        f"{', '.join(VISUALIZER_TYPES)} and <channel> one of {', '.join(SENSOR_CHANNELS)}."
     )
 
 
@@ -66,6 +70,8 @@ class VideoRecorderCfg:
       camera: the one ``--viz`` selected, else a headless one added for the recording.
     * ``"viz:<type>:streaming_view"``  – the streaming camera panel of that visualizer (requires
       ``streaming_view=True`` on its :class:`~isaaclab.visualizers.VisualizerCfg`).
+    * ``"viz:<type>:tracking"``        – the first :class:`~isaaclab.visualizers.TrackingCameraCfg` of
+      that visualizer, whichever view its window shows. Only Newton GL supports it.
     * ``"sensor:<name>"``              – scene sensor, RGB channel (default); no visualizer is added.
     * ``"sensor:<name>:<channel>"``    – scene sensor channel: ``rgb``, ``depth`` (colorized via the turbo
       colormap), ``segmentation`` or ``normals`` (colorized).
