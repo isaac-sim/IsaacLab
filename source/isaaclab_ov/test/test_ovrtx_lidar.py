@@ -281,3 +281,75 @@ def test_referenced_lidar_follows_authored_mount():
             data = scene["lidar"].data
             assert data.valid.torch.all()
             torch.testing.assert_close(data.points.torch[:, 0], pose[:, :3] + local_hit, atol=1e-3, rtol=0.0)
+
+
+@pytest.mark.integration
+@pytest.mark.rendering
+@pytest.mark.ov
+@pytest.mark.skipif(not wp.is_cuda_available(), reason="Tiled lidar capture requires CUDA.")
+@pytest.mark.parametrize("instant_lidar", [True, False])
+@pytest.mark.parametrize("update_period", [0.0, 0.05, 0.1, 0.2, 0.25])
+def test_lidar_capture(instant_lidar, update_period):
+    from isaaclab_ov.physics import OvPhysxCfg
+
+    import isaaclab.sim as sim_utils
+    from isaaclab.assets import RigidObjectCfg
+    from isaaclab.scene import InteractiveSceneCfg
+    from isaaclab.utils import configclass, instantiate
+
+    @configclass
+    class SceneCfg(InteractiveSceneCfg):
+        target = RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Target",
+            spawn=sim_utils.CuboidCfg(
+                size=(4.0, 4.0, 1.0),
+                rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
+                collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+                mass_props=sim_utils.MassCfg(mass=1.0),
+            ),
+        )
+        lidar = OVRTXLidarCfg(
+            prim_path="{ENV_REGEX_NS}/Lidar",
+            scan_type="solidState",
+            azimuth_deg=[-8.0, 12.0],
+            elevation_deg=[-5.0, 10.0],
+            fire_time_ns=[0, 0],
+            channel_id=[0, 1],
+            max_returns=1,
+            instant_lidar=instant_lidar,
+            update_period=update_period,
+            offset=OVRTXLidarCfg.OffsetCfg(pos=(0.2, 0.1, 3.0), rot=(0.0, 0.0, 0.5, math.sqrt(0.75))),
+        )
+
+    with sim_utils.build_simulation_context(sim_cfg=sim_utils.SimulationCfg(physics=OvPhysxCfg())) as sim:
+        scene = instantiate(SceneCfg(num_envs=2, env_spacing=8.0))
+        sim.register_interactive_scene(scene)
+        sim.reset()
+        dt = sim.get_physics_dt()
+        lidar = scene["lidar"]
+        numerator, denominator = lidar.cfg.frame_rate
+        scan_period = denominator / numerator
+        sample_dt = update_period if update_period > 0.0 else dt
+        lidar_time = 0.0
+        since_capture = 0.0
+        closed_scan = False
+        # Half a second of sim time, reading the lidar every step like an observation term.
+        for step in range(math.ceil(0.5 / dt)):
+            sim.step()
+            scene.update(dt)
+            since_capture += dt
+            # Reset leaves the sensor unsampled, so the first positive step always captures.
+            if lidar_time == 0.0 or since_capture >= update_period - 1e-6:
+                previous = lidar_time
+                lidar_time += sample_dt
+                since_capture = 0.0
+                closed_scan = instant_lidar or math.floor((lidar_time + 1e-9) / scan_period) > math.floor(
+                    (previous + 1e-9) / scan_period
+                )
+            data = lidar.data
+            detail = f"instant={instant_lidar} update_period={update_period} step={step} lidar_time={lidar_time}"
+            if closed_scan:
+                assert data.valid.torch.all(), f"{detail} returned an incomplete scan"
+                assert torch.isfinite(data.points.torch).all(), f"{detail} returned a non-finite hit"
+            else:
+                assert not data.valid.torch.all(), f"{detail} published a finished scan early"

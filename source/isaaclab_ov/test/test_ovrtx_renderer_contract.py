@@ -458,22 +458,39 @@ def test_lidar_and_camera_captures_use_separate_steps(monkeypatch):
     publish.assert_called_once_with(lidar, native.step.return_value, data)
 
 
-def test_lidar_readback_propagates_cpu_map_failure(monkeypatch):
-    """A failed fallback map must reach the caller rather than publish an all-miss scan."""
+def test_lidar_readback_uses_the_newest_mappable_frame(monkeypatch):
+    """An unfinished tail frame yields the previous completed frame from the same step."""
     from isaaclab.sensors import LidarData
 
     renderer = _make_mocked_scene_renderer(monkeypatch, use_ovstage=False, clone_env_paths=[])
-    renderer._warp_device = types.SimpleNamespace(stream=types.SimpleNamespace(cuda_stream=1))
     lidar = ovrtx_renderer_module.OVRTXLidarRenderData("Lidar", 0.1, ["/Lidar"])
-    cloud = MagicMock()
-    cloud.map.side_effect = [
-        RuntimeError("Failed to map CUDA point cloud"),
-        RuntimeError("Failed to map CPU point cloud"),
+    copied = []
+
+    def copy(point_cloud, _lidar_data, _device):
+        if point_cloud == "incomplete":
+            raise RuntimeError("buffer must be a raw resource")
+        copied.append(point_cloud)
+
+    monkeypatch.setattr(renderer, "_copy_mapped_lidar_point_cloud", copy)
+    frames = [
+        types.SimpleNamespace(render_vars={lidar.point_cloud_path: "complete"}),
+        types.SimpleNamespace(render_vars={lidar.point_cloud_path: "incomplete"}),
     ]
-    frame = types.SimpleNamespace(render_vars={lidar.point_cloud_path: cloud})
-    products = {lidar.render_product_path: types.SimpleNamespace(frames=[frame])}
-    with pytest.raises(RuntimeError, match="Failed to map CPU point cloud"):
-        renderer._publish_lidar_output(lidar, products, LidarData(1, 1, "cpu"))
+    products = {lidar.render_product_path: types.SimpleNamespace(frames=frames)}
+    renderer._publish_lidar_output(lidar, products, LidarData(1, 1, "cpu"))
+    assert copied == ["complete"]
+
+    copied.clear()
+    frames[0].render_vars = {lidar.point_cloud_path: "incomplete"}
+    stale = LidarData(1, 1, "cpu")
+    stale.points.torch.fill_(1.0)
+    stale.intensity.torch.fill_(1.0)
+    stale.valid.torch.fill_(True)
+    renderer._publish_lidar_output(lidar, products, stale)
+    assert copied == []
+    assert not torch.isfinite(stale.points.torch).any()
+    assert stale.intensity.torch.eq(0).all()
+    assert not stale.valid.torch.any()
 
 
 @pytest.mark.parametrize("missing", ["product", "renderer", "backend"])

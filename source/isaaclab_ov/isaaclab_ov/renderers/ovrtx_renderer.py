@@ -1090,32 +1090,38 @@ class OVRTXRenderer(BaseRenderer):
     def _publish_lidar_output(
         self, render_data: OVRTXLidarRenderData, products: RenderProductSetOutputs, lidar_data: LidarData
     ) -> None:
-        """Split one lidar product's point cloud into ``lidar_data``.
+        """Copy the newest mappable lidar frame into ``lidar_data``.
 
-        A missing frame or point-cloud variable raises. If the CUDA map is unavailable,
-        retry on the CPU and propagate any fallback readback error.
+        A step can return several frames. The last frame is a finished scan only when the step's
+        delta time lands on a lidar frame boundary, so this walks from the end. When no frame publishes
+        a mappable point cloud, every return is cleared to a miss.
         """
         if render_data.render_product_path not in products or not products[render_data.render_product_path].frames:
             raise RuntimeError(f"OVRTX returned no frame for lidar product {render_data.render_product_path!r}.")
 
         frames = products[render_data.render_product_path].frames
-        frame = frames[-1]
-        point_cloud = frame.render_vars.get(render_data.point_cloud_path)
-        if point_cloud is None:
-            raise RuntimeError(
-                f"OVRTX lidar frame has no point cloud at {render_data.point_cloud_path!r}. "
-                f"Available render vars: {list(frame.render_vars)}."
-            )
+        for frame in reversed(frames):
+            point_cloud = frame.render_vars.get(render_data.point_cloud_path)
+            if point_cloud is None:
+                continue
 
-        try:
-            self._copy_mapped_lidar_point_cloud(point_cloud, lidar_data, Device.CUDA)
-        except Exception as exc:
-            message = str(exc).lower()
-            if not ("failed to map" in message or "unpublish" in message or "point cloud was empty" in message):
+            try:
+                self._copy_mapped_lidar_point_cloud(point_cloud, lidar_data, Device.CUDA)
+            except Exception as exc:
+                message = str(exc).lower()
+                if (
+                    "failed to map" in message
+                    or "unpublish" in message
+                    or "point cloud was empty" in message
+                    or "raw resource" in message
+                ):
+                    continue
                 raise
+            return
 
-            logger.info("Retrying OvRTX lidar point-cloud readback on the CPU: %s", exc)
-            self._copy_mapped_lidar_point_cloud(point_cloud, lidar_data, Device.CPU)
+        lidar_data.points.torch.fill_(float("inf"))
+        lidar_data.intensity.torch.zero_()
+        lidar_data.valid.torch.zero_()
 
     def _copy_mapped_lidar_point_cloud(self, point_cloud, lidar_data: LidarData, device: Device) -> None:
         """Map one point cloud and copy it into the lidar buffers.
