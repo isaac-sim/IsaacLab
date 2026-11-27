@@ -183,6 +183,8 @@ class modify_env_param(ManagerTermBase):
 
         For instance, the path "foo.bar[2].baz" would resolve to `root.foo.bar[2].baz`. This
         allows accessing attributes in a nested structure, such as a dictionary or a list.
+        A path may also end at an element, such as "foo.bar[2]". Setting an element of a tuple
+        replaces the tuple on its owner, since tuples cannot be modified in place.
 
         Args:
             root: The main object from which to resolve the attribute.
@@ -223,15 +225,29 @@ class modify_env_param(ManagerTermBase):
                     container = getattr(container, container_path)
 
         self._container = container
-        self._last_path = path_parts[-1]  # for "a.b[2].c", this is "c", while for "a.b[2]" it is 2
+        self._last_path = path_parts[-1]
 
-        if isinstance(self._container, tuple):
-            get_value = lambda: self._container[self._last_path]  # noqa: E731
+        if isinstance(self._last_path, tuple):
+            # the address ends at a sequence element: read the sequence from its owner on every access so that
+            # other writers stay visible, and replace a tuple on its owner because it cannot change in place
+            name, idx = self._last_path
+            if isinstance(self._container, dict):
+                get_sequence = lambda: self._container[name]  # noqa: E731
+            else:
+                get_sequence = lambda: getattr(self._container, name)  # noqa: E731
+            get_value = lambda: get_sequence()[idx]  # noqa: E731
 
             def set_value(val):
-                tuple_list = list(self._container)
-                tuple_list[self._last_path] = val
-                self._container = tuple(tuple_list)
+                sequence = get_sequence()
+                if not isinstance(sequence, tuple):
+                    sequence[idx] = val
+                    return
+                items = list(sequence)
+                items[idx] = val
+                if isinstance(self._container, dict):
+                    self._container[name] = tuple(items)
+                else:
+                    setattr(self._container, name, tuple(items))
 
         elif isinstance(self._container, (list, dict)):
             get_value = lambda: self._container[self._last_path]  # noqa: E731
