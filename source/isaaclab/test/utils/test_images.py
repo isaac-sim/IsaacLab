@@ -339,3 +339,20 @@ class TestMakeCameraOutputGrid:
         images = torch.ones((1, 2, 3, 3), device=device)
         grid = make_camera_output_grid(images)
         assert grid.shape == (3, 2, 3)
+
+
+def test_resize_preserves_dtype_device_and_storage_ownership() -> None:
+    """No-op resizing borrows input storage; resizing allocates and rounds integer pixels."""
+    image = torch.arange(16, dtype=torch.uint8).reshape(1, 4, 4, 1)
+    assert images_utils.resize_images(image) is image
+    resized = images_utils.resize_images(image, height=2, width=3)
+    assert resized.shape == (1, 2, 3, 1)
+    assert resized.dtype == image.dtype and resized.device == image.device
+    original = image.clone()
+    resized.zero_()
+    torch.testing.assert_close(image, original)
+
+    # Integer pixels round to nearest; floating images keep their fractional values.
+    pixels = torch.tensor([0, 3], dtype=torch.uint8).reshape(1, 1, 2, 1)
+    assert images_utils.resize_images(pixels, width=3).flatten().tolist() == [0, 2, 3]
+    assert images_utils.resize_images(pixels.float(), width=3).flatten().tolist() == [0, 1.5, 3]

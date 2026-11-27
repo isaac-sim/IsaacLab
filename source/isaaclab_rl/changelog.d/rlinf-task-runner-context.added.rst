@@ -1,0 +1,1 @@
+* Added an optional ``runner.isaaclab_context`` training recipe setting with merged training environment overrides around RLinf worker initialization and training, without adding environment constructor parameters.

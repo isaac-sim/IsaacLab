@@ -61,6 +61,40 @@ def is_normals_like(data_type: str) -> bool:
 
 
 """
+Pre-processing.
+"""
+
+
+def resize_images(
+    image: torch.Tensor,
+    height: int | None = None,
+    width: int | None = None,
+) -> torch.Tensor:
+    """Bilinearly resize a BHWC image batch on its existing device.
+
+    Args:
+        image: Four-dimensional ``(B, H, W, C)`` uint8 or floating-point images.
+        height: Output height, or None to retain the input height.
+        width: Output width, or None to retain the input width.
+
+    Returns:
+        Images with shape ``(B, height, width, C)``, preserving dtype and device.
+        Matching dimensions return the original tensor; resizing allocates new storage.
+        Integer pixels are rounded to nearest before conversion back to uint8.
+        Callers that mutate borrowed output must clone it first.
+    """
+    size = (image.shape[1] if height is None else height, image.shape[2] if width is None else width)
+    if image.shape[1:3] == size:
+        return image
+    resized = torch.nn.functional.interpolate(
+        image.permute(0, 3, 1, 2).float(), size=size, mode="bilinear", align_corners=False, antialias=True
+    ).permute(0, 2, 3, 1)
+    if image.dtype == torch.uint8:
+        resized = resized.round().clamp(0, 255)
+    return resized.to(image.dtype)
+
+
+"""
 Normalizers.
 """
 

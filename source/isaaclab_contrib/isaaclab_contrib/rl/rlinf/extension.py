@@ -17,6 +17,7 @@ Configuration is read from the Hydra YAML config under `env.train.isaaclab`:
         isaaclab: &isaaclab_config  # YAML anchor for reuse
           task_description: "..."
           main_images: "front_camera"
+          success_observation: {group: "metrics", key: "success"}
           extra_view_images: ["left_wrist_camera", "right_wrist_camera"]
           states:
             - key: "robot_joint_state"
@@ -30,8 +31,8 @@ Configuration is read from the Hydra YAML config under `env.train.isaaclab`:
       eval:
         isaaclab: *isaaclab_config  # Reuse via YAML anchor
 
-Task IDs are read automatically from ``env.train.init_params.id`` and
-``env.eval.init_params.id`` in the YAML config.
+The CLI's ``--task`` selects the task ID for all workers. Otherwise the extension uses
+``env.train.init_params.id`` and ``env.eval.init_params.id`` from the YAML config.
 
 Usage:
     export RLINF_EXT_MODULE=isaaclab_contrib.rl.rlinf.extension
@@ -41,16 +42,25 @@ Usage:
 from __future__ import annotations
 
 import collections.abc
+import contextlib
 import logging
 import os
 from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import gymnasium as gym
 import numpy as np
 import torch
 import yaml
+from rlinf.envs.isaaclab.isaaclab_env import IsaaclabBaseEnv
 from rlinf.models.embodiment.gr00t import embodiment_tags
+
+import isaaclab.app
+import isaaclab.cli
+from isaaclab.utils.images import resize_images
+
+from .config import validate_image_config
 
 if TYPE_CHECKING:
     import torch
@@ -184,14 +194,17 @@ def _patch_gr00t_get_model(cfg: dict) -> None:
     Args:
         cfg: The IsaacLab-specific configuration dictionary (``env.train.isaaclab``).
     """
+    full_cfg = _load_full_cfg()
+    validate_image_config(full_cfg)
     # Always ensure embodiment tag is registered
     _patch_embodiment_tags(cfg)
     # N1.7 owns model and processor loading in RLinf.
     data_config_class = cfg.get("data_config_class", "")
-    model_type = _load_full_cfg().get("actor", {}).get("model", {}).get("model_type", "gr00t")
+    model_type = full_cfg.get("actor", {}).get("model", {}).get("model_type", "gr00t")
     if not data_config_class or model_type == "gr00t_n1d7":
         return
 
+    image_size = (cfg.get("gpu_resize_width"), cfg.get("gpu_resize_height"))
     import rlinf.models.embodiment.gr00t as rlinf_gr00t_mod
 
     def patched_get_model(model_cfg, torch_dtype=None) -> object:
@@ -254,6 +267,13 @@ def _patch_gr00t_get_model(cfg: dict) -> None:
             tune_llm=False,
             rl_head_config=model_cfg.rl_head_config,
         )
+
+        if image_size[0] is not None:
+            # Validation guarantees paired, matching train/eval sizes; preserve checkpoint metadata.
+            input_metadata = model.metadata.model_copy(deep=True)
+            for video in input_metadata.modalities.video.values():
+                video.resolution = image_size
+            modality_transform.set_metadata(input_metadata)
 
         if rl_model_path:
             rl_weights = Path(rl_model_path) / "actor" / "model_state_dict" / "full_weights.pt"
@@ -395,17 +415,16 @@ def _convert_gr00t_to_isaaclab_action(action_chunk: dict, chunk_size: int = 1) -
 def _register_isaaclab_envs() -> None:
     """Register IsaacLab tasks into RLinf's REGISTER_ISAACLAB_ENVS map.
 
-    Task IDs are read from ``env.train.init_params.id`` and
-    ``env.eval.init_params.id`` in the YAML config.
+    Register the task selected by the launcher or the train and eval IDs from the YAML config.
     """
     from rlinf.envs.isaaclab import REGISTER_ISAACLAB_ENVS
 
-    # Collect unique task IDs from the YAML config (train + eval)
     full_cfg = _load_full_cfg()
     env_cfg = full_cfg.get("env", {})
+    task_override = os.environ.get("ISAACLAB_RLINF_TASK")
     task_ids: list[str] = []
     for section in ("train", "eval"):
-        tid = env_cfg.get(section, {}).get("init_params", {}).get("id", "")
+        tid = task_override or env_cfg.get(section, {}).get("init_params", {}).get("id", "")
         if tid and tid not in task_ids:
             task_ids.append(tid)
 
@@ -428,14 +447,50 @@ def _register_isaaclab_envs() -> None:
     logger.debug(f"REGISTER_ISAACLAB_ENVS now contains: {list(REGISTER_ISAACLAB_ENVS.keys())}")
 
 
+def _step_with_terminal_success(env, actions: torch.Tensor, auto_reset: bool) -> tuple:
+    """Use RLinf's step, preserving terminal info when explicit success metrics need it."""
+    if not env._isaaclab_cfg.get("success_observation"):
+        return IsaaclabBaseEnv.step(env, actions, auto_reset)
+    obs, reward, terminated, truncated, raw_info = env.env.step(actions)
+    reward, terminated, truncated = reward.clone(), terminated.clone(), truncated.clone()
+    final_obs = raw_info.get("final_obs")
+    if final_obs is None:
+        if terminated.any():
+            raise RuntimeError("Configured success_observation requires pre-reset final_obs on termination.")
+        terminal_success = torch.zeros_like(terminated, dtype=torch.bool)
+    else:
+        success_cfg = env._isaaclab_cfg["success_observation"]
+        terminal_success = (
+            torch.as_tensor(final_obs[success_cfg["group"]][success_cfg["key"]], device=env.device, dtype=torch.bool)
+            .reshape(env.num_envs)
+            .clone()
+        )
+    obs = env._wrap_obs(obs)
+    env._elapsed_steps += 1
+    truncated = (env.elapsed_steps >= env.cfg.max_episode_steps) | truncated
+    dones = terminated | truncated
+    if env._chunk_outcome is not None:
+        active = env._chunk_outcome < 0
+        terminal_success &= active
+        env._chunk_outcome = torch.where(
+            active & dones, (terminated & terminal_success).to(torch.int8), env._chunk_outcome
+        )
+    info = env._record_metrics(reward, terminated, {}, terminal_success)
+    if env.ignore_terminations:
+        terminated.zero_()
+    if auto_reset and env.auto_reset and dones.any():
+        obs, info = env._handle_auto_reset(dones, obs, info)
+    return obs, reward, terminated, truncated, info
+
+
 def _create_generic_env_wrapper(task_id: str) -> type:
     """Create a generic wrapper class for an IsaacLab task.
 
     The wrapper class will load the task configuration at runtime
     (after the simulation runtime starts) and configure observation mapping accordingly.
 
-    This follows the same pattern as i4h's rlinf_ext: all isaaclab-dependent
-    imports happen inside _make_env_function, after the simulation runtime starts.
+    Task discovery and configuration imports stay in the simulator subprocess.
+    Actor and rollout workers only load the lightweight launcher interfaces.
 
     Args:
         task_id: The gymnasium task ID.
@@ -443,8 +498,6 @@ def _create_generic_env_wrapper(task_id: str) -> type:
     Returns:
         A class that inherits from IsaaclabBaseEnv.
     """
-    from rlinf.envs.isaaclab.isaaclab_env import IsaaclabBaseEnv
-
     _task_id = task_id
 
     class IsaacLabGenericEnv(IsaaclabBaseEnv):
@@ -463,42 +516,65 @@ def _create_generic_env_wrapper(task_id: str) -> type:
                 total_num_processes: Total number of worker processes.
                 worker_info: RLinf worker metadata.
             """
+            self._isaaclab_cfg = {**_get_isaaclab_cfg(), **(cfg.get("isaaclab", {}) if cfg is not None else {})}
+            self._image_options = {
+                "height": self._isaaclab_cfg.get("gpu_resize_height"),
+                "width": self._isaaclab_cfg.get("gpu_resize_width"),
+            }
             super().__init__(cfg, num_envs, seed_offset, total_num_processes, worker_info)
 
-            self._hold_pose_on_midchunk_reset = _get_isaaclab_cfg().get("hold_pose_on_midchunk_reset", False)
+            self._hold_pose_on_midchunk_reset = self._isaaclab_cfg.get("hold_pose_on_midchunk_reset", False)
             self._chunk_done = None
             self._hold_actions = None
+            self._chunk_outcome = None
 
-        def _record_metrics(self, step_reward, terminations, infos):
-            """Override to use terminations (task completion) for success_once."""
+        def _record_metrics(self, step_reward, terminations, infos, terminal_success=None):
+            """Record configured success signals, falling back to task termination for existing recipes."""
 
             # RLinf may suppress terminations after this callback; Isaac Lab has already reset.
             if self._chunk_done is not None:
                 self._chunk_done |= terminations
             episode_info = {}
             self.returns += step_reward
-            self.success_once = self.success_once | terminations.bool()
+            success = terminations.bool()
+            if terminal_success is not None:
+                success = success & terminal_success
+                episode_info["success_at_end"] = (
+                    success.clone() if self._chunk_outcome is None else self._chunk_outcome > 0
+                )
+            self.success_once = self.success_once | success
             episode_info["success_once"] = self.success_once.clone()
             episode_info["return"] = self.returns.clone()
             episode_info["episode_len"] = self.elapsed_steps.clone()
             episode_info["reward"] = episode_info["return"] / episode_info["episode_len"]
-            infos["episode"] = episode_info
-            return infos
+            # Terminal RGB may be large. Only metrics need to survive in RLinf's rollout info list.
+            return {"episode": episode_info}
 
         def chunk_step(self, chunk_actions):
-            """Retire actions predicted for an episode once that episode has reset."""
+            """Preserve the first completed episode's metrics and optionally retire stale actions."""
             if self._hold_pose_on_midchunk_reset:
                 chunk_actions = chunk_actions.to(self.device)
                 self._chunk_done = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
-            result = super().chunk_step(chunk_actions)
-            self._chunk_done = self._hold_actions = None
-            return result
+            # -1 means active, 0 means failure/timeout, 1 means success in this action chunk.
+            self._chunk_outcome = (
+                torch.full_like(self.success_once, -1, dtype=torch.int8)
+                if self._isaaclab_cfg.get("success_observation")
+                else None
+            )
+            try:
+                return super().chunk_step(chunk_actions)
+            finally:
+                self._chunk_done = self._hold_actions = self._chunk_outcome = None
 
         def step(self, actions=None, auto_reset=True):
             """Hold reset joints until the next chunk supplies actions for the new episode."""
             if self._chunk_done is not None and self._hold_actions is not None:
-                actions = torch.where(self._chunk_done[:, None], self._hold_actions.to(actions), actions)
-            obs, reward, terminated, truncated, info = super().step(actions, auto_reset)
+                hold = self._hold_actions.to(actions)
+                if hold.shape[-1] != actions.shape[-1]:
+                    mapping = self._isaaclab_cfg.get("action_mapping", {})
+                    hold = torch.nn.functional.pad(hold, (mapping.get("prefix_pad", 0), mapping.get("suffix_pad", 0)))
+                actions = torch.where(self._chunk_done[:, None].to(actions.device), hold, actions)
+            obs, reward, terminated, truncated, info = _step_with_terminal_success(self, actions, auto_reset)
             if self._chunk_done is not None:
                 self._chunk_done |= truncated
                 self._hold_actions = obs["states"]
@@ -508,7 +584,7 @@ def _create_generic_env_wrapper(task_id: str) -> type:
             """Create the environment factory function.
 
             This function runs in a child process (via ``SubProcIsaacLabEnv``).
-            All IsaacLab-dependent imports happen here, after the simulation runtime starts.
+            Task imports and registration happen in the simulator child process.
 
             Returns:
                 A callable that creates and returns the IsaacLab environment and sim app.
@@ -521,23 +597,25 @@ def _create_generic_env_wrapper(task_id: str) -> type:
                     A tuple of ``(env, sim_app)`` where ``env`` is the unwrapped
                     gymnasium environment and ``sim_app`` stops the simulation runtime on ``close()``.
                 """
-                import contextlib
-
-                import gymnasium as gym
-
-                from isaaclab.app import launch_simulation
-
+                # Importing isaaclab_tasks registers its tasks. Keep that work in the simulator
+                # child rather than also registering tasks in actor and rollout workers.
                 from isaaclab_tasks.utils import parse_env_cfg
 
+                isaaclab.cli.load_external_tasks()
                 isaac_env_cfg = parse_env_cfg(
                     self.isaaclab_env_id,
                     num_envs=self.cfg.init_params.num_envs,
                     overrides=list(self.cfg.init_params.get("env_overrides", None) or ()),
                 )
+                isaac_env_cfg.compute_final_obs = isaac_env_cfg.compute_final_obs or bool(
+                    self._isaaclab_cfg.get("success_observation")
+                )
                 sim_app = contextlib.ExitStack()
                 # Each RLinf env worker owns one GPU; Kit's renderer enumerates GPUs through Vulkan, which
                 # ignores CUDA_VISIBLE_DEVICES, so pin it to the worker's GPU or concurrent workers crash it.
-                sim_app.enter_context(launch_simulation(isaac_env_cfg, {"enable_cameras": True, "multi_gpu": False}))
+                sim_app.enter_context(
+                    isaaclab.app.launch_simulation(isaac_env_cfg, {"enable_cameras": True, "multi_gpu": False})
+                )
 
                 env = gym.make(self.isaaclab_env_id, cfg=isaac_env_cfg, render_mode="rgb_array").unwrapped
 
@@ -554,7 +632,7 @@ def _create_generic_env_wrapper(task_id: str) -> type:
             - ``"extra_view_images"``: ``(B, N, H, W, C)`` — stacked extra cameras.
             - ``"states"``: ``(B, D)`` — concatenated state vector.
             - ``"task_descriptions"``: ``list[str]`` — task descriptions.
-            Config is read from the YAML file via :func:`_get_isaaclab_cfg`.
+            Split configuration is resolved once when the worker is initialized.
 
             Args:
                 obs: Raw observation dictionary from the IsaacLab environment.
@@ -567,7 +645,7 @@ def _create_generic_env_wrapper(task_id: str) -> type:
             policy_obs = obs.get("policy", obs)
             camera_obs = obs.get("camera_images", {})
 
-            cfg = _get_isaaclab_cfg()
+            cfg = self._isaaclab_cfg
             # Get task description from config
             task_desc = cfg.get("task_description", "") or self.task_description
             rlinf_obs = {
@@ -581,14 +659,16 @@ def _create_generic_env_wrapper(task_id: str) -> type:
             # main_images: single camera key -> (B, H, W, C)
             main_key = cfg.get("main_images")
             if main_key and main_key in camera_obs:
-                rlinf_obs["main_images"] = camera_obs[main_key]
+                rlinf_obs["main_images"] = resize_images(camera_obs[main_key], **self._image_options)
 
             # extra_view_images: camera key(s) -> stack to (B, N, H, W, C)
             extra_keys = cfg.get("extra_view_images")
             if extra_keys:
                 if isinstance(extra_keys, str):
                     extra_keys = [extra_keys]
-                extra_imgs = [camera_obs[k] for k in extra_keys if k in camera_obs]
+                extra_imgs = [
+                    resize_images(camera_obs[k], **self._image_options) for k in extra_keys if k in camera_obs
+                ]
                 if extra_imgs:
                     rlinf_obs["extra_view_images"] = torch.stack(extra_imgs, dim=1)
 
@@ -602,7 +682,7 @@ def _create_generic_env_wrapper(task_id: str) -> type:
                         state = policy_obs.get(spec)
                         if state is not None:
                             state_parts.append(state)
-                    elif isinstance(spec, dict):
+                    elif isinstance(spec, collections.abc.Mapping):
                         state = policy_obs.get(spec.get("key"))
                         if state is not None:
                             slice_range = spec.get("slice")
@@ -625,7 +705,7 @@ def _create_generic_env_wrapper(task_id: str) -> type:
                 ``None`` if no camera image is available.
             """
             camera_obs = obs.get("camera_images", {})
-            cfg = _get_isaaclab_cfg()
+            cfg = self._isaaclab_cfg
             # Try main_images key, fallback to first available camera
             main_key = cfg.get("main_images")
             if main_key and main_key in camera_obs:

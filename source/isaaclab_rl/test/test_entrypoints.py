@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import contextlib
 import importlib
+import importlib.util
 import os
 import signal
 import subprocess
@@ -22,6 +23,7 @@ import gymnasium as gym
 import numpy as np
 import pytest
 import torch
+import yaml
 from hydra.core.global_hydra import GlobalHydra
 from omegaconf import OmegaConf
 
@@ -512,21 +514,19 @@ def test_rlinf_rejects_pretrained_checkpoint() -> None:
         resolve_rlinf_checkpoint("pretrained", log_root_path="logs/rlinf", task="Isaac-Task", config_name="ppo")
 
 
-def test_rlinf_launch_passes_checkpoint_and_model_config_to_workers(tmp_path: Path, monkeypatch) -> None:
-    """Real CLI composition supplies the native RLinf weight/resume hooks before workers start.
-
-    The config directory is given relative to the working directory. Training records its run manifest, and
-    playback resolves ``latest`` through that manifest although the recipe's eval task id differs from its
-    training id.
-    """
+@pytest.fixture
+def rlinf_launch(tmp_path: Path, monkeypatch):
+    """Compose real CLI configs with lightweight stand-ins for distributed workers."""
+    runner = mock.Mock()
     validate = mock.Mock(side_effect=RuntimeError("worker boundary"))
     modules = {
         "rlinf": {},
         "rlinf.config": {"validate_cfg": validate},
-        "rlinf.runners.embodied_runner": {"EmbodiedRunner": mock.Mock()},
+        "rlinf.runners.embodied_runner": {"EmbodiedRunner": mock.Mock(return_value=runner)},
         "rlinf.runners.embodied_eval_runner": {"EmbodiedEvalRunner": mock.Mock()},
         "rlinf.scheduler": {"Cluster": mock.Mock()},
         "rlinf.utils.placement": {"HybridComponentPlacement": mock.Mock()},
+        "rlinf.workers.actor.fsdp_actor_worker": {"EmbodiedFSDPActor": mock.Mock()},
         "rlinf.workers.env.env_worker": {"EnvWorker": mock.Mock()},
         "rlinf.workers.rollout.hf.huggingface_worker": {"MultiStepRolloutWorker": mock.Mock()},
     }
@@ -536,24 +536,59 @@ def test_rlinf_launch_passes_checkpoint_and_model_config_to_workers(tmp_path: Pa
         monkeypatch.setitem(sys.modules, name, module)
     monkeypatch.setattr(torch.multiprocessing, "set_start_method", lambda *args, **kwargs: None)
     monkeypatch.chdir(tmp_path)
-    for variable in ("PYTHONPATH", "RLINF_CONFIG_FILE", "RLINF_EXT_MODULE", "RAY_ENABLE_UV_RUN_RUNTIME_ENV"):
+    for variable in (
+        "PYTHONPATH",
+        "RLINF_CONFIG_FILE",
+        "RLINF_EXT_MODULE",
+        "RAY_ENABLE_UV_RUN_RUNTIME_ENV",
+        "ISAACLAB_RLINF_TASK",
+    ):
         monkeypatch.delenv(variable, raising=False)
     cfg = OmegaConf.create(
         {
-            "runner": {"logger": {"log_path": "unused"}},
+            "runner": {"logger": {"log_path": "unused"}, "max_epochs": 1},
+            "algorithm": {"loss_type": "actor_critic"},
+            "cluster": {},
             "actor": {
-                "model": {"model_path": "./base", "model_type": "gr00t", "rl_head_config": {"add_value_head": True}}
+                "group_name": "actor",
+                "model": {"model_path": "./base", "model_type": "gr00t", "rl_head_config": {"add_value_head": True}},
             },
-            "rollout": {"model": {"model_path": "./rollout", "rl_head_config": {"disable_dropout": True}}},
-            "env": {"train": {"init_params": {"id": "Test"}}, "eval": {"init_params": {"id": "Test-Eval"}}},
+            "rollout": {
+                "group_name": "rollout",
+                "model": {"model_path": "./rollout", "rl_head_config": {"disable_dropout": True}},
+            },
+            "env": {
+                "group_name": "env",
+                "train": {"total_num_envs": 1, "init_params": {"id": "Test"}},
+                "eval": {"init_params": {"id": "Test-Eval"}},
+            },
         }
     )
-    OmegaConf.save(cfg, tmp_path / "ppo.yaml")
+
+    def launch(backend, *args):
+        OmegaConf.save(cfg, tmp_path / "ppo.yaml")
+        try:
+            backend.run(["--config_path", ".", "--config_name", "ppo", *args])
+        finally:
+            GlobalHydra.instance().clear()
+
+    return SimpleNamespace(
+        cfg=cfg, runner=runner, validate=validate, cluster=sys.modules["rlinf.scheduler"].Cluster, launch=launch
+    )
+
+
+def test_rlinf_launch_passes_checkpoint_and_model_config_to_workers(tmp_path: Path, rlinf_launch) -> None:
+    """Real CLI composition supplies the native RLinf weight/resume hooks before workers start.
+
+    The config directory is given relative to the working directory. Training records its run manifest, and
+    playback resolves ``latest`` through that manifest although the recipe's eval task id differs from its
+    training id.
+    """
+    validate = rlinf_launch.validate
 
     def launch(backend, checkpoint: str):
         with pytest.raises(RuntimeError, match="worker boundary"):
-            backend.run(["--config_path", ".", "--config_name", "ppo", "--checkpoint", checkpoint])
-        GlobalHydra.instance().clear()
+            rlinf_launch.launch(backend, "--checkpoint", checkpoint)
         resolved = validate.call_args.args[0]
         assert resolved.actor.model.model_path == str(tmp_path / "base")
         assert resolved.rollout.model.model_path == str(tmp_path / "rollout")
@@ -576,6 +611,108 @@ def test_rlinf_launch_passes_checkpoint_and_model_config_to_workers(tmp_path: Pa
     weights.touch()
     played = launch(play_rlinf, "latest")
     assert played.runner.ckpt_path == str(weights)
+
+
+@pytest.mark.parametrize("backend", [train_rlinf, play_rlinf], ids=["train", "play"])
+def test_rlinf_cli_overrides_preserve_split_settings(backend, rlinf_launch) -> None:
+    for split in ("train", "eval"):
+        rlinf_launch.cfg.env[split].init_params.env_overrides = ["physics=physx", f"env.sim.physics.split={split}"]
+    with pytest.raises(RuntimeError, match="worker boundary"):
+        rlinf_launch.launch(backend, "--task", "Test-Cosmos", "physics=newton_mjwarp")
+    cfg = rlinf_launch.validate.call_args.args[0]
+    for split in ("train", "eval"):
+        assert cfg.env[split].init_params.id == "Test-Cosmos"
+        assert list(cfg.env[split].init_params.env_overrides) == [
+            f"env.sim.physics.split={split}",
+            "physics=newton_mjwarp",
+        ]
+    assert os.environ["ISAACLAB_RLINF_TASK"] == "Test-Cosmos"
+
+
+@pytest.mark.parametrize(
+    "backend,training,evaluation,error",
+    [
+        (train_rlinf, {"gpu_resize_width": 224}, {}, "requires both"),
+        (
+            play_rlinf,
+            {"gpu_resize_width": 224, "gpu_resize_height": 224},
+            {"gpu_resize_width": 256},
+            "matching train/eval",
+        ),
+        (train_rlinf, {"gpu_crop_scale": 0.05}, {}, "task observation tensor_processors"),
+    ],
+)
+def test_rlinf_rejects_image_config_before_workers(backend, training, evaluation, error, rlinf_launch) -> None:
+    rlinf_launch.cfg.env.train.isaaclab = {"data_config_class": "example:DataConfig", **training}
+    rlinf_launch.cfg.env.eval.isaaclab = evaluation
+    with pytest.raises(ValueError, match=error):
+        rlinf_launch.launch(backend)
+    rlinf_launch.validate.assert_not_called()
+    rlinf_launch.cluster.assert_not_called()
+
+
+def _shipped_rlinf_recipes() -> list[str]:
+    """Return the names of the RLinf recipes (YAML with ``actor``, ``rollout`` and ``env``) in ``isaaclab_tasks``."""
+    root = Path(importlib.util.find_spec("isaaclab_tasks").origin).parent
+    recipes = []
+    for path in sorted(root.rglob("*.yaml")):
+        cfg = yaml.safe_load(path.read_text())
+        if isinstance(cfg, dict) and {"actor", "rollout", "env"} <= cfg.keys():
+            recipes.append(path.stem)
+    return recipes
+
+
+@pytest.mark.usefixtures("rlinf_launch")
+@pytest.mark.parametrize("recipe", _shipped_rlinf_recipes())
+def test_rlinf_shipped_recipes_pass_image_validation(recipe: str) -> None:
+    """Shipped recipes pass the image checks of the training driver and of every RLinf worker."""
+    # isaaclab_contrib is only needed by the RLinf backend
+    from isaaclab_contrib.rl.rlinf.config import validate_image_config
+
+    with pytest.raises(RuntimeError, match="worker boundary"):
+        try:
+            train_rlinf.run(["--config_name", recipe])
+        finally:
+            GlobalHydra.instance().clear()
+    # the extension's register() repeats the check on the raw recipe file, where RLinf only logs failures
+    validate_image_config(yaml.safe_load(Path(os.environ["RLINF_CONFIG_FILE"]).read_text()))
+
+
+@pytest.mark.parametrize("enabled,fail", [(False, False), (True, False), (True, True)])
+def test_rlinf_runner_context_lifecycle(enabled, fail, rlinf_launch, monkeypatch) -> None:
+    events = []
+    runner = rlinf_launch.runner
+    rlinf_launch.validate.side_effect = lambda cfg: cfg
+    rlinf_launch.cfg.env.train.init_params.env_overrides = ["env.sim.physics.split=train"]
+    runner.init_workers.side_effect = lambda: events.append("initialize")
+
+    def train():
+        events.append("train")
+        if fail:
+            raise RuntimeError("training boundary")
+
+    @contextlib.contextmanager
+    def context(actual_runner, overrides):
+        assert actual_runner is runner
+        assert overrides == ["env.sim.physics.split=train"]
+        events.append("enter")
+        try:
+            yield
+        finally:
+            events.append("exit")
+
+    module = types.ModuleType("_rlinf_context_test")
+    module.context = context
+    monkeypatch.setitem(sys.modules, module.__name__, module)
+    if enabled:
+        rlinf_launch.cfg.runner.isaaclab_context = "_rlinf_context_test:context"
+    runner.run.side_effect = train
+    if fail:
+        with pytest.raises(RuntimeError, match="training boundary"):
+            rlinf_launch.launch(train_rlinf)
+    else:
+        rlinf_launch.launch(train_rlinf)
+    assert events == (["enter", "initialize", "train", "exit"] if enabled else ["initialize", "train"])
 
 
 def test_run_backend_restores_sys_argv_after_training(monkeypatch) -> None:

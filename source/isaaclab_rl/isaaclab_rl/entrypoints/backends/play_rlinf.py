@@ -59,7 +59,7 @@ def run(argv: list[str]) -> None:
     """Launch RLinf evaluation."""
     args_cli = _parse_args(argv)
     config_name = args_cli.config_name
-    config_dir = cli_args.configure_rlinf_environment(config_name, args_cli.config_path)
+    config_dir = cli_args.configure_rlinf_environment(config_name, args_cli.config_path, args_cli.task)
 
     # rlinf reads RLINF_EXT_MODULE and RLINF_CONFIG_FILE at import time, so it is imported after the setup above
     import rlinf  # noqa: F401
@@ -74,6 +74,8 @@ def run(argv: list[str]) -> None:
     from rlinf.workers.env.env_worker import EnvWorker
     from rlinf.workers.rollout.hf.huggingface_worker import MultiStepRolloutWorker
 
+    from isaaclab_contrib.rl.rlinf.config import validate_image_config
+
     mp.set_start_method("spawn", force=True)
 
     logger.info(f"Using config: {config_name}")
@@ -82,7 +84,7 @@ def run(argv: list[str]) -> None:
     initialize_config_dir(config_dir=config_dir)
     cfg = compose(config_name=config_name)
 
-    task_id = cfg.env.eval.init_params.id
+    task_id = args_cli.task or cfg.env.eval.init_params.id
     logger.info(f"Task: {task_id}")
     # hyphens instead of colons in the time stamp; colons are invalid in Windows paths
     timestamp = datetime.now().strftime("%Y%m%d-%H-%M-%S")
@@ -116,12 +118,14 @@ def run(argv: list[str]) -> None:
         if args_cli.num_episodes is not None:
             cfg.algorithm.eval_rollout_epoch = args_cli.num_episodes
         for split in ("train", "eval"):
-            cfg.env[split].init_params.env_overrides = args_cli.env_overrides
+            configured = list(cfg.env[split].init_params.get("env_overrides") or ())
+            cfg.env[split].init_params.env_overrides = cli_args.merge_env_overrides(configured, args_cli.env_overrides)
         cfg.rollout.model = OmegaConf.merge(cfg.actor.model, cfg.rollout.model)
         # Ray workers may launch from a different working directory.
         for model in (cfg.actor.model, cfg.rollout.model):
             model.model_path = str(Path(model.model_path).expanduser().resolve())
 
+    validate_image_config(cfg)
     cfg = validate_cfg(cfg)
     fields = {
         "Task": cfg.env.eval.init_params.id,

@@ -196,6 +196,56 @@ Do not set this aarch64 path on x86_64 Linux. If it was inherited from a
 previous setup, run ``unset LD_PRELOAD`` before launching Isaac Lab.
 
 
+External task recipes and policy inputs
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The CLI's ``--task`` overrides the task IDs in the recipe for both training and
+validation workers. Without it, each split retains its own task ID. Simulator
+subprocesses discover installed tasks through the ``isaaclab.tasks`` entry-point
+group, so downstream tasks do not need to be copied into Isaac Lab.
+
+Configure policy input size with ``gpu_resize_height`` and ``gpu_resize_width``
+under each split's ``isaaclab`` section. Resizing stays on the image device and
+rounds uint8 pixels to nearest; augmentation belongs to task observation
+``tensor_processors``. GR00T N1.5 requires paired, matching train/eval dimensions,
+validated before workers start.
+
+For optional services around worker initialization and training, recipes may set:
+
+.. code-block:: yaml
+
+   runner:
+     isaaclab_context: my_demo.training:service_context
+
+The callable receives the runner and merged training environment overrides, and
+returns a context manager whose cleanup also runs on exceptions. Service behavior
+stays downstream; no context keywords are passed to Gym constructors.
+
+
+Episode success metrics
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Tasks with both success and failure terminations can configure a Boolean
+observation under each split's ``isaaclab`` section:
+
+.. code-block:: yaml
+
+   success_observation:
+     group: metrics
+     key: success
+
+The adapter enables ``compute_final_obs`` and reads success from pre-reset
+``info["final_obs"]``; policy observations still belong to the reset episode.
+Both success metrics preserve the first completed episode's result through the
+action chunk. Timeouts alone are not wins; missing terminal data raises an error.
+Capturing terminal observations adds one observation computation on reset steps;
+those observations are not retained in rollout infos. Without this setting,
+existing recipes continue to count terminations as success.
+
+Train/eval retain their own recipe ``init_params.env_overrides``. CLI overrides
+replace matching recipe keys, including ``physics`` and ``renderer`` selectors.
+
+
 Quick Start
 -----------
 
