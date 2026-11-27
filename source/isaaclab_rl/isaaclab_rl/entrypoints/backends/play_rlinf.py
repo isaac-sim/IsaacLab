@@ -96,10 +96,11 @@ def run(argv: list[str]) -> None:
         if args_cli.model_path:
             cfg.rollout.model.model_path = args_cli.model_path
         if args_cli.checkpoint:
+            # training runs record env.train.init_params.id in their manifests, which may differ from the eval id
             cfg.runner.ckpt_path = cli_args.resolve_rlinf_checkpoint(
                 args_cli.checkpoint,
                 log_root_path=str(Path("logs") / "rlinf"),
-                task=args_cli.task or task_id,
+                task=args_cli.task or cfg.env.train.init_params.id,
                 config_name=config_name,
             )
         if args_cli.video:

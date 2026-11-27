@@ -16,13 +16,15 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 
-from isaaclab_experimental.mdp2 import Backend, TaskCfg
+from isaaclab_experimental.mdp2 import Backend, ObservationGroup, TaskCfg
+from isaaclab_experimental.mdp2.config import group_terms
 
 
 class Step(enum.Enum):
     """Built-in work of a control step, in :attr:`MDP2EnvCfg.step`."""
 
     PHYSICS = enum.auto()  # Apply the actions and step the physics ``decimation`` times
+    RENDER = enum.auto()  # Render the cameras, once per control step; nothing without cameras
     EVALUATE = enum.auto()  # Evaluate the MDP: commands, quantities, terminations, rewards, observations
     RESET = enum.auto()  # Reset the worlds whose episodes ended, by :attr:`MDP2EnvCfg.reset_step`
 
@@ -32,6 +34,7 @@ class ResetStep(enum.Enum):
 
     EVENTS = enum.auto()  # Reset the assets and sensors, and run the reset events, which write scene fields in place
     COMMIT = enum.auto()  # Pass the writes of the reset events to the simulation
+    RENDER = enum.auto()  # Render the cameras again, so that the observations see the new episodes; optional
     OBSERVE = enum.auto()  # Observe the reset worlds
 
 
@@ -57,16 +60,19 @@ class MDP2EnvCfg:
 
     sim: SimulationCfg = SimulationCfg()
     scene: InteractiveSceneCfg = MISSING
-    # Actions, commands, observations, rewards, terminations, and events; a list splits the worlds between tasks
-    task: TaskCfg | list[TaskCfg] = MISSING
-    task_worlds: list[int] | None = None  # Number of worlds of each task of a list, in order; None for even shares
+    # Actions, commands, observations, rewards, terminations, and events, and subtasks; mdp2.split gives subtasks
+    # their own worlds
+    task: TaskCfg = MISSING
     decimation: int = MISSING  # Physics steps per control step
     backend: Backend = Backend.WARP  # How the task's term implementations run
     seed: int | None = None
     capture: bool = True  # Replay each step, physics included, as one CUDA graph when the MDP allows it
-    # The work of a control step, in order: the built-in steps, each once and in this order, and stages anywhere
-    step: list[Step | Stage] = [Step.PHYSICS, Step.EVALUATE, Step.RESET]
-    # The work of resetting worlds, in a step's Step.RESET and in reset(): as for step
+    # The work of a control step, in order: the built-in steps, each once and in this order (Step.RENDER may be left
+    # out), and stages anywhere
+    step: list[Step | Stage] = [Step.PHYSICS, Step.RENDER, Step.EVALUATE, Step.RESET]
+    # The work of resetting worlds, in a step's Step.RESET and in reset(): as for step. Insert ResetStep.RENDER before
+    # ResetStep.OBSERVE to render the cameras again, so that the first observations of new episodes see them, at the
+    # cost of a second render per step; reset() always does.
     reset_step: list[ResetStep | Stage] = [ResetStep.EVENTS, ResetStep.COMMIT, ResetStep.OBSERVE]
     # Debug: before building, step the task this many times uncaptured and captured, and raise where they differ,
     # naming the value; see verify_capture. 0 to skip.
@@ -80,23 +86,33 @@ class MDP2RLEnvCfg(MDP2EnvCfg):
     is_finite_horizon: bool = False  # Whether time-outs are terminal states rather than truncations
     # Whether step returns, in extras["final_obs"], the observations of the worlds that ended before their reset
     compute_final_obs: bool = False
+    # Episodes to run from each reset, for evaluation: worlds stop starting episodes once the budget is spent, and
+    # each finished episode is recorded, see MDP2RLEnv.episode_records. None for no budget.
+    episode_budget: int | None = None
     log_dir: str | None = None  # Set by the training scripts
     video_recorders: list = []  # Not supported yet; kept for the training scripts
 
     def play_mode(self) -> None:
         """Adjust the configuration for playing a trained policy, as MDP1 does: at most 50 worlds, and observations
         without noise. The play scripts call it; tasks may extend it."""
-        if self.task_worlds is None:
+        # A split with a number of worlds per subtask needs all of them.
+        if not splits_by_count(self.task):
             self.scene.num_envs = min(self.scene.num_envs, 50)
-        tasks = [self.task] if isinstance(self.task, TaskCfg) else self.task
-        tasks = [_without_observation_noise(task) for task in tasks]
-        self.task = tasks[0] if isinstance(self.task, TaskCfg) else tasks
+        self.task = _without_observation_noise(self.task)
+
+
+def splits_by_count(task: TaskCfg) -> bool:
+    """Return whether a task or one of its subtasks splits the worlds by counts."""
+    return task.worlds is not None or any(splits_by_count(subtask) for subtask in task.subtasks.values())
 
 
 def _without_observation_noise(task: TaskCfg) -> TaskCfg:
-    """Return a copy of a task whose observations have no noise; the uses it shares with others are not changed."""
-    observations = {
-        group: {name: use if use is None else replace(use, noise=None) for name, use in uses.items()}
-        for group, uses in task.observations.items()
-    }
-    return replace(task, observations=observations)
+    """Return a copy of a task and its subtasks whose observations have no noise; the uses it shares with others are
+    not changed."""
+    observations = {}
+    for group, uses in task.observations.items():
+        terms, concatenate = group_terms(uses)
+        terms = {name: use if use is None else replace(use, noise=None) for name, use in terms.items()}
+        observations[group] = ObservationGroup(terms, concatenate) if isinstance(uses, ObservationGroup) else terms
+    subtasks = {name: _without_observation_noise(subtask) for name, subtask in task.subtasks.items()}
+    return replace(task, observations=observations, subtasks=subtasks)

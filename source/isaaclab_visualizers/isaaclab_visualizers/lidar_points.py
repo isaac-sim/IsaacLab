@@ -3,12 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""World-frame lidar hits shared by the Newton GL, Viser, and Kit visualizers."""
+"""World-frame lidar hits drawn by Newton GL and Viser, and the default camera framing they share with Kit."""
 
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import torch
@@ -22,9 +22,6 @@ if TYPE_CHECKING:
     from isaaclab.sim import SimulationContext
     from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
-
-LIDAR_LOG_INTERVAL = 10
-"""Visualizer steps between host copies of one environment's lidar hits."""
 
 LIDAR_POINT_RADIUS = 0.02
 """Sphere radius, in meters, used by viewers that log a point batch."""
@@ -207,10 +204,33 @@ def frame_visualizer_closeup(visualizer: BaseVisualizer, cameras) -> None:
             camera.lookat = lookat
 
 
-def collect_lidar_hits(
-    sim: SimulationContext, env_ids: list[int] | None, step_counter: int
-) -> list[tuple[str, np.ndarray]] | None:
-    """Return every visualized environment's lidar hits on every tenth visualizer step.
+def _ovrtx_lidar_cls() -> type | None:
+    """Return :class:`~isaaclab_ov.renderers.ovrtx_lidar_sensor.OVRTXLidar`, or None if it is unavailable."""
+    try:
+        from isaaclab_ov.renderers.ovrtx_lidar_sensor import OVRTXLidar
+    except ImportError:
+        return None
+    return OVRTXLidar
+
+
+def scene_has_lidar(sim: SimulationContext) -> bool:
+    """Return whether the interactive scene owns an OvRTX lidar.
+
+    Args:
+        sim: Simulation whose interactive scene is searched.
+
+    Returns:
+        True when at least one sensor is an OvRTX lidar.
+    """
+    scene = sim.get_scene_data_provider().get_interactive_scene()
+    lidar_cls = _ovrtx_lidar_cls()
+    if scene is None or lidar_cls is None:
+        return False
+    return any(isinstance(sensor, lidar_cls) for sensor in scene.sensors.values())
+
+
+def collect_lidar_hits(sim: SimulationContext, env_ids: list[int] | None) -> list[tuple[str, np.ndarray]]:
+    """Return every visualized environment's lidar hits.
 
     ``env_ids`` None includes every environment. Each lidar is included even when its cloud is
     empty, so a viewer can hide the previous batch. Other sensors are ignored.
@@ -218,29 +238,52 @@ def collect_lidar_hits(
     Args:
         sim: Simulation whose interactive scene owns the lidars.
         env_ids: Visualized environments. None includes every environment.
-        step_counter: Visualizer step. Hits are collected when this is a multiple of
-            :data:`LIDAR_LOG_INTERVAL`.
 
     Returns:
-        ``(sensor_name, points)`` pairs, or None when this step is not logged.
+        ``(sensor_name, points)`` pairs.
     """
-    if step_counter % LIDAR_LOG_INTERVAL != 0:
-        return None
     scene = sim.get_scene_data_provider().get_interactive_scene()
-    if scene is None:
-        return []
-
-    try:
-        from isaaclab_ov.renderers.ovrtx_lidar_sensor import OVRTXLidar
-    except ImportError:
+    lidar_cls = _ovrtx_lidar_cls()
+    if scene is None or lidar_cls is None:
         return []
 
     selected = None if env_ids is None else list(env_ids)
     hits = []
     for name, sensor in scene.sensors.items():
-        if isinstance(sensor, OVRTXLidar):
+        if isinstance(sensor, lidar_cls):
             hits.append((name, lidar_world_points(sensor, selected)))
     return hits
+
+
+def sync_lidar_hits(
+    sim: SimulationContext,
+    env_ids: list[int] | None,
+    viewer: Any,
+    enabled: bool,
+    previous_names: list[str],
+) -> list[str]:
+    """Upload lidar hits when enabled, or hide the previous batch when disabled.
+
+    A disabled step with no previous names does not read the scene. A disabled step with previous
+    names logs empty clouds so the last batch disappears.
+
+    Args:
+        sim: Simulation whose interactive scene owns the lidars.
+        env_ids: Visualized environments. None includes every environment.
+        viewer: Newton or Viser viewer.
+        enabled: Whether lidar hits are copied and uploaded this step.
+        previous_names: Sensor names logged on a previous enabled step.
+
+    Returns:
+        Sensor names logged this step, or an empty list when the cloud is hidden.
+    """
+    if not enabled:
+        if previous_names:
+            log_lidar_hits(viewer, [(name, np.empty((0, 3), dtype=np.float32)) for name in previous_names])
+        return []
+    hits = collect_lidar_hits(sim, env_ids)
+    log_lidar_hits(viewer, hits)
+    return [name for name, _ in hits]
 
 
 def log_lidar_hits(viewer, hits: list[tuple[str, np.ndarray]], radius: float = LIDAR_POINT_RADIUS) -> None:

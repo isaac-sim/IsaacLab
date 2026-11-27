@@ -263,10 +263,13 @@ def test_step_replays_as_one_graph_with_curriculum_and_bank(scenario: SimpleName
 def test_play_mode_starts_the_curriculum_at_its_end():
     """The play scripts' config starts the curriculum at full difficulty, so that a trained policy plays with gravity,
     and observes without noise."""
+    from isaaclab_experimental.mdp2.config import group_terms
+
     from isaaclab_tasks.utils.hydra import resolve_task_config
 
     cfg, _ = resolve_task_config("Isaac-Lift-KukaAllegro-MDP2", None, play_mode=True, overrides=[])
-    uses = [use for group in cfg.task.observations.values() for use in group.values() if use is not None]
+    groups = [group_terms(group)[0] for group in cfg.task.observations.values()]
+    uses = [use for terms in groups for use in terms.values() if use is not None]
     params = cfg.task.events["adr"].params
     assert cfg.scene.num_envs == 50 and all(use.noise is None for use in uses)
     assert params["init_difficulty"] == params["max_difficulty"] and params["promotion_only"]

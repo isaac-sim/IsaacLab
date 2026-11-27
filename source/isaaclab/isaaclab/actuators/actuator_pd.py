@@ -34,6 +34,8 @@ logger = logging.getLogger(__name__)
 class _DelayedActuator:
     """Shared command history and reset lifecycle for delayed actuator models."""
 
+    capturable: ClassVar[bool] = False  # Masked resets draw delays from Torch's generator, which graphs cannot record
+
     def __init__(self, cfg: DelayedImplicitActuatorCfg | DelayedPDActuatorCfg, *args, **kwargs) -> None:
         self._max_delay = 0 if cfg.max_delay is None else cfg.max_delay
         if not 0 <= cfg.min_delay <= self._max_delay:
@@ -98,6 +100,7 @@ class ImplicitActuator(ActuatorBase):
     """The configuration for the actuator model."""
 
     is_implicit_model: ClassVar[bool] = True
+    capturable: ClassVar[bool] = True
 
     def __init__(
         self,
@@ -318,6 +321,8 @@ class IdealPDActuator(ActuatorBase):
 
     cfg: IdealPDActuatorCfg
     """The configuration for the actuator model."""
+
+    capturable: ClassVar[bool] = True
 
     actuator_effort_limit: torch.Tensor
     """Actuator-model effort clipping limit [N or N·m, depending on joint type].

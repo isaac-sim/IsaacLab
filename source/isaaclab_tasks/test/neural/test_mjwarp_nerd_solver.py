@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import pytest
@@ -104,6 +105,18 @@ def test_solver_settings(checkpoint: Path, device: str):
             action = torch.zeros(4, env.action_manager.total_action_dim, device=device)
             observations, *_ = env.step(action)
         assert observations["policy"].isfinite().all()
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_free_motion_task_without_triton(checkpoint: Path, device: str, monkeypatch: pytest.MonkeyPatch):
+    """Without Triton, which PyTorch installs on Linux only, the solver steps the model without ``torch.compile``."""
+    monkeypatch.setitem(sys.modules, "triton", None)  # Importing Triton fails, as where it is not installed
+    with environment(TASK, nerd_task_cfg(TASK, checkpoint, 4, device)) as env:
+        env.reset()
+        action = torch.zeros(4, env.action_manager.total_action_dim, device=device)
+        observations, *_ = env.step(action)
+        assert observations["policy"].isfinite().all()
+        assert not env.sim.backend_manager.backend.solver.stepper.compiled
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
