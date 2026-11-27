@@ -145,6 +145,18 @@ def callable_to_string(value: Callable, separator: str = ":") -> str:
         # get the module and function name
         module_name = value.__module__
         function_name = value.__name__
+        qualified_name = value.__qualname__
+        bound_to = getattr(value, "__self__", None)
+        if isinstance(bound_to, type):
+            # classmethods are named through the class they are bound to
+            module_name = bound_to.__module__
+            qualified_name = f"{bound_to.__qualname__}.{function_name}"
+        # use the qualified name only if loading it returns this same callable
+        try:
+            if string_to_callable(f"{module_name}{separator}{qualified_name}", separator) == value:
+                function_name = qualified_name
+        except (ModuleNotFoundError, AttributeError):
+            pass  # keep the plain name, as before, rather than fail the config dump
         # return the string
         return f"{module_name}{separator}{function_name}"
 
@@ -154,7 +166,8 @@ def string_to_callable(name: str, separator: str = ":") -> Callable:
 
     Args:
         name: The function name. The format should be 'module:attribute_name' or a
-            lambda expression of format: 'lambda x: x'.
+            lambda expression of format: 'lambda x: x'. Attribute names may contain
+            dots to resolve callables nested under classes or other module attributes.
         separator: The separator between the module path and the function name. Defaults to ":".
 
     Raises:
@@ -169,7 +182,9 @@ def string_to_callable(name: str, separator: str = ":") -> Callable:
         _validate_lambda_expression(name)
         return eval(name, {"__builtins__": {}}, {})
     mod_name, attr_name = name.rsplit(separator, 1)
-    callable_object = getattr(importlib.import_module(mod_name), attr_name)
+    callable_object = importlib.import_module(mod_name)
+    for attr in attr_name.split("."):
+        callable_object = getattr(callable_object, attr)
     if not callable(callable_object):
         raise AttributeError(f"The imported object is not callable: '{name}'")
     return callable_object
