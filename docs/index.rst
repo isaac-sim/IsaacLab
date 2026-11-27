@@ -172,6 +172,7 @@ Table of Contents
    source/experimental-features/visuo_tactile_sensor
    source/experimental-features/foveated_camera
    source/experimental-features/rlinf_vla_posttraining
+   source/experimental-features/demos
    source/features/imitation-learning/index
 
 .. toctree::
