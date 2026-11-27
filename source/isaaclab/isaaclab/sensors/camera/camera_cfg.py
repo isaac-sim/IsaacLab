@@ -252,6 +252,9 @@ class CameraCfg(SensorBaseCfg):
     exposure."""
 
     def __post_init__(self):
+        self._forward_deprecated_renderer_fields()
+
+    def _forward_deprecated_renderer_fields(self) -> None:
         """Forward deprecated RTX-flavored fields onto :attr:`renderer_cfg`.
 
         Each deprecated field set to a non-default value emits a
@@ -259,6 +262,9 @@ class CameraCfg(SensorBaseCfg):
         when that cfg defines the same-named field.
         """
         renderer_type = getattr(self.renderer_cfg, "renderer_type", None)
+        if renderer_type == "auto_rtx":
+            # The launcher forwards these fields after choosing the concrete RTX runtime.
+            return
         if renderer_type == "default":
             from ...utils.backend_utils import get_default_renderer_cfg
 

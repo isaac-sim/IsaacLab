@@ -9,13 +9,16 @@ This script demonstrates the FrameTransformer sensor by visualizing the frames t
 .. code-block:: bash
 
     # Usage
-    uv run python scripts/tutorials/04_sensors/run_frame_transformer.py --viz kit
+    uv run --extra ov python scripts/tutorials/04_sensors/run_frame_transformer.py --viz newton_rtx
 
 """
 
 """Parse the command-line arguments first."""
 
 import argparse
+from types import SimpleNamespace
+
+from isaaclab_ov.physics import OvPhysxCfg
 
 from isaaclab.app import add_launcher_args, launch_simulation
 
@@ -24,6 +27,7 @@ parser = argparse.ArgumentParser(
     description="This script checks the FrameTransformer sensor by visualizing the frames that it creates."
 )
 add_launcher_args(parser)
+parser.set_defaults(visualizer=["newton_rtx"])
 args_cli = parser.parse_args()
 
 """Rest everything follows."""
@@ -142,15 +146,19 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: "InteractiveScene"):
 def main():
     """Main function."""
     # Configure the simulation
-    sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device)
+    sim_cfg = sim_utils.SimulationCfg(
+        physics=OvPhysxCfg(),
+        dt=0.005,
+        device=args_cli.device,
+    )
     # Launch the simulator runtime that the configuration needs
-    with launch_simulation(sim_cfg, args_cli):
+    scene_cfg = FrameTransformerSceneCfg(num_envs=1, env_spacing=0.0)
+    with launch_simulation(SimpleNamespace(sim=sim_cfg, scene=scene_cfg), args_cli):
         # Initialize the simulation context
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
         sim.set_camera_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 0.0])
         # Design scene
-        scene_cfg = FrameTransformerSceneCfg(num_envs=1, env_spacing=0.0)
         scene = instantiate(scene_cfg)
         # Play the simulator
         sim.reset()

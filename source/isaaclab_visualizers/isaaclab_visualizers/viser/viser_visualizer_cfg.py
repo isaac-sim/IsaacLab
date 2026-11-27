@@ -67,6 +67,13 @@ class ViserBackendCfg(VisualizerBackendCfg):
     panel in the Viser sidebar.
     """
 
+    show_lidar_hits: bool = False
+    """Copy lidar hits to the viewer and draw them.
+
+    Off by default. A dense scan is expensive to move to the host and upload every visualizer step.
+    Viser exposes a runtime checkbox.
+    """
+
 
 @configclass
 class ViserVisualizerCfg(ViserBackendCfg, VisualizerCfg):

@@ -15,14 +15,18 @@ We add the following sensors on the quadruped robot, ANYmal-C (ANYbotics):
 .. code-block:: bash
 
     # Usage
-    uv run python scripts/tutorials/04_sensors/add_sensors_on_robot.py --viz kit
+    uv run --extra ov python scripts/tutorials/04_sensors/add_sensors_on_robot.py --viz newton_rtx
 
 """
 
 """Parse the command-line arguments first."""
 
 import argparse
+from types import SimpleNamespace
 from typing import TYPE_CHECKING
+
+from isaaclab_ov.physics import OvPhysxCfg
+from isaaclab_ov.renderers import OVRTXRendererCfg
 
 from isaaclab.app import add_launcher_args, launch_simulation
 
@@ -31,6 +35,7 @@ parser = argparse.ArgumentParser(description="Tutorial on adding sensors on a ro
 parser.add_argument("--num_envs", type=int, default=2, help="Number of environments to spawn.")
 # append simulation launcher cli args
 add_launcher_args(parser)
+parser.set_defaults(visualizer=["newton_rtx"])
 # parse the arguments
 args_cli = parser.parse_args()
 # The scene has a camera sensor, which requires the rendering extensions in headless launches.
@@ -72,6 +77,7 @@ class SensorsSceneCfg(InteractiveSceneCfg):
 
     # sensors
     camera = CameraCfg(
+        renderer_cfg=OVRTXRendererCfg(),
         prim_path="{ENV_REGEX_NS}/Robot/base/front_cam",
         update_period=0.1,
         height=480,
@@ -164,15 +170,19 @@ def main():
     """Main function."""
 
     # Configure the simulation
-    sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device)
+    sim_cfg = sim_utils.SimulationCfg(
+        physics=OvPhysxCfg(),
+        dt=0.005,
+        device=args_cli.device,
+    )
     # Launch the simulator runtime that the configuration needs
-    with launch_simulation(sim_cfg, args_cli):
+    scene_cfg = SensorsSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0)
+    with launch_simulation(SimpleNamespace(sim=sim_cfg, scene=scene_cfg), args_cli):
         # Initialize the simulation context
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
         sim.set_camera_view(eye=[3.5, 3.5, 3.5], target=[0.0, 0.0, 0.0])
         # Design scene
-        scene_cfg = SensorsSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0)
         scene = instantiate(scene_cfg)
         # Play the simulator
         sim.reset()

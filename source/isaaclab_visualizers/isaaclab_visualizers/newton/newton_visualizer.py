@@ -54,7 +54,7 @@ from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, WindowCfg
 
 from isaaclab_visualizers.desktop_entry import write_desktop_entry
-from isaaclab_visualizers.lidar_points import collect_lidar_hits, frame_visualizer_closeup, log_lidar_hits
+from isaaclab_visualizers.lidar_points import frame_visualizer_closeup, scene_has_lidar, sync_lidar_hits
 from isaaclab_visualizers.newton.newton_overlay_meshes import OverlayMeshPublisher
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
 
@@ -176,6 +176,9 @@ class NewtonViewerGL(ViewerGL):
     """Newton GL window with Isaac Lab controls and device-image presentation."""
 
     _contacts_available = True
+    _lidar_available = False
+    show_lidar_hits = False
+    """Whether lidar hits are copied onto the host and drawn in the OpenGL view."""
     CAMERA_SPEED_BOOST_MULTIPLIER = 2.0
     camera_keys_suspended = False
     """Set while keyboard camera movement is disabled (see :meth:`NewtonVisualizerBase.set_camera_keys_enabled`)."""
@@ -535,6 +538,15 @@ class NewtonViewerGL(ViewerGL):
             tip("Length of the contact arrows")
             _, renderer.arrow_scale = imgui.slider_float("Contact Width", renderer.arrow_scale, 0.25, 5.0)
             tip("Width of the contact arrows")
+        _lidar_available = (not rtx) and self._lidar_available
+        self.show_lidar_hits = _imgui_optional_checkbox(
+            imgui,
+            "Show Lidar Hits",
+            self.show_lidar_hits,
+            _lidar_available,
+            "OpenGL only" if rtx else "No lidar sensors in this environment",
+            "Copy and draw lidar hits",
+        )
         _model = self.model
         _has_particles = _model.particle_count > 0
         _has_springs = _model.spring_count > 0
@@ -1667,7 +1679,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self._cfg_visible_env_ids: list[int] | None = None
         self._visible_env_count: int | None = None
         self._num_envs = 0
-        self._lidar_step_counter = 0
+        self._logged_lidar_names: list[str] = []
 
     # ------------------------------------------------------------------
     # GL lifecycle
@@ -1776,13 +1788,13 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         # out "Show Contacts" when neither native Newton contacts nor a ContactSensor
         # exists in the scene.
         self._viewer._contacts_available = newton_backend_active or bool(scene_data_provider.get_contact_sensors())
+        self._viewer._lidar_available = scene_has_lidar(sim)
 
-    def _log_lidar_points(self, viewer: Any) -> None:
+    def _log_lidar_hits(self, viewer: Any) -> None:
         """Log every visualized environment's lidar hits into the Newton GL scene."""
-        self._lidar_step_counter += 1
-        hits = collect_lidar_hits(self._sim, self._env_ids, self._lidar_step_counter)
-        if hits is not None:
-            log_lidar_hits(viewer, hits)
+        self._logged_lidar_names = sync_lidar_hits(
+            self._sim, self._env_ids, viewer, viewer.show_lidar_hits, self._logged_lidar_names
+        )
 
     def _render_frame(self) -> None:
         """Render one GL frame for the window or an on-demand capture."""
@@ -1824,7 +1836,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
                         self._log_scene_contact_sensor_arrows()
                     if self.cfg.enable_markers:
                         render_newton_visualization_markers(viewer, self._env_ids, num_envs=self.backend.model.num_envs)
-                self._log_lidar_points(viewer)
+                self._log_lidar_hits(viewer)
             for name, arguments in self._pending_mesh_submissions.items():
                 viewer.log_mesh(name, **arguments)
             self._pending_mesh_submissions.clear()
@@ -2300,6 +2312,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self._viewer.show_inertia_boxes = self.cfg.backend.show_inertia_boxes
         self._viewer.show_com = self.cfg.backend.show_com
         self._viewer.show_particles = self.cfg.backend.show_particles
+        self._viewer.show_lidar_hits = self.cfg.backend.show_lidar_hits
         self._viewer.up_axis = 2  # Z-up
         self._viewer.scaling = 1.0
         self._viewer.particle_color = self.cfg.backend.particle_color

@@ -10,7 +10,7 @@ It accompanies the tutorial on docker usage.
 .. code-block:: bash
 
     # Usage
-    uv run python scripts/tutorials/00_sim/log_time.py
+    uv run --extra ov python scripts/tutorials/00_sim/log_time.py
 
 """
 
@@ -19,13 +19,20 @@ It accompanies the tutorial on docker usage.
 
 import argparse
 import os
+from types import SimpleNamespace
+
+from isaaclab_ov.physics import OvPhysxCfg
 
 from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.assets import AssetBaseCfg
+from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.utils import instantiate
 
 # create argparser
 parser = argparse.ArgumentParser(description="Tutorial on creating logs from within the docker container.")
 # append simulation launcher cli args
 add_launcher_args(parser)
+parser.set_defaults(visualizer=["newton_rtx"])
 # parse the arguments
 args_cli = parser.parse_args()
 
@@ -50,14 +57,21 @@ def main():
     print(f"[INFO] Logging experiment to directory: {log_dir_path}")
 
     # Configure the simulation
-    sim_cfg = SimulationCfg(dt=0.01, device=args_cli.device)
+    sim_cfg = SimulationCfg(
+        physics=OvPhysxCfg(),
+        dt=0.01,
+        device=args_cli.device,
+    )
     # Launch the simulator runtime that the configuration needs
-    with launch_simulation(sim_cfg, args_cli):
+    scene_cfg = InteractiveSceneCfg(num_envs=1, env_spacing=0.0)
+    scene_cfg.world = AssetBaseCfg(prim_path="/World")
+    with launch_simulation(SimpleNamespace(sim=sim_cfg, scene=scene_cfg), args_cli):
         # Initialize the simulation context
         sim = SimulationContext(sim_cfg)
         # Set main camera
         sim.set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
 
+        _scene = instantiate(scene_cfg)
         # Play the simulator
         sim.reset()
         # Now we are ready!

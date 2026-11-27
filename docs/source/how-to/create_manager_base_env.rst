@@ -18,6 +18,9 @@ This tutorial builds a Cartpole environment with :class:`envs.ManagerBasedEnv`
 and :class:`envs.ManagerBasedEnvCfg`. The configuration brings together the scene,
 actions, observations, and reset events. Managers execute the configured terms.
 
+The examples use OvPhysX and the Newton RTX visualizer without Isaac Sim. Install the ``ov``
+extra when running them; use ``--viz none`` for headless simulation without rendering.
+
 For rewards and episode termination, continue with
 :ref:`tutorial-create-manager-rl-env`. See :ref:`feature-workflows` for the
 difference between direct and manager-based environments.
@@ -33,7 +36,7 @@ directory.
 
    .. literalinclude:: ../../../scripts/tutorials/03_envs/create_cartpole_base_env.py
       :language: python
-      :emphasize-lines: 50-54, 57-74, 77-111, 114-132, 138-144, 153, 159
+      :emphasize-lines: 52-56, 59-76, 79-113, 116-135, 141-147, 156, 162
       :linenos:
 
 The Code Explained
@@ -208,12 +211,11 @@ To run the base environment made in this tutorial, you can use the following com
 
       .. code-block:: bash
 
-         uv run python scripts/tutorials/03_envs/create_cartpole_base_env.py --num_envs 32 --viz kit
+         uv run --extra ov python scripts/tutorials/03_envs/create_cartpole_base_env.py --num_envs 32 --viz newton_rtx
 
 This should open a stage with a ground plane, light source, and cartpoles. The simulation should be
-playing with random actions on the cartpole. Additionally, it opens a UI window on the bottom
-right corner of the screen named ``"Isaac Lab"``. This window contains different UI elements that
-can be used for debugging and visualization.
+playing with random actions on the cartpole. The Newton RTX window displays the scene; its
+sidebar provides simulation and camera controls.
 
 
 .. figure:: ../_static/tutorials/tutorial_create_manager_rl_env.jpg
@@ -226,7 +228,10 @@ started the simulation.
 
 In this tutorial, we learned about the different managers that help define a base environment. We
 include more examples of defining the base environment in the ``scripts/tutorials/03_envs``
-directory. For completeness, they can be run using the following commands:
+directory. For completeness, they can be run using the following commands. The cube wraps its spawned
+material in a :class:`~assets.VisualMaterialCfg` and randomizes its color once at startup with
+:class:`~envs.mdp.randomize_visual_material`. Runtime material writes require initialization,
+so this event uses ``startup`` rather than ``prestartup`` and does not require Kit Replicator:
 
 .. tab-set::
 
@@ -235,10 +240,10 @@ directory. For completeness, they can be run using the following commands:
       .. code-block:: bash
 
          # Floating cube environment with custom action term for PD control
-         uv run python scripts/tutorials/03_envs/create_cube_base_env.py --num_envs 32 --viz kit
+         uv run --extra ov python scripts/tutorials/03_envs/create_cube_base_env.py --num_envs 32 --viz newton_rtx
 
          # Quadrupedal locomotion environment with a policy that interacts with the environment
-         uv run python scripts/tutorials/03_envs/create_quadruped_base_env.py --num_envs 32 --viz kit
+         uv run --extra ov python scripts/tutorials/03_envs/create_quadruped_base_env.py --num_envs 32 --viz newton_rtx
 
 In the following tutorial, we will look at the :class:`envs.ManagerBasedRLEnv` class and how to use it
 to create a Markovian Decision Process (MDP).

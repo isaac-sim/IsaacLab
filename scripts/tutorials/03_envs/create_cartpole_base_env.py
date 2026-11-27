@@ -9,7 +9,7 @@ scene, action, observation and event managers to create an environment.
 
 .. code-block:: bash
 
-    uv run python scripts/tutorials/03_envs/create_cartpole_base_env.py --num_envs 32
+    uv run --extra ov python scripts/tutorials/03_envs/create_cartpole_base_env.py --num_envs 32
 
 """
 
@@ -26,6 +26,7 @@ parser.add_argument("--num_envs", type=int, default=16, help="Number of environm
 
 # append simulation launcher cli args
 add_launcher_args(parser)
+parser.set_defaults(visualizer=["newton_rtx"])
 # parse the arguments
 args_cli = parser.parse_args()
 
@@ -34,6 +35,7 @@ args_cli = parser.parse_args()
 import math
 
 import torch
+from isaaclab_ov.physics import OvPhysxCfg
 
 import isaaclab.envs.mdp as mdp
 from isaaclab.envs import ManagerBasedEnvCfg
@@ -129,6 +131,7 @@ class CartpoleEnvCfg(ManagerBasedEnvCfg):
         # step settings
         self.decimation = 4  # env step every 4 sim steps: 200Hz / 4 = 50Hz
         # simulation settings
+        self.sim.physics = OvPhysxCfg()
         self.sim.dt = 0.005  # sim step every 5ms: 200Hz
 
 

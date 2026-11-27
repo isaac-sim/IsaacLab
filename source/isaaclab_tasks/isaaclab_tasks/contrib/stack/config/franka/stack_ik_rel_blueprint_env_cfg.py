@@ -22,6 +22,8 @@ from isaaclab.sensors import CameraCfg
 from isaaclab.utils import configclass, replace
 from isaaclab.utils.images import normalize_camera_image
 
+from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
+
 from ... import mdp
 from . import stack_joint_pos_env_cfg
 
@@ -250,6 +252,7 @@ class FrankaCubeStackBlueprintEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvC
 
         # Set table view camera
         self.scene.table_cam = CameraCfg(
+            renderer_cfg=MultiBackendRendererCfg().rtx,
             prim_path="{ENV_REGEX_NS}/table_cam",
             update_period=0.0333,
             height=704,
@@ -265,6 +268,7 @@ class FrankaCubeStackBlueprintEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvC
 
         # Set table view camera
         self.scene.table_high_cam = CameraCfg(
+            renderer_cfg=MultiBackendRendererCfg().rtx,
             prim_path="{ENV_REGEX_NS}/table_high_cam",
             update_period=0.0333,
             height=704,

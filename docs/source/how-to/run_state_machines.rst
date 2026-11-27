@@ -22,8 +22,8 @@ goal pose:
 
 .. code-block:: bash
 
-   uv run python scripts/environments/state_machine/lift_cube_sm.py \
-      --num_envs 32 --viz kit
+   uv run --extra ov python scripts/environments/state_machine/lift_cube_sm.py \
+      --num_envs 32 --viz newton_rtx
 
 Lift a deformable object
 ------------------------

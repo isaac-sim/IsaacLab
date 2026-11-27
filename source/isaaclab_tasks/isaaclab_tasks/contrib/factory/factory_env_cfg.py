@@ -3,9 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_isaacsim.physics import PhysxCfg
 from isaaclab_isaacsim.sim.schemas import PhysxArticulationCfg, PhysxCollisionCfg, PhysxRigidBodyCfg
 from isaaclab_newton.sim.schemas import NewtonArticulationCfg
+from isaaclab_ov.physics import OvPhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -17,6 +17,22 @@ from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from .factory_tasks_cfg import ASSET_DIR, FactoryTask, GearMesh, NutThread, PegInsert
+
+FRANKA_MIMIC_ISAACSIM_BODY_ORDER = (
+    "panda_link0",
+    "panda_link1",
+    "panda_link2",
+    "panda_link3",
+    "panda_link4",
+    "panda_link5",
+    "panda_link6",
+    "panda_link7",
+    "force_sensor",
+    "panda_hand",
+    "panda_leftfinger",
+    "panda_rightfinger",
+    "panda_fingertip_centered",
+)
 
 OBS_DIM_CFG = {
     "fingertip_pos": 3,
@@ -100,6 +116,7 @@ class FactorySceneCfg(InteractiveSceneCfg):
     )
 
     robot = ArticulationCfg(
+        body_ordering=FRANKA_MIMIC_ISAACSIM_BODY_ORDER,
         prim_path="{ENV_REGEX_NS}/Robot",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ASSET_DIR}/franka_mimic.usd",
@@ -207,7 +224,9 @@ class FactoryEnvCfg(DirectRLEnvCfg):
         device="cuda:0",
         dt=1 / 120,
         gravity=(0.0, 0.0, -9.81),
-        physics=PhysxCfg(
+        physics=OvPhysxCfg(
+            # Measured from Isaac Sim 6.2 native DOF friction properties for this asset.
+            legacy_joint_friction_replacements={"panda_finger_joint.*": (0.1, 0.0, 0.0)},
             solver_type=1,
             max_position_iteration_count=192,  # Important to avoid interpenetration.
             max_velocity_iteration_count=1,

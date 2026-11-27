@@ -512,9 +512,13 @@ def test_rlinf_rejects_pretrained_checkpoint() -> None:
         resolve_rlinf_checkpoint("pretrained", log_root_path="logs/rlinf", task="Isaac-Task", config_name="ppo")
 
 
-@pytest.mark.parametrize("backend", [train_rlinf, play_rlinf], ids=["train", "play"])
-def test_rlinf_launch_passes_checkpoint_and_model_config_to_workers(tmp_path: Path, monkeypatch, backend) -> None:
-    """Real CLI composition supplies the native RLinf weight/resume hooks before workers start."""
+def test_rlinf_launch_passes_checkpoint_and_model_config_to_workers(tmp_path: Path, monkeypatch) -> None:
+    """Real CLI composition supplies the native RLinf weight/resume hooks before workers start.
+
+    The config directory is given relative to the working directory. Training records its run manifest, and
+    playback resolves ``latest`` through that manifest although the recipe's eval task id differs from its
+    training id.
+    """
     validate = mock.Mock(side_effect=RuntimeError("worker boundary"))
     modules = {
         "rlinf": {},
@@ -534,10 +538,6 @@ def test_rlinf_launch_passes_checkpoint_and_model_config_to_workers(tmp_path: Pa
     monkeypatch.chdir(tmp_path)
     for variable in ("PYTHONPATH", "RLINF_CONFIG_FILE", "RLINF_EXT_MODULE", "RAY_ENABLE_UV_RUN_RUNTIME_ENV"):
         monkeypatch.delenv(variable, raising=False)
-    step_dir = tmp_path / "checkpoints" / "global_step_400"
-    weights = step_dir / "actor" / "model_state_dict" / "full_weights.pt"
-    weights.parent.mkdir(parents=True)
-    weights.touch()
     cfg = OmegaConf.create(
         {
             "runner": {"logger": {"log_path": "unused"}},
@@ -545,23 +545,37 @@ def test_rlinf_launch_passes_checkpoint_and_model_config_to_workers(tmp_path: Pa
                 "model": {"model_path": "./base", "model_type": "gr00t", "rl_head_config": {"add_value_head": True}}
             },
             "rollout": {"model": {"model_path": "./rollout", "rl_head_config": {"disable_dropout": True}}},
-            "env": {"train": {"init_params": {"id": "Test"}}, "eval": {"init_params": {"id": "Test"}}},
+            "env": {"train": {"init_params": {"id": "Test"}}, "eval": {"init_params": {"id": "Test-Eval"}}},
         }
     )
     OmegaConf.save(cfg, tmp_path / "ppo.yaml")
-    checkpoint = step_dir if backend is train_rlinf else weights
-    args = ["--config_path", str(tmp_path), "--config_name", "ppo"]
-    args += ["--checkpoint", str(checkpoint.relative_to(tmp_path))]
-    with pytest.raises(RuntimeError, match="worker boundary"):
-        backend.run(args)
-    GlobalHydra.instance().clear()
+
+    def launch(backend, checkpoint: str):
+        with pytest.raises(RuntimeError, match="worker boundary"):
+            backend.run(["--config_path", ".", "--config_name", "ppo", "--checkpoint", checkpoint])
+        GlobalHydra.instance().clear()
+        resolved = validate.call_args.args[0]
+        assert resolved.actor.model.model_path == str(tmp_path / "base")
+        assert resolved.rollout.model.model_path == str(tmp_path / "rollout")
+        assert resolved.rollout.model.model_type == "gr00t"
+        assert dict(resolved.rollout.model.rl_head_config) == {"add_value_head": True, "disable_dropout": True}
+        return resolved
+
+    resume_dir = tmp_path / "previous" / "global_step_400"
+    resume_weights = resume_dir / "actor" / "model_state_dict" / "full_weights.pt"
+    resume_weights.parent.mkdir(parents=True)
+    resume_weights.touch()
+    trained = launch(train_rlinf, str(resume_dir.relative_to(tmp_path)))
     assert os.environ["RAY_ENABLE_UV_RUN_RUNTIME_ENV"] == "0"
-    resolved = validate.call_args.args[0]
-    assert resolved.runner["resume_dir" if backend is train_rlinf else "ckpt_path"] == str(checkpoint)
-    assert resolved.actor.model.model_path == str(tmp_path / "base")
-    assert resolved.rollout.model.model_path == str(tmp_path / "rollout")
-    assert resolved.rollout.model.model_type == "gr00t"
-    assert dict(resolved.rollout.model.rl_head_config) == {"add_value_head": True, "disable_dropout": True}
+    assert trained.runner.resume_dir == str(resume_dir)
+
+    # the training launch above created the only manifested run; RLinf saves checkpoints below its run directory
+    (run_dir,) = (tmp_path / "logs" / "rlinf").iterdir()
+    weights = run_dir / "checkpoints" / "global_step_8" / "actor" / "model_state_dict" / "full_weights.pt"
+    weights.parent.mkdir(parents=True)
+    weights.touch()
+    played = launch(play_rlinf, "latest")
+    assert played.runner.ckpt_path == str(weights)
 
 
 def test_run_backend_restores_sys_argv_after_training(monkeypatch) -> None:
@@ -658,6 +672,18 @@ def test_dispatch_uses_task_registered_default_backend(monkeypatch) -> None:
         gym.registry.pop(task_name, None)
 
     assert received == {"module_name": "isaaclab_rl.entrypoints.backends.train_rsl_rl", "argv": ["--task", task_name]}
+
+
+def test_dispatch_finds_the_default_backend_of_experimental_tasks() -> None:
+    """Tasks of the optional experimental task package also select their registered default backend."""
+    pytest.importorskip("isaaclab_tasks_experimental")
+    # A fresh process, so that no earlier import has registered the experimental tasks.
+    code = (
+        "from isaaclab_rl.entrypoints.dispatch import _resolve_default_library\n"
+        "print(_resolve_default_library(['--task', 'Isaac-Cartpole-MDP2'], {'rsl_rl': ''}))"
+    )
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True)
+    assert result.stdout.strip().splitlines()[-1] == "rsl_rl"
 
 
 def test_dispatch_fuses_option_like_kit_args(monkeypatch) -> None:
@@ -987,7 +1013,7 @@ def test_custom_rsl_models_construct_from_serialized_configs(entry: str, num_act
 
 
 def test_sac_configuration_tracks_native_constructor() -> None:
-    """Typed SAC options match the native constructor arguments and defaults."""
+    """Typed SAC options track the constructor while retaining the task learning rates."""
     import inspect
     from dataclasses import MISSING, fields
 
@@ -1002,4 +1028,9 @@ def test_sac_configuration_tracks_native_constructor() -> None:
     assert {field.name for field in fields(cfg)} - construction == set(parameters) - injected
     for name, parameter in parameters.items():
         if name not in injected and not isinstance(getattr(cfg, name), type(MISSING)):
-            assert getattr(cfg, name) == parameter.default, name
+            expected = (
+                1e-4
+                if name in {"actor_learning_rate", "critic_learning_rate", "alpha_learning_rate"}
+                else parameter.default
+            )
+            assert getattr(cfg, name) == expected, name

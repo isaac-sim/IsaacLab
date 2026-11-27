@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""World-frame lidar hits drawn by the Newton GL, Viser, and Kit visualizers."""
+"""World-frame lidar hits drawn by the Newton GL and Viser visualizers."""
 
 from __future__ import annotations
 
@@ -20,6 +20,7 @@ from isaaclab_visualizers.lidar_points import (
     frame_visualizer_closeup,
     lidar_world_points,
     log_lidar_hits,
+    sync_lidar_hits,
 )
 
 from isaaclab.test.utils import DeviceScope, test_devices
@@ -86,8 +87,8 @@ def _world_lidar(points: torch.Tensor, valid: torch.Tensor):
     return _Lidar()
 
 
-def test_collect_lidar_hits_returns_lidar_clouds_on_the_interval():
-    """Only lidar sensors are returned, and only on every tenth step."""
+def _lidar_sim():
+    """Simulation stand-in with one hit lidar, one empty lidar, and a non-lidar sensor."""
     scene = SimpleNamespace(
         sensors={
             "range": _world_lidar(torch.tensor([[[1.0, 2.0, 3.0]]]), torch.tensor([[True]])),
@@ -97,10 +98,12 @@ def test_collect_lidar_hits_returns_lidar_clouds_on_the_interval():
             "camera": object(),
         }
     )
-    sim = SimpleNamespace(get_scene_data_provider=lambda: SimpleNamespace(get_interactive_scene=lambda: scene))
+    return SimpleNamespace(get_scene_data_provider=lambda: SimpleNamespace(get_interactive_scene=lambda: scene))
 
-    assert collect_lidar_hits(sim, [0], 9) is None
-    hits = collect_lidar_hits(sim, [0], 10)
+
+def test_collect_lidar_hits_returns_lidar_clouds():
+    """Only lidar sensors are returned, including an empty cloud so a viewer can hide the last batch."""
+    hits = collect_lidar_hits(_lidar_sim(), [0])
     assert [name for name, _ in hits] == ["range", "empty"]
     np.testing.assert_allclose(hits[0][1], [[1.0, 2.0, 3.0]])
     assert hits[1][1].shape == (0, 3)
@@ -114,7 +117,7 @@ def test_collect_lidar_hits_draws_every_environment_without_a_subset():
     )
     scene = SimpleNamespace(sensors={"lidar": sensor})
     sim = SimpleNamespace(get_scene_data_provider=lambda: SimpleNamespace(get_interactive_scene=lambda: scene))
-    hits = collect_lidar_hits(sim, None, 10)
+    hits = collect_lidar_hits(sim, None)
     np.testing.assert_allclose(hits[0][1], [[70.0, -70.0, 1.0], [10.0, -10.0, 2.0]])
 
 
@@ -169,6 +172,25 @@ class _ViewerGL(_RecordingViewer):
 
 class _ViewerViser(_RecordingViewer):
     """Name matches the Viser viewer, which copies the batch on the CPU."""
+
+
+def test_sync_lidar_hits_hides_previous_clouds_until_enabled():
+    """A disabled overlay hides the last batch without reading the scene. Enabling uploads lidar hits."""
+    viewer = _ViewerViser("cpu")
+    assert sync_lidar_hits(None, [0], viewer, False, []) == []
+    assert viewer.batches == []
+
+    assert sync_lidar_hits(None, [0], viewer, False, ["range"]) == []
+    name, cloud, _, _ = viewer.batches[0]
+    assert name == "lidar/range"
+    assert cloud is None
+
+    names = sync_lidar_hits(_lidar_sim(), [0], viewer, True, [])
+    assert names == ["range", "empty"]
+    uploaded = [batch[0] for batch in viewer.batches[1:]]
+    assert uploaded == ["lidar/range", "lidar/empty"]
+    np.testing.assert_allclose(viewer.batches[1][1].numpy(), [[1.0, 2.0, 3.0]])
+    assert viewer.batches[2][1] is None
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))

@@ -87,6 +87,11 @@ class BaseRigidObjectCollection(AssetBase):
         raise NotImplementedError()
 
     @property
+    def mesh_variant_ids(self) -> ProxyArray:
+        """Selected mesh variant per environment and object, shape ``(num_instances, num_bodies)``."""
+        raise NotImplementedError(f"Backend {self.__backend_name__!r} does not support reset-time mesh selection.")
+
+    @property
     @abstractmethod
     def root_view(self):
         """Root view for the rigid object collection.
@@ -193,6 +198,16 @@ class BaseRigidObjectCollection(AssetBase):
     """
     Operations - Write to simulation.
     """
+
+    def write_mesh_variant_to_sim(
+        self, variant_ids: torch.Tensor | wp.array, env_ids: Sequence[int] | torch.Tensor | wp.array | None = None
+    ) -> None:
+        """Select geometry and inertia for every object in the requested environments.
+
+        ``variant_ids`` has shape ``(len(env_ids), num_bodies)``. Each column indexes its member's
+        multi-asset spawner in declaration order. Unsupported backends raise ``NotImplementedError``.
+        """
+        raise NotImplementedError(f"Backend {self.__backend_name__!r} does not support reset-time mesh selection.")
 
     @abstractmethod
     def write_body_pose_to_sim_index(

@@ -394,6 +394,33 @@ def test_inclusion_semantic_groups_remain_factorized_until_scene_selection():
     assert (rows % 5 == rows[:, :1] % 5).all()
     assert (rows[:, 0] % 1000 != rows[:, 1] % 1000).any()
 
+    # Category-first sampling alone must not mean all slots share a category or enumerate worlds.
+    sampled, weights = make_valid_clone_combinations(
+        ["left", "right"],
+        [variants, list(reversed(variants))],
+        [InclusionSet(assets=["left", "right"], sample_by="category")],
+    )
+    assert len(sampled) == 1
+    plan = make_clone_plan(variants + list(reversed(variants)), sampled, 5, weights=weights)
+    rows = plan.topology.world_prototypes.reshape(-1, 2)
+    np.testing.assert_array_equal(rows[:, 0] % 5, np.arange(5))
+    np.testing.assert_array_equal((1999 - rows[:, 1]) % 5, np.arange(4, -1, -1))
+    untagged = variants[0].replace(semantic_tags=[])
+    # Entry sampling treats each asset equally and does not require category tags.
+    entries = [variants[0], variants[5], untagged]
+    direct, weights = make_valid_clone_combinations(
+        ["item"], [entries], [InclusionSet(assets=["item"], sample_by="entry")]
+    )
+    plan = make_clone_plan(entries, direct, 6, weights=weights)
+    topology = plan.topology
+    selected = topology.world_prototypes[topology.world_prototype_starts[topology.world_prototype_layout + 1]]
+    np.testing.assert_array_equal(np.bincount(selected), [2, 2, 2])
+    for mode in ("size", None):
+        with pytest.raises(ValueError, match="sample_by must be 'category' or 'entry'"):
+            make_valid_clone_combinations(["item"], [entries], [InclusionSet(assets=["item"], sample_by=mode)])
+    with pytest.raises(ValueError, match="without 'category' tags"):
+        make_valid_clone_combinations(["item"], [[untagged]], [InclusionSet(assets=["item"], sample_by="category")])
+
 
 def test_inclusion_multi_value_tags_repeated_instances_and_unclaimed_assets():
     gears = [

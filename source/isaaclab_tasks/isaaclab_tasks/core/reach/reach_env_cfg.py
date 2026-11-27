@@ -42,7 +42,7 @@ class ReachPhysicsCfg(PresetCfg):
     """Physics backend presets for the reach environments."""
 
     isaacsim_physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
-    ovphysx: OvPhysxCfg = OvPhysxCfg()
+    ovphysx: OvPhysxCfg = OvPhysxCfg(bounce_threshold_velocity=0.2)
     physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
 
     newton_mjwarp: NewtonCfg = NewtonCfg(

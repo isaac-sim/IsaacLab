@@ -319,7 +319,10 @@ class OvPhysxFrameView(BaseFrameView):
             for group in np.flatnonzero(np.diff(world_starts[1:])) + 1:
                 for index in range(*starts[group : group + 2]):
                     if (matched := cloner.path.match(prim_path, templates[index])) is not None:
-                        matches.append((group, index, matched))
+                        source = sources[plan.topology.world_prototypes[index]]
+                        # A camera declaration can retain a regex path beneath its owning asset.
+                        if source is not None and Sdf.Path.IsValidPathString(source) and stage.GetPrimAtPath(source):
+                            matches.append((group, index, matched))
         self._source_sites = []
         self._prims: list[Usd.Prim] = []
         if matches:

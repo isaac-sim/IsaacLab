@@ -109,6 +109,15 @@ class ActuatorBase(ABC):
     If a class inherits from :class:`ImplicitActuator`, then this flag should be set to :obj:`True`.
     """
 
+    capturable: ClassVar[bool] = False
+    """Whether :meth:`compute` and :meth:`reset` with an ``env_mask`` can be recorded into a CUDA graph and replayed.
+
+    They must then not synchronize with the host, nor draw from Torch's random generators, which cannot record their
+    draws when Torch joins the capture on the capturing stream. Environments that replay their steps as
+    graphs with Torch work inside them, such as MDP2's, accept only such actuators. Unlike
+    :attr:`~isaaclab.actuators.ActuatorCollection.is_graphable`, Torch models qualify.
+    """
+
     computed_effort: torch.Tensor
     """The computed effort [N or N·m, depending on joint type] for the actuator group.
 
