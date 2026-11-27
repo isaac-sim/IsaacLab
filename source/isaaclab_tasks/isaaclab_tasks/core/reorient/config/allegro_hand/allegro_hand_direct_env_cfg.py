@@ -102,3 +102,4 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
             viewer.eye = VISUALIZER_CFG.eye
             viewer.lookat = VISUALIZER_CFG.lookat
             viewer.focal_length = VISUALIZER_CFG.focal_length
+            viewer.cameras = [camera.replace() for camera in VISUALIZER_CFG.cameras]

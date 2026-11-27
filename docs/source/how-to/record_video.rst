@@ -282,6 +282,8 @@ The ``source`` string selects what to capture:
      - Newton visualizer viewport, in whichever renderer the window shows (OpenGL or RTX)
    * - ``"viz:newton:streaming_view"``
      - Newton streaming camera panel, requires ``streaming_view=True``
+   * - ``"viz:newton:tracking"``
+     - First ``TrackingCameraCfg`` of the visualizer, whichever view the window shows; see :ref:`how-to-visualizer-tracking-cameras`
    * - ``"sensor:<name>"``
      - ``env.scene.sensors[name]``, RGB (default)
    * - ``"sensor:<name>:rgb"``
@@ -307,6 +309,11 @@ types are accepted here too, e.g. ``VideoRecorderCfg(source="newton")`` is equiv
    Use ``NewtonGLBackendCfg(initial_renderer="rtx")`` to record the RTX viewport, including
    headless runs. The recorder source remains ``"viz:newton"``; ``newton_rtx`` selects the
    renderer when launching the visualizer.
+
+.. note::
+
+   Recording a Tracking Camera with ``"viz:newton:tracking"`` while the window shows another source briefly draws the
+   tracking view in the window on each recorded frame.
 
 
 Clip control

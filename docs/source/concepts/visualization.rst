@@ -309,9 +309,9 @@ Visualizer Overview
          staircase sub-terrain</p>
 
       Picking, visualization markers, camera selection, pause controls, Visible Envs, and recording work in
-      the RTX view of a windowed Newton visualizer, and picking draws the drag arrow there. Joint, contact, spring,
-      center-of-mass, and inertia overlays are drawn in the RTX view too; the collision, visual, edge, and wireframe
-      overlays apply to the OpenGL view only.
+      the RTX view of a windowed Newton visualizer, and picking draws the drag arrow there. The model overlays
+      (joint, contact, spring, center-of-mass, inertia, collision, visual, edge, and wireframe) apply to the OpenGL
+      view only.
 
       .. warning::
 
@@ -553,14 +553,14 @@ task's wrist-mounted and ego cameras. The view is supported in the Kit, Newton,
 Rerun, and Viser visualizers. **Kit** opens it as a separate **Streaming View** viewport, which can
 sit side by side with the default viewport for dual monitoring. **Newton**
 provides a **Camera Source** selector in the sidebar for switching between perspective and scene-camera
-views.
+views. A perspective view can also be a *tracking camera* that follows a robot or frames an environment.
 Selecting a scene sensor in **Camera Source** shows its channel: the **Channel** selector lists the
 sensor's outputs (RGB, depth, normals, or segmentation), and depth, normals, and segmentation are
 converted to colors for display. When the sensor is declared once per environment, **Tiled Envs**
 sets how many of its feeds are tiled into the window.
 
 See :doc:`/source/how-to/visualizer_streaming_camera_view` for the ``VisualizerCfg`` options, display
-sources, troubleshooting, migration from generated cameras, and step-by-step examples.
+sources, tracking cameras that follow a robot, troubleshooting, migration from generated cameras, and step-by-step examples.
 
 
 Visualization Markers
@@ -661,6 +661,16 @@ streaming views, and renderer-based sensor data capture.
        <p class="viz-cap">Recorded clip with ground-truth sensor views</p>
      </div>
    </div>
+
+.. _visualization-newton-recording:
+
+Newton Window Recording
+~~~~~~~~~~~~~~~~~~~~~~~
+
+The **Recording** section of the Newton visualizer saves two things: an ``mp4`` video of the window and a ``.png``
+screenshot of the window. Files go to the output
+folder set by :class:`~isaaclab_visualizers.newton.NewtonRecordingCfg`. Video and screenshots can include the HUD
+panels with their **Include HUD** options.
 
 .. _record_video_cli:
 
@@ -778,22 +788,23 @@ Watch training live in Kit while recording from a separate headless Newton angle
 ``--viz kit --video viz:newton`` and giving each visualizer its own camera. See
 :ref:`Recording from an independent camera angle <how_to_record_video_angle>` for the configuration.
 
-**Following a moving robot (Kit)**
+**Following a moving robot**
 
-Lock the Kit camera to a moving asset instead of updating ``eye``/``lookat`` yourself every
-step, running with ``--viz kit``:
+Declare a *tracking camera* instead of updating ``eye``/``lookat`` every step; see :ref:`how-to-visualizer-tracking-cameras`.
+This is Newton GL only. Kit ignores a ``TrackingCameraCfg`` and follows an asset with
+``KitBackendCfg(origin_type="asset", origin_track_path="robot")`` instead. For Newton GL:
 
 .. code-block:: python
 
-    from isaaclab_visualizers.kit import KitBackendCfg
-
-    from isaaclab.visualizers import VisualizerCfg
-
-    from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
+    from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
 
     sim_cfg.visualizer_cfgs = VisualizerCfg(
-        eye=(4.0, 4.0, 2.0),
-        backend=MultiBackendVisualizerCfg(kit=KitBackendCfg(origin_type="asset", origin_track_path="robot")),
+        cameras=[
+            TrackingCameraCfg(
+                track_path="robot",  # or "robot/panda_hand" to track a specific body
+                eye=(4.0, 4.0, 2.0),  # offset from the tracked asset
+            ),
+        ],
     )
 
 **Sharing a live view with a remote teammate**
@@ -821,7 +832,7 @@ share button in the native UI.
 Every Newton viewer has a **Visible Envs** slider in its left panel that sets how many
 environments are drawn. It changes only what is rendered, not the simulation. In the RTX view the OVRTX renderer is
 shared with scene cameras, so the hidden environments also drop out of their images while the RTX view is shown;
-the HUD notes this next to the slider.
+the HUD notes this next to the slider. Deformable (soft) objects are not hidden in the RTX view.
 
 Resolution Rules
 ~~~~~~~~~~~~~~~~
@@ -988,8 +999,8 @@ Limitations
      - ✗
      - ✓
 
-In Newton's RTX view, the collision, visual, edge, and wireframe overlays are not available; joint, contact, spring,
-center-of-mass, and inertia overlays are.
+In Newton's RTX view, only the picking drag arrow is drawn; the model overlays (joint, contact, spring,
+center-of-mass, inertia, collision, visual, edge, and wireframe) are not available.
 
 **Lighting differences across visualizers**
 
@@ -1002,7 +1013,9 @@ authored scene through Isaac Lab's OVRTX renderer, shared with cameras using the
 ``OVRTXRendererCfg``. The Newton window displays the rendered GPU image and handles window controls;
 Newton's ``ViewerRTX`` is not constructed. Scene transforms, deformable geometry, and material
 updates follow the camera renderer's normal synchronization. Perspective resolution stays
-fixed when the window is resized; the window scales the image for presentation.
+fixed when the window is resized; the window scales the image for presentation. Use the RTX view in one Newton
+window per run: windows with equal renderer settings share the renderer, the viewer camera and the viewer lights.
+Visualization markers appear in the RTX view through the viewer camera, not through an ordinary scene camera.
 Configure lights and environment placement in the scene. Viewer-only ``rtx_environment`` rigs
 and ``world_spacing`` are no longer supported: declare scene lights for studio lighting, remove
 scene lights for an unlit scene, and set ``InteractiveSceneCfg.env_spacing`` for world placement.

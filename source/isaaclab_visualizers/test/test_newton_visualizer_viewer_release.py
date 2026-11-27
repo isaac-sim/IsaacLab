@@ -94,7 +94,7 @@ def test_close_unbinds_the_perspective_views_it_rendered():
 
 def test_window_controls_do_not_need_a_capture_to_have_run():
     """A fresh visualizer is not borrowing a view, so its window controls draw before the first capture."""
-    assert NewtonGLVisualizer(VisualizerCfg(backend=NewtonGLBackendCfg()))._borrowing_view is False
+    assert NewtonGLVisualizer(VisualizerCfg(backend=NewtonGLBackendCfg()))._capturing_another_view is False
 
 
 def test_window_without_the_rtx_camera_shows_a_disabled_renderer_toggle():
