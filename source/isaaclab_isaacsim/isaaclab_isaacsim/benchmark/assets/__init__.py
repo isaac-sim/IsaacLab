@@ -44,10 +44,7 @@ def _indexed_overrides(method_name, shapes, indices):
         if any(name in {"body_ids", "joint_ids"} for name in indices)
         else make_indexed_generators
     )
-    return {
-        (method_name, mode): generator
-        for mode, generator in generator_factory(shapes, indices).items()
-    }
+    return {(method_name, mode): generator for mode, generator in generator_factory(shapes, indices).items()}
 
 
 def _generator_overrides(component: str):
@@ -64,15 +61,9 @@ def _generator_replacements(component: str):
     if component != "rigid_object":
         return {}
     return {
-        "set_masses": make_indexed_generators(
-            {"masses": ("instances", "bodies")}, {"env_ids": "instances"}
-        ),
-        "set_coms": make_indexed_generators(
-            {"coms": ("instances", "bodies", 7)}, {"env_ids": "instances"}
-        ),
-        "set_inertias": make_indexed_generators(
-            {"inertias": ("instances", "bodies", 9)}, {"env_ids": "instances"}
-        ),
+        "set_masses": make_indexed_generators({"masses": ("instances", "bodies")}, {"env_ids": "instances"}),
+        "set_coms": make_indexed_generators({"coms": ("instances", "bodies", 7)}, {"env_ids": "instances"}),
+        "set_inertias": make_indexed_generators({"inertias": ("instances", "bodies", 9)}, {"env_ids": "instances"}),
     }
 
 

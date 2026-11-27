@@ -13,9 +13,7 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.flat_env_cfg:G1FlatMDP2EnvCfg",
-        "rsl_rl_cfg_entry_point": (
-            "isaaclab_tasks.core.velocity.config.g1.agents.rsl_rl_ppo_cfg:G1FlatPPORunnerCfg"
-        ),
+        "rsl_rl_cfg_entry_point": "isaaclab_tasks.core.velocity.config.g1.agents.rsl_rl_ppo_cfg:G1FlatPPORunnerCfg",
         "default_agent": "rsl_rl",
     },
 )

@@ -9,7 +9,6 @@ import gymnasium as gym
 
 from . import agents
 
-
 gym.register(
     id="IsaacContrib-Multitask-Manipulation",
     entry_point=f"{__name__}.multitask_env:MultitaskManipulationEnv",

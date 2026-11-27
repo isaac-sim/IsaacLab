@@ -9,7 +9,6 @@ import gymnasium as gym
 
 from . import agents
 
-
 gym.register(
     id="IsaacContrib-Shoelace-DualFranka",
     entry_point=f"{__name__}.shoelace_physics:create_shoelace_env",

@@ -116,9 +116,7 @@ def _patch_isaacsim_simulation_manager(manager: Any | None = None) -> None:
 def _default_callbacks_disabled_at_startup(original_class: type) -> bool:
     """Return whether Isaac Sim supports and honored its startup callback setting."""
     implementation_module = sys.modules.get("isaacsim.core.simulation_manager.impl.simulation_manager")
-    if implementation_module is None or not hasattr(
-        implementation_module, "_SETTING_ENABLE_DEFAULT_CALLBACKS"
-    ):
+    if implementation_module is None or not hasattr(implementation_module, "_SETTING_ENABLE_DEFAULT_CALLBACKS"):
         return False
 
     try:

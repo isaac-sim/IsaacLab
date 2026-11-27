@@ -50,7 +50,6 @@ from .physics_materials_cfg import (
     DeformableMaterialFragment,
     OmniPhysicsDeformableMaterialCfg,
     OmniPhysicsSurfaceDeformableMaterialCfg,
-
     SurfaceDeformableBodyMaterialBaseCfg,
     SurfaceDeformableBodyMaterialCfg,
     UsdPhysicsRigidBodyMaterialCfg,

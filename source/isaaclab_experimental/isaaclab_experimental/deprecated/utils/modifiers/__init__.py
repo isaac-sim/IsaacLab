@@ -13,7 +13,8 @@ from .. import tensor_processors as _processors
 __all__ = ["ModifierBase", "ModifierCfg", "bias", "clip", "scale"]
 
 warnings.warn(
-    "isaaclab_experimental.deprecated.utils.modifiers is deprecated; use isaaclab_experimental.deprecated.utils.tensor_processors."
+    "isaaclab_experimental.deprecated.utils.modifiers is deprecated;"
+    " use isaaclab_experimental.deprecated.utils.tensor_processors."
     " ModifierBase and ModifierCfg are now TensorProcessor and TensorProcessorCfg.",
     DeprecationWarning,
     stacklevel=2,

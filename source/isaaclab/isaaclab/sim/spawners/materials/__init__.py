@@ -59,14 +59,16 @@ _stub_getattr, _stub_dir, __all__ = lazy_export()
 # Names that moved out of this module into ``isaaclab_isaacsim.sim.spawners.materials``.
 # Resolved lazily on first access so importing ``isaaclab.sim.spawners.materials`` does
 # not require ``isaaclab_isaacsim`` to be installed.
-_PHYSX_FORWARDS = frozenset({
-    "DeformableBodyMaterialCfg",
-    "RigidBodyMaterialCfg",
-    "SurfaceDeformableBodyMaterialCfg",
-    "PhysxRigidBodyMaterialCfg",
-    "PhysxDeformableBodyMaterialCfg",
-    "PhysxSurfaceDeformableBodyMaterialCfg",
-})
+_PHYSX_FORWARDS = frozenset(
+    {
+        "DeformableBodyMaterialCfg",
+        "RigidBodyMaterialCfg",
+        "SurfaceDeformableBodyMaterialCfg",
+        "PhysxRigidBodyMaterialCfg",
+        "PhysxDeformableBodyMaterialCfg",
+        "PhysxSurfaceDeformableBodyMaterialCfg",
+    }
+)
 
 
 def __getattr__(name):

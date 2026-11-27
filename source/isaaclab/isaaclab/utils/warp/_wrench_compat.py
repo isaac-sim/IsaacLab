@@ -77,8 +77,15 @@ def reset_wrench_composer_index(
 ):
     env, body = wp.tid()
     wrench._reset_wrench(
-        global_force_w, global_torque_w, global_force_at_com_w, local_force_b, local_torque_b,
-        out_force_b, out_torque_b, wp.int32(env_ids[env]), body,
+        global_force_w,
+        global_torque_w,
+        global_force_at_com_w,
+        local_force_b,
+        local_torque_b,
+        out_force_b,
+        out_torque_b,
+        wp.int32(env_ids[env]),
+        body,
     )
 
 

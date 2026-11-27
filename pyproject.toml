@@ -265,8 +265,9 @@ target-version = "py310"
 extend-exclude = [
     "logs",
     "_isaac_sim",
+    "_build",
+    "_repo",
     ".vscode",
-    "_*",
     ".git",
 ]
 
@@ -299,6 +300,10 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]  # Allow unused imports in __init__.py files
+# __init__.pyi stubs are export lists that lazy_export() parses at runtime: every
+# import is a re-export, wildcards are intentional, and import order decides which
+# definition wins, so the linter must not drop, merge or reorder them.
+"__init__.pyi" = ["F401", "F403", "F811", "I001"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 30

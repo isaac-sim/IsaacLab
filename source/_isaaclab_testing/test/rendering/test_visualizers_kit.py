@@ -24,8 +24,8 @@ import numpy as np
 import pytest
 import torch
 from golden_image import compare_to_golden
-from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_isaacsim.renderers import IsaacRtxRendererCfg
+from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_visualizers.kit import KitBackendCfg
 from isaaclab_visualizers.newton import NewtonGLBackendCfg
 from isaaclab_visualizers.rerun import RerunBackendCfg
@@ -67,7 +67,7 @@ pytestmark = pytest.mark.isaacsim_ci
     ]
     + [("cartpole", "all_envs", "physx")],
 )
-def test_visualizer_images_and_motion(scene, mode, physics, request, caplog, capsys):
+def test_visualizer_images_and_motion(scene, mode, physics, request, caplog, capsys):  # noqa: C901
     """Render the original scenes and poses through both backends without task managers.
 
     scene_states.npz records the original captures at 8c9b995: root/joint poses, cube poses,
