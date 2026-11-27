@@ -15,7 +15,8 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_ov.renderers import OVRTXLidarCfg
-from isaaclab_ov.renderers.ovrtx_lidar_sensor import OVRTXLidar
+from isaaclab_ov.renderers.ovrtx_lidar import lidar_scan_and_step_ns
+from isaaclab_ov.renderers.ovrtx_lidar_sensor import OVRTXLidar, _frame_rate
 
 from isaaclab.utils import validate
 from isaaclab.utils.warp import ProxyArray
@@ -44,10 +45,19 @@ def test_lidar_cfg_rejects_dropped_misses():
         validate(_lidar_cfg(include_invalid_points=False))
 
 
-def test_lidar_cfg_rejects_a_non_positive_azimuth_step():
-    """A rotary step of zero cannot divide the azimuth window."""
-    with pytest.raises(ValueError, match="rot_pattern_firing_res_deg"):
-        _lidar_cfg(rot_pattern_firing_res_deg=0.0)
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("rot_pattern_firing_res_deg", 0.0),
+        ("frame_rate", 0.0),
+        ("frame_rate", -1.0),
+        ("frame_rate", math.inf),
+    ],
+)
+def test_lidar_cfg_rejects_an_invalid_rate(field, value):
+    """A zero azimuth step cannot divide the azimuth window, and a frame rate must be finite and positive."""
+    with pytest.raises(ValueError, match=field):
+        _lidar_cfg(**{field: value})
 
 
 @pytest.mark.parametrize(
@@ -90,6 +100,39 @@ def test_lidar_cfg_rejects_a_non_positive_azimuth_step():
 def test_lidar_scan_slot_count(overrides, expected):
     """A solid-state scan keeps one slot per pattern ray, and a rotary scan repeats that pattern."""
     assert _lidar_cfg(**overrides).num_rays() == expected
+
+
+@pytest.mark.parametrize(
+    ("frame_rate", "instant_lidar", "capture_interval", "expected"),
+    [
+        (None, False, 0.15, (1e9, 150000000)),
+        (None, False, 1 / 60, (1e9, 16666667)),
+        (10.0, False, 0.1, (1e9, 100000000)),
+        (10.0, False, 0.3, (1e9, 100000000)),
+        (120.0, False, 1 / 60, (1e9, 8333333)),
+        (10.0, True, 0.15, (1e9, 100000000)),
+        (10.0, False, 0.15, None),
+        (10.0, False, 0.05, None),
+    ],
+)
+def test_lidar_frame_rate_spans_whole_scans(frame_rate, instant_lidar, capture_interval, expected):
+    """A scanned lidar must end each capture on a whole scan. An instant lidar accepts any capture interval."""
+    cfg = _lidar_cfg(frame_rate=frame_rate, instant_lidar=instant_lidar)
+    if expected is None:
+        with pytest.raises(ValueError, match="whole scans"):
+            _frame_rate(cfg, capture_interval)
+    else:
+        assert tuple(_frame_rate(cfg, capture_interval)) == pytest.approx(expected)
+
+
+@pytest.mark.parametrize(
+    ("frame_rate", "expected"),
+    [(None, (16666667, 16666667)), (120.0, (8333333, 16666666))],
+)
+def test_lidar_capture_steps_whole_nanosecond_scans(frame_rate, expected):
+    """A 1/60 s capture steps the renderer by whole scans of whole nanoseconds, the unit OvRTX times frames in."""
+    cfg = _lidar_cfg(frame_rate=frame_rate, instant_lidar=False)
+    assert lidar_scan_and_step_ns(cfg, 1 / 60) == expected
 
 
 def _lidar_without_runtime(*, num_envs: int, is_global: bool = False) -> OVRTXLidar:
@@ -192,6 +235,7 @@ def test_tiled_lidar_returns_are_local_to_each_environment():
         spherical = replace(lidar, prim_path="{ENV_REGEX_NS}/Spherical", elements_coords_type="SPHERICAL")
         world = replace(lidar, prim_path="{ENV_REGEX_NS}/WorldLidar", output_frame_of_reference="WORLD")
         world_spherical = replace(world, prim_path="{ENV_REGEX_NS}/WorldSpherical", elements_coords_type="SPHERICAL")
+        non_instant = replace(lidar, prim_path="{ENV_REGEX_NS}/NonInstant", instant_lidar=False)
 
     with sim_utils.build_simulation_context(sim_cfg=sim_utils.SimulationCfg(physics=OvPhysxCfg())) as sim:
         scene = instantiate(SceneCfg(num_envs=2, env_spacing=8.0))
@@ -207,7 +251,11 @@ def test_tiled_lidar_returns_are_local_to_each_environment():
         assert torch.isfinite(points).all()
         torch.testing.assert_close(points[0], points[1], atol=1e-3, rtol=0.0)
 
-        for native, converted in ((lidar, scene["spherical"]), (scene["world"], scene["world_spherical"])):
+        for native, converted in (
+            (lidar, scene["spherical"]),
+            (scene["world"], scene["world_spherical"]),
+            (lidar, scene["non_instant"]),
+        ):
             expected, actual = native.data, converted.data
             assert expected.valid.torch.all()
             torch.testing.assert_close(actual.valid.torch, expected.valid.torch)

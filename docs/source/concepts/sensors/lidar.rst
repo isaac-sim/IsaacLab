@@ -52,7 +52,9 @@ Read the point cloud
 
 In a standalone simulation loop, advance physics and the scene's sensor clocks before reading
 the measurement. Reading ``data`` captures the scan when it is due. The default
-``update_period=0.0`` samples every simulation step.
+``update_period=0.0`` makes the sensor due every physics step. Reads before the next capture is due
+return cached data. The timing settings below apply when the sensor clocks advance and data is read
+each step; a forced update can capture before the period expires.
 
 .. code-block:: python
 
@@ -81,6 +83,77 @@ front and rear sensors on one robot, declare two fields with distinct prim paths
 ``scene["front_lidar"].data`` and ``scene["rear_lidar"].data`` independently.
 Calling ``scene["front_lidar"].reset(env_ids=[0])`` clears that sensor's returns for
 environment zero and preserves the other environments' returns.
+
+Capture period, scan rate, and instant mode
+------------------------------------------------------------
+
+The three settings answer different questions:
+
+* ``update_period`` is the interval in simulation seconds at which Isaac Lab makes a capture due.
+  Zero uses every physics step; it does not enable instant mode.
+* ``frame_rate`` is the renderer's scan frequency in Hz. The default ``None`` derives it from the
+  capture interval: ``1 / update_period``, or ``1 / physics_dt`` when ``update_period`` is zero.
+  For example, a 0.1 s capture interval gives 10 Hz. ``frame_rate=0`` is invalid.
+* ``instant_lidar=True`` (the default) traces a complete scan at a single renderer-frame timestamp,
+  with zero firing-time offsets. With ``False``, the renderer follows the firing schedule within
+  the scan period. Both modes use the same Isaac Lab capture scheduling.
+
+With ``frame_rate=None``, each capture spans exactly one scan period. Increasing ``update_period``
+therefore reduces the capture frequency and lengthens the scan period. Instant mode still produces
+snapshots. Scanned mode follows the configured firing pattern: rotary ticks are scheduled across
+the scan, while explicit ``fire_time_ns`` values remain offsets in nanoseconds within each tick
+and are not stretched to fill a longer scan.
+
+.. list-table:: Example settings (read data every physics step)
+   :header-rows: 1
+   :widths: 15 15 35 35
+
+   * - ``update_period``
+     - ``frame_rate``
+     - Instant on
+     - Instant off
+   * - ``0``
+     - ``None``
+     - Snapshot each physics step
+     - One scan period equals the physics timestep
+   * - ``0.1``
+     - ``None``
+     - Snapshot every 0.1 s
+     - One 0.1 s scan per capture
+   * - ``0.05``
+     - ``10``
+     - Complete snapshot per capture
+     - Rejected: capture ends halfway through a scan
+   * - ``0.2``
+     - ``10``
+     - Two renderer snapshots; return the last
+     - Two 0.1 s scans; return the last
+   * - ``0.15``
+     - ``10``
+     - Allowed: complete snapshot in each renderer frame
+     - Rejected: capture spans 1.5 scans
+
+An explicit rate with ``instant_lidar=False`` must satisfy
+``capture_interval * frame_rate = 1, 2, 3, ...`` (within floating-point tolerance).
+Instant mode does not require this alignment, but ``frame_rate`` still affects renderer frame
+generation. In either mode Isaac Lab publishes only the last frame from the capture; it does not
+return all intermediate frames or combine their points.
+
+Captures run on demand. Each capture submits one renderer step with the configured interval
+(``update_period`` or the physics timestep), rather than firing some rays on each intervening
+Python-loop iteration. Physics-step alignment and how often data is read determine the observed
+capture cadence; the configured renderer interval is not recomputed from a delayed read.
+
+For example, with a solid-state pattern ``fire_time_ns=[0, 25_000_000]`` and a 0.1 s scan period,
+scanned mode retains ray offsets of 0 and 25 ms. Instant mode gives both rays zero offsets at
+one frame timestamp. This timing difference can affect moving scenes, but it does not by itself
+establish motion-distortion accuracy in the Isaac Lab integration.
+
+See the OvRTX `WPM output controls
+<https://nvidia-omniverse.github.io/ovrtx/0.7.0/sensors/nonvisual/lidar_wpm/attributes.html#output-shaping>`_
+and `point-cloud timestamps
+<https://nvidia-omniverse.github.io/ovrtx/0.7.0/sensors/nonvisual/lidar_wpm/outputs.html#params>`_
+for the underlying renderer semantics.
 
 Run the Cartpole lidar example
 ------------------------------

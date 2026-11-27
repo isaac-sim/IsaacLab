@@ -28,6 +28,8 @@ from isaaclab.sim.views import FrameView
 from isaaclab.utils import math as math_utils
 from isaaclab.utils.warp import ProxyArray
 
+from .ovrtx_lidar import lidar_scan_and_step_ns
+
 if TYPE_CHECKING:
     from .ovrtx_lidar_cfg import OVRTXLidarCfg
 
@@ -110,11 +112,22 @@ def spawn_lidar(prim_path: str, cfg: OVRTXLidarCfg) -> Usd.Prim:
     prim.CreateAttribute("omni:sensor:modelName", Sdf.ValueTypeNames.String).Set("LidarWpm")
     prim.CreateAttribute("cameraSensorType", Sdf.ValueTypeNames.Token).Set("lidar")
     prim.CreateAttribute("visibility", Sdf.ValueTypeNames.Token).Set("invisible")
-    prim.CreateAttribute("omni:sensor:frameRate", Sdf.ValueTypeNames.Double2).Set(Gf.Vec2d(10.0, 1.0))
 
     _author_wpm(prim, cfg)
 
     return prim
+
+
+def _frame_rate(cfg: OVRTXLidarCfg, capture_interval: float) -> Gf.Vec2d:
+    """Return the ``omni:sensor:frameRate`` value for captures that step the renderer by ``capture_interval``.
+
+    The rate is ``(1e9, scan_ns)``, so the scan is a whole number of nanoseconds, the unit OvRTX times frames in.
+
+    Raises:
+        ValueError: If ``instant_lidar`` is False and the capture interval is not a whole number of scans.
+    """
+    scan_ns, _ = lidar_scan_and_step_ns(cfg, capture_interval)
+    return Gf.Vec2d(1e9, scan_ns)
 
 
 @wp.kernel
@@ -169,17 +182,24 @@ class OVRTXLidar(SensorBase):
 
         spawn = self.cfg.spawn
         if spawn is None:
-            if not sim_utils.find_matching_prims(self.cfg.prim_path):
+            lidar_prims = sim_utils.find_matching_prims(self.cfg.prim_path)
+            if not lidar_prims:
                 raise RuntimeError(f"Lidar spawn is None, but no lidar prim was found at {self.cfg.prim_path!r}.")
         else:
             spawn_target = spawn.spawn_path or self.cfg.prim_path
             if sim_utils.find_first_matching_prim(spawn_target) is None:
                 spawn.func(spawn_target, self.cfg)
 
-            if not sim_utils.find_matching_prims(spawn_target):
+            lidar_prims = sim_utils.find_matching_prims(spawn_target)
+            if not lidar_prims:
                 raise RuntimeError(f"Could not find a lidar prim at {spawn_target!r}.")
 
         sim_ctx = sim_utils.SimulationContext.instance()
+        # Each capture steps the renderer by this interval.
+        frame_rate = _frame_rate(self.cfg, self.cfg.update_period or sim_ctx.get_physics_dt())
+        for prim in lidar_prims:
+            prim.CreateAttribute("omni:sensor:frameRate", Sdf.ValueTypeNames.Double2).Set(frame_rate)
+
         sim_ctx.require_visual_shapes()
         self._renderer = sim_ctx.get_or_create_backend(self.cfg.renderer_cfg)
 
