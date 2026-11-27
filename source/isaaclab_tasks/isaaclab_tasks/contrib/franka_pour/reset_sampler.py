@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import math
+import warnings
 
 import torch
 
@@ -68,6 +69,56 @@ class ResetDatasetSamplerCfg:
             or not 0.0 < uniform_fraction < 1.0
         ):
             raise ValueError("uniform_fraction must lie strictly between zero and one.")
+
+
+class _CyclicReplay:
+    """Reserve a fraction of starts for complete shuffled passes through the dataset."""
+
+    def __init__(self, row_count: int, device: str | torch.device, generator: torch.Generator | None = None) -> None:
+        self._row_count = row_count
+        self._device = device
+        self.restart(generator)
+
+    def restart(self, generator: torch.Generator | None) -> None:
+        self._order = torch.randperm(self._row_count, device=self._device, generator=generator)
+        self._cursor = 0
+        self._credit = 0.0
+
+    def reserve(self, count: int, fraction: float) -> int:
+        credit = self._credit + fraction * count
+        reserved = math.floor(credit + 1.0e-12)
+        self._credit = credit - reserved
+        return min(count, reserved)
+
+    def take(self, count: int, generator: torch.Generator | None) -> torch.Tensor:
+        if count == 0:
+            return torch.empty(0, device=self._device, dtype=torch.long)
+        chunks = []
+        while count > 0:
+            take = min(count, self._row_count - self._cursor)
+            chunks.append(self._order[self._cursor : self._cursor + take])
+            self._cursor += take
+            count -= take
+            if self._cursor == self._row_count:
+                self._order = torch.randperm(self._row_count, device=self._device, generator=generator)
+                self._cursor = 0
+        return torch.cat(chunks)
+
+
+def _sampling_metrics(probabilities: torch.Tensor, replay_fraction: float) -> dict[str, float]:
+    """Summarize the mixture of adaptive scores and uniform cyclic replay."""
+    row_count = probabilities.numel()
+    mixture = probabilities * (1.0 - replay_fraction) + replay_fraction / row_count
+    top_count = max(1, math.ceil(0.01 * row_count))
+    values = torch.stack(
+        (
+            mixture.square().sum().reciprocal() / row_count,
+            torch.topk(mixture, top_count, sorted=False).values.sum(),
+            mixture.new_tensor(replay_fraction),
+        )
+    )
+    names = ("sampler/effective_pool_fraction", "sampler/top_1_percent_mass", "sampler/uniform_replay_fraction")
+    return dict(zip(names, values.tolist(), strict=True))
 
 
 def _ring_append_bool_count_rate(
@@ -139,7 +190,10 @@ def _ring_append_bool_count_rate(
 
 
 class ResetDatasetSampler:
-    """Sample reset rows using a rolling-success kernel and exact cyclic replay."""
+    """Legacy reset sampler for callers using the original task-local API.
+
+    New code should use :class:`~isaaclab.envs.reset.ResetStateSampler`.
+    """
 
     def __init__(
         self,
@@ -147,6 +201,11 @@ class ResetDatasetSampler:
         device: str | torch.device,
         cfg: ResetDatasetSamplerCfg | None = None,
     ) -> None:
+        warnings.warn(
+            "ResetDatasetSampler is deprecated. Use isaaclab.envs.reset.ResetStateSampler.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         if isinstance(row_count, bool) or not isinstance(row_count, int) or row_count < 1:
             raise ValueError("row_count must be a positive integer.")
         self.cfg = cfg if cfg is not None else ResetDatasetSamplerCfg()
@@ -164,9 +223,7 @@ class ResetDatasetSampler:
         self._history_pointers = torch.zeros(row_count, dtype=torch.int32, device=device)
         self._history_sizes = torch.zeros_like(self._history_pointers)
         self._history_success_counts = torch.zeros_like(self._history_pointers)
-        self._uniform_order = torch.randperm(row_count, device=device)
-        self._uniform_cursor = 0
-        self._uniform_credit = 0.0
+        self._replay = _CyclicReplay(row_count, self._success_rates.device)
 
     def _probabilities(self) -> torch.Tensor:
         """Return normalized Beta scores with a per-row epsilon floor."""
@@ -216,52 +273,14 @@ class ResetDatasetSampler:
 
     def metrics(self) -> dict[str, float]:
         """Return sampling-concentration and cyclic-replay metrics."""
-        replay_fraction = float(self.cfg.uniform_fraction)
-        probabilities = self._probabilities()
-        probabilities.mul_(1.0 - replay_fraction).add_(replay_fraction / self.row_count)
-        top_count = max(1, math.ceil(0.01 * self.row_count))
-        values = torch.stack(
-            (
-                probabilities.square().sum().reciprocal() / self.row_count,
-                torch.topk(probabilities, top_count, sorted=False).values.sum(),
-                probabilities.new_tensor(replay_fraction),
-            )
-        )
-        names = (
-            "sampler/effective_pool_fraction",
-            "sampler/top_1_percent_mass",
-            "sampler/uniform_replay_fraction",
-        )
-        return dict(zip(names, values.tolist(), strict=True))
+        return _sampling_metrics(self._probabilities(), float(self.cfg.uniform_fraction))
 
     def _uniform_assignment_count(self, unforced_count: int) -> int:
-        """Reserve the configured exact fraction for cyclic assignments over time."""
-        replay_credit = self._uniform_credit + self.cfg.uniform_fraction * unforced_count
-        uniform_count = math.floor(replay_credit + 1.0e-12)
-        self._uniform_credit = replay_credit - uniform_count
-        return min(unforced_count, uniform_count)
+        return self._replay.reserve(unforced_count, self.cfg.uniform_fraction)
 
     def _take_uniform_rows(
         self,
         count: int,
         generator: torch.Generator | None,
     ) -> torch.Tensor:
-        """Take rows from shuffled complete-cache cycles without replacement within a cycle."""
-        if count == 0:
-            return torch.empty(0, device=self._success_rates.device, dtype=torch.long)
-        remaining = count
-        chunks = []
-        while remaining > 0:
-            available = self.row_count - self._uniform_cursor
-            take = min(remaining, available)
-            chunks.append(self._uniform_order[self._uniform_cursor : self._uniform_cursor + take])
-            self._uniform_cursor += take
-            remaining -= take
-            if self._uniform_cursor == self.row_count:
-                self._uniform_order = torch.randperm(
-                    self.row_count,
-                    device=self._success_rates.device,
-                    generator=generator,
-                )
-                self._uniform_cursor = 0
-        return torch.cat(chunks)
+        return self._replay.take(count, generator)

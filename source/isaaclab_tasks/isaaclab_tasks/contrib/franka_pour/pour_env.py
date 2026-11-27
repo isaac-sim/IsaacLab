@@ -110,6 +110,7 @@ class FrankaPourEnv(ManagerBasedRLEnv):
     cfg: FrankaPourResetDatasetEnvCfg
 
     def __init__(self, cfg: FrankaPourResetDatasetEnvCfg, render_mode: str | None = None, **kwargs):
+        self._reset_dataset_seed: int | None = None
         configure_mpm_capacities(cfg)
         self._prepare_newton_extras(cfg)
         with newton_builder_world_hook(self._add_pour_world_to_builder):
@@ -118,6 +119,15 @@ class FrankaPourEnv(ManagerBasedRLEnv):
     def load_managers(self) -> None:
         self._setup_after_physics()
         super().load_managers()
+
+    def _reset_with_seed(self, env_ids: torch.Tensor | slice, seed: int | None) -> None:
+        """Offer the resolved seed to the curriculum during an explicit reset."""
+        previous = self._reset_dataset_seed
+        self._reset_dataset_seed = self.seed(seed) if seed is not None else None
+        try:
+            super()._reset_with_seed(env_ids, None)
+        finally:
+            self._reset_dataset_seed = previous
 
     def _prepare_newton_extras(self, cfg: FrankaPourResetDatasetEnvCfg) -> None:
         """Cache task geometry bounds and Newton contact values from the resolved config.

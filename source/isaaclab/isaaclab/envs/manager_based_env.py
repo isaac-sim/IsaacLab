@@ -462,12 +462,7 @@ class ManagerBasedEnv:
         # trigger recorder terms for pre-reset calls
         self.recorder_manager.record_pre_reset(env_ids)
 
-        # set the seed
-        if seed is not None:
-            self.seed(seed)
-
-        # reset state of scene
-        self._reset_idx(env_ids)
+        self._reset_with_seed(env_ids, seed)
 
         # update articulation kinematics
         self.scene.write_data_to_sim()
@@ -524,11 +519,7 @@ class ManagerBasedEnv:
         # trigger recorder terms for pre-reset calls
         self.recorder_manager.record_pre_reset(env_ids)
 
-        # set the seed
-        if seed is not None:
-            self.seed(seed)
-
-        self._reset_idx(env_ids)
+        self._reset_with_seed(env_ids, seed)
         # set the state
         self.scene.reset_to(state, env_ids, is_relative=is_relative)
 
@@ -668,6 +659,12 @@ class ManagerBasedEnv:
     """
     Helper functions.
     """
+
+    def _reset_with_seed(self, env_ids: torch.Tensor | slice, seed: int | None) -> None:
+        """Reset selected environments after applying an optional explicit seed."""
+        if seed is not None:
+            self.seed(seed)
+        self._reset_idx(env_ids)
 
     def _reset_idx(self, env_ids: torch.Tensor | slice):
         """Reset environments based on specified indices.

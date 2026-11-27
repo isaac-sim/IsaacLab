@@ -142,11 +142,16 @@ The result latches after a safe milestone crossing and is recorded when that epi
 spill, overlap, out-of-bounds, collision, or abnormal terminal transitions cannot create positive
 curriculum evidence. This curriculum-only Boolean never contributes policy reward.
 
-Each row retains its exact 50 most recent local-progress outcomes. Adaptive priority is
+Isaac Lab's shared reset-state sampler retains each row's 50 most recent completed
+local-progress outcomes. Startup and manual resets contribute no outcomes. Adaptive priority is
 `sqrt(p * (1 - p)) + epsilon`, so uncertain rows near 50% progress are emphasized without starving
 rows at 0% or 100%. A shuffled cyclic stream receives 50% of assignments throughout training,
 which keeps persistently difficult reaching and grasp-acquisition rows represented alongside the
 adaptive competence frontier. There are no runtime stages or region probabilities.
+Warp supplies the adaptive random stream and a seeded task-local stream supplies the shuffled
+replay. Rerun with the same seed and reset order to reproduce the new sequence. Existing
+datasets and config overrides continue to work, while exact samples from the previous Torch
+sampler can differ.
 
 The sampler reports its effective pool size, concentration, and cyclic-replay fraction. Offline
 reset regions remain in the artifact as generation provenance, but runtime does not maintain a
