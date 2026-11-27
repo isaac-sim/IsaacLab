@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import builtins
+import logging
 import os
 import random
 import re
@@ -353,6 +354,7 @@ class LoadingScreen:
         self._spool: IO[str] | None = None
         self._saved_fds: tuple[int, int] | None = None
         self._saved_streams: tuple[IO[str], IO[str]] | None = None
+        self._spooled_streams: tuple[IO[str], IO[str]] | None = None
         self._original_input: Callable[..., str] | None = None
         self._input_wrapper: Callable[..., str] | None = None
         self._started = 0.0
@@ -609,8 +611,9 @@ class LoadingScreen:
         """Spool Python output without replacing platform-specific console descriptors."""
         self._spool = tempfile.TemporaryFile(mode="w+", errors="replace")  # noqa: SIM115
         self._saved_streams = (sys.stdout, sys.stderr)
-        sys.stdout = self._spool
-        sys.stderr = self._spool
+        # a distinct stderr object lets _restore tell handlers bound to stderr from those bound to stdout
+        self._spooled_streams = (self._spool, _StreamAlias(self._spool))
+        sys.stdout, sys.stderr = self._spooled_streams
 
     def _restore(self) -> str:
         """Restore redirected output and return the spooled text."""
@@ -627,7 +630,10 @@ class LoadingScreen:
             sys.stdout.flush()
             sys.stderr.flush()
             sys.stdout, sys.stderr = self._saved_streams
+            # log handlers created during startup captured the spool, which is about to close
+            _rebind_log_handlers(self._spooled_streams, self._saved_streams)
             self._saved_streams = None
+            self._spooled_streams = None
         else:
             raise RuntimeError("Loading screen output was not redirected.")
         self._spool.seek(0)
@@ -635,6 +641,26 @@ class LoadingScreen:
         self._spool.close()
         self._spool = None
         return spooled
+
+
+def _rebind_log_handlers(spooled: tuple[IO[str], IO[str]], saved: tuple[IO[str], IO[str]]) -> None:
+    """Move log handlers off the closing spool onto the console streams they were created for.
+
+    ``logging.StreamHandler`` binds ``sys.stdout``/``sys.stderr`` at construction, so a handler made
+    while the loading screen is up keeps writing to the spool after :meth:`LoadingScreen._restore`
+    closes it. Only handlers attached to the root logger or a registered named logger are reached.
+    """
+    loggers = [logging.getLogger(), *logging.Logger.manager.loggerDict.values()]
+    for logger in loggers:
+        if not isinstance(logger, logging.Logger):
+            continue  # a PlaceHolder for a dotted name's missing parent holds no handlers
+        for handler in logger.handlers:
+            if not isinstance(handler, logging.StreamHandler):
+                continue
+            for spooled_stream, saved_stream in zip(spooled, saved):
+                if handler.stream is spooled_stream:
+                    handler.setStream(saved_stream)
+                    break
 
 
 def _console_is_interactive() -> bool:
@@ -652,3 +678,13 @@ def _supports_box_drawing(stream: IO[str]) -> bool:
     except (LookupError, UnicodeEncodeError):
         return False
     return True
+
+
+class _StreamAlias:
+    """Forward every attribute to *target* while being a distinct object from it."""
+
+    def __init__(self, target: IO[str]) -> None:
+        self._target = target
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._target, name)
