@@ -222,7 +222,6 @@ OVERRIDES = {
         fixed_physics_backend="ovphysx", visualizers=(None, "newton")
     ),
     "examples/demos/nist.py": ScriptOverride(
-        fixed_physics_backend="newton_mjwarp",
         visualizers=(None, "newton"),
     ),
     "examples/sharpa_rj45.py": ScriptOverride(

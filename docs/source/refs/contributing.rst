@@ -418,6 +418,8 @@ before changing an interface. Apply these rules when adding code or cleaning up 
   by the architecture. Avoid classes that only group static methods, wrap a single operation, or forward
   calls to another object. Preserve established public contracts when simplifying existing designs.
   Use argparse's parsing and formatting for CLI help instead of private argv-scanner or help-builder classes.
+  Select demo physics with ``--physics`` and backend-qualified names such as ``newton_steel``,
+  rather than a separate ``--solver`` option. Keep the demo browser's physics choices synchronized.
 * Place shared operations in the existing module that owns their contract before adding a new file.
   Reuse existing mechanisms before introducing helpers, configuration options, or abstractions. Extract
   shared logic when it has the same contract; keep helpers private unless callers need a public API.

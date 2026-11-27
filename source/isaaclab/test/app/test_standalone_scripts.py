@@ -459,8 +459,9 @@ def test_nist_demo_does_not_depend_on_training_packages():
     assert not any(isinstance(node, ast.Attribute) and node.attr == "_reset_idx" for node in nodes)
 
 
-def test_nist_reset_samples_separated_loose_parts_in_square(nist_demo):
-    """Partial resets place separated parts across a square in their own environment."""
+@pytest.mark.parametrize("solver", ["mjwarp", "steel"])
+def test_nist_reset_samples_separated_loose_parts_in_square(nist_demo, solver):
+    """Partial resets place loose parts and compensate robot gravity only for Steel."""
     demo = nist_demo
     torch = demo["torch"]
     assemblies = demo["ASSEMBLIES"][:10]
@@ -474,9 +475,14 @@ def test_nist_reset_samples_separated_loose_parts_in_square(nist_demo):
     for name in names:
         scene[name].data.default_root_pose.torch = torch.tensor([0.0, 0, 0, 0, 0, 0, 1]).repeat(num_envs, 1)
     scene["robot"].data.default_joint_pos.torch = torch.zeros((num_envs, 9))
+    masses = torch.arange(1, num_envs * 10 + 1, dtype=torch.float32).reshape(num_envs, 10) / 10.0
+    scene["robot"].data.body_mass.torch = masses
     board_pose = torch.tensor([0.452824, 0.19145, 0.0206, 0, 1, 0, 0])
     scene["nistboard"].data.default_root_pose.torch = board_pose.repeat(num_envs, 1)
-    env = SimpleNamespace(scene=scene, num_envs=num_envs, device="cpu")
+    gravity = (0.5, -1.0, -9.81)
+    solver_cfg = demo["SteelSolverCfg"]() if solver == "steel" else demo["MJWarpSolverCfg"]()
+    cfg = SimpleNamespace(sim=SimpleNamespace(physics=SimpleNamespace(solver_cfg=solver_cfg), gravity=gravity))
+    env = SimpleNamespace(scene=scene, num_envs=num_envs, device="cpu", cfg=cfg)
     torch.manual_seed(1701)
     demo["reset_parts"](env, slice(1, None, 2), assemblies)
     writes = [scene[f"held_{slot:02d}"].write_root_link_pose_to_sim_index.call_args.kwargs for slot in range(10)]
@@ -488,6 +494,17 @@ def test_nist_reset_samples_separated_loose_parts_in_square(nist_demo):
     distances = torch.cdist(positions[..., :2], positions[..., :2])
     distances[:, torch.arange(10), torch.arange(10)] = float("inf")
     assert distances.min() >= 0.1 - 1e-5
+    wrench = scene["robot"].permanent_wrench_composer.add_forces_and_torques_index
+    if solver == "steel":
+        wrench.assert_called_once()
+        force_args = wrench.call_args.kwargs
+        assert torch.equal(force_args["env_ids"], env_ids)
+        assert force_args["is_global"] is True
+        assert "positions" not in force_args  # Forces act at each link's center of mass.
+        balance = force_args["forces"] + masses[env_ids, :, None] * torch.tensor(gravity)
+        torch.testing.assert_close(balance, torch.zeros_like(balance))
+    else:
+        wrench.assert_not_called()
 
 
 # Launch matrix selection.

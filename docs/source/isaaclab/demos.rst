@@ -86,7 +86,7 @@ No source checkout is required.
        </button>
        <button type="button" class="demo-card" aria-pressed="false"
                data-demo-name="NIST" data-demo-id="nist"
-               data-demo-physics="newton_mjwarp" data-demo-fixed-physics="true"
+               data-demo-physics="newton_mjwarp,newton_steel"
                data-demo-visualizers="newton"
                data-demo-extras="ovrtx"
                data-demo-description="Assemble ten randomized NIST parts using an automatically downloaded TorchScript policy.">
