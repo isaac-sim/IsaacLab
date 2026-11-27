@@ -221,11 +221,7 @@ OVERRIDES = {
     "scripts/tutorials/01_assets/add_new_robot.py": ScriptOverride(
         fixed_physics_backend="ovphysx", visualizers=(None, "newton")
     ),
-    # The default RTX viewers can finish their steps before cold shader compilation finishes.
-    # Native renderer destruction waits for that work, so include it in the clean-exit budget.
-    "examples/demos/h1_locomotion.py": ScriptOverride(startup_timeout=900.0),
     "examples/demos/nist.py": ScriptOverride(
-        startup_timeout=900.0,
         fixed_physics_backend="newton_mjwarp",
         visualizers=(None, "newton"),
     ),
