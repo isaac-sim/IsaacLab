@@ -146,6 +146,7 @@ def build_render_product_as_string(
     *,
     device_id: int,
     enable_shadows: bool = False,
+    wait_for_streaming: bool = False,
 ) -> str:
     """Build a complete render product USD layer as a string.
 
@@ -163,6 +164,9 @@ def build_render_product_as_string(
             allocated on the same device as the Warp kernels that read them.
         enable_shadows: Whether lights cast shadows. Defaults to False. Only honored for the
             ``simple_shading_*`` data types, which are the ones that select RTX Minimal mode.
+
+        wait_for_streaming: Wait for loading on every capture for scenes with deforming particles.
+            Otherwise wait only on the first capture to avoid extra steady-state render passes.
 
     Returns:
         Render product USD layer, including the USDA header and default prim metadata.
@@ -210,6 +214,10 @@ def build_render_product_as_string(
         for _, name, source in render_var_configs
     )
 
+    streaming_events = (
+        '["AllLoadingFinished"]' if wait_for_streaming else '["AllLoadingFinished", "OnlyOnFirstRequest"]'
+    )
+
     def product_block(product: OVRTXRenderProduct) -> str:
         tiled_width = product.num_cols * render_data.width
         tiled_height = product.num_rows * render_data.height
@@ -220,7 +228,7 @@ def build_render_product_as_string(
         uint[] deviceIds = [{device_id}]
         {bg_type_line}
         {render_mode_block}
-        token[] omni:rtx:waitForEvents = ["AllLoadingFinished", "OnlyOnFirstRequest"]
+        token[] omni:rtx:waitForEvents = {streaming_events}
         rel orderedVars = [{ordered_vars}]
         uniform int2 resolution = ({tiled_width}, {tiled_height})
     }}'''

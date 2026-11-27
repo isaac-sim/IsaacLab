@@ -41,7 +41,7 @@ def test_rendering_is_downstream_and_task_independent() -> None:
 
 
 def test_case_and_golden_inventory() -> None:
-    """Each case is unique; both OVRTX readers share one complete reference inventory."""
+    """Each case is unique; the rendering paths have one complete reference inventory."""
     kit_ids = [case.id for case in KIT_RENDERING_CASES]
     kitless_ids = [f"{stage}-{case.id}" for stage, case in KITLESS_RENDERING_CASES]
     assert len(kit_ids) == len(set(kit_ids))
@@ -54,7 +54,7 @@ def test_case_and_golden_inventory() -> None:
     root = _SUITE / "golden_images/renderers"
     assert {path.relative_to(root) for path in root.rglob("*.png")} == expected
     subsets = tomllib.loads((_SOURCE.parent / ".github/test-subsets/postmerge-rendering.toml").read_text())
-    suite = _SUITE.relative_to(_SOURCE.parent)
+    suite = _SUITE.relative_to(_SOURCE.parent).as_posix()
     nodes = {f"{suite}/test_rendering_kit.py::test_rendering[{case}]" for case in kit_ids} | {
         f"{suite}/test_rendering_kitless_{case.physics}_{case.renderer}.py::test_rendering[{stage}-{case.id}]"
         for stage, case in KITLESS_RENDERING_CASES

@@ -68,11 +68,6 @@ class FoveatedRTXCamera(FoveatedCamera):
 
     def __init__(self, cfg: FoveatedCameraCfg):
         ovrtx = cfg.renderer_cfg.renderer_type == "ovrtx"
-        if ovrtx and cfg.renderer_cfg.async_rendering and cfg.mask_to_sensor_fov:
-            raise ValueError(
-                "OVRTX async_rendering returns the previous capture, which the sensor mask would cut with the current"
-                " gaze. Disable async_rendering or mask_to_sensor_fov."
-            )
         # The parent ``Camera`` allocates the renderer-bound texture buffers; the published ones follow from them.
         self._texture_output: dict[str, ProxyArray] = {}
         self._foveated_output: dict[str, torch.Tensor] = {}

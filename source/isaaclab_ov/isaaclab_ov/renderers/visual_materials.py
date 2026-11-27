@@ -15,7 +15,6 @@ from typing import TYPE_CHECKING, Any
 
 import torch
 import warp as wp
-from ovrtx import BindingFlag, DataAccess, PrimMode
 
 if TYPE_CHECKING:
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
@@ -39,11 +38,9 @@ class OVRTXVisualMaterialWriter:
         device = None
         for batch in batches:
             values = batch.values.detach()
-            if values.dtype == torch.float32 and values.ndim == 1:
-                dtype, shape = "float32", None
-            elif values.dtype == torch.float32 and values.ndim == 2 and values.shape[1] in (2, 3):
-                dtype, shape = "float32", (values.shape[1],)
-            else:
+            if values.dtype != torch.float32 or not (
+                values.ndim == 1 or (values.ndim == 2 and values.shape[1] in (2, 3))
+            ):
                 raise TypeError(
                     f"OVRTX visual-material channel {batch.channel!r} requires float, float2, or float3; "
                     f"got dtype={values.dtype}, shape={tuple(values.shape)}."
@@ -56,26 +53,13 @@ class OVRTXVisualMaterialWriter:
             for input_name, input_group in itertools.groupby(batch.input_names):
                 end = start + sum(1 for _ in input_group)
                 rows = slice(start, end)
-                groups.append(
-                    (batch.channel, f"inputs:{input_name}", list(batch.shader_paths[rows]), rows, dtype, shape)
-                )
+                groups.append((batch.channel, f"inputs:{input_name}", list(batch.shader_paths[rows]), rows))
                 start = end
         self._device = str(device)
         self._event = wp.Event(device=self._device)
         with contextlib.ExitStack() as resources:
-            for channel, attribute_name, shader_paths, rows, dtype, shape in groups:
-                if renderer._use_ovstage:
-                    address = resources.enter_context(renderer.scene.query(shader_paths))
-                else:
-                    address = renderer.backend.renderer.bind_attribute(
-                        prim_paths=shader_paths,
-                        attribute_name=attribute_name,
-                        dtype=dtype,
-                        shape=shape,
-                        prim_mode=PrimMode.EXISTING_ONLY,
-                        flags=BindingFlag.OPTIMIZE,
-                    )
-                    resources.callback(address.unbind)
+            for channel, attribute_name, shader_paths, rows in groups:
+                address = resources.enter_context(renderer.scene.query(shader_paths))
                 self._addresses.append((channel, address, attribute_name, rows))
             self._resources = resources.pop_all()
 
@@ -97,26 +81,14 @@ class OVRTXVisualMaterialWriter:
             for channel, address, attribute_name, rows in self._addresses:
                 if channel not in channels:
                     continue
-                if renderer._use_ovstage:
-                    operation = renderer.scene.stage.write_attribute(
-                        address,
-                        attribute_name,
-                        ordinal=renderer.scene.ordinal,
-                        tensors=self._buffers[channel][rows],
-                        is_array=False,
-                        cuda_event=self._event.cuda_event,
-                    )
-                else:
-                    # The event orders the read after the producers (access sync). The stream
-                    # receives the done fence: work later enqueued on it waits for the read, so
-                    # the next refill of these zero-copy buffers cannot race it. Fills and
-                    # refills run on this device's current Warp stream.
-                    operation = address.write_async(
-                        self._buffers[channel][rows],
-                        data_access=DataAccess.ASYNC,
-                        cuda_event=self._event.cuda_event,
-                        cuda_stream=wp.get_stream(self._device).cuda_stream or 1,
-                    )
+                operation = renderer.scene.stage.write_attribute(
+                    address,
+                    attribute_name,
+                    ordinal=renderer.scene.ordinal,
+                    tensors=self._buffers[channel][rows],
+                    is_array=False,
+                    cuda_event=self._event.cuda_event,
+                )
                 operations.append(operation)
         finally:
             self._operations = tuple(operations)
@@ -142,14 +114,7 @@ class OVRTXVisualMaterialWriter:
         """Drain writes and release every compiled backend address."""
         try:
             with self._resources:
-                try:
-                    self.drain()
-                finally:
-                    renderer = self._renderer_ref()
-                    if renderer is not None:
-                        # A render may still read these bindings when RenderContext closes its writers.
-                        for error in renderer.drain_pending_renders():
-                            logger.warning("Error draining in-flight render before material release: %s", error)
+                self.drain()
         finally:
             self._addresses.clear()
             self._dirty_channels.clear()

@@ -899,7 +899,7 @@ jobs:
         container-name: isaac-lab-rendering-correctness-test
         omni-github-test-type: rendering-correctness
 
-  # Separate jobs preserve the required legacy check name when skipped and let ovstage use its own trigger.
+  # Keep the existing required Newton-Warp check name; OVRTX runs in the OvStage job below.
   test-rendering-correctness-kitless-legacy:
     name: "rendering-correctness-kitless (legacy)"
     runs-on: [self-hosted, gpu]
@@ -933,9 +933,7 @@ jobs:
         wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
         include-files: >-
           test_rendering_kitless_newton_newton_warp.py,
-          test_rendering_kitless_newton_ovrtx.py,
-          test_rendering_kitless_ovphysx_newton_warp.py,
-          test_rendering_kitless_ovphysx_ovrtx.py
+          test_rendering_kitless_ovphysx_newton_warp.py
         test-k-expr: legacy
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
         test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness-kitless-legacy' || '' }}
@@ -945,16 +943,14 @@ jobs:
         container-name: "isaac-lab-rendering-correctness-kitless-legacy-test"
         omni-github-test-type: "rendering-correctness-kitless-legacy"
 
-  # Post-merge by default; pull requests opt in per run with ``run-ci ovstage``.
+  # OvStage is the only OVRTX scene path and runs on every activated PR build.
   test-rendering-correctness-kitless-ovstage:
     name: "rendering-correctness-kitless (ovstage)"
     runs-on: [self-hosted, gpu]
     timeout-minutes: 120
     continue-on-error: ${{ github.event_name == 'workflow_dispatch' }}
     needs: [build, config]
-    if: >-
-      (github.event_name != 'pull_request' || github.event.label.name == 'ci:run-ovstage') &&
-      needs.build.result == 'success'
+    if: needs.build.result == 'success'
     env:
       USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_image != '' && ((github.event_name == 'pull_request' && github.base_ref == github.event.repository.default_branch && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch)) }}
     steps:

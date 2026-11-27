@@ -404,23 +404,6 @@ def test_camera_cfg_rejects_outputs_unsupported_by_renderer():
         validate(make_cfg("rgb_hdr", TensorProcessorCfg(func="ShadeDepth", inputs=["rgb_hdr"], outputs=["rgb"])))
 
 
-def test_camera_processors_allow_async_rendering():
-    """Adding a processor requires no opt-in flag for asynchronous rendering."""
-    pytest.importorskip("isaaclab_ov")
-    from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXRendererCfg
-
-    cfg = CameraCfg(
-        height=32,
-        width=32,
-        prim_path="/World/Camera",
-        spawn=_SPAWN,
-        data_types=["rgb"],
-        renderer_cfg=OVRTXRendererCfg(async_rendering=True),
-    )
-    cfg.tensor_processors = [TensorProcessorCfg(func=_ScaleProcessor, inputs=["rgb"], outputs=["half"])]
-    validate(cfg)
-
-
 @pytest.mark.parametrize("colorize", [True, False])
 def test_newton_warp_segmentation_spec_follows_colorize_flags(colorize):
     """Segmentation specs are RGBA uint8 when colorized, else single-channel int32 (matching RTX)."""

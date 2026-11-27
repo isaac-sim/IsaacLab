@@ -63,7 +63,7 @@ def run_rendering_case(
     scene.cfg.camera.renderer_cfg = {
         "isaac_rtx": IsaacRtxRendererCfg(),
         "newton_warp": NewtonWarpRendererCfg(),
-        "ovrtx": OVRTXRendererCfg(async_rendering=case.variant == "async"),
+        "ovrtx": OVRTXRendererCfg(),
     }[case.renderer]
     if case.scene == "rendering_scene":
         # Explicit colors and shadows belong to this synthetic fixture, not every scene.
@@ -235,7 +235,6 @@ def run_rendering_case(
 def run_kitless_rendering_case(stage_variant: str, case: RenderCase, request: Any, monkeypatch: Any) -> None:
     """Apply the ``stage_variant`` setting and run one kitless rendering case."""
     monkeypatch.delenv("ISAAC_LAB_SHARE_OVSTAGE", raising=False)
-    monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", str(int(stage_variant == "ovstage")))
     run_rendering_case(case, request, golden_namespace=None, artifact_namespace=stage_variant)
 
 
