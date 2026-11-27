@@ -433,7 +433,11 @@ Below is an explanation of the different settings used for evaluation:
 .. note::
     The evaluation results will help you understand if the visual augmentation has improved the policy's performance and robustness. Compare these results with evaluations on the original dataset to measure the impact of augmentation.
 
-Example usage for the cube stacking task:
+Evaluate policies using the same Isaac Lab version, observation conventions, and rendering
+configuration used to generate their training data.
+
+Example usage for the cube stacking task with a policy trained in the steps above.
+Replace ``RUN_TIMESTAMP`` with the timestamp directory of the training run to evaluate:
 
 .. tab-set::
 
@@ -443,53 +447,16 @@ Example usage for the cube stacking task:
 
           uv run --extra isaacsim,mimic python scripts/imitation_learning/robomimic/robust_eval.py \
           --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos \
-          --input_dir logs/robomimic/IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos/bc_rnn_image_franka_stack_mimic_cosmos/*/models \
+          --input_dir logs/robomimic/IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos/bc_rnn_image_franka_stack_mimic_cosmos/RUN_TIMESTAMP/models \
           --log_dir robust_results/bc_rnn_image_franka_stack_mimic_cosmos \
           --log_file result \
           --seeds 0 \
           --num_rollouts 15
 
 .. tip::
-   Verify that the models directory is not empty. By default, the training script saves models every 20 epochs starting from epoch 100.
+   Set ``--input_dir`` to a single training run's ``models/`` directory containing checkpoint files.
+   The script does not search subdirectories. By default, the training script saves models every
+   20 epochs starting from epoch 100.
 
 .. note::
    This script can take over a day or even longer to run (depending on the hardware being used). This behavior is expected.
-
-We use the above script to compare models trained with 1000 Mimic-generated demonstrations, 2000 Mimic-generated demonstrations and 2000 Cosmos-Mimic-generated demonstrations (1000 original mimic + 1000 Cosmos augmented) respectively. We use the same seeds (0, 1000 and 5000) for all three models and provide the metrics (averaged across best checkpoints for each seed) below:
-
-.. rubric:: Model Comparison
-
-.. list-table::
-    :widths: 25 25 25 25
-    :header-rows: 0
-
-    * - **Evaluation Setting**
-      - **Mimic 1k Baseline**
-      - **Mimic 2k Baseline**
-      - **Cosmos-Mimic 2k**
-    * - ``Vanilla``
-      - 62%
-      - 96.6%
-      - 86.6%
-    * - ``Light Intensity``
-      - 11.1%
-      - 20%
-      - 62.2%
-    * - ``Light Color``
-      - 24.6%
-      - 30%
-      - 77.7%
-    * - ``Light Texture (Background)``
-      - 16.6%
-      - 20%
-      - 68.8%
-    * - ``Table Texture``
-      - 0%
-      - 0%
-      - 20%
-    * - ``Robot Arm Texture``
-      - 0%
-      - 0%
-      - 4.4%
-
-The above trained models' checkpoints can be accessed `here <https://huggingface.co/datasets/nvidia/PhysicalAI-Robotics-Manipulation-Augmented/tree/main/robomimic_bc_rnn_visuomotor_models>`_ in case you wish to use the models directly.
