@@ -673,6 +673,9 @@ one set of environment files, and one image name:
      - nothing -- standalone, no Isaac Sim
 
 Every command below takes the profile as its first positional argument and defaults to ``base``.
+The profile can also be passed with ``-p``/``--profile`` before the command, so that stepping a
+container through its lifecycle only changes the last word: ``./docker/container.py -p kitless build``,
+then ``./docker/container.py -p kitless start``.
 Only one profile applies at a time, and the resulting image and container are both named
 ``isaac-lab-<profile>``. Pass ``--suffix`` to append a name suffix when you want several variants of
 the same profile side by side. Do not use ``--suffix`` with cluster deployments, whose export
@@ -753,7 +756,7 @@ Run ``./docker/container.py --help`` to list commands and
    * - ``start``
      - Build the image and start the container in the background.
    * - ``enter``
-     - Open a Bash shell in the running container.
+     - Open a Bash shell in the container, starting it first if it is not running.
    * - ``config``
      - Print the merged Compose configuration. Use ``--output-yaml <path>`` to write it to a file instead.
    * - ``copy``

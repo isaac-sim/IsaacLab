@@ -29,14 +29,30 @@ def parse_cli_args() -> argparse.Namespace:
         The parsed command line arguments.
     """
     parser = argparse.ArgumentParser(description="Utility for using Docker with Isaac Lab.")
+    # Written before the command, the profile stays put while stepping through the lifecycle, so
+    # only the last word changes between calls: '-p kitless build', then '-p kitless start'.
+    parser.add_argument(
+        "-p",
+        "--profile",
+        dest="profile_before",
+        default=None,
+        help="Container profile, as an alternative to the positional argument. Examples: 'base' or 'kitless'.",
+    )
 
     # We have to create separate parent parsers for common options to our subparsers
     parent_parser = argparse.ArgumentParser(add_help=False)
     parent_parser.add_argument(
         "profile",
         nargs="?",
-        default="base",
-        help="Optional container profile specification. Examples: 'base' or 'kitless'.",
+        default=None,
+        help="Optional container profile specification. Defaults to 'base'. Examples: 'base' or 'kitless'.",
+    )
+    parent_parser.add_argument(
+        "-p",
+        "--profile",
+        dest="profile_after",
+        default=None,
+        help="Container profile, as an alternative to the positional argument.",
     )
     parent_parser.add_argument(
         "--files",
@@ -113,6 +129,12 @@ def parse_cli_args() -> argparse.Namespace:
     # parse the arguments to determine the command
     args = parser.parse_args()
 
+    # the profile may be given positionally, or with -p before or after the command; all must agree
+    given = {p for p in (args.profile, args.profile_before, args.profile_after) if p is not None}
+    if len(given) > 1:
+        parser.error(f"conflicting profiles: {', '.join(sorted(given))}")
+    args.profile = given.pop() if given else "base"
+
     return args
 
 
@@ -160,6 +182,17 @@ def main(args: argparse.Namespace):
         # start the container
         ci.start()
     elif args.command == "enter":
+        # Entering a container that is not up used to be an error telling the user to run
+        # 'start' themselves. Do it for them: 'stop' also deletes the .xauth file, so the
+        # refresh below would fail on its own anyway.
+        if not ci.is_container_running():
+            print(f"[INFO] Container '{ci.container_name}' is not running. Starting it first...\n")
+            x11_outputs = x11_utils.x11_check(ci.statefile)
+            if x11_outputs is not None:
+                (x11_yaml, x11_envar) = x11_outputs
+                ci.add_yamls += x11_yaml
+                ci.environ.update(x11_envar)
+            ci.start()
         # refresh the x11 forwarding
         x11_utils.x11_refresh(ci.statefile)
         # enter the container
