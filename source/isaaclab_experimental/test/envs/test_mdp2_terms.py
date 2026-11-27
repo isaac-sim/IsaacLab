@@ -496,9 +496,15 @@ def test_heading_command_steers_towards_its_heading(env: MDP2Env):
 
 def test_model_events_randomize_the_startup_model_alike_on_both_backends(env: MDP2Env):
     """Events scale the base mass and offset its center of mass by the same samples on both backends, each time from
-    the values at startup, so resets do not compound them."""
+    the values at startup, so resets do not compound them. The inertia scales with the mass and keeps the offset that
+    the inertia event before it adds, as in MDP1."""
     base = robot.bodies("base")
     events = {
+        "base_inertia": mdp2.Event(
+            mdp.randomize_rigid_body_inertia,
+            inputs={"asset": robot, "body_ids": base},
+            params={"inertia_distribution_params": (0.01, 0.01), "operation": "add"},
+        ),
         "base_mass": mdp2.Event(
             mdp.randomize_rigid_body_mass,
             inputs={"asset": robot, "body_ids": base},
@@ -531,7 +537,11 @@ def test_model_events_randomize_the_startup_model_alike_on_both_backends(env: MD
         mdp2.startup(model, state)
         for _ in range(2):
             mdp2.reset(model, state, ProxyArray(wp.ones(NUM_ENVS, dtype=wp.bool, device=env.device)))
-        results[backend] = (data.body_mass.torch.clone(), data.body_com_pos_b.torch.clone())
+        results[backend] = (
+            data.body_mass.torch.clone(),
+            data.body_com_pos_b.torch.clone(),
+            data.body_inertia.torch.clone(),
+        )
         env.scene["robot"].set_masses_index(masses=default_mass)
         env.scene["robot"].set_inertias_index(inertias=default_inertia)
         env.scene["robot"].set_coms_index(coms=default_com)
@@ -539,9 +549,12 @@ def test_model_events_randomize_the_startup_model_alike_on_both_backends(env: MD
     for value, expected in zip(results["warp"], results["torch"]):
         torch.testing.assert_close(value, expected)
 
-    mass, com = results["warp"]
+    mass, com, inertia = results["warp"]
     ratio = mass[:, base_id] / default_mass[:, base_id]
     assert ((ratio >= 0.8 - 1e-6) & (ratio <= 1.25 + 1e-6)).all() and ratio.std() > 0.0
+    expected = default_inertia[:, base_id].clone()
+    expected[:, [0, 4, 8]] += 0.01
+    torch.testing.assert_close(inertia[:, base_id], expected * ratio[:, None])
     assert torch.equal(mass[:, base_id + 1 :], default_mass[:, base_id + 1 :])
     offset = com[:, base_id] - default_com[:, base_id]
     assert (offset[:, :2].abs() <= 0.05 + 1e-6).all() and (offset[:, 2].abs() <= 0.01 + 1e-6).all()

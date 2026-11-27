@@ -5,12 +5,12 @@ Creating an empty scene
 
 .. currentmodule:: isaaclab
 
-This tutorial shows how to launch and control Isaac Sim simulator from a standalone Python script. It sets up an
+This tutorial shows how to launch and control a simulator from a standalone Python script. It sets up an
 empty scene in Isaac Lab and introduces the two main entry points used in the framework, the
 :func:`app.launch_simulation` context manager and the :class:`sim.SimulationContext` class.
 
-Please review `Isaac Sim Workflows`_ prior to beginning this tutorial to get
-an initial understanding of working with the simulator.
+The script uses OvPhysX and the Newton RTX visualizer without Isaac Sim. Install the ``ov`` extra
+as described in :doc:`/source/isaaclab/installation` before running it.
 
 
 The Code
@@ -23,7 +23,7 @@ The tutorial corresponds to the ``create_empty.py`` script in the ``scripts/tuto
 
    .. literalinclude:: ../../../scripts/tutorials/00_sim/create_empty.py
       :language: python
-      :emphasize-lines: 18-27,31,37-44,46-47,51-54
+      :emphasize-lines: 18-34, 38, 44-57, 60-61, 65-68
       :linenos:
 
 
@@ -71,9 +71,8 @@ pausing and stepping the simulator. All these operations are handled through the
 context**. It takes care of various timeline events and also configures the physics scene for
 simulation.
 
-In Isaac Lab, the :class:`sim.SimulationContext` class wraps Isaac Sim's simulation stack
-to allow configuring the simulation
-through Python's ``dataclass`` object and handle certain intricacies of the simulation stepping.
+In Isaac Lab, :class:`sim.SimulationContext` coordinates the selected physics and rendering backends.
+Its configuration is a Python ``dataclass`` that controls simulation timing and backend settings.
 
 For this tutorial, we set the physics and rendering time step to 0.01 seconds. This is done
 by passing these quantities to the :class:`sim.SimulationCfg`, which is then used to create an
@@ -81,11 +80,13 @@ instance of the simulation context.
 
 Before the simulation context can be created, the simulator runtime must be launched. This is done with the
 :func:`app.launch_simulation` context manager. It inspects the given configuration together with the parsed
-command-line arguments and starts only the runtime that they need: the default PhysX physics backend runs
-inside Isaac Sim (Kit), so Isaac Sim is started here, while a kitless backend such as Newton needs no Isaac Sim
-at all. The simulation runs headless unless a visualizer is requested, for example with ``--viz kit``.
+command-line arguments and starts the required runtimes. Here, ``OvPhysxCfg`` selects standalone PhysX,
+and the script defaults to ``--viz newton_rtx``. Use ``--viz none`` for headless simulation.
 Everything that uses the simulator runs inside the ``with`` block, and the runtime is closed automatically
 when the block exits.
+
+The scene configuration is passed to the launcher before constructing the simulation. It declares
+the world that the standalone visualizer exports and lets the launcher add its RTX viewport camera.
 
 .. literalinclude:: ../../../scripts/tutorials/00_sim/create_empty.py
    :language: python
@@ -142,7 +143,7 @@ Now that we have gone through the code, let's run the script and see the result:
 
 .. code-block:: bash
 
-   python scripts/tutorials/00_sim/create_empty.py --viz kit
+   uv run --extra ov python scripts/tutorials/00_sim/create_empty.py --viz newton_rtx
 
 
 The simulation should be playing, and the stage should be rendering. To stop the simulation,
@@ -154,15 +155,13 @@ you can either close the window, or press ``Ctrl+C`` in the terminal.
     :alt: result of create_empty.py
 
 Passing ``--help`` to the above script will show the different command-line arguments added
-earlier by the :func:`app.add_launcher_args` function. To run the script headless, omit the visualizer
-selection:
+earlier by the :func:`app.add_launcher_args` function. To run the script headless, disable the visualizer:
 
 .. code-block:: bash
 
-   python scripts/tutorials/00_sim/create_empty.py
+   uv run --extra ov python scripts/tutorials/00_sim/create_empty.py --viz none
 
 Now that we have a basic understanding of how to run a simulation, let's move on to the
 following tutorial where we will learn how to add assets to the stage.
 
-.. _`Isaac Sim Workflows`: https://docs.isaacsim.omniverse.nvidia.com/latest/introduction/workflows.html
 .. _carb: https://docs.omniverse.nvidia.com/kit/docs/carbonite/latest/index.html

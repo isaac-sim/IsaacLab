@@ -146,6 +146,13 @@ class OVRTXRendererCfg(RendererCfg):
     semantic-label mapping via ``camera.data.info["instance_segmentation"]["idToSemantics"]``.
     """
 
+    semantic_segmentation_mapping: dict[str, tuple[int, int, int, int]] = {}
+    """RGBA colors for semantic labels such as ``{"class:robot": (61, 178, 255, 255)}``.
+
+    Unspecified labels keep their generated colors. Applies to colorized semantic segmentation
+    pixels and their ``idToLabels`` metadata, matching the Isaac RTX palette contract.
+    """
+
     colorize_instance_id_segmentation: bool = True
     """Retained compatibility field; ignored by the OVRTX renderer. Defaults to True.
 
@@ -164,6 +171,9 @@ class OVRTXRendererCfg(RendererCfg):
                 'OVRTXRendererCfg.max_envs_per_render_product must be "auto", "all" or an integer >= 1,'
                 f" got {max_envs!r}."
             )
+        for label, color in self.semantic_segmentation_mapping.items():
+            if len(color) != 4 or any(type(channel) is not int or not 0 <= channel <= 255 for channel in color):
+                raise ValueError(f"Semantic color for {label!r} must have four integer channels in [0, 255].")
 
     def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
         """Return the per-output layouts supported by the OVRTX renderer."""

@@ -885,7 +885,17 @@ class OvPhysxManager(PhysicsManager):
                 cfg.enable_external_forces_every_iteration
             )
             for attr, value_type, value in (
+                (
+                    "solverType",
+                    Sdf.ValueTypeNames.Token,
+                    None if cfg.solver_type is None else ("PGS", "TGS")[cfg.solver_type],
+                ),
+                ("minPositionIterationCount", Sdf.ValueTypeNames.UInt, cfg.min_position_iteration_count),
+                ("maxPositionIterationCount", Sdf.ValueTypeNames.UInt, cfg.max_position_iteration_count),
+                ("minVelocityIterationCount", Sdf.ValueTypeNames.UInt, cfg.min_velocity_iteration_count),
+                ("maxVelocityIterationCount", Sdf.ValueTypeNames.UInt, cfg.max_velocity_iteration_count),
                 ("bounceThreshold", Sdf.ValueTypeNames.Float, cfg.bounce_threshold_velocity),
+                ("frictionOffsetThreshold", Sdf.ValueTypeNames.Float, cfg.friction_offset_threshold),
                 ("frictionCorrelationDistance", Sdf.ValueTypeNames.Float, cfg.friction_correlation_distance),
                 ("solveArticulationContactLast", Sdf.ValueTypeNames.Bool, cfg.solve_articulation_contact_last),
             ):
@@ -902,3 +912,7 @@ class OvPhysxManager(PhysicsManager):
                 ("gpuCollisionStackSize", cfg.gpu_collision_stack_size),
             ]:
                 scene_prim.CreateAttribute(f"physxScene:{attr}", Sdf.ValueTypeNames.UInt).Set(val)
+            if cfg.gpu_max_num_partitions is not None:
+                scene_prim.CreateAttribute("physxScene:gpuMaxNumPartitions", Sdf.ValueTypeNames.UInt).Set(
+                    cfg.gpu_max_num_partitions
+                )

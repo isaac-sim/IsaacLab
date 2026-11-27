@@ -120,6 +120,27 @@ joint_pos_limit_normalized = Term(
 """Joint positions scaled to [-1, 1] between the soft joint position limits."""
 
 
+@wp.func
+def _joint_pos_normalized(
+    world: int,
+    joint: int,
+    joint_pos: wp.array2d(dtype=float),
+    joint_ids: wp.array(dtype=wp.int32),
+    zero: float,
+    one: float,
+) -> float:
+    return (joint_pos[world, joint_ids[joint]] - zero) / (one - zero)
+
+
+joint_pos_normalized = Term(
+    torch=lambda joint_pos, joint_ids, *, zero, one: (joint_pos[:, joint_ids] - zero) / (one - zero),
+    warp=_joint_pos_normalized,
+    shape=("worlds", "joint_ids"),
+)
+"""Joint positions mapped linearly so that the param ``zero`` gives 0 and ``one`` gives 1, such as a gripper's
+openness from its open and closed positions."""
+
+
 # Root state.
 
 
@@ -267,3 +288,38 @@ def _generated_commands(world: int, element: int, command: wp.array2d(dtype=floa
 
 generated_commands = Term(torch=lambda command: command, warp=_generated_commands, shape=("worlds", "command"))
 """The value of a command, bound to ``mdp2.commands.<name>``."""
+
+
+# Progress.
+
+
+@wp.func
+def _one_hot(world: int, index: int, value: wp.array(dtype=wp.int32)) -> float:
+    return wp.where(value[world] == index, 1.0, 0.0)
+
+
+def _one_hot_torch(value: torch.Tensor, *, size: int) -> torch.Tensor:
+    return (value[:, None] == torch.arange(size, device=value.device)).float()
+
+
+one_hot = Term(torch=_one_hot_torch, warp=_one_hot, shape=("worlds", "size"))
+"""The ``value`` input, one int per world such as the subtask that a sequence runs (``mdp2.progress.stage``), as
+``size`` columns, one where the column is the value. A value outside ``[0, size)`` gives zeros."""
+
+
+# Cameras.
+
+
+@wp.func
+def _image_rgb(world: int, row: int, column: int, channel: int, image: wp.array4d(dtype=wp.uint8)) -> wp.uint8:
+    return image[world, row, column, channel]
+
+
+image_rgb = Term(
+    torch=lambda image: image,
+    warp=_image_rgb,
+    shape=("worlds", "height", "width", "rgb_channels"),
+    dtype=wp.uint8,
+)
+"""A camera's ``rgb`` image, ``uint8`` of shape ``(height, width, 3)``, bound as ``image=camera.rgb``. It goes in a
+group that is not concatenated: ``ObservationGroup(..., concatenate=False)``."""

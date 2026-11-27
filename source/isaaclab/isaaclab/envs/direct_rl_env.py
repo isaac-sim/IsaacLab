@@ -461,6 +461,8 @@ class DirectRLEnv(gym.Env):
                     index_fill_(not_yet_reset, reset_env_ids, False)
                 manual_reset_ids = not_yet_reset.nonzero(as_tuple=False).squeeze(-1).int()
             if len(manual_reset_ids) > 0:
+                if self.cfg.compute_final_obs and len(reset_env_ids) == 0:
+                    self.extras["final_obs"] = tree_map(torch.clone, self._compute_observations())
                 index_fill_(self.reset_terminated, manual_reset_ids, True)
                 self._reset_idx(manual_reset_ids)
 

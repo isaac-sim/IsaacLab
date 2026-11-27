@@ -413,7 +413,7 @@ templates_path = [
 # Whitelist pattern for remotes
 smv_remote_whitelist = r"^.*$"
 # Whitelist pattern for branches (set to None to ignore all branches)
-smv_branch_whitelist = os.getenv("SMV_BRANCH_WHITELIST", r"^(main|develop)$")
+smv_branch_whitelist = os.getenv("SMV_BRANCH_WHITELIST", r"^(main|develop|release/3\.1\.0)$")
 # Whitelist pattern for tags (set to None to ignore all tags).
 # Matches vMAJOR.MINOR.PATCH with an optional pre-release suffix like -beta or -rc1,
 # excluding the superseded v3.0.0 pre-releases.
@@ -425,6 +425,7 @@ html_sidebars = {
 
 # Keep published links working after guide consolidation.
 isaaclab_doc_redirects = {
+    "source/how-to/train_model_based": "source/experimental-features/model_based",
     "source/concepts/schema_fragments": "source/concepts/schema_cfgs",
     "source/migration/migrating_to_isaaclab_3-0": "source/isaaclab/migrating",
     "source/setup/ecosystem": "source/isaaclab/ecosystem",
@@ -462,7 +463,8 @@ isaaclab_doc_redirects = {
     "source/features/visualizer_tiled_camera": "source/how-to/visualizer_streaming_camera_view",
     "source/how-to/robots": "source/how-to/write_articulation_cfg",
     "source/tutorials/00_sim/create_empty": "source/how-to/create_empty",
-    "source/tutorials/00_sim/launch_app": "source/how-to/launch_app",
+    "source/tutorials/00_sim/launch_app": "source/how-to/create_empty",
+    "source/how-to/launch_app": "source/how-to/create_empty",
     "source/tutorials/00_sim/spawn_prims": "source/how-to/spawn_prims",
     "source/tutorials/01_assets/add_new_robot": "source/how-to/write_articulation_cfg",
     "source/tutorials/01_assets/run_articulation": "source/how-to/run_articulation",

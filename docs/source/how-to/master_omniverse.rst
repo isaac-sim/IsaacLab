@@ -3,6 +3,12 @@
 Mastering Omniverse for Robotics
 ================================
 
+.. note::
+
+   Isaac Lab's Isaac Sim / Omniverse Kit path is deprecated in 3.1 and will be removed in 3.2.
+   This page is retained as a reference for existing Kit authoring workflows and OpenUSD concepts.
+   For standalone workflows, use :doc:`import_new_asset` and :doc:`/source/concepts/schema_cfgs`.
+
 These resources cover USD scene authoring and PhysX setup in Omniverse tools.
 They are useful when preparing assets for Isaac Lab or working in Isaac Sim. For
 Isaac Lab's physics configuration interface, see :doc:`/source/concepts/schema_cfgs`.
