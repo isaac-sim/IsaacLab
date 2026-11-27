@@ -26,6 +26,14 @@ The following classes are part of the public :mod:`isaaclab_ov.renderers` API.
 .. autoclass:: OVRTXBackendCfg
    :show-inheritance:
 
+Scene backend
+-------------
+
+OVRTX renders with its Hydra scene backend by default. ``ISAAC_LAB_OVRTX_USE_HERCULES=1`` selects its Hercules
+scene backend instead and ``0`` selects Hydra, on both the internal-stage and OVStage paths. OVRTX reads the choice
+when each renderer is created and keeps it for the rest of the process, so set the flag explicitly whenever
+renderers in one process should use different backends. Leaving it unset keeps the current selection.
+
 Simulation-owned stages
 -----------------------
 

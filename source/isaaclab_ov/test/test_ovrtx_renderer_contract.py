@@ -164,7 +164,7 @@ def _simulation_registry(monkeypatch):
 
     from isaaclab.renderers import RenderContext
 
-    for name in ("ISAAC_LAB_OVRTX_USE_OVSTAGE", "ISAAC_LAB_SHARE_OVSTAGE"):
+    for name in ("ISAAC_LAB_OVRTX_USE_OVSTAGE", "ISAAC_LAB_SHARE_OVSTAGE", "ISAAC_LAB_OVRTX_USE_HERCULES"):
         monkeypatch.delenv(name, raising=False)
     registry = []
     sim = types.SimpleNamespace(
