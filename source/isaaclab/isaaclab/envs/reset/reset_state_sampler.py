@@ -166,6 +166,8 @@ class ResetStateSampler:
         success: wp.array | ProxyArray | torch.Tensor | None = None,
         valid: wp.array | ProxyArray | torch.Tensor | None = None,
         state_ids: wp.array | ProxyArray | torch.Tensor | None = None,
+        rng: wp.array | ProxyArray | torch.Tensor | None = None,
+        sample_unrequested: bool = False,
     ) -> ProxyArray:
         """Record previous outcomes and assign starts for selected environments.
 
@@ -183,6 +185,11 @@ class ResetStateSampler:
             success: Previous episode success flags, shape [num_envs]. Omit at startup.
             valid: Completed-episode mask, shape [num_envs]. Exclude unfinished manual resets.
             state_ids: Explicit catalog labels, shape [num_envs]. Omit to sample from scores.
+            rng: Caller-owned int32 seeds, shape [num_envs]. Each draw is then
+                ``wp.randf(wp.rand_init(rng[env], 0))`` and the internal streams are untouched;
+                the caller advances its seeds between resets. Omit to use the internal streams.
+            sample_unrequested: Whether a request of -1 in ``state_ids`` samples from the scores for that
+                environment rather than being invalid.
 
         Returns:
             Borrowed persistent full-environment ID assignments. Initially unassigned environments contain -1.
@@ -194,8 +201,13 @@ class ResetStateSampler:
         if state_ids is None:
             self.invalid_requests.warp.zero_()
         else:
-            self._resolve_requested_indices(selection, state_ids)
+            self._resolve_requested_indices(selection, state_ids, sample_unrequested)
         # Credit the old assignments, then score and select their replacements.
+        seeds = None
+        if rng is not None:
+            seeds = self._input(rng, self.num_envs)
+            if seeds.dtype != wp.int32:
+                raise TypeError("rng must use the int32 dtype.")
         if success is not None:
             self._record_completed_outcomes(selection, success, valid)
         if self._scores:
@@ -213,6 +225,7 @@ class ResetStateSampler:
                 self._cdf,
                 self._catalog_ids,
                 self._rng,
+                seeds,
                 self._assigned_indices,
                 self.state_ids.warp,
             ],
@@ -220,7 +233,46 @@ class ResetStateSampler:
         )
         return self.state_ids
 
-    def _resolve_requested_indices(self, selection: wp.array, state_ids: wp.array | ProxyArray | torch.Tensor) -> None:
+    def forget(
+        self,
+        state_indices: wp.array | ProxyArray | torch.Tensor,
+        mask: wp.array | ProxyArray | torch.Tensor | None = None,
+        *,
+        success_rate: float = 0.0,
+    ) -> None:
+        """Clear the outcome history of entries whose states the caller replaced.
+
+        Their episode counts restart at zero and their success rate is ``success_rate`` until their next outcome,
+        such as a score's target, so that a new state is drawn before its outcomes are known. Probabilities follow at
+        the next :meth:`reset`. Captured like :meth:`reset`.
+
+        Args:
+            state_indices: Dense int32 catalog positions, shape [N]. Invalid positions are skipped.
+            mask: Boolean selection, shape [N]. None forgets every listed entry.
+            success_rate: Success rate of the forgotten entries until their next outcome, in [0, 1].
+        """
+        indices = _warp_array(state_indices)
+        indices = self._input(indices, indices.shape[0] if isinstance(indices, wp.array) else -1)
+        if indices.dtype != wp.int32:
+            raise TypeError("state_indices must use the int32 dtype.")
+        selection = None if mask is None else self._input(mask, indices.shape[0])
+        wp.launch(
+            _forget_outcomes,
+            indices.shape[0],
+            [
+                indices,
+                selection,
+                float(success_rate),
+                self._success_history,
+                self.episode_counts.warp,
+                self.success_rate.warp,
+            ],
+            device=self.device,
+        )
+
+    def _resolve_requested_indices(
+        self, selection: wp.array, state_ids: wp.array | ProxyArray | torch.Tensor, sample_unrequested: bool
+    ) -> None:
         """Resolve explicit catalog labels before any previous outcomes are credited."""
         requests = self._input(state_ids, self.num_envs)
         if requests.dtype not in (wp.int32, wp.int64):
@@ -236,6 +288,7 @@ class ResetStateSampler:
                 self._env_group_ids,
                 self._group_size,
                 self._dense_ids,
+                sample_unrequested,
                 self._requested_indices,
                 self.invalid_requests.warp,
             ],
@@ -355,6 +408,7 @@ def _resolve_requests(
     env_group_ids: wp.array(dtype=wp.int32),
     group_size: int,
     dense: bool,
+    sample_unrequested: bool,
     requested_indices: wp.array(dtype=wp.int32),
     invalid: wp.array(dtype=wp.bool),
 ):
@@ -363,6 +417,8 @@ def _resolve_requests(
     requested_indices[env] = -1
     if mask[env]:
         value = wp.int64(requested[env])
+        if sample_unrequested and value == wp.int64(-1):
+            return
         index = int(-1)
         if dense:
             if value >= wp.int64(0) and value < wp.int64(catalog_ids.shape[0]):
@@ -382,6 +438,27 @@ def _resolve_requests(
             requested_indices[env] = index
         else:
             invalid[env] = True
+
+
+@wp.kernel
+def _forget_outcomes(
+    indices: wp.array(dtype=wp.int32),
+    mask: wp.array(dtype=wp.bool),
+    success_rate: float,
+    success_history: wp.array2d(dtype=float),
+    episode_counts: wp.array(dtype=wp.int64),
+    rates: wp.array(dtype=float),
+):
+    i = wp.tid()
+    if mask and not mask[i]:
+        return
+    index = indices[i]
+    if index < 0 or index >= rates.shape[0]:
+        return
+    for h in range(success_history.shape[1]):
+        success_history[index, h] = 0.0
+    episode_counts[index] = wp.int64(0)
+    rates[index] = success_rate
 
 
 @wp.kernel
@@ -528,19 +605,24 @@ def _assign_reset_states(
     cumulative: wp.array(dtype=wp.float64),
     catalog_ids: wp.array(dtype=wp.int64),
     rng: wp.array(dtype=wp.uint32),
+    seeds: wp.array(dtype=wp.int32),
     assigned_indices: wp.array(dtype=wp.int32),
     state_ids: wp.array(dtype=wp.int64),
 ):
     env = wp.tid()
     if mask[env] and not invalid[env]:
         index = int(-1)
-        if use_requested:
+        if use_requested and requested[env] >= 0:
             index = requested[env]
         else:
             start = env_group_ids[env] * group_size
-            rng_state = rng[env]
-            uniform = wp.randf(rng_state)
-            rng[env] = rng_state
+            uniform = float(0.0)
+            if seeds:
+                uniform = wp.randf(wp.rand_init(seeds[env], 0))
+            else:
+                rng_state = rng[env]
+                uniform = wp.randf(rng_state)
+                rng[env] = rng_state
             index = sample_cdf(cumulative, start, group_size, uniform)
         assigned_indices[env] = index
         state_ids[env] = catalog_ids[index]

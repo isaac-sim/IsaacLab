@@ -5,6 +5,7 @@
 
 """Tests for the MDP2 Kuka Allegro lift task on Newton."""
 
+import dataclasses
 import math
 from collections.abc import Iterator
 from types import SimpleNamespace
@@ -30,7 +31,6 @@ pytestmark = [pytest.mark.kitless, pytest.mark.skipif(not torch.cuda.is_availabl
 
 NUM_ENVS = 16
 FINGERTIPS = ("index_link_3", "middle_link_3", "ring_link_3", "thumb_link_3")
-BANKED = ("playing", "bank_joint_pos", "bank_joint_vel", "bank_object_pose_w", "bank_object_vel_w")
 PROGRESS = mdp2.term_state("events.adr", "progress")
 
 
@@ -43,7 +43,8 @@ def scenario() -> Iterator[SimpleNamespace]:
     cfg.sim.device = "cuda:0"
     cfg.scene.num_envs = NUM_ENVS
     cfg.seed = 0
-    cfg.task.events["reset"].params["bank_size"] = 2
+    params = cfg.task.events["reset"].params
+    params["source"] = dataclasses.replace(params["source"], num_states=2)
     env = MDP2RLEnv(cfg)
     try:
         generator = torch.Generator(device=env.device).manual_seed(0)
@@ -52,7 +53,7 @@ def scenario() -> Iterator[SimpleNamespace]:
             return scale * (2.0 * torch.rand(*shape, device=env.device, generator=generator) - 1.0)
 
         env.reset()
-        restored = bank_and_scene_state(env, env.state)
+        restored = stored_and_scene_state(env, env.state)
         for _ in range(10):
             env.step(rand(NUM_ENVS, env.mdp.action_dim))
 
@@ -78,10 +79,11 @@ def scenario() -> Iterator[SimpleNamespace]:
         env.close()
 
 
-def bank_and_scene_state(env: MDP2RLEnv, state: mdp2.MDPState) -> dict[str, tuple[torch.Tensor, torch.Tensor]]:
-    """Return, per banked field, the banked state that each world plays and the field's value in the scene."""
-    bank = {name: state.arrays[mdp2.term_state("events.reset", name)].torch for name in BANKED}
-    rows = torch.arange(NUM_ENVS, device=env.device), bank["playing"].long()
+def stored_and_scene_state(env: MDP2RLEnv, state: mdp2.MDPState) -> dict[str, tuple[torch.Tensor, torch.Tensor]]:
+    """Return, per stored field, the stored state that each world plays and the field's value in the scene."""
+    reset_states = mdp2.mdp.get_reset_states(state)
+    stored = reset_states.buffer.get_state(reset_states.sampler.indices)
+    stored["object_pose_w"].torch[:, :3] += env.scene.env_origins  # poses are stored relative to the origins
     robot, target = env.scene["robot"].data, env.scene["object"].data
     fields = {
         "joint_pos": robot.joint_pos,
@@ -89,16 +91,19 @@ def bank_and_scene_state(env: MDP2RLEnv, state: mdp2.MDPState) -> dict[str, tupl
         "object_pose_w": target.root_link_pose_w,
         "object_vel_w": target.root_com_vel_w,
     }
-    return {name: (bank[f"bank_{name}"][rows].clone(), field.torch.clone()) for name, field in fields.items()}
+    return {name: (stored[name].torch.clone(), field.torch.clone()) for name, field in fields.items()}
 
 
 def build(scenario: SimpleNamespace, backend: str) -> tuple[mdp2.MDP, mdp2.MDPState]:
-    """Compile the task for a backend, with the environment's term state: its point clouds and its bank."""
+    """Compile the task for a backend, with the environment's term state, its point clouds, and its reset states."""
     env = scenario.env
     builder = mdp2.MDPBuilder(env.scene_data.schema)
     builder.add_task(scenario.cfg.task)
     mdp = builder.finalize(device=env.device, backend=backend, diagnostics=True)
     state = mdp.state(env.scene_data)
+    for name, cache in env.state.caches.items():
+        if name in state.caches:
+            state.caches[name].update(cache)  # in place: the hooks' arguments hold these dicts
 
     for op in mdp.term_ops:
         for name in op.state:
@@ -128,11 +133,11 @@ def evaluate(scenario: SimpleNamespace, backend: str, progress: float) -> tuple[
     return mdp, state, results
 
 
-def test_bank_restores_and_terms_agree_across_backends(scenario: SimpleNamespace):
-    """The first reset fills the bank and restarts every world from it, and observations, rewards, and terminations
-    agree on both backends, halfway through the curriculum."""
-    for name, (banked, restored) in scenario.restored.items():
-        torch.testing.assert_close(restored, banked, atol=1e-5, rtol=0.0, msg=lambda message, name=name: name)
+def test_reset_states_restore_and_terms_agree_across_backends(scenario: SimpleNamespace):
+    """The first reset generates the reset states and resets every world to them, and observations, rewards, and
+    terminations agree on both backends, halfway through the curriculum."""
+    for name, (stored, restored) in scenario.restored.items():
+        torch.testing.assert_close(restored, stored, atol=1e-5, rtol=0.0, msg=lambda message, name=name: name)
 
     (mdp, _, torch_results), (_, _, warp_results) = (evaluate(scenario, backend, 0.5) for backend in ("torch", "warp"))
 
@@ -229,24 +234,24 @@ def test_terms_match_mdp1(scenario: SimpleNamespace):
     assert torch.equal(state.arrays[mdp2.quantities.success].torch > 0.5, success.succeeded)
 
 
-def test_step_replays_as_one_graph_with_curriculum_and_bank(scenario: SimpleNamespace):
-    """The whole step is one CUDA graph, in which resets restore banked states on both backends alike, and the
+def test_step_replays_as_one_graph_with_curriculum_and_reset_states(scenario: SimpleNamespace):
+    """The whole step is one CUDA graph, in which resets restore stored states on both backends alike, and the
     curriculum's gravity reaches the solver."""
     env = scenario.env
     assert env.mdp.is_fully_capturable and env.is_captured and env.num_graphs == 1
 
-    # Both backends draw the same banked state for every world, and restore it.
+    # Freshly built, both backends draw the same stored state for every world, and restore it.
     mask = ProxyArray(wp.ones(NUM_ENVS, dtype=wp.bool, device=env.device))
     playing = {}
     for backend in ("torch", "warp"):
         mdp, state = build(scenario, backend)
         mdp2.reset(mdp, state, mask)
-        playing[backend] = state.arrays[mdp2.term_state("events.reset", "playing")].torch.clone()
-        for name, (banked, restored) in bank_and_scene_state(env, state).items():
-            torch.testing.assert_close(restored, banked, atol=1e-5, rtol=0.0, msg=lambda message, name=name: name)
+        playing[backend] = mdp2.mdp.get_reset_states(state).sampler.indices.torch.clone()
+        for name, (stored, restored) in stored_and_scene_state(env, state).items():
+            torch.testing.assert_close(restored, stored, atol=1e-5, rtol=0.0, msg=lambda message, name=name: name)
     assert torch.equal(playing["torch"], playing["warp"])
 
-    # At full progress, every world times out in the replayed graph, which restores banked states and sets the final
+    # At full progress, every world times out in the replayed graph, which restores stored states and sets the final
     # gravity.
     env.state.arrays[PROGRESS].torch.fill_(1.0)
     env.episode_length_buf = torch.full_like(env.episode_length_buf, env.max_episode_length)
@@ -256,8 +261,8 @@ def test_step_replays_as_one_graph_with_curriculum_and_bank(scenario: SimpleName
     solver_gravity = wp.to_torch(env.sim.backend_manager.backend.solver.mjw_model.opt.gravity)
     torch.testing.assert_close(env.scene_data.data("scene", "gravity_w").torch[:, 2], final)
     torch.testing.assert_close(solver_gravity[:NUM_ENVS, 2], final)
-    for name, (banked, restored) in bank_and_scene_state(env, env.state).items():
-        torch.testing.assert_close(restored, banked, atol=1e-5, rtol=0.0, msg=lambda message, name=name: name)
+    for name, (stored, restored) in stored_and_scene_state(env, env.state).items():
+        torch.testing.assert_close(restored, stored, atol=1e-5, rtol=0.0, msg=lambda message, name=name: name)
 
 
 def test_play_mode_starts_the_curriculum_at_its_end():
@@ -273,3 +278,40 @@ def test_play_mode_starts_the_curriculum_at_its_end():
     params = cfg.task.events["adr"].params
     assert cfg.scene.num_envs == 50 and all(use.noise is None for use in uses)
     assert params["init_difficulty"] == params["max_difficulty"] and params["promotion_only"]
+
+
+def test_recorded_states_restore_through_the_simulation(scenario: SimpleNamespace):
+    """A state recorded during a step is restored, through the scene's writers, when its slot is pinned."""
+    env = scenario.env
+    task = dataclasses.replace(scenario.cfg.task, events=dict(scenario.cfg.task.events))
+    event = task.events["reset"]
+    task.events["reset"] = dataclasses.replace(
+        event,
+        # Recording needs reset states per world.
+        params={**event.params, "groups": None, "record": mdp2.mdp.RecordVisited(num_states=1, probability=1.0)},
+    )
+    builder = mdp2.MDPBuilder(env.scene_data.schema)
+    builder.add_task(task)
+    mdp = builder.finalize(device=env.device, backend="warp")
+    state, transition = mdp.state(env.scene_data), mdp.transition()
+    mdp2.startup(mdp, state)  # generates new reset states
+    reset_states = mdp2.mdp.get_reset_states(state)
+
+    for _ in range(3):
+        env.sim.step(render=False)
+    env.scene.update(dt=env.physics_dt)
+    visited = {name: scene for name, (_, scene) in stored_and_scene_state(env, state).items()}
+    mdp2.evaluate(mdp, state, transition)
+    recorded = ~transition.terminated.torch
+    assert recorded.any()
+
+    mask = ProxyArray(wp.ones(NUM_ENVS, dtype=wp.bool, device=env.device))
+    reset_states.pin(torch.full((NUM_ENVS,), reset_states.size - 1, device=env.device))
+    commit = lambda: env.scene_data.commit(mask.warp, mdp.reset_writes)  # noqa: E731
+    mdp2.reset(mdp, state, mask, commit)
+    commit()
+    env.scene.update(dt=0.0)
+    for name, (_, restored) in stored_and_scene_state(env, state).items():
+        torch.testing.assert_close(
+            restored[recorded], visited[name][recorded], atol=1e-5, rtol=0.0, msg=lambda message, name=name: name
+        )

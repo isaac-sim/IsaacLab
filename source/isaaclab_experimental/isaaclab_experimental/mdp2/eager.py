@@ -13,7 +13,7 @@ through a :class:`TermContext`.
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import torch
@@ -37,6 +37,8 @@ class TermContext:
     # The selectors bound to the inputs, by argument name
     selectors: Mapping[str, FieldSelector | SubsetSelector | Entity]
     scene_data: SceneData  # The scene, whose entity objects the hook may read
+    # Host objects that the use's Python hooks get as ``cache``, such as a buffer the init hook builds once
+    cache: dict[str, Any] = field(default_factory=dict)
 
     def entity(self, argument: str) -> Any:
         """Return the scene object, such as an articulation, of an entity input or of the entity an input selects."""
@@ -61,5 +63,6 @@ def call_init(mdp: MDP, op: TermOp, state: MDPState, hook: Callable) -> None:
         rng=state.rng.torch[op.stream] if op.random else None,
         selectors=op.inputs,
         scene_data=state.scene_data,
+        cache=state.caches.setdefault(op.name, {}),
     )
     hook(context, **op.params, **op.tunables)  # Tunable params at their default
