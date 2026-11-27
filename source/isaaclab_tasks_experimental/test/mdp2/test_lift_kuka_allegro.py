@@ -287,7 +287,6 @@ def test_recorded_states_restore_through_the_simulation(scenario: SimpleNamespac
     event = task.events["reset"]
     task.events["reset"] = dataclasses.replace(
         event,
-        inputs={**event.inputs, "terminated": mdp2.terminated},
         # Recording needs reset states per world.
         params={**event.params, "groups": None, "record": mdp2.mdp.RecordVisited(num_states=1, probability=1.0)},
     )

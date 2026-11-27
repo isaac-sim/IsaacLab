@@ -8,6 +8,8 @@
   use's Python hooks reuse.
 * Added recording, pinning, and saving to ``reset_to_states``: ``RecordVisited`` stores states that the worlds visit
   during training, ``default_reset_probability`` keeps a fraction of the default resets, and ``get_reset_states``
-  returns a ``ResetStates`` to inspect, pin, save, or skip the outcomes of manual resets.
+  returns a ``ResetStates`` to inspect, pin, or save. Only episodes that ended, by the ``terminated`` and
+  ``time_out`` inputs, are credited, not those reset by hand.
 * Added scheduling of reset events' ``update`` hooks once per step after the rewards, and ordering of reset events
-  that write commands after the commands resample, so that a restored command stands.
+  that write commands after the commands resample, also when a task starts mid-episode, so that a restored command
+  stands.

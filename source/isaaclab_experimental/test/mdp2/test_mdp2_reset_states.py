@@ -86,18 +86,39 @@ def _positive(world: int, joint_pos: wp.array2d(dtype=float)) -> float:
 
 positive = mdp2.Term(torch=lambda joint_pos: (joint_pos[:, 0] > 0.0).float(), warp=_positive)
 
+
+@wp.func
+def _always(world: int, joint_pos: wp.array2d(dtype=float)) -> bool:
+    return True
+
+
+always = mdp2.Term(torch=lambda joint_pos: torch.ones_like(joint_pos[:, 0], dtype=torch.bool), warp=_always)
+
 RESET_STATE_GENERATOR = mdp2.TaskCfg(
     events={"draw": mdp2.Event(draw, outputs=outputs)},
     terminations={"outside": mdp2.Termination(outside, inputs={"joint_pos": robot.joint_pos})},
 )
 
 
-def build(scene: Scene, backend: str = "warp", **params) -> tuple[mdp2.MDP, mdp2.MDPState]:
-    """Build a task whose only reset event resets to stored states, credited by whether the joint ended positive."""
-    inputs = params.pop("inputs", {"succeeded": mdp2.quantities.success})
-    task = mdp2.TaskCfg(
-        quantities={"success": mdp2.Quantity(positive, inputs={"joint_pos": robot.joint_pos})},
-        events={"reset": mdp2.Event(mdp.reset_to_states, inputs=inputs, outputs=outputs, params=params)},
+ENDED = {"terminated": mdp2.terminated, "time_out": mdp2.time_out}
+CREDITED = {"succeeded": mdp2.quantities.success, **ENDED}
+
+
+def build(scene: Scene, backend: str = "warp", worlds: int | None = None, **params) -> tuple[mdp2.MDP, mdp2.MDPState]:
+    """Build a task whose only reset event resets to stored states, credited by whether the joint ended positive,
+    in the first ``worlds`` worlds if given. Every step times out, so that each step ends the episodes."""
+    inputs = params.pop("inputs", CREDITED)
+    resets = mdp2.TaskCfg(
+        events={"reset": mdp2.Event(mdp.reset_to_states, inputs=inputs, outputs=outputs, params=params)}
+    )
+    if worlds is not None:
+        resets = mdp2.split(worlds={"a": worlds, "b": scene.schema.num_worlds - worlds}, a=resets, b=mdp2.TaskCfg())
+    task = mdp2.compose(
+        mdp2.TaskCfg(
+            quantities={"success": mdp2.Quantity(positive, inputs={"joint_pos": robot.joint_pos})},
+            terminations={"end": mdp2.Termination(always, inputs={"joint_pos": robot.joint_pos}, time_out=True)},
+        ),
+        resets,
     )
     builder = mdp2.MDPBuilder(scene.schema)
     builder.add_task(task)
@@ -113,9 +134,6 @@ def reset(task_mdp, state, mask) -> None:
 
 def joint_pos(scene: Scene) -> torch.Tensor:
     return scene.data("robot", "joint_pos").torch[:, 0]
-
-
-RECORDING = {"succeeded": mdp2.quantities.success, "terminated": mdp2.terminated}
 
 
 def test_generator_gives_each_world_valid_states_and_restore_only_reset_worlds():
@@ -144,7 +162,7 @@ def test_shared_states_restore_poses_relative_to_each_world_origin():
         scene,
         source=mdp.FromTensors(states),
         shared=True,
-        inputs={"succeeded": mdp2.quantities.success, "env_origins": scene_entity.env_origins},
+        inputs={**CREDITED, "env_origins": scene_entity.env_origins},
     )
     reset(task_mdp, state, [True] * 4)
 
@@ -164,7 +182,7 @@ def test_grouped_states_come_from_and_credit_the_worlds_of_each_group():
         source=mdp.FromTask(RESET_STATE_GENERATOR, num_states=4),
         groups=lambda ctx: torch.arange(ctx.num_worlds) % 2,
         sampler=sampler,
-        inputs={"succeeded": mdp2.quantities.success, "env_origins": scene_entity.env_origins},
+        inputs={**CREDITED, "env_origins": scene_entity.env_origins},
     )
     reset_states = mdp.get_reset_states(state)
     stored = reset_states.states["joint_pos"][..., 0]
@@ -190,7 +208,7 @@ def test_outcomes_are_credited_to_the_state_each_episode_started_from():
         "object_pose_w": torch.tensor([[0, 0, 0, 0, 0, 0, 1]] * 2, dtype=torch.float32, device=DEVICE),
     }
     sampler = ResetStateSamplerCfg(history_length=8, scores=[BetaSamplingScoreCfg(target=1.0)])
-    inputs = {"succeeded": mdp2.quantities.success, "env_origins": scene_entity.env_origins}
+    inputs = {**CREDITED, "env_origins": scene_entity.env_origins}
     task_mdp, state = build(scene, source=mdp.FromTensors(states), shared=True, sampler=sampler, inputs=inputs)
     transition = task_mdp.transition()
     for _ in range(6):
@@ -201,16 +219,17 @@ def test_outcomes_are_credited_to_the_state_each_episode_started_from():
     np.testing.assert_allclose(reset_states.success_rate.cpu().numpy(), [1.0, 0.0])
     assert reset_states.episode_counts.sum() == 5 * 16  # the first reset has no episode to credit
 
-    reset_states.skip_current_episodes()  # a reset by hand mid-episode credits nothing
-    reset(task_mdp, state, [True] * 16)
-    assert reset_states.episode_counts.sum() == 5 * 16
+    # Only ended episodes are credited: the last step's, but not the new one reset again before a step.
+    for _ in range(2):
+        reset(task_mdp, state, [True] * 16)
+        assert reset_states.episode_counts.sum() == 6 * 16
 
 
 def test_recorded_visited_states_restore_when_pinned():
     scene = Scene(num_worlds=2)
     sampler = ResetStateSamplerCfg(history_length=4, scores=[BetaSamplingScoreCfg(target=0.5)])
     record = mdp.RecordVisited(num_states=2, probability=1.0)
-    inputs = {**RECORDING, "record_if": mdp2.quantities.success}
+    inputs = {**CREDITED, "record_if": mdp2.quantities.success}
     source = mdp.FromTask(RESET_STATE_GENERATOR, num_states=2)
     task_mdp, state = build(scene, source=source, sampler=sampler, record=record, inputs=inputs)
     reset_states, transition = mdp.get_reset_states(state), task_mdp.transition()
@@ -344,7 +363,7 @@ def test_backends_and_graph_replay_restore_and_record_the_same_states():
             sampler=ResetStateSamplerCfg(history_length=4, scores=[BetaSamplingScoreCfg(target=0.5)]),
             default_reset_probability=0.25,
             record=mdp.RecordVisited(num_states=4, probability=0.5),
-            inputs=RECORDING,
+            inputs=CREDITED,
         )
         reset_states = mdp.get_reset_states(state)
         mask = ProxyArray(wp.zeros(32, dtype=wp.bool, device=DEVICE))
@@ -379,12 +398,29 @@ def test_backends_and_graph_replay_restore_and_record_the_same_states():
         ({"source": mdp.FromTensors({"joint_pos": torch.zeros(2, 1, 1)})}, "but the event writes"),
         ({"source": mdp.FromTask(RESET_STATE_GENERATOR, num_states=2), "shared": True}, "need the env_origins input"),
         (
-            {"source": mdp.FromTask(RESET_STATE_GENERATOR, num_states=2), "record": mdp.RecordVisited(2, 0.1)},
-            "the terminated input",
+            {
+                "source": mdp.FromTask(RESET_STATE_GENERATOR, num_states=2),
+                "sampler": ResetStateSamplerCfg(scores=[]),
+                "inputs": {"succeeded": mdp2.quantities.success},
+            },
+            "the terminated and time_out inputs",
         ),
     ],
-    ids=["fill_misses_an_output", "shared_poses_without_origins", "recording_without_terminated"],
+    ids=["fill_misses_an_output", "shared_poses_without_origins", "crediting_without_ended_episodes"],
 )
 def test_invalid_reset_states_are_rejected_at_startup(params, message):
     with pytest.raises(ValueError, match=message):
         build(Scene(num_worlds=2), **params)
+
+
+def test_recording_runs_only_in_the_worlds_of_its_use():
+    scene = Scene(num_worlds=4)
+    record = mdp.RecordVisited(num_states=2, probability=1.0)
+    source = mdp.FromTask(RESET_STATE_GENERATOR, num_states=2)
+    task_mdp, state = build(scene, source=source, record=record, worlds=2)
+    reset_states = mdp.get_reset_states(state, next(use for use in state.caches if use.endswith("events.reset")))
+    before = reset_states.states["joint_pos"].clone()
+    joint_pos(scene).fill_(0.3)
+    mdp2.evaluate(task_mdp, state, task_mdp.transition())
+    after = reset_states.states["joint_pos"]
+    assert (after[:2, 2, 0] == 0.3).all() and torch.equal(after[2:], before[2:])

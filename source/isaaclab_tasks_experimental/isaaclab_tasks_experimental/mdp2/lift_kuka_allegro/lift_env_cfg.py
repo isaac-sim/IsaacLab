@@ -458,7 +458,12 @@ TASK = mdp2.TaskCfg(
         # share their success statistics.
         "reset": mdp2.Event(
             mdp.reset_to_states,
-            inputs={"succeeded": mdp2.quantities.success, "env_origins": scene.env_origins},
+            inputs={
+                "succeeded": mdp2.quantities.success,
+                "terminated": mdp2.terminated,
+                "time_out": mdp2.time_out,
+                "env_origins": scene.env_origins,
+            },
             outputs={**robot_state, **object_state},
             params={
                 # A world per object, as in small test runs, needs a roll per state.

@@ -240,6 +240,7 @@ class ResetStates:
         origins: wp.array | None,
         poses: Collection[str],
         uniform: bool,
+        credits: bool,
         default_reset_probability: float,
         record: RecordVisited | None,
     ) -> None:
@@ -252,6 +253,7 @@ class ResetStates:
         self.groups = groups  # The group of each world, None if shared
         self.labels = labels  # The labels the groups were numbered from, such as prototype IDs, if given
         self._uniform = uniform  # Uniform draws use no outcome history
+        self.tracks_steps = credits or record is not None  # Whether the update hook runs each step
         self.num_groups = 1 if shared else int(groups.max()) + 1
         self._group = torch.zeros(num_worlds, dtype=torch.long, device=wp.device_to_torch(device))
         if not shared:
@@ -284,6 +286,7 @@ class ResetStates:
         zeros = functools.partial(wp.zeros, num_worlds, device=device)
         self._requests = wp.full(num_worlds, -1, dtype=wp.int32, device=device)
         self._restored, self._credit, self._valid = zeros(dtype=wp.bool), zeros(dtype=wp.bool), zeros(dtype=wp.bool)
+        self._ended = zeros(dtype=wp.bool)  # the worlds whose episodes ended at their last step
         self._writes = zeros(dtype=wp.bool)  # the worlds that this reset restores
         self._recording, self._record_rows = zeros(dtype=wp.bool), zeros(dtype=wp.int32)
         self._cursor = zeros(dtype=wp.int32)
@@ -347,10 +350,6 @@ class ResetStates:
         """Draw every world's reset states as usual again."""
         wp.to_torch(self._requests).fill_(-1)
 
-    def skip_current_episodes(self) -> None:
-        """Credit none of the worlds' current episodes, such as before resetting them by hand mid-episode."""
-        self._credit.zero_()
-
     def save(self, path: str | Path) -> None:
         """Save the states, for a later run to load with :class:`FromFile`."""
         torch.save({"states": self.states, "groups": self.groups, "labels": self.labels}, path)
@@ -360,11 +359,23 @@ class ResetStates:
         wp.launch(
             _choose_starts,
             mask.shape,
-            [mask, rng, self._requests, self._default, self._credit, self._valid, self._restored, self._writes],
+            [
+                mask,
+                rng,
+                self._requests,
+                self._default,
+                self._ended,
+                self._credit,
+                self._valid,
+                self._restored,
+                self._writes,
+            ],
             device=mask.device,
         )
         success = None if self._uniform else succeeded
-        self.sampler.reset(mask, success=success, valid=self._valid, state_ids=self._requests, rng=rng)
+        self.sampler.reset(
+            mask, success=success, valid=self._valid, state_ids=self._requests, rng=rng, sample_unrequested=True
+        )
         # A rejected request leaves the world's reset as the earlier events wrote it.
         wp.launch(
             _skip_invalid,
@@ -376,27 +387,41 @@ class ResetStates:
         for pose in self._poses.values():
             _shift(self._writes, self._origins, pose, pose, 1.0)
 
-    def record(self, rng: wp.array, terminated: wp.array, record_if: wp.array | None) -> None:
-        """Record the states of the worlds selected this step into their oldest recorded slots."""
+    def step(
+        self,
+        mask: wp.array | None,
+        rng: wp.array,
+        terminated: wp.array,
+        time_out: wp.array,
+        record_if: wp.array | None,
+    ) -> None:
+        """Note the masked worlds whose episodes ended, and record the states of those selected into their oldest
+        recorded slots."""
+        record = self._record
         wp.launch(
-            _choose_records,
+            _after_step,
             self.num_worlds,
             [
+                mask,
                 rng,
                 terminated,
+                time_out,
                 record_if,
-                self._record.probability,
+                0.0 if record is None else record.probability,
                 self._filled,
-                self._record.num_states,
+                0 if record is None else record.num_states,
                 self.size,
                 self.sampler.indices.warp,
                 self._cursor,
+                self._ended,
                 self._credit,
                 self._recording,
                 self._record_rows,
             ],
             device=rng.device,
         )
+        if record is None:
+            return
         for name, pose in self._poses.items():
             _shift(self._recording, self._origins, pose, self._record_values[name], -1.0)
         self.sampler.forget(self._record_rows, self._recording, success_rate=self._prior)
@@ -435,10 +460,13 @@ def _init(
             "Shared or grouped reset states with poses need the env_origins input, so that poses transfer across"
             " worlds."
         )
-    if record is not None and (shared or groups is not None or "terminated" not in ctx.inputs or record.num_states < 1):
+    if record is not None and (shared or groups is not None or record.num_states < 1):
+        raise ValueError("Recording needs reset states per world and at least one slot.")
+    credits = sampler is not None and "succeeded" in ctx.inputs
+    if (credits or record is not None) and not {"terminated", "time_out"} <= ctx.inputs.keys():
         raise ValueError(
-            "Recording needs reset states per world, at least one slot, and the terminated input (mdp2.terminated), so"
-            " that states which end the episode are not recorded."
+            "Crediting or recording needs the terminated and time_out inputs (mdp2.terminated, mdp2.time_out), so"
+            " that only ended episodes are credited and states that end episodes are not recorded."
         )
     if not 0.0 <= default_reset_probability <= 1.0:
         raise ValueError(f"default_reset_probability must be in [0, 1], got {default_reset_probability}.")
@@ -476,6 +504,7 @@ def _init(
         origins=None if origins is None else wp.from_torch(origins.contiguous(), dtype=wp.vec3f),
         poses=poses if origins is not None else (),
         uniform=sampler is None,
+        credits=credits,
         default_reset_probability=default_reset_probability,
         record=record,
     )
@@ -483,11 +512,11 @@ def _init(
     # Load every kernel and the sampler's sort and scan scratch before a graph captures the hooks: a step and a reset
     # of no worlds.
     nothing = wp.zeros(ctx.num_worlds, dtype=wp.bool, device=reset_states.sampler.device)
-    rng, succeeded = _as_warp(ctx.rng), ctx.inputs.get("succeeded")
-    reset_states.restore(nothing, rng, None if succeeded is None else _as_warp(succeeded))
-    if record is not None:
-        when = ctx.inputs.get("record_if")
-        reset_states.record(rng, wp.ones_like(nothing), None if when is None else _as_warp(when))
+    inputs = {name: _as_warp(value) for name, value in ctx.inputs.items()}
+    rng = _as_warp(ctx.rng)
+    reset_states.restore(nothing, rng, inputs.get("succeeded"))
+    if reset_states.tracks_steps:
+        reset_states.step(nothing, rng, inputs["terminated"], inputs["time_out"], inputs.get("record_if"))
 
 
 def _restore(
@@ -497,22 +526,24 @@ def _restore(
     succeeded: wp.array | torch.Tensor | None = None,
     **_: Any,
 ) -> None:
-    cache["reset_states"].restore(_as_warp(mask), _as_warp(rng), None if succeeded is None else _as_warp(succeeded))
+    cache["reset_states"].restore(_as_warp(mask), _as_warp(rng), _as_warp(succeeded))
 
 
-def _record(
+def _step(
+    mask: wp.array | torch.Tensor | None,
     cache: dict[str, Any],
     rng: wp.array | torch.Tensor,
     terminated: wp.array | torch.Tensor | None = None,
+    time_out: wp.array | torch.Tensor | None = None,
     record_if: wp.array | torch.Tensor | None = None,
     **_: Any,
 ) -> None:
     reset_states: ResetStates = cache["reset_states"]
-    if reset_states._record is not None:
-        reset_states.record(_as_warp(rng), _as_warp(terminated), None if record_if is None else _as_warp(record_if))
+    if reset_states.tracks_steps:
+        reset_states.step(*map(_as_warp, (mask, rng, terminated, time_out, record_if)))
 
 
-_hooks = Implementation(compute=_restore, update=_record)
+_hooks = Implementation(compute=_restore, update=_step)
 reset_to_states = Term(torch=_hooks, warp=_hooks, random=True, init=_init)
 """Reset the worlds to reset states drawn from a stored set, the MDP2 counterpart of MDP1's lift
 ``conditional_reset``.
@@ -534,7 +565,8 @@ Params:
 Inputs: ``succeeded``, the ended episode's success, credited to the slot it started from when bound;
 ``env_origins``, which stores the world-frame poses (scene fields ``*_w`` of transforms, such as
 ``root_link_pose_w``) relative to the environment origins, while local ones, such as ``default_root_pose``, stay;
-``terminated`` (``mdp2.terminated``), required to record; and ``record_if``, a quantity above 0.5 where a state
+``terminated`` and ``time_out`` (``mdp2.terminated``, ``mdp2.time_out``), required to credit or record, so that only
+ended episodes are credited, not those reset by hand mid-episode; and ``record_if``, a quantity above 0.5 where a state
 may be recorded.
 
 Place it after the other reset events: it overwrites the outputs they wrote. The states and the sampler's history
@@ -548,6 +580,7 @@ def _choose_starts(
     rng: wp.array(dtype=wp.int32),
     requests: wp.array(dtype=wp.int32),
     default_reset_probability: float,
+    ended: wp.array(dtype=wp.bool),
     credit: wp.array(dtype=wp.bool),
     valid: wp.array(dtype=wp.bool),
     restored: wp.array(dtype=wp.bool),
@@ -557,8 +590,9 @@ def _choose_starts(
     writes[world] = False
     if not mask[world]:
         return
-    # The ended episode counts if it started from a slot that was not recorded over since.
-    valid[world] = credit[world]
+    # The episode counts if it ended, from a slot that was not recorded over since.
+    valid[world] = credit[world] and ended[world]
+    ended[world] = False
     restore = requests[world] >= 0 or wp.randf(wp.rand_init(rng[world], 1)) >= default_reset_probability
     restored[world] = restore
     writes[world] = restore
@@ -566,9 +600,11 @@ def _choose_starts(
 
 
 @wp.kernel
-def _choose_records(
+def _after_step(
+    mask: wp.array(dtype=wp.bool),
     rng: wp.array(dtype=wp.int32),
     terminated: wp.array(dtype=wp.bool),
+    time_out: wp.array(dtype=wp.bool),
     record_if: wp.array(dtype=wp.float32),
     probability: float,
     first: int,
@@ -576,11 +612,17 @@ def _choose_records(
     size: int,
     indices: wp.array(dtype=wp.int32),
     cursor: wp.array(dtype=wp.int32),
+    ended: wp.array(dtype=wp.bool),
     credit: wp.array(dtype=wp.bool),
     recording: wp.array(dtype=wp.bool),
     rows: wp.array(dtype=wp.int32),
 ):
     world = wp.tid()
+    if mask and not mask[world]:
+        ended[world] = False
+        recording[world] = False
+        return
+    ended[world] = terminated[world] or time_out[world]
     record = not terminated[world] and wp.randf(wp.rand_init(rng[world], 2)) < probability
     if record_if:
         record = record and record_if[world] > 0.5

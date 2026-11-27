@@ -231,7 +231,11 @@ which MDP2 commits. The outputs are the state: any writable scene fields.
 
    "reset": mdp2.Event(
        mdp.reset_to_states,
-       inputs={"succeeded": mdp2.quantities.success},
+       inputs={
+           "succeeded": mdp2.quantities.success,
+           "terminated": mdp2.terminated,
+           "time_out": mdp2.time_out,
+       },
        outputs={"joint_pos": robot.joint_pos, "object_pose_w": target.root_link_pose_w},
        params={
            "source": mdp.FromTask(RESET_STATE_GENERATOR, num_states=16),
@@ -244,8 +248,8 @@ which MDP2 commits. The outputs are the state: any writable scene fields.
   ``descriptor`` observation group, keeps the most spread of an oversampled harvest.
   :class:`~isaaclab_experimental.mdp2.mdp.reset_states.FromTensors` takes given states, such as
   demonstrations, and :class:`~isaaclab_experimental.mdp2.mdp.reset_states.FromFile` loads saved ones.
-* ``sampler`` weighs states by recent success; ``None`` draws uniformly. Binding ``succeeded``
-  credits each ended episode to the state it started from.
+* ``sampler`` weighs states by recent success; ``None`` draws uniformly. Binding ``succeeded``,
+  with ``terminated`` and ``time_out``, credits each ended episode to the state it started from.
 * ``shared`` selects one set of states for every world instead of one set per world. Bind
   ``env_origins`` so poses are stored relative to each world's origin. Share states only between
   worlds whose states fit each other, such as worlds that spawn the same object.
@@ -278,6 +282,7 @@ its own reset states:
        inputs={
            "succeeded": mdp2.quantities.success,
            "terminated": mdp2.terminated,  # states that end the episode are not recorded
+           "time_out": mdp2.time_out,  # with terminated, only ended episodes are credited
            "record_if": mdp2.quantities.lifted,  # optional: record only where above 0.5
        },
        outputs={**robot_state, **object_state},
@@ -315,8 +320,8 @@ within each world's reset states.
    reset_states.save("reset_states.pt")  # load in a later run with mdp.FromFile("reset_states.pt")
 
 Pins hold until replaced and run inside the captured step, so they can sweep the reset states
-during evaluation. Call ``reset_states.skip_current_episodes()`` before resetting worlds by hand
-mid-episode, so those episodes are not credited. To generate states separately from training, for
+during evaluation. Only episodes that ended are credited, so resetting worlds by hand mid-episode
+credits nothing. To generate states separately from training, for
 example many more of them, run ``scripts/tools/generate_reset_states.py``, which builds the task and
 saves its reset states:
 

@@ -167,6 +167,7 @@ class ResetStateSampler:
         valid: wp.array | ProxyArray | torch.Tensor | None = None,
         state_ids: wp.array | ProxyArray | torch.Tensor | None = None,
         rng: wp.array | ProxyArray | torch.Tensor | None = None,
+        sample_unrequested: bool = False,
     ) -> ProxyArray:
         """Record previous outcomes and assign starts for selected environments.
 
@@ -183,11 +184,12 @@ class ResetStateSampler:
             env_ids: Alternative selection using environment indices or a slice.
             success: Previous episode success flags, shape [num_envs]. Omit at startup.
             valid: Completed-episode mask, shape [num_envs]. Exclude unfinished manual resets.
-            state_ids: Explicit catalog labels, shape [num_envs]. Omit to sample from scores. A request of -1
-                samples from the scores for that environment.
+            state_ids: Explicit catalog labels, shape [num_envs]. Omit to sample from scores.
             rng: Caller-owned int32 seeds, shape [num_envs]. Each draw is then
                 ``wp.randf(wp.rand_init(rng[env], 0))`` and the internal streams are untouched;
                 the caller advances its seeds between resets. Omit to use the internal streams.
+            sample_unrequested: Whether a request of -1 in ``state_ids`` samples from the scores for that
+                environment rather than being invalid.
 
         Returns:
             Borrowed persistent full-environment ID assignments. Initially unassigned environments contain -1.
@@ -199,7 +201,7 @@ class ResetStateSampler:
         if state_ids is None:
             self.invalid_requests.warp.zero_()
         else:
-            self._resolve_requested_indices(selection, state_ids)
+            self._resolve_requested_indices(selection, state_ids, sample_unrequested)
         # Credit the old assignments, then score and select their replacements.
         seeds = None
         if rng is not None:
@@ -268,7 +270,9 @@ class ResetStateSampler:
             device=self.device,
         )
 
-    def _resolve_requested_indices(self, selection: wp.array, state_ids: wp.array | ProxyArray | torch.Tensor) -> None:
+    def _resolve_requested_indices(
+        self, selection: wp.array, state_ids: wp.array | ProxyArray | torch.Tensor, sample_unrequested: bool
+    ) -> None:
         """Resolve explicit catalog labels before any previous outcomes are credited."""
         requests = self._input(state_ids, self.num_envs)
         if requests.dtype not in (wp.int32, wp.int64):
@@ -284,6 +288,7 @@ class ResetStateSampler:
                 self._env_group_ids,
                 self._group_size,
                 self._dense_ids,
+                sample_unrequested,
                 self._requested_indices,
                 self.invalid_requests.warp,
             ],
@@ -403,6 +408,7 @@ def _resolve_requests(
     env_group_ids: wp.array(dtype=wp.int32),
     group_size: int,
     dense: bool,
+    sample_unrequested: bool,
     requested_indices: wp.array(dtype=wp.int32),
     invalid: wp.array(dtype=wp.bool),
 ):
@@ -411,7 +417,7 @@ def _resolve_requests(
     requested_indices[env] = -1
     if mask[env]:
         value = wp.int64(requested[env])
-        if value == wp.int64(-1):
+        if sample_unrequested and value == wp.int64(-1):
             return
         index = int(-1)
         if dense:
