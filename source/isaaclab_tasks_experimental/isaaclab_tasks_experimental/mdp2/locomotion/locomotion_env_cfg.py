@@ -29,7 +29,7 @@ LOCOMOTION_TASK = mdp2.TaskCfg(
     quantities={
         "up": mdp2.Quantity(locomotion.base_up_proj, inputs={**root, "gravity_w": scene.gravity_w}),
         "heading": mdp2.Quantity(locomotion.base_heading_proj, inputs=to_target, params=target),
-        "success_rate": mdp2.Quantity(locomotion.survival, inputs={"time_out": mdp2.time_out}, log=True),
+        "success_rate": mdp2.Quantity(locomotion.survival, inputs={"time_out": mdp2.time_out}, record=True),
     },
     observations={
         "policy": {

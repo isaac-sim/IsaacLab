@@ -267,7 +267,7 @@ TASK = mdp2.TaskCfg(
             },
         ),
         "success": mdp2.Quantity(
-            lift.succeeded, inputs=goal, params={"distance": 0.05, "contact_threshold": 0.01}, log=True
+            lift.succeeded, inputs=goal, params={"distance": 0.05, "contact_threshold": 0.01}, record=True
         ),
         "abnormal_robot": mdp2.Quantity(
             lift.abnormal_robot,
@@ -277,7 +277,7 @@ TASK = mdp2.TaskCfg(
                 "joint_ids": joints,
             },
         ),
-        "adr_progress": mdp2.Quantity(mdp.value, inputs={"value": progress}, log=True),
+        "adr_progress": mdp2.Quantity(mdp.value, inputs={"value": progress}, record=True),
     },
     observations={
         "policy": {

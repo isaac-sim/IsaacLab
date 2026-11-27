@@ -41,10 +41,20 @@ def test_mdp2_environment_resets_and_steps(task_name):
     env = gym.make(task_name, cfg=env_cfg)
     try:
         obs, _ = env.reset(seed=0)
+        sim = env.unwrapped.sim
+        counts, times = [sim.get_physics_step_count()], [sim.backend_manager.get_simulation_time()]
         for _ in range(3):
             actions = 2.0 * torch.rand(env.action_space.shape, device=env.unwrapped.device) - 1.0
             obs, reward, terminated, truncated, _ = env.step(actions)
+            counts.append(sim.get_physics_step_count())
+            times.append(sim.backend_manager.get_simulation_time())
         assert all(torch.isfinite(value).all() for value in [*obs.values(), reward])
+        # The eager, capturing, and replayed steps count their physics steps and advance the time once each, also
+        # where the physics runs between the graphs.
+        steps = [after - before for before, after in zip(counts, counts[1:])]
+        assert steps[0] > 0 and steps == [steps[0]] * 3, steps
+        for before, after in zip(times, times[1:]):
+            assert after - before == pytest.approx(env.unwrapped.step_dt)
         # The second step captured the step's graphs.
         if task_name in NUM_GRAPHS:
             assert env.unwrapped.num_graphs == NUM_GRAPHS[task_name]
@@ -106,7 +116,8 @@ def test_locomotion_world_configs_must_share_gear_ratios():
     env_cfg.scene.num_envs = 4
     energy = env_cfg.task.rewards["energy"]
     even_gears = replace(energy, params={**energy.params, "gear_ratio": {".*": 1.0}})
-    env_cfg.task = [env_cfg.task, replace(env_cfg.task, rewards={**env_cfg.task.rewards, "energy": even_gears})]
+    even = replace(env_cfg.task, rewards={**env_cfg.task.rewards, "energy": even_gears})
+    env_cfg.task = mdp2.split(authored=env_cfg.task, even=even)
     with pytest.raises(ValueError, match="gear ratios"):
         gym.make(task_name, cfg=env_cfg)
     assert SimulationContext.instance() is None

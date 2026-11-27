@@ -73,6 +73,44 @@ value = Term(torch=_value_torch, warp=_value)
 """The ``value`` input itself, one float per world, such as a quantity or the state of another term."""
 
 
+@wp.func
+def _resting_on(
+    world: int,
+    normal_force_matrix_w: wp.array3d(dtype=wp.vec3f),
+    body_ids: wp.array(dtype=wp.int32),
+    root_com_vel_w: wp.array(dtype=wp.spatial_vectorf),
+    filter_index: int,
+    min_force: float,
+    min_cos: float,
+    max_speed: float,
+) -> float:
+    force = wp.vec3f(0.0)
+    for i in range(body_ids.shape[0]):
+        force += normal_force_matrix_w[world, body_ids[i], filter_index]
+    magnitude = wp.length(force)
+    supported = magnitude >= min_force and force[2] >= min_cos * magnitude
+    still = wp.length(wp.spatial_top(root_com_vel_w[world])) < max_speed
+    return wp.where(supported and still, 1.0, 0.0)
+
+
+def _resting_on_torch(
+    normal_force_matrix_w, body_ids, root_com_vel_w, *, filter_index, min_force, min_cos, max_speed
+) -> torch.Tensor:
+    force = normal_force_matrix_w[:, body_ids.long(), filter_index].sum(dim=1)
+    magnitude = force.norm(dim=-1)
+    supported = (magnitude >= min_force) & (force[:, 2] >= min_cos * magnitude)
+    still = root_com_vel_w[:, :3].norm(dim=-1) < max_speed
+    return (supported & still).float()
+
+
+resting_on = Term(torch=_resting_on_torch, warp=_resting_on)
+"""One where an object rests on another: the contact force that a filter object exerts on its ``body_ids`` bodies is
+at least ``min_force`` [N], within the cone of cosine ``min_cos`` around up, and the object's speed is below
+``max_speed`` [m/s], like Arena's ``object_on_destination``. ``normal_force_matrix_w`` is a contact sensor's on the
+object filtered by the destination, the filter at ``filter_index``. Hold it with a milestone's ``hold``.
+"""
+
+
 # Joint state.
 
 

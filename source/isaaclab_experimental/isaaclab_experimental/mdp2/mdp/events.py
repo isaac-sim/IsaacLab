@@ -334,6 +334,7 @@ def _randomize_rigid_body_mass(
     body_ids: torch.Tensor,
     mass: torch.Tensor,
     inertia: torch.Tensor,
+    captured: torch.Tensor,
     *,
     mass_distribution_params: tuple[float, float],
     operation: str,
@@ -342,6 +343,11 @@ def _randomize_rigid_body_mass(
 ) -> None:
     body_ids = body_ids.long()
     env_ids = mask.nonzero().squeeze(-1)
+    # The inertias to scale are those at the event's first call, as in MDP1, so that an event before it at startup,
+    # such as an inertia offset, stays in them.
+    first = env_ids[captured[env_ids] == 0.0]
+    inertia[first] = asset.data.body_inertia.torch[first][:, body_ids]
+    captured[first] = 1.0
 
     samples = _samples(rng, mass_distribution_params, distribution, (len(body_ids),))[env_ids]
     masses = mass[env_ids]
@@ -355,12 +361,17 @@ def _randomize_rigid_body_mass(
 
 
 randomize_rigid_body_mass = Term(
-    torch=_randomize_rigid_body_mass, init=_init_body_defaults, state=_BODY_DEFAULTS, random=True, capturable=False
+    torch=_randomize_rigid_body_mass,
+    init=_init_body_defaults,
+    state={**_BODY_DEFAULTS, "captured": State(persistent=True)},
+    random=True,
+    capturable=False,
 )
 """Add to, scale, or set (``operation`` ``"add"``, ``"scale"``, ``"abs"``) the masses of the ``body_ids`` bodies.
 
 Samples come from ``mass_distribution_params`` with ``distribution`` ``"uniform"``, ``"log_uniform"``, or
-``"gaussian"``, and apply to the masses at startup. With ``recompute_inertia``, the inertias scale with the masses.
+``"gaussian"``, and apply to the masses at startup. With ``recompute_inertia``, the inertias scale with the masses,
+from the inertias at the event's first call.
 """
 
 
