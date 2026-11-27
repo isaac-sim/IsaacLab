@@ -512,11 +512,11 @@ def _init(
     # Load every kernel and the sampler's sort and scan scratch before a graph captures the hooks: a step and a reset
     # of no worlds.
     nothing = wp.zeros(ctx.num_worlds, dtype=wp.bool, device=reset_states.sampler.device)
-    inputs = {name: _as_warp(value) for name, value in ctx.inputs.items()}
-    rng = _as_warp(ctx.rng)
-    reset_states.restore(nothing, rng, inputs.get("succeeded"))
+    rng, inputs = _as_warp(ctx.rng), ctx.inputs
+    reset_states.restore(nothing, rng, _as_warp(inputs.get("succeeded")))
     if reset_states.tracks_steps:
-        reset_states.step(nothing, rng, inputs["terminated"], inputs["time_out"], inputs.get("record_if"))
+        ended = (_as_warp(inputs[name]) for name in ("terminated", "time_out"))
+        reset_states.step(nothing, rng, *ended, _as_warp(inputs.get("record_if")))
 
 
 def _restore(

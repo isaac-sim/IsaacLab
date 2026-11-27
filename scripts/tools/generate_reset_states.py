@@ -18,6 +18,7 @@ import dataclasses
 import sys
 
 import gymnasium as gym
+import isaaclab_tasks_experimental  # noqa: F401
 from isaaclab_experimental.mdp2 import mdp
 
 from isaaclab.app import add_launcher_args, launch_simulation
