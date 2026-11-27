@@ -27,6 +27,11 @@ from isaaclab_newton.sim.spawners.materials import (
 )
 
 
+def native_add_usd(builder: ModelBuilder, source: Any, **native_options) -> dict[str, Any]:
+    """Import USD with Newton's native importer; the default of :attr:`NewtonCfg.usd_importer`."""
+    return builder.add_usd(source, **native_options)
+
+
 def add_deformable_from_usd(
     builder: ModelBuilder, stage: Usd.Stage, geometry: DeformableStageEntry, color: tuple[float, float, float] | None
 ) -> None:
@@ -107,6 +112,7 @@ def build_source_builders(
     skip_mesh_approximation: bool = False,
     import_results_out: dict[str, dict[str, Any]] | None = None,
     sdf_mesh_reduction: float | None = None,
+    usd_importer: Callable[..., dict[str, Any]] | None = None,
 ) -> dict[str, ModelBuilder]:
     """Build one Newton builder for each clone source prim path.
 
@@ -128,13 +134,17 @@ def build_source_builders(
             Visual geometry and body inertia are retained; reduction precedes replication and SDF cooking.
         import_results_out: Optional caller-owned output mapping populated in place with each
             source's USD import result.
+        usd_importer: Optional callable receiving ``(builder, stage, **native_options)`` and returning the native
+            import result. ``None`` uses :meth:`ModelBuilder.add_usd`.
     """
+    import_usd = native_add_usd if usd_importer is None else usd_importer
     builders = {}
     collision_meshes = {}
     sources = tuple(dict.fromkeys(sources))
     for source in sources:
         builder = create_builder()
-        import_result = builder.add_usd(
+        import_result = import_usd(
+            builder,
             stage,
             root_path=source,
             load_visual_shapes=load_visual_shapes,

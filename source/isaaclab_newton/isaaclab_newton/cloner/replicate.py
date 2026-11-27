@@ -35,6 +35,7 @@ from isaaclab_newton.cloner.newton_clone_utils import (
     add_deformable_from_usd,
     add_visual_deformables_to_sources,
     build_source_builders,
+    native_add_usd,
     replicate_builder_mapping,
 )
 from isaaclab_newton.physics import NewtonBuilderCfg, NewtonCfg, NewtonCloneRecord
@@ -197,7 +198,8 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
     stage_info = None
     if newton_physics:
         ignore_paths.extend(inject_terrain_heightfields(stage, builder, root_paths=import_paths, device=sim.device))
-        stage_info = builder.add_usd(
+        stage_info = (cfg.usd_importer or native_add_usd)(
+            builder,
             stage,
             root_path=sim.cfg.physics_prim_path,
             schema_resolvers=schema_resolvers,
@@ -211,6 +213,7 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
     options.update(skip_mesh_approximation=not newton_physics, import_results_out=import_results)
     if newton_physics:
         options["sdf_mesh_reduction"] = cfg.sdf_mesh_reduction
+        options["usd_importer"] = cfg.usd_importer
     retained_sources = build_source_builders(stage, source_paths, builder_factory, schema_resolvers, **options)
     source_builders = dict(retained_sources)
     initial_selections = []

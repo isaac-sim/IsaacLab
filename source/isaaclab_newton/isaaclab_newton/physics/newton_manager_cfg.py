@@ -8,7 +8,8 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Literal
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, Literal
 
 from isaaclab.physics import PhysicsCfg
 from isaaclab.utils import configclass
@@ -225,6 +226,15 @@ class NewtonCfg(PhysicsCfg):
     camera sensor is active, so headless training does not pay the USD parse time and
     memory for shapes nothing draws. Set to ``True`` to always import it, which is
     needed when a ray-cast sensor must hit geometry that carries no collider.
+    """
+
+    usd_importer: Callable[..., dict[str, Any]] | None = None
+    """Optional USD importer for the Newton physics-model builders.
+
+    The callable receives ``(builder, source, **native_options)`` and must return the result dictionary of
+    :meth:`newton.ModelBuilder.add_usd`. Replication calls it for the shared stage import and for every clone source,
+    forwarding the native options unchanged. ``None`` uses :meth:`newton.ModelBuilder.add_usd`. Visualization-only
+    imports, without Newton physics, always use the native importer.
     """
 
     sdf_mesh_reduction: float | None = None

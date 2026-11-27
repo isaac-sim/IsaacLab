@@ -87,6 +87,28 @@ To customize Isaac Lab integration, subclass ``NewtonManager`` and select it wit
 A custom solver only needs an Isaac Lab solver and its configuration, not a new manager.
 
 
+
+Custom USD Importers
+--------------------
+
+:attr:`~isaaclab_newton.physics.NewtonCfg.usd_importer` replaces Newton's USD importer for the physics model. The
+callable receives the target builder, the USD source and the keyword options Isaac Lab would pass to
+:meth:`newton.ModelBuilder.add_usd`, and returns the native result dictionary:
+
+.. code-block:: python
+
+   def import_usd(builder, source, **native_options):
+       register_project_attributes(builder)
+       return builder.add_usd(source, **native_options)
+
+   sim_cfg.physics = NewtonCfg(usd_importer=import_usd)
+
+Replication calls it for the physics-scene import and for every clone source, and forwards each import's root, ignore
+paths, schema resolvers, visual-shape options and other native options unchanged. Return values and exceptions
+propagate unchanged. Register custom builder attributes before delegating to :meth:`~newton.ModelBuilder.add_usd`, so
+imported entities receive their defaults or USD-authored values. Isaac Lab does not import or initialize the project
+that provides the callable. Imports for visualization only, without Newton physics, keep the native importer.
+
 Lifecycle
 ---------
 
