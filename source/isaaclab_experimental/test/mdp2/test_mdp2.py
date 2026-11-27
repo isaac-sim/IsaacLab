@@ -1279,8 +1279,8 @@ def count_steps_warp(world: int, steps: wp.array(dtype=float)):
     steps[world] = steps[world] + 1.0
 
 
-def count_steps_torch(steps):
-    steps.add_(1.0)
+def count_steps_torch(steps, mask):
+    steps.add_(1.0 if mask is None else mask.float())
 
 
 pin_command = mdp2.Term(
@@ -1305,6 +1305,18 @@ def test_reset_events_that_write_commands_override_the_resample_and_observe_ever
         for _ in range(3):
             mdp2.evaluate(mdp, state, transition)
         assert state.arrays[mdp2.term_state("events.pin", "steps")].torch.tolist() == [3.0, 3.0]
+
+    # A start event that writes its task's command also stands when the task starts mid-episode.
+    command = mdp2.FieldSelector("commands", "second.count", scene=False)
+    pin = mdp2.Event(pin_command, outputs={"command": command}, mode=mdp2.EventMode.START)
+    second = mdp2.TaskCfg(
+        commands={"count": mdp2.Command(drifting_count, params={"step": 0.0})},
+        events={"pin": pin},
+        done=mdp2.quantities.b,
+    )
+    sequence = mdp2.sequence(first=mdp2.TaskCfg(done=mdp2.quantities.a), second=second)
+    history = check_progress(mdp2.compose(mdp2.TaskCfg(quantities=above("a", "b")), sequence), [[0, 0], [1, 0], [1, 0]])
+    assert [step[str(command)].tolist() for step in history] == [[0.0], [7.0], [7.0]]
 
 
 def test_library_commands():

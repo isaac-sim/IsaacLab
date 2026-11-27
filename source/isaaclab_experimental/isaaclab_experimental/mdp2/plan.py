@@ -334,6 +334,8 @@ def build_plan(
     ran when it started. Ops with ``when`` switch on or off at the same point, and in ``observe`` for new episodes;
     ``reset`` prepares them in all the worlds of their task. ``reset`` runs the reset events, which see the progress of
     the episode that ended, before the tasks restart, and then the start events of the tasks that run from the start.
+    Events that write a command run after the commands resample, also when a task starts, so that their values stand;
+    they see the restarted progress.
     With tunable values, it first applies the values tuned for it.
     """
     timed = [op for op in ops[Phase.COMMANDS] + ops[Phase.INTERVAL_EVENTS] if op.timer is not None]
