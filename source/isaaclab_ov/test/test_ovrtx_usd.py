@@ -200,11 +200,9 @@ def test_render_var_prim_paths_cover_every_authored_render_var(camera_spec, rend
     ],
     ids=["auto", "all", "equal", "larger", "split"],
 )
-def test_render_products_author_one_atlas_per_environment_range(camera_spec, max_envs, layout):
-    """Each render product has a contiguous range of environments, its own atlas and the RenderVars of the sensor.
-
-    With "auto", "all" or a limit not below the 5 environments, the sensor has one product with the plain name. This
-    product has all 5 environments in an atlas of 3 x 2 tiles.
+def test_render_products_author_one_tiled_image_per_environment_range(camera_spec, max_envs, layout):
+    """Each render product has a contiguous range of environments, its own tiled image and the RenderVars of the
+    sensor.
     """
     paths = [f"/World/envs/env_{i}/Robot/head_cam" for i in range(5)]
     camera_spec = CameraRenderSpec(camera_spec.cfg, "cpu", 5, tuple(paths), 5)
@@ -217,7 +215,7 @@ def test_render_products_author_one_atlas_per_environment_range(camera_spec, max
     for prim, (_, _, cols, rows) in zip(products, layout, strict=True):
         # Every render product starts with the camera of environment zero as a placeholder.
         assert prim.GetRelationship("camera").GetTargets() == [Sdf.Path(paths[0])]
-        # Each tile of the atlas has the 16 x 8 pixels of the camera.
+        # Each tile of the tiled image has the 16 x 8 pixels of the camera.
         assert prim.GetAttribute("resolution").Get() == Gf.Vec2i(cols * 16, rows * 8)
         assert prim.GetRelationship("orderedVars").GetTargets() == [Sdf.Path("/RenderCamera_0/Vars/LdrColor")]
         assert prim.GetAttribute("omni:rtx:quality").Get() == 0
@@ -225,7 +223,9 @@ def test_render_products_author_one_atlas_per_environment_range(camera_spec, max
 
 
 def test_split_render_data_rejects_incomplete_camera_paths(camera_spec):
-    """A split needs one camera path per environment. A list with only the prototype camera path cannot be split."""
+    """A sensor with only the prototype camera path cannot be split, because a split needs one camera path per
+    environment.
+    """
     spec = CameraRenderSpec(
         cfg=camera_spec.cfg,
         device="cpu",
@@ -233,23 +233,8 @@ def test_split_render_data_rejects_incomplete_camera_paths(camera_spec):
         camera_prim_paths=camera_spec.camera_prim_paths[:1],
         view_count=2,
     )
-    with pytest.raises(ValueError, match="one camera path per environment"):
+    with pytest.raises(ValueError, match="needs a camera prim in each environment"):
         _make_render_data(spec, 1)
-
-
-def test_render_data_keeps_the_single_product_attributes_as_deprecated_properties(camera_spec):
-    """The former attributes give the only render product and warn. A split sensor raises, as it has several."""
-    render_data = _make_render_data(camera_spec, "all")
-    with pytest.warns(DeprecationWarning, match="OVRTXCameraRenderData.products"):
-        assert render_data.render_product_path == "/RenderCamera_0/RenderProduct"
-    # The 4 environments of the sensor make a tiled image of 2 x 2 tiles.
-    with pytest.warns(DeprecationWarning, match="OVRTXCameraRenderData.products"):
-        assert (render_data.num_cols, render_data.num_rows) == (2, 2)
-
-    split = _make_render_data(camera_spec, 2)
-    for name in ("render_product_path", "num_cols", "num_rows"):
-        with pytest.warns(DeprecationWarning), pytest.raises(RuntimeError, match="this sensor has 2"):
-            getattr(split, name)
 
 
 def test_ovrtx_primary_render_var_follows_the_first_requested_data_type():

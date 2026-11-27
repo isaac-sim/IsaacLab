@@ -149,12 +149,10 @@ def build_render_product_as_string(
 ) -> str:
     """Build a complete render product USD layer as a string.
 
-    The layer sets the camera scope as its default prim for referencing into OVRTX. It has one
-    ``RenderProduct`` prim for each render product, and all of them use the RenderVar prims under ``Vars``.
-
-    The initial camera relationship of every render product targets only environment zero, whose camera is
-    guaranteed to exist in the trimmed stage. Multi-environment rendering rewrites the relationship of each render
-    product with its resolved camera paths after runtime cloning.
+    The layer sets the camera scope as its default prim for referencing into OVRTX. It has one ``RenderProduct``
+    prim for each render product of ``render_data``. The initial camera relationship targets only environment zero,
+    whose camera is guaranteed to exist in the trimmed stage. Multi-environment rendering rewrites the relationships
+    with the resolved camera paths after runtime cloning.
 
     Args:
         spec: Camera configuration, environment count, and camera paths.
