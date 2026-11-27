@@ -529,24 +529,27 @@ class TestComputeDistanceToImagePlaneToImageMaskedKernel:
         expected = 10.0 * math.sin(math.pi / 4)
         assert _to_numpy(dst)[0, 0, 0, 0] == pytest.approx(expected, abs=ATOL)
 
-    def test_inf_distance_is_clipped(self):
-        """Inf distance produces NaN through projection and is replaced by fill value."""
+    @pytest.mark.parametrize(("clip_depth", "expected"), [(False, float("inf")), (True, 0.0)])
+    def test_missed_ray_depth(self, clip_depth, expected):
+        """A missed ray of a rotated camera reads infinite depth, or the fill value when clipped."""
         env_mask = wp.array(np.array([True], dtype=np.bool_), dtype=wp.bool, device=DEVICE)
-        quat_w = wp.array(np.array([[0, 0, 0, 1]], dtype=np.float32), dtype=wp.quatf, device=DEVICE)
+        quat_w = wp.array(
+            np.array([_euler_to_quat_xyzw(0, math.pi / 4, 0)], dtype=np.float32), dtype=wp.quatf, device=DEVICE
+        )
         ray_distance = wp.array(np.array([[float("inf")]], dtype=np.float32), dtype=wp.float32, device=DEVICE)
-        ray_directions_w = wp.array(np.array([[[1.0, 0.0, 0.0]]], dtype=np.float32), dtype=wp.vec3f, device=DEVICE)
+        ray_directions_w = wp.array(np.array([[[0.0, 0.0, -1.0]]], dtype=np.float32), dtype=wp.vec3f, device=DEVICE)
         dst = wp.array(np.full((1, 1, 1, 1), -1.0, dtype=np.float32), dtype=wp.float32, device=DEVICE)
 
         wp.launch(
             compute_distance_to_image_plane_to_image_masked_kernel,
             dim=(1, 1),
-            inputs=[env_mask, quat_w, ray_distance, ray_directions_w, 1, True, 5.0, 0.0],
+            inputs=[env_mask, quat_w, ray_distance, ray_directions_w, 1, clip_depth, 5.0, 0.0],
             outputs=[dst],
             device=DEVICE,
         )
         wp.synchronize_device(DEVICE)
 
-        assert _to_numpy(dst)[0, 0, 0, 0] == pytest.approx(0.0, abs=ATOL)
+        assert _to_numpy(dst)[0, 0, 0, 0] == expected
 
 
 class TestCopyFloat2dToImage1DepthClippedMaskedKernel:
