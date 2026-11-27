@@ -239,8 +239,7 @@ the physics backend.
 
 Increasing the camera count, resolution, or path-tracing samples per pixel (SPP) can cause camera
 views to become black or corrupted without raising an error. Simulation and training can continue
-with invalid observations. For a buffer above 4 GiB, the OVRTX renderer fails the frame with an
-error instead.
+with invalid observations.
 
 Camera views are combined into a tiled image (an atlas). On affected renderer versions, the
 rendering workload for a large atlas can exceed the supported Vulkan shader-access range for a
@@ -249,15 +248,14 @@ memory. The threshold depends on the padded atlas dimensions and rendering setti
 no universal camera-count limit. See `Isaac Lab issue #8412`_ for affected configurations,
 reproduction steps, and fix status.
 
-The OVRTX renderer (``renderer=ovrtx``) splits a camera sensor over several render products after a
-failed first frame. Each render product then has a smaller atlas.
-:attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.max_envs_per_render_product` sets this split by hand.
-See :ref:`renderers-ovrtx-render-product-split`.
+Above the renderer buffer limit, the OVRTX renderer (``renderer=ovrtx``) fails the frame with an
+error. By default, it then renders the camera sensor in smaller groups of environments, and a
+warning names the group size.
 
-With other RTX renderers, or instead of a split, reduce the camera resolution, camera count, or
-path-tracing SPP, and inspect images from all cameras before training. Reducing the camera count may
-leave the atlas dimensions unchanged because of tile padding. Path-tracing SPP is distinct from the
-direct-lighting ``samples_per_pixel`` setting.
+With other RTX renderers, or instead of smaller groups, reduce the image size, the number of
+environments, or path-tracing SPP. Then inspect images from all cameras before training. Fewer
+environments can leave the tiled image the same size because of tile padding. Path-tracing SPP is
+distinct from the direct-lighting ``samples_per_pixel`` setting.
 
 If RTX image quality is not required, the Newton Warp and Newton OptiX renderers
 (``renderer=newton_warp`` or ``renderer=newton_optix``) do not render through Vulkan and are not
