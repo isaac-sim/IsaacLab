@@ -263,6 +263,7 @@ def test_contact_terms_match_mdp1(robot_with_feet: Path):
 
         rewards = ("feet_air_time", "feet_air_time_positive_biped", "feet_air_time_variance", "feet_slide")
         nonzero = dict.fromkeys(rewards, False)
+        ended = False
         for _ in range(40):
             env.step(torch.zeros(NUM_ENVS, env.mdp.action_dim, device=env.device))
             undesired_contacts = mdp1.undesired_contacts(mdp1_env, 1.0, sensor_cfg).float()
@@ -277,6 +278,7 @@ def test_contact_terms_match_mdp1(robot_with_feet: Path):
             }
             for name, value in expected.items():
                 nonzero[name] = nonzero[name] or bool(value.abs().sum() > 0.0)
+            ended |= bool(illegal_contact.any())
 
             for model, state, transition in models.values():
                 mdp2.evaluate(model, state, transition)
@@ -291,6 +293,7 @@ def test_contact_terms_match_mdp1(robot_with_feet: Path):
                 torch.testing.assert_close(feet_slide, world_scales * expected["feet_slide"])
 
         assert all(nonzero.values()), nonzero  # The feet landed and slid during the rollout.
+        assert ended  # The feet landed hard enough to end an episode.
 
         # A reset clears the contacts that ended the last episode.
         env.reset()

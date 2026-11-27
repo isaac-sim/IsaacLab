@@ -71,10 +71,10 @@ FRANKA_TASK = replace(
     },
     quantities={
         "position_error": mdp2.Quantity(
-            mdp.position_command_error, inputs={**pose_tracking, "body_ids": robot.bodies("panda_hand")}, log=True
+            mdp.position_command_error, inputs={**pose_tracking, "body_ids": robot.bodies("panda_hand")}, record=True
         ),
         "orientation_error": mdp2.Quantity(
-            mdp.orientation_command_error, inputs={**pose_tracking, "body_ids": robot.bodies("panda_hand")}, log=True
+            mdp.orientation_command_error, inputs={**pose_tracking, "body_ids": robot.bodies("panda_hand")}, record=True
         ),
     },
     rewards={
