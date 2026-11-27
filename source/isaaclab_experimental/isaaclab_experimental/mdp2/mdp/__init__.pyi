@@ -4,6 +4,14 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "Choice",
+    "Replay",
+    "Uniform",
+    "choice_variation",
+    "replay_variation",
+    "uniform_variation",
+    "variation",
+    "binary_joint_position",
     "heading_velocity_command",
     "heading_velocity_command_steered_on_resample",
     "uniform_pose_command",
@@ -23,7 +31,10 @@ __all__ = [
     "base_lin_vel",
     "body_incoming_wrench",
     "generated_commands",
+    "image_rgb",
+    "one_hot",
     "joint_pos",
+    "joint_pos_normalized",
     "joint_pos_limit_normalized",
     "joint_pos_rel",
     "joint_vel",
@@ -59,16 +70,19 @@ __all__ = [
     "track_lin_vel_xy_exp",
     "track_lin_vel_xy_yaw_frame_exp",
     "undesired_contacts",
+    "resting_on",
     "value",
     "bad_orientation",
     "illegal_contact",
     "is_positive",
+    "is_true",
     "joint_pos_out_of_manual_limit",
     "joint_vel_out_of_limit",
     "pose_command_success",
     "root_height_below_minimum",
 ]
 
+from .actions import binary_joint_position
 from .commands import (
     heading_velocity_command,
     heading_velocity_command_steered_on_resample,
@@ -93,7 +107,10 @@ from .observations import (
     base_lin_vel,
     body_incoming_wrench,
     generated_commands,
+    image_rgb,
+    one_hot,
     joint_pos,
+    joint_pos_normalized,
     joint_pos_limit_normalized,
     joint_pos_rel,
     joint_vel,
@@ -130,6 +147,7 @@ from .rewards import (
     track_ang_vel_z_world_exp,
     track_lin_vel_xy_exp,
     track_lin_vel_xy_yaw_frame_exp,
+    resting_on,
     undesired_contacts,
     value,
 )
@@ -137,8 +155,10 @@ from .terminations import (
     bad_orientation,
     illegal_contact,
     is_positive,
+    is_true,
     joint_pos_out_of_manual_limit,
     joint_vel_out_of_limit,
     pose_command_success,
     root_height_below_minimum,
 )
+from .variations import Choice, Replay, Uniform, choice_variation, replay_variation, uniform_variation, variation

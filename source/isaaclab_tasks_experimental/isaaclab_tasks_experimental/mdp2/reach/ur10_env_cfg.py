@@ -45,10 +45,10 @@ UR10_TASK = replace(
     },
     quantities={
         "position_error": mdp2.Quantity(
-            mdp.position_command_error, inputs={**pose_tracking, "body_ids": robot.bodies("ee_link")}, log=True
+            mdp.position_command_error, inputs={**pose_tracking, "body_ids": robot.bodies("ee_link")}, record=True
         ),
         "orientation_error": mdp2.Quantity(
-            mdp.orientation_command_error, inputs={**pose_tracking, "body_ids": robot.bodies("ee_link")}, log=True
+            mdp.orientation_command_error, inputs={**pose_tracking, "body_ids": robot.bodies("ee_link")}, record=True
         ),
     },
     rewards={
