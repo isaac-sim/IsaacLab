@@ -209,9 +209,16 @@ def copy_dense_lidar_points_kernel(
     intensity_out: wp.array(dtype=wp.float32),
     valid: wp.array(dtype=wp.bool),
     spherical: bool,
+    env_mask: wp.array(dtype=wp.bool),
+    stride: int,
 ):
-    """Copy one dense lidar cloud. Bit 6 of ``flags`` marks a hit; misses become non-finite."""
+    """Copy one dense lidar cloud into the environments selected by ``env_mask``.
+
+    Bit 6 of ``flags`` marks a hit; misses become non-finite. ``stride`` is the slot count of one tile.
+    """
     i = wp.tid()
+    if not env_mask[i // stride]:
+        return
     hit = (flags[i] & wp.int32(0x40)) != wp.int32(0)
     if hit:
         point = wp.vec3f(coordinates[i, 0], coordinates[i, 1], coordinates[i, 2])

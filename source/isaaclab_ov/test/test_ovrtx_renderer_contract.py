@@ -458,9 +458,10 @@ def test_lidar_and_camera_captures_use_separate_steps(monkeypatch):
     assert native.step.call_args.kwargs["render_products"] == set(camera.render_product_paths)
 
     data = LidarData(1, 1, "cpu")
-    renderer.render_lidar(lidar, data)
+    env_mask = wp.ones(1, dtype=wp.bool, device="cpu")
+    renderer.render_lidar(lidar, data, env_mask=env_mask)
     native.step.assert_called_with(render_products={lidar.render_product_path}, delta_time=0.1)
-    publish.assert_called_once_with(lidar, native.step.return_value, data)
+    publish.assert_called_once_with(lidar, native.step.return_value, data, env_mask=env_mask)
 
 
 def test_lidar_readback_propagates_cpu_map_failure(monkeypatch):
@@ -478,7 +479,9 @@ def test_lidar_readback_propagates_cpu_map_failure(monkeypatch):
     frame = types.SimpleNamespace(render_vars={lidar.point_cloud_path: cloud})
     products = {lidar.render_product_path: types.SimpleNamespace(frames=[frame])}
     with pytest.raises(RuntimeError, match="Failed to map CPU point cloud"):
-        renderer._publish_lidar_output(lidar, products, LidarData(1, 1, "cpu"))
+        renderer._publish_lidar_output(
+            lidar, products, LidarData(1, 1, "cpu"), env_mask=wp.ones(1, dtype=wp.bool, device="cpu")
+        )
 
 
 @pytest.mark.parametrize("missing", ["product", "renderer", "backend"])
@@ -500,7 +503,7 @@ def test_lidar_capture_fails_when_unavailable(monkeypatch, missing):
         renderer.backend = None
 
     with pytest.raises(RuntimeError, match=lidar.render_product_path):
-        renderer.render_lidar(lidar, LidarData(1, 1, "cpu"))
+        renderer.render_lidar(lidar, LidarData(1, 1, "cpu"), env_mask=wp.ones(1, dtype=wp.bool, device="cpu"))
 
 
 def test_ovrtx_render_batch_empty_sequence_does_not_require_initialized_backend():
@@ -2905,7 +2908,9 @@ def test_ovrtx_lidar_map_orders_the_copy_against_map_release(
         valid=types.SimpleNamespace(torch=object()),
     )
     with pytest.raises(ValueError, match="consumer failed") if consumer_fails else contextlib.nullcontext():
-        renderer._copy_mapped_lidar_point_cloud(point_cloud, lidar_data, ovrtx_renderer_module.Device.CUDA)
+        renderer._copy_mapped_lidar_point_cloud(
+            point_cloud, lidar_data, ovrtx_renderer_module.Device.CUDA, env_mask=object()
+        )
 
     assert point_cloud.map.call_args.kwargs["sync_stream"] == (expected_stream if gpu_side else 0)
     assert events == ([] if gpu_side else ["wait"]) + ["consume", ("release", expected_stream)]

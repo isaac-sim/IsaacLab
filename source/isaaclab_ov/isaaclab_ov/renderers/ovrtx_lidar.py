@@ -68,7 +68,9 @@ def _channel(mapped, name: str, *, clone: bool = True) -> torch.Tensor | None:
     return _as_torch(mapped[name], clone=clone)
 
 
-def copy_tiled_point_cloud(mapped, points: torch.Tensor, intensity: torch.Tensor, valid: torch.Tensor) -> None:
+def copy_tiled_point_cloud(
+    mapped, points: torch.Tensor, intensity: torch.Tensor, valid: torch.Tensor, *, env_mask: wp.array
+) -> None:
     """Copy one mapped point cloud into per-environment buffers.
 
     ``points`` has shape ``(num_envs, num_rays, 3)``. Tile ``i`` is environment ``i``, which is the
@@ -81,6 +83,7 @@ def copy_tiled_point_cloud(mapped, points: torch.Tensor, intensity: torch.Tensor
         points: Destination positions.
         intensity: Destination intensity, shape ``(num_envs, num_rays)``.
         valid: Destination hit mask, shape ``(num_envs, num_rays)``.
+        env_mask: Environments to write, shape ``(num_envs,)``. Other environments keep their returns.
 
     Raises:
         RuntimeError: If the tile count, layout, or ray count does not match the destination.
@@ -153,7 +156,9 @@ def copy_tiled_point_cloud(mapped, points: torch.Tensor, intensity: torch.Tensor
             raise RuntimeError(f"Unsupported OvRTX lidar coordsType: {coords_type!r}.")
         spherical = coords_type == _SPHERICAL
         if on_device:
-            _copy_dense_on_device(coordinates, signal, flags, points, intensity, valid, tile_count, stride, spherical)
+            _copy_dense_on_device(
+                coordinates, signal, flags, points, intensity, valid, tile_count, stride, spherical, env_mask=env_mask
+            )
         else:
             coordinates = coordinates.to(device=device, dtype=points.dtype)
             if spherical:
@@ -166,23 +171,38 @@ def copy_tiled_point_cloud(mapped, points: torch.Tensor, intensity: torch.Tensor
             signal = signal.to(device=device, dtype=intensity.dtype)
             hit_source = (flags.to(device=device, dtype=torch.int64) & _VALID_FLAG) != 0
 
-            _copy_dense(coordinates, signal, hit_source, points, intensity, valid, tile_count, stride)
+            _copy_dense(
+                coordinates, signal, hit_source, points, intensity, valid, tile_count, stride, env_mask=env_mask
+            )
 
 
-def _copy_dense(coordinates, signal, hits, points, intensity, valid, tile_count: int, stride: int) -> None:
-    """Copy a dense ``(tile, ray)`` cloud. ``hits`` selects the finite returns."""
+def _copy_dense(
+    coordinates, signal, hits, points, intensity, valid, tile_count: int, stride: int, *, env_mask: wp.array
+) -> None:
+    """Copy a dense ``(tile, ray)`` cloud. ``hits`` selects the finite returns, ``env_mask`` the written tiles."""
     coordinates = coordinates.reshape(tile_count, stride, 3)
     signal = signal.reshape(tile_count, stride)
     hits = hits.reshape(tile_count, stride)
     filled = torch.where(hits.unsqueeze(-1), coordinates, torch.full_like(coordinates, float("inf")))
     signal = torch.where(hits, signal, torch.zeros_like(signal))
-    points.copy_(filled)
-    intensity.copy_(signal)
-    valid.copy_(hits)
+    due = wp.to_torch(env_mask).unsqueeze(-1)
+    points.copy_(torch.where(due.unsqueeze(-1), filled, points))
+    intensity.copy_(torch.where(due, signal, intensity))
+    valid.copy_(torch.where(due, hits, valid))
 
 
 def _copy_dense_on_device(
-    coordinates, signal, flags, points, intensity, valid, tile_count: int, stride: int, spherical: bool
+    coordinates,
+    signal,
+    flags,
+    points,
+    intensity,
+    valid,
+    tile_count: int,
+    stride: int,
+    spherical: bool,
+    *,
+    env_mask: wp.array,
 ) -> None:
     """Copy a dense CUDA ``(tile, ray)`` cloud into the destination buffers.
 
@@ -207,6 +227,8 @@ def _copy_dense_on_device(
                 wp.from_torch(intensity.reshape(count), dtype=wp.float32),
                 wp.from_torch(valid.reshape(count), dtype=wp.bool),
                 spherical,
+                env_mask,
+                stride,
             ],
             device=launch_device,
         )

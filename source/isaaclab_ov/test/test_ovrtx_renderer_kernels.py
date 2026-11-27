@@ -258,20 +258,23 @@ class TestGenerateRandomColorsFromIdsKernel:
 
 @pytest.mark.skipif(not wp.is_cuda_available(), reason="CUDA not available")
 def test_copy_dense_lidar_points_kernel_keeps_hits_and_clears_misses():
-    """A dense cloud writes hit positions and replaces misses with non-finite points."""
+    """A dense cloud writes hits and non-finite misses into due tiles. A tile that is not due keeps its returns."""
     coordinates = wp.array(
-        np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype=np.float32), dtype=wp.float32, device=DEVICE
+        np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0], [1.0, 1.0, 1.0]], dtype=np.float32),
+        dtype=wp.float32,
+        device=DEVICE,
     )
-    intensity = wp.array(np.array([0.5, 0.25], dtype=np.float32), dtype=wp.float32, device=DEVICE)
-    flags = wp.array(np.array([0x40, 0], dtype=np.int32), dtype=wp.int32, device=DEVICE)
-    points = wp.zeros(2, dtype=wp.vec3f, device=DEVICE)
-    out_intensity = wp.full(2, 7.0, dtype=wp.float32, device=DEVICE)
-    valid = wp.zeros(2, dtype=wp.bool, device=DEVICE)
+    intensity = wp.array(np.array([0.5, 0.25, 1.0, 1.0], dtype=np.float32), dtype=wp.float32, device=DEVICE)
+    flags = wp.array(np.array([0x40, 0, 0x40, 0x40], dtype=np.int32), dtype=wp.int32, device=DEVICE)
+    points = wp.zeros(4, dtype=wp.vec3f, device=DEVICE)
+    out_intensity = wp.full(4, 7.0, dtype=wp.float32, device=DEVICE)
+    valid = wp.zeros(4, dtype=wp.bool, device=DEVICE)
+    env_mask = wp.array([True, False], dtype=wp.bool, device=DEVICE)
 
     wp.launch(
         copy_dense_lidar_points_kernel,
-        dim=2,
-        inputs=[coordinates, intensity, flags, points, out_intensity, valid, False],
+        dim=4,
+        inputs=[coordinates, intensity, flags, points, out_intensity, valid, False, env_mask, 2],
         device=DEVICE,
     )
     wp.synchronize()
@@ -279,8 +282,9 @@ def test_copy_dense_lidar_points_kernel_keeps_hits_and_clears_misses():
     points_np = points.numpy()
     np.testing.assert_allclose(points_np[0], [1.0, 2.0, 3.0])
     assert not np.isfinite(points_np[1]).any()
-    np.testing.assert_allclose(out_intensity.numpy(), [0.5, 0.0])
-    np.testing.assert_array_equal(valid.numpy(), [True, False])
+    np.testing.assert_allclose(points_np[2:], 0.0)
+    np.testing.assert_allclose(out_intensity.numpy(), [0.5, 0.0, 7.0, 7.0])
+    np.testing.assert_array_equal(valid.numpy(), [True, False, False, False])
 
 
 @pytest.mark.skipif(not wp.is_cuda_available(), reason="CUDA not available")
@@ -297,7 +301,18 @@ def test_copy_dense_on_device_returns_without_waiting_for_the_device(monkeypatch
     intensity = torch.zeros((1, 2), device=DEVICE)
     valid = torch.zeros((1, 2), dtype=torch.bool, device=DEVICE)
 
-    _copy_dense_on_device(coordinates, signal, flags, points, intensity, valid, 1, 2, spherical=True)
+    _copy_dense_on_device(
+        coordinates,
+        signal,
+        flags,
+        points,
+        intensity,
+        valid,
+        1,
+        2,
+        spherical=True,
+        env_mask=wp.ones(1, dtype=wp.bool, device=DEVICE),
+    )
     wp.synchronize()
 
     np.testing.assert_allclose(points[0, 0].cpu().numpy(), [0.0, np.sqrt(3.0), -1.0], atol=1e-6)
