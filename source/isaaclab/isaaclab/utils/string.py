@@ -273,7 +273,7 @@ def _resolve_matching_names_impl(
     for target_index, potential_match_string in enumerate(list_of_strings):
         for key_index, re_key in enumerate(keys):
             if re.fullmatch(re_key, potential_match_string):
-                if target_strings_match_found[target_index]:
+                if target_strings_match_found[target_index] is not None:
                     raise ValueError(
                         f"Multiple matches for '{potential_match_string}':"
                         f" '{target_strings_match_found[target_index]}' and '{re_key}'!"
