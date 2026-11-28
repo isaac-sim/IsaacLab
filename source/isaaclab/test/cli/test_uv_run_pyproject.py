@@ -199,6 +199,15 @@ def test_version_single_source_matches_literal_pins(source_checkout_root: Path):
     assert f"{newton_spec} ; extra != 'optix'" in overrides
     assert f"{newton_spec.replace('[sim]', '[sim,optix]')} ; extra == 'optix'" in overrides
 
+    # The unreleased MuJoCo Warp fix must reach source and published-wheel installations.
+    mjwarp = next(package for package in lock["package"] if package["name"] == "mujoco-warp")
+    url, revision = mjwarp["source"]["git"].split("?rev=")
+    requested, resolved = revision.split("#")
+    assert requested == resolved
+    mjwarp_spec = f"mujoco-warp @ git+{url}@{resolved}"
+    assert mjwarp_spec in dependencies
+    assert mjwarp_spec in overrides
+
     # warp-lang is a core dependency whose table value may be an exact pin
     # ("1.2.3" -> ``==``) or a range (">=1.2.3" -> mirrored verbatim).
     warp_value = versions["warp"]
