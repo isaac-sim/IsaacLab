@@ -94,12 +94,13 @@ class EpisodeData:
         return self._data.get("initial_state")
 
     def get_action(self, action_index) -> torch.Tensor | None:
-        """Get the action of the specified index from the dataset."""
+        """Get the action at the specified index, or None if out of range."""
         if "actions" not in self._data:
             return None
-        if action_index >= len(self._data["actions"]):
+        actions = self._data["actions"]
+        if not -len(actions) <= action_index < len(actions):
             return None
-        return self._data["actions"][action_index]
+        return actions[action_index]
 
     def get_next_action(self) -> torch.Tensor | None:
         """Get the next action from the dataset."""
@@ -109,7 +110,7 @@ class EpisodeData:
         return action
 
     def get_state(self, state_index) -> dict | None:
-        """Get the state of the specified index from the dataset."""
+        """Get the state at the specified index, or None if out of range."""
         if "states" not in self._data:
             return None
         return _index_nested(self._data["states"], state_index, keep_dim=True)
@@ -122,7 +123,7 @@ class EpisodeData:
         return state
 
     def get_joint_target(self, joint_target_index) -> dict | torch.Tensor | None:
-        """Get the joint target of the specified index from the dataset."""
+        """Get the joint target at the specified index, or None if out of range."""
         if "joint_targets" not in self._data:
             return None
         return _index_nested(self._data["joint_targets"], joint_target_index, keep_dim=False)
@@ -149,7 +150,7 @@ def _index_nested(data: dict | torch.Tensor, index: int, keep_dim: bool) -> dict
                 return None
         return output
     if isinstance(data, torch.Tensor):
-        if index >= len(data):
+        if not -len(data) <= index < len(data):
             return None
         return data[index, None] if keep_dim else data[index]
     raise ValueError(f"Invalid data type: {type(data)}")
