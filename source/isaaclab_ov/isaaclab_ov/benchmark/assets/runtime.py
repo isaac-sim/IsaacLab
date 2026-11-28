@@ -31,7 +31,7 @@ def _load_runtime_symbols() -> None:
 def _create_backend_manager() -> OvPhysxManager:
     manager = OvPhysxManager(OvPhysxCfg())
     # Mock targets skip warmup, which normally creates the scene-data backend.
-    manager._scene_data_backend = OvPhysxSceneDataBackend(manager)
+    manager._scene_data_backend = OvPhysxSceneDataBackend()
     return manager
 
 

@@ -7,36 +7,14 @@
 
 from __future__ import annotations
 
-import os
-import tempfile
-from dataclasses import MISSING, field
-from typing import TYPE_CHECKING, Literal
+from dataclasses import field
+from typing import Literal
 
 from isaaclab.physics import PhysicsCfg
-from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
 
-if TYPE_CHECKING:
-    from .ovphysx_manager import OvPhysxBackend
-
-# POSIX temp roots are shared between users; Windows already gives each user a private one.
-_CACHE_DIR_NAME = f"ovphysx_derived_data_cache_{os.getuid()}" if hasattr(os, "getuid") else "ovphysx_derived_data_cache"
-
-DEFAULT_COOKED_COLLIDER_CACHE_DIR: str = os.path.join(tempfile.gettempdir(), _CACHE_DIR_NAME)
-"""Per-user cooked-collider cache shared by physics and native runtime configuration defaults."""
-
-
-@configclass
-class OvPhysxBackendCfg(BackendCfg):
-    """Native runtime construction settings, separate from physics scene policy."""
-
-    class_type: type[OvPhysxBackend] | str = "{DIR}.ovphysx_manager:OvPhysxBackend"
-
-    device: str = MISSING
-    """Normalized device: ``cpu`` or ``cuda:<index>``."""
-
-    cooked_collider_cache_dir: str | None = DEFAULT_COOKED_COLLIDER_CACHE_DIR
-    """Cooked-collider cache location, fixed by the first runtime created in the process."""
+from .ovphysx_backend_cfg import DEFAULT_COOKED_COLLIDER_CACHE_DIR
+from .ovphysx_backend_cfg import OvPhysxBackendCfg as OvPhysxBackendCfg
 
 
 @configclass

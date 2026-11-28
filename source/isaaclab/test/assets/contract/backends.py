@@ -125,7 +125,7 @@ def ovphysx_manager():
     from isaaclab_ov.physics.ovphysx_manager import OvPhysxManager, OvPhysxSceneDataBackend
 
     manager = OvPhysxManager(OvPhysxCfg())
-    manager._scene_data_backend = OvPhysxSceneDataBackend(manager)
+    manager._scene_data_backend = OvPhysxSceneDataBackend()
     return manager
 
 

@@ -19,23 +19,31 @@ pytestmark = pytest.mark.ov
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture
 def manager(monkeypatch):
-    from isaaclab_ov.physics import OvPhysxCfg
-    from isaaclab_ov.physics.ovphysx_manager import OvPhysxBackend, OvPhysxManager, OvPhysxSceneDataBackend
+    from isaaclab_ov.physics import OvPhysxCfg, ovphysx_backend
+    from isaaclab_ov.physics.ovphysx_backend import OvPhysxBackend
+    from isaaclab_ov.physics.ovphysx_manager import OvPhysxManager
+    from isaaclab_ov.physics.ovphysx_scene_data import OvPhysxSceneDataBackend
 
+    monkeypatch.setattr(ovphysx_backend, "_ensure_physx_schemas_registered", lambda: None)
     backend = OvPhysxBackend.__new__(OvPhysxBackend)
     backend.physx = None
+    backend.device = "cpu"
     backend.stage = backend.scene = None
     backend.owns_scene = True
     backend.rigid_body_view = None
+    backend.kinematics_dirty = False
+    backend.is_ready = False
+    backend.gravity = {}
     manager = OvPhysxManager(OvPhysxCfg())
     manager.backend = backend
-    manager._scene_data_backend = OvPhysxSceneDataBackend(manager)
+    manager._scene_data_backend = OvPhysxSceneDataBackend()
+    backend.scene_data = manager._scene_data_backend
     return manager
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture
 def _close_test_views():
     from isaaclab_ov.sim.views import OvPhysxView
 
@@ -43,24 +51,6 @@ def _close_test_views():
     yield
     for view in OvPhysxView._live_views - existing_views:
         view.close()
-
-
-@pytest.fixture(scope="module", autouse=True)
-def _register_ovphysx_schemas_before_test_stages():
-    """Register OvPhysX schemas before this module creates any USD stage."""
-    from isaaclab_ov.physics import OvPhysxManager
-
-    OvPhysxManager._prepare_stage_creation()
-
-
-def _make_two_environment_stage():
-    """Create an in-memory USD stage with one cube in each of two environments."""
-    from pxr import Usd
-
-    stage = Usd.Stage.CreateInMemory()
-    stage.DefinePrim("/World/envs/env_0/Cube", "Cube")
-    stage.DefinePrim("/World/envs/env_1/Cube", "Cube")
-    return stage
 
 
 def test_manager_forced_rewarm_invalidates_bindings_before_loading(manager, monkeypatch):
@@ -82,98 +72,49 @@ def test_manager_forced_rewarm_invalidates_bindings_before_loading(manager, monk
     assert manager.kinematics_dirty
 
 
-@pytest.mark.parametrize(("device", "expected_active_cuda_gpus"), [("cpu", None), ("cuda:2", "2")])
-def test_manager_supports_pinned_runtime_api(manager, monkeypatch, tmp_path, device, expected_active_cuda_gpus):
-    """The pinned OVPhysX wheel keeps its constructor and step API.
+def test_manager_argument_is_deprecated_and_ignored():
+    """Released callers that pass the manager keep working while they migrate."""
+    from isaaclab_ov.physics.ovphysx_scene_data import OvPhysxSceneDataBackend
 
-    The runtime never enters the wheel's sticky process-wide CPU-only mode, which would block later CUDA scenes.
-    """
-    import isaaclab_ov.physics.ovphysx_manager as module
-    from isaaclab_ov.physics import OvPhysxBackendCfg
-
-    cache_dir = str(tmp_path / "cooked_colliders")
-
-    class PinnedPhysX:
-        cpu_mode = None
-
-        @classmethod
-        def set_cpu_mode(cls, enabled):
-            cls.cpu_mode = enabled
-
-        def __init__(self, *, active_cuda_gpus=None, config=None):
-            self.constructor = {"active_cuda_gpus": active_cuda_gpus, "config": config}
-            self.calls = []
-
-        def step_sync(self, *, dt):
-            self.calls.append(("step_sync", dt))
-
-        def update_articulations_kinematic(self):
-            self.calls.append(("update_articulations_kinematic",))
-
-    # Strict signature: a keyword the real wheel would reject fails here.
-    def pinned_config(*, num_threads=None, cooked_collider_cache_dir=None, carbonite_overrides=None):
-        return SimpleNamespace(
-            num_threads=num_threads,
-            cooked_collider_cache_dir=cooked_collider_cache_dir,
-            carbonite_overrides=carbonite_overrides,
-        )
-
-    runtime = SimpleNamespace(PhysX=PinnedPhysX, PhysXConfig=pinned_config, bootstrap=lambda: None)
-    monkeypatch.setattr(module, "ovphysx", runtime)
-
-    backend = module.OvPhysxBackend(OvPhysxBackendCfg(device=device, cooked_collider_cache_dir=cache_dir))
-    physx = backend.physx
-    manager.backend.physx = physx
-    monkeypatch.setattr(manager, "get_physics_dt", lambda: 0.02)
-    monkeypatch.setattr(manager, "_sim_time", 0.0)
-    version = manager._scene_data_backend.transforms_timestamp
-    manager.step()
-
-    assert PinnedPhysX.cpu_mode is None
-    assert physx.constructor["active_cuda_gpus"] == expected_active_cuda_gpus
-    assert physx.constructor["config"].num_threads == 8
-    assert physx.constructor["config"].cooked_collider_cache_dir == cache_dir
-    assert physx.constructor["config"].carbonite_overrides["/ovphysx/clone/useEnvIds"] is device.startswith("cuda")
-    assert physx.calls == [("step_sync", 0.02), ("update_articulations_kinematic",)]
-    assert manager._sim_time == 0.02
-    assert manager._scene_data_backend.transforms_timestamp > version
-    assert not manager.kinematics_dirty
+    with pytest.warns(DeprecationWarning, match=r"OvPhysxSceneDataBackend\(\)"):
+        backend = OvPhysxSceneDataBackend(object())
+    assert backend.backend is None
 
 
-def test_transforms_finish_dirty_kinematics_before_native_reads(manager, monkeypatch):
-    """Direct SDP consumers refresh pending FK once, before reading native poses."""
-    import warp as wp
+def test_transforms_finish_dirty_kinematics_before_native_reads():
+    """Refresh pending FK before filling the published buffer once per dirty state."""
+    from isaaclab_ov.physics.ovphysx_backend import OvPhysxBackend
+    from isaaclab_ov.physics.ovphysx_scene_data import OvPhysxSceneDataBackend
 
     from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
 
     calls = []
-    manager.backend.physx = SimpleNamespace(update_articulations_kinematic=lambda: calls.append("fk"))
-    backend = manager._scene_data_backend
-    poses = wp.zeros(1, dtype=wp.transformf, device="cpu")
-    backend._transforms.data.transforms = poses
-    backend.backend = manager.backend
-    backend.backend.rigid_body_view = SimpleNamespace(read=lambda _: calls.append("read"))
+    backend = OvPhysxSceneDataBackend()
+    native = OvPhysxBackend.__new__(OvPhysxBackend)
+    native.physx = SimpleNamespace(update_articulations_kinematic=lambda: calls.append("fk"))
+    native.rigid_body_view = SimpleNamespace(count=1, read=lambda dst: calls.append(("read", dst.ptr)))
+    native.kinematics_dirty = native.is_ready = True
+    native.scene_data = backend
+    backend.setup(native, "cpu")
     sdp = SceneDataProvider(backend)
-    monkeypatch.setattr(manager, "kinematics_dirty", True)
-    sdp.get_transforms(SceneDataFormat.Transform())
-    sdp.get_transforms(SceneDataFormat.Transform())
-    assert calls == ["fk", "read"]
-    assert not manager.kinematics_dirty
+    output = SceneDataFormat.Transform()
+    assert sdp.get_transforms(output)
+    assert sdp.get_transforms(output)
+    assert calls == ["fk", ("read", output.transforms.ptr)]
+    assert not native.kinematics_dirty
 
-    version = backend.transforms_timestamp
-    manager.update_kinematics()
-    manager.kinematics_dirty = True
-    manager.forward()
-    assert backend.transforms_timestamp > version
-    sdp.get_transforms(SceneDataFormat.Transform())
-    sdp.get_transforms(SceneDataFormat.Transform())
-    assert calls == ["fk", "read", "fk", "read"]
+    native.update_kinematics()
+    native.kinematics_dirty = True
+    native.forward()
+    assert sdp.get_transforms(output)
+    assert sdp.get_transforms(output)
+    assert calls == ["fk", ("read", output.transforms.ptr)] * 2
 
 
 @pytest.mark.parametrize("failure", [None, "attach"])
 def test_manager_attaches_and_releases_owned_ovstage(manager, monkeypatch, failure):
     """The registered resource releases the attached OVStage once, after PhysX."""
-    import isaaclab_ov.physics.ovphysx_manager as om_mod
+    import isaaclab_ov.physics.ovphysx_backend as om_mod
 
     events = []
     stages = []
@@ -257,7 +198,7 @@ def test_manager_attaches_and_releases_owned_ovstage(manager, monkeypatch, failu
 def test_manager_close_preserves_only_retryable_native_owners(manager, monkeypatch, retryable):
     """Terminal errors free native owners; pre-teardown errors retain them for the next close."""
     from isaaclab_ov.physics import OvPhysxBackendCfg
-    from isaaclab_ov.physics import ovphysx_manager as om_mod
+    from isaaclab_ov.physics import ovphysx_backend as om_mod
 
     from isaaclab.sim import SimulationContext
 
@@ -349,6 +290,8 @@ def test_manager_destroys_ovstage_when_population_fails(manager, monkeypatch):
     fake_ovstage.PathDictionary = lambda stage: nullcontext(object())
     monkeypatch.setattr(stage_module, "ovstage", fake_ovstage)
     monkeypatch.setattr(stage_module, "create_ovstage", FakeStage)
+    # Population fails before the open runtime is asked to attach.
+    manager.backend.physx = object()
 
     with pytest.raises(RuntimeError, match="population failed"):
         manager.backend.load("#usda 1.0")
@@ -414,10 +357,12 @@ def test_population_respects_physics_config_and_preserves_clone_data(
     """Import physics only when requested, retaining resolved values and clone data with either copy timing."""
     import numpy as np
     import ovstage
+    from isaaclab_ov.physics import OvPhysxManager
     from isaaclab_ov.stage import OvstageBackend, OvstageBackendCfg
 
     from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
+    OvPhysxManager._prepare_stage_creation()
     stage = Usd.Stage.CreateInMemory()
     UsdGeom.SetStageMetersPerUnit(stage, 0.01)
     UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.y)
@@ -571,11 +516,11 @@ def test_automatic_physx_selection_prepares_ovphysx_before_stage_creation(monkey
     assert SimulationContext.instance() is None
 
 
-def test_scene_data_binding_is_deferred_until_requested(manager):
+def test_scene_data_binding_is_deferred_until_requested():
     """Resolve nonempty rigid/link sessions in native order, once, before their dictionaries expire."""
     from contextlib import contextmanager
 
-    from isaaclab_ov.physics.ovphysx_manager import OvPhysxSceneDataBackend
+    from isaaclab_ov.physics.ovphysx_scene_data import OvPhysxSceneDataBackend
     from ovphysx.types import SimObjectType
 
     calls = []
@@ -603,8 +548,8 @@ def test_scene_data_binding_is_deferred_until_requested(manager):
         return SimpleNamespace(count=2, prim_paths=prim_paths)
 
     runtime = SimpleNamespace(create_tensor_binding=bind, read_sync=read)
-    native = SimpleNamespace(physx=runtime, rigid_body_view=None)
-    backend = OvPhysxSceneDataBackend(manager)
+    native = SimpleNamespace(physx=runtime, rigid_body_view=None, is_ready=True)
+    backend = OvPhysxSceneDataBackend()
     backend._defer_setup(native, "cpu", ())
     assert calls == []
     assert backend.transform_count == 2
@@ -614,66 +559,19 @@ def test_scene_data_binding_is_deferred_until_requested(manager):
     assert len(calls) == 2
 
 
-def test_transforms_read_native_buffer_only_when_dirty(manager):
-    """One fused native binding fills the pose buffer directly and skips clean publications."""
-    import isaaclab_ov.physics.ovphysx_manager as module
-    import numpy as np
-
-    from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
-
-    expected = np.array([[1, 2, 3, 0, 0, 0, 1], [4, 5, 6, 0, 0, 0, 1], [7, 8, 9, 0, 0, 0, 1]], dtype=np.float32)
-    paths = ["/World/envs/env_0/Cart", "/World/envs/env_1/Cart", "/World/envs/env_0/Pole"]
-    reads = []
-
-    def read(dst):
-        reads.append(dst.ptr)
-        dst.assign(expected)
-
-    native = SimpleNamespace(physx=None, rigid_body_view=SimpleNamespace(count=len(paths), prim_paths=paths, read=read))
-
-    backend = module.OvPhysxSceneDataBackend(manager)
-    publication = backend.transforms
-    backend.setup(native, "cpu")
-    assert backend.transforms is publication
-    sdp = SceneDataProvider(backend)
-
-    native = SceneDataFormat.Transform()
-    assert sdp.get_transforms(native)
-    assert backend.transform_count == len(paths)
-    assert backend.transform_paths == paths
-    assert reads == [native.transforms.ptr]
-    np.testing.assert_array_equal(native.transforms.numpy(), expected)
-    second_output = SceneDataFormat.Transform()
-    assert sdp.get_transforms(second_output)
-    assert second_output.transforms is native.transforms
-    assert len(reads) == 1
-
-    expected[:, 0] += 10
-    backend.transforms_timestamp += 1
-    assert sdp.get_transforms(second_output)
-    assert second_output.transforms is native.transforms
-    assert len(reads) == 2
-    np.testing.assert_array_equal(native.transforms.numpy(), expected)
-
-    backend.setup(SimpleNamespace(rigid_body_view=None), "cpu")
-    assert backend.transforms is publication
-    assert publication.transforms is None
-    assert backend.transform_count == 0 and backend.transform_paths == []
-
-
-def test_failed_rigid_read_is_retried(manager):
+def test_failed_rigid_read_is_retried():
     """A read failure propagates rather than caching a partial or stale publication."""
     import warp as wp
-    from isaaclab_ov.physics.ovphysx_manager import OvPhysxSceneDataBackend
+    from isaaclab_ov.physics.ovphysx_scene_data import OvPhysxSceneDataBackend
 
     from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
 
     def fail_read(dst):
         raise RuntimeError("simulated read failure")
 
-    backend = OvPhysxSceneDataBackend(manager)
+    backend = OvPhysxSceneDataBackend()
     backend._transforms.data.transforms = wp.empty(1, dtype=wp.transformf, device="cpu")
-    backend.backend = SimpleNamespace(rigid_body_view=SimpleNamespace(read=fail_read))
+    backend.backend = SimpleNamespace(rigid_body_view=SimpleNamespace(read=fail_read), update_kinematics=lambda: None)
     sdp = SceneDataProvider(backend)
 
     for _ in range(2):
@@ -681,18 +579,16 @@ def test_failed_rigid_read_is_retried(manager):
             sdp.get_transforms(SceneDataFormat.Transform())
 
 
-@pytest.mark.parametrize("declared", [False, True])
-def test_geometry_publication_distinguishes_undeclared_and_empty_scenes(manager, declared):
+def test_geometry_publication_distinguishes_undeclared_and_empty_scenes():
     """Native setup without a geometry declaration cannot publish an empty scene."""
-    from isaaclab_ov.physics.ovphysx_manager import OvPhysxSceneDataBackend
+    from isaaclab_ov.physics.ovphysx_scene_data import OvPhysxSceneDataBackend
 
-    backend = OvPhysxSceneDataBackend(manager)
+    backend = OvPhysxSceneDataBackend()
     native = SimpleNamespace(physx=None, rigid_body_view=SimpleNamespace(count=0))
-    backend.setup(native, "cpu", () if declared else None)
-    if declared:
-        assert backend.get_geometry_batches() == []
-        assert backend.native_geometry_formats == ()
-        backend.setup(native, "cpu")
+    backend.setup(native, "cpu", ())
+    assert backend.get_geometry_batches() == []
+    assert backend.native_geometry_formats == ()
+    backend.setup(native, "cpu")
     with pytest.raises(RuntimeError, match="ClonePlan"):
         backend.get_geometry_batches()
     with pytest.raises(RuntimeError, match="ClonePlan"):
@@ -700,9 +596,9 @@ def test_geometry_publication_distinguishes_undeclared_and_empty_scenes(manager,
 
 
 @pytest.mark.parametrize("node_padding", [0, 1])
-def test_deformable_only_setup_publishes_declared_geometry_in_native_order(manager, node_padding):
+def test_deformable_only_setup_publishes_declared_geometry_in_native_order(_close_test_views, node_padding):
     """Mixed native views fill declared geometry slices without a packing pass."""
-    import isaaclab_ov.physics.ovphysx_manager as module
+    import isaaclab_ov.physics.ovphysx_scene_data as module
     import numpy as np
     import warp as wp
     from isaaclab_ov import tensor_types as TT
@@ -744,7 +640,7 @@ def test_deformable_only_setup_publishes_declared_geometry_in_native_order(manag
                 destroy=lambda: None,
             )
 
-    backend = module.OvPhysxSceneDataBackend(manager)
+    backend = module.OvPhysxSceneDataBackend()
     native = SimpleNamespace(physx=NativePhysX(), rigid_body_view=SimpleNamespace(count=0))
     if node_padding:
         with pytest.raises(RuntimeError, match="node counts"):

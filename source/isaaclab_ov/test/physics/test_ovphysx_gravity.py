@@ -46,6 +46,7 @@ def test_gravity_event_changes_rigid_body_motion(device: str, monkeypatch: pytes
         )
         sim.reset()
         dt = sim.get_physics_dt()
+        nominal_gravity = sim.cfg.gravity
         cube.update(dt)
 
         env = SimpleNamespace(device=sim.device, sim=sim)
@@ -60,10 +61,12 @@ def test_gravity_event_changes_rigid_body_motion(device: str, monkeypatch: pytes
         gravity_event = randomize_physics_scene_gravity(event_cfg, env)
 
         def step(count: int) -> None:
+            initial_time = sim.backend_manager.get_simulation_time()
             for _ in range(count):
                 cube.write_data_to_sim()
                 sim.step()
                 cube.update(dt)
+            assert sim.backend_manager.get_simulation_time() == pytest.approx(initial_time + count * dt)
 
         def set_gravity(gravity: tuple[float, float, float]) -> None:
             gravity_event(
@@ -72,6 +75,8 @@ def test_gravity_event_changes_rigid_body_motion(device: str, monkeypatch: pytes
                 gravity_distribution_params=(gravity, (0.0, 0.0, 0.0)),
                 operation="abs",
             )
+            assert sim.backend_manager.get_gravity() == pytest.approx(gravity)
+            assert sim.cfg.gravity == nominal_gravity
 
         set_gravity((0.0, 0.0, 0.0))
         initial_height = cube.data.root_pos_w.torch[0, 2].item()

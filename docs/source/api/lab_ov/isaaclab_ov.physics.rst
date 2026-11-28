@@ -8,6 +8,7 @@
   .. autosummary::
 
     OvPhysxManager
+    OvPhysxBackend
     OvPhysxCfg
     OvPhysxBackendCfg
 
@@ -19,6 +20,20 @@ Physics Manager
 .. autoclass:: OvPhysxManager
   :members:
   :inherited-members:
+  :show-inheritance:
+
+Explicit Backend Runtime
+------------------------
+
+.. autoclass:: OvPhysxBackend
+  :members:
+  :show-inheritance:
+
+Scene Data Publication
+----------------------
+
+.. autoclass:: isaaclab_ov.physics.ovphysx_scene_data.OvPhysxSceneDataBackend
+  :members:
   :show-inheritance:
 
 Physics Configuration
