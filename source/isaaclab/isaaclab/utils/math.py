@@ -543,15 +543,12 @@ def quat_mul(q1: torch.Tensor, q2: torch.Tensor) -> torch.Tensor:
     x1, y1, z1, w1 = q1[:, 0], q1[:, 1], q1[:, 2], q1[:, 3]
     x2, y2, z2, w2 = q2[:, 0], q2[:, 1], q2[:, 2], q2[:, 3]
     # perform multiplication
-    ww = (z1 + x1) * (x2 + y2)
-    yy = (w1 - y1) * (w2 + z2)
-    zz = (w1 + y1) * (w2 - z2)
-    xx = ww + yy + zz
-    qq = 0.5 * (xx + (z1 - x1) * (x2 - y2))
-    w = qq - ww + (z1 - y1) * (y2 - z2)
-    x = qq - xx + (x1 + w1) * (x2 + w2)
-    y = qq - yy + (w1 - x1) * (y2 + z2)
-    z = qq - zz + (z1 + y1) * (w2 - x2)
+    # The direct Hamilton product preserves small vector components without
+    # subtracting nearly equal scalar terms when composing with the identity.
+    x = w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2
+    y = w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2
+    z = w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2
+    w = w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2
 
     return torch.stack([x, y, z, w], dim=-1).view(shape)
 
@@ -605,7 +602,7 @@ def quat_box_plus(q: torch.Tensor, delta: torch.Tensor, eps: float = 1.0e-6) -> 
     Args:
         q: The initial quaternion in (x, y, z, w). Shape is (N, 4).
         delta: The axis-angle perturbation. Shape is (N, 3).
-        eps: A small value to avoid division by zero. Defaults to 1e-6.
+        eps: Small-angle threshold for the Taylor expansion. Defaults to 1e-6.
 
     Returns:
         The updated quaternion after applying the perturbation. Shape is (N, 4).
@@ -613,8 +610,14 @@ def quat_box_plus(q: torch.Tensor, delta: torch.Tensor, eps: float = 1.0e-6) -> 
     Reference:
         https://github.com/ANYbotics/kindr/blob/master/doc/cheatsheet/cheatsheet_latest.pdf
     """
-    delta_norm = torch.clamp_min(torch.linalg.norm(delta, dim=-1, keepdim=True), min=eps)
-    delta_quat = quat_from_angle_axis(delta_norm.squeeze(-1), delta / delta_norm)  # exp(dq)
+    delta_norm = torch.linalg.norm(delta, dim=-1, keepdim=True)
+    half_angle = delta_norm * 0.5
+    # exp(delta) has vector part delta * sin(|delta| / 2) / |delta|.
+    # Clamping the angle would enlarge small but nonzero perturbations.
+    small = (delta_norm <= eps) | (delta_norm == 0.0)
+    safe_norm = torch.where(small, torch.ones_like(delta_norm), delta_norm)
+    scale = torch.where(small, 0.5 - delta_norm.square() / 48.0, half_angle.sin() / safe_norm)
+    delta_quat = normalize(torch.cat((delta * scale, half_angle.cos()), dim=-1))
     new_quat = quat_mul(delta_quat, q)  # Apply perturbation
     return quat_unique(new_quat)
 
