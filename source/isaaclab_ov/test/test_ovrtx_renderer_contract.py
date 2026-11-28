@@ -2713,6 +2713,7 @@ def _make_renderer_with_backend(events: list[str], use_ovstage: bool) -> OVRTXRe
                 events.append(f"release_query:{paths}")
 
         renderer.scene = OvstageBackend.__new__(OvstageBackend)
+        renderer.scene._publishers = {}
         SimulationContext.instance()._backend_registry.insert(
             0, (OvstageBackendCfg(scene_key=renderer.cfg), renderer.scene)
         )
@@ -2759,18 +2760,20 @@ def test_ovrtx_close_releases_bindings_before_registry_resources(use_ovstage):
             renderer.close()
     renderer.close()
     if use_ovstage:
-        assert len(events) == 6
-        for name in ("camera", "object", "geometry"):
+        # The stage owns the body pose publisher, so its query outlives the renderer.
+        assert len(events) == 4
+        for name in ("camera", "geometry"):
             assert events.index(f"release_query:{name}") < events.index(f"destroy_path_list:{name}")
     else:
         assert sorted(events) == ["unbind:camera", "unbind:geometry", "unbind:object"]
-    assert renderer._object_xform_binding is renderer._geometry_points_binding is None
+    assert renderer._object_xform_binding is renderer._geometry_points_binding is renderer._body_poses is None
     SimulationContext.instance().close_backend(renderer.backend)
     assert events[-1] == "destroy_renderer"
     if use_ovstage:
         assert "close_stage" not in events
         SimulationContext.instance().close_backend(renderer.scene)
-        assert events[-1] == "close_stage"
+        assert events.index("release_query:object") < events.index("destroy_path_list:object")
+        assert events.index("destroy_path_list:object") < events.index("close_stage") == len(events) - 1
     events.clear()
     renderer.close()
     assert events == []
