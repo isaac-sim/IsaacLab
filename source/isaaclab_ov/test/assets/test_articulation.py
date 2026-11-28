@@ -43,6 +43,7 @@ from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
+import ovstage  # noqa: E402
 from isaaclab_isaacsim.sim.schemas import PhysxJointCfg  # noqa: E402
 from isaaclab_ov import tensor_types as TT  # noqa: E402
 from isaaclab_ov.assets import Articulation, kernels  # noqa: E402
@@ -50,7 +51,11 @@ from isaaclab_ov.assets.articulation import actuator_control  # noqa: E402
 from isaaclab_ov.assets.articulation.actuator_control import OvPhysxActuatorControl  # noqa: E402
 from isaaclab_ov.assets.articulation.articulation_data import ArticulationData  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg, OvPhysxManager  # noqa: E402
+from isaaclab_ov.sim.views.ovphysx_session_reads import OvPhysxSessionReads, _read_groups  # noqa: E402
+from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView  # noqa: E402
 from isaaclab_ov.test.fixtures.views import MockOvPhysxBindingSet  # noqa: E402
+from isaaclab_ov.test.fixtures.views.session_reads import binding_values, replays_only  # noqa: E402
+from ovphysx.types import SimObjectType  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
 import isaaclab.utils.math as math_utils  # noqa: E402
@@ -373,8 +378,8 @@ def scene(request: pytest.FixtureRequest) -> Iterator[_ArticulationScene]:
 
 
 def _read_binding_to_torch(articulation: Articulation, tensor_type: int, device: str | torch.device) -> torch.Tensor:
-    """Read an OVPhysX attribute on its native device and move it to *device*."""
-    return wp.to_torch(articulation.root_view.get_attribute(tensor_type)).to(device)
+    """Read an OVPhysX attribute straight from its TensorBinding on its native device and move it to *device*."""
+    return wp.to_torch(binding_values(articulation.root_view, tensor_type)).to(device)
 
 
 def _spawn_own_articulation(**cfg) -> Articulation:
@@ -780,6 +785,125 @@ def test_heterogeneous_articulation_clone_indexed_state(device, variant, tmp_pat
                 binding.destroy()
 
 
+def _chain_usd(path: Path, links: int) -> str:
+    """Write a fixed-base chain of ``links`` bodies joined by revolute joints; returns its USD path."""
+    stage = Usd.Stage.CreateInMemory()
+    robot = UsdGeom.Xform.Define(stage, "/Robot").GetPrim()
+    stage.SetDefaultPrim(robot)
+    UsdPhysics.ArticulationRootAPI.Apply(robot)
+    for link in range(links):
+        body = UsdGeom.Xform.Define(stage, f"/Robot/Link{link}")
+        body.AddTranslateOp().Set((0.0, 0.0, 0.4 * link))
+        UsdPhysics.RigidBodyAPI.Apply(body.GetPrim())
+        UsdPhysics.MassAPI.Apply(body.GetPrim()).CreateMassAttr(1.0)
+        geometry = UsdGeom.Cube.Define(stage, f"/Robot/Link{link}/Geometry")
+        geometry.AddScaleOp().Set((0.1, 0.1, 0.1))
+        UsdPhysics.CollisionAPI.Apply(geometry.GetPrim())
+    UsdPhysics.FixedJoint.Define(stage, "/Robot/Fixed").CreateBody1Rel().SetTargets(["/Robot/Link0"])
+    for link in range(1, links):
+        joint = UsdPhysics.RevoluteJoint.Define(stage, f"/Robot/Joint{link}")
+        joint.CreateBody0Rel().SetTargets([f"/Robot/Link{link - 1}"])
+        joint.CreateBody1Rel().SetTargets([f"/Robot/Link{link}"])
+        joint.CreateLocalPos0Attr((0.0, 0.0, 0.4))
+    usd_path = str(path / f"chain_{links}.usda")
+    stage.Export(usd_path)
+    return usd_path
+
+
+@pytest.mark.parametrize("device", _CUDA_DEVICES)
+def test_session_reads_pad_shorter_articulations(device: str, tmp_path: Path) -> None:
+    """A view over articulations of different lengths reads the binding's padded layout; padding reads zero."""
+    sim_cfg = SimulationCfg(physics=OvPhysxCfg(), device=device, gravity=(0.0, 0.0, 0.0))
+    with build_simulation_context(device=device, sim_cfg=sim_cfg) as sim:
+        cfg = InteractiveSceneCfg(num_envs=1, env_spacing=2.0)
+        cfg.short = ArticulationCfg(
+            prim_path="{ENV_REGEX_NS}/Short",
+            spawn=sim_utils.UsdFileCfg(usd_path=_chain_usd(tmp_path, 2)),
+            actuators=_implicit(),
+        )
+        cfg.long = ArticulationCfg(
+            prim_path="{ENV_REGEX_NS}/Long",
+            spawn=sim_utils.UsdFileCfg(usd_path=_chain_usd(tmp_path, 3)),
+            init_state=ArticulationCfg.InitialStateCfg(pos=(1.0, 0.0, 0.0), joint_pos={".*": 0.3}),
+            actuators=_implicit(),
+        )
+        scene = InteractiveScene(cfg)
+        sim.reset()
+        sim.step()
+        roots = [scene["short"].root_view.prim_paths[0], scene["long"].root_view.prim_paths[0]]
+        view = OvPhysxView(sim.backend_manager.get_physx_instance(), prim_paths=roots, device=device)
+        try:
+            for tensor_type in (TT.LINK_POSE, TT.LINK_VELOCITY, TT.DOF_POSITION, TT.DOF_VELOCITY):
+                expected = binding_values(view, tensor_type)
+                replayed = wp.zeros_like(expected)
+                view.read_into(tensor_type, replayed)  # captures the plan
+                replayed.fill_(-1.0)  # the replay must write the padding too
+                with replays_only(view, tensor_type):
+                    view.read_into(tensor_type, replayed)
+                _assert_session_matches(wp.to_torch(replayed), wp.to_torch(expected), tensor_type, tensor_type.name)
+        finally:
+            view.close()
+
+
+@pytest.mark.parametrize("device", _CUDA_DEVICES)
+def test_session_reads_on_the_null_stream(device: str) -> None:
+    """A simulation built, reset and stepped on Warp's null stream captures, refreshes kinematics and replays there."""
+    sim_cfg = SimulationCfg(physics=OvPhysxCfg(), device=device)
+    with (
+        wp.ScopedStream(wp.get_device(device).null_stream),
+        build_simulation_context(device=device, sim_cfg=sim_cfg) as sim,
+    ):
+        cfg = InteractiveSceneCfg(num_envs=2, env_spacing=2.0)
+        cfg.robot = ArticulationCfg(
+            prim_path="{ENV_REGEX_NS}/Robot", spawn=sim_utils.UsdFileCfg(usd_path=str(_FIXTURE)), actuators=_implicit()
+        )
+        scene = InteractiveScene(cfg)
+        sim.reset()
+        robot = scene["robot"]
+        robot.write_joint_position_to_sim_index(position=robot.data.joint_pos.torch + 0.1)
+        sim.step()  # refreshes the kinematics on the null stream
+        view = robot.root_view
+        for tensor_type in (TT.ROOT_POSE, TT.LINK_POSE, TT.DOF_POSITION, TT.JACOBIAN):
+            expected = binding_values(view, tensor_type)
+            replayed = wp.zeros_like(expected)
+            view.read_into(tensor_type, replayed)
+            wp.synchronize_device(device)
+            _assert_session_matches(wp.to_torch(replayed), wp.to_torch(expected), tensor_type, tensor_type.name)
+
+
+@pytest.mark.parametrize("device", _CUDA_DEVICES)
+@pytest.mark.parametrize("tensor_type", [TT.JACOBIAN, TT.MASS_MATRIX])
+@pytest.mark.parametrize("write", ["asset", "view"])
+def test_session_kinematic_reads_follow_joint_writes(device: str, tensor_type: int, write: str) -> None:
+    """A session read of a link-pose-derived type sees a joint write, through the asset or straight through its view,
+    with no step or binding read in between.
+
+    A binding read refreshes the kinematics itself; a session read relies on the manager's refresh, which both writes
+    mark due. The test builds its own scene: on the module scene it passed with that refresh removed once other tests
+    had run first.
+    """
+    sim_cfg = SimulationCfg(physics=OvPhysxCfg(), device=device)
+    with build_simulation_context(device=device, sim_cfg=sim_cfg, auto_add_lighting=False) as sim:
+        articulation = _spawn_island("dynamics", _ISLANDS["dynamics"], y_offset=0.0)
+        sim.reset()
+        view = articulation.root_view
+        joints = articulation.data.joint_pos.torch.clone()  # the asset's joint order
+        view_joints = wp.to_torch(binding_values(view, TT.DOF_POSITION)).clone()  # the view's DOF order
+        replayed = wp.zeros_like(binding_values(view, tensor_type))
+        view.read_into(tensor_type, replayed)
+        before = wp.to_torch(replayed).clone()
+        if write == "asset":
+            joints[:, 1] += 0.2
+            articulation.write_joint_position_to_sim_index(position=joints)
+        else:
+            view_joints[:, 1] += 0.2
+            view.set_attribute(TT.DOF_POSITION, wp.from_torch(view_joints))
+        view.read_into(tensor_type, replayed)
+        after = wp.to_torch(replayed).clone()
+        assert not torch.equal(after, before), "the read after the joint write kept the old kinematics"
+        torch.testing.assert_close(after, wp.to_torch(binding_values(view, tensor_type)), atol=0.0, rtol=0.0)
+
+
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CPU))
 @pytest.mark.parametrize(
     ("init_state", "match"),
@@ -862,6 +986,140 @@ def test_articulation_initialization_and_partial_state(scene: _ArticulationScene
     torch.testing.assert_close(
         wp.to_torch(articulation.root_view.get_attribute(TT.DOF_POSITION)), expected_backend, rtol=0.0, atol=0.0
     )
+
+
+@pytest.mark.parametrize("scene", _CUDA_DEVICES, indirect=True)
+@pytest.mark.parametrize(
+    "tensor_type",
+    [
+        TT.ROOT_POSE,
+        TT.ROOT_VELOCITY,
+        TT.LINK_POSE,
+        TT.LINK_VELOCITY,
+        TT.LINK_ACCELERATION,
+        TT.LINK_INCOMING_JOINT_FORCE,
+        TT.DOF_POSITION,
+        TT.DOF_VELOCITY,
+        TT.JACOBIAN,
+        TT.MASS_MATRIX,
+    ],
+)
+def test_session_reads_match_bindings(scene: _ArticulationScene, tensor_type: int) -> None:
+    """A session read fills ``read_into`` with the binding's values, rows and lanes, and refreshes them on later
+    reads after steps and writes."""
+    replayed = {}
+    for name, articulation in scene.islands.items():  # the first read builds (and captures) each plan
+        replayed[name] = wp.zeros_like(binding_values(articulation.root_view, tensor_type))
+        articulation.root_view.read_into(tensor_type, replayed[name])
+    for _ in range(3):
+        scene.sim.step()
+    floating = scene.islands["floating"]
+    pose = floating.data.default_root_pose.torch.clone()
+    pose[:, 2] += 0.25
+    floating.write_root_pose_to_sim_index(root_pose=pose)
+    joints = floating.data.joint_pos.torch.clone()
+    joints[:, 1] += 0.2
+    floating.write_joint_position_to_sim_index(position=joints)
+    expected = {}
+    for name, articulation in scene.islands.items():
+        view = articulation.root_view
+        # This read, right after the writes, replays the plan captured above.
+        with replays_only(view, tensor_type):
+            view.read_into(tensor_type, replayed[name])
+        expected[name] = binding_values(view, tensor_type)
+    if tensor_type == TT.DOF_POSITION:  # before the equivalence, so a unit change in ovphysx reports itself
+        _assert_session_reports_degrees(scene)
+    for name in scene.islands:
+        _assert_session_matches(wp.to_torch(replayed[name]), wp.to_torch(expected[name]), tensor_type, name)
+
+
+def _assert_session_matches(replayed: torch.Tensor, expected: torch.Tensor, tensor_type: int, name: str) -> None:
+    """Session and binding values agree; joint quantities the session reports per degree may round the last bit."""
+    rtol = 2.0**-22 if tensor_type in (TT.DOF_POSITION, TT.DOF_VELOCITY) else 0.0
+    # The "tendon" island diverges to NaN on main too; both reads must then hold NaN at the same places.
+    torch.testing.assert_close(replayed, expected, atol=0.0, rtol=rtol, equal_nan=True, msg=name)
+
+
+def _assert_session_reports_degrees(scene: _ArticulationScene) -> None:
+    """Canary: ovphysx reports a revolute joint position in degrees, which the session reads scale to radians."""
+    for articulation in scene.islands.values():
+        view = articulation.root_view
+        reads = OvPhysxSessionReads.for_physx(articulation._ovphysx)
+        binding = view.binding_for(TT.DOF_POSITION)
+        expected = binding_values(view, TT.DOF_POSITION).numpy()
+        with ovstage.PathDictionary(reads._stage) as paths:
+            # 1. A revolute DOF away from zero (NaN excluded), and its joint.
+            table = reads._articulation_table(binding, ("dofJointPath", "dofJointType", "dofCount"), paths)
+            revolute = [
+                (index, dof)
+                for index in range(expected.shape[0])
+                for dof in range(int(table["dofCount"][index, 0]))
+                if table["dofJointType"][index, dof] == 2 and abs(expected[index, dof]) > 1e-3
+            ]
+            if not revolute:
+                continue
+            index, dof = revolute[0]
+            joint = paths.path_to_string(ovstage.PrimPath(int(table["dofJointPath"][index, dof])))
+            # 2. Its raw session value, read outside the plans after their last replay.
+            handles = [paths.intern_path(joint)]
+            with reads._physx.read_sync(
+                SimObjectType.ARTICULATION_JOINT, ["jointPosition"], prim_paths=handles
+            ) as result:
+                groups = _read_groups(result)
+                raw = float(groups[0].tensors[0].numpy().reshape(-1)[0])
+                del groups  # PhysX cannot be destroyed while a read's arrays are alive
+        np.testing.assert_allclose(
+            raw,
+            math.degrees(float(expected[index, dof])),
+            rtol=1e-5,
+            err_msg="ovphysx no longer reports angular joint positions in degrees: drop the degree scale in "
+            "OvPhysxSessionReads._dof_sources",
+        )
+        return
+    raise AssertionError("No revolute joint away from zero to check.")
+
+
+@pytest.mark.parametrize("scene", _CUDA_DEVICES, indirect=True)
+@pytest.mark.parametrize("tensor_type", [TT.RIGID_BODY_POSE, TT.RIGID_BODY_VELOCITY, TT.RIGID_BODY_ACCELERATION])
+def test_session_rigid_body_reads_of_links_match_bindings(scene: _ArticulationScene, tensor_type: int) -> None:
+    """A rigid-body view over articulation links, as sensors attach to, reads them as links and matches the binding."""
+    articulation = scene.islands["floating"]
+    paths = [
+        f"/World/floating/Env_{env}/Robot/{body}"
+        for env in range(articulation.num_instances)
+        for body in BRANCHING_PHYSX_BODY_NAMES
+    ]
+    view = OvPhysxView(articulation._ovphysx, prim_paths=paths, device=scene.device)
+    try:
+        expected = binding_values(view, tensor_type)
+        replayed = wp.zeros_like(expected)
+        view.read_into(tensor_type, replayed)  # captures the plan
+        replayed.fill_(-1.0)
+        with replays_only(view, tensor_type):
+            view.read_into(tensor_type, replayed)
+        torch.testing.assert_close(wp.to_torch(replayed), wp.to_torch(expected), atol=0.0, rtol=0.0)
+    finally:
+        view.close()
+
+
+@pytest.mark.parametrize("scene", _CUDA_DEVICES, indirect=True)
+def test_gravity_force_reads_follow_set_gravity(scene: _ArticulationScene) -> None:
+    """The gravity compensation force follows ``set_gravity``: its kernel takes the scene gravity of each launch, which
+    a captured read would keep from its capture."""
+    manager = scene.sim.backend_manager
+    view = scene.islands["dynamics"].root_view
+    forces = wp.zeros_like(binding_values(view, TT.GRAVITY_FORCE))
+    view.read_into(TT.GRAVITY_FORCE, forces)
+    assert wp.to_torch(forces).abs().max() > 0.0
+    try:
+        manager.set_gravity((0.0, 0.0, 0.0))
+        scene.sim.step()
+        view.read_into(TT.GRAVITY_FORCE, forces)
+        expected = wp.to_torch(binding_values(view, TT.GRAVITY_FORCE))
+        assert expected.abs().max() == 0.0
+        torch.testing.assert_close(wp.to_torch(forces), expected, atol=0.0, rtol=0.0)
+    finally:
+        manager.set_gravity(tuple(scene.sim.cfg.gravity))
 
 
 @pytest.mark.parametrize("scene", _ALL_DEVICES, indirect=True)

@@ -29,6 +29,8 @@ def manager(monkeypatch):
     backend.stage = backend.scene = None
     backend.owns_scene = True
     backend.rigid_body_view = None
+    backend.session_reads = None
+    backend._device = "cpu"
     manager = OvPhysxManager(OvPhysxCfg())
     manager.backend = backend
     manager._scene_data_backend = OvPhysxSceneDataBackend(manager)
@@ -152,7 +154,7 @@ def test_transforms_finish_dirty_kinematics_before_native_reads(manager, monkeyp
     poses = wp.zeros(1, dtype=wp.transformf, device="cpu")
     backend._transforms.data.transforms = poses
     backend.backend = manager.backend
-    backend.backend.rigid_body_view = SimpleNamespace(read=lambda _: calls.append("read"))
+    backend.backend.rigid_body_view = SimpleNamespace(read_into=lambda _tt, _dst: calls.append("read"))
     sdp = SceneDataProvider(backend)
     monkeypatch.setattr(manager, "kinematics_dirty", True)
     sdp.get_transforms(SceneDataFormat.Transform())
@@ -226,7 +228,7 @@ def test_manager_attaches_and_releases_owned_ovstage(manager, monkeypatch, failu
     monkeypatch.setattr(stage_module, "create_ovstage", FakeStage)
     physx = FakePhysX()
     manager.backend.physx = physx
-    manager.backend.rigid_body_view = SimpleNamespace(destroy=lambda: events.append(("destroy_view",)))
+    manager.backend.rigid_body_view = SimpleNamespace(close=lambda: events.append(("destroy_view",)))
     monkeypatch.setattr(om_mod.OvPhysxView, "_close_all_for", lambda value: events.append(("close_views", value)))
     if failure == "attach":
         with pytest.raises(RuntimeError, match=f"{failure} failed"):
@@ -598,9 +600,11 @@ def test_scene_data_binding_is_deferred_until_requested(manager):
         finally:
             active = False
 
-    def bind(*, prim_paths):
+    def bind(*, prim_paths, tensor_type):
         assert prim_paths == expected_paths
-        return SimpleNamespace(count=2, prim_paths=prim_paths)
+        return SimpleNamespace(
+            count=2, prim_paths=prim_paths, tensor_type=tensor_type, shape=(2, 7), destroy=lambda: None
+        )
 
     runtime = SimpleNamespace(create_tensor_binding=bind, read_sync=read)
     native = SimpleNamespace(physx=runtime, rigid_body_view=None)
@@ -625,11 +629,13 @@ def test_transforms_read_native_buffer_only_when_dirty(manager):
     paths = ["/World/envs/env_0/Cart", "/World/envs/env_1/Cart", "/World/envs/env_0/Pole"]
     reads = []
 
-    def read(dst):
+    def read_into(_tensor_type, dst):
         reads.append(dst.ptr)
         dst.assign(expected)
 
-    native = SimpleNamespace(physx=None, rigid_body_view=SimpleNamespace(count=len(paths), prim_paths=paths, read=read))
+    native = SimpleNamespace(
+        physx=None, rigid_body_view=SimpleNamespace(count=len(paths), prim_paths=paths, read_into=read_into)
+    )
 
     backend = module.OvPhysxSceneDataBackend(manager)
     publication = backend.transforms
@@ -668,12 +674,12 @@ def test_failed_rigid_read_is_retried(manager):
 
     from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
 
-    def fail_read(dst):
+    def fail_read(_tensor_type, dst):
         raise RuntimeError("simulated read failure")
 
     backend = OvPhysxSceneDataBackend(manager)
     backend._transforms.data.transforms = wp.empty(1, dtype=wp.transformf, device="cpu")
-    backend.backend = SimpleNamespace(rigid_body_view=SimpleNamespace(read=fail_read))
+    backend.backend = SimpleNamespace(rigid_body_view=SimpleNamespace(read_into=fail_read))
     sdp = SceneDataProvider(backend)
 
     for _ in range(2):

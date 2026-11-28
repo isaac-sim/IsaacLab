@@ -252,7 +252,7 @@ def test_stage_reuse_drains_bindings_before_reset(monkeypatch, manager_module, m
         manager_module.OvPhysxView, "_close_all_for", lambda value: events.append(("close_views", value))
     )
     manager.backend.stage = object()
-    manager.backend.rigid_body_view = SimpleNamespace(destroy=lambda: events.append("destroy_view"))
+    manager.backend.rigid_body_view = SimpleNamespace(close=lambda: events.append("destroy_view"))
     scene = manager.backend.scene = SimpleNamespace(
         stage=object(),
         ordinal=2,
@@ -879,7 +879,9 @@ def test_warmup_collects_clone_receipt_before_model_init(
     else:
         physx = FakePhysX()
 
-    backend = SimpleNamespace(physx=physx, stage=None, owns_scene=True, load=lambda usda, **kwargs: None)
+    backend = SimpleNamespace(
+        physx=physx, stage=None, owns_scene=True, load=lambda usda, **kwargs: None, session_reads=None
+    )
     stage = Usd.Stage.CreateInMemory()
     UsdPhysics.Scene.Define(stage, "/World/PhysicsScene")
     sim = manager._sim

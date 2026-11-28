@@ -23,6 +23,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from dataclasses import dataclass
 
+import numpy as np
 import pytest
 import torch
 import warp as wp
@@ -36,6 +37,9 @@ from isaaclab_isaacsim.sim.spawners.materials import PhysxRigidBodyMaterialCfg  
 from isaaclab_ov import tensor_types as TT  # noqa: E402
 from isaaclab_ov.assets import RigidObject, RigidObjectCollection  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
+from isaaclab_ov.sim.views import OvPhysxView  # noqa: E402
+from isaaclab_ov.test.fixtures.views.session_reads import binding_values, captures_again, replays_only  # noqa: E402
+from ovphysx.types import SimObjectType  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
 from isaaclab import cloner  # noqa: E402
@@ -292,6 +296,40 @@ def test_collection_initialization_with_no_rigid_body(device: str) -> None:
         assert not object_collection.is_initialized
 
 
+@pytest.mark.parametrize("device", _CUDA)
+def test_session_reads_after_a_native_structural_edit(device: str) -> None:
+    """After ``invalidate_session_reads`` and a body disabled through the native handle, the next read captures again
+    and reads the binding's values.
+
+    With today's ovphysx a plan captured before this edit would still read correctly, so the recapture is asserted
+    directly: an invalidation that kept the plans fails it.
+    """
+    with build_simulation_context(device=device, sim_cfg=SimulationCfg(physics=OvPhysxCfg(), device=device)) as sim:
+        cubes = _spawn_cubes("Edited", y_offset=0.0)
+        sim.reset()
+        sim.step()
+        physx = sim.backend_manager.get_physx_instance()
+        first, second = cubes.root_view.prim_paths
+        view = OvPhysxView(physx, prim_paths=[second], device=device)
+        try:
+            replayed = wp.zeros_like(binding_values(view, TT.RIGID_BODY_POSE))
+            view.read_into(TT.RIGID_BODY_POSE, replayed)  # captures the plan
+            sim.backend_manager.invalidate_session_reads()
+            with physx.write_sync(SimObjectType.RIGID_BODY, "disableSimulation", pattern=first) as session:
+                for group in session.groups:
+                    group.tensors[0].assign(np.array([[1]], dtype=np.uint8))
+                    session.commit_sync(group)
+            for _ in range(5):  # the second cube falls
+                sim.step()
+            replayed.fill_(-1.0)
+            with captures_again(TT.RIGID_BODY_POSE):
+                view.read_into(TT.RIGID_BODY_POSE, replayed)
+            expected = binding_values(view, TT.RIGID_BODY_POSE)
+            torch.testing.assert_close(wp.to_torch(replayed), wp.to_torch(expected), atol=0.0, rtol=0.0)
+        finally:
+            view.close()
+
+
 @dataclass
 class _RigidScene:
     """Cuboid pairs and collections that share one real OVPhysX lifecycle."""
@@ -420,6 +458,56 @@ def test_initialization_with_kinematic_enabled(scene: _RigidScene) -> None:
         cube_object.update(sim.cfg.dt)
         torch.testing.assert_close(cube_object.data.root_link_pose_w.torch, default_root_pose)
         torch.testing.assert_close(cube_object.data.root_com_vel_w.torch, default_root_vel)
+
+
+@pytest.mark.parametrize("scene", _CUDA_SCENES, indirect=True)
+@pytest.mark.parametrize(
+    "tensor_type",
+    [
+        TT.RIGID_BODY_POSE,
+        TT.RIGID_BODY_VELOCITY,
+        TT.RIGID_BODY_ACCELERATION,
+        TT.LINK_POSE,
+        TT.LINK_VELOCITY,
+    ],
+)
+def test_session_reads_match_bindings(scene: _RigidScene, tensor_type: int) -> None:
+    """A session read fills ``read_into`` with the binding's values in the binding's row order."""
+    for _ in range(3):
+        scene.sim.step()
+    # A collection reads LINK_* through its RIGID_BODY_* binding (one collection: they share the layout); the cuboid
+    # pairs read the rigid-body types.
+    served = {TT.LINK_POSE: TT.RIGID_BODY_POSE, TT.LINK_VELOCITY: TT.RIGID_BODY_VELOCITY}.get(tensor_type)
+    owners = (scene.fused,) if served else (scene.dynamic, scene.kinematic, scene.spinning)
+    for owner in owners:
+        view = owner.root_view
+        expected = binding_values(view, tensor_type)
+        replayed = wp.zeros_like(expected)
+        view.read_into(tensor_type, replayed)  # captures the plan
+        replayed.fill_(-1.0)
+        with replays_only(view, tensor_type):
+            view.read_into(tensor_type, replayed)
+        torch.testing.assert_close(wp.to_torch(replayed), wp.to_torch(expected), atol=0.0, rtol=0.0)
+
+
+@pytest.mark.parametrize("scene", _CUDA_SCENES, indirect=True)
+@pytest.mark.parametrize("null_stream", [False, True], ids=["stream", "null_stream"])
+def test_session_read_replays_on_the_callers_stream(scene: _RigidScene, null_stream: bool) -> None:
+    """A replay runs on the caller's current Warp stream, so work queued there after the read sees the values."""
+    view = scene.dynamic.root_view
+    expected = binding_values(view, TT.RIGID_BODY_POSE)
+    device = expected.device
+    replayed = wp.zeros_like(expected)
+    view.read_into(TT.RIGID_BODY_POSE, replayed)  # captures the plan
+    replayed.fill_(-1.0)
+    copied = wp.zeros_like(expected)
+    wp.synchronize_device(device)
+    stream = wp.get_device(device).null_stream if null_stream else wp.Stream(device)
+    with wp.ScopedStream(stream):
+        view.read_into(TT.RIGID_BODY_POSE, replayed)
+        wp.copy(copied, replayed)  # queued after the replay on the same stream
+    wp.synchronize_stream(stream)  # only this stream: a replay elsewhere leaves the copy holding -1
+    torch.testing.assert_close(wp.to_torch(copied), wp.to_torch(expected), atol=0.0, rtol=0.0)
 
 
 @pytest.mark.parametrize("scene", _CUDA_SCENES, indirect=True)

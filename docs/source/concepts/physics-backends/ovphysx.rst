@@ -431,6 +431,22 @@ some property tensors are CPU-only. :class:`~isaaclab_ov.sim.views.OvPhysxView`
 validates these requirements and can reinterpret supported flat scalar layouts
 as structured Warp values, but it does not move data between CPU and GPU.
 
+On a CUDA simulation, :meth:`~isaaclab_ov.sim.views.OvPhysxView.read_into` of
+simulation state (poses, velocities, accelerations, joint state, Jacobians,
+mass matrices, deformable nodes) replays an OvPhysX session read captured into
+a CUDA graph on the first read of each destination buffer. Pass a buffer kept
+across calls; for a one-off read, call ``get_attribute`` without ``out``. The
+replay runs on the caller's current Warp stream, so work queued on that stream
+afterwards sees the values; work on another non-blocking stream must first wait
+for that stream, which the caller arranges. This includes the cached poses ``SceneDataProvider`` returns,
+which are filled on the stream of the call that refreshed them. A structural edit made through the native handle,
+such as enabling or disabling a rigid body or adding or removing prims, is not
+reported by OvPhysX: call ``sim.backend_manager.invalidate_session_reads()``
+before the edit, which waits for replays in flight and releases the captured
+graphs, and read again only after the edit. Close and recreate a view whose
+prims the edit disables, removes or replaces, since its bindings no longer
+apply.
+
 Use ``try_binding_for`` when a tensor type might not apply to the selected
 prims. Reacquire raw bindings and convenience views after reset paths that
 rebuild the stage or runtime, or after teardown. Destroy raw bindings and close
