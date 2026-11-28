@@ -291,11 +291,12 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
             continue
         shapes = {label: index for index, label in enumerate(source_builders[source].shape_label)}
         for path, (bodies, _) in imported["path_cable_map"].items():
-            if imported["path_cable_attrs"][path]["closed"]:
-                continue
             if len(UsdGeom.BasisCurves(stage.GetPrimAtPath(path)).GetCurveVertexCountsAttr().Get()) != 1:
                 continue
-            cables[path] = [shapes[f"{path}_edge_capsule_{segment}"] for segment in range(len(bodies))]
+            cables[path] = (
+                [shapes[f"{path}_edge_capsule_{segment}"] for segment in range(len(bodies))],
+                imported["path_cable_attrs"][path]["closed"],
+            )
     if newton_physics:
         for entry in entries:
             ancestors = reversed(Sdf.Path(entry.root_path).GetPrefixes())
@@ -325,8 +326,9 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
     }
 
     def record_geometry(source: str, destination: str, shape_offset: int, particle_offset: int) -> None:
-        for path, shapes in source_cables[source].items():
-            cable_bindings[cloner_path.rebase(path, source, destination)] = [shape_offset + shape for shape in shapes]
+        for path, (shapes, closed) in source_cables[source].items():
+            indices = [shape_offset + shape for shape in shapes]
+            cable_bindings[cloner_path.rebase(path, source, destination)] = (indices, True) if closed else indices
         for path, (start, end) in import_results[source]["path_particle_map"].items():
             native_range = (particle_offset + start, end - start)
             particle_ranges[cloner_path.rebase(path, source, destination)] = native_range
@@ -354,12 +356,16 @@ def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geom
             batches.append((SceneDataFormat.Points(), visual_ranges))
         bodies = {label: index for index, label in enumerate(builder.body_label)}
         initial_body_variants = tuple((bodies[target], variant) for target, variant in initial_selections)
+        cable_scales = {}
+        for binding in cable_bindings.values():
+            indices = binding if isinstance(binding, list) else binding[0]
+            cable_scales.update((index, builder.shape_scale[index]) for index in indices)
         record = NewtonCloneRecord(
             world_xforms=world_xforms,
             source_builders=retained_sources,
             particle_ranges=particle_ranges,
             cable_bindings=cable_bindings,
-            cable_scales={index: builder.shape_scale[index] for shapes in cable_bindings.values() for index in shapes},
+            cable_scales=cable_scales,
             geometry_batches=batches,
             initial_body_variants=initial_body_variants,
         )
