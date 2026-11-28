@@ -59,6 +59,20 @@ def test_case_conversion():
     assert string_utils.to_camel_case("snake_case_string", to="cC") == "snakeCaseString"
 
 
+@pytest.mark.kitless
+def test_string_to_slice_round_trip() -> None:
+    """Python's slice representation and compact serialized slices must both round-trip."""
+    value = slice(None, -3, None)
+    assert string_utils.string_to_slice(repr(value)) == value
+    assert string_utils.string_to_slice("slice(None,-3,None)") == value
+
+
+@pytest.mark.kitless
+def test_string_to_slice_rejects_trailing_text() -> None:
+    with pytest.raises(ValueError, match="Invalid slice string format"):
+        string_utils.string_to_slice("slice(0,2,1)garbage")
+
+
 def test_string_to_callable_allows_safe_lambdas():
     """Test that simple lambda expressions and module references resolve to callables."""
     assert string_utils.string_to_callable("lambda x: x + 1")(5) == 6
