@@ -380,6 +380,43 @@ def test_garbage_collection_removes_index_attributes_and_warns(device, caplog):
     assert any("without close()" in r.message for r in caplog.records), "expected a close() warning"
 
 
+def _isaaclab_attribute_names(prims) -> set[str]:
+    """Names of the ``isaaclab:`` attributes carried by the given Fabric prims."""
+    return {str(name) for prim in prims for name in prim.GetPropertyNames() if str(name).startswith("isaaclab:")}
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
+def test_views_over_same_prims_share_index_attributes(device, view_factory, request):
+    """Views over the same prims share their index tags, and a rebuilt view reuses them.
+
+    Closing one view must keep the tags a live twin selects on, and a rebuild must not leave the
+    prims with a new set of attributes: Fabric files each set as a new bucket type, and growing
+    those on every rebuild crashed the Fabric hierarchy update (isaac-sim/IsaacLab#8672).
+    """
+    pattern = "/World/Parent_[^/]*/Child"
+    view_a = view_factory(2, device).view
+    view_b = FrameView(pattern, device=device)
+    request.addfinalizer(view_b.close)
+    view_a.get_world_poses()
+    view_b.get_world_poses()
+
+    stage = view_a._fabric_sel.stage
+    prims = [stage.GetPrimAtPath(path) for path in ("/World/Parent_0", "/World/Parent_0/Child")]
+    tags = _isaaclab_attribute_names(prims)
+    assert tags, "views did not tag their prims"
+
+    view_a.close()
+    expected = torch.tensor([[p + c for p, c in zip(PARENT_POS, CHILD_OFFSET)]] * 2, device=device)
+    torch.testing.assert_close(torch.as_tensor(view_b.get_world_poses()[0], device=device), expected, atol=1e-5, rtol=0)
+    view_b.close()
+    assert not _isaaclab_attribute_names(prims), "the last close() left index attributes behind"
+
+    view_c = FrameView(pattern, device=device)
+    request.addfinalizer(view_c.close)
+    view_c.get_world_poses()
+    assert _isaaclab_attribute_names(prims) == tags, "a rebuilt view tagged its prims with new attributes"
+
+
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
 def test_initial_seed_with_scaled_parent(device):
     """Verify the initial USD→Fabric seed handles non-unit scales correctly.

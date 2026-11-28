@@ -10,6 +10,8 @@ Internal to those views; nothing here is part of the public :mod:`isaaclab.sim.v
 
 from __future__ import annotations
 
+import collections
+import hashlib
 import itertools
 import logging
 
@@ -34,7 +36,7 @@ class FabricXformSelection:
     """Tagged Fabric selections over a set of prims and their parents, shared by the backend views.
 
     Three selections -- child read-only, child read-write, and parent world -- live for the
-    instance's lifetime, keyed on a per-instance index attribute so their size follows the view
+    instance's lifetime, keyed on a path-derived index attribute so their size follows the view
     rather than the stage. Accessors rebuild the view-index to Fabric-slot mapping from live Fabric
     data, so a bucket reorder can never leave it stale.
 
@@ -45,9 +47,9 @@ class FabricXformSelection:
     _WORLD_MATRIX_NAME = "omni:fabric:worldMatrix"
     _LOCAL_MATRIX_NAME = "omni:fabric:localMatrix"
 
-    # Uid source for the attribute names; monotonic (not ``id(self)``) so a dead instance's leftover
-    # attributes can never satisfy a live one's selection.
-    _uid_counter = itertools.count()
+    # Live instances per (stage id, path digest); instances over the same prims share their index
+    # attributes, which the last one to close removes.
+    _tag_refs: collections.Counter[tuple[int, str]] = collections.Counter()
 
     def __init__(
         self,
@@ -83,6 +85,7 @@ class FabricXformSelection:
         self._owner = owner
         self.read_write = False
         self._tagged_prims: list[tuple[str, list]] = []
+        self._tag_key: tuple[int, str] | None = None
 
         usd_stage = get_current_stage()
         usd_xforms = UsdGeom.XformCache()
@@ -94,10 +97,6 @@ class FabricXformSelection:
             else None
         )
 
-        uid = next(FabricXformSelection._uid_counter)
-        self.child_index_attr = f"isaaclab:fabricXform:{uid}:index"
-        self._parent_index_attr = f"isaaclab:fabricXform:{uid}:parentIndex"
-
         if skip_missing_prims:
             self.kept_indices = [i for i, path in enumerate(prim_paths) if self.stage.GetPrimAtPath(path).IsValid()]
             self._prim_paths = [prim_paths[i] for i in self.kept_indices]
@@ -105,6 +104,14 @@ class FabricXformSelection:
             self.kept_indices = list(range(len(prim_paths)))
             self._prim_paths = list(prim_paths)
         self.count = len(self._prim_paths)
+
+        # Name the index attributes after the ordered prim paths, never after the instance: Fabric
+        # files each distinct set of attributes on a prim as a new bucket type, and fresh names on
+        # every rebuild of a view grow those types until the Fabric hierarchy update faults. Equal
+        # ordered paths get equal tag values, so instances over them can share the attributes.
+        digest = hashlib.sha256("\0".join(self._prim_paths).encode()).hexdigest()[:16]
+        self.child_index_attr = f"isaaclab:fabricXform:{digest}:index"
+        self._parent_index_attr = f"isaaclab:fabricXform:{digest}:parentIndex"
 
         # A zero-prim selection is legal: the owning views allow a pattern that matches nothing, and
         # everything below degenerates to empty selections, buffers, and launches.
@@ -138,6 +145,8 @@ class FabricXformSelection:
                 rt_prim.GetAttribute(index_attr).Set(i)
                 group_prims.append(rt_prim)
             self._tagged_prims.append((index_attr, group_prims))
+        self._tag_key = (get_current_stage_id(), digest)
+        FabricXformSelection._tag_refs[self._tag_key] += 1
 
         matrix = usdrt.Sdf.ValueTypeNames.Matrix4d
         uint_type = usdrt.Sdf.ValueTypeNames.UInt
@@ -204,7 +213,15 @@ class FabricXformSelection:
             )
 
     def close(self) -> None:
-        """Remove the index attributes authored by this instance. Safe to call more than once."""
+        """Remove the index attributes unless a live instance shares them. Safe to call more than once."""
+        if self._tag_key is None:
+            return
+        key, self._tag_key = self._tag_key, None
+        refs = FabricXformSelection._tag_refs
+        refs[key] -= 1
+        if refs[key] > 0:
+            return
+        del refs[key]
         failed = total = 0
         for attr, prims in self._tagged_prims:
             total += len(prims)
