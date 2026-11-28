@@ -489,6 +489,25 @@ def test_orthogonalize_perspective_depth(device):
     torch.testing.assert_close(orthogonal_depth, expected_orthogonal_depth)
 
 
+@pytest.mark.kitless
+def test_orthogonalize_perspective_depth_respects_camera_skew() -> None:
+    """Perspective range must use the calibrated ray, including intrinsic skew."""
+    height, width = 3, 4
+    depth = torch.arange(1, 25, dtype=torch.float64).reshape(2, height, width)
+    intrinsics = torch.tensor(
+        [
+            [[4.0, 1.5, 0.7], [0.0, 3.0, 1.0], [0.0, 0.0, 1.0]],
+            [[6.0, 0.0, 1.3], [0.0, 5.0, 0.8], [0.0, 0.0, 1.0]],
+        ],
+        dtype=torch.float64,
+    )
+    pixels = np.array([[u, v, 1.0] for v in range(height) for u in range(width)]).T
+    rays = np.linalg.solve(intrinsics.numpy(), np.broadcast_to(pixels, (2, 3, height * width)))
+    expected = depth.numpy() * (rays[:, 2] / np.linalg.norm(rays, axis=1)).reshape(2, height, width)
+    actual = math_utils.orthogonalize_perspective_depth(depth, intrinsics)
+    torch.testing.assert_close(actual, torch.from_numpy(expected))
+
+
 @pytest.mark.parametrize("device", test_devices())
 def test_unproject_depth(device):
     """Test unproject_depth against the pinhole camera model, including the first image row and column."""

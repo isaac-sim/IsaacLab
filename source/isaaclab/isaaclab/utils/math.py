@@ -1123,6 +1123,7 @@ def orthogonalize_perspective_depth(depth: torch.Tensor, intrinsics: torch.Tenso
     fy = intrinsics_batch[:, 1, 1].view(-1, 1, 1)
     cx = intrinsics_batch[:, 0, 2].view(-1, 1, 1)
     cy = intrinsics_batch[:, 1, 2].view(-1, 1, 1)
+    skew = intrinsics_batch[:, 0, 1].view(-1, 1, 1)
 
     # Create meshgrid of pixel coordinates
     u_grid = torch.arange(im_width, device=depth.device, dtype=depth.dtype)
@@ -1133,9 +1134,11 @@ def orthogonalize_perspective_depth(depth: torch.Tensor, intrinsics: torch.Tenso
     u_grid = u_grid.unsqueeze(0).expand(perspective_depth_batch.shape[0], -1, -1)
     v_grid = v_grid.unsqueeze(0).expand(perspective_depth_batch.shape[0], -1, -1)
 
-    # Compute the squared terms for efficiency
-    x_term = ((u_grid - cx) / fx) ** 2
-    y_term = ((v_grid - cy) / fy) ** 2
+    # Recover the normalized camera ray from the upper-triangular intrinsics.
+    y = (v_grid - cy) / fy
+    x = (u_grid - cx - skew * y) / fx
+    x_term = x**2
+    y_term = y**2
 
     # Calculate the orthogonal (normal) depth
     orthogonal_depth = perspective_depth_batch / torch.sqrt(1 + x_term + y_term)
