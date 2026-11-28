@@ -122,7 +122,7 @@ class DelayBuffer:
     Operations.
     """
 
-    def set_time_lag(self, time_lag: int | torch.Tensor, batch_ids: Sequence[int] | None = None):
+    def set_time_lag(self, time_lag: int | torch.Tensor, batch_ids: Sequence[int] | torch.Tensor | None = None):
         """Sets the time lag for the delay buffer across the provided batch indices.
 
         Args:
@@ -130,14 +130,16 @@ class DelayBuffer:
 
               * If an integer is provided, the same delay is set for the provided batch indices.
               * If a tensor is provided, the delay is set for each batch index separately. The shape of the tensor
-                should be (len(batch_ids),).
+                must be one-dimensional with one entry per selected batch. Use an integer to set the same lag
+                for every selected batch.
 
-            batch_ids: The batch indices for which the time lag is set. Default is None, which sets the time lag
+            batch_ids: Batch indices or a boolean mask. Default is None, which sets the time lag
                 for all batch indices.
 
         Raises:
             TypeError: If the type of the :attr:`time_lag` is not int or integer tensor.
-            ValueError: If the minimum time lag is negative or the maximum time lag is larger than the history length.
+            ValueError: If the lag tensor shape does not match the selected batches, the minimum lag is negative,
+                or the maximum lag exceeds the history length.
         """
         # resolve batch indices
         if batch_ids is None:
@@ -150,6 +152,9 @@ class DelayBuffer:
             # check valid dtype for time_lag: must be int or long
             if time_lag.dtype not in [torch.int, torch.long]:
                 raise TypeError(f"Invalid dtype for time_lag: {time_lag.dtype}. Expected torch.int or torch.long.")
+            expected_shape = self._time_lags[batch_ids].shape
+            if time_lag.shape != expected_shape:
+                raise ValueError(f"Expected time_lag shape {expected_shape}, received {time_lag.shape}.")
             min_time_lag = int(time_lag.min().item()) if time_lag.numel() else 0
             max_time_lag = int(time_lag.max().item()) if time_lag.numel() else 0
         else:

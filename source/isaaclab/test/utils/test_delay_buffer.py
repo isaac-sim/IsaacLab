@@ -107,6 +107,10 @@ def test_random_time_lags(delay_buffer, hold_prob, monkeypatch):
         (5, [2]),
         (-1, [2]),
         (torch.tensor([5, 1], dtype=torch.int), [2, 3]),
+        (torch.tensor([2]), [2, 3]),
+        (torch.tensor(2), None),
+        (torch.tensor([[1, 2]]), [2, 3]),
+        (torch.tensor([2]), torch.tensor([True, True] + [False] * 8)),
     ],
 )
 def test_invalid_time_lag_does_not_mutate_state(delay_buffer, time_lag, batch_ids, monkeypatch):
@@ -124,6 +128,17 @@ def test_invalid_time_lag_does_not_mutate_state(delay_buffer, time_lag, batch_id
     assert torch.equal(delay_buffer.time_lags, expected_values)
     assert delay_buffer.min_time_lag == 0
     assert delay_buffer.max_time_lag == 4
+
+
+def test_time_lag_tensor_matches_selected_batches(delay_buffer):
+    """Accept exact per-batch lags, masks, empty selections, and integer broadcasts."""
+    delay_buffer.set_time_lag(1)
+    mask = torch.tensor([True, False, True] + [False] * 7)
+    delay_buffer.set_time_lag(torch.tensor([2, 4]), mask)
+    delay_buffer.set_time_lag(torch.empty(0, dtype=torch.long), [])
+    assert delay_buffer.time_lags.tolist() == [2, 1, 4] + [1] * 7
+    delay_buffer.set_time_lag(3, [0, 2])
+    assert delay_buffer.time_lags.tolist() == [3, 1, 3] + [1] * 7
 
 
 def test_compute_result_independent_of_internal_buffer(delay_buffer):
