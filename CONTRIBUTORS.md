@@ -182,6 +182,7 @@ Guidelines for modifications:
 * Ori Gadot
 * Oyindamola Omotuyi
 * Özhan Özen
+* Pablo de Heras Ciechomski
 * Patrick Yin
 * Patrick-SCH03
 * Paul Reeves

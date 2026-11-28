@@ -5,8 +5,8 @@ Recording Animations of Simulations
 
 .. currentmodule:: isaaclab
 
-Use Newton RTX to record simulation videos without Isaac Sim. The Kit-based USD animation
-workflows are retained below for existing projects.
+Use Newton RTX to record simulation videos or kit-less OVPhysX to capture live physics data.
+Existing projects can also use the Kit recorders to export USD animations.
 
 Newton RTX video recording
 ---------------------------
@@ -32,8 +32,7 @@ Isaac Sim / Kit USD animation (deprecated)
    workflows. The Stage Recorder and OVD instructions below remain available for projects that
    need their USD animation outputs.
 
-Isaac Lab supports two approaches for recording animations of physics simulations: the **Stage Recorder** and the **OVD Recorder**.
-Both generate USD outputs that can be played back in Omniverse, but they differ in how they work and when you’d use them.
+The **Stage Recorder** and the **Isaac Sim OVD Recorder** generate USD animations for playback in Omniverse.
 
 The `Stage Recorder`_ extension listens to all motion and USD property changes in the stage during simulation
 and records them as **time-sampled data**. The result is a USD file that captures only the animated changes—**not** the
@@ -44,8 +43,8 @@ This method is built into Isaac Lab’s UI through the :class:`~isaaclab.envs.ui
 However, to record the animation of a simulation, you need to disable `Fabric`_ to allow reading and writing
 all the changes (such as motion and USD properties) to the USD stage.
 
-The **OVD Recorder** is designed for more scalable or automated workflows. It uses OmniPVD to capture simulated physics from a played stage
-and then **bakes** that directly into an animated USD file. It works with Fabric enabled and runs with CLI arguments.
+The **Isaac Sim OVD Recorder** uses OmniPVD to capture simulated physics and bake it into an animated USD file.
+It works with Fabric enabled and runs with CLI arguments.
 The animated USD can be quickly replayed and reviewed by scrubbing through the timeline window, without simulating expensive physics operations.
 
 .. note::
@@ -123,20 +122,15 @@ See the `tutorial on layering in Omniverse`_ for more on working with layers.
 OVD Recorder
 ~~~~~~~~~~~~
 
-The OVD Recorder uses OmniPVD to record simulation data and bake it directly into a new USD stage.
-This method is more scalable and better suited for large-scale training scenarios (e.g. multi-env RL).
-
-It’s not UI-controlled—the whole process is enabled through CLI flags and runs automatically.
+The animation recording CLI uses the Isaac Sim PhysX backend to capture a single interval and bake it
+into a new USD stage. Use ``--viz kit`` to open a window and leave ``HEADLESS`` unset or set to ``0``.
 
 .. note::
 
-   The OVD Recorder uses OmniPVD, which only records **PhysX** simulations. If the active physics backend is not
-   PhysX (for example, Newton, which is the default for many tasks), Isaac Lab raises an error at startup naming
-   the active backend instead of recording. Select the PhysX backend by adding ``physics=isaacsim_physx`` to the
-   command line, as shown below.
+   Select Isaac Sim PhysX by adding ``physics=isaacsim_physx`` to the command line, as shown below.
+   Kit-less OVPhysX uses the live capture API described below.
 
-   The PhysX backend requires Isaac Sim. If it isn't installed yet, add ``--extra isaacsim`` to the ``uv run``
-   command; see :ref:`installation-optional-extras` for details.
+   The examples include the Isaac Sim extra. See :ref:`installation-optional-extras` for details.
 
 
 Workflow Summary
@@ -176,7 +170,8 @@ To record an animation:
 
 .. note::
 
-   The provided ``--anim_recording_stop_time`` should be greater than the simulation time.
+   Set ``--anim_recording_stop_time`` greater than ``--anim_recording_start_time`` and let the process run
+   through the export.
 
 .. warning::
 
@@ -187,6 +182,38 @@ After the stop time is reached, a file will be saved to:
 .. code-block:: none
 
   anim_recordings/<timestamp>/baked_animation_recording.usda
+
+
+Live OVD capture with kit-less OVPhysX
+--------------------------------------
+
+Use ``OvPhysxCfg(ovd_recording_capable=True)`` before the first native PhysX instance is created. The
+default is ``False``. After the scene's initial reset completes, get the native OVPhysX handle with
+``sim.backend_manager.get_physx_instance()``. Call ``start_recording()`` with an OVD destination and
+``stop_recording()`` on the stepping thread between completed steps.
+
+For multiple captures in a job, let the simulation code choose when to start and stop each capture.
+Only one capture per process can be active at a time. After stopping, the simulation can keep stepping
+and start another capture with a different destination. The live API writes OVD data, and the
+``--anim_recording_*`` flags are for the Isaac Sim USD-baking workflow above.
+
+See :ref:`ovphysx-live-ovd-recording` for a runnable headless example, destination options, and the
+recording lifetime.
+
+Inspect an OVPhysX capture
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A live capture is a physics recording for inspection. Use an external reader to examine the file.
+With the PhysX SDK's ``ovd-inspect`` tool installed, summarize the recording to find its scenes and
+completed frames.
+
+.. code-block:: bash
+
+   ovd-inspect summary captures/late.ovd
+
+The `SDK inspection guide <https://nvidia-omniverse.github.io/PhysX/ovphysx/0.8.0/tutorials/omnipvd_recording.html#headless-capture-and-investigation>`_
+shows how to inspect an object's recorded values. For visual playback in a compatible Kit application,
+enable the OmniPVD extension and follow its `OVD import instructions <https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/extensions/ux/source/omni.physx.pvd/docs/dev_guide/physx_visual_debugger.html#loading-an-ovd-file-from-the-file-import-menu>`_.
 
 
 .. _Stage Recorder: https://docs.omniverse.nvidia.com/extensions/latest/ext_animation_stage-recorder.html

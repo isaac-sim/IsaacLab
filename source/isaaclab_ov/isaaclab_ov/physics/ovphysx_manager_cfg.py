@@ -38,6 +38,9 @@ class OvPhysxBackendCfg(BackendCfg):
     cooked_collider_cache_dir: str | None = DEFAULT_COOKED_COLLIDER_CACHE_DIR
     """Cooked-collider cache location, fixed by the first runtime created in the process."""
 
+    ovd_recording_capable: bool = False
+    """Provision process-wide OVD recording capability before the first native instance."""
+
 
 @configclass
 class OvPhysxCfg(PhysicsCfg):
@@ -80,6 +83,13 @@ class OvPhysxCfg(PhysicsCfg):
 
     Defaults to False, which inherits the runtime setting.
     This does not disable the cooked-collider cache.
+    """
+
+    ovd_recording_capable: bool = field(default=False, kw_only=True)
+    """Provision OVD recording capability at startup, without starting a capture.
+
+    This is shared by all native OVPhysX instances in a process. Changing it
+    requires full native runtime shutdown before creating the next instance.
     """
 
     enable_enhanced_determinism: bool = False

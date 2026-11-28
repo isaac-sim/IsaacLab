@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import ast
 import inspect
+import json
+import struct
 import subprocess
 import sys
 import textwrap
@@ -79,6 +81,13 @@ def _fake_ovphysx_module(bootstrap):
     module.bootstrap = bootstrap
     module.PhysX = _FakePhysX
     module.PhysXConfig = _FakePhysXConfig
+    module.GlobalConfigKey = SimpleNamespace(OVD_RECORDING_CAPABLE=object())
+    module.get_global_config = lambda key: False
+
+    def reject_write(key, value):
+        pytest.fail("A matching native capability must not be written")
+
+    module.set_global_config = reject_write
     return module
 
 
@@ -494,6 +503,342 @@ def _assert_no_atexit_errors(output: str) -> None:
     assert "ATEXIT_UNRAISABLE" not in output, output[-8000:]
     assert "Exception ignored in atexit callback" not in output, output[-8000:]
     assert "Error in atexit._run_exitfuncs" not in output, output[-8000:]
+
+
+def _run_ovd_child(tmp_path: Path, checks: str) -> None:
+    setup = textwrap.dedent(
+        """
+        from pathlib import Path
+
+        import ovphysx
+        from pxr import UsdGeom, UsdPhysics
+
+        from isaaclab.sim import SimulationCfg, build_simulation_context
+        from isaaclab_ov.physics import OvPhysxCfg
+
+        def add_cube(sim):
+            cube = UsdGeom.Cube.Define(sim.stage, "/World/Cube")
+            cube.AddTranslateOp().Set((0.0, 0.0, 2.0))
+            UsdPhysics.RigidBodyAPI.Apply(cube.GetPrim())
+            UsdPhysics.CollisionAPI.Apply(cube.GetPrim())
+
+        def disable_check(physx, capture):
+            try:
+                physx.start_recording(ovphysx.OmniPvdDestination.file(str(capture)))
+            except RuntimeError as exc:
+                assert "INVALID_STATE" in str(exc) and "OVD_RECORDING_CAPABLE" in str(exc), exc
+            else:
+                physx.stop_recording()
+                raise AssertionError("A default Isaac Lab context recorded after a native SDK opt-in")
+            assert not physx.is_recording() and not capture.exists()
+
+        ovphysx.bootstrap()
+        key = ovphysx.GlobalConfigKey.OVD_RECORDING_CAPABLE
+        initial = ovphysx.get_global_config(key)
+        """
+    )
+    script = setup + f"\noutput = Path({str(tmp_path)!r})\n" + textwrap.dedent(checks)
+    completed, output = _run_child(script)
+    assert completed.returncode == 0, output[-8000:]
+    _assert_no_atexit_errors(output)
+
+
+def _read_recorded_cube_heights(capture: Path) -> list[tuple[int, float]]:
+    """Read fresh cube poses in completed frames of the single-scene test capture."""
+    # The pinned OVPhysX wheel writes OmniPVD 0.4.0 without shipping a reader.
+    # Command layouts follow PhysX's OmniPvdReaderImpl.cpp at tag ovphysx-0.8.0.
+    with capture.open("rb") as stream:
+
+        def read(size: int) -> bytes:
+            data = stream.read(size)
+            assert len(data) == size, f"Truncated OVD record in {capture}"
+            return data
+
+        def unpack(fmt: str) -> tuple:
+            layout = struct.Struct(f"<{fmt}")
+            return layout.unpack(read(layout.size))
+
+        def read_name() -> bytes:
+            (size,) = unpack("H")
+            return read(size)
+
+        assert unpack("III") == (0, 4, 0), "Expected an OmniPVD 0.4.0 stream"
+        classes = {}
+        attributes = {}
+        dynamic_objects = set()
+        scene = None
+        cube = None
+        frame = None
+        height = None
+        samples = []
+        for opcode in iter(lambda: stream.read(1), b""):
+            match opcode[0]:
+                case 1:  # Register class
+                    class_id, _ = unpack("II")
+                    classes[class_id] = read_name()
+                case 3:  # Register typed attribute
+                    class_id, attribute, datatype, elements = unpack("IIHI")
+                    attributes[attribute] = (classes[class_id], read_name(), datatype, elements)
+                case 4 | 5:  # Register class or list attribute
+                    read(12 if opcode[0] == 4 else 10)
+                    read_name()
+                case 6 | 7 | 8:  # Set an attribute or edit a list attribute
+                    context, obj, depth = unpack("QQB")
+                    handles = unpack(f"{depth}I")
+                    (size,) = unpack("I")
+                    data = read(size)
+                    key = (context, obj)
+                    if opcode[0] != 6 or depth != 1 or key not in dynamic_objects:
+                        continue
+                    attribute = attributes.get(handles[0])
+                    if attribute == (b"PxActor", b"name", 10, 1) and data.rstrip(b"\x00") == b"/World/Cube":
+                        assert cube is None or cube == key, "Expected one recorded cube"
+                        cube = key
+                    elif key == cube and frame is not None and attribute == (b"PxRigidActor", b"globalPose", 8, 7):
+                        # PxTransform stores the quaternion followed by the XYZ position.
+                        height = struct.unpack("<7f", data)[-1]
+                case 9:  # Create object
+                    context, class_id, obj = unpack("QIQ")
+                    read_name()
+                    if classes[class_id] == b"PxScene":
+                        assert scene is None, "Expected a single scene"
+                        scene = obj
+                    elif classes[class_id] == b"PxRigidDynamic":
+                        dynamic_objects.add((context, obj))
+                case 10:  # Destroy object
+                    dynamic_objects.discard(unpack("QQ"))
+                case 11:  # Start frame
+                    context, timestamp = unpack("QQ")
+                    assert context == scene and frame is None, "Expected one open scene frame at a time"
+                    frame = timestamp
+                    height = None
+                case 12:  # Stop frame
+                    context, timestamp = unpack("QQ")
+                    assert context == scene and frame is not None and timestamp >= frame, "Unmatched scene frame"
+                    if height is not None:
+                        samples.append((frame, height))
+                    frame = None
+                case 13:  # Record message
+                    read(8)
+                    read_name()
+                    read_name()
+                    read(12)
+                case other:
+                    raise AssertionError(f"Unexpected OVD 0.4.0 command {other} in {capture}")
+        # The SDK can leave an empty frame open after the final completed step.
+        assert cube is not None, "Expected the existing /World/Cube rigid body"
+        return samples
+
+
+@pytest.mark.kitless
+@pytest.mark.integration
+@pytest.mark.skipif(not _CPU_DEVICES, reason="Requires a selected CPU test device")
+def test_default_ovd_capability_overrides_unfrozen_native_opt_in(tmp_path):
+    """A default Lab job must leave late recording disabled with a pre-set native key."""
+    _run_ovd_child(
+        tmp_path,
+        """
+        try:
+            ovphysx.set_global_config(key, True)
+            physics = OvPhysxCfg(cooked_collider_cache_dir=str(output / "cache"))
+            with build_simulation_context(sim_cfg=SimulationCfg(device="cpu", physics=physics)) as sim:
+                add_cube(sim)
+                sim.reset()
+                sim.step(render=False)
+                disable_check(sim.backend_manager.get_physx_instance(), output / "unexpected.ovd")
+        finally:
+            ovphysx.set_global_config(key, initial)
+        """,
+    )
+
+
+@pytest.mark.kitless
+@pytest.mark.integration
+@pytest.mark.skipif(not _CPU_DEVICES, reason="Requires a selected CPU test device")
+def test_ovd_recording_lifecycle_and_conflicting_owner(tmp_path: Path) -> None:
+    """Record on a live shared stage, retain the native owner, and restore the default."""
+    _run_ovd_child(
+        tmp_path,
+        """
+        import json
+        from contextlib import closing
+        from unittest.mock import patch
+
+        from isaaclab_ov.physics import OvPhysxBackendCfg
+        from isaaclab_ov.physics.ovphysx_manager import OvPhysxBackend
+        from isaaclab_ov.sim.views import OvPhysxView
+        from isaaclab_ov.stage import OvstageBackendCfg
+
+        def start(physx, label):
+            capture = output / f"{label}.ovd"
+            assert not capture.exists() and not physx.is_recording()
+            physx.start_recording(ovphysx.OmniPvdDestination.file(str(capture)))
+            assert physx.is_recording()
+            return capture
+
+        cache = str(output / "cache")
+        try:
+            physics = OvPhysxCfg(ovd_recording_capable=True, cooked_collider_cache_dir=cache)
+            with build_simulation_context(sim_cfg=SimulationCfg(device="cpu", physics=physics)) as sim:
+                manager = sim.backend_manager
+                assert manager.get_physx_instance() is None
+                shared = sim.get_or_create_backend(OvstageBackendCfg(populate_physics=True))
+                add_cube(sim)
+                sim.reset()
+                physx = manager.get_physx_instance()
+                assert manager.backend.scene is shared
+                sim.step(render=False)
+                assert not list(output.glob("*.ovd"))
+
+                conflicting = OvPhysxBackendCfg(device="cpu", cooked_collider_cache_dir=cache)
+                with patch.object(ovphysx, "PhysX", wraps=ovphysx.PhysX) as constructor:
+                    try:
+                        sim.get_or_create_backend(conflicting)
+                    except RuntimeError as exc:
+                        assert "ovd_recording_capable" in str(exc)
+                        assert "False" in str(exc) and "True" in str(exc)
+                        assert isinstance(exc.__cause__, RuntimeError), exc.__cause__
+                    else:
+                        raise AssertionError("A conflicting request started while a capable native owner was live")
+                    constructor.assert_not_called()
+                assert sim.get_backends(OvPhysxBackendCfg) == (manager.backend,)
+
+                with closing(OvPhysxView(physx, pattern="/World/Cube", device="cpu")) as view:
+                    first = start(physx, "first")
+                    heights = []
+                    for _ in range(3):
+                        sim.step(render=False)
+                        heights.append(float(view.get_attribute("rigid_body_pose").numpy()[0, 2]))
+                    physx.stop_recording()
+                assert not physx.is_recording() and first.stat().st_size > 0
+                (output / "first-heights.json").write_text(json.dumps(heights), encoding="utf-8")
+                t = manager.get_simulation_time()
+                sim.step(render=False)
+                assert manager.get_simulation_time() > t and manager.get_physx_instance() is physx
+
+                rewarmed = start(physx, "rewarmed")
+                sim.step(render=False)
+                manager._warmup_done = False
+                sim.reset()
+                assert manager.get_physx_instance() is physx
+                assert not physx.is_recording() and rewarmed.stat().st_size > 0
+                t = manager.get_simulation_time()
+                sim.step(render=False)
+                assert manager.get_simulation_time() > t
+
+                closed = start(physx, "closed")
+                sim.step(render=False)
+            assert closed.stat().st_size > 0
+
+            physics = OvPhysxCfg(cooked_collider_cache_dir=cache)
+            with build_simulation_context(sim_cfg=SimulationCfg(device="cpu", physics=physics)) as sim:
+                add_cube(sim)
+                sim.reset()
+                sim.step(render=False)
+                disable_check(sim.backend_manager.get_physx_instance(), output / "after-close.ovd")
+
+            # A live instance freezes the startup key even before any stage attaches.
+            native_owner = ovphysx.PhysX()
+            try:
+                with closing(OvPhysxBackend(conflicting)) as peer:
+                    assert peer.physx.handle != native_owner.handle
+            finally:
+                native_owner.destroy()
+        finally:
+            ovphysx.set_global_config(key, initial)
+        """,
+    )
+    samples = _read_recorded_cube_heights(tmp_path / "first.ovd")
+    live_heights = json.loads((tmp_path / "first-heights.json").read_text(encoding="utf-8"))
+    assert len(samples) == len(live_heights) > 1, "Expected a recorded cube pose for each captured step"
+    frames, recorded_heights = zip(*samples)
+    assert all(later > earlier for earlier, later in zip(frames, frames[1:]))
+    assert recorded_heights[-1] < recorded_heights[0], "Expected the cube to fall during recording"
+    assert recorded_heights == pytest.approx(live_heights, abs=1e-5, rel=0)
+
+
+@pytest.mark.parametrize(("query_fails", "cleanup_fails"), [(False, False), (True, False), (False, True)])
+def test_ovd_constructor_releases_candidate_after_failed_readback(
+    monkeypatch, manager_module, query_fails, cleanup_fails
+):
+    """A backend with failed startup verification cannot escape into the registry."""
+    from isaaclab_ov.physics import OvPhysxBackendCfg
+
+    from isaaclab.sim import SimulationContext
+
+    candidates = []
+
+    class Candidate(_FakePhysX):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            self.cleanup_attempted = False
+            candidates.append(self)
+
+        def destroy(self):
+            self.cleanup_attempted = True
+            if cleanup_fails:
+                raise RuntimeError("Native teardown still busy")
+
+    def configured_value(key):
+        if candidates and query_fails:
+            raise RuntimeError("Native query failed")
+        return False
+
+    native = _fake_ovphysx_module(lambda: None)
+    native.PhysX = Candidate
+    native.get_global_config = configured_value
+    native.set_global_config = lambda key, value: None
+    monkeypatch.setattr(manager_module, "ovphysx", native)
+    sim = SimpleNamespace(_backend_registry=[])
+    cfg = OvPhysxBackendCfg(device="cpu", ovd_recording_capable=True)
+    with pytest.raises(RuntimeError, match="ovd_recording_capable") as error:
+        SimulationContext.get_or_create_backend(sim, cfg)
+
+    assert not sim._backend_registry
+    assert len(candidates) == 1 and candidates[0].cleanup_attempted
+    if cleanup_fails:
+        assert "Native teardown still busy" in str(error.value.__cause__)
+        assert any("new process" in note for note in error.value.__notes__)
+
+
+def test_ovd_capability_preserves_positional_determinism():
+    """Existing positional construction leaves recording capability off."""
+    from isaaclab_ov.physics import OvPhysxCfg
+
+    defaults = OvPhysxCfg()
+    args = (
+        defaults.class_type,
+        defaults.launcher_type,
+        defaults.mesh_variant_source_root,
+        defaults.deterministic,
+        defaults.legacy_joint_friction_replacements,
+        defaults.cooked_collider_cache_dir,
+        True,
+    )
+
+    cfg = OvPhysxCfg(*args)
+    assert cfg.enable_enhanced_determinism is True
+    assert cfg.ovd_recording_capable is False
+    assert OvPhysxCfg(*args, ovd_recording_capable=True).ovd_recording_capable is True
+
+
+def test_ovd_capability_requires_bool_before_native_startup(monkeypatch, manager_module):
+    """Non-bools, including integers and other boolean-like types, never reach the SDK."""
+    import numpy as np
+    from isaaclab_ov.physics import OvPhysxBackendCfg
+
+    def native_call(*args, **kwargs):
+        pytest.fail("Invalid Lab capability reached the native API")
+
+    native = _fake_ovphysx_module(native_call)
+    native.PhysX = native_call
+    native.get_global_config = native_call
+    native.set_global_config = native_call
+    monkeypatch.setattr(manager_module, "ovphysx", native)
+    for value in (0, 1, "false", None, np.bool_(True)):
+        cfg = OvPhysxBackendCfg(device="cpu", ovd_recording_capable=value)
+        with pytest.raises(TypeError, match="ovd_recording_capable.*bool"):
+            manager_module.OvPhysxBackend(cfg)
 
 
 def test_retained_binding_preserves_uncaught_failure_exit_status():

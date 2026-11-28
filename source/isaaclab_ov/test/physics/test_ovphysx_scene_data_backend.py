@@ -118,7 +118,17 @@ def test_manager_supports_pinned_runtime_api(manager, monkeypatch, tmp_path, dev
             carbonite_overrides=carbonite_overrides,
         )
 
-    runtime = SimpleNamespace(PhysX=PinnedPhysX, PhysXConfig=pinned_config, bootstrap=lambda: None)
+    def reject_write(key, value):
+        pytest.fail("A matching native capability must not be written")
+
+    runtime = SimpleNamespace(
+        PhysX=PinnedPhysX,
+        PhysXConfig=pinned_config,
+        bootstrap=lambda: None,
+        GlobalConfigKey=SimpleNamespace(OVD_RECORDING_CAPABLE=object()),
+        get_global_config=lambda key: False,
+        set_global_config=reject_write,
+    )
     monkeypatch.setattr(module, "ovphysx", runtime)
 
     backend = module.OvPhysxBackend(OvPhysxBackendCfg(device=device, cooked_collider_cache_dir=cache_dir))

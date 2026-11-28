@@ -311,11 +311,48 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
         return self._transforms.data
 
 
+def _read_ovd_recording_capability() -> bool:
+    try:
+        value = ovphysx.get_global_config(ovphysx.GlobalConfigKey.OVD_RECORDING_CAPABLE)
+    except (AttributeError, RuntimeError, ValueError) as exc:
+        raise RuntimeError(
+            "Cannot read ovd_recording_capable from OVPhysX. The supported runtime is ovphysx==0.8.0.43443703471."
+        ) from exc
+    if not isinstance(value, bool):
+        raise RuntimeError(
+            f"OVPhysX returned {value!r} for ovd_recording_capable. "
+            "The supported runtime is ovphysx==0.8.0.43443703471."
+        )
+    return value
+
+
+def _ovd_recording_capability_conflict(requested: bool, configured: bool) -> str:
+    return (
+        f"OVPhysX ovd_recording_capable={requested} conflicts with the process configuration ({configured}). "
+        "Set ovd_recording_capable to match it, close all native owners and complete runtime shutdown, "
+        "or start a new process with the desired value."
+    )
+
+
 class OvPhysxBackend:
     """Own the native OVPhysX runtime and either own or borrow its stage."""
 
     def __init__(self, cfg: OvPhysxBackendCfg, *, scene: OvstageBackend | None = None):
+        requested = cfg.ovd_recording_capable
+        if not isinstance(requested, bool):
+            raise TypeError("ovd_recording_capable must be a bool.")
         ovphysx.bootstrap()
+        configured = _read_ovd_recording_capability()
+        # The setting survives shutdown, but the setter is frozen while the native runtime is live.
+        if configured != requested:
+            try:
+                ovphysx.set_global_config(ovphysx.GlobalConfigKey.OVD_RECORDING_CAPABLE, requested)
+            except AttributeError as exc:
+                raise RuntimeError(
+                    "Cannot set ovd_recording_capable on OVPhysX. The supported runtime is ovphysx==0.8.0.43443703471."
+                ) from exc
+            except (RuntimeError, ValueError) as exc:
+                raise RuntimeError(_ovd_recording_capability_conflict(requested, configured)) from exc
         is_gpu = cfg.device.startswith("cuda:")
         cache_dir = cfg.cooked_collider_cache_dir
         if cache_dir == DEFAULT_COOKED_COLLIDER_CACHE_DIR:
@@ -331,12 +368,27 @@ class OvPhysxBackend:
             carbonite_overrides.update({"/physics/suppressReadback": True, "/physics/suppressFabricUpdate": True})
         # CPU scenes select CPU dynamics through their scene attributes (see _set_scene_dynamics_device).
         # OVPhysX's process-wide CPU-only mode is irreversible and would block later CUDA scenes.
-        self.physx = ovphysx.PhysX(
+        physx = ovphysx.PhysX(
             config=ovphysx.PhysXConfig(
                 num_threads=8, cooked_collider_cache_dir=cache_dir, carbonite_overrides=carbonite_overrides
             ),
             active_cuda_gpus=cfg.device.removeprefix("cuda:") if is_gpu else None,
         )
+        try:
+            # Another native owner may have selected the configuration before construction completed.
+            configured = _read_ovd_recording_capability()
+            if configured != requested:
+                raise RuntimeError(_ovd_recording_capability_conflict(requested, configured))
+        except Exception as startup_error:
+            try:
+                physx.destroy()
+            except Exception as cleanup_error:
+                startup_error.add_note(
+                    "OVPhysX could not confirm candidate cleanup. If native ownership remains, start a new process."
+                )
+                raise startup_error from cleanup_error
+            raise
+        self.physx = physx
         self.scene = scene
         self.owns_scene = scene is None
         self.stage: Any = None
@@ -791,6 +843,7 @@ class OvPhysxManager(PhysicsManager):
             OvPhysxBackendCfg(
                 device=self._device,
                 cooked_collider_cache_dir=self._cfg.cooked_collider_cache_dir,
+                ovd_recording_capable=self._cfg.ovd_recording_capable,
             ),
             scene=shared_scene,
         )
