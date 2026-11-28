@@ -172,6 +172,8 @@ class RecorderManager(ManagerBase):
         self._env_ids = torch.arange(env.num_envs, device=env.device)
         # -1 denotes an episode whose success has not been set.
         self._success = torch.full((env.num_envs,), -1, dtype=torch.int8, device=env.device)
+        # True once the success termination term fired during the current episode.
+        self._success_latch = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
         self._exported_counts = torch.zeros(2, dtype=torch.long, device=env.device)
 
         env_name = getattr(env.cfg, "env_name", None)
@@ -357,9 +359,15 @@ class RecorderManager(ManagerBase):
 
     def record_post_step(self) -> None:
         """Trigger recorder terms for post-step functions."""
+        # Do nothing if no active recorder terms are provided
+        if len(self.active_terms) == 0:
+            return
         for term in self._terms.values():
             key, value = term.record_post_step()
             self.add_to_episodes(key, value)
+        # Remember the success of episodes that keep stepping until a later reset.
+        if hasattr(self._env, "termination_manager") and "success" in self._env.termination_manager.active_terms:
+            self._success_latch |= self._env.termination_manager.get_term("success")
 
     def record_post_physics_decimation_step(self) -> None:
         """Trigger recorder terms for post-physics step functions in the decimation loop."""
@@ -391,7 +399,7 @@ class RecorderManager(ManagerBase):
             self.add_to_episodes(key, value, env_ids)
 
         # Set task success values for the relevant episodes
-        success_results = torch.zeros_like(self._success[env_ids], dtype=torch.bool)
+        success_results = self._success_latch[env_ids].clone()
         # Check success indicator from termination terms
         if hasattr(self._env, "termination_manager"):
             if "success" in self._env.termination_manager.active_terms:
@@ -531,6 +539,7 @@ class RecorderManager(ManagerBase):
         for field in self._fields:
             field.reset(env_ids)
         self._success[slice(None) if env_ids is None else env_ids] = -1
+        self._success_latch[slice(None) if env_ids is None else env_ids] = False
 
     def _prepare_terms(self):
         """Prepares a list of recorder terms."""

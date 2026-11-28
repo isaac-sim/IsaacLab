@@ -77,6 +77,10 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # initialize the episode length buffer BEFORE loading the managers to use it in mdp functions.
         self.episode_length_buf = torch.zeros(cfg.scene.num_envs, device=cfg.sim.device, dtype=torch.long)
         self.reset_buf = torch.zeros(cfg.scene.num_envs, device=cfg.sim.device, dtype=torch.bool)
+        self.pending_terminated_buf = torch.zeros(cfg.scene.num_envs, device=cfg.sim.device, dtype=torch.bool)
+        """Whether each environment terminated and has not been reset yet. Shape is (num_envs,)."""
+        self.pending_time_outs_buf = torch.zeros(cfg.scene.num_envs, device=cfg.sim.device, dtype=torch.bool)
+        """Whether each environment timed out and has not been reset yet. Shape is (num_envs,)."""
 
         # initialize the base class to setup the scene.
         super().__init__(cfg=cfg)
@@ -174,8 +178,9 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
     Operations - MDP
     """
 
-    def step(self, action: torch.Tensor) -> VecEnvStepReturn:
-        """Execute one time-step of the environment's dynamics and reset terminated environments.
+    def step(self, action: torch.Tensor, auto_reset: bool = True) -> VecEnvStepReturn:
+        """Execute one time-step of the environment's dynamics and, by default, reset the environments whose
+        episodes ended.
 
         Unlike the :class:`ManagerBasedEnv.step` class, the function performs the following operations:
 
@@ -183,7 +188,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         2. Perform physics stepping.
         3. Perform rendering if gui is enabled.
         4. Update the environment counters and compute the rewards and terminations.
-        5. Reset the environments that terminated.
+        5. Reset the environments whose episodes ended since their last reset, if ``auto_reset`` is True.
         6. Compute the observations.
         7. Return the observations, rewards, resets and extras.
 
@@ -201,6 +206,10 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
 
         Args:
             action: The actions to apply on the environment. Shape is (num_envs, action_dim).
+            auto_reset: Whether to reset the environments whose episodes ended since their last reset. If False,
+                they keep stepping from their terminal state and keep reporting ``terminated`` or ``truncated``
+                until a later step with ``auto_reset`` or :meth:`reset` resets them. Note that the recorder
+                evaluates the ``success`` termination term when the reset happens. Defaults to True.
 
         Returns:
             A tuple containing the observations, rewards, resets (terminated and truncated) and extras.
@@ -235,16 +244,22 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # -- update env counters (used for curriculum generation)
         self.episode_length_buf += 1  # step in current episode (per env)
         self.common_step_counter += 1  # total step (common for all envs)
-        # -- check terminations
-        self.reset_buf = self.termination_manager.compute()
-        self.reset_terminated = self.termination_manager.terminated
-        self.reset_time_outs = self.termination_manager.time_outs
+        # -- check terminations: episodes that ended since their last reset stay flagged until they are reset
+        self.termination_manager.compute()
+        self.pending_terminated_buf |= self.termination_manager.terminated
+        self.pending_time_outs_buf |= self.termination_manager.time_outs
+        self.reset_terminated = self.pending_terminated_buf.clone()
+        self.reset_time_outs = self.pending_time_outs_buf.clone()
+        self.reset_buf = self.reset_terminated | self.reset_time_outs
         self.reward_buf = self.reward_manager.compute(dt=self.step_dt)
 
         self.recorder_manager.record_post_step()
 
-        # -- reset envs that terminated/timed-out and log the episode information
-        reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1).int()
+        # -- reset envs whose episodes ended since their last reset and log the episode information
+        if auto_reset:
+            reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1).int()
+        else:
+            reset_env_ids = torch.empty(0, dtype=torch.int32, device=self.device)
         if len(reset_env_ids) > 0:
             # capture the terminal observation before reset and expose it for Same-Step autoreset.
             if self.cfg.compute_final_obs:
@@ -430,3 +445,5 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         self.extras["log"].update(info)
 
         index_fill_(self.episode_length_buf, env_ids, 0)
+        index_fill_(self.pending_terminated_buf, env_ids, False)
+        index_fill_(self.pending_time_outs_buf, env_ids, False)
