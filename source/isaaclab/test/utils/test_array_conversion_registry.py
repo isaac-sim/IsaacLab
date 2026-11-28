@@ -56,3 +56,16 @@ def test_index_fill(device, dim, dtype, value, indices):
         if previous is not None:
             torch.cuda.set_sync_debug_mode(previous)
     torch.testing.assert_close(data.cpu(), expected)
+
+
+@pytest.mark.parametrize(
+    "indices",
+    [[1.9], torch.tensor(2.0), torch.tensor([1.9]), torch.tensor([1 + 2j])],
+)
+def test_index_fill_rejects_noninteger_indices(indices):
+    """Invalid index dtypes must not truncate indices or modify the destination."""
+    data = torch.arange(8).reshape(4, 2)
+    original = data.clone()
+    with pytest.raises(TypeError, match="Expected integer indices"):
+        index_fill_(data, indices, 99)
+    torch.testing.assert_close(data, original)
