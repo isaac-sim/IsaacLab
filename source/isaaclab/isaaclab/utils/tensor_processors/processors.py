@@ -149,9 +149,10 @@ class DigitalFilter(TensorProcessor):
         # initialize parent class
         super().__init__(cfg, data_dim, device)
 
-        # assign filter coefficients and make sure they are column vectors
-        self.A = torch.tensor(self._cfg.A, device=self._device).unsqueeze(1)
-        self.B = torch.tensor(self._cfg.B, device=self._device).unsqueeze(1)
+        # Use the floating-point history dtype even for integer-valued coefficients.
+        dtype = torch.get_default_dtype()
+        self.A = torch.tensor(self._cfg.A, device=self._device, dtype=dtype).unsqueeze(1)
+        self.B = torch.tensor(self._cfg.B, device=self._device, dtype=dtype).unsqueeze(1)
 
         # create buffer for input and output history
         self.x_n = torch.zeros(self._data_dim + (self.B.shape[0],), device=self._device)
