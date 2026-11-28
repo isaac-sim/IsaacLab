@@ -67,6 +67,13 @@ rows per environment; contacts can consume multiple rows, and joint limits,
 drives, equality constraints, and mimic constraints also consume rows. Do not
 derive ``njmax`` directly from ``nconmax``.
 
+With ``NewtonCfg.debug_mode=True`` and the GPU MJWarp backend
+(``MJWarpSolverCfg.use_mujoco_cpu=False``), the MJWarp driver reports capacity
+overflow and names the exhausted buffer: ``nconmax``, ``njmax`` / ``njmax_nnz``,
+the collision pipeline's ``rigid_contact_max``, and MuJoCo Warp's broadphase,
+narrowphase, CCD, height-field, and related buffers. Each buffer is reported
+once per solver instance.
+
 Increase the relevant capacity when diagnostics show an overflow, contacts
 disappear in dense states, or behavior changes with object count. Measure the
 worst case across resets and randomized scenes, add task-specific headroom, and

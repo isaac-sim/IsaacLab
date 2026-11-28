@@ -95,6 +95,8 @@ def backend_stub(**fields):
     backend.contact_sensors = {}
     backend.contact_observables = None
     backend.solver_observables = None
+    backend._diagnostic_observable_kinds = frozenset()
+    backend._step_observables = None
     backend.__dict__.update(fields)
     return backend
 

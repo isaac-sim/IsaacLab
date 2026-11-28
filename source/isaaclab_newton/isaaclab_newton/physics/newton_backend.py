@@ -470,7 +470,11 @@ class NewtonBackend:
         ] = []
         """Run after each solve, before output-state swapping and force clearing."""
         self.solver_observables: SolverBase.Observables | None = None
-        """Requested solver outputs populated by every substep, or ``None``."""
+        """Caller-requested solver outputs populated by every substep, or ``None``."""
+        self._diagnostic_observable_kinds: frozenset[str] = frozenset()
+        """Solver-owned diagnostic output kinds allocated with the step observables."""
+        self._step_observables: SolverBase.Observables | None = None
+        """Caller-requested and solver-owned outputs passed to every solver substep."""
         self.post_step_callbacks: list[Callable[[], None]] = []
         """Run once after the last solver substep of a :meth:`step`."""
         self.solver_init_callbacks: list[Callable[[], None]] = []
@@ -496,6 +500,8 @@ class NewtonBackend:
             self.solver = self.solver_ops = self.collision_pipeline = self.contacts = self.contact_observables = None
             self.actuators = None
             self.staged_body_f = self.capture = self.solver_observables = None
+            self._diagnostic_observable_kinds = frozenset()
+            self._step_observables = None
             self.post_solver_substep_callbacks = []
             self.graphs = {}
             self.contact_sensors, self.imu_sensors = {}, []
@@ -533,6 +539,8 @@ class NewtonBackend:
         solver = self.solver = ops.native
         # A newly built solver already reflects the setup-time model. Subsequent changes remain queued.
         self.model_changes.clear()
+        diagnostic = ops._diagnostic_observables() if self.cfg.debug_mode else frozenset()
+        self._diagnostic_observable_kinds = diagnostic
         if initial_body_variants:
             # MuJoCo compiles one geom layout for all worlds, before their variants diverge.
             bodies, variants = zip(*initial_body_variants, strict=True)
@@ -546,11 +554,14 @@ class NewtonBackend:
         if not ops.single_state:
             ops.init_state(self.state_1)
         self._allocate_contacts()
-        requested = set(observable_kinds or ())
+        caller_kinds = set(observable_kinds or ())
+        step_kinds = caller_kinds | diagnostic
+        requested = set(step_kinds)
         if self.contact_sensors:
             requested.update(SensorContact.solver_observable_kinds)
         outputs = solver.observables(requested, contacts=self.contacts) if requested else None
-        self.solver_observables = outputs.select(observable_kinds) if observable_kinds else None
+        self.solver_observables = outputs.select(caller_kinds) if caller_kinds else None
+        self._step_observables = outputs.select(step_kinds) if step_kinds else None
         self.contact_observables = outputs if self.contact_sensors else None
         state_0 = self.state_0
         self.staged_body_f = wp.zeros_like(state_0.body_f) if state_0.body_count else None
@@ -723,15 +734,14 @@ class NewtonBackend:
             if self.contacts is None:
                 self._allocate_contacts()
             if self.contact_observables is None:
-                self.contact_observables = self.solver_observables
-                if self.contact_observables is None or not SensorContact.solver_observable_kinds.issubset(
-                    self.contact_observables.kinds
-                ):
-                    existing = self.solver_observables
-                    self.contact_observables = self.solver.observables(
+                existing = self._step_observables or self.solver_observables
+                self.contact_observables = existing
+                if existing is None or not SensorContact.solver_observable_kinds.issubset(existing.kinds):
+                    outputs = self.solver.observables(
                         SensorContact.solver_observable_kinds | (existing.kinds if existing is not None else set()),
                         contacts=self.contacts,
                     )
+                    self.contact_observables = outputs
                     if existing is not None:
                         # Keep arrays already bound by substep consumers while extending the final solve's outputs.
                         for name, value in vars(existing).items():
@@ -982,7 +992,7 @@ class NewtonBackend:
                 callback(state)
             state_out = state if ops.single_state else self.state_1
             # Substep consumers need every solve; sensors alone need only the final one.
-            step_observables = self.solver_observables
+            step_observables = self._step_observables or self.solver_observables
             if observables is not None and i == num_substeps - 1:
                 step_observables = observables
             ops.step(state, state_out, control, contacts, dt, observables=step_observables)

@@ -146,6 +146,7 @@ Guidelines for modifications:
 * Kousheek Chakraborty
 * Kris Wilson
 * Krishna Lakhi
+* Kunal Dabbe
 * Lin He
 * Lionel Gulich
 * Lior Ben Horin

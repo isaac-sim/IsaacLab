@@ -637,6 +637,38 @@ def test_hydroelastic_contacts_keep_per_contact_stiffness_when_nconmax_grows(dev
     assert np.any(backend.contacts.rigid_contact_stiffness.numpy()[:contact_count] > 0.0)
 
 
+@pytest.mark.kitless
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_mjwarp_reports_nconmax_overflow_in_debug(device: str, caplog) -> None:
+    """Debug mode allocates the overflow observable and reports a solver contact-buffer overflow."""
+    builder = newton.ModelBuilder()
+    builder.add_ground_plane()
+    for i in range(4):
+        body = builder.add_body(xform=wp.transform((i * 0.1, 0.3, 0.0), wp.quat_identity()), mass=0.1)
+        builder.add_shape_sphere(body, radius=0.05)
+
+    cfg = NewtonCfg(
+        solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=False, nconmax=1),
+        num_substeps=1,
+        debug_mode=True,
+        use_cuda_graph=False,
+    )
+    cfg.solver_cfg.class_type.prepare_builder(cfg.solver_cfg, builder)
+    backend = NewtonBackend(NewtonBackendCfg(physics_cfg=cfg, device=device), builder, dt=1.0 / 60.0)
+    backend.init_solver()
+    backend.actuators_active = True
+
+    with caplog.at_level(logging.WARNING, logger="isaaclab_newton.physics.mjwarp_solver"):
+        backend.step()
+
+    assert backend.solver_observables is None
+    overflow = backend._step_observables.overflow if backend._step_observables is not None else None
+    assert overflow is not None, "debug mode did not allocate the overflow observable"
+    assert int(overflow.numpy()[-1]) & int(SolverMuJoCo.OverflowBits.SOLVER_NCONMAX)
+    warnings = [record.getMessage() for record in caplog.records if record.levelno == logging.WARNING]
+    assert any("nconmax" in message for message in warnings)
+
+
 def test_collision_cfg_is_rejected_when_the_solver_does_not_use_the_collision_pipeline():
     backend = backend_stub(
         cfg=NewtonCfg(solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=True), collision_cfg=NewtonCollisionPipelineCfg()),

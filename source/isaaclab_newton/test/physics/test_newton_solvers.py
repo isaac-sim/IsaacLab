@@ -30,6 +30,8 @@ from isaaclab_newton.physics import (
     MJWarpSolverCfg,
     MPMSolver,
     MPMSolverCfg,
+    NewtonBackend,
+    NewtonBackendCfg,
     NewtonCfg,
     NewtonManager,
     SteelSolverCfg,
@@ -234,6 +236,114 @@ def test_mujoco_cpu_reports_an_explicit_mode_instead_of_applying_it(caplog):
 
     assert mode == wp.DeterministicMode.NOT_GUARANTEED
     assert any("already reproducible" in record.getMessage() for record in caplog.records)
+
+
+def _mjwarp_overflow_driver(world_masks: list[int], global_mask: int = 0) -> MJWarpSolver:
+    """Return an MJWarpSolver driver carrying one overflow frame and convergence-log inputs."""
+    native = SimpleNamespace(
+        mjw_data=SimpleNamespace(solver_niter=wp.zeros(1, dtype=wp.int32, device="cpu")),
+        mjw_model=SimpleNamespace(opt=SimpleNamespace(iterations=100)),
+    )
+    driver = solver_driver(MJWarpSolver, MJWarpSolverCfg(), native)
+    driver._step_observables = SimpleNamespace(
+        overflow=wp.array([*world_masks, global_mask], dtype=wp.int32, device="cpu"),
+    )
+    driver._warned_overflow_bits = 0
+    return driver
+
+
+def test_mjwarp_reports_capacity_overflow_bits_in_debug(caplog) -> None:
+    """Overflow from Newton and MuJoCo Warp is reported with the exhausted buffer names."""
+    _, mujoco_warp = SolverMuJoCo.import_mujoco()
+    bits = (
+        int(SolverMuJoCo.OverflowBits.CONTACT_PIPELINE)
+        | int(SolverMuJoCo.OverflowBits.SOLVER_NCONMAX)
+        | int(mujoco_warp.OverflowType.NEFC)
+        | int(mujoco_warp.OverflowType.NJMAX_NNZ)
+        | int(mujoco_warp.OverflowType.BROADPHASE)
+        | int(mujoco_warp.OverflowType.NARROWPHASE)
+    )
+    driver = _mjwarp_overflow_driver([bits])
+
+    with caplog.at_level(logging.WARNING, logger=mjwarp_solver_module.__name__):
+        driver.check_step(False, True)
+
+    warnings = [record.getMessage() for record in caplog.records if record.levelno == logging.WARNING]
+    assert len(warnings) == 1
+    for expected in (
+        "rigid_contact_max",
+        "nconmax",
+        "constraint rows (njmax)",
+        "njmax_nnz",
+        "broadphase",
+        "narrowphase",
+    ):
+        assert expected in warnings[0]
+
+
+def test_mjwarp_overflow_warning_is_deduplicated_per_buffer(caplog) -> None:
+    """Only new bits and environments carrying them are reported; old bits stay suppressed."""
+    driver = _mjwarp_overflow_driver([int(SolverMuJoCo.OverflowBits.SOLVER_NCONMAX), 0])
+
+    with caplog.at_level(logging.WARNING, logger=mjwarp_solver_module.__name__):
+        driver.check_step(False, True)
+        driver.check_step(False, True)
+        warnings = [record.getMessage() for record in caplog.records if record.levelno == logging.WARNING]
+        assert len(warnings) == 1
+        assert "in 1 environment(s) (0)" in warnings[0]
+
+        driver._step_observables = SimpleNamespace(
+            overflow=wp.array(
+                [
+                    int(SolverMuJoCo.OverflowBits.SOLVER_NCONMAX),
+                    int(SolverMuJoCo.OverflowBits.CONTACT_PIPELINE),
+                    int(SolverMuJoCo.OverflowBits.CONTACT_PIPELINE),
+                ],
+                dtype=wp.int32,
+                device="cpu",
+            ),
+        )
+        driver.check_step(False, True)
+
+    warnings = [record.getMessage() for record in caplog.records if record.levelno == logging.WARNING]
+    assert len(warnings) == 2
+    assert "rigid_contact_max" in warnings[1]
+    assert "nconmax" not in warnings[1]
+    assert "in 1 environment(s) (1) and the global world" in warnings[1]
+
+
+def test_mjwarp_overflow_is_not_read_without_debug() -> None:
+    """Normal execution must not synchronize the device to inspect overflow bits."""
+
+    class ExplodingOverflow:
+        def numpy(self):
+            raise AssertionError("overflow observable read without debug mode")
+
+    driver = solver_driver(MJWarpSolver, MJWarpSolverCfg(), SimpleNamespace())
+    driver._step_observables = SimpleNamespace(overflow=ExplodingOverflow())
+    driver._warned_overflow_bits = 0
+
+    driver.check_step(False, False)
+
+
+def test_mjwarp_cpu_debug_init_does_not_request_overflow() -> None:
+    """CPU MuJoCo initialization must not request the unsupported GPU overflow observable."""
+    builder = ModelBuilder()
+    builder.add_ground_plane()
+    body = builder.add_body(mass=0.1)
+    builder.add_shape_sphere(body, radius=0.05)
+    cfg = NewtonCfg(
+        solver_cfg=MJWarpSolverCfg(use_mujoco_cpu=True),
+        debug_mode=True,
+        use_cuda_graph=False,
+    )
+    cfg.solver_cfg.class_type.prepare_builder(cfg.solver_cfg, builder)
+    backend = NewtonBackend(NewtonBackendCfg(physics_cfg=cfg, device="cpu"), builder, dt=1.0 / 60.0)
+
+    backend.init_solver()
+
+    assert backend.solver_observables is None
+    assert backend._step_observables is None
 
 
 # ----- Kamino ------------------------------------------------------------------------------
