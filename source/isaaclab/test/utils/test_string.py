@@ -294,13 +294,13 @@ def test_clear_resolve_matching_names_cache():
     assert idx == [0]
     assert names == ["a"]
 
+
+@pytest.mark.kitless
 @pytest.mark.parametrize("preserve_order", [False, True])
-def test_empty_regex_counts_as_a_match(preserve_order):
+def test_empty_regex_counts_as_a_match(preserve_order: bool) -> None:
     """An empty pattern matches the empty string and must count as occupied."""
     assert string_utils.resolve_matching_names("", [""], preserve_order=preserve_order) == ([0], [""])
     with pytest.raises(ValueError, match="Multiple matches"):
         string_utils.resolve_matching_names(["", ".*"], [""], preserve_order=preserve_order)
     with pytest.raises(ValueError, match="Multiple matches"):
-        string_utils.resolve_matching_names_values(
-            {"": 1, ".*": 2}, [""], preserve_order=preserve_order, strict=False
-        )
+        string_utils.resolve_matching_names_values({"": 1, ".*": 2}, [""], preserve_order=preserve_order, strict=False)
