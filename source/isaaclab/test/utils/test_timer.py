@@ -4,7 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import statistics
+import sys
 import time
+from types import ModuleType
 
 import pytest
 import warp as wp
@@ -237,3 +239,36 @@ def test_reset_specific_timer():
 
     assert "keep" in Timer.timing_info
     assert "remove" not in Timer.timing_info
+
+
+@pytest.mark.kitless
+@pytest.mark.parametrize("failure", ["start", "stop"])
+def test_timer_activity_restored_when_synchronization_fails(monkeypatch: pytest.MonkeyPatch, failure: str) -> None:
+    """A failed timer must pop its own activity without losing the enclosing one."""
+    activities = ["outer"]
+    loading_screen = ModuleType("isaaclab.app.loading_screen")
+
+    def report_activity(activity):
+        if activity is None:
+            activities.pop()
+        else:
+            activities.append(activity)
+
+    loading_screen.report_activity = report_activity
+    monkeypatch.setitem(sys.modules, loading_screen.__name__, loading_screen)
+    timer = Timer(activity="inner", synchronize="both")
+
+    def fail():
+        raise RuntimeError("synchronization failed")
+
+    monkeypatch.setattr(wp, "synchronize", fail if failure == "start" else lambda: None)
+
+    entered = False
+    with pytest.raises(RuntimeError, match="synchronization failed"):
+        with timer:
+            entered = True
+            assert activities == ["outer", "inner"]
+            if failure == "stop":
+                monkeypatch.setattr(wp, "synchronize", fail)
+    assert entered == (failure == "stop")
+    assert activities == ["outer"]
