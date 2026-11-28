@@ -766,8 +766,8 @@ Transformations
 def is_identity_pose(pos: torch.tensor, rot: torch.tensor) -> bool:
     """Checks if input poses are identity transforms.
 
-    The function checks if the input position and orientation are close to zero and
-    identity respectively using L2-norm. It does NOT check the error in the orientation.
+    The function checks whether positions are close to zero and orientations are close to
+    either unit quaternion representing the identity rotation.
 
     Args:
         pos: The cartesian position. Shape is (N, 3).
@@ -781,7 +781,7 @@ def is_identity_pose(pos: torch.tensor, rot: torch.tensor) -> bool:
     rot_identity = torch.zeros_like(rot)
     rot_identity[..., 3] = 1  # w component is 1 for identity quaternion
     # compare input to identity
-    return torch.allclose(pos, pos_identity) and torch.allclose(rot, rot_identity)
+    return torch.allclose(pos, pos_identity) and torch.allclose(quat_unique(rot), rot_identity)
 
 
 @torch.jit.script
