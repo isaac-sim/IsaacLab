@@ -57,19 +57,27 @@ def test_index_fill(device, dim, dtype, value, indices):
             torch.cuda.set_sync_debug_mode(previous)
     torch.testing.assert_close(data.cpu(), expected)
 
+
 @pytest.mark.parametrize("values", [[16777217, -16777217], (16777217, -16777217)])
-def test_convert_to_torch_sequence_preserves_explicit_integer_dtype(values):
+def test_convert_to_torch_sequence_preserves_explicit_integer_dtype(values: list[int] | tuple[int, ...]) -> None:
     result = convert_to_torch(values, dtype=torch.int64)
     torch.testing.assert_close(result, torch.tensor(values, dtype=torch.int64))
 
 
-def test_convert_to_torch_sequence_preserves_explicit_double_precision():
+def test_convert_to_torch_sequence_preserves_explicit_double_precision() -> None:
     values = [1.0 + 2**-40, -1.0 - 2**-40]
     result = convert_to_torch(values, dtype=torch.float64)
     torch.testing.assert_close(result, torch.tensor(values, dtype=torch.float64), atol=0, rtol=0)
 
 
-def test_convert_to_torch_sequence_keeps_default_dtype():
+def test_convert_to_torch_sequence_keeps_default_dtype() -> None:
     values = [1, 2, 3]
     result = convert_to_torch(values)
-    torch.testing.assert_close(result, torch.Tensor(values))
+    assert result.dtype == torch.get_default_dtype()
+    assert result.tolist() == [1.0, 2.0, 3.0]
+
+
+def test_convert_to_torch_sequence_preserves_narrowing_cast() -> None:
+    result = convert_to_torch([128, -129], dtype=torch.int8)
+    assert result.dtype == torch.int8
+    assert result.tolist() == [-128, 127]

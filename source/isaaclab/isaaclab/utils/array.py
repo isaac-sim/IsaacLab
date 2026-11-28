@@ -122,7 +122,14 @@ def convert_to_torch(
         if dtype is None:
             tensor = torch.Tensor(array)
         else:
-            tensor = torch.as_tensor(array, dtype=dtype)
+            try:
+                tensor = torch.as_tensor(array, dtype=dtype)
+            except (RuntimeError, ValueError, OverflowError):
+                if dtype.is_floating_point or dtype.is_complex or dtype == torch.bool:
+                    raise
+                # Integer construction checks overflow, whereas the existing
+                # narrowing cast wraps or saturates. Retain that legacy path.
+                tensor = torch.Tensor(array)
     # Convert tensor to the right device
     if device is not None and str(tensor.device) != str(device):
         tensor = tensor.to(device)
