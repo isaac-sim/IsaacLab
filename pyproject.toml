@@ -412,14 +412,19 @@ url = "https://pypi.org/simple"
 explicit = true
 
 [[tool.uv.index]]
+name = "isaacsim-internal"
+url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi/simple"
+explicit = false
+
+[[tool.uv.index]]
 name = "pytorch-cu130"
 url = "https://download.pytorch.org/whl/cu130"
 explicit = true
 
-# unsafe-best-match resolves NVIDIA deps with versions mismatched across
-# pypi.nvidia.com and PyPI; prerelease=allow covers prerelease-only packages.
+# Prefer compatible public packages before falling back to the internal Isaac Sim index.
+# prerelease=allow covers prerelease-only packages.
 [tool.uv]
-index-strategy = "unsafe-best-match"
+index-strategy = "unsafe-first-match"
 prerelease = "allow"
 # Platforms Isaac Lab supports (docs/source/isaaclab/installation.rst and the
 # install CI matrix): Ubuntu 22.04 x86_64, Linux aarch64 (DGX Spark / Jetson), and
@@ -435,6 +440,8 @@ environments = [
 # ``importers`` extras pin older versions of these packages, so the overrides prevent downgrades.
 # Direct torch-stack pins also apply to published wheels; overrides reconcile Isaac Sim's older pins.
 override-dependencies = [
+    # QA-only nightly range replaces the published Isaac Sim pin.
+    "isaacsim[all,extscache]>=6.3.0rc3,<6.4",
     # Capture CloudXR requires >=17.3; override Isaac Sim 6.2's <15 and Viser 1.0's <17 caps.
     "websockets>=17.3",
     "numpy>=2",
@@ -470,6 +477,7 @@ package = false
 egl-probe = { CMAKE_POLICY_VERSION_MINIMUM = "3.5" }
 
 [tool.uv.sources]
+isaacsim = { index = "isaacsim-internal" }
 ovstorage = { index = "pypi-public" }
 ovphysx = { index = "pypi-public" }
 ovrtx = { index = "pypi-public" }
