@@ -59,6 +59,9 @@ def index_fill_(
             None fills the entire array.
         value: Scalar value to write.
         dim: Dimension selected by ``indices``. Defaults to zero.
+
+    Raises:
+        ValueError: If a Boolean mask is not one-dimensional or does not match the selected dimension.
     """
     if indices is None:
         data.fill_(value)
@@ -69,6 +72,8 @@ def index_fill_(
     else:
         indices = torch.as_tensor(indices, device=data.device)
         if indices.dtype == torch.bool:
+            if indices.ndim != 1 or indices.numel() != data.shape[dim]:
+                raise ValueError("Boolean mask must be one-dimensional and match the selected dimension.")
             shape = [1] * data.ndim
             shape[dim] = -1
             data.masked_fill_(indices.reshape(shape), value)
