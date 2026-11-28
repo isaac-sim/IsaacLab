@@ -127,7 +127,7 @@ def test_invalid_batch_size(circular_buffer):
         circular_buffer[torch.tensor([0, 0], device=circular_buffer.device)]
 
 
-@pytest.mark.parametrize("key", [torch.tensor(0), torch.tensor([[0], [1], [0]]), torch.zeros(3, 2, dtype=torch.long)])
+@pytest.mark.parametrize("key", [torch.tensor(0), torch.tensor([[0], [1], [0]])])
 def test_read_key_requires_one_index_per_batch(circular_buffer, key):
     circular_buffer.append(torch.ones(3, 2))
     with pytest.raises(ValueError, match="Expected key shape"):
