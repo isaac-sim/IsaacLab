@@ -110,7 +110,7 @@ def spawn_lidar(prim_path: str, cfg: OVRTXLidarCfg) -> Usd.Prim:
     prim.CreateAttribute("omni:sensor:modelName", Sdf.ValueTypeNames.String).Set("LidarWpm")
     prim.CreateAttribute("cameraSensorType", Sdf.ValueTypeNames.Token).Set("lidar")
     prim.CreateAttribute("visibility", Sdf.ValueTypeNames.Token).Set("invisible")
-    prim.CreateAttribute("omni:sensor:frameRate", Sdf.ValueTypeNames.Double2).Set(Gf.Vec2d(10.0, 1.0))
+    prim.CreateAttribute("omni:sensor:frameRate", Sdf.ValueTypeNames.Double2).Set(Gf.Vec2d(*cfg.frame_rate))
 
     _author_wpm(prim, cfg)
 
