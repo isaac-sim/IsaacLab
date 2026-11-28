@@ -471,6 +471,20 @@ def test_rigid_object_inertial_properties(scene: _Scene) -> None:
         torch.testing.assert_close(data.torch, expected[name])
         torch.testing.assert_close(wp.to_torch(raw).to(device).reshape(expected[name].shape), expected[name])
 
+    # A product of inertia makes PhysX re-derive the principal axes; the COM caches follow without a step.
+    cube_object.data.body_com_quat_w  # primes the world-frame COM cache before the inertia write
+    inertias = expected["body_inertia"][1:].clone()
+    inertias[..., [1, 3]] = 0.25 * inertias[..., [0]]
+    cube_object.set_inertias_index(inertias=inertias, env_ids=env_ids, body_ids=body_ids)
+    torch.testing.assert_close(
+        cube_object.data.body_com_quat_b.torch[:, 0], wp.to_torch(cube_object.root_view.get_coms()).to(device)[:, 3:7]
+    )
+    torch.testing.assert_close(
+        cube_object.data.body_com_quat_w.torch,
+        quat_mul(cube_object.data.body_link_quat_w.torch, cube_object.data.body_com_quat_b.torch),
+    )
+    cube_object.set_inertias_index(inertias=expected["body_inertia"][1:], env_ids=env_ids, body_ids=body_ids)
+
 
 @pytest.mark.isaacsim_ci
 def test_rigid_object_root_state_writes(scene: _Scene) -> None:
