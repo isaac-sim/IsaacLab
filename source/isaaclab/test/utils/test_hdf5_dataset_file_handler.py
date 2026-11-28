@@ -5,6 +5,7 @@
 import json
 import subprocess
 import sys
+from pathlib import Path
 
 import h5py
 import pytest
@@ -24,6 +25,38 @@ def test_create_dataset_file(tmp_path, monkeypatch):
         dataset_file_handler.create(path, "test_env_name")
         dataset_file_handler.close()
     assert {path.name for path in tmp_path.iterdir()} == {"absolute.hdf5", "no_extension.hdf5", "relative.hdf5"}
+
+
+@pytest.mark.kitless
+def test_failed_episode_write_can_be_retried(tmp_path: Path) -> None:
+    """A failed nested tensor write must not publish an incomplete episode."""
+    path = str(tmp_path / "episodes.hdf5")
+    handler = HDF5DatasetFileHandler()
+    handler.create(path, "test_env")
+    episode = EpisodeData()
+    episode.data = {
+        "actions": torch.tensor([[1.0], [2.0]]),
+        "obs": {"policy": torch.ones((2, 1), dtype=torch.bfloat16)},
+    }
+    try:
+        # PyTorch cannot convert bfloat16 tensors directly to NumPy for HDF5 storage.
+        with pytest.raises(TypeError, match="BFloat16"):
+            handler.write_episode(episode)
+        assert list(handler.get_episode_names()) == []
+        assert handler.get_num_episodes() == 0
+
+        episode.data["obs"]["policy"] = episode.data["obs"]["policy"].float()
+        handler.write_episode(episode)
+        assert list(handler.get_episode_names()) == ["demo_0"]
+        assert handler.get_num_episodes() == 1
+        loaded = handler.load_episode("demo_0", device="cpu")
+        torch.testing.assert_close(loaded.data["actions"], episode.data["actions"])
+        torch.testing.assert_close(loaded.data["obs"]["policy"], episode.data["obs"]["policy"])
+    finally:
+        handler.close()
+
+    with h5py.File(path, "r") as dataset:
+        assert dataset["data"].attrs["total"] == 2
 
 
 def test_env_args_follow_active_file(tmp_path):
