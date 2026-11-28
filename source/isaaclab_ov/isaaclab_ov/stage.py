@@ -12,15 +12,17 @@ from __future__ import annotations
 
 import contextlib
 import logging
-from collections.abc import Iterator, Sequence
+import math
+from collections.abc import Callable, Iterator, Sequence
 from functools import cache
 
 import numpy as np
 import ovstage
 import warp as wp
 
-from pxr import Sdf, Usd, UsdRender, UsdUtils
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdRender, UsdUtils
 
+from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
 from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
 
@@ -174,6 +176,29 @@ def ovstage_replicate(
     _apply_ovstage_copies(stage, paths, copies, env_paths, positions, ordinal=ordinal)
 
 
+def body_transform_scales(
+    stage: Usd.Stage, clone_copies: Sequence[tuple[str, list[str]]], object_paths: Sequence[str], device: str
+) -> wp.array | None:
+    """Return authored world scales in physics publication order, including native clone destinations."""
+    # SDP poses omit scale. Include native copies that do not exist on the authored USD stage.
+    scales_by_path = {}
+    xform_cache = UsdGeom.XformCache()
+    for root, targets in clone_copies:
+        for prim in Usd.PrimRange(stage.GetPrimAtPath(root)):
+            if not prim.IsA(UsdGeom.Xformable):
+                continue
+            scale = tuple(map(float, Gf.Transform(xform_cache.GetLocalToWorldTransform(prim)).GetScale()))
+            if not all(math.isclose(axis, 1.0, rel_tol=1e-6, abs_tol=1e-6) for axis in scale):
+                path = str(prim.GetPath())
+                scales_by_path[path] = scale
+                scales_by_path.update((target + path[len(root) :], scale) for target in targets)
+    # No override lets renderers share SDP's publication instead of multiplying by ones.
+    if any(path in scales_by_path for path in object_paths):
+        scales = [scales_by_path.get(path, (1.0, 1.0, 1.0)) for path in object_paths]
+        return wp.array(scales, dtype=wp.vec3f, device=device)
+    return None
+
+
 @configclass
 class OvstageBackendCfg(BackendCfg):
     """Configuration of a simulation-owned stage and its populated domains."""
@@ -288,6 +313,62 @@ class OvstageBackend:
         finally:
             self.paths.destroy_path_list(paths)
 
+    def bind_body_transforms(self, stage: Usd.Stage, provider: SceneDataProvider, device: str) -> None:
+        """Bind physics publication rows to prims on this populated stage until reset.
+
+        Args:
+            stage: Authored USD stage providing scales for the bound prims.
+            provider: Source of body paths and versioned physics poses.
+            device: Warp device used by the simulation.
+        """
+        if self._body_query is not None:
+            return
+        paths = provider.backend.transform_paths
+        if not paths:
+            return
+        scales = body_transform_scales(stage, self.clone_copies, paths, device)
+        with contextlib.ExitStack() as resources:
+            query = resources.enter_context(self.query(paths))
+            self.stage.write_attribute(
+                query,
+                "omni:resetXformStack",
+                ordinal=self.ordinal,
+                tensors=np.ones(len(paths), dtype=np.bool_),
+                is_array=False,
+            ).wait()
+            self.resources.enter_context(resources.pop_all())
+        self._body_query = query
+        self._body_provider = provider
+        self._body_scales = scales
+
+    def invalidate_body_transforms(self) -> None:
+        """Republish the poses on the next refresh, including after visibility changes."""
+        self._body_timestamp = -1
+
+    def update_body_transforms(self, transform_filter: Callable | None = None) -> None:
+        """Publish changed physics world poses at the open ordinal; the consumer controls the commit."""
+        if self._body_query is None:
+            return
+        timestamp = self._body_provider.backend.transforms_timestamp
+        if timestamp == self._body_timestamp:
+            return
+        if not self._body_provider.get_transforms(self._body_output, scales=self._body_scales):
+            return
+        matrices = self._body_output.matrices
+        stream = matrices.device.stream if matrices.device.is_cuda else None
+        if transform_filter is not None:
+            matrices = transform_filter(matrices, stream)
+        self.stage.write_attribute(
+            self._body_query,
+            "omni:xform",
+            ordinal=self.ordinal,
+            tensors=xform_tensor_from_warp(matrices),
+            is_array=False,
+            semantic=ovstage.AttributeSemantic.MATRIX,
+            cuda_stream=(stream.cuda_stream or 1) if stream else 0,
+        ).wait()
+        self._body_timestamp = timestamp
+
     def commit(self) -> int:
         """Seal pending writes and return their ordinal; all consumers share the next write ordinal."""
         ordinal = self.ordinal
@@ -301,6 +382,11 @@ class OvstageBackend:
         self._render_copy_error = None
         self.resources.close()
         self.stage = self.paths = None
+        self._body_query = None
+        self._body_provider = None
+        self._body_scales = None
+        self._body_timestamp = -1
+        self._body_output = SceneDataFormat.TransposedMatrix44d()
 
     def reset(self) -> None:
         """Recreate the native stage after all consumers detach, retaining the prepared clone operations."""

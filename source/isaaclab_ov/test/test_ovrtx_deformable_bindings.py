@@ -27,10 +27,11 @@ pytestmark = [
 ]
 
 if not _MISSING_MODULES:
-    import isaaclab_ov.renderers.ovrtx_renderer as ovrtx_renderer_module
+    import isaaclab_ov.stage as ovstage_module
+    import ovstage
     from isaaclab_ov.renderers import OVRTXRendererCfg
     from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderer
-    from isaaclab_ov.stage import OvstageBackend
+    from isaaclab_ov.stage import OvstageBackend, OvstageBackendCfg
     from ovrtx import DataAccess
 
     from pxr import Gf, Usd, UsdGeom
@@ -175,7 +176,7 @@ def test_geometry_bindings_follow_mixed_sdp_points_and_pointer_swaps(mode):
 
 
 @pytest.mark.parametrize("mode, scaled", [("sync", False), ("async", True), ("ovstage", True)])
-def test_update_transforms_consumes_sdp_matrices_once_per_publication(monkeypatch, mode, scaled):
+def test_update_transforms_consumes_sdp_matrices_once_per_publication(monkeypatch, request, mode, scaled):
     """Borrow synchronous publications or convert directly into retained asynchronous write buffers."""
     from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
 
@@ -198,6 +199,11 @@ def test_update_transforms_consumes_sdp_matrices_once_per_publication(monkeypatc
     writes = []
 
     if use_ovstage:
+        scene = OvstageBackend(OvstageBackendCfg())
+        request.addfinalizer(scene.close)
+        scene.clone_copies = renderer.scene.clone_copies
+        scene.ordinal = renderer.scene.ordinal
+        renderer.scene = scene
         renderer.scene.paths = SimpleNamespace(
             create_path_list_from_strings=lambda paths: paths, destroy_path_list=lambda paths: None
         )
@@ -207,9 +213,8 @@ def test_update_transforms_consumes_sdp_matrices_once_per_publication(monkeypatc
                 writes.append((query, attribute, kwargs)) or SimpleNamespace(wait=lambda: None)
             ),
         )
-        monkeypatch.setattr(ovrtx_renderer_module, "xform_tensor_from_warp", lambda matrices: matrices)
+        monkeypatch.setattr(ovstage_module, "xform_tensor_from_warp", lambda matrices: matrices)
         renderer._setup_xform_bindings(stage)
-        assert renderer._object_xform_binding == paths
         writes.clear()
     else:
         renderer._setup_xform_bindings(stage)
@@ -229,10 +234,10 @@ def test_update_transforms_consumes_sdp_matrices_once_per_publication(monkeypatc
         expected[0, :3, :3] = np.diag([2, 3, 4])
     expected[:, 3, :3] = poses[:, :3]
     np.testing.assert_array_equal(matrices.numpy(), expected)
-    assert writes[0][2]["cuda_stream"] == 1  # Torch's default stream, not "no sync"
     if use_ovstage:
         assert writes[0][2]["ordinal"] == 5
     else:
+        assert writes[0][2]["cuda_stream"] == 1  # Torch's default stream, not "no sync"
         assert writes[0][2]["data_access"] is DataAccess.ASYNC
 
     if not scaled:
@@ -260,3 +265,38 @@ def test_update_transforms_consumes_sdp_matrices_once_per_publication(monkeypatc
         renderer.update_transforms()
         operation.wait.assert_called_once_with()
         assert writes[2][1] is matrices
+
+
+def test_ovstage_publishes_changed_body_poses_without_renderer():
+    """Physics pose changes reach a scaled stage prim across successive commits."""
+    path = "/World/Body"
+    usd = Usd.Stage.CreateInMemory()
+    UsdGeom.Xform.Define(usd, path).AddScaleOp().Set(Gf.Vec3d(2, 3, 4))
+    transforms = SceneDataFormat.Transform()
+    transforms.transforms = wp.zeros(1, dtype=wp.transformf, device="cpu")
+    physics = SimpleNamespace(
+        transform_count=1, transform_paths=[path], transforms_timestamp=0, get_transforms=lambda fmt: transforms
+    )
+    scene = OvstageBackend(OvstageBackendCfg())
+    try:
+        scene.clone_copies = [(path, [])]
+        scene.populate(usd.ExportToString())
+        scene.bind_body_transforms(usd, SceneDataProvider(physics), "cpu")
+        for position in ((1, 2, 3), (4, 5, 6)):
+            transforms.transforms.assign(np.array([[*position, 0, 0, 0, 1]], dtype=np.float32))
+            physics.transforms_timestamp += 1
+            scene.update_body_transforms()
+            ordinal = scene.commit()
+            with (
+                scene.query([path]) as query,
+                scene.stage.read_attributes(
+                    query, [scene.paths.intern_token("omni:xform")], ovstage.OrdinalRange.latest(ordinal)
+                ) as read,
+            ):
+                (group,) = read.groups()
+                with group:
+                    matrix = np.from_dlpack(group.columns[0].dlpack(0)).reshape(4, 4)
+                    np.testing.assert_allclose(matrix[3, :3], position)
+                    np.testing.assert_allclose(matrix[:3, :3], np.diag([2, 3, 4]))
+    finally:
+        scene.close()
