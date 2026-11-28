@@ -72,10 +72,11 @@ class LinearInterpolation:
         # If a point is greater than all x elements, it will assign the last elements' index
         upper_bound = torch.clamp(num_smaller_elements, max=self._x.numel() - 1)
 
-        # compute the weight as: (q_i - x_lb) / (x_ub - x_lb)
-        weight = (q_1d - self._x[lower_bound]) / (self._x[upper_bound] - self._x[lower_bound])
-        # If a point is out of bounds assign weight 0.0
-        weight[upper_bound == lower_bound] = 0.0
+        # Mask degenerate intervals before division so constant extrapolation also has finite gradients.
+        same_bound = upper_bound == lower_bound
+        numerator = (q_1d - self._x[lower_bound]).masked_fill(same_bound, 0)
+        denominator = (self._x[upper_bound] - self._x[lower_bound]).masked_fill(same_bound, 1)
+        weight = numerator / denominator
 
         # Perform linear interpolation
         fq = self._y[lower_bound] + weight * (self._y[upper_bound] - self._y[lower_bound])
