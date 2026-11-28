@@ -53,6 +53,48 @@ class PerspectiveCameraCfg:
 
 
 @configclass
+class TrackingCameraCfg(PerspectiveCameraCfg):
+    """A camera that frames an environment or follows an asset in it, however the scene is laid out.
+
+    The Newton GL window shows it in either renderer. Only Newton GL supports it; other visualizers ignore it.
+    """
+
+    eye: tuple[float, float, float] = (4.0, -4.0, 3.0)
+    """Eye position [m], as an offset from the tracked asset, or from the origin of :attr:`env_index`."""
+
+    lookat: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    """Look-at target [m], in the same frame as :attr:`eye`."""
+
+    env_index: int | None = None
+    """Environment to frame, or the one holding the tracked asset; None picks the middle one of the visible
+    environments."""
+
+    track_path: str | None = None
+    """Scene asset to follow, or None for a view fixed relative to the environment origin.
+
+    Use ``"robot"`` for an asset root or ``"robot/base"`` for a named body, which must match exactly one body.
+    """
+
+    follow_heading: bool = False
+    """Rotate :attr:`eye` and :attr:`lookat` with the tracked asset's yaw, keeping the horizon level.
+
+    Without it the offsets stay aligned with the world axes. Only used with :attr:`track_path`.
+    """
+
+    heading_smoothing_time_constant: float = 0.0
+    """Exponential heading-filter time constant [s]; zero follows the heading immediately.
+
+    Larger values damp rapid turns more, with more lag. Only used with :attr:`follow_heading`.
+    """
+
+    def __post_init__(self) -> None:
+        if self.env_index is not None and self.env_index < 0:
+            raise ValueError("env_index must be non-negative.")
+        if not math.isfinite(self.heading_smoothing_time_constant) or self.heading_smoothing_time_constant < 0.0:
+            raise ValueError("heading_smoothing_time_constant must be finite and non-negative.")
+
+
+@configclass
 class SceneCameraCfg:
     """Select an existing scene camera's output as the visualizer's main view.
 
@@ -189,11 +231,13 @@ class VisualizerCfg:
     """Render on demand without opening a native viewer window."""
 
     # Primary interactive camera settings
-    cameras: list[PerspectiveCameraCfg | SceneCameraCfg] | None = None
+    cameras: list[PerspectiveCameraCfg | TrackingCameraCfg | SceneCameraCfg] | None = None
     """Camera sources available to the visualizer.
 
-    PerspectiveCameraCfg configures the interactive view and may appear at most once; SceneCameraCfg refers
-    to an existing scene sensor. Newton GL and RTX display the first source and offer a dropdown for switching sources.
+    PerspectiveCameraCfg configures the interactive view and may appear at most once, TrackingCameraCfg a view that
+    frames an environment or follows an asset, and SceneCameraCfg refers to an existing scene sensor.
+    Newton GL and RTX display the first source and offer a dropdown for switching sources. Newton GL adds a free
+    view in front of a leading TrackingCameraCfg and shows that one first.
     Kit, Rerun, and Viser display the first scene source in their camera panel.
     None uses eye/lookat/focal_length and the streaming settings below.
     Every explicit scene source must provide all requested streaming_gt_types channels.
@@ -295,8 +339,15 @@ class VisualizerCfg:
             for backend in backends:
                 if backend.visualizer_type != "newton":
                     raise ValueError("VisualizerCfg.view requires the Newton visualizer.")
-            if self.cameras is not None or self.streaming_sensor_prim_path is not None:
+            # tracking cameras only add views, so a task that declares one still accepts an explicit view, which wins
+            if (self.cameras is not None and not self.tracking_cameras_only()) or (
+                self.streaming_sensor_prim_path is not None
+            ):
                 raise ValueError("Choose view or legacy cameras/streaming_sensor_prim_path, not both.")
+
+    def tracking_cameras_only(self) -> bool:
+        """Whether every declared camera is a :class:`TrackingCameraCfg`, so scene cameras are still discovered."""
+        return bool(self.cameras) and all(isinstance(camera, TrackingCameraCfg) for camera in self.cameras)
 
     def __post_init__(self) -> None:
         if self.background_color is not None:
@@ -307,12 +358,22 @@ class VisualizerCfg:
         if self.cameras is not None:
             if not self.cameras:
                 raise ValueError("cameras must contain at least one display source.")
-            if sum(isinstance(camera, PerspectiveCameraCfg) for camera in self.cameras) > 1:
+            if (
+                sum(
+                    isinstance(camera, PerspectiveCameraCfg) and not isinstance(camera, TrackingCameraCfg)
+                    for camera in self.cameras
+                )
+                > 1
+            ):
                 raise ValueError(
                     "cameras may contain at most one PerspectiveCameraCfg, the viewer's interactive camera."
                 )
-            self.streaming_view = any(isinstance(camera, SceneCameraCfg) for camera in self.cameras)
-            if isinstance(camera := self.cameras[0], PerspectiveCameraCfg):
+            # tracking cameras only add to the cameras the visualizer finds, so they leave the streaming choice alone
+            if not self.tracking_cameras_only():
+                self.streaming_view = any(isinstance(camera, SceneCameraCfg) for camera in self.cameras)
+            if isinstance(camera := self.cameras[0], PerspectiveCameraCfg) and not isinstance(
+                camera, TrackingCameraCfg
+            ):
                 self.eye, self.lookat, self.focal_length = camera.eye, camera.lookat, camera.focal_length
 
 

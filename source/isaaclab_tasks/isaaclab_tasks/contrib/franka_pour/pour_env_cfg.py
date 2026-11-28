@@ -39,7 +39,7 @@ from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdF
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
-from isaaclab.visualizers import VisualizerCfg
+from isaaclab.visualizers import TrackingCameraCfg, VisualizerCfg
 
 from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
 
@@ -536,6 +536,7 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
             eye=(1.4, 1.4, 0.9),
             lookat=(0.5, 0.0, 0.1),
             backend=MultiBackendVisualizerCfg(kit=KitBackendCfg(origin_type="env", origin_env_index=0)),
+            cameras=[TrackingCameraCfg(eye=(1.4, 1.4, 0.9), lookat=(0.5, 0.0, 0.1))],
         )
     )
     observations: ResetDatasetObservationsCfg = ResetDatasetObservationsCfg()
@@ -813,6 +814,8 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
         super().play_mode()
         self.scene.num_envs = 1
         self.sim.visualizer_cfgs.eye = (0.9, 0.65, 0.5)
+        if self.sim.visualizer_cfgs.cameras:
+            self.sim.visualizer_cfgs.cameras[0].eye = (0.9, 0.65, 0.5)
         self.curriculum_freeze = True
 
 

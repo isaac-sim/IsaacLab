@@ -123,7 +123,9 @@ class BaseVisualizer(ABC):
                 pool = self._env_ids if self._env_ids is not None else range(num_envs)
                 num_tiles = min(int(self.cfg.streaming_envs), _VISUALIZER_MAX_TILES, len(pool))
                 env_ids = sorted(random.sample(pool, num_tiles))
-        automatic_sources = self.cfg.cameras is None and self.cfg.streaming_sensor_prim_path is None
+        automatic_sources = (
+            self.cfg.cameras is None or self.cfg.tracking_cameras_only()
+        ) and self.cfg.streaming_sensor_prim_path is None
         rtx_path = getattr(self.cfg.backend, "rtx_camera_path", None)
         for camera in cameras:
             if isinstance(camera, PerspectiveCameraCfg):
@@ -157,6 +159,23 @@ class BaseVisualizer(ABC):
         if self.current_image_view is None or self.current_image_view.camera is None:
             return None
         return self.current_image_view.read_rgb(self._sim.get_physics_step_count())
+
+    @property
+    def has_tracking_view(self) -> bool:
+        """Whether this visualizer displays a Tracking Camera that a recording can read.
+
+        ``False`` unless the visualizer supports tracking cameras and overrides this together with
+        :meth:`render_tracking_rgb_array`.
+        """
+        return False
+
+    def render_tracking_rgb_array(self) -> np.ndarray:
+        """Download the first Tracking Camera view for CPU consumers, whatever the window shows.
+
+        Raises:
+            NotImplementedError: If the visualizer does not support tracking cameras.
+        """
+        raise NotImplementedError(f"{type(self).__name__} does not support tracking cameras.")
 
     @abstractmethod
     def step(self, dt: float) -> None:
