@@ -77,7 +77,6 @@ def index_fill_(
             data.masked_fill_(indices.reshape(shape), value)
         else:
             # An empty Python sequence is inferred as floating point by PyTorch.
-            # Preserve empty selections, but never truncate nonempty noninteger indices.
             if indices.numel() and (indices.dtype.is_floating_point or indices.dtype.is_complex):
                 raise TypeError(f"Expected integer indices or a boolean mask, received {indices.dtype}.")
             data.index_fill_(dim, indices.to(dtype=torch.long), value)
