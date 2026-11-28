@@ -127,6 +127,30 @@ def test_invalid_batch_size(circular_buffer):
         circular_buffer[torch.tensor([0, 0], device=circular_buffer.device)]
 
 
+@pytest.mark.parametrize("key", [torch.tensor(0), torch.tensor([[0], [1], [0]]), torch.zeros(3, 2, dtype=torch.long)])
+def test_read_key_requires_one_index_per_batch(circular_buffer, key):
+    circular_buffer.append(torch.ones(3, 2))
+    with pytest.raises(ValueError, match="Expected key shape"):
+        _ = circular_buffer[key]
+
+
+@pytest.mark.parametrize("dtype", [torch.float32, torch.complex64, torch.bool])
+def test_read_key_requires_integer_indices(circular_buffer, dtype):
+    circular_buffer.append(torch.ones(3, 2))
+    with pytest.raises(TypeError, match="Expected integer history indices"):
+        _ = circular_buffer[torch.zeros(3, dtype=dtype)]
+
+
+def test_read_key_keeps_valid_per_batch_indices(circular_buffer):
+    first = torch.arange(6).reshape(3, 2)
+    second = first + 10
+    circular_buffer.append(first)
+    circular_buffer.append(second)
+    for dtype in (torch.int32, torch.int64):
+        key = torch.tensor([0, 1, 0], dtype=dtype)
+        torch.testing.assert_close(circular_buffer[key], torch.stack((second[0], first[1], second[2])))
+
+
 def test_key_greater_than_pushes(circular_buffer):
     """Test retrieving data with a key greater than the number of pushes.
 
