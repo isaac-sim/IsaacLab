@@ -241,16 +241,23 @@ class Timer(ContextDecorator):
             from ..app.loading_screen import report_activity
 
             report_activity(self._activity)
-        self.start()
+        try:
+            self.start()
+        except BaseException:
+            if self._activity is not None:
+                report_activity(None)
+            raise
         return self
 
     def __exit__(self, *exc_info: Any):
         """Stop timing."""
-        self.stop()
-        if self._activity is not None:
-            from ..app.loading_screen import report_activity
+        try:
+            self.stop()
+        finally:
+            if self._activity is not None:
+                from ..app.loading_screen import report_activity
 
-            report_activity(None)
+                report_activity(None)
         if self._enable and self._msg is not None and Timer.enable_display_output:
             parts = [f"Last: {(self._elapsed_time * self._multiplier):0.6f} {self._format}"]
             if self._name is not None:
