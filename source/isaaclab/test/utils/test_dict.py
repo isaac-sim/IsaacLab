@@ -5,6 +5,7 @@
 
 import enum
 from collections import namedtuple
+from types import MappingProxyType
 
 import numpy as np
 import pytest
@@ -179,6 +180,39 @@ def test_nested_conversion_preserves_requested_backend():
 
     assert isinstance(converted["outer"]["values"], torch.Tensor)
     torch.testing.assert_close(converted["outer"]["values"], torch.tensor([1.0, 2.0, 3.0]))
+
+
+def test_update_dict_replaces_non_mapping_with_mapping() -> None:
+    """Nested overrides can enable or replace a previously non-mapping option."""
+    original = {"options": {"sensor": None, "unchanged": 3}}
+    replacement = {"options": {"sensor": {"rate": 10, "nested": {"enabled": True}}}}
+    expected = {"options": {"sensor": {"rate": 10, "nested": {"enabled": True}}, "unchanged": 3}}
+
+    assert dict_utils.update_dict(original, replacement) is original
+    assert original == expected
+    assert replacement == {"options": {"sensor": {"rate": 10, "nested": {"enabled": True}}}}
+
+
+def test_update_dict_merges_existing_nested_dict() -> None:
+    """Nested dictionary updates retain unrelated keys and preserve the destination dictionary."""
+    nested = {"unchanged": 1, "replace": 2}
+    original = {"options": nested}
+    assert dict_utils.update_dict(original, {"options": {"replace": 3, "new": 4}}) is original
+    assert original["options"] is nested
+    assert nested == {"unchanged": 1, "replace": 3, "new": 4}
+
+
+def test_update_dict_read_only_mapping() -> None:
+    """Nonempty updates copy a read-only mapping; empty updates leave it intact."""
+    backing = {"unchanged": 1, "replace": 2}
+    nested = MappingProxyType(backing)
+    original = {"options": nested}
+    assert dict_utils.update_dict(original, {"options": {}}) is original
+    assert original["options"] is nested
+
+    assert dict_utils.update_dict(original, {"options": {"replace": 3, "new": 4}}) is original
+    assert original["options"] == {"unchanged": 1, "replace": 3, "new": 4}
+    assert backing == {"unchanged": 1, "replace": 2}
 
 
 def test_slice_round_trip_preserves_tuple_containers():
