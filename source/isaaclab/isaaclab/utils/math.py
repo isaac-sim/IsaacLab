@@ -1479,8 +1479,10 @@ def sample_gaussian(
     """Sample using gaussian distribution.
 
     Args:
-        mean: Mean of the gaussian. Must be broadcastable to :attr:`size`.
-        std: Non-negative standard deviation. Must be broadcastable to :attr:`size`.
+        mean: Mean of the gaussian. Integer inputs are converted to floating point.
+            Must be broadcastable to :attr:`size`.
+        std: Non-negative standard deviation. Integer inputs are converted to floating point.
+            Must be broadcastable to :attr:`size`.
         size: The shape of the tensor.
         device: Device on which to generate the samples.
 
@@ -1492,9 +1494,15 @@ def sample_gaussian(
     """
     if isinstance(size, int):
         size = (size,)
-    mean = torch.as_tensor(mean, device=device).expand(size)
-    std = torch.as_tensor(std, device=device).expand(size)
-    return torch.normal(mean=mean, std=std)
+    mean = torch.as_tensor(mean, device=device)
+    std = torch.as_tensor(std, device=device)
+    # torch.normal requires floating-point parameters. Integer-valued means and
+    # standard deviations are valid real numbers, including integer literals.
+    if not (mean.is_floating_point() or mean.is_complex()):
+        mean = mean.to(dtype=std.dtype if std.is_floating_point() else torch.get_default_dtype())
+    if not (std.is_floating_point() or std.is_complex()):
+        std = std.to(dtype=mean.dtype if mean.is_floating_point() else torch.get_default_dtype())
+    return torch.normal(mean=mean.expand(size), std=std.expand(size))
 
 
 def sample_cylinder(
