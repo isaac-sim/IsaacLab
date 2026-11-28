@@ -244,7 +244,8 @@ class CircularBuffer:
             The data from the circular buffer. Shape is (batch_size, ...).
 
         Raises:
-            ValueError: If the input key has a different batch size than the buffer.
+            ValueError: If the input key does not have shape (batch_size,).
+            TypeError: If the key does not contain integer history indices.
             RuntimeError: If the buffer is empty.
             NotImplementedError: If the buffer was created with ``stack_dim`` set.
         """
@@ -252,9 +253,12 @@ class CircularBuffer:
             raise NotImplementedError(
                 "Indexing via __getitem__ is not supported in stacked-output mode. Use .stacked or .buffer instead."
             )
-        # check the batch size
-        if len(key) != self.batch_size:
-            raise ValueError(f"The argument 'key' has length {key.shape[0]}, while expecting {self.batch_size}")
+        # Each environment must select exactly one history slot. A column
+        # vector would broadcast against _num_pushes and select a matrix.
+        if key.shape != (self.batch_size,):
+            raise ValueError(f"Expected key shape ({self.batch_size},), received {key.shape}.")
+        if key.dtype.is_floating_point or key.dtype.is_complex or key.dtype == torch.bool:
+            raise TypeError(f"Expected integer history indices, received {key.dtype}.")
         if self._buffer is None:
             raise RuntimeError("The buffer is empty. Please append data before retrieving.")
 
