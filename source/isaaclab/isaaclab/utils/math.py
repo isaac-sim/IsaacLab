@@ -1378,7 +1378,7 @@ def sample_triangle(lower: float, upper: float, size: int | tuple[int, ...], dev
     if isinstance(size, int):
         size = (size,)
     # create random tensor in the range [-1, 1]
-    r = 2 * torch.rand(*size, device=device) - 1
+    r = 2 * torch.rand(size, device=device) - 1
     # convert to a symmetric triangular distribution in [-1, 1] with the inverse CDF
     r = torch.where(r < 0.0, torch.sqrt(1.0 + r) - 1.0, 1.0 - torch.sqrt(1.0 - r))
     # rescale back to [0, 1]
@@ -1405,7 +1405,7 @@ def sample_uniform(
     if isinstance(size, int):
         size = (size,)
     # return tensor
-    return torch.rand(*size, device=device) * (upper - lower) + lower
+    return torch.rand(size, device=device) * (upper - lower) + lower
 
 
 def sample_uniform_from_ranges(
