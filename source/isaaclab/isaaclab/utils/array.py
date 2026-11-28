@@ -117,7 +117,12 @@ def convert_to_torch(
             array = array.view(wp.int32)
         tensor = wp.to_torch(array)
     else:
-        tensor = torch.Tensor(array)
+        # Apply an explicit dtype during construction, before the default
+        # floating-point conversion can lose precision in Python sequences.
+        if dtype is None:
+            tensor = torch.Tensor(array)
+        else:
+            tensor = torch.as_tensor(array, dtype=dtype)
     # Convert tensor to the right device
     if device is not None and str(tensor.device) != str(device):
         tensor = tensor.to(device)

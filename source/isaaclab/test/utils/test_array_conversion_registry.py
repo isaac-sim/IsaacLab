@@ -8,7 +8,7 @@ import pytest
 import torch
 import warp as wp
 
-from isaaclab.utils.array import index_fill_
+from isaaclab.utils.array import convert_to_torch, index_fill_
 from isaaclab.utils.dict import convert_dict_to_backend
 
 pytestmark = pytest.mark.unit
@@ -56,3 +56,20 @@ def test_index_fill(device, dim, dtype, value, indices):
         if previous is not None:
             torch.cuda.set_sync_debug_mode(previous)
     torch.testing.assert_close(data.cpu(), expected)
+
+@pytest.mark.parametrize("values", [[16777217, -16777217], (16777217, -16777217)])
+def test_convert_to_torch_sequence_preserves_explicit_integer_dtype(values):
+    result = convert_to_torch(values, dtype=torch.int64)
+    torch.testing.assert_close(result, torch.tensor(values, dtype=torch.int64))
+
+
+def test_convert_to_torch_sequence_preserves_explicit_double_precision():
+    values = [1.0 + 2**-40, -1.0 - 2**-40]
+    result = convert_to_torch(values, dtype=torch.float64)
+    torch.testing.assert_close(result, torch.tensor(values, dtype=torch.float64), atol=0, rtol=0)
+
+
+def test_convert_to_torch_sequence_keeps_default_dtype():
+    values = [1, 2, 3]
+    result = convert_to_torch(values)
+    torch.testing.assert_close(result, torch.Tensor(values))
