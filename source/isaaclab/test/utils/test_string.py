@@ -293,3 +293,14 @@ def test_clear_resolve_matching_names_cache():
     idx, names = string_utils.resolve_matching_names("a", target_names)
     assert idx == [0]
     assert names == ["a"]
+
+@pytest.mark.parametrize(
+    "component", [r"env_\d+", "env_0+", "env_0?", "env_(0|1)", "env_0{2}", "env_.", "env_0$", "env_[01]"]
+)
+def test_find_root_prim_path_detects_regex_components(component):
+    assert string_utils.find_root_prim_path_from_regex(f"/World/envs/{component}/Robot") == ("/World/envs", 3)
+
+
+def test_find_root_prim_path_preserves_literal_paths():
+    assert string_utils.find_root_prim_path_from_regex("/World/envs/env_0/Robot") == (None, None)
+    assert string_utils.find_root_prim_path_from_regex("/World/envs/env_.*") == ("/World/envs", 3)

@@ -450,7 +450,7 @@ def find_unique_string_name(initial_name: str, is_unique_fn: Callable[[str], boo
     return result
 
 
-def find_root_prim_path_from_regex(prim_path_regex: str) -> tuple[str, int]:
+def find_root_prim_path_from_regex(prim_path_regex: str) -> tuple[str | None, int | None]:
     """Find the first prim above the regex pattern prim and its position.
 
     Args:
@@ -460,7 +460,7 @@ def find_root_prim_path_from_regex(prim_path_regex: str) -> tuple[str, int]:
         The prim path to the parent of the regex prim and the level of the regex prim in the USD stage tree.
         Both are None when the path contains no regex pattern.
     """
-    regex_chars = set("[]*|^")
+    regex_chars = set(r".^$*+?{}[]\|()")
     prim_paths_list = str(prim_path_regex).split("/")
     for root_idx, prim_path in enumerate(prim_paths_list):
         if regex_chars.intersection(prim_path):
