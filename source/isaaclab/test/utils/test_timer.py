@@ -240,8 +240,10 @@ def test_reset_specific_timer():
     assert "keep" in Timer.timing_info
     assert "remove" not in Timer.timing_info
 
+
+@pytest.mark.kitless
 @pytest.mark.parametrize("failure", ["start", "stop"])
-def test_timer_activity_restored_when_synchronization_fails(monkeypatch, failure):
+def test_timer_activity_restored_when_synchronization_fails(monkeypatch: pytest.MonkeyPatch, failure: str) -> None:
     """A failed timer must pop its own activity without losing the enclosing one."""
     activities = ["outer"]
     loading_screen = ModuleType("isaaclab.app.loading_screen")
@@ -259,20 +261,14 @@ def test_timer_activity_restored_when_synchronization_fails(monkeypatch, failure
     def fail():
         raise RuntimeError("synchronization failed")
 
-    if failure == "start":
-        monkeypatch.setattr(timer, "_synchronize", fail)
-    else:
-        calls = 0
+    monkeypatch.setattr(wp, "synchronize", fail if failure == "start" else lambda: None)
 
-        def fail_on_stop():
-            nonlocal calls
-            calls += 1
-            if calls == 2:
-                fail()
-
-        monkeypatch.setattr(timer, "_synchronize", fail_on_stop)
-
+    entered = False
     with pytest.raises(RuntimeError, match="synchronization failed"):
         with timer:
+            entered = True
             assert activities == ["outer", "inner"]
+            if failure == "stop":
+                monkeypatch.setattr(wp, "synchronize", fail)
+    assert entered == (failure == "stop")
     assert activities == ["outer"]
