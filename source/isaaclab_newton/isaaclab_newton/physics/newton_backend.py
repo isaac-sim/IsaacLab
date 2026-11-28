@@ -529,6 +529,9 @@ class NewtonBackend:
         if self.cfg.collision_cfg is not None and (contact_max := self.cfg.collision_cfg.rigid_contact_max) is not None:
             # Solver scratch and the collision pipeline must agree on the explicit contact capacity.
             self.model.rigid_contact_max = contact_max
+        self.collision_pipeline = solver_cfg.class_type.prepare_model(
+            solver_cfg, self.model, self.cfg.collision_cfg, mode
+        )
         ops = self.solver_ops = instantiate(solver_cfg, self.model, mode, env_template)
         solver = self.solver = ops.native
         # A newly built solver already reflects the setup-time model. Subsequent changes remain queued.
@@ -629,6 +632,8 @@ class NewtonBackend:
         if ops is None:
             raise RuntimeError("Newton state was authored before the solver was initialized (init_solver).")
         ops.reset(state, self.world_mask)
+        if self.collision_pipeline is not None:
+            self.collision_pipeline.reset_contact_matching(self.world_mask)
         ops.eval_fk(state, self.world_mask, self.fk_mask)
         self.fk_mask.zero_()
         self.world_mask.zero_()

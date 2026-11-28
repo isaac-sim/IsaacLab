@@ -26,6 +26,7 @@ from isaaclab_newton.physics import (
     FeatherstoneSolverCfg,
     KaminoPADMMSolverCfg,
     MJWarpSolverCfg,
+    MPMSolver,
     MPMSolverCfg,
     NewtonBackend,
     NewtonBackendCfg,
@@ -44,7 +45,7 @@ from isaaclab_newton.physics import (
 )
 from isaaclab_newton.physics.newton_scene_data import NewtonSceneDataBackend
 from isaaclab_newton.renderers.newton_warp_renderer import NewtonWarpRenderer
-from isaaclab_newton.test.fixtures.mock_newton import backend_stub
+from isaaclab_newton.test.fixtures.mock_newton import backend_stub, solver_driver
 from newton import ModelFlags
 from newton.actuators import DrivePID
 from newton.solvers import SolverImplicitMPM, SolverKamino, SolverMuJoCo, SolverVBD
@@ -596,6 +597,36 @@ def test_deterministic_collision_pipeline_grows_with_the_solver_contact_capacity
     assert observable_requests == []
 
 
+def test_collision_pipeline_matches_expanded_contact_capacity() -> None:
+    """Matching remains usable when the solver requires more contacts than the pipeline estimates."""
+    builder = newton.ModelBuilder(gravity=(0.0, 0.0, 0.0))
+    builder.add_ground_plane()
+    body = builder.add_body(xform=wp.transform(wp.vec3(0.0, 0.0, 0.1)))
+    builder.add_shape_sphere(body, radius=0.1)
+    model = builder.finalize(device="cpu")
+    solver = SimpleNamespace(model=model, get_max_contact_count=lambda: 2)
+    backend = backend_stub(
+        cfg=NewtonCfg(
+            solver_cfg=NewtonSolverCfg(),
+            collision_cfg=NewtonCollisionPipelineCfg(broad_phase="nxn", rigid_contact_max=1, contact_matching="latest"),
+        ),
+        model=model,
+        solver=solver,
+        solver_ops=solver_driver(NewtonSolver, NewtonSolverCfg(), solver),
+        collision_pipeline=None,
+        contacts=None,
+        device="cpu",
+        deterministic_mode=wp.DeterministicMode.NOT_GUARANTEED,
+    )
+
+    backend._allocate_contacts()
+
+    assert backend.contacts.rigid_contact_max == 2
+    state = model.state()
+    backend.collision_pipeline.collide(state, backend.contacts)
+    assert int(backend.contacts.rigid_contact_count.numpy()[0]) > 0
+
+
 @pytest.mark.kitless
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_hydroelastic_contacts_keep_per_contact_stiffness_when_nconmax_grows(device: str) -> None:
@@ -940,6 +971,7 @@ def test_forward_resolves_flagged_worlds_once_and_not_while_an_outer_graph_recor
         cfg=manager._cfg,
         state_0=object(),
         solver=object(),
+        collision_pipeline=None,
         solver_ops=RecordingSolver(manager._cfg.solver_cfg, None, wp.DeterministicMode.NOT_GUARANTEED),
         device=wp.get_device("cpu"),
         world_mask=world_mask,
@@ -959,6 +991,50 @@ def test_forward_resolves_flagged_worlds_once_and_not_while_an_outer_graph_recor
     assert fks == [([False, True], [True, False])]
     assert resets == [[False, True]]
     assert not world_mask.numpy().any() and not fk_mask.numpy().any()
+
+
+def test_forward_keeps_implicit_mpm_history_on_automatic_resets():
+    """Authored-state boundaries must not reset shared-grid MPM history; tasks reset it explicitly."""
+    world_mask = wp.array([True, False], dtype=wp.bool, device="cpu")
+    fk_mask = wp.array([], dtype=wp.bool, device="cpu")
+    matching_resets: list[list[bool]] = []
+
+    class _RejectingSolver:
+        def reset(self, state, world_mask=None, flags=0):
+            raise AssertionError("automatic resets must not clear implicit-MPM history")
+
+    class NoFKSolver(MPMSolver):
+        def eval_fk(self, *args):
+            pass
+
+    manager = NewtonManager(NewtonCfg(solver_cfg=MPMSolverCfg(class_type=NoFKSolver)))
+    manager.backend = backend_stub(
+        cfg=manager._cfg,
+        state_0=object(),
+        world_mask=world_mask,
+        fk_mask=fk_mask,
+        kinematics_dirty=True,
+        transforms_may_change_on_graph_replay=False,
+        solver=_RejectingSolver(),
+        solver_ops=solver_driver(NoFKSolver, manager._cfg.solver_cfg, _RejectingSolver()),
+        collision_pipeline=None,
+        model_changes=set(),
+        state_version=0,
+    )
+
+    class RecordingPipeline:
+        def reset_contact_matching(self, worlds):
+            matching_resets.append(worlds.numpy().tolist())
+
+    manager.backend.collision_pipeline = RecordingPipeline()
+    manager.backend.timestamp = 0
+
+    manager.forward()
+    manager.forward()
+
+    # MPM bypasses the base solver reset, so matching must reset at the shared forward boundary.
+    assert matching_resets == [[True, False]]
+    assert world_mask.numpy().tolist() == [False, False]
 
 
 @pytest.mark.parametrize("articulation_mask", [None, [False, True]], ids=["all_articulations", "masked"])

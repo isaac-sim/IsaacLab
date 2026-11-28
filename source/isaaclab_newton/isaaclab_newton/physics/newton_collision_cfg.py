@@ -281,6 +281,14 @@ class NewtonCollisionPipelineCfg:
     sdf_all_shapes: SDFAllShapesCfg | None = None
     """Optional strict SDF provisioning for every finite colliding shape."""
 
+    contact_matching: Literal["disabled", "latest", "sticky"] = "disabled"
+    """Frame-to-frame rigid-contact matching mode.
+
+    ``"latest"`` matches contacts with the previous frame; ``"sticky"`` also retains
+    friction anchors. Enable either mode for standalone :attr:`VBDSolverCfg.rigid_contact_history`.
+    Matching adds contact sorting and history storage. Defaults to ``"disabled"`` (Newton's default).
+    """
+
     def to_pipeline_args(self) -> dict[str, Any]:
         """Build keyword arguments for :class:`newton.CollisionPipeline`.
 
